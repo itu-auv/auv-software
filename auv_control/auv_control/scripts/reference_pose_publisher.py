@@ -124,10 +124,10 @@ class ReferencePosePublisherNode:
         self.min_z = rospy.get_param("~min_z", -2.0)
         self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
         self.tf_lookup_timeout = rospy.Duration(
-            rospy.get_param("~tf_lookup_timeout", 0.2)
+            rospy.get_param("~tf_lookup_timeout", 0.8)
         )
         self.tf_freshness_threshold = rospy.Duration(
-            rospy.get_param("~tf_freshness_threshold", 0.2)
+            rospy.get_param("~tf_freshness_threshold", 0.8)
         )
 
         self.killswitch_sub = rospy.Subscriber(

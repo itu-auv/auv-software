@@ -320,7 +320,7 @@ class TorpedoTaskState(smach.State):
                     dist_threshold=0.03,
                     yaw_threshold=0.05,
                     confirm_duration=5.0,
-                    timeout=30.0,
+                    timeout=50.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
@@ -334,7 +334,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_1",
-                LaunchTorpedoState(id=1),
+                LaunchTorpedoState(id=2),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_LAUNCH_1",
                     "preempted": "preempted",
@@ -343,7 +343,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_LAUNCH_1",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_FIRE_FRAME_2",
                     "preempted": "preempted",
@@ -356,10 +356,10 @@ class TorpedoTaskState(smach.State):
                     source_frame=f"{self.base_link}/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[1],
                     angle_offset=0.0,
-                    dist_threshold=0.03,
+                    dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=5.0,
-                    timeout=30.0,
+                    timeout=50.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
@@ -373,7 +373,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_2",
-                LaunchTorpedoState(id=2),
+                LaunchTorpedoState(id=1),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
                     "preempted": "preempted",
@@ -382,7 +382,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_2_LAUNCH",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_HOLES_DETECTION",
                     "preempted": "preempted",
