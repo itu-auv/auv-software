@@ -21,8 +21,8 @@ cameras:
     frame: "taluy/base_link/bottom_camera_optical_link"
     yolo_topic: "/yolo_result_bottom"
     handler: "bottom_camera_handler"
-    image_width: 640
-    image_height: 480
+    image_width: 1920
+    image_height: 1080
     id_tf_map:
       0: bin_blood_link
       1: bin_fire_link
@@ -93,8 +93,8 @@ cameras:
     frame: "taluy/base_link/bottom_camera_optical_link"
     yolo_topic: "/yolo_result_seg"
     handler: "segment_camera_handler"
-    image_width: 640
-    image_height: 480
+    image_width: 1920
+    image_height: 1080
     id_tf_map:
       0: bandaid_link
       1: electric_link
@@ -110,7 +110,7 @@ props:
   gate_survey_repair_link: {name: "gate_survey_repair", real_height: 0.3048, real_width: 0.3048}
   slalom_red_pipe_link: {name: "slalom_red_pipe", real_height: 0.9, real_width: 0.0254}
   slalom_white_pipe_link: {name: "slalom_white_pipe", real_height: 0.9, real_width: 0.0254}
-  torpedo_map_link: {name: "torpedo_map", real_height: 0.6096, real_width: 0.6096}
+  torpedo_map_link: {name: "torpedo_map", real_height: 0.6096}
   torpedo_hole_left_mid_link: {name: "torpedo_hole", real_height: 0.1525, real_width: 0.1525}
   torpedo_hole_bottom_right_link: {name: "torpedo_hole", real_height: 0.1525, real_width: 0.1525}
   torpedo_hole_bottom_mid_link: {name: "torpedo_hole", real_height: 0.1275, real_width: 0.1275}
