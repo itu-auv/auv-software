@@ -1,0 +1,13 @@
+created_at: '2026-07-01T01:31:49.948766'
+paths:
+- name: path1
+  ref_a: gate_exit
+  ref_b: bin_basket_front_link_kde
+  b_mode: 1
+  b_reference_distance: 12.0
+  waypoint_prefix: path
+  waypoints:
+  - x: 4.04
+    y: -4.02
+    z: -1.0
+    yaw: 13.999999999999998

@@ -1,0 +1,24 @@
+created_at: '1970-01-01T02:33:06.463116'
+paths:
+- name: path1
+  ref_a: gate_exit
+  ref_b: bin_basket_front_link_kde
+  b_mode: 1
+  b_reference_distance: 12.0
+  waypoint_prefix: path
+  waypoints:
+  - x: 3.9296482412060305
+    y: -4.1206030150753765
+    z: -1.0
+    yaw: 34.00000000000001
+- name: path2
+  ref_a: bin_exit
+  ref_b: ''
+  b_mode: 0
+  b_reference_distance: 12.0
+  waypoint_prefix: path
+  waypoints:
+  - x: -0.01005025125628145
+    y: 6.010050251256281
+    z: -1.0
+    yaw: 0.0

@@ -114,7 +114,7 @@ class KdeObjectMapper:
         )
 
         # ── Services ─────────────────────────────────────────────────────
-        rospy.Service("clear_object_transforms", Trigger, self._clear_callback)
+        #rospy.Service("clear_object_transforms", Trigger, self._clear_callback)
         rospy.Service("kde_map/clear", Trigger, self._clear_callback)
         rospy.Service("kde_map/trigger_update", Trigger, self._trigger_callback)
 
