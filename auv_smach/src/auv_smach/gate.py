@@ -249,6 +249,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_GATE",
                 DynamicPathState(
+                    max_linear_velocity=0.4,
                     plan_target_frame="gate_passage",
                 ),
                 transitions={
