@@ -1,0 +1,33 @@
+name: build and push base docker images
+
+# scheduled run every day at 00:00
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  build-and-push-desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Login to ghcr.io for docker
+      - name: Login to Github Containter Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.DEPLOY_TOKEN }}
+
+      # Build and push the base image
+      - name: Build and push base image
+        run: |
+          export PATH=$PATH:${{ github.workspace }}/docker
+          auv-docker-build desktop base true
+

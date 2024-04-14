@@ -1,0 +1,62 @@
+#!/bin/bash
+
+build_docker() {
+    local nvcr_base_image="nvcr.io/nvidia/l4t-ml:r35.2.1-py3"
+    local dustynv_base_image="dustynv/ros:noetic-ros-base-l4t-r35.2.1"
+
+    local core_image=""
+    local image_tag=""
+    local dockerfile=""
+    local platform_arch=""
+
+    local platform=${1:-"None"}
+    local image=${2:-"None"}
+    local push=${3:-"false"}
+
+    local base_image="ghcr.io/itu-auv/auv-software-${platform}-base:latest"
+    local main_image="ghcr.io/itu-auv/auv-software-${platform}:latest"
+
+    if [[ $platform == "tegra" ]]; then
+        core_image=$dustynv_base_image
+        platform_arch="linux/arm64"
+    elif [[ $platform == "desktop" ]]; then
+        core_image="ros:noetic-ros-base"
+        platform_arch="linux/amd64"
+    else
+        echo "Invalid platform: $platform"
+        return 1
+    fi
+
+    local docker_base_image=""
+    if [[ $image == "base" ]]; then
+        image_tag=$base_image
+        dockerfile="docker/tegra/Dockerfile.auv-base"
+        docker_base_image=$core_image
+    elif [[ $image == "main" ]]; then
+        image_tag=$main_image
+        dockerfile="docker/tegra/Dockerfile.auv"
+        docker_base_image=$base_image
+    else
+        echo "Invalid image: $image"
+        return 1
+    fi
+
+    echo "Building $image image for $platform platform, docker platform $platform_arch using base image: $docker_base_image"
+
+    docker buildx build \
+        --platform $platform_arch \
+        -t $image_tag \
+        -f $dockerfile \
+        --build-arg BASE_IMAGE=$docker_base_image \
+        .
+
+    if [[ $push == "true" ]]; then
+        docker push $image_tag
+    fi
+}
+
+platform=${1:-"None"}
+image=${2:-"None"}
+push=${3:-"false"}
+
+build_docker $platform $image $push
