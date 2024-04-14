@@ -30,11 +30,11 @@ build_docker() {
     local docker_base_image=""
     if [[ $image == "base" ]]; then
         image_tag=$base_image
-        dockerfile="docker/tegra/Dockerfile.auv-base"
+        dockerfile="docker/Dockerfile.auv-base"
         docker_base_image=$core_image
     elif [[ $image == "main" ]]; then
         image_tag=$main_image
-        dockerfile="docker/tegra/Dockerfile.auv"
+        dockerfile="docker/Dockerfile.auv"
         docker_base_image=$base_image
     else
         echo "Invalid image: $image"
