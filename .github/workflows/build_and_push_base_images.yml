@@ -1,17 +1,17 @@
-name: build and push main docker images
+name: base docker images
 
+# scheduled run every day at 00:00 GMT +03:00
 on:
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: "0 21 * * *"
+
+concurrency:
+  group: base_images
+  cancel-in-progress: true
 
 env:
   BASE_IMAGE_TAG: ghcr.io/itu-auv/auv-software-base
-  IMAGE_TAG: ghcr.io/itu-auv/auv-software
 
 jobs:
   build-and-push:
@@ -21,12 +21,14 @@ jobs:
       matrix:
         host: [desktop, tegra]
         include:
-          # configuration for desktop image
-          - platform: linux/amd64
+          # configuration for desktop base image
+          - base_image: ros:noetic-ros-base
+            platform: linux/amd64
             architecture: amd64
             host: desktop
-          # configuration for tegra image
-          - platform: linux/arm64
+          # configuration for tegra base image
+          - base_image: dustynv/ros:noetic-ros-base-l4t-r35.2.1
+            platform: linux/arm64
             architecture: arm64
             host: tegra
 
@@ -49,22 +51,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
         
-      - name: Build and push main image
+      - name: Build and push base image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./docker/Dockerfile.auv
+          file: ./docker/Dockerfile.auv-base
           platforms: ${{ matrix.platform }}
           push: true
           build-args: |
-            BASE_IMAGE=${{ env.BASE_IMAGE_TAG }}:latest-${{ matrix.architecture }}
+            BASE_IMAGE=${{ matrix.base_image }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false
           sbom: false
           tags: |
-            ${{ env.IMAGE_TAG }}:latest-${{ matrix.architecture }}
-            ${{ env.IMAGE_TAG }}:${{ github.sha }}-${{ matrix.architecture }}
+            ${{ env.BASE_IMAGE_TAG }}:latest-${{ matrix.architecture }}
+            ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }}-${{ matrix.architecture }}
 
   create-manifests:
     runs-on: ubuntu-latest
@@ -86,15 +88,15 @@ jobs:
       - name: Create SHA manifest and push
         run: |
           docker manifest create \
-          ${{ env.IMAGE_TAG }}:${{ github.sha }} \
-            --amend ${{ env.IMAGE_TAG }}:${{ github.sha }}-amd64 \
-            --amend ${{ env.IMAGE_TAG }}:${{ github.sha }}-arm64
-          docker manifest push ${{ env.IMAGE_TAG }}:${{ github.sha }}
+          ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }} \
+            --amend ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }}-amd64 \
+            --amend ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }}-arm64
+          docker manifest push ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }}
 
       - name: Create latest manifest and push
         run: |
           docker manifest create \
-          ${{ env.IMAGE_TAG }}:latest \
-            --amend ${{ env.IMAGE_TAG }}:latest-amd64 \
-            --amend ${{ env.IMAGE_TAG }}:latest-arm64
-          docker manifest push ${{ env.IMAGE_TAG }}:latest
+          ${{ env.BASE_IMAGE_TAG }}:latest \
+            --amend ${{ env.BASE_IMAGE_TAG }}:latest-amd64 \
+            --amend ${{ env.BASE_IMAGE_TAG }}:latest-arm64
+          docker manifest push ${{ env.BASE_IMAGE_TAG }}:latest
