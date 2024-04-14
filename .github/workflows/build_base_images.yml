@@ -11,8 +11,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DESKTOP_IMAGE_TAG: ghcr.io/itu-auv/auv-software-desktop-base
-  TEGRA_IMAGE_TAG: ghcr.io/itu-auv/auv-software-tegra-base
   BASE_IMAGE_TAG: ghcr.io/itu-auv/auv-software-base
 
 jobs:
@@ -26,24 +24,15 @@ jobs:
           # configuration for desktop base image
           - base_image: ros:noetic-ros-base
             platform: linux/amd64
+            architecture: amd64
             host: desktop
           # configuration for tegra base image
           - base_image: dustynv/ros:noetic-ros-base-l4t-r35.2.1
             platform: linux/arm64
+            architecture: arm64
             host: tegra
 
     steps:
-      - name: Get matrix info
-        id: matrix_info
-        run: |
-          if [ "${{ matrix.host }}" == "desktop" ]; then
-            echo "image_tag=${{ env.DESKTOP_IMAGE_TAG }}" >> $GITHUB_OUTPUT
-          elif [ "${{ matrix.host }}" == "tegra" ]; then
-            echo "image_tag=${{ env.TEGRA_IMAGE_TAG }}" >> $GITHUB_OUTPUT
-          else
-            exit 1
-          fi
-
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -76,8 +65,8 @@ jobs:
           provenance: false
           sbom: false
           tags: |
-            ${{ steps.matrix_info.outputs.image_tag }}:latest
-            ${{ steps.matrix_info.outputs.image_tag }}:${{ github.sha }}
+            ${{ env.BASE_IMAGE_TAG }}:latest-${{ matrix.architecture }}
+            ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }}-${{ matrix.architecture }}
 
   create-manifests:
     runs-on: ubuntu-latest
@@ -100,14 +89,14 @@ jobs:
         run: |
           docker manifest create \
           ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }} \
-            --amend ${{ env.DESKTOP_IMAGE_TAG }}:${{ github.sha }} \
-            --amend ${{ env.TEGRA_IMAGE_TAG }}:${{ github.sha }}
+            --amend ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }}-amd64 \
+            --amend ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }}-arm64
           docker manifest push ${{ env.BASE_IMAGE_TAG }}:${{ github.sha }}
 
       - name: Create latest manifest and push
         run: |
           docker manifest create \
           ${{ env.BASE_IMAGE_TAG }}:latest \
-            --amend ${{ env.DESKTOP_IMAGE_TAG }}:latest \
-            --amend ${{ env.TEGRA_IMAGE_TAG }}:latest
+            --amend ${{ env.BASE_IMAGE_TAG }}:latest-amd64 \
+            --amend ${{ env.BASE_IMAGE_TAG }}:latest-arm64
           docker manifest push ${{ env.BASE_IMAGE_TAG }}:latest
