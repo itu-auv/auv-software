@@ -28,22 +28,27 @@ jobs:
         host: [desktop, tegra]
         include:
           # configuration for desktop base image
-          - image_tag: ${{ env.DESKTOP_IMAGE_TAG }}
-            base_image: ros:noetic-ros-base
+          - base_image: ros:noetic-ros-base
             platform: linux/amd64
             architecture: amd64
             host: desktop
           # configuration for tegra base image
-          - image_tag: ${{ env.TEGRA_IMAGE_TAG }}
-            base_image: dustynv/ros:noetic-ros-base-l4t-r35.2.1
+          - base_image: dustynv/ros:noetic-ros-base-l4t-r35.2.1
             platform: linux/arm64
             architecture: arm64
             host: tegra
 
     steps:
       - name: Get datetime for logging
-        id: datetime
-        run: echo "datetime=$(date +'%Y_%m_%d_%H_%M_%S')" >> $GITHUB_OUTPUT
+        id: matrix_info
+        run: |
+          if [ "${{ matrix.host }}" == "desktop" ]; then
+            echo "image_tag=${{ env.DESKTOP_IMAGE_TAG }}" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.host }}" == "tegra" ]; then
+            echo "image_tag=${{ env.TEGRA_IMAGE_TAG }}" >> $GITHUB_OUTPUT
+          else
+            exit 1
+          fi
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,8 +80,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
-            ${{ matrix.image_tag }}:latest
-            ${{ matrix.image_tag }}:${{ github.sha }}
+            ${{ steps.matrix_info.outputs.datetime }}:latest
+            ${{ steps.matrix_info.outputs.datetime }}:${{ github.sha }}
 
   create-manifests:
     runs-on: ubuntu-latest
