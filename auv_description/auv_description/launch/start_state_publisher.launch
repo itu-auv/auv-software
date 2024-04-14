@@ -15,6 +15,7 @@
     <param name="tf_prefix" value="$(arg namespace)" type="string" />
   </node>
 
+  <!-- TODO: remove the joint_state_publisher_gui after debugging to reduce dependencies -->
   <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui"
     type="joint_state_publisher_gui" if="$(arg use_gui)">
     <param name="tf_prefix" value="$(arg namespace)" type="string" />
