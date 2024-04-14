@@ -39,7 +39,7 @@ jobs:
             host: tegra
 
     steps:
-      - name: Get datetime for logging
+      - name: Get matrix info
         id: matrix_info
         run: |
           if [ "${{ matrix.host }}" == "desktop" ]; then
@@ -80,8 +80,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: |
-            ${{ steps.matrix_info.outputs.datetime }}:latest
-            ${{ steps.matrix_info.outputs.datetime }}:${{ github.sha }}
+            ${{ steps.matrix_info.outputs.image_tag }}:latest
+            ${{ steps.matrix_info.outputs.image_tag }}:${{ github.sha }}
 
   create-manifests:
     runs-on: ubuntu-latest
