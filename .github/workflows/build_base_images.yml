@@ -30,12 +30,10 @@ jobs:
           # configuration for desktop base image
           - base_image: ros:noetic-ros-base
             platform: linux/amd64
-            architecture: amd64
             host: desktop
           # configuration for tegra base image
           - base_image: dustynv/ros:noetic-ros-base-l4t-r35.2.1
             platform: linux/arm64
-            architecture: arm64
             host: tegra
 
     steps:
@@ -56,7 +54,7 @@ jobs:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
