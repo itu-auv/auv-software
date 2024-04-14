@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>auv_description</name>
+  <version>0.1.0</version>
+  <description>The meta-package containing all the description files for the auv robots.</description>
+
+  <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
+  <author email="senceryazici@gmail.com">Sencer Yazici</author>
+
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>auv_common_descriptions</depend>
+  <depend>taluy_description</depend>
+  <depend>robot_state_publisher</depend>
+  <depend>joint_state_publisher</depend>
+
+  <export>
+
+  </export>
+</package>
