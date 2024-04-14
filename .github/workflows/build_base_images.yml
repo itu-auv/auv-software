@@ -10,9 +10,9 @@ on:
   schedule:
     - cron: "0 21 * * *"
 
-# concurrency:
-#   group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
-#   cancel-in-progress: true
+concurrency:
+  group: base_images
+  cancel-in-progress: true
 
 jobs:
   build-and-push:
@@ -23,7 +23,7 @@ jobs:
         host: [desktop, tegra]
         include:
           # configuration for desktop base image
-          - image_tag: ghcr.io/itu-auv/auv-software-desktop-base
+          - image_tag: ghcr.io/itu-auv/auv-software-tegra-base
             base_image: ros:noetic-ros-base
             platform: linux/amd64
             host: desktop
@@ -36,7 +36,7 @@ jobs:
     steps:
       - name: Get datetime for logging
         id: datetime
-        run: echo "::set-output name=datetime::$(date +'%Y_%m_%d_%H_%M_%S')"
+        run: echo "datetime=$(date +'%Y_%m_%d_%H_%M_%S')" >> $GITHUB_OUTPUT
 
       - name: Checkout
         uses: actions/checkout@v4
