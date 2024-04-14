@@ -77,6 +77,8 @@ jobs:
             BASE_IMAGE=${{ matrix.base_image }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
           tags: |
             ${{ steps.matrix_info.outputs.image_tag }}:latest
             ${{ steps.matrix_info.outputs.image_tag }}:${{ github.sha }}
