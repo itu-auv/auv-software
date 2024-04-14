@@ -1,0 +1,16 @@
+# ARG BASE_IMAGE=nvcr.io/nvidia/l4t-ml:r35.2.1-py3
+ARG BASE_IMAGE=dustynv/ros:noetic-ros-base-l4t-r35.2.1
+
+FROM ${BASE_IMAGE}
+
+WORKDIR /auv_ws
+
+RUN apt-get update && \
+  apt-get install -y \
+  python3-vcstool \
+  python3-catkin-tools && \
+  # Install preliminary dependencies
+  apt-get install -y \
+  ros-noetic-robot-localization && \
+  rm -rf /var/lib/apt/lists/*
+
