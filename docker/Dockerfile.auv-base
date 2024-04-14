@@ -11,6 +11,9 @@ RUN apt-get update && \
   python3-catkin-tools && \
   # Install preliminary dependencies
   apt-get install -y \
+  ros-noetic-ros-control \
+  ros-noetic-ros-controllers \
+  ros-noetic-robot-state-publisher \
   ros-noetic-robot-localization && \
   rm -rf /var/lib/apt/lists/*
 
