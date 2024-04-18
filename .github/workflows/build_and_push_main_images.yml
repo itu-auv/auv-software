@@ -71,7 +71,7 @@ jobs:
             ${{ env.IMAGE_TAG }}:${{ github.sha }}-${{ matrix.architecture }}
 
   build-and-push-arm64:
-    runs-on: arm64-runner
+    runs-on: self-hosted
     
     strategy:
       matrix:
