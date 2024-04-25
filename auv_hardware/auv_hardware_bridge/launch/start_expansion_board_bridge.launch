@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="turquoise" />
+  <arg name="port" default="/dev/ttyACM0" />
+  <arg name="baudrate" default="1500000" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="rosserial_python" type="serial_node.py" name="expansion_board_bridge_node"
+      args="$(arg port) _baud:=$(arg baudrate)" output="screen" respawn="true" />
+  </group>
+
+</launch>
