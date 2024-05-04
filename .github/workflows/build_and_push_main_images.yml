@@ -109,8 +109,7 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE_TAG }}:latest-${{ matrix.architecture }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=local,mode=max
           provenance: false
           sbom: false
           tags: |
