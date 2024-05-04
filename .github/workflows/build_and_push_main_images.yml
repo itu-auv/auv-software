@@ -59,7 +59,8 @@ jobs:
           context: .
           file: ./docker/Dockerfile.auv
           platforms: ${{ matrix.platform }}
-          push: ${{ github.event_name == 'push' }}
+          # and not architecture == 'arm64' to avoid pushing the image twice
+          push: ${{ github.event_name == 'push' && not(matrix.architecture == 'arm64')}} 
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE_TAG }}:latest-${{ matrix.architecture }}
           cache-from: type=gha
@@ -109,7 +110,7 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE_TAG }}:latest-${{ matrix.architecture }}
-          cache-from: type=local,src=/tmp/.buildx-cache
+          # cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=warmup,dest=/tmp/.buildx-cache
           provenance: false
           sbom: false
