@@ -109,7 +109,7 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           build-args: |
             BASE_IMAGE=${{ env.BASE_IMAGE_TAG }}:latest-${{ matrix.architecture }}
-          cache-from: type=local,dest=/tmp/.buildx-cache
+          cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=warmup,dest=/tmp/.buildx-cache
           provenance: false
           sbom: false
