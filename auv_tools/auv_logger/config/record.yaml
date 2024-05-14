@@ -62,8 +62,8 @@ use_prefix: true
 
 # Output prefix (Use full path, dont use "~", 
 # ex: /home/username/path/to/folder)
-output_prefix: /home/nvidia/bags/record
+output_prefix: /home/jetson/bags/record
 
 # Output Full Name (Use full path, dont use "~", 
 # ex: /home/username/path/to/file.bag)
-output_name: /home/nvidia/test.bag
+output_name: /home/jetson/test.bag
