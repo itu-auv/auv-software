@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>auv_cmd_tools</name>
+  <version>1.0.0</version>
+  <description>The auv_cmd_tools package</description>
+
+  <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
+  <author email="senceryazici@gmail.com">Sencer Yazici</author>
+  <license>BSD-3-Clause</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <build_export_depend>rospy</build_export_depend>
+  <exec_depend>rospy</exec_depend>
+  <depend>rosserial_msgs</depend>
+  <depend>auv_mainboard_bridge</depend>
+  <exec_depend>python3-argcomplete</exec_depend>
+
+  <export>
+  </export>
+</package>

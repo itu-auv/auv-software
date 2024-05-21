@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+from auv_cmd_tools import AuvCmdTool
+
+if __name__ == "__main__":
+    tool = AuvCmdTool()
+    tool.main()
