@@ -3,6 +3,9 @@ name: base docker images
 # scheduled run every day at 00:00 GMT +03:00
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
   pull_request:
     paths:
       - 'docker/Dockerfile.auv-base'
