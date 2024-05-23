@@ -1,1 +1,5 @@
 repositories:
+  ../third_party/xsens_mti_driver:
+    type: git
+    version: master
+    url: https://github.com/nobleo/xsens_mti_driver.git
