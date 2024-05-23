@@ -7,6 +7,7 @@ WORKDIR /auv_ws
 
 RUN apt-get update && \
   apt-get install -y \
+  git \
   python3-vcstool \
   python3-catkin-tools && \
   # Install preliminary dependencies
