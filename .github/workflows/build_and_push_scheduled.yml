@@ -14,7 +14,7 @@ on:
     - cron: "0 21 * * *"
 
 concurrency: 
-  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' && github.event.pull_request.number) || github.ref }}
+  group: scheduled-${{ github.workflow }}-${{ (github.event_name == 'pull_request' && github.event.pull_request.number) || github.ref }}
   cancel-in-progress: true
 
 jobs:
