@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  industrial_ci:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ros-industrial/industrial_ci@master
+        env: 
+          ROS_DISTRO: noetic
+          UPSTREAM_WORKSPACE: third_party.repos
+          ADDITIONAL_DEBS: lld net-tools usbutils
+          BASEDIR: ${{ github.workspace }}/.work
+          AFTER_SETUP_UPSTREAM_WORKSPACE: vcs pull $BASEDIR/upstream_ws/src
+          DOCKER_IMAGE: ghcr.io/itu-auv/auv-software-base:latest
+          TARGET_CMAKE_ARGS: >
+            -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_BUILD_TYPE=Release
