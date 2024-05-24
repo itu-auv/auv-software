@@ -19,6 +19,6 @@ concurrency:
 
 jobs:
   base-image:
-    uses: ./.github/workflows/call/build_and_push_images.yml
+    uses: ./.github/workflows/build_and_push_images.yml
     with:
       image_type: base

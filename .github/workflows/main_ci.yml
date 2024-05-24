@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   build-and-push-base-docker:
-    uses: ./.github/workflows/call/build_and_push_images.yml
+    uses: ./.github/workflows/build_and_push_images.yml
     with:
       image_type: base
 
@@ -22,14 +22,14 @@ jobs:
       fail-fast: false
       matrix:
         host: [ubuntu-20.04, self-hosted]
-    uses: ./.github/workflows/call/industrial_ci.yml
+    uses: ./.github/workflows/industrial_ci.yml
     with:
       runner: ${{ matrix.host }}
       docker_image_tag: ghcr.io/itu-auv/auv-software-base:latest
   
   build-and-push-main-docker:
     needs: native-ci
-    uses: ./.github/workflows/call/build_and_push_images.yml
+    uses: ./.github/workflows/build_and_push_images.yml
     with:
       image_type: main
   
