@@ -13,6 +13,7 @@ concurrency:
 jobs:
   native_ci:
     strategy:
+      fail-fast: false
       matrix:
         host: [ubuntu-20.04, self-hosted]
     uses: ./.github/workflows/industrial_ci.yml
