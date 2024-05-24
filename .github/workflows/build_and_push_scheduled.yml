@@ -1,0 +1,23 @@
+name: scheduled build and push
+
+# scheduled run every day at 00:00 GMT +03:00
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - 'docker/Dockerfile.auv-base'
+  schedule:
+    - cron: "0 21 * * *"
+
+concurrency: 
+  group: scheduled-${{ github.workflow }}-${{ (github.event_name == 'pull_request' && github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  base-image:
+    uses: ./.github/workflows/build_and_push_images.yml
+    with:
+      image_type: base

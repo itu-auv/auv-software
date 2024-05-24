@@ -1,0 +1,40 @@
+name: industrial_ci
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'Runner type'
+        required: true
+        type: string
+      docker_image_tag:
+        description: 'Docker image tag'
+        required: true
+        type: string
+
+jobs:
+  industrial_ci:
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: make temp build directory using mktemp
+        id: make_temp_build_dir
+        run: |
+          directory=$(mktemp -d)
+          echo build_directory=$directory >> $GITHUB_ENV
+      - uses: ros-industrial/industrial_ci@master
+        env: 
+          ROS_DISTRO: noetic
+          UPSTREAM_WORKSPACE: third_party.repos
+          ADDITIONAL_DEBS: lld
+          BASEDIR: ${{ steps.make_temp_build_dir.outputs.build_directory }}
+          AFTER_SETUP_UPSTREAM_WORKSPACE: vcs pull $BASEDIR/upstream_ws/src
+          DOCKER_IMAGE: ${{ inputs.docker_image_tag }}
+          TARGET_CMAKE_ARGS: >
+            -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_BUILD_TYPE=Release
+      - name: cleanup temp build directory
+        if: always()
+        run: rm -rf ${{ steps.make_temp_build_dir.outputs.build_directory }}

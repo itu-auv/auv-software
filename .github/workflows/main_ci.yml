@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency: 
+  group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' && github.event.pull_request.number) || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push-base-docker:
+    uses: ./.github/workflows/build_and_push_images.yml
+    with:
+      image_type: base
+
+  native-ci:
+    needs: build-and-push-base-docker
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [ubuntu-20.04, self-hosted]
+    uses: ./.github/workflows/industrial_ci.yml
+    with:
+      runner: ${{ matrix.host }}
+      docker_image_tag: ghcr.io/itu-auv/auv-software-base:latest
+  
+  build-and-push-main-docker:
+    needs: native-ci
+    uses: ./.github/workflows/build_and_push_images.yml
+    with:
+      image_type: main
+  
