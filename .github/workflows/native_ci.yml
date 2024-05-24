@@ -18,6 +18,7 @@ jobs:
     uses: ./.github/workflows/industrial_ci.yml
     with:
       runner: ${{ matrix.host }}
+      docker_image_tag: ghcr.io/itu-auv/auv-software-base:latest
   
   build-and-push-docker:
     needs: native_ci
