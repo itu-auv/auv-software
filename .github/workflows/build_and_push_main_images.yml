@@ -65,7 +65,7 @@ jobs:
             IMAGE_TAG=${{ env.IMAGE_TAG }}
             DOCKERFILE=./docker/Dockerfile.auv
           else
-            if [ ${{ matrix.host }} == 'tegra' ]; then
+            if [ ${{ matrix.host }} == 'desktop' ]; then
               BASE_IMAGE=${{ env.AMD64_CORE_IMAGE_TAG }}
             else
               BASE_IMAGE=${{ env.ARCH64_CORE_IMAGE_TAG }}
@@ -134,7 +134,7 @@ jobs:
             IMAGE_TAG=${{ env.IMAGE_TAG }}
             DOCKERFILE=./docker/Dockerfile.auv
           else
-            if [ ${{ matrix.host }} == 'tegra' ]; then
+            if [ ${{ matrix.host }} == 'desktop' ]; then
               BASE_IMAGE=${{ env.AMD64_CORE_IMAGE_TAG }}
             else
               BASE_IMAGE=${{ env.ARCH64_CORE_IMAGE_TAG }}
