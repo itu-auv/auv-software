@@ -6,7 +6,6 @@ on:
   push:
     branches:
       - main
-      - sencer/add-native-ci-build
   pull_request:
     paths:
       - 'docker/Dockerfile.auv-base'
