@@ -11,10 +11,14 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  industrial_ci:
+  native_ci:
     strategy:
       matrix:
         host: [ubuntu-20.04, self-hosted]
     uses: ./.github/workflows/industrial_ci.yml
     with:
       runner: ${{ matrix.host }}
+  
+  build-and-push-docker:
+    needs: native_ci
+    uses: ./.github/workflows/build_and_push_main_images.yml
