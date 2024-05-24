@@ -10,7 +10,7 @@ on:
 
 jobs:
   industrial_ci:
-    runs-on: ${{ github.event.inputs.runner }}
+    runs-on: ${{ inputs.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: ros-industrial/industrial_ci@master
