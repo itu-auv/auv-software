@@ -74,10 +74,10 @@ jobs:
             DOCKERFILE=./docker/Dockerfile.auv-base
           fi
 
-          echo "base_image_tag=$BASE_IMAGE" >> $GITHUB_ENV
-          echo "image_tag=$IMAGE_TAG" >> $GITHUB_ENV
-          echo "dockerfile=$DOCKERFILE" >> $GITHUB_ENV
-      - name: Build and push main image
+          echo "base_image_tag=$BASE_IMAGE" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "dockerfile=$DOCKERFILE" >> $GITHUB_OUTPUT
+      - name: Build and push ${{ inputs.image_type }} image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -143,11 +143,11 @@ jobs:
             DOCKERFILE=./docker/Dockerfile.auv-base
           fi
 
-          echo "base_image_tag=$BASE_IMAGE" >> $GITHUB_ENV
-          echo "image_tag=$IMAGE_TAG" >> $GITHUB_ENV
-          echo "dockerfile=$DOCKERFILE" >> $GITHUB_ENV
+          echo "base_image_tag=$BASE_IMAGE" >> $GITHUB_OUTPUT
+          echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "dockerfile=$DOCKERFILE" >> $GITHUB_OUTPUT
 
-      - name: Build and push main image
+      - name: Build and push ${{ inputs.image_type }} image
         uses: docker/build-push-action@v5
         with:
           context: .
