@@ -1,9 +1,0 @@
-<launch>
-  <arg name="bag_dir" default="$(env AUV_BAG_DIR)"/>
-
-  <node pkg="auv_logger" name="rosbag_recorder_node" type="record" output="screen">
-    <rosparam command="load" file="$(find auv_logger)/config/record.yaml"/>
-    <param name="output_prefix" value="$(arg bag_dir)/record"/>
-    <param name="output_name" value="$(arg bag_dir)/test.bag"/>
-  </node>
-</launch>
