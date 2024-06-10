@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="turquoise" />
+  <arg name="rate" default="20" />
+
+  <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
+    <param name="rate" value="$(arg rate)" />
+    <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
+  </node>
+</launch>
