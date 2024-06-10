@@ -50,7 +50,10 @@ catkin_add_gtest(${PROJECT_NAME}-test
 )
 
 if(TARGET ${PROJECT_NAME}-test)
-  target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
+target_link_libraries(${PROJECT_NAME}-test 
+  ${PROJECT_NAME}
+  ${catkin_LIBRARIES}
+)
 endif()
 
 catkin_add_nosetests(test)
