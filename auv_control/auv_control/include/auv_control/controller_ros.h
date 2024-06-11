@@ -4,6 +4,7 @@
 
 #include "auv_common_lib/ros/conversions.h"
 #include "auv_common_lib/ros/rosparam.h"
+#include "auv_common_lib/ros/subscriber_with_timeout.h"
 #include "auv_controllers/controller_base.h"
 #include "auv_controllers/multidof_pid_controller.h"
 #include "geometry_msgs/Wrench.h"
@@ -11,6 +12,7 @@
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
 #include "sensor_msgs/Imu.h"
+#include "std_msgs/Bool.h"
 
 namespace auv {
 namespace control {
@@ -27,8 +29,11 @@ class ControllerROS {
   using ControllerLoader = pluginlib::ClassLoader<SixDOFControllerBase>;
   using ControllerBasePtr =
       boost::shared_ptr<auv::control::SixDOFControllerBase>;
+  using ControlEnableSub =
+      auv::common::ros::SubscriberWithTimeout<std_msgs::Bool>;
 
-  ControllerROS(const ros::NodeHandle& nh) : nh_{nh}, rate_{1.0} {
+  ControllerROS(const ros::NodeHandle& nh)
+      : nh_{nh}, rate_{1.0}, control_enable_sub_{nh} {
     ros::NodeHandle nh_private("~");
 
     auto model = ModelParser::parse("model", nh_private);
@@ -62,6 +67,13 @@ class ControllerROS {
     cmd_vel_sub_ =
         nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
     imu_sub_ = nh_.subscribe("imu", 1, &ControllerROS::imu_callback, this);
+
+    control_enable_sub_.subscribe(
+        "enable", 1, nullptr,
+        []() { ROS_WARN_STREAM("control enable message timeouted"); },
+        ros::Duration{1.0});
+    control_enable_sub_.set_default_message(std_msgs::Bool{});
+
     wrench_pub_ = nh_.advertise<geometry_msgs::Wrench>("wrench", 1);
   }
 
@@ -92,14 +104,20 @@ class ControllerROS {
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
-      const auto wrench_msg = auv::common::conversions::convert<
-          ControllerBase::WrenchVector, geometry_msgs::Wrench>(control_output);
+      const auto wrench_msg =
+          is_control_enabled()
+              ? auv::common::conversions::convert<ControllerBase::WrenchVector,
+                                                  geometry_msgs::Wrench>(
+                    control_output)
+              : geometry_msgs::Wrench{};
 
       wrench_pub_.publish(wrench_msg);
     }
   }
 
  private:
+  bool is_control_enabled() { return control_enable_sub_.get_message().data; }
+
   void odometry_callback(const nav_msgs::Odometry::ConstPtr& msg) {
     state_ =
         auv::common::conversions::convert<nav_msgs::Odometry,
@@ -126,6 +144,7 @@ class ControllerROS {
   ros::Subscriber cmd_vel_sub_;
   ros::Subscriber imu_sub_;
   ros::Publisher wrench_pub_;
+  ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
