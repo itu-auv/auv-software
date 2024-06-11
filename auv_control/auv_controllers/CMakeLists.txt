@@ -25,6 +25,7 @@ include_directories(
 )
 
 add_library(${PROJECT_NAME}
+  src/model.cpp
   src/multidof_pid_controller.cpp
 )
 
