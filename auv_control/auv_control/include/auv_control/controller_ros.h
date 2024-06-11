@@ -18,6 +18,8 @@ namespace control {
 class ControllerROS {
  public:
   using ControllerBase = SixDOFControllerBase;
+  using Model = SixDOFModel;
+  using ModelParser = auv::common::rosparam::parser<Model>;
   using MatrixRosparamParser =
       auv::common::rosparam::parser<ControllerBase::Matrix>;
   using VectorRosparamParser =
@@ -29,16 +31,7 @@ class ControllerROS {
   ControllerROS(const ros::NodeHandle& nh) : nh_{nh}, rate_{1.0} {
     ros::NodeHandle nh_private("~");
 
-    auto model = auv::control::Model<6>{};
-
-    model.mass_inertia_matrix =
-        MatrixRosparamParser::parse("mass_inertia_matrix", nh_private);
-
-    model.linear_damping_matrix =
-        MatrixRosparamParser::parse("linear_damping_matrix", nh_private);
-
-    model.quadratic_damping_matrix =
-        MatrixRosparamParser::parse("quadratic_damping_matrix", nh_private);
+    auto model = ModelParser::parse("model", nh_private);
 
     const auto kp = VectorRosparamParser::parse("kp", nh_private);
 

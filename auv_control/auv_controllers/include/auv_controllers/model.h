@@ -57,5 +57,7 @@ inline std::ostream& operator<<(std::ostream& os, const Model<N>& model) {
   return os;
 }
 
+using SixDOFModel = Model<6>;
+
 }  // namespace control
 }  // namespace auv
