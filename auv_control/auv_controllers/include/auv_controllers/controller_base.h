@@ -28,7 +28,7 @@ class ControllerBase {
   virtual WrenchVector control(const StateVector& state,
                                const StateVector& desired_state,
                                const StateVector& state_derivative,
-                               const double dt);
+                               const double dt) = 0;
 
   const Model<N>& model() const { return model_; }
 
