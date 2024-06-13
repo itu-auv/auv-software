@@ -2,6 +2,7 @@
 <robot name="taluy" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro name="taluy_base">
     <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators.urdf.xacro" />
+    <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors.urdf.xacro" />
     <xacro:include filename="$(find auv_common_descriptions)/urdf/materials.urdf.xacro" />
 
     <link name="base_link">
@@ -29,14 +30,41 @@
       </collision>
     </link>
 
-    <xacro:t200_thruster name="thruster_0" parent="base_link" position="0.14250 0.20070 -0.00525" orientation="0 0 ${-pi/2}"/>
-    <xacro:t200_thruster name="thruster_1" parent="base_link" position="0.14250 -0.20070 -0.00525" orientation="0 0 ${pi/2}"/>
-    <xacro:t200_thruster name="thruster_2" parent="base_link" position="-0.14250 0.20070 -0.00525" orientation="0 0 ${-pi/2}"/>
-    <xacro:t200_thruster name="thruster_3" parent="base_link" position="-0.14250 -0.20070 -0.00525" orientation="0 0 ${pi/2}"/>
-    <xacro:t200_thruster name="thruster_4" parent="base_link" position="0.352398 0.216638 -0.030881" orientation="${pi/2} 0 ${pi/4}"/>
-    <xacro:t200_thruster name="thruster_5" parent="base_link" position="0.352398 -0.216638 -0.030881" orientation="${-pi/2} 0 ${-pi/4}"/>
-    <xacro:t200_thruster name="thruster_6" parent="base_link" position="-0.352398 0.216638 -0.030881" orientation="${pi/2} 0 ${3*pi/4}"/>
-    <xacro:t200_thruster name="thruster_7" parent="base_link" position="-0.352398 -0.216638 -0.030881" orientation="${-pi/2} 0 ${-3*pi/4}"/>
+    <xacro:t200_thruster name="thruster_0" parent="base_link" position="0.14250 0.20070 -0.00525"
+      orientation="0 0 ${-pi/2}" />
+    <xacro:t200_thruster name="thruster_1" parent="base_link" position="0.14250 -0.20070 -0.00525"
+      orientation="0 0 ${pi/2}" />
+    <xacro:t200_thruster name="thruster_2" parent="base_link" position="-0.14250 0.20070 -0.00525"
+      orientation="0 0 ${-pi/2}" />
+    <xacro:t200_thruster name="thruster_3" parent="base_link" position="-0.14250 -0.20070 -0.00525"
+      orientation="0 0 ${pi/2}" />
+    <xacro:t200_thruster name="thruster_4" parent="base_link" position="0.352398 0.216638 -0.030881"
+      orientation="${pi/2} 0 ${pi/4}" />
+    <xacro:t200_thruster name="thruster_5" parent="base_link"
+      position="0.352398 -0.216638 -0.030881" orientation="${-pi/2} 0 ${-pi/4}" />
+    <xacro:t200_thruster name="thruster_6" parent="base_link"
+      position="-0.352398 0.216638 -0.030881" orientation="${pi/2} 0 ${3*pi/4}" />
+    <xacro:t200_thruster name="thruster_7" parent="base_link"
+      position="-0.352398 -0.216638 -0.030881" orientation="${-pi/2} 0 ${-3*pi/4}" />
+    <xacro:wayfinder_dvl name="dvl" parent="base_link" position="0.2 0 -0.11" orientation="0 0 0" />
+    <xacro:xsens_mti_g710 name="imu" parent="base_link" position="-0.199 0 -0.0108"
+      orientation="0 0 ${math.pi}" />
+
+
+    <xacro:h2c_hydrophone name="hydrophone_0" parent="base_link" position="0.325 0.205 -0.15"
+      orientation="0 0 0" />
+    <xacro:h2c_hydrophone name="hydrophone_1" parent="base_link" position="0.325 -0.205 -0.15"
+      orientation="0 0 0" />
+    <xacro:h2c_hydrophone name="hydrophone_2" parent="base_link" position="-0.325 0.205 -0.15"
+      orientation="0 0 0" />
+    <xacro:h2c_hydrophone name="hydrophone_3" parent="base_link" position="-0.325 -0.205 -0.15"
+      orientation="0 0 0" />
+
+    <xacro:ping360 name="ping360" parent="base_link" position="0.2 0 0.134"
+      orientation="0 0 0" />
+
+    <xacro:bar30 name="bar30" parent="base_link" position="0 0 0.07"
+      orientation="0 0 0" />
 
     <!-- <link name="base_footprint">
       <inertial>

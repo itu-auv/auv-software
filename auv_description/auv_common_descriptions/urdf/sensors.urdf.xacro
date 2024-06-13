@@ -1,0 +1,7 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+	<xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/wayfinder_dvl.urdf.xacro" />
+	<xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/xsens_mti_g710.urdf.xacro" />
+	<xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/h2c_hydrophone.urdf.xacro" />
+	<xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/ping360.urdf.xacro" />
+	<xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/bar30.urdf.xacro" />
+</robot>
