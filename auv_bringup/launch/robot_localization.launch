@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="turquoise" />
+
+  <include file="$(find auv_bringup)/launch/inc/localization/start_robot_localization.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+</launch>
