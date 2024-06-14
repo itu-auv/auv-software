@@ -22,3 +22,9 @@ class ExpansionBridgeRemapperNode:
         pose.pose.pose.position.z = msg.data
         pose.pose.covariance[14] = self.pressure_sensor_position_covariance
         self.pose_pub.publish(pose)
+
+
+if __name__ == "__main__":
+    rospy.init_node("expansion_bridge_remapper_node")
+    node = ExpansionBridgeRemapperNode()
+    rospy.spin()
