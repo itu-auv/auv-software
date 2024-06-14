@@ -94,7 +94,7 @@ class WayfinderNode:
     ) -> std_srvs.srv.SetBoolResponse:
         resp = std_srvs.srv.SetBoolResponse()
         if req.data:
-            self.wayfinder.register_ondata_callback(self.update_data)
+            self.wayfinder.register_ondata_callback(self.dvl_data_callback)
 
             resp.success = self.wayfinder.exit_command_mode()
             if not resp.success:
@@ -148,12 +148,12 @@ class WayfinderNode:
             rospy.logerr("Failed to reset to factory defaults")
             exit()
 
-        if self.use_device_time:
-            # Sync Device Time
-            dtime = datetime.datetime.fromtimestamp(
-                rospy.Time.now().to_sec(), datetime.timezone.utc
-            )
-            self.wayfinder.set_time(dtime)
+        # if self.use_device_time:
+        #     # Sync Device Time
+        #     dtime = datetime.datetime.fromtimestamp(
+        #         rospy.Time.now().to_sec(), datetime.timezone.utc
+        #     )
+        #     self.wayfinder.set_time(dtime)
 
         if not self.wayfinder.set_speed_of_sound(self.sound_speed):
             rospy.logerr("Sound speed setting failed")
@@ -235,4 +235,4 @@ class WayfinderNode:
 if __name__ == "__main__":
     rospy.init_node("wayfinder_dvl_node")
     node = WayfinderNode()
-    node.spin()
+    rospy.spin()
