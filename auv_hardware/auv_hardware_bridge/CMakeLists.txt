@@ -32,6 +32,11 @@ target_link_libraries(serial_to_ros_bridge_node
   util
 )
 
+catkin_install_python(PROGRAMS
+  scripts/wayfinder_dvl_node.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 install(TARGETS serial_to_ros_bridge_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
