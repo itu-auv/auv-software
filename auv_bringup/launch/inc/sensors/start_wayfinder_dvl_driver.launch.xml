@@ -3,20 +3,26 @@
   <arg name="namespace" default="turquoise" />
   <arg name="port" default="ttyUSB0" />
   <arg name="baudrate" default="115200" />
-  <param name="/env/sound_speed" value="1500" />
 
   <group ns="$(arg namespace)">
     <node pkg="auv_hardware_bridge" type="wayfinder_dvl_node.py" name="wayfinder_dvl_node"
       output="screen">
       <param name="port" value="$(arg port)" />
       <param name="baudrate" value="$(arg baudrate)" />
-      <param name="timeout" value="-1" />
+      <param name="timeout" value="5" />
 
       <param name="frame_id" value="base_link/dvl_link" />
       <param name="tf_prefix" value="$(arg namespace)" />
       <param name="velocity_covariance" type="yaml"
         value="[0.01, 0, 0, 0, 0, 0, 0, 0.01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]" />
       <param name="position_covariance" type="yaml" value="0.1" />
+
+      <remap from="enable" to="sensors/dvl/enable"/>
+      <remap from="velocity" to="sensors/dvl/velocity"/>
+      <remap from="velocity_stamped" to="sensors/dvl/velocity_stamped"/>
+      <remap from="velocity_raw" to="sensors/dvl/velocity_raw"/>
+      <remap from="velocity_raw_stamped" to="sensors/dvl/velocity_raw_stamped"/>
+      <remap from="is_valid" to="sensors/dvl/is_valid"/>
     </node>
   </group>
 </launch>
