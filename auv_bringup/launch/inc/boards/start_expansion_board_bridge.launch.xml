@@ -22,6 +22,7 @@
     <!-- start remapper node: depth -> pose -->
     <node pkg="auv_hardware_bridge" type="expansion_bridge_remapper_node.py"
       name="expansion_bridge_remapper_node" respawn="$(arg respawn)">
+      <param name="pressure_sensor_position_covariance" value="0.1" />
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="pose" to="sensors/external_pressure_sensor/pose" />
     </node>
