@@ -39,7 +39,7 @@ pose0_queue_size: 5
 pose0_rejection_threshold: 2  # Note the difference in parameter name
 pose0_nodelay: false
 
-twist0: sensors/dvl/velocity_raw
+twist0: sensors/dvl/velocity_raw_stamped
 twist0_config: [false, false, false,
                 false, false, false,
                 true,  true,  true,
