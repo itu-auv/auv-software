@@ -15,7 +15,8 @@
 
       <param name="frame_id" value="base_link/dvl_link" />
       <param name="tf_prefix" value="$(arg namespace)" />
-      <param name="velocity_covariance" type="yaml" value="[0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01]" />
+      <param name="velocity_covariance" type="yaml"
+        value="[0.01, 0, 0, 0, 0, 0, 0, 0.01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]" />
       <param name="position_covariance" type="yaml" value="0.1" />
     </node>
   </group>
