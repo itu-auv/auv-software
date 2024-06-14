@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="turquoise" />
-
   <arg name="port" default="ttyUSB0" />
   <arg name="baudrate" default="115200" />
   <param name="/env/sound_speed" value="1500" />
