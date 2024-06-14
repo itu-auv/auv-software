@@ -62,23 +62,21 @@ class WayfinderNode:
             )
         )
 
-        self.pub_is_valid = rospy.Publisher(
-            "~is_valid", std_msgs.msg.Bool, queue_size=1
-        )
+        self.pub_is_valid = rospy.Publisher("is_valid", std_msgs.msg.Bool, queue_size=1)
         self.pub_velocity_raw = rospy.Publisher(
-            "~velocity_raw", geometry_msgs.msg.Twist, queue_size=1
+            "velocity_raw", geometry_msgs.msg.Twist, queue_size=1
         )
         self.pub_velocity_raw_stamped = rospy.Publisher(
-            "~velocity_raw_stamped",
+            "velocity_raw_stamped",
             geometry_msgs.msg.TwistWithCovarianceStamped,
             queue_size=1,
         )
 
         self.pub_velocity = rospy.Publisher(
-            "~velocity", geometry_msgs.msg.Twist, queue_size=1
+            "velocity", geometry_msgs.msg.Twist, queue_size=1
         )
         self.pub_velocity_stamped = rospy.Publisher(
-            "~velocity_stamped",
+            "velocity_stamped",
             geometry_msgs.msg.TwistWithCovarianceStamped,
             queue_size=1,
         )
