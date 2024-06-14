@@ -4,6 +4,6 @@
 
   <include file="$(find auv_bringup)/launch/inc/localization/start_robot_localization.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
-    <<param name="pause" value="true"/>
+    <param name="pause" value="true"/>
   </include>
 </launch>
