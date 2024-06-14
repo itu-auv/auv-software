@@ -18,12 +18,17 @@
           <material name="black" />
         </geometry>
       </collision>
-      <inertial>
-        <mass value="0.5" />
-        <inertia ixx="0.008545" ixy="0.0" ixz="0.0" iyy="0.008545" iyz="0.0" izz="0.0144" />
-      </inertial>
     </link>
 
+    <link name="${name}_cog">
+      <inertial>
+        <!-- 0.313 in water -->
+        <mass value="0.947" />
+        <!-- volume: 100mm x 100mm x 70mm -->
+        <!-- 0.0007 m^3-->
+        <inertia ixx="0.001176" ixy="0.0" ixz="0.0" iyy="0.001176" iyz="0.0" izz="0.001578" />
+      </inertial>
+    </link>
     <link name="${name}_sensor_surface_link" />
     <link name="${name}_link" />
 
@@ -38,14 +43,21 @@
       <axis rpy="0 0 0" xyz="0 0 1" />
       <parent link="${name}_mount_link" />
       <child link="${name}_sensor_surface_link" />
-      <origin xyz="0 0 -0.07" rpy="${math.pi} 0 0" />
+      <origin xyz="0 0 -0.07" rpy="0 0 0" />
+    </joint>
+
+    <joint name="${name}_cog_joint" type="fixed">
+      <axis rpy="0 0 0" xyz="0 0 1" />
+      <parent link="${name}_mount_link" />
+      <child link="${name}_cog" />
+      <origin xyz="0 0 -0.035" rpy="0 0 0" />
     </joint>
 
     <joint name="${name}_sensor_joint" type="fixed">
       <axis rpy="0 0 0" xyz="0 0 1" />
       <parent link="${name}_sensor_surface_link" />
       <child link="${name}_link" />
-      <origin xyz="0 0 0" rpy="0 0 ${math.pi/4}" />
+      <origin xyz="0 0 0" rpy="0 0 ${-3*math.pi/4}" />
     </joint>
 
     <!-- <gazebo reference="${name}_propeller_link">
