@@ -1,10 +1,12 @@
 #include "auv_hardware_bridge/serial_to_ros_bridge.hpp"
-#include <boost/asio.hpp>
-#include <cstring>
+
 #include <fcntl.h>
-#include <iostream>
 #include <pty.h>
 #include <unistd.h>
+
+#include <boost/asio.hpp>
+#include <cstring>
+#include <iostream>
 
 namespace auv_hardware {
 
@@ -19,9 +21,17 @@ SerialToROSBridge::SerialToROSBridge(ros::NodeHandle &nh) {
     return;
   }
 
-  // Create a symbolic link to the virtual serial port
   const auto slave_name = std::string{ttyname(slave_fd)};
 
+  if (access(virtual_port.c_str(), F_OK) != -1) {
+    if (unlink(virtual_port.c_str()) == -1) {
+      ROS_ERROR_STREAM("Error removing existing symlink: "
+                       << virtual_port << ": " << strerror(errno));
+      return;
+    }
+  }
+
+  // Create a symbolic link to the virtual serial port
   const auto result = symlink(slave_name.c_str(), virtual_port.c_str());
 
   if (result == -1) {
@@ -77,7 +87,7 @@ void SerialToROSBridge::handle_outgoing_messages() {
   FD_ZERO(&read_fds);
   FD_SET(master_fd_, &read_fds);
 
-  timeval timeout = {0, 100000}; // 0.1 seconds
+  timeval timeout = {0, 100000};  // 0.1 seconds
   const int result =
       select(master_fd_ + 1, &read_fds, nullptr, nullptr, &timeout);
 
@@ -96,4 +106,4 @@ void SerialToROSBridge::handle_outgoing_messages() {
   publisher_.publish(msg);
 }
 
-} // namespace auv_hardware
+}  // namespace auv_hardware
