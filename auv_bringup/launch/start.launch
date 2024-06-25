@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="turquoise" />
+  <arg name="control_rate" default="20.0" />
+
+  <!-- start xsens imu driver -->
+  <include file="$(find auv_bringup)/launch/inc/imu/start_xsens_driver.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="imu_topic" value="data" />
+    <arg name="port" value="/dev/auv_imu" />
+  </include>
+
+  <!-- start logging -->
+  <include file="$(find auv_bringup)/launch/inc/logging/start_logging.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="prefix" value="log" />
+    <arg name="logging_directory" value="$(optenv PWD)" />
+    <arg name="topics" value="" />
+  </include>
+</launch>
