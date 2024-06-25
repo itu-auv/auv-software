@@ -32,7 +32,7 @@
       </collision>
     </link>
 
-    <link name="base_link_ned"/>
+    <link name="base_link_ned" />
 
     <joint name="base_link_joint" type="fixed">
       <origin xyz="0 0 0" rpy="${math.pi} 0 0" />
@@ -107,12 +107,12 @@
       parent="base_link" position="0 0 -0.07"
       orientation="0 ${math.pi/2} ${math.pi/2}" />
 
-    <xacro:torpedo name="base_link/left_torpedo"
-      parent="base_link" position="0.2 0.1 -0.11"
+    <xacro:torpedo name="base_link/torpedo"
+      parent="base_link" position="0.39 0.121 -0.056"
       orientation="0 0 0" />
 
-    <xacro:torpedo name="base_link/right_torpedo"
-      parent="base_link" position="0.2 -0.1 -0.11"
+    <xacro:marker name="base_link/marker"
+      parent="base_link" position="0.093 -0.075 -0.188"
       orientation="0 0 0" />
 
 

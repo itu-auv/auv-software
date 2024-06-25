@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+
+<robot name="marker" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:macro name="marker" params="name parent position:='0 0 0' orientation:='0 0 0'">
+    <link name="${name}_link" />
+
+    <link name="${name}_ball_cup_link">
+      <visual>
+        <origin xyz="0 0 0.005" rpy="0 0 ${3*math.pi/2}" />
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/marker/marker_ball.dae"
+            scale="0.001 0.001 0.001" />
+        </geometry>
+      </visual>
+      <collision name="${name}_collision">
+        <origin xyz="0 0 0.005" rpy="0 0 ${3*math.pi/2}" />
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/marker/marker_ball.dae"
+            scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.5" />
+        <inertia ixx="0.008545" ixy="0.0" ixz="0.0" iyy="0.008545" iyz="0.0" izz="0.0144" />
+      </inertial>
+    </link>
+
+    <link name="${name}_main_body_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/marker/marker_main_body.dae"
+            scale="0.001 0.001 0.001" />
+        </geometry>
+      </visual>
+      <collision name="${name}_collision">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/marker/marker_main_body.dae"
+            scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.5" />
+        <inertia ixx="0.008545" ixy="0.0" ixz="0.0" iyy="0.008545" iyz="0.0" izz="0.0144" />
+      </inertial>
+    </link>
+
+    <link name="${name}_servo_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/marker/marker_servo.dae"
+            scale="0.001 0.001 0.001" />
+        </geometry>
+      </visual>
+      <collision name="${name}_collision">
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/marker/marker_servo.dae"
+            scale="0.001 0.001 0.001" />
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.5" />
+        <inertia ixx="0.008545" ixy="0.0" ixz="0.0" iyy="0.008545" iyz="0.0" izz="0.0144" />
+      </inertial>
+    </link>
+
+    <joint name="${name}_chasis_joint" type="fixed">
+      <parent link="${parent}" />
+      <child link="${name}_link" />
+      <origin xyz="${position}" rpy="${orientation}" />
+      <axis rpy="0 0 0" xyz="0 0 1" />
+    </joint>
+
+    <joint name="${name}_ball_cup_joint" type="continuous">
+      <axis rpy="0 0 0" xyz="0 1 0" />
+      <parent link="${name}_link" />
+      <child link="${name}_ball_cup_link" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+    </joint>
+
+    <joint name="${name}_main_body_joint" type="fixed">
+      <axis rpy="0 0 0" xyz="0 0 1" />
+      <parent link="${name}_link" />
+      <child link="${name}_main_body_link" />
+      <origin xyz="0.025 0 0.03" rpy="0 0 ${math.pi}" />
+    </joint>
+
+    <joint name="${name}_servo_joint" type="fixed">
+      <axis rpy="0 0 0" xyz="0 0 1" />
+      <parent link="${name}_link" />
+      <child link="${name}_servo_link" />
+      <origin xyz="0.01 -0.025 -0.01" rpy="0 0 ${math.pi}" />
+    </joint>
+
+  </xacro:macro>
+</robot>

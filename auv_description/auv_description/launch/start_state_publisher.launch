@@ -20,6 +20,7 @@
     type="joint_state_publisher_gui" if="$(arg use_gui)">
     <param name="tf_prefix" value="$(arg namespace)" type="string" />
   </node>
-
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/default.rviz" />
+  <group if="$(arg use_gui)">
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/default.rviz" />
+  </group>
 </launch>
