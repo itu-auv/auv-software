@@ -18,5 +18,7 @@ RUN apt-get update && \
   ros-noetic-joint-state-publisher \
   ros-noetic-xacro \
   ros-noetic-robot-localization && \
+  rosdep install \
+  --skip-keys=libopencv-dev \
+  --skip-keys=cv_bridge && \
   rm -rf /var/lib/apt/lists/*
-
