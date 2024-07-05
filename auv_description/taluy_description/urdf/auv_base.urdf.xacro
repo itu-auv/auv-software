@@ -29,13 +29,13 @@
       </collision>
     </link>
 
-    <xacro:t200_thruster name="thruster_0" parent="base_link" position="0.14250 0.20070 -0.00525" orientation="0 0 ${-pi/2}"/>
-    <xacro:t200_thruster name="thruster_1" parent="base_link" position="0.14250 -0.20070 -0.00525" orientation="0 0 ${pi/2}"/>
-    <xacro:t200_thruster name="thruster_2" parent="base_link" position="-0.14250 0.20070 -0.00525" orientation="0 0 ${-pi/2}"/>
-    <xacro:t200_thruster name="thruster_3" parent="base_link" position="-0.14250 -0.20070 -0.00525" orientation="0 0 ${pi/2}"/>
-    <xacro:t200_thruster name="thruster_4" parent="base_link" position="0.352398 0.216638 -0.030881" orientation="${pi/2} 0 ${pi/4}"/>
-    <xacro:t200_thruster name="thruster_5" parent="base_link" position="0.352398 -0.216638 -0.030881" orientation="${-pi/2} 0 ${-pi/4}"/>
-    <xacro:t200_thruster name="thruster_6" parent="base_link" position="-0.352398 0.216638 -0.030881" orientation="${pi/2} 0 ${7*pi/4}"/>
-    <xacro:t200_thruster name="thruster_7" parent="base_link" position="-0.352398 -0.216638 -0.030881" orientation="${-pi/2} 0 ${-7*pi/4}"/>
+    <xacro:t200_thruster name="thruster_0" parent="base_link" position="0.14250 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
+    <xacro:t200_thruster name="thruster_1" parent="base_link" position="0.14250 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
+    <xacro:t200_thruster name="thruster_2" parent="base_link" position="-0.14250 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
+    <xacro:t200_thruster name="thruster_3" parent="base_link" position="-0.14250 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
+    <xacro:t200_thruster name="thruster_4" parent="base_link" position="0.352398 0.216638 -0.030881" orientation="${-pi/2} 0 ${-7*pi/4}"/>
+    <xacro:t200_thruster name="thruster_5" parent="base_link" position="0.352398 -0.216638 -0.030881" orientation="${pi/2} 0 ${7*pi/4}"/>
+    <xacro:t200_thruster name="thruster_6" parent="base_link" position="-0.352398 0.216638 -0.030881" orientation="${-pi/2} 0 ${-pi/4}"/>
+    <xacro:t200_thruster name="thruster_7" parent="base_link" position="-0.352398 -0.216638 -0.030881" orientation="${pi/2} 0 ${pi/4}"/>
   </xacro:macro>
 </robot>
