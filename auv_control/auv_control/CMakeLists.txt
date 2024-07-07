@@ -9,6 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rosfmt
+  auv_msgs
   auv_common_lib
   auv_controllers
   pluginlib

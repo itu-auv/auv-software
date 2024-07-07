@@ -3,8 +3,18 @@
   <arg name="namespace" default="turquoise" />
   <arg name="rate" default="20" />
 
-  <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
+  <include file="$(find auv_description)/launch/start_state_publisher.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
     <param name="rate" value="$(arg rate)" />
     <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
-  </node>
+  </node> -->
+  <group ns="$(arg namespace)">
+    <node pkg="auv_control" type="thruster_manager_node" name="thruster_manager_node" output="screen">
+      <param name="rate" value="$(arg rate)" />
+      <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
+    </node>
+  </group>
 </launch>

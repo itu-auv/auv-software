@@ -15,4 +15,5 @@
   <depend>pluginlib</depend>
   <depend>nav_msgs</depend>
   <depend>rosfmt</depend>
+  <depend>auv_msgs</depend>
 </package>
