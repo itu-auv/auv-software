@@ -22,6 +22,7 @@ class ThrusterManagerROS {
     ros::NodeHandle nh_private("~");
     nh_private.getParam("coeffs_ccw", coeffs_ccw_);
     nh_private.getParam("coeffs_cw", coeffs_cw_);
+    nh_private.getParam("mapping", mapping_);
 
     for (size_t i = 0; i < kThrusterCount; ++i) {
       thruster_wrench_pubs_[i] = nh_.advertise<geometry_msgs::WrenchStamped>(
@@ -57,8 +58,7 @@ class ThrusterManagerROS {
 
       auv_msgs::MotorCommand motor_command_msg;
       for (size_t i = 0; i < kThrusterCount; ++i) {
-        motor_command_msg.channels[i] = wrench_to_drive(efforts(i));
-        ;
+        motor_command_msg.channels[i] = wrench_to_drive(efforts(mapping_[i]));
       }
 
       drive_pub_.publish(motor_command_msg);
@@ -125,6 +125,7 @@ class ThrusterManagerROS {
 
   std::vector<double> coeffs_ccw_;
   std::vector<double> coeffs_cw_;
+  std::vector<int> mapping_;
 };
 
 }  // namespace control
