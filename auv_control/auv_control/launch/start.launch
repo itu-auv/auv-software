@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="taluy" />
+  <arg name="namespace" default="turquoise" />
   <arg name="rate" default="20" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch">
@@ -11,9 +11,10 @@
     <param name="rate" value="$(arg rate)" />
     <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
   </node> -->
-
-  <node pkg="auv_control" type="thruster_manager_node" name="thruster_manager_node" output="screen">
-    <param name="rate" value="$(arg rate)" />
-    <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
-  </node>
+  <group ns="$(arg namespace)">
+    <node pkg="auv_control" type="thruster_manager_node" name="thruster_manager_node" output="screen">
+      <param name="rate" value="$(arg rate)" />
+      <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
+    </node>
+  </group>
 </launch>
