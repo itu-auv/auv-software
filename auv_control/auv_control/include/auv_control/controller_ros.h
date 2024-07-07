@@ -25,7 +25,7 @@ class ControllerROS {
   using MatrixRosparamParser =
       auv::common::rosparam::parser<ControllerBase::Matrix>;
   using VectorRosparamParser =
-      auv::common::rosparam::parser<ControllerBase::Vector>;
+      auv::common::rosparam::parser<Eigen::Matrix<double, 12, 1>>;
   using ControllerLoader = pluginlib::ClassLoader<SixDOFControllerBase>;
   using ControllerBasePtr =
       boost::shared_ptr<auv::control::SixDOFControllerBase>;
@@ -66,6 +66,8 @@ class ControllerROS {
         nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
     cmd_vel_sub_ =
         nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
+    cmd_pose_sub_ =
+        nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
     imu_sub_ = nh_.subscribe("imu", 1, &ControllerROS::imu_callback, this);
 
     control_enable_sub_.subscribe(
@@ -105,18 +107,23 @@ class ControllerROS {
           controller_->control(state_, desired_state_, d_state_, dt);
 
       const auto wrench_msg =
-          is_control_enabled()
+          (is_control_enabled() && !is_timeouted())
               ? auv::common::conversions::convert<ControllerBase::WrenchVector,
                                                   geometry_msgs::Wrench>(
                     control_output)
               : geometry_msgs::Wrench{};
 
       wrench_pub_.publish(wrench_msg);
+
     }
   }
 
  private:
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
+
+  bool is_timeouted() const {
+    return (ros::Time::now() - latest_command_time_).toSec() > 1.0;
+  }
 
   void odometry_callback(const nav_msgs::Odometry::ConstPtr& msg) {
     state_ =
@@ -129,6 +136,14 @@ class ControllerROS {
     desired_state_.tail(6) =
         auv::common::conversions::convert<geometry_msgs::Twist,
                                           ControllerBase::Vector>(*msg);
+    latest_command_time_ = ros::Time::now();
+  }
+
+  void cmd_pose_callback(const geometry_msgs::Pose::ConstPtr& msg) {
+    desired_state_.head(6) =
+        auv::common::conversions::convert<geometry_msgs::Pose,
+                                          ControllerBase::Vector>(*msg);
+    latest_command_time_ = ros::Time::now();
   }
 
   void imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
@@ -142,10 +157,12 @@ class ControllerROS {
   ros::NodeHandle nh_;
   ros::Subscriber odometry_sub_;
   ros::Subscriber cmd_vel_sub_;
+  ros::Subscriber cmd_pose_sub_;
   ros::Subscriber imu_sub_;
   ros::Publisher wrench_pub_;
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;
+  ros::Time latest_command_time_{ros::Time(0)};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
   ControllerBase::StateVector desired_state_{
