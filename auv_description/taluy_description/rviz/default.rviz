@@ -24,6 +24,7 @@ Panels:
   - Class: rviz/Views
     Expanded:
       - /Current View1
+      - /Current View1/Focal Point1
     Name: Views
     Splitter Ratio: 0.5
   - Class: rviz/Time
@@ -70,86 +71,196 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_0_link:
+        base_link/bar30_chasis_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_0_propeller_link:
+        base_link/bar30_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/bottom_camera_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_1_link:
+        base_link/bottom_camera_optical_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/dvl_cog:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/dvl_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/dvl_mount_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_1_propeller_link:
+        base_link/dvl_sensor_surface_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/front_camera_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_2_link:
+        base_link/front_camera_optical_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/hydrophone_0_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_2_propeller_link:
+        base_link/hydrophone_1_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_3_link:
+        base_link/hydrophone_2_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_3_propeller_link:
+        base_link/hydrophone_3_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_4_link:
+        base_link/imu_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_4_propeller_link:
+        base_link/left_torpedo_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/left_torpedo_lower_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_5_link:
+        base_link/left_torpedo_upper_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_5_propeller_link:
+        base_link/ping360_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/ping360_mount_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_6_link:
+        base_link/right_torpedo_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/right_torpedo_lower_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_6_propeller_link:
+        base_link/right_torpedo_upper_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_7_link:
+        base_link/thruster_0_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        thruster_7_propeller_link:
+        base_link/thruster_0_propeller_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
+        base_link/thruster_1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_1_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_2_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_3_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_3_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_4_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_4_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_5_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_5_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_6_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_6_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_7_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/thruster_7_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link_ned:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
       Name: RobotModel
       Robot Description: robot_description
       TF Prefix: taluy
@@ -165,37 +276,85 @@ Visualization Manager:
         All Enabled: true
         taluy/base_link:
           Value: true
-        taluy/thruster_0_link:
+        taluy/base_link/bar30_chasis_link:
           Value: true
-        taluy/thruster_0_propeller_link:
+        taluy/base_link/bar30_link:
           Value: true
-        taluy/thruster_1_link:
+        taluy/base_link/bottom_camera_link:
           Value: true
-        taluy/thruster_1_propeller_link:
+        taluy/base_link/bottom_camera_optical_link:
           Value: true
-        taluy/thruster_2_link:
+        taluy/base_link/dvl_cog:
           Value: true
-        taluy/thruster_2_propeller_link:
+        taluy/base_link/dvl_link:
           Value: true
-        taluy/thruster_3_link:
+        taluy/base_link/dvl_mount_link:
           Value: true
-        taluy/thruster_3_propeller_link:
+        taluy/base_link/dvl_sensor_surface_link:
           Value: true
-        taluy/thruster_4_link:
+        taluy/base_link/front_camera_link:
           Value: true
-        taluy/thruster_4_propeller_link:
+        taluy/base_link/front_camera_optical_link:
           Value: true
-        taluy/thruster_5_link:
+        taluy/base_link/hydrophone_0_link:
           Value: true
-        taluy/thruster_5_propeller_link:
+        taluy/base_link/hydrophone_1_link:
           Value: true
-        taluy/thruster_6_link:
+        taluy/base_link/hydrophone_2_link:
           Value: true
-        taluy/thruster_6_propeller_link:
+        taluy/base_link/hydrophone_3_link:
           Value: true
-        taluy/thruster_7_link:
+        taluy/base_link/imu_link:
           Value: true
-        taluy/thruster_7_propeller_link:
+        taluy/base_link/left_torpedo_link:
+          Value: true
+        taluy/base_link/left_torpedo_lower_link:
+          Value: true
+        taluy/base_link/left_torpedo_upper_link:
+          Value: true
+        taluy/base_link/ping360_link:
+          Value: true
+        taluy/base_link/ping360_mount_link:
+          Value: true
+        taluy/base_link/right_torpedo_link:
+          Value: true
+        taluy/base_link/right_torpedo_lower_link:
+          Value: true
+        taluy/base_link/right_torpedo_upper_link:
+          Value: true
+        taluy/base_link/thruster_0_link:
+          Value: true
+        taluy/base_link/thruster_0_propeller_link:
+          Value: true
+        taluy/base_link/thruster_1_link:
+          Value: true
+        taluy/base_link/thruster_1_propeller_link:
+          Value: true
+        taluy/base_link/thruster_2_link:
+          Value: true
+        taluy/base_link/thruster_2_propeller_link:
+          Value: true
+        taluy/base_link/thruster_3_link:
+          Value: true
+        taluy/base_link/thruster_3_propeller_link:
+          Value: true
+        taluy/base_link/thruster_4_link:
+          Value: true
+        taluy/base_link/thruster_4_propeller_link:
+          Value: true
+        taluy/base_link/thruster_5_link:
+          Value: true
+        taluy/base_link/thruster_5_propeller_link:
+          Value: true
+        taluy/base_link/thruster_6_link:
+          Value: true
+        taluy/base_link/thruster_6_propeller_link:
+          Value: true
+        taluy/base_link/thruster_7_link:
+          Value: true
+        taluy/base_link/thruster_7_propeller_link:
+          Value: true
+        taluy/base_link_ned:
           Value: true
       Marker Alpha: 1
       Marker Scale: 0.25
@@ -204,31 +363,70 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        taluy/base_link:
-          taluy/thruster_0_link:
-            taluy/thruster_0_propeller_link:
+        taluy/base_link_ned:
+          taluy/base_link:
+            taluy/base_link/bar30_chasis_link:
+              taluy/base_link/bar30_link:
+                {}
+            taluy/base_link/bottom_camera_link:
+              taluy/base_link/bottom_camera_optical_link:
+                {}
+            taluy/base_link/dvl_mount_link:
+              taluy/base_link/dvl_cog:
+                {}
+              taluy/base_link/dvl_sensor_surface_link:
+                taluy/base_link/dvl_link:
+                  {}
+            taluy/base_link/front_camera_link:
+              taluy/base_link/front_camera_optical_link:
+                {}
+            taluy/base_link/hydrophone_0_link:
               {}
-          taluy/thruster_1_link:
-            taluy/thruster_1_propeller_link:
+            taluy/base_link/hydrophone_1_link:
               {}
-          taluy/thruster_2_link:
-            taluy/thruster_2_propeller_link:
+            taluy/base_link/hydrophone_2_link:
               {}
-          taluy/thruster_3_link:
-            taluy/thruster_3_propeller_link:
+            taluy/base_link/hydrophone_3_link:
               {}
-          taluy/thruster_4_link:
-            taluy/thruster_4_propeller_link:
+            taluy/base_link/imu_link:
               {}
-          taluy/thruster_5_link:
-            taluy/thruster_5_propeller_link:
-              {}
-          taluy/thruster_6_link:
-            taluy/thruster_6_propeller_link:
-              {}
-          taluy/thruster_7_link:
-            taluy/thruster_7_propeller_link:
-              {}
+            taluy/base_link/left_torpedo_link:
+              taluy/base_link/left_torpedo_lower_link:
+                {}
+              taluy/base_link/left_torpedo_upper_link:
+                {}
+            taluy/base_link/ping360_mount_link:
+              taluy/base_link/ping360_link:
+                {}
+            taluy/base_link/right_torpedo_link:
+              taluy/base_link/right_torpedo_lower_link:
+                {}
+              taluy/base_link/right_torpedo_upper_link:
+                {}
+            taluy/base_link/thruster_0_link:
+              taluy/base_link/thruster_0_propeller_link:
+                {}
+            taluy/base_link/thruster_1_link:
+              taluy/base_link/thruster_1_propeller_link:
+                {}
+            taluy/base_link/thruster_2_link:
+              taluy/base_link/thruster_2_propeller_link:
+                {}
+            taluy/base_link/thruster_3_link:
+              taluy/base_link/thruster_3_propeller_link:
+                {}
+            taluy/base_link/thruster_4_link:
+              taluy/base_link/thruster_4_propeller_link:
+                {}
+            taluy/base_link/thruster_5_link:
+              taluy/base_link/thruster_5_propeller_link:
+                {}
+            taluy/base_link/thruster_6_link:
+              taluy/base_link/thruster_6_propeller_link:
+                {}
+            taluy/base_link/thruster_7_link:
+              taluy/base_link/thruster_7_propeller_link:
+                {}
       Update Interval: 0
       Value: true
     - Class: rviz/Group

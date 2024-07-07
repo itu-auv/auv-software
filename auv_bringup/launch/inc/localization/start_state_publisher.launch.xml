@@ -1,7 +1,6 @@
 <launch>
   <arg name="namespace" />
   <arg name="use_gui" default="false" />
-
   <arg name="model" default="$(find taluy_description)/urdf/auv.urdf.xacro" />
 
   <param name="robot_description" command="xacro $(arg model)" />
@@ -21,5 +20,6 @@
     <param name="tf_prefix" value="$(arg namespace)" type="string" />
   </node>
 
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/default.rviz" if="$(arg use_gui)"/>
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/default.rviz"
+    if="$(arg use_gui)" />
 </launch>

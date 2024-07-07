@@ -13,6 +13,8 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(Eigen3 REQUIRED)
 
+catkin_python_setup()
+
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES auv_common_lib

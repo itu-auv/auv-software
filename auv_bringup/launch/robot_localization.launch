@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="turquoise" />
+  <arg name="control_rate" default="20.0" />
+
+  <include file="$(find auv_bringup)/launch/inc/localization/start_robot_localization.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+  </include>
+</launch>
