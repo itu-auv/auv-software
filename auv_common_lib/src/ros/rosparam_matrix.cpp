@@ -116,6 +116,12 @@ Eigen::Matrix<double, 6, 1> detail::parse<Eigen::Matrix<double, 6, 1>>(
   return get_parameter_as_vector<double, 6>(param);
 }
 
+template <>
+Eigen::Matrix<double, 12, 1> detail::parse<Eigen::Matrix<double, 12, 1>>(
+    const XmlRpc::XmlRpcValue &param) {
+  return get_parameter_as_vector<double, 12>(param);
+}
+
 }  // namespace rosparam
 }  // namespace common
 }  // namespace auv

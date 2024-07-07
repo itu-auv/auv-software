@@ -25,7 +25,7 @@ class ControllerROS {
   using MatrixRosparamParser =
       auv::common::rosparam::parser<ControllerBase::Matrix>;
   using VectorRosparamParser =
-      auv::common::rosparam::parser<ControllerBase::Vector>;
+      auv::common::rosparam::parser<Eigen::Matrix<double, 12, 1>>;
   using ControllerLoader = pluginlib::ClassLoader<SixDOFControllerBase>;
   using ControllerBasePtr =
       boost::shared_ptr<auv::control::SixDOFControllerBase>;

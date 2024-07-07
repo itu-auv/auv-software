@@ -14,14 +14,16 @@ class MultiDOFPIDController : public ControllerBase<N> {
   using WrenchVector = typename Base::WrenchVector;
   using StateVector = typename Base::StateVector;
   using Vectornd = Eigen::Matrix<double, N, 1>;
+  using Vector2nd = Eigen::Matrix<double, 2*N, 1>;
   using Matrixnd = Eigen::Matrix<double, N, N>;
+  using Matrix2nd = Eigen::Matrix<double, 2*N, 2*N>;
 
  public:
-  void set_kp(const Vectornd& kp) { kp_ = kp.asDiagonal(); }
+  void set_kp(const Vector2nd& kp) { kp_ = kp.asDiagonal(); }
 
-  void set_ki(const Vectornd& ki) { ki_ = ki.asDiagonal(); }
+  void set_ki(const Vector2nd& ki) { ki_ = ki.asDiagonal(); }
 
-  void set_kd(const Vectornd& kd) { kd_ = kd.asDiagonal(); }
+  void set_kd(const Vector2nd& kd) { kd_ = kd.asDiagonal(); }
 
   /**
    * @brief Calculate the control output, in the form of a wrench
@@ -35,18 +37,36 @@ class MultiDOFPIDController : public ControllerBase<N> {
   WrenchVector control(const StateVector& state,
                        const StateVector& desired_state,
                        const StateVector& d_state, const double dt) {
+    Vectornd pos_pid_output = Vectornd::Zero();
+    {
+      const auto position_state = state.head(N);
+      const auto desired_position = desired_state.head(N);
+      const auto velocity_state = d_state.head(N);
+
+      const auto error = desired_position - position_state;
+      const auto p_term = kp_.template block<N, N>(0,0) * error;
+
+      integral_.head(N) += error * dt;
+      const auto i_term = ki_.template block<N, N>(0,0) * integral_.head(N);
+
+      // d/dt (desired) is considered to be zero
+      const auto d_term = kd_.template block<N, N>(0,0) * (Vectornd::Zero() - velocity_state);
+
+      pos_pid_output = p_term + i_term + d_term;
+    }
+
     const auto velocity_state = state.tail(N);
-    const auto desired_velocity = desired_state.tail(N);
+    const auto desired_velocity = desired_state.tail(N) + pos_pid_output;
     const auto acceleration_state = d_state.tail(N);
 
     const auto error = desired_velocity - velocity_state;
-    const auto p_term = kp_ * error;
+    const auto p_term = kp_.template block<N, N>(N,N) * error;
 
-    integral_ += error * dt;
-    const auto i_term = ki_ * integral_;
+    integral_.tail(N) += error * dt;
+    const auto i_term = ki_.template block<N, N>(N,N) * integral_.tail(N);
 
     // d/dt (desired) is considered to be zero
-    const auto d_term = kd_ * (Vectornd::Zero() - acceleration_state);
+    const auto d_term = kd_.template block<N, N>(N,N) * (Vectornd::Zero() - acceleration_state);
 
     const auto pid_output = p_term + i_term + d_term;
     const auto mass_matrix = actual_mass_matrix(state);
@@ -80,10 +100,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
   }
 
   // gains
-  Vectornd integral_{Vectornd::Zero()};
-  Matrixnd kp_;
-  Matrixnd ki_;
-  Matrixnd kd_;
+  Vector2nd integral_{Vector2nd::Zero()};
+  Matrix2nd kp_;
+  Matrix2nd ki_;
+  Matrix2nd kd_;
 };
 
 using SixDOFPIDController = MultiDOFPIDController<6>;
