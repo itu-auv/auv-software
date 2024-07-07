@@ -66,6 +66,8 @@ class ControllerROS {
         nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
     cmd_vel_sub_ =
         nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
+    cmd_pose_sub_ =
+        nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
     imu_sub_ = nh_.subscribe("imu", 1, &ControllerROS::imu_callback, this);
 
     control_enable_sub_.subscribe(
@@ -131,6 +133,12 @@ class ControllerROS {
                                           ControllerBase::Vector>(*msg);
   }
 
+  void cmd_pose_callback(const geometry_msgs::Pose::ConstPtr& msg) {
+    desired_state_.head(6) =
+        auv::common::conversions::convert<geometry_msgs::Pose,
+                                          ControllerBase::Vector>(*msg);
+  }
+
   void imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
     d_state_(6) = msg->linear_acceleration.x;
     d_state_(7) = msg->linear_acceleration.y;
@@ -142,6 +150,7 @@ class ControllerROS {
   ros::NodeHandle nh_;
   ros::Subscriber odometry_sub_;
   ros::Subscriber cmd_vel_sub_;
+  ros::Subscriber cmd_pose_sub_;
   ros::Subscriber imu_sub_;
   ros::Publisher wrench_pub_;
   ControlEnableSub control_enable_sub_;
