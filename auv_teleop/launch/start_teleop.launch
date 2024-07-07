@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="id" default="0" />
+  <arg name="control_rate" default="25.0" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="joy" type="joy_node" name="joy_node" args=" --num $(arg id)" output="screen"></node>
+    <node pkg="auv_teleop" type="joy_manager.py" name="joy_manager_node" output="screen"></node>
+  </group>
+</launch>
