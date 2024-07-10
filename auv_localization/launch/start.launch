@@ -14,5 +14,10 @@
       <remap from="localization/odom_pressure" to="localization/odom_pressure" />
       <param name="config_path" value="$(find auv_localization)/config/calibration_data.yaml"/>
     </node>
+    <node pkg="auv_localization" type="dvl_odometry_node.py" name="dvl_to_odom_node" output="screen">
+      <remap from="sensors/dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
+      <remap from="localization/odom_dvl" to="localization/odom_dvl" />
+      <param name="config_path" value="$(find auv_localization)/config/calibration_data.yaml"/>
+    </node>
   </group>
 </launch>
