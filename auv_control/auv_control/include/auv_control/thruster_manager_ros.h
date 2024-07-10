@@ -18,9 +18,7 @@ class ThrusterManagerROS {
   using ThrusterEffortVector = ThrusterAllocator::ThrusterEffortVector;
 
   ThrusterManagerROS(const ros::NodeHandle &nh)
-      : nh_{nh},
-        allocator_{ros::NodeHandle{"~"}},
-        latest_power_{auv_msgs::Power{16.0, 0.0, 0.0}} {
+      : nh_{nh}, allocator_{ros::NodeHandle{"~"}} {
     ROS_INFO("ThrusterManagerROS initialized");
 
     ros::NodeHandle nh_private("~");
