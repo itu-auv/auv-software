@@ -9,5 +9,10 @@
       <remap from="localization/odom_imu" to="localization/odom_imu" />
       <param name="config_path" value="$(find auv_localization)/config/calibration_data.yaml"/>
     </node>
+    <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node" output="screen">
+      <remap from="sensors/pressure/data" to="sensors/pressure/data" />
+      <remap from="localization/odom_pressure" to="localization/odom_pressure" />
+      <param name="config_path" value="$(find auv_localization)/config/calibration_data.yaml"/>
+    </node>
   </group>
 </launch>
