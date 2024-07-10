@@ -11,9 +11,9 @@ class JoystickNode:
     def __init__(self):
         rospy.init_node('joystick_node', anonymous=True)
         
-        self.joy_sub = rospy.Subscriber('/taluy/joy', Joy, self.joy_callback)
-        self.cmd_vel_pub = rospy.Publisher('/taluy/cmd_vel', Twist, queue_size=10)
-        self.enable_pub = rospy.Publisher('/taluy/enable', Bool, queue_size=10)
+        self.joy_sub = rospy.Subscriber('joy', Joy, self.joy_callback)
+        self.cmd_vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+        self.enable_pub = rospy.Publisher('enable', Bool, queue_size=10)
         
         self.joy_data = None
         self.lock = threading.Lock()
