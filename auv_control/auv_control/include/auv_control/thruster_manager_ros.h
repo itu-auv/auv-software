@@ -4,6 +4,7 @@
 
 #include "auv_control/thruster_allocation.h"
 #include "auv_msgs/MotorCommand.h"
+#include "auv_msgs/Power.h"
 #include "ros/ros.h"
 
 namespace auv {
@@ -17,7 +18,9 @@ class ThrusterManagerROS {
   using ThrusterEffortVector = ThrusterAllocator::ThrusterEffortVector;
 
   ThrusterManagerROS(const ros::NodeHandle &nh)
-      : nh_{nh}, allocator_{ros::NodeHandle{"~"}} {
+      : nh_{nh},
+        allocator_{ros::NodeHandle{"~"}},
+        latest_power_{auv_msgs::Power{16.0, 0.0, 0.0}} {
     ROS_INFO("ThrusterManagerROS initialized");
 
     ros::NodeHandle nh_private("~");
@@ -32,13 +35,16 @@ class ThrusterManagerROS {
     wrench_sub_ =
         nh_.subscribe("wrench", 1, &ThrusterManagerROS::wrench_callback, this);
 
+    power_sub_ =
+        nh_.subscribe("power", 1, &ThrusterManagerROS::power_callback, this);
+
     drive_pub_ = nh_.advertise<auv_msgs::MotorCommand>("board/drive_pulse", 1);
   }
 
   void spin() {
     ros::Rate rate(10);
     while (ros::ok()) {
-      if (!latest_wrench_) {
+      if (!latest_wrench_ || !latest_power_) {
         ros::spinOnce();
         rate.sleep();
         continue;
@@ -59,7 +65,8 @@ class ThrusterManagerROS {
 
       auv_msgs::MotorCommand motor_command_msg;
       for (size_t i = 0; i < kThrusterCount; ++i) {
-        motor_command_msg.channels[i] = wrench_to_drive(efforts(mapping_[i]));
+        motor_command_msg.channels[i] =
+            wrench_to_drive(efforts(mapping_[i]), latest_power_->voltage);
       }
 
       drive_pub_.publish(motor_command_msg);
@@ -86,7 +93,9 @@ class ThrusterManagerROS {
     latest_wrench_time_ = ros::Time::now();
   }
 
-  uint16_t wrench_to_drive(double wrench, double voltage = 16.0) {
+  void power_callback(const auv_msgs::Power &msg) { latest_power_ = msg; }
+
+  uint16_t wrench_to_drive(double wrench, double voltage) {
     wrench /= 9.81;
     if (std::abs(wrench) < 0.05) {
       return 1500;
@@ -108,11 +117,13 @@ class ThrusterManagerROS {
   ros::NodeHandle nh_;
   ThrusterAllocator allocator_;
   std::optional<geometry_msgs::Wrench> latest_wrench_;
+  std::optional<auv_msgs::Power> latest_power_;
   ros::Time latest_wrench_time_{ros::Time(0)};
   std::array<ros::Publisher, kThrusterCount> thruster_wrench_pubs_;
   std::array<geometry_msgs::WrenchStamped, kThrusterCount>
       thruster_wrench_msgs_;
   ros::Subscriber wrench_sub_;
+  ros::Subscriber power_sub_;
   ros::Publisher drive_pub_;
 
   std::vector<double> coeffs_ccw_;
