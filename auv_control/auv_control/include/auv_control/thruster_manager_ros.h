@@ -62,9 +62,10 @@ class ThrusterManagerROS {
       }
 
       auv_msgs::MotorCommand motor_command_msg;
+      double voltage = latest_power_ ? latest_power_->voltage : 16.0;
       for (size_t i = 0; i < kThrusterCount; ++i) {
         motor_command_msg.channels[i] =
-            wrench_to_drive(efforts(mapping_[i]), latest_power_->voltage);
+            wrench_to_drive(efforts(mapping_[i]), voltage);
       }
 
       drive_pub_.publish(motor_command_msg);
