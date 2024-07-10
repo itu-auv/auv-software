@@ -2,13 +2,14 @@
 <launch>
   <arg name="namespace" default="turquoise" />
   <arg name="rate" default="20" />
+  <arg name="use_gui" default="false" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch">
     <arg name="namespace" value="$(arg namespace)" />
-    <arg name="use_gui" value="true" />
+    <arg name="use_gui" value="$(arg use_gui)" />
   </include>
-  <group ns="$(arg namespace)">
 
+  <group ns="$(arg namespace)">
     <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
       <param name="rate" value="$(arg rate)" />
       <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
