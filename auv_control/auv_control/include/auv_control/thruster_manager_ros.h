@@ -1,4 +1,5 @@
 #pragma once
+#include <optional>
 #include <vector>
 
 #include "auv_control/thruster_allocation.h"
@@ -91,23 +92,14 @@ class ThrusterManagerROS {
       return 1500;
     }
 
-    double a, b, c, d, e, f;
-    if (wrench > 0) {
-      a = coeffs_cw_[0];
-      b = coeffs_cw_[1];
-      c = coeffs_cw_[2];
-      d = coeffs_cw_[3];
-      e = coeffs_cw_[4];
-      f = coeffs_cw_[5];
-    } else {
-      a = coeffs_ccw_[0];
-      b = coeffs_ccw_[1];
-      c = coeffs_ccw_[2];
-      d = coeffs_ccw_[3];
-      e = coeffs_ccw_[4];
-      f = coeffs_ccw_[5];
-    }
+    const auto &coeffs = (wrench > 0) ? coeffs_cw_ : coeffs_ccw_;
+    return calculate_drive_value(coeffs, wrench, voltage);
+  }
 
+  uint16_t calculate_drive_value(const std::vector<double> &coeffs,
+                                 double wrench, double voltage) const {
+    double a = coeffs[0], b = coeffs[1], c = coeffs[2], d = coeffs[3],
+           e = coeffs[4], f = coeffs[5];
     double drive_value = a * wrench * wrench + b * wrench * voltage +
                          c * voltage * voltage + d * wrench + e * voltage + f;
     return static_cast<uint16_t>(drive_value);
