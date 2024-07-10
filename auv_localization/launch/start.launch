@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="rate" default="20" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
+      <remap from="sensors/imu/data" to="sensors/imu/data" />
+      <remap from="localization/odom_imu" to="localization/odom_imu" />
+      <param name="config_path" value="$(find auv_localization)/config/calibration_data.yaml"/>
+    </node>
+  </group>
+</launch>
