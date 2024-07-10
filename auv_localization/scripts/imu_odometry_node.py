@@ -102,7 +102,7 @@ class ImuToOdom:
             with open(config_path, 'r') as f:
                 calibration_data = yaml.safe_load(f)
                 self.drift = np.array(calibration_data['drift'])
-            rospy.loginfo("Calibration data loaded.")
+            rospy.loginfo("Calibration data loaded. Drift: {}".format(self.drift))
         except FileNotFoundError:
             rospy.loginfo("No calibration data found.")
         
