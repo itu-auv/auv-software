@@ -1,0 +1,8 @@
+drift:
+- -0.005303653239904371
+- 0.0018212786518062493
+- 0.009486121476160365
+pose_position_z_covariance: 0.00001
+twist_covariance_linear_x: 0.01
+twist_covariance_linear_y: 0.01
+twist_covariance_linear_z: 0.01
