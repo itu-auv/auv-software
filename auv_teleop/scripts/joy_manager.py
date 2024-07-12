@@ -4,14 +4,16 @@ import rospy
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Header
+from std_msgs.msg import Bool
 import threading
 
 class JoystickNode:
     def __init__(self):
         rospy.init_node('joystick_node', anonymous=True)
         
-        self.joy_sub = rospy.Subscriber('/taluy/joy', Joy, self.joy_callback)
-        self.cmd_vel_pub = rospy.Publisher('/taluy/cmd_vel', Twist, queue_size=10)
+        self.joy_sub = rospy.Subscriber('joy', Joy, self.joy_callback)
+        self.cmd_vel_pub = rospy.Publisher('cmd_vel', Twist, queue_size=10)
+        self.enable_pub = rospy.Publisher('enable', Bool, queue_size=10)
         
         self.joy_data = None
         self.lock = threading.Lock()
@@ -48,6 +50,7 @@ class JoystickNode:
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
 
+            self.enable_pub.publish(Bool(True))
             self.cmd_vel_pub.publish(twist)
             self.rate.sleep()
 
