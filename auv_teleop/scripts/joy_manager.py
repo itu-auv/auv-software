@@ -40,7 +40,7 @@ class JoystickNode:
                 rospy.Timer(rospy.Duration(1), lambda event: self.call_torpedo_service(False), oneshot=True)
             self.torpedo_fired = False if data == False else self.torpedo_fired
         except rospy.ServiceException as e:
-            rospy.logerr(f"Service cal failed: {e}")
+            rospy.logerr(f"Service call failed: {e}")
             self.torpedo_fired = False
             rospy.Timer(rospy.Duration(1), lambda event: self.call_torpedo_service(False), oneshot=True)
 
