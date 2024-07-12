@@ -1,8 +1,10 @@
 #pragma once
+#include <optional>
 #include <vector>
 
 #include "auv_control/thruster_allocation.h"
 #include "auv_msgs/MotorCommand.h"
+#include "auv_msgs/Power.h"
 #include "ros/ros.h"
 
 namespace auv {
@@ -31,13 +33,16 @@ class ThrusterManagerROS {
     wrench_sub_ =
         nh_.subscribe("wrench", 1, &ThrusterManagerROS::wrench_callback, this);
 
+    power_sub_ =
+        nh_.subscribe("power", 1, &ThrusterManagerROS::power_callback, this);
+
     drive_pub_ = nh_.advertise<auv_msgs::MotorCommand>("board/drive_pulse", 1);
   }
 
   void spin() {
     ros::Rate rate(10);
     while (ros::ok()) {
-      if (!latest_wrench_) {
+      if (!latest_wrench_ || !latest_power_) {
         ros::spinOnce();
         rate.sleep();
         continue;
@@ -57,8 +62,10 @@ class ThrusterManagerROS {
       }
 
       auv_msgs::MotorCommand motor_command_msg;
+      double voltage = latest_power_ ? latest_power_->voltage : 16.0;
       for (size_t i = 0; i < kThrusterCount; ++i) {
-        motor_command_msg.channels[i] = wrench_to_drive(efforts(mapping_[i]));
+        motor_command_msg.channels[i] =
+            wrench_to_drive(efforts(mapping_[i]), voltage);
       }
 
       drive_pub_.publish(motor_command_msg);
@@ -85,29 +92,22 @@ class ThrusterManagerROS {
     latest_wrench_time_ = ros::Time::now();
   }
 
-  uint16_t wrench_to_drive(double wrench, double voltage = 16.0) {
+  void power_callback(const auv_msgs::Power &msg) { latest_power_ = msg; }
+
+  uint16_t wrench_to_drive(double wrench, double voltage) {
     wrench /= 9.81;
     if (std::abs(wrench) < 0.05) {
       return 1500;
     }
 
-    double a, b, c, d, e, f;
-    if (wrench > 0) {
-      a = coeffs_cw_[0];
-      b = coeffs_cw_[1];
-      c = coeffs_cw_[2];
-      d = coeffs_cw_[3];
-      e = coeffs_cw_[4];
-      f = coeffs_cw_[5];
-    } else {
-      a = coeffs_ccw_[0];
-      b = coeffs_ccw_[1];
-      c = coeffs_ccw_[2];
-      d = coeffs_ccw_[3];
-      e = coeffs_ccw_[4];
-      f = coeffs_ccw_[5];
-    }
+    const auto &coeffs = (wrench > 0) ? coeffs_cw_ : coeffs_ccw_;
+    return calculate_drive_value(coeffs, wrench, voltage);
+  }
 
+  uint16_t calculate_drive_value(const std::vector<double> &coeffs,
+                                 double wrench, double voltage) const {
+    double a = coeffs[0], b = coeffs[1], c = coeffs[2], d = coeffs[3],
+           e = coeffs[4], f = coeffs[5];
     double drive_value = a * wrench * wrench + b * wrench * voltage +
                          c * voltage * voltage + d * wrench + e * voltage + f;
     return static_cast<uint16_t>(drive_value);
@@ -116,11 +116,13 @@ class ThrusterManagerROS {
   ros::NodeHandle nh_;
   ThrusterAllocator allocator_;
   std::optional<geometry_msgs::Wrench> latest_wrench_;
+  std::optional<auv_msgs::Power> latest_power_;
   ros::Time latest_wrench_time_{ros::Time(0)};
   std::array<ros::Publisher, kThrusterCount> thruster_wrench_pubs_;
   std::array<geometry_msgs::WrenchStamped, kThrusterCount>
       thruster_wrench_msgs_;
   ros::Subscriber wrench_sub_;
+  ros::Subscriber power_sub_;
   ros::Publisher drive_pub_;
 
   std::vector<double> coeffs_ccw_;
