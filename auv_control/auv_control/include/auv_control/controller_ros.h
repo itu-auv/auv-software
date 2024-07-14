@@ -13,6 +13,9 @@
 #include "ros/ros.h"
 #include "sensor_msgs/Imu.h"
 #include "std_msgs/Bool.h"
+#include <dynamic_reconfigure/server.h>
+#include <auv_control/ControllerConfig.h> // Include your dynamic reconfigure header
+
 
 namespace auv {
 namespace control {
@@ -37,30 +40,34 @@ class ControllerROS {
     ros::NodeHandle nh_private("~");
 
     auto model = ModelParser::parse("model", nh_private);
-
-    const auto kp = VectorRosparamParser::parse("kp", nh_private);
-
-    const auto ki = VectorRosparamParser::parse("ki", nh_private);
-
-    const auto kd = VectorRosparamParser::parse("kd", nh_private);
+    load_parameters();
 
     ROS_INFO_STREAM("Model: \n" << model);
 
     const auto rate = nh_private.param("rate", 10.0);
     rate_ = ros::Rate{rate};
 
-    ROS_INFO_STREAM("kp: \n" << kp.transpose());
-    ROS_INFO_STREAM("ki: \n" << ki.transpose());
-    ROS_INFO_STREAM("kd: \n" << kd.transpose());
+    ROS_INFO_STREAM("kp: \n" << kp_.transpose());
+    ROS_INFO_STREAM("ki: \n" << ki_.transpose());
+    ROS_INFO_STREAM("kd: \n" << kd_.transpose());
     load_controller("auv::control::SixDOFPIDController");
 
     auto controller =
         dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
 
     controller->set_model(model);
-    controller->set_kp(kp);
-    controller->set_ki(ki);
-    controller->set_kd(kd);
+    controller->set_kp(kp_);
+    controller->set_ki(ki_);
+    controller->set_kd(kd_);
+
+    // Set up dynamic reconfigure server with initial values
+    auv_control::ControllerConfig initial_config;
+    set_initial_config(initial_config);
+
+    dynamic_reconfigure::Server<auv_control::ControllerConfig>::CallbackType f;
+    f = boost::bind(&ControllerROS::reconfigure_callback, this, _1, _2);
+    dr_srv_.setCallback(f);
+    dr_srv_.updateConfig(initial_config);  // Apply the initial configuration
 
     odometry_sub_ =
         nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
@@ -153,6 +160,57 @@ class ControllerROS {
     d_state_.tail(3) = Eigen::Vector3d::Zero();
   }
 
+  void reconfigure_callback(auv_control::ControllerConfig& config, uint32_t level) {
+    auto controller = dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+
+    kp_ << config.kp_0, config.kp_1, config.kp_2, config.kp_3, config.kp_4, config.kp_5, config.kp_6, config.kp_7, config.kp_8, config.kp_9, config.kp_10, config.kp_11;
+    ki_ << config.ki_0, config.ki_1, config.ki_2, config.ki_3, config.ki_4, config.ki_5, config.ki_6, config.ki_7, config.ki_8, config.ki_9, config.ki_10, config.ki_11;
+    kd_ << config.kd_0, config.kd_1, config.kd_2, config.kd_3, config.kd_4, config.kd_5, config.kd_6, config.kd_7, config.kd_8, config.kd_9, config.kd_10, config.kd_11;
+    controller->set_kp(kp_);
+    controller->set_ki(ki_);
+    controller->set_kd(kd_);
+
+    save_parameters();
+  }
+
+  void load_parameters() {
+    kp_ = VectorRosparamParser::parse("kp", ros::NodeHandle("~"));
+    ki_ = VectorRosparamParser::parse("ki", ros::NodeHandle("~"));
+    kd_ = VectorRosparamParser::parse("kd", ros::NodeHandle("~"));
+  }
+
+  void set_initial_config(auv_control::ControllerConfig& config) {
+    config.kp_0 = kp_(0); config.kp_1 = kp_(1); config.kp_2 = kp_(2); config.kp_3 = kp_(3);
+    config.kp_4 = kp_(4); config.kp_5 = kp_(5); config.kp_6 = kp_(6); config.kp_7 = kp_(7);
+    config.kp_8 = kp_(8); config.kp_9 = kp_(9); config.kp_10 = kp_(10); config.kp_11 = kp_(11);
+
+    config.ki_0 = ki_(0); config.ki_1 = ki_(1); config.ki_2 = ki_(2); config.ki_3 = ki_(3);
+    config.ki_4 = ki_(4); config.ki_5 = ki_(5); config.ki_6 = ki_(6); config.ki_7 = ki_(7);
+    config.ki_8 = ki_(8); config.ki_9 = ki_(9); config.ki_10 = ki_(10); config.ki_11 = ki_(11);
+
+    config.kd_0 = kd_(0); config.kd_1 = kd_(1); config.kd_2 = kd_(2); config.kd_3 = kd_(3);
+    config.kd_4 = kd_(4); config.kd_5 = kd_(5); config.kd_6 = kd_(6); config.kd_7 = kd_(7);
+    config.kd_8 = kd_(8); config.kd_9 = kd_(9); config.kd_10 = kd_(10); config.kd_11 = kd_(11);
+  }
+
+  void save_parameters() {
+    // std::ofstream file(config_file_);
+    // if (!file.is_open()) {
+    //   ROS_ERROR_STREAM("Failed to open config file: " << config_file_);
+    //   return;
+    // }
+
+    // file << "kp: [" << kp_(0);
+    // for (int i = 1; i < 12; ++i) file << ", " << kp_(i);
+    // file << "]\nki: [" << ki_(0);
+    // for (int i = 1; i < 12; ++i) file << ", " << ki_(i);
+    // file << "]\nkd: [" << kd_(0);
+    // for (int i = 1; i < 12; ++i) file << ", " << kd_(i);
+    // file << "]\n";
+
+    // file.close();
+  }
+
   ros::Rate rate_;
   ros::NodeHandle nh_;
   ros::Subscriber odometry_sub_;
@@ -171,6 +229,9 @@ class ControllerROS {
 
   ControllerLoader controller_loader_{"auv_controllers",
                                       "auv::control::SixDOFControllerBase"};
+
+  dynamic_reconfigure::Server<auv_control::ControllerConfig> dr_srv_; // Dynamic reconfigure server
+  Eigen::Matrix<double, 12, 1> kp_, ki_, kd_; // Parameters to be dynamically reconfigured
 };
 
 }  // namespace control
