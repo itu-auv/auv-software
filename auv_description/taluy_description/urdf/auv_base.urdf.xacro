@@ -105,19 +105,19 @@
 
     <xacro:sonar name="base_link/sonar_front" parent="base_link"
       position="0.38 0.09 0.09"
-      orientation="0 0 0" />
+      orientation="0 ${math.pi/2} 0" />
 
     <xacro:sonar name="base_link/sonar_back" parent="base_link"
       position="-0.42 -0.09 0.09"
-      orientation="0 0 ${math.pi}" />
+      orientation="0 ${math.pi/2} ${math.pi}" />
 
     <xacro:sonar name="base_link/sonar_left" parent="base_link"
       position="0.02 -0.21 -0.14"
-      orientation="0 0 ${-math.pi/2}" />
+      orientation="0 ${math.pi/2} ${-math.pi/2}" />
 
     <xacro:sonar name="base_link/sonar_right" parent="base_link"
       position="0.02 0.21 -0.14"
-      orientation="0 0 ${math.pi/2}" />
+      orientation="0 ${math.pi/2} ${math.pi/2}" />
 
 
     <!-- <link name="base_footprint">
