@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <optional>
 #include <vector>
 
@@ -25,6 +26,8 @@ class ThrusterManagerROS {
     nh_private.getParam("coeffs_ccw", coeffs_ccw_);
     nh_private.getParam("coeffs_cw", coeffs_cw_);
     nh_private.getParam("mapping", mapping_);
+    nh_private.getParam("max_thrust", max_wrench_);
+    nh_private.getParam("min_thrust", min_wrench_);
 
     for (size_t i = 0; i < kThrusterCount; ++i) {
       thruster_wrench_pubs_[i] = nh_.advertise<geometry_msgs::WrenchStamped>(
@@ -64,8 +67,9 @@ class ThrusterManagerROS {
       auv_msgs::MotorCommand motor_command_msg;
       double voltage = latest_power_ ? latest_power_->voltage : 16.0;
       for (size_t i = 0; i < kThrusterCount; ++i) {
-        motor_command_msg.channels[i] =
-            wrench_to_drive(efforts(mapping_[i]), voltage);
+        const auto pwm = wrench_to_drive(efforts(mapping_[i]), voltage);
+        motor_command_msg.channels[i] = std::clamp(
+            pwm, static_cast<uint16_t>(1100U), static_cast<uint16_t>(1900U));
       }
 
       drive_pub_.publish(motor_command_msg);
@@ -95,13 +99,20 @@ class ThrusterManagerROS {
   void power_callback(const auv_msgs::Power &msg) { latest_power_ = msg; }
 
   uint16_t wrench_to_drive(double wrench, double voltage) {
-    wrench /= 9.81;
-    if (std::abs(wrench) < 0.05) {
+    if (std::abs(wrench) < min_wrench_) {
       return 1500;
     }
 
+    if (std::abs(wrench) > max_wrench_) {
+      wrench = std::copysign(max_wrench_, wrench);
+    }
+
+    wrench /= 9.81;
+
     const auto &coeffs = (wrench > 0) ? coeffs_cw_ : coeffs_ccw_;
-    return calculate_drive_value(coeffs, wrench, voltage);
+    const auto drive_value = calculate_drive_value(coeffs, wrench, voltage);
+    return std::clamp(drive_value, static_cast<uint16_t>(1100U),
+                      static_cast<uint16_t>(1900U));
   }
 
   uint16_t calculate_drive_value(const std::vector<double> &coeffs,
@@ -128,6 +139,8 @@ class ThrusterManagerROS {
   std::vector<double> coeffs_ccw_;
   std::vector<double> coeffs_cw_;
   std::vector<int> mapping_;
+  double max_wrench_{0.0};
+  double min_wrench_{0.0};
 };
 
 }  // namespace control
