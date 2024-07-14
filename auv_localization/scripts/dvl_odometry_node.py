@@ -5,6 +5,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 import numpy as np
 import yaml
+import math
 
 
 class DvlToOdom:
@@ -20,7 +21,7 @@ class DvlToOdom:
         # Initialize the odometry message
         self.odom_msg = Odometry()
         self.odom_msg.header.frame_id = 'odom'
-        self.odom_msg.child_frame_id = 'base_link'
+        self.odom_msg.child_frame_id = 'taluy/base_link'
 
         # Initialize covariances with default values
         self.odom_msg.pose.covariance = np.zeros(36).tolist()
@@ -29,11 +30,24 @@ class DvlToOdom:
         # Load calibration data
         self.load_calibration_data()
 
+    def transform_vector(self, vector):
+        theta = np.radians(-135)
+        rotation_matrix = np.array([
+            [np.cos(theta), -np.sin(theta), 0],
+            [np.sin(theta), np.cos(theta), 0],
+            [0, 0, 1]
+        ])
+        return np.dot(rotation_matrix, np.array(vector))
+
     def velocity_callback(self, velocity_msg):
         # Fill the odometry message with DVL velocity data
         self.odom_msg.header.stamp = rospy.Time.now()
 
         # Set the twist data to the odometry message
+        rotated_vector = self.transform_vector([velocity_msg.linear.x, velocity_msg.linear.y, velocity_msg.linear.z])
+        velocity_msg.linear.x = rotated_vector[0]
+        velocity_msg.linear.y = rotated_vector[1]
+        velocity_msg.linear.z = rotated_vector[2]
         self.odom_msg.twist.twist = velocity_msg
 
         # Set position to zero as we are not computing it here

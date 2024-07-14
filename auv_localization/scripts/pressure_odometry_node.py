@@ -20,7 +20,7 @@ class PressureToOdom:
         # Initialize the odometry message
         self.odom_msg = Odometry()
         self.odom_msg.header.frame_id = 'odom'
-        self.odom_msg.child_frame_id = 'base_link'
+        self.odom_msg.child_frame_id = 'taluy/base_link'
 
         # Initialize covariances with zeros
         self.odom_msg.pose.covariance = np.zeros(36).tolist()

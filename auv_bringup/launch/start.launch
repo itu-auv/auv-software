@@ -33,4 +33,22 @@
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="port" value="$(arg dvl_virtual_port)" />
   </include>
+
+  <include file="$(find auv_localization)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <include file="$(find auv_bringup)/launch/robot_localization.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <include file="$(find auv_control)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="logging_directory"  value="/home/jetson/bags/13temmuz" />
+  </include>
+
 </launch>
