@@ -32,7 +32,7 @@
       </collision>
     </link>
 
-    <link name="base_link_ned"/>
+    <link name="base_link_ned" />
 
     <joint name="base_link_joint" type="fixed">
       <origin xyz="0 0 0" rpy="${math.pi} 0 0" />
@@ -40,15 +40,23 @@
       <child link="base_link" />
     </joint>
 
-    <xacro:t200_thruster name="thruster_0" parent="base_link" position="0.14250 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
-    <xacro:t200_thruster name="thruster_1" parent="base_link" position="0.14250 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
-    <xacro:t200_thruster name="thruster_2" parent="base_link" position="-0.14250 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
-    <xacro:t200_thruster name="thruster_3" parent="base_link" position="-0.14250 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
-    <xacro:t200_thruster name="thruster_4" parent="base_link" position="0.352398 0.216638 -0.030881" orientation="${-pi/2} 0 ${-7*pi/4}"/>
-    <xacro:t200_thruster name="thruster_5" parent="base_link" position="0.352398 -0.216638 -0.030881" orientation="${pi/2} 0 ${7*pi/4}"/>
-    <xacro:t200_thruster name="thruster_6" parent="base_link" position="-0.352398 0.216638 -0.030881" orientation="${-pi/2} 0 ${-pi/4}"/>
-    <xacro:t200_thruster name="thruster_7" parent="base_link" position="-0.352398 -0.216638 -0.030881" orientation="${pi/2} 0 ${pi/4}"/>
-    
+    <xacro:t200_thruster name="thruster_0" parent="base_link" position="0.14250 0.20070 -0.00525"
+      orientation="${pi} 0 ${-pi/2}" />
+    <xacro:t200_thruster name="thruster_1" parent="base_link" position="0.14250 -0.20070 -0.00525"
+      orientation="${pi} 0 ${pi/2}" />
+    <xacro:t200_thruster name="thruster_2" parent="base_link" position="-0.14250 0.20070 -0.00525"
+      orientation="${pi} 0 ${-pi/2}" />
+    <xacro:t200_thruster name="thruster_3" parent="base_link" position="-0.14250 -0.20070 -0.00525"
+      orientation="${pi} 0 ${pi/2}" />
+    <xacro:t200_thruster name="thruster_4" parent="base_link" position="0.352398 0.216638 -0.030881"
+      orientation="${-pi/2} 0 ${-7*pi/4}" />
+    <xacro:t200_thruster name="thruster_5" parent="base_link"
+      position="0.352398 -0.216638 -0.030881" orientation="${pi/2} 0 ${7*pi/4}" />
+    <xacro:t200_thruster name="thruster_6" parent="base_link"
+      position="-0.352398 0.216638 -0.030881" orientation="${-pi/2} 0 ${-pi/4}" />
+    <xacro:t200_thruster name="thruster_7" parent="base_link"
+      position="-0.352398 -0.216638 -0.030881" orientation="${pi/2} 0 ${pi/4}" />
+
     <xacro:wayfinder_dvl
       name="base_link/dvl" parent="base_link" position="0.2 0 -0.11"
       orientation="0 0 0" />
@@ -94,6 +102,22 @@
     <xacro:torpedo name="base_link/right_torpedo"
       parent="base_link" position="0.2 -0.1 -0.11"
       orientation="0 0 0" />
+
+    <xacro:sonar name="base_link/sonar_front" parent="base_link"
+      position="0.38 0.09 0.09"
+      orientation="0 0 0" />
+
+    <xacro:sonar name="base_link/sonar_back" parent="base_link"
+      position="-0.42 -0.09 0.09"
+      orientation="0 0 ${math.pi}" />
+
+    <xacro:sonar name="base_link/sonar_left" parent="base_link"
+      position="0.02 -0.21 -0.14"
+      orientation="0 0 ${-math.pi/2}" />
+
+    <xacro:sonar name="base_link/sonar_right" parent="base_link"
+      position="0.02 0.21 -0.14"
+      orientation="0 0 ${math.pi/2}" />
 
 
     <!-- <link name="base_footprint">
