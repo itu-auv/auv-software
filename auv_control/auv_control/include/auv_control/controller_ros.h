@@ -66,9 +66,9 @@ class ControllerROS {
 
     dynamic_reconfigure::Server<auv_control::ControllerConfig>::CallbackType f;
     f = boost::bind(&ControllerROS::reconfigure_callback, this, _1, _2);
-    dr_srv_.setCallback(f);
     dr_srv_.updateConfig(initial_config);  // Apply the initial configuration
-
+    dr_srv_.setCallback(f);
+    
     odometry_sub_ =
         nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
     cmd_vel_sub_ =
@@ -193,23 +193,57 @@ class ControllerROS {
     config.kd_8 = kd_(8); config.kd_9 = kd_(9); config.kd_10 = kd_(10); config.kd_11 = kd_(11);
   }
 
-  void save_parameters() {
-    // std::ofstream file(config_file_);
-    // if (!file.is_open()) {
-    //   ROS_ERROR_STREAM("Failed to open config file: " << config_file_);
-    //   return;
-    // }
+void save_parameters() {
+    ros::NodeHandle nh_private("~");
+    nh_private.param("config_file", config_file_, std::string{});
+    if (config_file_.empty()) {
+      ROS_ERROR("Config file not specified");
+      return;
+    }
 
-    // file << "kp: [" << kp_(0);
-    // for (int i = 1; i < 12; ++i) file << ", " << kp_(i);
-    // file << "]\nki: [" << ki_(0);
-    // for (int i = 1; i < 12; ++i) file << ", " << ki_(i);
-    // file << "]\nkd: [" << kd_(0);
-    // for (int i = 1; i < 12; ++i) file << ", " << kd_(i);
-    // file << "]\n";
+    std::ifstream in_file(config_file_);
+    if (!in_file.is_open()) {
+      ROS_ERROR_STREAM("Failed to open config file: " << config_file_);
+      return;
+    }
 
-    // file.close();
-  }
+    std::stringstream buffer;
+    buffer << in_file.rdbuf();
+    std::string content = buffer.str();
+    in_file.close();
+
+    auto replace_param = [](std::string& content, const std::string& param, const Eigen::Matrix<double, 12, 1>& values) {
+      std::stringstream ss;
+      ss << std::fixed << std::setprecision(1);
+      ss << param << ": [" << values(0);
+      for (int i = 1; i < 12; ++i) ss << ", " << values(i);
+      ss << "]";
+      
+      std::string::size_type start_pos = content.find(param + ": [");
+      if (start_pos == std::string::npos) {
+        // If parameter not found, add it to the end
+        content += "\n" + ss.str();
+      } else {
+        std::string::size_type end_pos = content.find("]", start_pos);
+        content.replace(start_pos, end_pos - start_pos + 1, ss.str());
+      }
+    };
+
+    replace_param(content, "kp", kp_);
+    replace_param(content, "ki", ki_);
+    replace_param(content, "kd", kd_);
+
+    std::ofstream out_file(config_file_);
+    if (!out_file.is_open()) {
+      ROS_ERROR_STREAM("Failed to open config file for writing: " << config_file_);
+      return;
+    }
+    out_file << content;
+    out_file.close();
+
+    ROS_INFO_STREAM("Parameters saved to " << config_file_);
+}
+
 
   ros::Rate rate_;
   ros::NodeHandle nh_;
@@ -232,6 +266,7 @@ class ControllerROS {
 
   dynamic_reconfigure::Server<auv_control::ControllerConfig> dr_srv_; // Dynamic reconfigure server
   Eigen::Matrix<double, 12, 1> kp_, ki_, kd_; // Parameters to be dynamically reconfigured
+  std::string config_file_; // Path to the config file
 };
 
 }  // namespace control
