@@ -177,82 +177,22 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        base_link/thruster_0_link:
+        base_link/sonar_back_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        base_link/thruster_0_propeller_link:
+        base_link/sonar_front_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        base_link/thruster_1_link:
+        base_link/sonar_left_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        base_link/thruster_1_propeller_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_2_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_2_propeller_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_3_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_3_propeller_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_4_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_4_propeller_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_5_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_5_propeller_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_6_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_6_propeller_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_7_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        base_link/thruster_7_propeller_link:
+        base_link/sonar_right_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -261,6 +201,86 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
+        thruster_0_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_0_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_1_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_2_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_3_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_3_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_4_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_4_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_5_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_5_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_6_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_6_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_7_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_7_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
       Name: RobotModel
       Robot Description: robot_description
       TF Prefix: taluy
@@ -322,39 +342,47 @@ Visualization Manager:
           Value: true
         taluy/base_link/right_torpedo_upper_link:
           Value: true
-        taluy/base_link/thruster_0_link:
+        taluy/base_link/sonar_back_link:
           Value: true
-        taluy/base_link/thruster_0_propeller_link:
+        taluy/base_link/sonar_front_link:
           Value: true
-        taluy/base_link/thruster_1_link:
+        taluy/base_link/sonar_left_link:
           Value: true
-        taluy/base_link/thruster_1_propeller_link:
-          Value: true
-        taluy/base_link/thruster_2_link:
-          Value: true
-        taluy/base_link/thruster_2_propeller_link:
-          Value: true
-        taluy/base_link/thruster_3_link:
-          Value: true
-        taluy/base_link/thruster_3_propeller_link:
-          Value: true
-        taluy/base_link/thruster_4_link:
-          Value: true
-        taluy/base_link/thruster_4_propeller_link:
-          Value: true
-        taluy/base_link/thruster_5_link:
-          Value: true
-        taluy/base_link/thruster_5_propeller_link:
-          Value: true
-        taluy/base_link/thruster_6_link:
-          Value: true
-        taluy/base_link/thruster_6_propeller_link:
-          Value: true
-        taluy/base_link/thruster_7_link:
-          Value: true
-        taluy/base_link/thruster_7_propeller_link:
+        taluy/base_link/sonar_right_link:
           Value: true
         taluy/base_link_ned:
+          Value: true
+        taluy/thruster_0_link:
+          Value: true
+        taluy/thruster_0_propeller_link:
+          Value: true
+        taluy/thruster_1_link:
+          Value: true
+        taluy/thruster_1_propeller_link:
+          Value: true
+        taluy/thruster_2_link:
+          Value: true
+        taluy/thruster_2_propeller_link:
+          Value: true
+        taluy/thruster_3_link:
+          Value: true
+        taluy/thruster_3_propeller_link:
+          Value: true
+        taluy/thruster_4_link:
+          Value: true
+        taluy/thruster_4_propeller_link:
+          Value: true
+        taluy/thruster_5_link:
+          Value: true
+        taluy/thruster_5_propeller_link:
+          Value: true
+        taluy/thruster_6_link:
+          Value: true
+        taluy/thruster_6_propeller_link:
+          Value: true
+        taluy/thruster_7_link:
+          Value: true
+        taluy/thruster_7_propeller_link:
           Value: true
       Marker Alpha: 1
       Marker Scale: 0.25
@@ -403,29 +431,37 @@ Visualization Manager:
                 {}
               taluy/base_link/right_torpedo_upper_link:
                 {}
-            taluy/base_link/thruster_0_link:
-              taluy/base_link/thruster_0_propeller_link:
+            taluy/base_link/sonar_back_link:
+              {}
+            taluy/base_link/sonar_front_link:
+              {}
+            taluy/base_link/sonar_left_link:
+              {}
+            taluy/base_link/sonar_right_link:
+              {}
+            taluy/thruster_0_link:
+              taluy/thruster_0_propeller_link:
                 {}
-            taluy/base_link/thruster_1_link:
-              taluy/base_link/thruster_1_propeller_link:
+            taluy/thruster_1_link:
+              taluy/thruster_1_propeller_link:
                 {}
-            taluy/base_link/thruster_2_link:
-              taluy/base_link/thruster_2_propeller_link:
+            taluy/thruster_2_link:
+              taluy/thruster_2_propeller_link:
                 {}
-            taluy/base_link/thruster_3_link:
-              taluy/base_link/thruster_3_propeller_link:
+            taluy/thruster_3_link:
+              taluy/thruster_3_propeller_link:
                 {}
-            taluy/base_link/thruster_4_link:
-              taluy/base_link/thruster_4_propeller_link:
+            taluy/thruster_4_link:
+              taluy/thruster_4_propeller_link:
                 {}
-            taluy/base_link/thruster_5_link:
-              taluy/base_link/thruster_5_propeller_link:
+            taluy/thruster_5_link:
+              taluy/thruster_5_propeller_link:
                 {}
-            taluy/base_link/thruster_6_link:
-              taluy/base_link/thruster_6_propeller_link:
+            taluy/thruster_6_link:
+              taluy/thruster_6_propeller_link:
                 {}
-            taluy/base_link/thruster_7_link:
-              taluy/base_link/thruster_7_propeller_link:
+            taluy/thruster_7_link:
+              taluy/thruster_7_propeller_link:
                 {}
       Update Interval: 0
       Value: true
@@ -441,7 +477,7 @@ Visualization Manager:
           History Length: 1
           Name: Thruster 0
           Queue Size: 10
-          Topic: /thrusters/thruster_0/wrench
+          Topic: /taluy/thrusters/thruster_0/wrench
           Torque Arrow Scale: 0
           Torque Color: 204; 204; 51
           Unreliable: false
@@ -456,7 +492,7 @@ Visualization Manager:
           History Length: 1
           Name: Thruster 1
           Queue Size: 10
-          Topic: /thrusters/thruster_1/wrench
+          Topic: /taluy/thrusters/thruster_1/wrench
           Torque Arrow Scale: 0
           Torque Color: 204; 204; 51
           Unreliable: false
@@ -471,7 +507,7 @@ Visualization Manager:
           History Length: 1
           Name: Thruster 2
           Queue Size: 10
-          Topic: /thrusters/thruster_2/wrench
+          Topic: /taluy/thrusters/thruster_2/wrench
           Torque Arrow Scale: 0
           Torque Color: 204; 204; 51
           Unreliable: false
@@ -486,7 +522,7 @@ Visualization Manager:
           History Length: 1
           Name: Thruster 3
           Queue Size: 10
-          Topic: /thrusters/thruster_3/wrench
+          Topic: /taluy/thrusters/thruster_3/wrench
           Torque Arrow Scale: 0
           Torque Color: 204; 204; 51
           Unreliable: false
@@ -501,7 +537,7 @@ Visualization Manager:
           History Length: 1
           Name: Thruster 4
           Queue Size: 10
-          Topic: /thrusters/thruster_4/wrench
+          Topic: /taluy/thrusters/thruster_4/wrench
           Torque Arrow Scale: 0
           Torque Color: 204; 204; 51
           Unreliable: false
@@ -516,7 +552,7 @@ Visualization Manager:
           History Length: 1
           Name: Thruster 5
           Queue Size: 10
-          Topic: /thrusters/thruster_5/wrench
+          Topic: /taluy/thrusters/thruster_5/wrench
           Torque Arrow Scale: 0
           Torque Color: 204; 204; 51
           Unreliable: false
@@ -531,7 +567,7 @@ Visualization Manager:
           History Length: 1
           Name: Thruster 6
           Queue Size: 10
-          Topic: /thrusters/thruster_6/wrench
+          Topic: /taluy/thrusters/thruster_6/wrench
           Torque Arrow Scale: 0
           Torque Color: 204; 204; 51
           Unreliable: false
@@ -546,7 +582,7 @@ Visualization Manager:
           History Length: 1
           Name: Thruster 7
           Queue Size: 10
-          Topic: /thrusters/thruster_7/wrench
+          Topic: /taluy/thrusters/thruster_7/wrench
           Torque Arrow Scale: 0
           Torque Color: 204; 204; 51
           Unreliable: false
