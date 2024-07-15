@@ -15,6 +15,12 @@ find_package(catkin REQUIRED COMPONENTS
   pluginlib
   nav_msgs
   tf2_ros
+  dynamic_reconfigure
+)
+
+# Generate dynamic reconfigure options
+generate_dynamic_reconfigure_options(
+  cfg/Controller.cfg
 )
 
 find_package(Eigen3 REQUIRED)
@@ -30,6 +36,7 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
+  ${CMAKE_BINARY_DIR}/devel/include  # Ensure this is included
 )
 
 add_executable(${PROJECT_NAME}_node 
@@ -37,11 +44,12 @@ add_executable(${PROJECT_NAME}_node
   src/controller_node.cpp
 )
 
+# Add dependencies to ensure dynamic reconfigure headers are generated before building
+add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
+
 target_link_libraries(${PROJECT_NAME}_node
   ${catkin_LIBRARIES}
 )
-
-add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 install(TARGETS ${PROJECT_NAME}_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
@@ -52,11 +60,12 @@ add_executable(thruster_manager_node
   src/thruster_manager_node.cpp
 )
 
+# Add dependencies to ensure dynamic reconfigure headers are generated before building
+add_dependencies(thruster_manager_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
+
 target_link_libraries(thruster_manager_node
   ${catkin_LIBRARIES}
 )
-
-add_dependencies(thruster_manager_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 install(TARGETS thruster_manager_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
