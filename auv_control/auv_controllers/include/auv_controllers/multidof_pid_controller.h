@@ -1,5 +1,6 @@
 #pragma once
 #include <Eigen/Core>
+#include <Eigen/Dense>
 #include <array>
 #include <vector>
 
@@ -14,9 +15,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
   using WrenchVector = typename Base::WrenchVector;
   using StateVector = typename Base::StateVector;
   using Vectornd = Eigen::Matrix<double, N, 1>;
-  using Vector2nd = Eigen::Matrix<double, 2*N, 1>;
+  using Vector2nd = Eigen::Matrix<double, 2 * N, 1>;
   using Matrixnd = Eigen::Matrix<double, N, N>;
-  using Matrix2nd = Eigen::Matrix<double, 2*N, 2*N>;
+  using Matrix2nd = Eigen::Matrix<double, 2 * N, 2 * N>;
 
  public:
   void set_kp(const Vector2nd& kp) { kp_ = kp.asDiagonal(); }
@@ -44,13 +45,14 @@ class MultiDOFPIDController : public ControllerBase<N> {
       const auto velocity_state = d_state.head(N);
 
       const auto error = desired_position - position_state;
-      const auto p_term = kp_.template block<N, N>(0,0) * error;
+      const auto p_term = kp_.template block<N, N>(0, 0) * error;
 
       integral_.head(N) += error * dt;
-      const auto i_term = ki_.template block<N, N>(0,0) * integral_.head(N);
+      const auto i_term = ki_.template block<N, N>(0, 0) * integral_.head(N);
 
       // d/dt (desired) is considered to be zero
-      const auto d_term = kd_.template block<N, N>(0,0) * (Vectornd::Zero() - velocity_state);
+      const auto d_term =
+          kd_.template block<N, N>(0, 0) * (Vectornd::Zero() - velocity_state);
 
       pos_pid_output = p_term + i_term + d_term;
     }
@@ -60,13 +62,14 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto acceleration_state = d_state.tail(N);
 
     const auto error = desired_velocity - velocity_state;
-    const auto p_term = kp_.template block<N, N>(N,N) * error;
+    const auto p_term = kp_.template block<N, N>(N, N) * error;
 
     integral_.tail(N) += error * dt;
-    const auto i_term = ki_.template block<N, N>(N,N) * integral_.tail(N);
+    const auto i_term = ki_.template block<N, N>(N, N) * integral_.tail(N);
 
     // d/dt (desired) is considered to be zero
-    const auto d_term = kd_.template block<N, N>(N,N) * (Vectornd::Zero() - acceleration_state);
+    const auto d_term = kd_.template block<N, N>(N, N) *
+                        (Vectornd::Zero() - acceleration_state);
 
     const auto pid_output = p_term + i_term + d_term;
     const auto mass_matrix = actual_mass_matrix(state);
@@ -77,7 +80,25 @@ class MultiDOFPIDController : public ControllerBase<N> {
     feedforward_state.tail(N) += pos_pid_output;
     const auto damping_force = damping_control(feedforward_state);
 
-    return pid_force + damping_force;
+    WrenchVector wrench = pid_force + damping_force;
+    {
+      Eigen::AngleAxisd roll_angle(state[3], Eigen::Vector3d::UnitX());
+      Eigen::AngleAxisd pitch_angle(state[4], Eigen::Vector3d::UnitY());
+      Eigen::AngleAxisd yaw_angle(state[5], Eigen::Vector3d::UnitZ());
+      Eigen::Quaterniond rotation = yaw_angle * pitch_angle * roll_angle;
+      Eigen::Matrix3d rotation_matrix = rotation.matrix();
+      // get the inverse wrench transformation matrix
+      Eigen::Matrix3d inverse_rotation_matrix = rotation_matrix.transpose();
+
+      Eigen::Vector3d f_z = Eigen::Vector3d::Zero();
+      f_z(2) = wrench(2);
+      wrench(2) = 0;
+
+      Eigen::Vector3d rotated_fz = inverse_rotation_matrix * f_z;
+      wrench.head(3) += rotated_fz;
+    }
+
+    return wrench;
   }
 
  private:
