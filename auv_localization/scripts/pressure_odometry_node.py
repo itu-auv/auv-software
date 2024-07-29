@@ -29,12 +29,14 @@ class PressureToOdom:
         # Load calibration data
         self.load_calibration_data()
 
+        self.offset = 0.364111
+
     def depth_callback(self, depth_msg):
         # Fill the odometry message with depth data as the z component of the linear position
         self.odom_msg.header.stamp = rospy.Time.now()
 
         # Set the z component in pose position to the depth value
-        self.odom_msg.pose.pose.position.z = depth_msg.data
+        self.odom_msg.pose.pose.position.z = depth_msg.data - self.offset
 
         # Set other components to zero as we are not using them
         self.odom_msg.pose.pose.position.x = 0.0
