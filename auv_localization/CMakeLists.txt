@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   rospy
   message_generation
+  auv_common_lib
 )
 
 add_service_files(
