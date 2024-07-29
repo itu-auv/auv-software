@@ -24,5 +24,11 @@
       <remap from="power" to="mainboard/power_sensor/power" />
       <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
     </node>
+
+    <node pkg="auv_control" type="depth_controller_node.py" name="depth_controller_node"
+      output="screen">
+      <param name="update_rate" value="$(arg rate)" />
+    </node>
+
   </group>
 </launch>
