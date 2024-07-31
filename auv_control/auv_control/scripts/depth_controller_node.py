@@ -25,8 +25,10 @@ class DepthControllerNode:
         self.last_enable_time = time.time()
         
         # Parameters
-        self.update_rate = rospy.get_param('~update_rate', 10) # Hz
-        self.smoothing_factor = rospy.get_param('~smoothing_factor', 0.1) # Adjust this for slower or faster transitions
+        self.update_rate = rospy.get_param('~update_rate', 10)
+        self.tau = rospy.get_param('~tau', 2.0)
+        self.dt = 1.0 / self.update_rate
+        self.alpha = self.dt / (self.tau + self.dt)
         
         rospy.Timer(rospy.Duration(1.0 / self.update_rate), self.control_loop)
         
@@ -42,8 +44,8 @@ class DepthControllerNode:
 
     def control_loop(self, event):
         if self.enabled and (time.time() - self.last_enable_time < 1.0):
-            # Calculate the smoothed target depth
-            new_depth = self.current_depth + self.smoothing_factor * (self.target_depth - self.current_depth)
+            # Update the current depth using the first-order low-pass filter formula
+            new_depth = self.current_depth + self.alpha * (self.target_depth - self.current_depth)
         else:
             # Timeout, hold the current depth
             new_depth = self.current_depth

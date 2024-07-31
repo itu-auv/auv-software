@@ -28,6 +28,7 @@
     <node pkg="auv_control" type="depth_controller_node.py" name="depth_controller_node"
       output="screen">
       <param name="update_rate" value="$(arg rate)" />
+      <param name="tau" value="2.0" />
     </node>
 
   </group>
