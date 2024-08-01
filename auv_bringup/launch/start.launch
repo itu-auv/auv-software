@@ -20,6 +20,13 @@
     <arg name="port" value="/dev/auv_imu" />
   </include>
 
+  <!-- launch xsens driver -->
+  <include file="$(find auv_bringup)/launch/inc/sensors/start_ping360_driver.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="device_ip" value="192.168.7.151" />
+    <arg name="device_port" value="12345" />
+  </include>
+
   <!-- launch expansion bridge -->
   <include file="$(find auv_bringup)/launch/inc/boards/start_expansion_board_bridge.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
@@ -48,7 +55,7 @@
 
   <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
-    <arg name="logging_directory"  value="/home/jetson/bags/13temmuz" />
+    <arg name="logging_directory" value="/home/jetson/bags/13temmuz" />
   </include>
 
 </launch>
