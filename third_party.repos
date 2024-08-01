@@ -3,3 +3,7 @@ repositories:
     type: git
     version: master
     url: https://github.com/nobleo/xsens_mti_driver.git
+  ../third_party/ping360_sonar:
+    type: git
+    version: master
+    url: https://github.com/batuhanozer/ping360_sonar.git
