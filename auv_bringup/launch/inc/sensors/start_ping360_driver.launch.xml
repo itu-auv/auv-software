@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="turquoise" />
+  <arg name="device_ip" default="192.168.7.151" />
+  <arg name="device_port" default="12345" />
+  <node pkg="tf" type="static_transform_publisher" name="transform_sonar_frame"
+    args="0 0 0 0 0 0 1 $(namespace)/base_link/ping360_link sonar_frame 10" />
+
+  <group ns="$(arg namespace)">
+    <env name="emulated_sonar" value="false" />
+
+    <node pkg="ping360_sonar" type="ping360_node" name="ping360_node" output="screen">
+      <param name="device_ip" value="$(arg device_ip)" />
+      <param name="device_port" value="$(arg device_port)" />
+      <param name="debug" value="False" />
+      <param name="imgSize" value="500" />
+      <param name="gain" value="0" />
+      <param name="step" value="1" />
+      <param name="numberOfSamples" value="200" />
+      <param name="transmitFrequency" value="740" />
+      <param name="sonarRange" value="10" />
+      <param name="speedOfSound" value="1500" />
+      <param name="queueSize" value="1" />
+      <param name="threshold" value="100" />
+      <param name="enableImageTopic" value="True" />
+      <param name="enableScanTopic" value="True" />
+      <param name="enableDataTopic" value="True" />
+      <param name="maxAngle" value="400" />
+      <param name="minAngle" value="0" />
+      <param name="oscillate" value="True" />
+    </node>
+  </group>
+</launch>

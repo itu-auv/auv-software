@@ -12,6 +12,7 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <exec_depend>xsens_mti_driver</exec_depend>
+  <depend>ping360_sonar</depend>
 
   <export>
 
