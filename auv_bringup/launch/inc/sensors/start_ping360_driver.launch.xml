@@ -29,9 +29,9 @@
       <param name="minAngle" value="0" />
       <param name="oscillate" value="True" />
 
-      <remap from="/ping360_node/sonar/images" to="sensors/ping360/sonar_image"/>
-      <remap from="/ping360_node/sonar/scan" to="sensors/ping360/scan"/>
-      <remap from="/ping360_node/sonar/data" to="sensors/ping360/sonar_data"/>
+      <remap from="/ping360_node/sonar/images" to="sensors/ping360/sonar_image" />
+      <remap from="/ping360_node/sonar/scan" to="sensors/ping360/scan" />
+      <remap from="/ping360_node/sonar/data" to="sensors/ping360/sonar_data" />
     </node>
   </group>
 </launch>
