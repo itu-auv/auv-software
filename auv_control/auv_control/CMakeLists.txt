@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   tf2_ros
   dynamic_reconfigure
+  rospy
 )
 
 # Generate dynamic reconfigure options
@@ -37,6 +38,11 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${CMAKE_BINARY_DIR}/devel/include  # Ensure this is included
+)
+
+catkin_install_python(PROGRAMS
+  scripts/depth_controller_node.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 add_executable(${PROJECT_NAME}_node 
@@ -72,6 +78,7 @@ install(TARGETS thruster_manager_node
 )
 
 install(DIRECTORY include/${PROJECT_NAME}/
+  launch
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
   FILES_MATCHING PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
