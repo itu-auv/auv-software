@@ -18,6 +18,9 @@
     <node pkg="auv_localization" type="dvl_odometry_node.py" name="dvl_to_odom_node" output="screen">
       <remap from="sensors/dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
       <remap from="localization/odom_dvl" to="localization/odom_dvl" />
+      <remap from="cmd_vel" to="cmd_vel" />
+      <param name="config_path" value="$(find auv_localization)/config/calibration_data.yaml" />
+      <param name="tau" value="0.2" />
     </node>
   </group>
 </launch>
