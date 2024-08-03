@@ -78,14 +78,15 @@ class FrameAligner:
             return None, None
 
     def compute_cmd_vel(self, trans, rot):
+        kp = 0.1
         twist = Twist()
         # Set linear velocities based on translation differences
-        twist.linear.x = trans[0]
-        twist.linear.y = trans[1]
+        twist.linear.x = -trans[0] * kp
+        twist.linear.y = -trans[1] * kp
 
         # Convert quaternion to Euler angles and set angular velocity
         _, _, yaw = euler_from_quaternion(rot)
-        twist.angular.z = yaw
+        twist.angular.z = -yaw * kp
 
         return twist
 
