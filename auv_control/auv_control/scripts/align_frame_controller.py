@@ -120,6 +120,7 @@ class FrameAligner:
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
             if not self.active or not self.enable_handler.is_enabled():
+                self.active = False
                 rate.sleep()
                 continue
 
