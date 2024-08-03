@@ -38,6 +38,11 @@ class FrameAligner:
             rospy.logerr(message)
             return AlignFrameControllerResponse(success=False, message=message)
 
+        trans, rot = self.get_transform(self.source_frame, self.target_frame, self.angle_offset)
+        if trans is None or rot is None:
+            rospy.logerr("Failed to get transform. Cannot start alignment.")
+            return AlignFrameControllerResponse(success=False, message="Failed to get transform")
+
         self.source_frame = req.source_frame
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
@@ -57,16 +62,16 @@ class FrameAligner:
         rospy.loginfo("Control canceled")
         return TriggerResponse(success=True, message="Control deactivated")
 
-    def get_transform(self):
+    def get_transform(self, source_frame, target_frame, angle_offset):
         try:
             # Get the current transform
             trans, rot = self.listener.lookupTransform(
-                self.target_frame, self.source_frame, rospy.Time(0)
+                target_frame, source_frame, rospy.Time(0)
             )
 
             # Apply the angle offset to the rotation
             roll, pitch, yaw = euler_from_quaternion(rot)
-            yaw -= self.angle_offset  # Adjust yaw with angle offset
+            yaw -= angle_offset  # Adjust yaw with angle offset
             new_rot = quaternion_from_euler(roll, pitch, yaw)
 
             return trans, new_rot
@@ -97,7 +102,7 @@ class FrameAligner:
                 rate.sleep()
                 continue
 
-            trans, rot = self.get_transform()
+            trans, rot = self.get_transform(self.source_frame, self.target_frame, self.angle_offset)
             if trans is None or rot is None:
                 continue
 
