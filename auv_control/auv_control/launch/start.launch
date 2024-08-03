@@ -31,5 +31,14 @@
       <param name="tau" value="0.5" />
     </node>
 
+    <node pkg="auv_control" type="align_frame_controller.py" name="align_frame_controller"
+      output="screen">
+      <param name="rate" value="$(arg rate)" />
+
+      <remap from="frame_alignment_controller" to="control/align_frame/start" />
+      <remap from="cancel_control" to="control/align_frame/cancel" />
+      <!-- <remap from="cmd_vel" to=""/> -->
+    </node>
+
   </group>
 </launch>

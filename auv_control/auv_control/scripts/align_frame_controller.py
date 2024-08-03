@@ -14,21 +14,26 @@ class FrameAligner:
     def __init__(self):
         rospy.init_node("frame_aligner_node", anonymous=True)
         self.listener = tf.TransformListener()
-        self.cmd_vel_pub = rospy.Publisher("/taluy/cmd_vel", Twist, queue_size=10)
+        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
         self.active = False
         self.source_frame = ""
         self.target_frame = ""
         self.angle_offset = 0.0
 
         # Initialize the enable signal handler with a timeout duration
-        enable_timeout = rospy.get_param("~enable_timeout", 5.0)  # seconds
+        self.rate = rospy.get_param("~rate", 0.1)
+
+        enable_timeout = 2.0 / self.rate  # 2 control dt period
 
         self.enable_handler = enable_state.ControlEnableHandler(enable_timeout)
 
         # Service for setting frames and starting alignment
         rospy.Service(
-            "align_frame_controller", AlignFrameController, self.handle_align_request
+            "frame_alignment_controller",
+            AlignFrameController,
+            self.handle_align_request,
         )
+
         # Service for canceling control
         rospy.Service("cancel_control", Trigger, self.handle_cancel_request)
 
@@ -38,10 +43,14 @@ class FrameAligner:
             rospy.logerr(message)
             return AlignFrameControllerResponse(success=False, message=message)
 
-        trans, rot = self.get_transform(self.source_frame, self.target_frame, self.angle_offset)
+        trans, rot = self.get_transform(
+            self.source_frame, self.target_frame, self.angle_offset
+        )
         if trans is None or rot is None:
             rospy.logerr("Failed to get transform. Cannot start alignment.")
-            return AlignFrameControllerResponse(success=False, message="Failed to get transform")
+            return AlignFrameControllerResponse(
+                success=False, message="Failed to get transform"
+            )
 
         self.source_frame = req.source_frame
         self.target_frame = req.target_frame
@@ -96,13 +105,15 @@ class FrameAligner:
         return twist
 
     def run(self):
-        rate = rospy.Rate(10)  # Hz
+        rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
             if not self.active or not self.enable_handler.is_enabled():
                 rate.sleep()
                 continue
 
-            trans, rot = self.get_transform(self.source_frame, self.target_frame, self.angle_offset)
+            trans, rot = self.get_transform(
+                self.source_frame, self.target_frame, self.angle_offset
+            )
             if trans is None or rot is None:
                 continue
 
