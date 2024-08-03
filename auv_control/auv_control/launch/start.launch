@@ -34,11 +34,11 @@
     <node pkg="auv_control" type="battery_monitor_node.py" name="battery_monitor_node" 
       output="screen">
       <remap from="power" to="mainboard/power_sensor/power" />
-      <param name="voltage_threshold" value="13.0" />
+      <param name="minimum_voltage_threshold" value="13.0" />
       <param name="voltage_warn_threshold" value="15.0" />
-      <param name="timeout_duration" value="5" />
-      <param name="min_print_interval" value="1.0" />
-      <param name="max_print_interval" value="120.0" />
+      <param name="power_message_timeout" value="5" />
+      <param name="min_log_interval" value="1.0" />
+      <param name="max_log_interval" value="120.0" />
     </node>
 
   </group>
