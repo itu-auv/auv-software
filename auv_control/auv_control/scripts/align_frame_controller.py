@@ -8,6 +8,7 @@ import auv_common_lib.control.enable_state as enable_state
 from std_srvs.srv import Trigger, TriggerResponse
 from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
+import angles
 
 
 class FrameAligner:
@@ -46,6 +47,7 @@ class FrameAligner:
         trans, rot = self.get_transform(
             self.source_frame, self.target_frame, self.angle_offset
         )
+
         if trans is None or rot is None:
             rospy.logerr("Failed to get transform. Cannot start alignment.")
             return AlignFrameControllerResponse(
@@ -62,25 +64,21 @@ class FrameAligner:
         return AlignFrameControllerResponse(success=True, message="Alignment started")
 
     def handle_cancel_request(self, req):
-        if not self.enable_handler.is_enabled():
-            message = "Control enable signal not active. Cannot cancel alignment."
-            rospy.logerr(message)
-            return TriggerResponse(success=False, message=message)
-
         self.active = False
         rospy.loginfo("Control canceled")
         return TriggerResponse(success=True, message="Control deactivated")
 
-    def get_transform(self, source_frame, target_frame, angle_offset):
+    def get_transform(
+        self, source_frame, target_frame, angle_offset, time=rospy.Time(0)
+    ):
         try:
             # Get the current transform
-            trans, rot = self.listener.lookupTransform(
-                target_frame, source_frame, rospy.Time(0)
-            )
+            trans, rot = self.listener.lookupTransform(target_frame, source_frame, time)
 
             # Apply the angle offset to the rotation
             roll, pitch, yaw = euler_from_quaternion(rot)
             yaw -= angle_offset  # Adjust yaw with angle offset
+            yaw = angles.normalize_angle(yaw)
             new_rot = quaternion_from_euler(roll, pitch, yaw)
 
             return trans, new_rot
@@ -89,6 +87,9 @@ class FrameAligner:
             tf.ConnectivityException,
             tf.ExtrapolationException,
         ):
+            rospy.logerr(
+                f"Cannot lookup transform from {source_frame} to {target_frame}"
+            )
             return None, None
 
     def constrain(self, value, max_value):
@@ -101,15 +102,17 @@ class FrameAligner:
     def compute_cmd_vel(self, trans, rot):
         kp = 0.45
         angle_kp = 0.15
+        max_linear_velocity = 0.3
+        max_angular_velocity = 0.4
 
         twist = Twist()
         # Set linear velocities based on translation differences
-        twist.linear.x = self.constrain(-trans[0] * kp, 0.3)
-        twist.linear.y = self.constrain(-trans[1] * kp, 0.3)
+        twist.linear.x = self.constrain(-trans[0] * kp, max_linear_velocity)
+        twist.linear.y = self.constrain(-trans[1] * kp, max_linear_velocity)
 
         # Convert quaternion to Euler angles and set angular velocity
         _, _, yaw = euler_from_quaternion(rot)
-        twist.angular.z = self.constrain(-yaw * angle_kp, 0.4)
+        twist.angular.z = self.constrain(-yaw * angle_kp, max_angular_velocity)
 
         return twist
 
@@ -136,4 +139,3 @@ if __name__ == "__main__":
         FrameAligner().run()
     except rospy.ROSInterruptException:
         pass
-
