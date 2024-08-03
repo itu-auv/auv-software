@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
 import tf
@@ -91,16 +91,25 @@ class FrameAligner:
         ):
             return None, None
 
+    def constrain(self, value, max_value):
+        if value > max_value:
+            return max_value
+        if value < -max_value:
+            return -max_value
+        return value
+
     def compute_cmd_vel(self, trans, rot):
-        kp = 0.1
+        kp = 0.45
+        angle_kp = 0.15
+
         twist = Twist()
         # Set linear velocities based on translation differences
-        twist.linear.x = -trans[0] * kp
-        twist.linear.y = -trans[1] * kp
+        twist.linear.x = self.constrain(-trans[0] * kp, 0.3)
+        twist.linear.y = self.constrain(-trans[1] * kp, 0.3)
 
         # Convert quaternion to Euler angles and set angular velocity
         _, _, yaw = euler_from_quaternion(rot)
-        twist.angular.z = -yaw * kp
+        twist.angular.z = self.constrain(-yaw * angle_kp, 0.4)
 
         return twist
 
@@ -127,3 +136,4 @@ if __name__ == "__main__":
         FrameAligner().run()
     except rospy.ROSInterruptException:
         pass
+
