@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="rate" default="20" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="auv_navigation" type="goal_to_path.py" name="goal_to_path_node" output="screen">
+      <remap from="move_base_simple/goal" to="/move_base_simple/goal" />
+      <remap from="target_path" to="target_path" />
+    </node>
+    <node pkg="auv_navigation" type="path_follower.py" name="path_follower_node" output="screen">
+      <remap from="target_path" to="target_path" />
+      <remap from="odometry" to="odometry" />
+      <remap from="follow_mode" to="follow_mode" />
+      <remap from="cancel_path" to="cancel_path" />
+      <remap from="cmd_vel" to="cmd_vel" />
+    </node>
+  </group>
+</launch>
