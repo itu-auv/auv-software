@@ -18,12 +18,14 @@ add_message_files(
 add_service_files(
   FILES
   AlignFrameController.srv
+  SetObjectTransform.srv
 )
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
   std_msgs
+  geometry_msgs
 )
 
 catkin_package(
