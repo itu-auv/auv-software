@@ -82,6 +82,10 @@ class WayfinderNode:
             queue_size=1,
         )
 
+        self.pub_altitude = rospy.Publisher(
+            "altitude", std_msgs.msg.Float32, queue_size=1
+        )
+
         self.set_enabled_service = rospy.Service(
             "enable", std_srvs.srv.SetBool, self.set_enable_handler
         )
@@ -229,10 +233,7 @@ class WayfinderNode:
         )
         self.pub_velocity_stamped.publish(msg_stamped)
 
-        pass
-
-    def spin(self):
-        pass
+        self.pub_altitude.publish(std_msgs.msg.Float32(data.mean_range))
 
 
 if __name__ == "__main__":
