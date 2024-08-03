@@ -203,7 +203,8 @@ class WayfinderNode:
         self.pub_is_valid.publish(not bad_beam)
 
         if bad_beam:
-            return
+            velocity_vector = np.array([0.0, 0.0, 0.0])
+        #     return
 
         msg = twist_from_vector(velocity_vector)
         self.pub_velocity_raw.publish(msg)

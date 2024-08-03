@@ -55,7 +55,7 @@
 
   <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
-    <arg name="logging_directory" value="/home/jetson/bags/13temmuz" />
+    <arg name="logging_directory" value="/home/jetson/bags/" />
   </include>
 
 </launch>
