@@ -18,6 +18,6 @@ class ControlEnableHandler:
         current_time = rospy.Time.now()
         is_timeouted = (
             current_time - self.last_enable_time
-        ).to_sec() >= self.timeout_duration
+        ).to_sec() >= self.timeout_duration.to_sec()
 
         return self.enable and not is_timeouted
