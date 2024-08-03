@@ -31,6 +31,16 @@
       <param name="tau" value="0.5" />
     </node>
 
+
+    <node pkg="auv_control" type="align_frame_controller.py" name="align_frame_controller"
+      output="screen">
+      <param name="rate" value="$(arg rate)" />
+
+      <remap from="frame_alignment_controller" to="control/align_frame/start" />
+      <remap from="cancel_control" to="control/align_frame/cancel" />
+      <!-- <remap from="cmd_vel" to=""/> -->
+    </node>
+
     <node pkg="auv_control" type="battery_monitor_node.py" name="battery_monitor_node" 
       output="screen">
       <remap from="power" to="mainboard/power_sensor/power" />
