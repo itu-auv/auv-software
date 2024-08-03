@@ -74,6 +74,7 @@ class FrameAligner:
         try:
             # Get the current transform
             trans, rot = self.listener.lookupTransform(target_frame, source_frame, time)
+            return trans, rot
 
             # Apply the angle offset to the rotation
             roll, pitch, yaw = euler_from_quaternion(rot)
@@ -107,12 +108,12 @@ class FrameAligner:
 
         twist = Twist()
         # Set linear velocities based on translation differences
-        twist.linear.x = self.constrain(-trans[0] * kp, max_linear_velocity)
-        twist.linear.y = self.constrain(-trans[1] * kp, max_linear_velocity)
+        twist.linear.x = self.constrain(trans[0] * kp, max_linear_velocity)
+        twist.linear.y = self.constrain(trans[1] * kp, max_linear_velocity)
 
         # Convert quaternion to Euler angles and set angular velocity
         _, _, yaw = euler_from_quaternion(rot)
-        twist.angular.z = self.constrain(-yaw * angle_kp, max_angular_velocity)
+        twist.angular.z = self.constrain(yaw * angle_kp, max_angular_velocity)
 
         return twist
 
@@ -125,7 +126,7 @@ class FrameAligner:
                 continue
 
             trans, rot = self.get_transform(
-                self.source_frame, self.target_frame, self.angle_offset
+                self.target_frame, self.source_frame, self.angle_offset
             )
             if trans is None or rot is None:
                 continue
