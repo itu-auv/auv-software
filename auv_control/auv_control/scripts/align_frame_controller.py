@@ -102,7 +102,7 @@ class FrameAligner:
 
     def compute_cmd_vel(self, trans, rot):
         kp = 0.45
-        angle_kp = 0.15
+        angle_kp = 0.45
         max_linear_velocity = 0.3
         max_angular_velocity = 0.4
 
