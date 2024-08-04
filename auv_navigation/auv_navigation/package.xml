@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>auv_navigation</name>
+  <version>0.1.0</version>
+  <description>The auv_navigation package</description>
+
+  <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
+  <author email="senceryazici@gmail.com">Sencer Yazici</author>
+
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>auv_mapping</build_depend>
+  <build_export_depend>auv_mapping</build_export_depend>
+  <exec_depend>auv_mapping</exec_depend>
+
+  <export>
+
+  </export>
+</package>

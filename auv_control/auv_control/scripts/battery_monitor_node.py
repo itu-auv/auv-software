@@ -18,7 +18,7 @@ class BatteryMonitorNode:
         # Variables
         self.last_msg_time = rospy.Time.now()
         self.voltage = None
-        self.is_timeouted = False
+        self.is_timeouted = True
         self.is_undervoltage = False
         self.print_interval = 1.0  # Start with a slow print interval (e.g., 1 seconds)
 
@@ -56,9 +56,8 @@ class BatteryMonitorNode:
     def check_timeout_and_low_voltage_callback(self, event):
         new_timeout = rospy.Time.now() - self.last_msg_time > rospy.Duration(self.timeout_duration)
         if new_timeout != self.is_timeouted and self.voltage != None and not self.is_undervoltage:
-            self.print_voltage()  
-        
-        self.is_timeouted = new_timeout
+            self.print_voltage()
+            self.is_timeouted = new_timeout  
             
         if self.is_timeouted:
             if self.voltage != None:

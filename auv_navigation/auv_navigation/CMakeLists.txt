@@ -1,8 +1,13 @@
 cmake_minimum_required(VERSION 3.10.2)
-project(auv_hardware)
+project(auv_navigation)
 
 find_package(catkin REQUIRED COMPONENTS
-  auv_hardware_bridge
+  auv_mapping
 )
 
 catkin_package()
+
+include_directories(
+# include
+  ${catkin_INCLUDE_DIRS}
+)
