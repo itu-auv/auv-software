@@ -5,6 +5,7 @@ import math
 import tf
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_msgs.msg import Float32
+from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from ultralytics_ros.msg import YoloResult
 from nav_msgs.msg import Odometry
 
@@ -16,32 +17,46 @@ class ObjectPositionEstimator:
         self.hfov = math.radians(38)  # Horizontal field of view in radians
         self.vfov = math.radians(28)  # Vertical field of view in radians
         self.altitude = None
-        
+
+        rospy.loginfo("Waiting for set_object_transform service...")
+        self.set_object_transform_service = rospy.ServiceProxy('/taluy/map/set_object_transform', SetObjectTransform)
+        self.set_object_transform_service.wait_for_service()
+
+        self.id_map = {
+            9: "bin_whole",
+            10: "bin_red",
+            11: "bin_blue"
+        }
+
         # Subscriptions
-        self.odom_sub = rospy.Subscriber('/odom', Odometry, self.odom_callback)
         self.yolo_sub = rospy.Subscriber('/yolo_result', YoloResult, self.yolo_callback)
         self.altitude_sub = rospy.Subscriber('/taluy/sensors/dvl/altitude', Float32, self.altitude_callback)
         
-        # Transform broadcaster and listener
-        self.br = tf.TransformBroadcaster()
-        self.listener = tf.TransformListener()
-        
-        self.camera_width = 1280
-        self.camera_height = 720
-        self.odom_pose = None
-
-    def odom_callback(self, msg):
-        self.odom_pose = msg.pose.pose
+        self.camera_width = 640
+        self.camera_height = 480
+        rospy.loginfo("Object position estimator node initialized")
 
     def altitude_callback(self, msg):
         self.altitude = msg.data
 
+    def send_transform(self, transform: TransformStamped):
+        req = SetObjectTransformRequest()
+        req.transform = transform
+        resp = self.set_object_transform_service.call(req)
+        if not resp.success:
+            rospy.logerr(f"Failed to set object transform, reason: {resp.message}")
+
     def yolo_callback(self, msg):
-        if self.camera_width is None or self.camera_height is None or self.odom_pose is None or self.altitude is None:
+        if self.camera_width is None or self.camera_height is None or self.altitude is None:
             return
         
         for detection in msg.detections.detections:
-            if detection.results[0].id != 0:
+            if len(detection.results) == 0:
+                continue
+
+            detection_id = detection.results[0].id
+
+            if detection_id not in self.id_map:
                 continue
             
             # Calculate bounding box center
@@ -56,42 +71,23 @@ class ObjectPositionEstimator:
             angle_x = norm_center_x * self.hfov
             angle_y = norm_center_y * self.vfov
             
-            # Calculate the offset in the base_link frame
+            # Calculate the offset in the bottom_camera_optical_link frame
             offset_x = math.tan(angle_x) * self.altitude * -1
             offset_y = math.tan(angle_y) * self.altitude
             
-            # Create a PoseStamped message for the object in the base_link frame
-            object_pose_base_link = PoseStamped()
-            object_pose_base_link.header.stamp = rospy.Time.now()
-            object_pose_base_link.header.frame_id = "base_link"
-            object_pose_base_link.pose.position.x = offset_x
-            object_pose_base_link.pose.position.y = offset_y
-            object_pose_base_link.pose.position.z = 0.0
-            object_pose_base_link.pose.orientation.x = 0.0
-            object_pose_base_link.pose.orientation.y = 0.0
-            object_pose_base_link.pose.orientation.z = 0.0
-            object_pose_base_link.pose.orientation.w = 1.0
+            transform_message = TransformStamped()
+            transform_message.header.stamp = rospy.Time.now()
+            transform_message.header.frame_id = "taluy/bottom_camera_optical_link"
+            transform_message.child_frame_id = f"{self.id_map[detection_id]}_link"
+            transform_message.transform.translation.x = offset_x
+            transform_message.transform.translation.y = offset_y
+            transform_message.transform.translation.z = self.altitude
+            transform_message.transform.rotation.x = 0.0
+            transform_message.transform.rotation.y = 0.0
+            transform_message.transform.rotation.z = 0.0
+            transform_message.transform.rotation.w = 1.0
 
-            # Use the tf listener to transform the object position from base_link to odom frame
-            try:
-                self.listener.waitForTransform("odom", "base_link", rospy.Time(0), rospy.Duration(1.0))
-                transformed_position = self.listener.transformPose("odom", object_pose_base_link)
-                
-                # Broadcast the transformed position
-                self.br.sendTransform(
-                    (transformed_position.pose.position.x, 
-                     transformed_position.pose.position.y, 
-                     transformed_position.pose.position.z),
-                    (transformed_position.pose.orientation.x, 
-                     transformed_position.pose.orientation.y, 
-                     transformed_position.pose.orientation.z, 
-                     transformed_position.pose.orientation.w),
-                    rospy.Time.now(),
-                    "object",
-                    "odom"
-                )
-            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
-                rospy.logerr(e)
+            self.send_transform(transform_message)
 
     def run(self):
         rospy.spin()
