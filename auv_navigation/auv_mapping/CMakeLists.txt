@@ -1,0 +1,11 @@
+cmake_minimum_required(VERSION 3.10.2)
+project(auv_mapping)
+
+find_package(catkin REQUIRED)
+
+catkin_package()
+
+include_directories(
+# include
+# ${catkin_INCLUDE_DIRS}
+)

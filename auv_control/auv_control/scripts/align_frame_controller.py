@@ -24,7 +24,7 @@ class FrameAligner:
         # Initialize the enable signal handler with a timeout duration
         self.rate = rospy.get_param("~rate", 0.1)
 
-        enable_timeout = 2.0 / self.rate  # 2 control dt period
+        enable_timeout = 10.0 / self.rate  # 10 control dt period
 
         self.enable_handler = enable_state.ControlEnableHandler(enable_timeout)
 

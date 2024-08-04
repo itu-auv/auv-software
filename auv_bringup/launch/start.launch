@@ -58,4 +58,9 @@
     <arg name="logging_directory" value="/home/jetson/bags/" />
   </include>
 
+  <include file="$(find auv_mapping)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+  </include>
+
 </launch>

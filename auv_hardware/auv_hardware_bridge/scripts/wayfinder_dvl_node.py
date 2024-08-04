@@ -219,19 +219,19 @@ class WayfinderNode:
 
         self.pub_velocity_raw_stamped.publish(msg_stamped)
 
-        transformed_velocity_vector = (
-            self.imu_spacial_transformer.transform_linear_velocity(
-                velocity_vector, self.frame_id
-            )
-        )
+        #transformed_velocity_vector = (
+        #    self.imu_spacial_transformer.transform_linear_velocity(
+        #        velocity_vector, self.frame_id
+        #    )
+        #)
 
-        msg = twist_from_vector(transformed_velocity_vector)
-        self.pub_velocity.publish(msg)
+        #msg = twist_from_vector(transformed_velocity_vector)
+        #self.pub_velocity.publish(msg)
 
-        msg_stamped = twist_stamped_from_vector(
-            transformed_velocity_vector, self.frame_id, self.velocity_covariance
-        )
-        self.pub_velocity_stamped.publish(msg_stamped)
+        #msg_stamped = twist_stamped_from_vector(
+        #    transformed_velocity_vector, self.frame_id, self.velocity_covariance
+        #)
+        #self.pub_velocity_stamped.publish(msg_stamped)
 
         self.pub_altitude.publish(std_msgs.msg.Float32(data.mean_range))
 
