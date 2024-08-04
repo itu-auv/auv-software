@@ -1,0 +1,43 @@
+<launch>
+  <arg name="camera_namespace" default="image_raw" />
+  <arg name="manager" default="image_proc_manager" />
+  <arg name="respawn" default="false" />
+  <arg name="publish_monochrome" default="false" />
+  <arg name="debayer" default="false" />
+
+  <group ns="$(arg camera_namespace)">
+    <node pkg="nodelet" type="nodelet" name="image_proc_manager" args="manager" />
+
+    <arg
+      if="$(arg respawn)" name="bond" value="" />
+    <arg unless="$(arg respawn)" name="bond"
+      value="--no-bond" />
+
+    <arg
+      if="$(arg debayer)" name="rectify_input" value="image_color" />
+    <arg unless="$(arg debayer)" name="rectify_input"
+      value="image_raw" />
+
+    <!-- Debayered images -->
+    <group if="$(arg debayer)">
+      <node pkg="nodelet" type="nodelet" name="debayer"
+        args="load image_proc/debayer $(arg manager) $(arg bond)"
+        respawn="$(arg respawn)" />
+    </group>
+
+    <!-- Monochrome rectified image -->
+    <group if="$(arg publish_monochrome)">
+      <node pkg="nodelet" type="nodelet" name="rectify_mono"
+        args="load image_proc/rectify $(arg manager) $(arg bond)"
+        respawn="$(arg respawn)" />
+    </group>
+
+    <node pkg="nodelet" type="nodelet"
+      name="rectify_color"
+      args="load image_proc/rectify $(arg manager) $(arg bond)"
+      respawn="$(arg respawn)">
+      <remap from="image_mono" to="$(arg rectify_input)" />
+      <remap from="image_rect" to="image_rect_color" />
+    </node>
+  </group>
+</launch>

@@ -3,30 +3,31 @@
   <arg name="name" default="auv_camera" />
   <arg name="compressed" default="true" />
   <arg name="verbose" default="true" />
-  <arg name="pub_camera_info" default="false"/>
-
+  <arg name="pub_camera_info" default="false" />
 
   <group ns="$(arg namespace)/cameras">
     <group ns="$(arg name)/image_raw">
       <!-- Disable unused plugins -->
       <group if="$(arg compressed)">
-        <rosparam param="disable_pub_plugins">["image_transport/compressedDepth", "image_transport/theora"]</rosparam>
+        <rosparam param="disable_pub_plugins">["image_transport/compressedDepth",
+          "image_transport/theora"]</rosparam>
       </group>
 
       <!-- Disable unused plugins and compressed -->
       <group unless="$(arg compressed)">
-        <rosparam param="disable_pub_plugins">["image_transport/compressed", "image_transport/compressedDepth", "image_transport/theora"]</rosparam>
+        <rosparam param="disable_pub_plugins">["image_transport/compressed",
+          "image_transport/compressedDepth", "image_transport/theora"]</rosparam>
       </group>
     </group>
-    <!-- Launch Front Camera -->
+
+    <!-- Launch Camera -->
     <node name="$(arg name)" type="auv_gst_cam_node" pkg="auv_cam" output="screen">
       <param name="verbose" type="bool" value="$(arg verbose)" />
-      <param name="pub_camera_info" value="$(arg pub_camera_info)"/>
+      <param name="pub_camera_info" value="$(arg pub_camera_info)" />
     </node>
-
-    <!-- image undistort -->
-    <group ns="$(arg name)" if="$(arg pub_camera_info)">
-      <node pkg="image_proc" name="$(arg name)_image_proc" type="image_proc"/>
-    </group>
   </group>
+
+  <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
+    <arg name="camera_namespace" value="$(arg namespace)/cameras/$(arg name)" />
+  </include>
 </launch>
