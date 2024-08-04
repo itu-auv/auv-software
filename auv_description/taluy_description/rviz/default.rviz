@@ -610,7 +610,7 @@ Visualization Manager:
       Name: WrenchVectors
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /turquoise/cameras/cam_front/image_raw
+      Image Topic: /taluy/cameras/cam_front/image_raw
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -622,7 +622,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /turquoise/cameras/cam_bottom/image_raw
+      Image Topic: /taluy/cameras/cam_bottom/image_raw
       Max Value: 1
       Median window: 5
       Min Value: 0
