@@ -18,7 +18,7 @@ class BatteryMonitorNode:
         # Variables
         self.last_msg_time = rospy.Time.now()
         self.voltage = None
-        self.is_timeouted = False
+        self.is_timeouted = True
         self.is_undervoltage = False
         self.print_interval = 1.0  # Start with a slow print interval (e.g., 1 seconds)
 
