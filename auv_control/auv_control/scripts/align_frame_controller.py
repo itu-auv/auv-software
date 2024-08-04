@@ -45,7 +45,7 @@ class FrameAligner:
             return AlignFrameControllerResponse(success=False, message=message)
 
         trans, rot = self.get_transform(
-            self.source_frame, self.target_frame, self.angle_offset
+            req.source_frame, req.target_frame, req.angle_offset
         )
 
         if trans is None or rot is None:
