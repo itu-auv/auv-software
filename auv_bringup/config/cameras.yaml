@@ -10,12 +10,12 @@ cam_front:
   camera_matrix:
     rows: 3
     cols: 3
-    data: [1653.358474, 0, 1009.142077, 0, 1629.811776, 670.599977, 0, 0, 1]
+    data: [432.803545, 0, 306.698087, 0, 567.001237, 161.133655, 0, 0, 1]
   distortion_model: plumb_bob
   distortion_coefficients:
     rows: 1
     cols: 5
-    data: [-0.467560, 0.332129, 0.002247, 0.002496, 0]
+    data: [-0.002190, -0.089089, -0.013968, 0.006001, 0]
   rectification_matrix:
     rows: 3
     cols: 3
@@ -23,7 +23,7 @@ cam_front:
   projection_matrix:
     rows: 3
     cols: 4
-    data: [1411.859619, 0, 1025.535637, 0, 0, 1536.730835, 615.869676, 0, 0, 0, 1, 0]
+    data: [418.235107, 0, 299.166000, 0, 0, 562.794705, 157.160352, 0, 0, 0, 1, 0]
 
 cam_bottom:
   width: 640
@@ -37,12 +37,12 @@ cam_bottom:
   camera_matrix:
     rows: 3
     cols: 3
-    data: [1768.591945, 0, 1075.774956, 0, 1746.645516, 528.721547, 0, 0, 1]
+    data: [662.777153, 0, 16.454652, 0, 871.683826, 189.195884, 0, 0, 1]
   distortion_model: plumb_bob
   distortion_coefficients:
     rows: 1
     cols: 5
-    data: [-0.405875, 0.184786, -0.004663, -0.007892, 0]
+    data: [0.666467, -0.503379, 0.008900, -0.008196, 0]
   rectification_matrix:
     rows: 3
     cols: 3
@@ -50,4 +50,4 @@ cam_bottom:
   projection_matrix:
     rows: 3
     cols: 4
-    data: [1538.899292, 0, 1088.638768, 0, 0, 1673.251709, 524.461963, 0, 0, 0, 1, 0]
+    data: [750.047689, 0, 313.903300, 0, 0, 988.371962, 190.566244, 0, 0, 0, 1, 0]
