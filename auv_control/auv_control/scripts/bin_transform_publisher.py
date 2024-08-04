@@ -22,10 +22,10 @@ class ObjectPositionEstimator:
         self.set_object_transform_service = rospy.ServiceProxy('/taluy/map/set_object_transform', SetObjectTransform)
         self.set_object_transform_service.wait_for_service()
 
-        self.id_map = {
-            9: "bin_whole",
-            10: "bin_red",
-            11: "bin_blue"
+        self.id_tf_map = {
+            9: "bin/whole",
+            10: "bin/red",
+            11: "bin/blue"
         }
 
         # Subscriptions
@@ -56,7 +56,7 @@ class ObjectPositionEstimator:
 
             detection_id = detection.results[0].id
 
-            if detection_id not in self.id_map:
+            if detection_id not in self.id_tf_map:
                 continue
             
             # Calculate bounding box center
@@ -72,13 +72,13 @@ class ObjectPositionEstimator:
             angle_y = norm_center_y * self.vfov
             
             # Calculate the offset in the bottom_camera_optical_link frame
-            offset_x = math.tan(angle_x) * self.altitude * -1
-            offset_y = math.tan(angle_y) * self.altitude
+            offset_x = math.tan(angle_x) * self.altitude * -1.0
+            offset_y = math.tan(angle_y) * self.altitude * -1.0
             
             transform_message = TransformStamped()
             transform_message.header.stamp = rospy.Time.now()
-            transform_message.header.frame_id = "taluy/bottom_camera_optical_link"
-            transform_message.child_frame_id = f"{self.id_map[detection_id]}_link"
+            transform_message.header.frame_id = "taluy/base_link/bottom_camera_optical_link"
+            transform_message.child_frame_id = f"{self.id_tf_map[detection_id]}_link"
             transform_message.transform.translation.x = offset_x
             transform_message.transform.translation.y = offset_y
             transform_message.transform.translation.z = self.altitude
