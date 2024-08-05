@@ -9,13 +9,23 @@ import yaml
 import math
 import message_filters
 import time
+from auv_common_lib.logging.terminal_color_utils import TerminalColors
 
 class DvlToOdom:
     def __init__(self):
         rospy.init_node('dvl_to_odom_node', anonymous=True)
 
         # Parameters for first-order filter
-        self.tau = rospy.get_param('~tau', 0.1)
+        self.cmdvel_tau = rospy.get_param('~cmdvel_tau', 0.1)
+        self.linear_x_covariance = rospy.get_param(
+            "sensors/dvl/covariance/linear_x", 0.000015
+        )
+        self.linear_y_covariance = rospy.get_param(
+            "sensors/dvl/covariance/linear_y", 0.000015
+        )
+        self.linear_z_covariance = rospy.get_param(
+            "sensors/dvl/covariance/linear_z", 0.00005
+        )
         
         # Subscribers and Publishers
         self.dvl_velocity_subscriber = message_filters.Subscriber("sensors/dvl/velocity_raw", Twist)
@@ -36,9 +46,17 @@ class DvlToOdom:
         self.odom_msg.pose.covariance = np.zeros(36).tolist()
         self.odom_msg.twist.covariance = np.zeros(36).tolist()
 
-        # Load calibration data
-        self.load_calibration_data()
-
+        self.odom_msg.twist.covariance[0] = self.linear_x_covariance
+        self.odom_msg.twist.covariance[7] = self.linear_y_covariance
+        self.odom_msg.twist.covariance[14] = self.linear_z_covariance
+        
+        # Log loaded parameters
+        DVL_odometry_colored = TerminalColors.color_text("DVL Odometry Calibration data loaded", TerminalColors.PASTEL_BLUE)
+        rospy.loginfo(f"{DVL_odometry_colored} : cmdvel_tau: {self.cmdvel_tau}")
+        rospy.loginfo(f"{DVL_odometry_colored} : linear x covariance: {self.linear_x_covariance}")
+        rospy.loginfo(f"{DVL_odometry_colored} : linear y covariance: {self.linear_y_covariance}")
+        rospy.loginfo(f"{DVL_odometry_colored} : linear z covariance: {self.linear_z_covariance}")
+        
         # Initialize variables for fallback mechanism
         self.cmd_vel_twist = Twist()
         self.filtered_cmd_vel = Twist()
@@ -59,7 +77,7 @@ class DvlToOdom:
     def filter_cmd_vel(self):
         current_time = rospy.Time.now()
         dt = (current_time - self.last_update_time).to_sec()
-        self.alpha = dt / (self.tau + dt)
+        self.alpha = dt / (self.cmdvel_tau + dt)
 
         self.filtered_cmd_vel.linear.x = self.filtered_cmd_vel.linear.x * (1.0 - self.alpha) + self.alpha * self.cmd_vel_twist.linear.x
         self.filtered_cmd_vel.linear.y = self.filtered_cmd_vel.linear.y * (1.0 - self.alpha) + self.alpha * self.cmd_vel_twist.linear.y
@@ -95,24 +113,6 @@ class DvlToOdom:
 
         # Publish the odometry message
         self.odom_publisher.publish(self.odom_msg)
-
-    def load_calibration_data(self):
-        config_path = rospy.get_param(
-            '~config_path', 'config/calibration_data.yaml')
-        try:
-            with open(config_path, 'r') as f:
-                calibration_data = yaml.safe_load(f)
-                self.odom_msg.twist.covariance[0] = calibration_data.get(
-                    'twist_covariance_linear_x', 0.01)
-                self.odom_msg.twist.covariance[7] = calibration_data.get(
-                    'twist_covariance_linear_y', 0.01)
-                self.odom_msg.twist.covariance[14] = calibration_data.get(
-                    'twist_covariance_linear_z', 0.01)
-                rospy.loginfo("Calibration data loaded. Twist covariance linear x: {}, linear y: {}, linear z: {}".format(
-                    self.odom_msg.twist.covariance[0], self.odom_msg.twist.covariance[7], self.odom_msg.twist.covariance[14]))
-        except FileNotFoundError:
-            rospy.loginfo(
-                "No calibration data found. Using default covariances.")
 
     def run(self):
         rospy.spin()

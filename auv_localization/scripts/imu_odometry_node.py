@@ -6,14 +6,16 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Vector3
 import numpy as np
 import yaml
-# Replace 'my_package' with your actual package name
 from auv_localization.srv import CalibrateIMU, CalibrateIMUResponse
+from auv_common_lib.logging.terminal_color_utils import TerminalColors
 
 
 class ImuToOdom:
     def __init__(self):
         rospy.init_node('imu_to_odom_node', anonymous=True)
 
+        self.imu_calibration_data_path = rospy.get_param(
+            '~imu_calibration_path', 'config/imu_calibration_data.yaml')
         # Subscribers and Publishers
         self.imu_subscriber = rospy.Subscriber(
             "sensors/imu/data", Imu, self.imu_callback)
@@ -101,23 +103,19 @@ class ImuToOdom:
         calibration_data = {
             'drift': self.drift.tolist()
         }
-        config_path = rospy.get_param(
-            '~config_path', 'config/calibration_data.yaml')
-        with open(config_path, 'w') as f:
+        with open(self.imu_calibration_data_path, 'w') as f:
             yaml.dump(calibration_data, f)
-        rospy.loginfo("Calibration data saved.")
+        rospy.loginfo(f"{TerminalColors.OKGREEN} Calibration data saved.{TerminalColors.ENDC}")
 
     def load_calibration_data(self):
-        config_path = rospy.get_param(
-            '~config_path', 'config/calibration_data.yaml')
         try:
-            with open(config_path, 'r') as f:
+            with open(self.imu_calibration_data_path, 'r') as f:
                 calibration_data = yaml.safe_load(f)
                 self.drift = np.array(calibration_data['drift'])
             rospy.loginfo(
-                "Calibration data loaded. Drift: {}".format(self.drift))
+                f"{TerminalColors.OKYELLOW}IMU Calibration data loaded.{TerminalColors.ENDC} Drift: {self.drift}")
         except FileNotFoundError:
-            rospy.loginfo("No calibration data found.")
+            rospy.logerr("No calibration data found.")
 
     def run(self):
         rospy.spin()
