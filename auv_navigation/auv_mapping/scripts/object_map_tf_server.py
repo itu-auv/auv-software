@@ -3,6 +3,7 @@
 import rospy
 import tf
 import tf2_ros
+import threading
 from geometry_msgs.msg import TransformStamped
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformResponse
 
@@ -17,6 +18,9 @@ class ObjectMapTFServer:
 
         # Transform storage
         self.transforms = {}  # Dictionary to store target frames and their transforms
+
+        # Lock for thread-safe access to transforms
+        self.lock = threading.Lock()
 
         # ROS service to set object transform
         self.service = rospy.Service(
@@ -92,8 +96,10 @@ class ObjectMapTFServer:
             static_transform.transform.rotation.z = static_rotation[2]
             static_transform.transform.rotation.w = static_rotation[3]
 
-            # Store or update the transform in the dictionary
-            self.transforms[target_frame] = static_transform
+            # Store or update the transform in the dictionary using the lock
+            with self.lock:
+                self.transforms[target_frame] = static_transform
+            
             rospy.loginfo("Stored static transform for frame: %s", target_frame)
 
             return SetObjectTransformResponse(
@@ -113,9 +119,10 @@ class ObjectMapTFServer:
     def publish_transforms(self):
         rate = rospy.Rate(self.update_rate)
         while not rospy.is_shutdown():
-            for transform in self.transforms.values():
-                transform.header.stamp = rospy.Time.now()
-                self.tf_broadcaster.sendTransform(transform)
+            with self.lock:
+                for transform in self.transforms.values():
+                    transform.header.stamp = rospy.Time.now()
+                    self.tf_broadcaster.sendTransform(transform)
             rate.sleep()
 
 
