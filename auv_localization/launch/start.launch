@@ -4,11 +4,12 @@
   <arg name="rate" default="20" />
 
   <group ns="$(arg namespace)">
-    <rosparam file="$(find auv_localization)/config/default_calibration.yaml" />
+    <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" />
+
     <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
       <remap from="sensors/imu/data" to="sensors/imu/data" />
       <remap from="localization/odom_imu" to="localization/odom_imu" />
-      <param name="config_path" value="$(find auv_localization)/config/calibration_data.yaml" />
+      <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
       output="screen">
@@ -19,8 +20,7 @@
       <remap from="sensors/dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
       <remap from="localization/odom_dvl" to="localization/odom_dvl" />
       <remap from="cmd_vel" to="cmd_vel" />
-      <param name="config_path" value="$(find auv_localization)/config/calibration_data.yaml" />
-      <param name="tau" value="0.2" />
+      <param name="cmdvel_tau" value="0.2" />
     </node>
   </group>
 </launch>

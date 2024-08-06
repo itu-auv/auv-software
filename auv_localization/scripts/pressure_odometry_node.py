@@ -6,6 +6,7 @@ from nav_msgs.msg import Odometry
 import numpy as np
 import yaml
 import auv_common_lib.transform.transformer
+from auv_common_lib.logging.terminal_color_utils import TerminalColors
 
 
 class PressureToOdom:
@@ -14,9 +15,8 @@ class PressureToOdom:
         self.depth_calibration_offset = rospy.get_param(
             "sensors/external_pressure_sensor/depth_offset", 0.0
         )
-        # Subscribers and Publishers
-        self.depth_subscriber = rospy.Subscriber(
-            "sensors/external_pressure_sensor/depth", Float32, self.depth_callback
+        self.depth_calibration_covariance = rospy.get_param(
+            "sensors/external_pressure_sensor/depth_covariance", 0.00005
         )
         self.odom_publisher = rospy.Publisher(
             "localization/odom_pressure", Odometry, queue_size=10
@@ -32,13 +32,12 @@ class PressureToOdom:
         # Initialize covariances with zeros
         self.odom_msg.pose.covariance = np.zeros(36).tolist()
         self.odom_msg.twist.covariance = np.zeros(36).tolist()
+        self.odom_msg.pose.covariance[14] = self.depth_calibration_covariance
 
-        # Load calibration data
-        self.load_calibration_data()
-
-        rospy.loginfo(
-            "Depth calibration offset: {}".format(self.depth_calibration_offset)
-        )
+        # Log loaded parameters
+        pressure_odometry_colored = TerminalColors.color_text("Pressure Odometry Calibration data loaded", TerminalColors.PASTEL_GREEN)
+        rospy.loginfo(f"{pressure_odometry_colored} : depth offset: {self.depth_calibration_offset}")
+        rospy.loginfo(f"{pressure_odometry_colored} : depth covariance: {self.depth_calibration_covariance}")
 
     def depth_callback(self, depth_msg):
         # Fill the odometry message with depth data as the z component of the linear position
@@ -67,24 +66,6 @@ class PressureToOdom:
 
         # Publish the odometry message
         self.odom_publisher.publish(self.odom_msg)
-
-    def load_calibration_data(self):
-        config_path = rospy.get_param(
-            "~config_path", "config/pressure_calibration.yaml"
-        )
-        try:
-            with open(config_path, "r") as f:
-                calibration_data = yaml.safe_load(f)
-                self.odom_msg.pose.covariance[14] = calibration_data.get(
-                    "pose_position_z_covariance", 0.0
-                )
-                rospy.loginfo(
-                    "Calibration data loaded. Pose position Z covariance: {}".format(
-                        self.odom_msg.pose.covariance[14]
-                    )
-                )
-        except FileNotFoundError:
-            rospy.loginfo("No calibration data found.")
 
     def run(self):
         rospy.spin()
