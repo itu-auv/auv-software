@@ -27,7 +27,7 @@ class BatteryMonitorNode:
 
         # Timers
         self.voltage_print_timer = rospy.Timer(rospy.Duration(self.print_interval), self.print_voltage_callback, oneshot=True)
-        self.timeout_check_timer = rospy.Timer(rospy.Duration(0.1), self.check_timeout_and_low_voltage_callback)
+        # self.timeout_check_timer = rospy.Timer(rospy.Duration(0.1), self.check_timeout_and_low_voltage_callback)
 
         rospy.loginfo("Power Monitor Node started with voltage threshold: {:.2f}".format(self.voltage_threshold))
 
@@ -36,27 +36,53 @@ class BatteryMonitorNode:
         self.is_undervoltage = self.voltage < self.voltage_threshold
         self.last_msg_time = rospy.Time.now()
 
-    def print_voltage(self):
-        green_text = "\033[92m"  # ANSI escape code for green text
-        orange_text = "\033[93m" # ANSI escape code for orange text
-        reset_text = "\033[0m"   # ANSI escape code to reset text color
-        if self.voltage < self.voltage_warn_threshold:
-            rospy.loginfo("Battery voltage:" +  orange_text + " {:.2f} V".format(self.voltage) + reset_text)
-        else:
-            rospy.loginfo("Battery voltage:" + green_text + " {:.2f} V".format(self.voltage) + reset_text)
-            
-        self.print_interval = self.interpolate_print_interval(self.voltage)
+    def reset_timer_with_new_interval(self, new_interval):
+        self.print_interval = new_interval
         self.voltage_print_timer.shutdown()
         self.voltage_print_timer = rospy.Timer(rospy.Duration(self.print_interval), self.print_voltage_callback, oneshot=True)
 
+    def print_voltage(self):
+        
+        if self.voltage == None:
+            self.reset_timer_with_new_interval(1.0)
+            rospy.logwarn("No voltage received.")
+            return
+        
+        self.is_timeouted = rospy.Time.now() - self.last_msg_time > rospy.Duration(self.timeout_duration)
+        if self.is_timeouted:
+            self.reset_timer_with_new_interval(1.0)
+            rospy.logerr("Power message timeout. Last voltage: {:.2f} V".format(self.voltage))
+            return
+        
+        if self.voltage < self.voltage_threshold:
+            self.reset_timer_with_new_interval(1.0)
+            rospy.logerr("Battery voltage is below {:.2f}V threshold: {:.2f} V".format(self.voltage_threshold, self.voltage))
+            return
+        elif self.voltage < self.voltage_warn_threshold:
+            self.reset_timer_with_new_interval(1.0)
+            rospy.loginfo("Battery voltage:" +  "\033[93m" + " {:.2f} V".format(self.voltage) + "\033[0m")
+            return
+        elif self.voltage >= self.voltage_warn_threshold:
+            new_interval = self.interpolate_print_interval(self.voltage)
+            self.reset_timer_with_new_interval(new_interval)
+            rospy.loginfo("Battery voltage:" + "\033[92m" + " {:.2f} V".format(self.voltage) + "\033[0m")
+            return
+        
+        # if still alive, set the timer for the next print
+        self.print_interval = 1.0
+        self.voltage_print_timer.shutdown()
+        self.voltage_print_timer = rospy.Timer(rospy.Duration(self.print_interval), self.print_voltage_callback, oneshot=True)
+        
     def print_voltage_callback(self, event):
-        if not self.is_timeouted and self.voltage != None:
-            self.print_voltage()
+        self.print_voltage()
 
     def check_timeout_and_low_voltage_callback(self, event):
         new_timeout = rospy.Time.now() - self.last_msg_time > rospy.Duration(self.timeout_duration)
-        if new_timeout != self.is_timeouted and self.voltage != None and not self.is_undervoltage:
-            self.print_voltage()
+        self.is_undervoltage = self.voltage < self.voltage_threshold
+        
+        if new_timeout != self.is_timeouted and self.voltage != None:
+            if not self.is_undervoltage:
+                self.print_voltage()
             self.is_timeouted = new_timeout  
             
         if self.is_timeouted:
@@ -66,10 +92,8 @@ class BatteryMonitorNode:
                 rospy.logerr("Power message timeout. No voltage received.")
             return
         
-        if self.voltage != None:
-            self.is_undervoltage = self.voltage < self.voltage_threshold
-            if self.is_undervoltage:
-                rospy.logerr("Battery voltage is below {:.2f}V threshold: {:.2f} V".format(self.voltage_threshold, self.voltage))
+        if self.voltage != None and self.is_undervoltage:
+            rospy.logerr("Battery voltage is below {:.2f}V threshold: {:.2f} V".format(self.voltage_threshold, self.voltage))
 
     def interpolate_print_interval(self, voltage):
         # Interpolate between 5 seconds and 60 seconds based on voltage
