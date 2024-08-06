@@ -106,7 +106,7 @@ class JoystickNode:
 
                     # control y and angular z axis
                     twist.linear.y = (
-                        (self.joy_data.axes[5] - self.joy_data.axes[2]) * 0.4 * 0.5
+                        self.joy_data.axes[0] * 0.4
                     )
                     twist.angular.z = self.joy_data.axes[3] * 0.5
 
