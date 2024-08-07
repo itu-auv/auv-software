@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy
-from geometry_msgs.msg import PoseArray, Point
+from geometry_msgs.msg import PoseArray, Pose, Point
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker
 from collections import deque
@@ -40,6 +40,7 @@ class LineBufferNode:
         self.subscriber = rospy.Subscriber(
             "detection_lines", PoseArray, self.line_callback
         )
+        self.pose_pub = rospy.Publisher("detection_poses", PoseArray, queue_size=10)
         self.marker_pub = rospy.Publisher("visualization_marker", Marker, queue_size=10)
         self.tf_broadcaster = tf.TransformBroadcaster()
 
@@ -138,16 +139,32 @@ class LineBufferNode:
             return None  # In case of a computational error
 
     def broadcast_tf(self, intersection):
-        if intersection is not None:
-            x, y, z = intersection
-            # Broadcast the transform with no rotation
-            self.tf_broadcaster.sendTransform(
-                (x, y, z),
-                tf.transformations.quaternion_from_euler(0, 0, 0),
-                rospy.Time.now(),
-                self.detection_namespace + "_link",
-                "odom",
-            )
+        if intersection is None:
+            return
+        x, y, z = intersection
+        # Broadcast the transform with no rotation
+        self.tf_broadcaster.sendTransform(
+            (x, y, z),
+            tf.transformations.quaternion_from_euler(0, 0, 0),
+            rospy.Time.now(),
+            self.detection_namespace + "_link",
+            "odom",
+        )
+
+    def publish_pose(self, intersection):
+        if intersection is None:
+            return
+
+        x, y, z = intersection
+        pose_array = PoseArray()
+        pose_array.header.frame_id = "odom"
+        pose_array.header.stamp = rospy.Time.now()
+        pose = Pose()
+        pose.position.x = x
+        pose.position.y = y
+        pose.position.z = z
+        pose_array.poses.append(pose)
+        self.pose_pub.publish(pose_array)
 
     def publish_markers(self):
         lines = [line[0] for line in self.line_buffer]
@@ -175,7 +192,7 @@ class LineBufferNode:
 
         while not rospy.is_shutdown():
             intersection = self.calculate_intersection()
-            self.broadcast_tf(intersection)
+            self.publish_pose(intersection)
             self.publish_markers()
             rate.sleep()
 
