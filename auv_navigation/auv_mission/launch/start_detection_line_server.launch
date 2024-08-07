@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="turquoise" />
-  <arg name="detection_namespace" default="gate" />
+  <arg name="detection_namespace" default="red_buoy" />
   <arg name="max_lines" default="100" />
   <arg name="min_samples" default="2" />
   <arg name="eps" default="0.2" />
