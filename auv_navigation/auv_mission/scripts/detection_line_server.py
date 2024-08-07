@@ -11,6 +11,72 @@ from std_msgs.msg import Bool
 from sklearn.cluster import DBSCAN
 
 
+class Line3DIntersector:
+    def __init__(self):
+        pass
+
+    def line_to_points(self, a0, a1, num_points=100):
+        """Convert a line segment into a list of points."""
+        a0, a1 = np.array(a0), np.array(a1)
+        return np.linspace(a0, a1, num_points)
+
+    def find_intersections(self, lines, d_min):
+        points = []
+        line_indices = []
+
+        # Generate points along each line
+        for i, (a0, a1) in enumerate(lines):
+            line_points = self.line_to_points(a0, a1)
+            points.append(line_points)
+            line_indices.extend([i] * len(line_points))
+
+        # Flatten the points array
+        points = np.vstack(points)
+
+        # Use DBSCAN to find clusters of close points
+        clustering = DBSCAN(eps=d_min, min_samples=2).fit(points)
+        labels = clustering.labels_
+
+        intersections = []
+        unique_labels = set(labels)
+        for label in unique_labels:
+            if label == -1:
+                continue  # Ignore noise points
+
+            cluster_indices = np.where(labels == label)[0]
+            involved_lines = set(line_indices[i] for i in cluster_indices)
+
+            if len(involved_lines) > 1:
+                cluster_points = points[cluster_indices]
+                for i in involved_lines:
+                    for j in involved_lines:
+                        if i < j:
+                            point_i = cluster_points[line_indices[cluster_indices] == i]
+                            point_j = cluster_points[line_indices[cluster_indices] == j]
+                            if point_i.size > 0 and point_j.size > 0:
+                                midpoint_i = np.mean(point_i, axis=0)
+                                midpoint_j = np.mean(point_j, axis=0)
+                                intersections.append(
+                                    (
+                                        (i, j),
+                                        (midpoint_i.tolist(), midpoint_j.tolist()),
+                                        np.linalg.norm(midpoint_i - midpoint_j),
+                                    )
+                                )
+
+        return intersections
+
+
+def line_points_from_pose_array(pose_array: PoseArray):
+    position1 = pose_array.poses[0].position
+    position2 = pose_array.poses[1].position
+
+    return (
+        [position1.x, position1.y, position1.z],
+        [position2.x, position2.y, position2.z],
+    )
+
+
 class LineBufferNode:
     def __init__(self):
 
@@ -189,11 +255,21 @@ class LineBufferNode:
 
     def spin(self):
         rate = rospy.Rate(10)  # 10Hz
+        intersector = Line3DIntersector()
 
         while not rospy.is_shutdown():
-            intersection = self.calculate_intersection()
-            self.publish_pose(intersection)
-            self.publish_markers()
+
+            lines = [line_points_from_pose_array(line[0]) for line in self.line_buffer]
+            intersections = intersector.find_intersections(lines, 0.5)  # meters
+
+            for intersection in intersections:
+                ((i, j), (pA, pB), dist) = intersection
+                print(
+                    f"Lines {i} and {j} intersect within {dist:.3f} units at points {pA} and {pB}"
+                )
+
+            # self.publish_pose(intersection)
+            # self.publish_markers()
             rate.sleep()
 
 
