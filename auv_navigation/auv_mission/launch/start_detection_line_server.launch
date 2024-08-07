@@ -19,6 +19,7 @@
       <remap from="visualization_marker"
         to="missions/visualization_marker" />
       <remap from="detection_poses" to="missions/$(arg detection_namespace)/poses" />
+      <remap from="detection_point_cloud" to="missions/$(arg detection_namespace)/point_cloud" />
     </node>
   </group>
 
