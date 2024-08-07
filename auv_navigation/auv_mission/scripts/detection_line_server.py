@@ -263,6 +263,7 @@ class LineBufferNode:
         while not rospy.is_shutdown():
 
             lines = [line_points_from_pose_array(line[0]) for line in self.line_buffer]
+            print(lines)
             intersections = intersector.find_intersections(lines, 0.5)  # meters
 
             for intersection in intersections:
