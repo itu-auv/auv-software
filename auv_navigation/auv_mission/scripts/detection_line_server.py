@@ -25,6 +25,8 @@ class Line3DIntersector:
 
     def generate_point_cloud(self, lines, num_points_per_line=100):
         """Generate a point cloud from the given lines."""
+        if len(lines) == 0:
+            return np.array([])
         point_cloud = []
 
         # Generate points along each line
