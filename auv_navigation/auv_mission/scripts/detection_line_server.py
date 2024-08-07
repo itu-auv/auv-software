@@ -2,6 +2,7 @@
 
 import rospy
 from geometry_msgs.msg import PoseArray, Point
+from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker
 from collections import deque
 import numpy as np
@@ -16,6 +17,21 @@ class LineBufferNode:
         self.eps = rospy.get_param("~eps", 0.5)
         self.min_samples = rospy.get_param("~min_samples", 2)
         self.max_lines = rospy.get_param("~max_lines", 500)  # Default max lines of 10
+        self.detection_namespace = rospy.get_param("~detection_namespace", "detection")
+
+        self.color_map = {
+            "red_buoy": ColorRGBA(0.5, 0.0, 0.0, 1.0),
+            "path": ColorRGBA(1.0, 0.5, 0.0, 1.0),
+            "bin_whole": ColorRGBA(0.0, 0.0, 0.5, 1.0),
+            "torpedo_map": ColorRGBA(0.0, 1.0, 0.0, 1.0),
+            "torpedo_hole": ColorRGBA(0.0, 0.5, 0.0, 1.0),
+            "bin_red": ColorRGBA(1.0, 0.0, 0.0, 1.0),
+            "bin_blue": ColorRGBA(0.0, 0.0, 1.0, 1.0),
+            "gate_blue_arrow": ColorRGBA(0.3, 0.3, 1.0, 1.0),
+            "gate_red_arrow": ColorRGBA(1.0, 0.3, 0.3, 1.0),
+            "gate_middle_part": ColorRGBA(0.5, 0.5, 0.5, 1.0),
+        }
+
         self.line_buffer = deque(maxlen=self.max_lines)
 
         self.is_odometry_valid_sub = rospy.Subscriber(
@@ -139,15 +155,12 @@ class LineBufferNode:
         marker = Marker()
         marker.header.frame_id = "odom"
         marker.header.stamp = rospy.Time.now()
-        marker.ns = "lines"
+        marker.ns = self.detection_namespace
         marker.id = 0
         marker.type = Marker.LINE_LIST
         marker.action = Marker.ADD
-        marker.scale.x = 0.05  # Line width
-        marker.color.a = 1.0  # Alpha
-        marker.color.r = 1.0  # Red
-        marker.color.g = 0.0  # Green
-        marker.color.b = 0.0  # Blue
+        marker.scale.x = 0.02  # Line width
+        marker.color = self.color_map[self.detection_namespace]
 
         for line in lines:
             p1 = line.poses[0].position

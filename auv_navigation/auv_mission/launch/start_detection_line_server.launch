@@ -12,10 +12,11 @@
       <param name="eps" value="$(arg eps)" />
       <param name="min_samples" value="$(arg min_samples)" />
       <param name="max_lines" value="$(arg max_lines)" />
+      <param name="detection_namespace" value="$(arg detection_namespace)"/>
 
       <remap from="detection_lines" to="missions/$(arg detection_namespace)/detection_lines" />
       <remap from="visualization_marker"
-        to="missions/$(arg detection_namespace)/visualization_marker" />
+        to="missions/visualization_marker" />
     </node>
   </group>
 
