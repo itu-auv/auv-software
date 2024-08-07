@@ -197,6 +197,13 @@ class ObjectPositionEstimator:
             # Publish PoseArray
             self.detection_line_pubs[detection_name].publish(pose_array)
 
+    def send_transform(self, transform: TransformStamped):
+        req = SetObjectTransformRequest()
+        req.transform = transform
+        resp = self.set_object_transform_service.call(req)
+        if not resp.success:
+            rospy.logerr(f"Failed to set object transform, reason: {resp.message}")
+
     def process_bottom_camera(self, detection, distance: float):
         camera_name = "taluy/cameras/cam_bottom"
         detection_id = detection.results[0].id
