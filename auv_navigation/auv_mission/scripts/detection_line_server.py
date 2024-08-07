@@ -312,7 +312,9 @@ class LineBufferNode:
             #     )
 
             # self.publish_pose(intersection)
-            # self.publish_markers()
+            intersection = self.calculate_intersection()
+            self.broadcast_tf(intersection)
+            self.publish_markers()
             rate.sleep()
 
 
