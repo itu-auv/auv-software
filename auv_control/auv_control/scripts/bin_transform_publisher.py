@@ -4,7 +4,7 @@ import rospy
 import math
 import tf
 import message_filters
-from geometry_msgs.msg import PoseStamped, TransformStamped
+from geometry_msgs.msg import PoseStamped, PoseArray, Pose, TransformStamped
 from std_msgs.msg import Float32
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from ultralytics_ros.msg import YoloResult
@@ -12,6 +12,7 @@ from nav_msgs.msg import Odometry
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 from sensor_msgs.msg import Range
 import tf2_ros
+import tf2_geometry_msgs
 import time
 
 
@@ -59,12 +60,26 @@ class ObjectPositionEstimator:
         }
 
         self.id_tf_map = {
-            "taluy/cameras/cam_front": {8: "buoy"},
+            "taluy/cameras/cam_front": {8: "red_buoy", 7: "path", 9: "bin_whole", 12: "torpedo_map", 13: "torpedo_hole"},
             "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
         }
-        
+
         # Initialize TransformBroadcaster
         self.broadcaster = tf2_ros.TransformBroadcaster()
+
+        # Initialize PoseArray publisher
+        self.detection_line_pubs = {
+            x: rospy.Publisher(
+                f"/taluy/missions/{x}/detection_lines", PoseArray, queue_size=10)
+            for x in self.id_tf_map["taluy/cameras/cam_front"].values()
+        }
+
+        self.pose_array_pub = rospy.Publisher(
+            '/line_topic', PoseArray, queue_size=10)
+
+        # Initialize tf2 buffer and listener
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # Services
         rospy.loginfo("Waiting for set_object_transform service...")
@@ -74,7 +89,8 @@ class ObjectPositionEstimator:
         self.set_object_transform_service.wait_for_service()
 
         # Subscriptions
-        yolo_result_subscriber = message_filters.Subscriber("/yolo_result", YoloResult)
+        yolo_result_subscriber = message_filters.Subscriber(
+            "/yolo_result", YoloResult)
         altitude_subscriber = message_filters.Subscriber(
             "/taluy/sensors/dvl/altitude", Float32
         )
@@ -82,7 +98,8 @@ class ObjectPositionEstimator:
             "/taluy/sensors/sonar_front/range", Range
         )
         ts = message_filters.ApproximateTimeSynchronizer(
-            [yolo_result_subscriber, altitude_subscriber, front_sonar_range_subscriber],
+            [yolo_result_subscriber, altitude_subscriber,
+                front_sonar_range_subscriber],
             10,
             0.5,
             allow_headerless=True,
@@ -104,60 +121,81 @@ class ObjectPositionEstimator:
             detection_id = detection.results[0].id
 
             if detection_id in self.id_tf_map["taluy/cameras/cam_front"]:
-                self.process_front_camera(detection, sonar_distance)
+                self.process_front_camera(detection, 15.0)
 
-            if detection_id in self.id_tf_map["taluy/cameras/cam_bottom"]:
+            if detection_id in self.id_tf_map["taluy/cameras/cam_bottom"] and altitude is not None:
                 self.process_bottom_camera(detection, altitude)
 
-    def send_transform(self, transform: TransformStamped):
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        resp = self.set_object_transform_service.call(req)
-        if not resp.success:
-            rospy.logerr(f"Failed to set object transform, reason: {resp.message}")
+    def transform_pose_to_odom(self, pose: Pose, source_frame: str) -> Pose:
+        # Transform pose to odom frame
+        pose_stamped = PoseStamped()
+        pose_stamped.header.frame_id = source_frame
+        pose_stamped.header.stamp = rospy.Time.now()
+        pose_stamped.pose = pose
+
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                "odom", source_frame, rospy.Time(0), rospy.Duration(1.0))
+            transformed_pose_stamped = tf2_geometry_msgs.do_transform_pose(
+                pose_stamped, transform)
+            return transformed_pose_stamped.pose
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logerr(f"Error transforming pose: {e}")
+            return None
 
     def process_front_camera(self, detection, distance: float):
         camera_name = "taluy/cameras/cam_front"
         detection_id = detection.results[0].id
+        detection_name = self.id_tf_map[camera_name][detection_id]
 
         angle_x, angle_y = calculate_angles(
             self.calibrations[camera_name],
             (detection.bbox.center.x, detection.bbox.center.y),
         )
 
-        offset_x = math.tan(angle_x) * 100.0 * 1.0
-        offset_y = math.tan(angle_y) * 100.0 * 1.0
+        offset_x = math.tan(angle_x) * distance * 1.0
+        offset_y = math.tan(angle_y) * distance * 1.0
 
         time_ = int(time.time())
 
-        transform_message = TransformStamped()
-        transform_message.header.stamp = rospy.Time.now()
-        transform_message.header.frame_id = self.camera_frames[camera_name]
-        transform_message.child_frame_id = f"{self.id_tf_map[camera_name][detection_id]}_link/start{time_}"
-        transform_message.transform.translation.x = 0
-        transform_message.transform.translation.y = 0
-        transform_message.transform.translation.z = 0
-        transform_message.transform.rotation.x = 0.0
-        transform_message.transform.rotation.y = 0.0
-        transform_message.transform.rotation.z = 0.0
-        transform_message.transform.rotation.w = 1.0
+        print("Time: ", time_)
 
-        self.send_transform(transform_message)
+        pose_array = PoseArray()
+        pose_array.header.stamp = rospy.Time.now()
+        pose_array.header.frame_id = "odom"
 
-        transform_message = TransformStamped()
-        transform_message.header.stamp = rospy.Time.now()
-        transform_message.header.frame_id = f"{self.id_tf_map[camera_name][detection_id]}_link/start{time_}" # self.camera_frames[camera_name]
-        transform_message.child_frame_id = f"{self.id_tf_map[camera_name][detection_id]}_link/end{time_}"
-        transform_message.transform.translation.x = offset_x
-        transform_message.transform.translation.y = offset_y
-        transform_message.transform.translation.z = 100
-        transform_message.transform.rotation.x = 0.0
-        transform_message.transform.rotation.y = 0.0
-        transform_message.transform.rotation.z = 0.0
-        transform_message.transform.rotation.w = 1.0
+        # Start pose in the camera frame
+        start_pose = Pose()
+        start_pose.position.x = 0
+        start_pose.position.y = 0
+        start_pose.position.z = 0.0
+        start_pose.orientation.x = 0.0
+        start_pose.orientation.y = 0.0
+        start_pose.orientation.z = 0.0
+        start_pose.orientation.w = 1.0
 
-        self.broadcaster.sendTransform(transform_message)
-        # self.send_transform(transform_message)
+        # End pose in the camera frame
+        end_pose = Pose()
+        end_pose.position.x = offset_x
+        end_pose.position.y = offset_y
+        end_pose.position.z = distance
+        end_pose.orientation.x = 0.0
+        end_pose.orientation.y = 0.0
+        end_pose.orientation.z = 0.0
+        end_pose.orientation.w = 1.0
+
+        # Transform poses to the odom frame
+        start_pose_odom = self.transform_pose_to_odom(
+            start_pose, self.camera_frames[camera_name])
+        end_pose_odom = self.transform_pose_to_odom(
+            end_pose, self.camera_frames[camera_name])
+
+        if start_pose_odom and end_pose_odom:
+            pose_array.poses.append(start_pose_odom)
+            pose_array.poses.append(end_pose_odom)
+
+            # Publish PoseArray
+            self.detection_line_pubs[detection_name].publish(pose_array)
 
     def process_bottom_camera(self, detection, distance: float):
         camera_name = "taluy/cameras/cam_bottom"
