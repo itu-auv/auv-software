@@ -145,7 +145,7 @@ class LineBufferNode:
                 (x, y, z),
                 tf.transformations.quaternion_from_euler(0, 0, 0),
                 rospy.Time.now(),
-                "detection_link",
+                self.detection_namespace + "_link",
                 "odom",
             )
 
