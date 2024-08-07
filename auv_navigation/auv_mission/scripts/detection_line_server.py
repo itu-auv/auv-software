@@ -42,7 +42,7 @@ class Line3DIntersector:
         """Publish the point cloud to RViz."""
 
         header = Header()
-        header.frame_id = "map"
+        header.frame_id = "odom"
         fields = [
             PointField("x", 0, PointField.FLOAT32, 1),
             PointField("y", 4, PointField.FLOAT32, 1),
