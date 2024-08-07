@@ -60,7 +60,7 @@ class ObjectPositionEstimator:
         }
 
         self.id_tf_map = {
-            "taluy/cameras/cam_front": {8: "red_buoy", 7: "path", 9: "bin_whole", 12: "torpedo_map", 13: "torpedo_hole"},
+            "taluy/cameras/cam_front": {8: "red_buoy", 7: "path", 9: "bin_whole", 12: "torpedo_map", 13: "torpedo_hole", 1: "gate_left", 2: "gate_right", 3: "gate_blue_arrow", 4: "gate_red_arrow", 5: "gate_middle_part", 14: "octagon"},
             "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
         }
 
@@ -202,7 +202,8 @@ class ObjectPositionEstimator:
         req.transform = transform
         resp = self.set_object_transform_service.call(req)
         if not resp.success:
-            rospy.logerr(f"Failed to set object transform, reason: {resp.message}")
+            rospy.logerr(
+                f"Failed to set object transform, reason: {resp.message}")
 
     def process_bottom_camera(self, detection, distance: float):
         camera_name = "taluy/cameras/cam_bottom"
