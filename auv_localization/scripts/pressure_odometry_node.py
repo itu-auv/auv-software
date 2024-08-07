@@ -35,9 +35,16 @@ class PressureToOdom:
         self.odom_msg.pose.covariance[14] = self.depth_calibration_covariance
 
         # Log loaded parameters
-        pressure_odometry_colored = TerminalColors.color_text("Pressure Odometry Calibration data loaded", TerminalColors.PASTEL_GREEN)
-        rospy.loginfo(f"{pressure_odometry_colored} : depth offset: {self.depth_calibration_offset}")
-        rospy.loginfo(f"{pressure_odometry_colored} : depth covariance: {self.depth_calibration_covariance}")
+        pressure_odometry_colored = TerminalColors.color_text(
+            "Pressure Odometry Calibration data loaded", TerminalColors.PASTEL_GREEN
+        )
+        rospy.loginfo(
+            f"{pressure_odometry_colored} : depth offset: {self.depth_calibration_offset}"
+        )
+        rospy.loginfo(
+            f"{pressure_odometry_colored} : depth covariance: {self.depth_calibration_covariance}"
+        )
+        self.depth_subscriber = rospy.Subscriber("depth", Float32, self.depth_callback)
 
     def depth_callback(self, depth_msg):
         # Fill the odometry message with depth data as the z component of the linear position

@@ -13,7 +13,7 @@
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
       output="screen">
-      <remap from="sensors/pressure/data" to="sensors/pressure/data" />
+      <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="localization/odom_pressure" to="localization/odom_pressure" />
     </node>
     <node pkg="auv_localization" type="dvl_odometry_node.py" name="dvl_to_odom_node" output="screen">
