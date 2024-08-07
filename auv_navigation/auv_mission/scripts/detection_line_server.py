@@ -21,6 +21,9 @@ class Line3DIntersector:
         return np.linspace(a0, a1, num_points)
 
     def find_intersections(self, lines, d_min):
+        if len(lines) < 2:
+            return []
+
         points = []
         line_indices = []
 
