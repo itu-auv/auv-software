@@ -75,30 +75,56 @@ class LineBufferNode:
             return None  # Not enough lines to calculate intersection
 
         lines = [line[0] for line in self.line_buffer]
+        intersection_points = []
 
-        A = []
-        B = []
-        for line in lines:
-            p1 = line.poses[0]
-            p2 = line.poses[1]
-            # Convert poses to line equations (Ax + By + Cz = D)
-            A1 = p2.position.y - p1.position.y
-            B1 = p1.position.x - p2.position.x
-            C1 = p2.position.z - p1.position.z
-            D1 = A1 * p1.position.x + B1 * p1.position.y + C1 * p1.position.z
+        for i in range(len(lines)):
+            for j in range(i + 1, len(lines)):
+                p1_start = lines[i].poses[0].position
+                p1_end = lines[i].poses[1].position
+                p2_start = lines[j].poses[0].position
+                p2_end = lines[j].poses[1].position
 
-            A.append([A1, B1, C1])
-            B.append(D1)
+                # Line segment 1: p1_start -> p1_end
+                # Line segment 2: p2_start -> p2_end
 
-        A = np.array(A)
-        B = np.array(B)
+                # Calculate the intersection of the two line segments
+                intersect_point = self.segment_intersection(
+                    p1_start, p1_end, p2_start, p2_end
+                )
+                if intersect_point:
+                    intersection_points.append(intersect_point)
 
-        try:
-            # Solve for the intersection point using least squares
-            intersection_point = np.linalg.lstsq(A, B, rcond=None)[0]
-            return intersection_point
-        except np.linalg.LinAlgError:
-            return None  # In case of a computational error
+        if not intersection_points:
+            return None  # No intersections found
+
+        # Return the average intersection point
+        intersection_array = np.array(intersection_points)
+        average_intersection = np.mean(intersection_array, axis=0)
+        return average_intersection
+
+    def segment_intersection(self, p1_start, p1_end, p2_start, p2_end):
+        """Calculate the intersection point of two line segments if it exists."""
+        x1, y1 = p1_start.x, p1_start.y
+        x2, y2 = p1_end.x, p1_end.y
+        x3, y3 = p2_start.x, p2_start.y
+        x4, y4 = p2_end.x, p2_end.y
+
+        # Calculate the denominator
+        denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if denom == 0:
+            return None  # Lines are parallel
+
+        # Calculate the intersection point
+        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
+        u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom
+
+        # Check if the intersection point is within the bounds of both line segments
+        if 0 <= t <= 1 and 0 <= u <= 1:
+            intersection_x = x1 + t * (x2 - x1)
+            intersection_y = y1 + t * (y2 - y1)
+            return np.array([intersection_x, intersection_y, 0])
+        else:
+            return None
 
     def broadcast_tf(self, intersection):
         if intersection is not None:
