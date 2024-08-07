@@ -9,6 +9,9 @@ import numpy as np
 import tf
 from std_msgs.msg import Bool
 from sklearn.cluster import DBSCAN
+from sensor_msgs.msg import PointCloud2, PointField
+from std_msgs.msg import Header
+import sensor_msgs.point_cloud2 as pc2
 
 
 class Line3DIntersector:
@@ -19,6 +22,34 @@ class Line3DIntersector:
         """Convert a line segment into a list of points."""
         a0, a1 = np.array(a0), np.array(a1)
         return np.linspace(a0, a1, num_points)
+
+    def generate_point_cloud(self, lines, num_points_per_line=100):
+        """Generate a point cloud from the given lines."""
+        point_cloud = []
+
+        # Generate points along each line
+        for a0, a1 in lines:
+            line_points = self.line_to_points(a0, a1, num_points_per_line)
+            point_cloud.append(line_points)
+
+        # Flatten the list of points
+        point_cloud = np.vstack(point_cloud)
+        return point_cloud
+
+    def publish_point_cloud(point_cloud, pub):
+        """Publish the point cloud to RViz."""
+
+        header = Header()
+        header.frame_id = "map"
+        fields = [
+            PointField("x", 0, PointField.FLOAT32, 1),
+            PointField("y", 4, PointField.FLOAT32, 1),
+            PointField("z", 8, PointField.FLOAT32, 1),
+        ]
+
+        header.stamp = rospy.Time.now()
+        pc2_msg = pc2.create_cloud(header, fields, point_cloud)
+        pub.publish(pc2_msg)
 
     def find_intersections(self, lines, d_min):
         if len(lines) < 2:
@@ -102,6 +133,9 @@ class LineBufferNode:
         }
 
         self.line_buffer = deque(maxlen=self.max_lines)
+        self.point_cloud_pub = rospy.Publisher(
+            "detection_point_cloud", PointCloud2, queue_size=10
+        )
 
         self.is_odometry_valid_sub = rospy.Subscriber(
             "/taluy/sensors/dvl/is_valid", Bool, self.is_odometry_valid_callback
@@ -205,7 +239,7 @@ class LineBufferNode:
             intersection_point = np.linalg.lstsq(A, B, rcond=None)[0]
             return intersection_point
         except np.linalg.LinAlgError:
-            return None  # In case of a computational error
+            return None  # In case of a cod_minmputational error
 
     def broadcast_tf(self, intersection):
         if intersection is None:
@@ -263,14 +297,17 @@ class LineBufferNode:
         while not rospy.is_shutdown():
 
             lines = [line_points_from_pose_array(line[0]) for line in self.line_buffer]
-            print(lines)
-            intersections = intersector.find_intersections(lines, 0.5)  # meters
+            pc = intersector.generate_point_cloud(lines)
+            intersector.publish_point_cloud(pc, self.point_cloud_pub)
 
-            for intersection in intersections:
-                ((i, j), (pA, pB), dist) = intersection
-                print(
-                    f"Lines {i} and {j} intersect within {dist:.3f} units at points {pA} and {pB}"
-                )
+            # print(lines)
+            # intersections = intersector.find_intersections(lines, 0.5)  # meters
+
+            # for intersection in intersections:
+            #     ((i, j), (pA, pB), dist) = intersection
+            #     print(
+            #         f"Lines {i} and {j} intersect within {dist:.3f} units at points {pA} and {pB}"
+            #     )
 
             # self.publish_pose(intersection)
             # self.publish_markers()
