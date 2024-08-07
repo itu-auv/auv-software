@@ -11,6 +11,8 @@ from ultralytics_ros.msg import YoloResult
 from nav_msgs.msg import Odometry
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 from sensor_msgs.msg import Range
+import tf2_ros
+import time
 
 
 def create_calibration(namespaces: list) -> dict:
@@ -57,9 +59,12 @@ class ObjectPositionEstimator:
         }
 
         self.id_tf_map = {
-            "taluy/cameras/cam_front": {1: "gate"},
+            "taluy/cameras/cam_front": {8: "buoy"},
             "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
         }
+        
+        # Initialize TransformBroadcaster
+        self.broadcaster = tf2_ros.TransformBroadcaster()
 
         # Services
         rospy.loginfo("Waiting for set_object_transform service...")
@@ -120,13 +125,15 @@ class ObjectPositionEstimator:
             (detection.bbox.center.x, detection.bbox.center.y),
         )
 
-        offset_x = math.tan(angle_x) * 100.0 * -1.0
-        offset_y = math.tan(angle_y) * 100.0 * -1.0
+        offset_x = math.tan(angle_x) * 100.0 * 1.0
+        offset_y = math.tan(angle_y) * 100.0 * 1.0
+
+        time_ = int(time.time())
 
         transform_message = TransformStamped()
         transform_message.header.stamp = rospy.Time.now()
         transform_message.header.frame_id = self.camera_frames[camera_name]
-        transform_message.child_frame_id = f"{self.id_tf_map[detection_id]}_link/start"
+        transform_message.child_frame_id = f"{self.id_tf_map[camera_name][detection_id]}_link/start{time_}"
         transform_message.transform.translation.x = 0
         transform_message.transform.translation.y = 0
         transform_message.transform.translation.z = 0
@@ -139,17 +146,18 @@ class ObjectPositionEstimator:
 
         transform_message = TransformStamped()
         transform_message.header.stamp = rospy.Time.now()
-        transform_message.header.frame_id = self.camera_frames[camera_name]
-        transform_message.child_frame_id = f"{self.id_tf_map[detection_id]}_link/end"
+        transform_message.header.frame_id = f"{self.id_tf_map[camera_name][detection_id]}_link/start{time_}" # self.camera_frames[camera_name]
+        transform_message.child_frame_id = f"{self.id_tf_map[camera_name][detection_id]}_link/end{time_}"
         transform_message.transform.translation.x = offset_x
         transform_message.transform.translation.y = offset_y
-        transform_message.transform.translation.z = self.altitude
+        transform_message.transform.translation.z = 100
         transform_message.transform.rotation.x = 0.0
         transform_message.transform.rotation.y = 0.0
         transform_message.transform.rotation.z = 0.0
         transform_message.transform.rotation.w = 1.0
 
-        self.send_transform(transform_message)
+        self.broadcaster.sendTransform(transform_message)
+        # self.send_transform(transform_message)
 
     def process_bottom_camera(self, detection, distance: float):
         camera_name = "taluy/cameras/cam_bottom"
@@ -161,16 +169,16 @@ class ObjectPositionEstimator:
         )
 
         # Calculate the offset in the bottom_camera_optical_link frame
-        offset_x = math.tan(angle_x) * self.altitude * -1.0
-        offset_y = math.tan(angle_y) * self.altitude * -1.0
+        offset_x = math.tan(angle_x) * distance * -1.0
+        offset_y = math.tan(angle_y) * distance * -1.0
 
         transform_message = TransformStamped()
         transform_message.header.stamp = rospy.Time.now()
         transform_message.header.frame_id = self.camera_frames[camera_name]
-        transform_message.child_frame_id = f"{self.id_tf_map[detection_id]}_link"
+        transform_message.child_frame_id = f"{self.id_tf_map[camera_name][detection_id]}_link"
         transform_message.transform.translation.x = offset_x
         transform_message.transform.translation.y = offset_y
-        transform_message.transform.translation.z = self.altitude
+        transform_message.transform.translation.z = distance
         transform_message.transform.rotation.x = 0.0
         transform_message.transform.rotation.y = 0.0
         transform_message.transform.rotation.z = 0.0
