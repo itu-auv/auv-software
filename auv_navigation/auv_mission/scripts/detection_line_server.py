@@ -38,7 +38,7 @@ class Line3DIntersector:
         point_cloud = np.vstack(point_cloud)
         return point_cloud
 
-    def publish_point_cloud(point_cloud, pub):
+    def publish_point_cloud(self, point_cloud, pub):
         """Publish the point cloud to RViz."""
 
         header = Header()
