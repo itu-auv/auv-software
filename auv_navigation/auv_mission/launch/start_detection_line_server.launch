@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="turquoise" />
+  <arg name="detection_namespace" default="gate" />
+  <arg name="max_lines" default="100" />
+  <arg name="min_samples" default="2" />
+  <arg name="eps" default="0.2" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="auv_mission" type="detection_line_server.py" name="detection_line_server"
+      output="screen">
+      <param name="eps" value="$(arg eps)" />
+      <param name="min_samples" value="$(arg min_samples)" />
+      <param name="max_lines" value="$(arg max_lines)" />
+
+      <remap from="detection_lines" to="missions/$(arg detection_namespace)/detection_lines" />
+      <remap from="visualization_marker"
+        to="missions/$(arg detection_namespace)/visualization_marker" />
+    </node>
+  </group>
+
+</launch>
