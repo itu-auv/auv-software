@@ -3,6 +3,7 @@ import smach_ros
 import rospy
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
+from std_srvs.srv import Empty, EmptyRequest, EmptyResponse
 from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
 from auv_msgs.srv import (
     SetObjectTransform,
@@ -66,8 +67,8 @@ class OdometryEnableState(smach_ros.ServiceState):
         smach_ros.ServiceState.__init__(
             self,
             "/taluy/auv_localization_node/enable",
-            Trigger,
-            request=TriggerRequest(),
+            Empty,
+            request=EmptyRequest(),
         )
 
 
@@ -110,7 +111,7 @@ class InitializeState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
-            smach.stateMachine.add(
+            smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
