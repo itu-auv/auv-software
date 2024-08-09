@@ -12,8 +12,6 @@
     </node>
   </group>
 
-  <node pkg="auv_control" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher" />
-
   <!--
   <node pkg="auv_control" type="bin_transform_publisher.py" name="bin_transform_publisher" />
 
