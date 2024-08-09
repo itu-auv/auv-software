@@ -110,7 +110,7 @@ class InitializeState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
-            smach.stateMachine.add(
+            smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
