@@ -75,20 +75,20 @@ class NavigateThroughGateState(smach.State):
                     "gate_enterance", "gate_exit", "gate_target", n_turns=1
                 ),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER",
-                CancelAlignControllerState(),
-                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            # smach.StateMachine.add(
+            #     "CANCEL_ALIGN_CONTROLLER",
+            #     CancelAlignControllerState(),
+            #     transitions={
+            #         "succeeded": "succeeded",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
 
     def execute(self, userdata):
         # Execute the state machine
