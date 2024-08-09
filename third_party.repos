@@ -7,3 +7,7 @@ repositories:
     type: git
     version: master
     url: https://github.com/batuhanozer/ping360_sonar.git
+  ../third_party/ultralytics_ros:
+    type: git
+    version: noetic-devel
+    url: https://github.com/Alpaca-zip/ultralytics_ros.git
