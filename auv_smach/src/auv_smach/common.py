@@ -140,12 +140,12 @@ class NavigateToFrameState(smach.State):
     def execute(self, userdata):
         try:
             odom_to_start_transform = self.tf_buffer.lookup_transform(
-                "odom", self.start_frame, rospy.Time(0), rospy.Duration(1.0)
+                "odom", self.start_frame, rospy.Time(0), rospy.Duration(10000.0)
             )
 
             # Lookup the initial transform from start_frame to end_frame
             start_transform = self.tf_buffer.lookup_transform(
-                self.start_frame, self.end_frame, rospy.Time(0), rospy.Duration(1.0)
+                self.start_frame, self.end_frame, rospy.Time(0), rospy.Duration(10000.0)
             )
 
             start_pos = np.array(
