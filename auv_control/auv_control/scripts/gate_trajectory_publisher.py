@@ -30,15 +30,13 @@ class TransformServiceNode:
 
         self.selected_frame = "gate_red_arrow_link"
 
-        rospy.Timer(rospy.Duration(0.5), self.create_new_frames)
-
-    def create_new_frames(self, event=None):
+    def create_new_frames(self):
         try:
             trans1 = self.tf_buffer.lookup_transform(
-                self.world_frame, self.frame1, rospy.Time(0), rospy.Duration(10)
+                self.world_frame, self.frame1, rospy.Time(0), rospy.Duration(1000000)
             )
             trans2 = self.tf_buffer.lookup_transform(
-                self.world_frame, self.frame2, rospy.Time(0), rospy.Duration(10)
+                self.world_frame, self.frame2, rospy.Time(0), rospy.Duration(1000000)
             )
 
             x1, y1, z1 = (
@@ -149,6 +147,12 @@ class TransformServiceNode:
             rospy.logerr(
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
+
+    def spin(self):
+        rate = rospy.Rate(2.0)
+        while not rospy.is_shutdown():
+            self.create_new_frames()
+            rate.sleep()
 
 
 if __name__ == "__main__":
