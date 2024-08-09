@@ -36,9 +36,29 @@ class MainStateMachineNode:
         with self.sm:
             # Add the FullMissionState as the single state in this state machine
             smach.StateMachine.add(
-                "NAVTEST",
+                "INITIALIZE",
+                InitializeState(),
+                transitions={
+                    "succeeded": "NAVIGATE_THROUGH_GATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "NAVIGATE_THROUGH_GATE",
+                NavigateThroughGateState(gate_depth=gate_depth),
+                transitions={
+                    "succeeded": "NAVIGATE_AROUND_RED_BUOY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "NAVIGATE_AROUND_RED_BUOY",
                 RotateAroundBuoyState(
-                    radius=red_buoy_radius, direction=red_buoy_direction
+                    radius=red_buoy_radius,
+                    direction=red_buoy_direction,
+                    red_buoy_depth=red_buoy_depth,
                 ),
                 transitions={
                     "succeeded": "succeeded",
@@ -47,15 +67,6 @@ class MainStateMachineNode:
                 },
             )
 
-            # smach.StateMachine.add(
-            #     "INITIALIZE",
-            #     InitializeState(),
-            #     transitions={
-            #         "succeeded": "succeeded",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
         outcome = self.sm.execute()
 
         # rospy.Timer(rospy.Duration(0.1), self.start)

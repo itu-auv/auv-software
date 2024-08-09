@@ -23,6 +23,7 @@ from auv_smach.common import (
     NavigateToFrameState,
     SetAlignControllerTargetState,
     CancelAlignControllerState,
+    SetDepthState,
 )
 
 
@@ -115,7 +116,7 @@ class RotateAroundCenterState(smach.State):
 
 
 class RotateAroundBuoyState(smach.State):
-    def __init__(self, radius, direction):
+    def __init__(self, radius, direction, red_buoy_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         # Initialize the state machine
@@ -130,6 +131,15 @@ class RotateAroundBuoyState(smach.State):
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link", target_frame="red_buoy_target"
                 ),
+                transitions={
+                    "succeeded": "SET_RED_BUOY_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_RED_BUOY_DEPTH",
+                SetDepthState(depth=red_buoy_depth),
                 transitions={
                     "succeeded": "ROTATE_AROUND_BUOY",
                     "preempted": "preempted",
