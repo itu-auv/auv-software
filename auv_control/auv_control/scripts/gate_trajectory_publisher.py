@@ -157,7 +157,7 @@ class TransformServiceNode:
 
 if __name__ == "__main__":
     try:
-        TransformServiceNode()
-        rospy.spin()  # Keep the node running
+        node = TransformServiceNode()
+        node.spin()  # Keep the node running
     except rospy.ROSInterruptException:
         pass
