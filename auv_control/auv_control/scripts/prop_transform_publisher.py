@@ -213,7 +213,7 @@ class ObjectPositionEstimator:
 
         try:
             transform = self.tf_buffer.lookup_transform(
-                "odom", source_frame, rospy.Time(0), rospy.Duration(1.0))
+                "odom", source_frame, rospy.Time(0), rospy.Duration(1000000.0))
             transformed_pose_stamped = tf2_geometry_msgs.do_transform_pose(
                 pose_stamped, transform)
             return transformed_pose_stamped.pose
@@ -326,7 +326,7 @@ class ObjectPositionEstimator:
         transform_message = TransformStamped()
         transform_message.header.stamp = rospy.Time.now()
         transform_message.header.frame_id = self.camera_frames[camera_name]
-        transform_message.child_frame_id = f"{self.id_tf_map[camera_name][detection_id]}_estimated_{suffix}_link"
+        transform_message.child_frame_id = f"{self.id_tf_map[camera_name][detection_id]}_link"
         transform_message.transform.translation.x = offset_x
         transform_message.transform.translation.y = offset_y
         transform_message.transform.translation.z = distance
@@ -388,7 +388,7 @@ class ObjectPositionEstimator:
         
         try:
             # optical_camera_frame'den odom frame'ine transform
-            transform = self.tf_buffer.lookup_transform("odom", "taluy/base_link/front_camera_optical_link", rospy.Time(0))
+            transform = self.tf_buffer.lookup_transform("odom", "taluy/base_link/front_camera_optical_link", rospy.Time(0), rospy.Duration(1000000.0))
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
         except tf2_ros.LookupException as e:
@@ -404,7 +404,7 @@ class ObjectPositionEstimator:
         transform_message = TransformStamped()
         transform_message.header.stamp = rospy.Time.now()
         transform_message.header.frame_id = "odom"
-        transform_message.child_frame_id = f"{self.id_tf_map[camera_name][detection_id]}_altitude_link"
+        transform_message.child_frame_id = f"{self.id_tf_map[camera_name][detection_id]}_link"
         transform_message.transform.translation.x = x_
         transform_message.transform.translation.y = y_
         transform_message.transform.translation.z = z_
