@@ -27,16 +27,6 @@ from auv_smach.common import (
 )
 
 
-class SetGateTransformsState(smach_ros.ServiceState):
-    def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self,
-            "/create_gate_frames",
-            Trigger,
-            request=TriggerRequest(),
-        )
-
-
 class NavigateThroughGateState(smach.State):
     def __init__(self, gate_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -48,15 +38,6 @@ class NavigateThroughGateState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
-            smach.StateMachine.add(
-                "CREATE_GATE_FRAMES",
-                SetGateTransformsState(),
-                transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
             smach.StateMachine.add(
                 "SET_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
