@@ -65,8 +65,8 @@ class NavigateThroughGateState(smach.State):
                 ),
                 transitions={
                     "succeeded": "NAVIGATE_TO_GATE_EXIT",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
