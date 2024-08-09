@@ -30,17 +30,9 @@ class TransformServiceNode:
 
         self.selected_frame = "gate_red_arrow_link"
 
-        # Create a service that triggers the creation of new frames
-        self.trigger_service = rospy.Service(
-            "/create_gate_frames", Trigger, self.handle_trigger
-        )
+        rospy.Timer(rospy.Duration(0.5), self.create_new_frames)
 
-    def handle_trigger(self, req):
-        """Service callback to trigger the creation of new frames."""
-        self.create_new_frames()
-        return TriggerResponse(success=True, message="Frames created successfully.")
-
-    def create_new_frames(self):
+    def create_new_frames(self, event=None):
         try:
             trans1 = self.tf_buffer.lookup_transform(
                 self.world_frame, self.frame1, rospy.Time(0), rospy.Duration(10)
