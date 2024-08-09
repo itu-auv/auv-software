@@ -39,19 +39,19 @@ class NavigateThroughGateState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="gate_target"
-                ),
+                "SET_GATE_DEPTH",
+                SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "SET_GATE_DEPTH",
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                "SET_ALIGN_CONTROLLER_TARGET",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame="gate_target"
+                ),
                 transitions={
                     "succeeded": "NAVIGATE_TO_GATE_START",
                     "preempted": "preempted",
