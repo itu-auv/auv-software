@@ -47,18 +47,19 @@ class RotateAroundCenterState(smach.State):
 
     def execute(self, userdata):
         try:
-            # Lookup the initial transform from odom to center_frame
-            odom_to_center_transform = self.tf_buffer.lookup_transform(
-                "odom", self.center_frame, rospy.Time(0), rospy.Duration(1.0)
+            # Lookup the initial transform from center_frame to base_frame
+            center_to_base_transform = self.tf_buffer.lookup_transform(
+                self.center_frame, self.base_frame, rospy.Time(0), rospy.Duration(1.0)
             )
 
-            # Get the center position in the odom frame
-            center_pos_odom = np.array(
+            # Calculate the initial angle from the center to the base
+            base_position = np.array(
                 [
-                    odom_to_center_transform.transform.translation.x,
-                    odom_to_center_transform.transform.translation.y,
+                    center_to_base_transform.transform.translation.x,
+                    center_to_base_transform.transform.translation.y,
                 ]
             )
+            initial_angle = np.arctan2(base_position[1], base_position[0])
 
             # Calculate the duration for one full rotation (2 * pi radians)
             duration = 2 * np.pi * self.radius / self.linear_velocity
@@ -75,12 +76,10 @@ class RotateAroundCenterState(smach.State):
                     return "preempted"
 
                 # Calculate the current angle
-                angle = angular_step * i
+                angle = initial_angle + angular_step * i
 
                 # Calculate the new position using the radius and angle
-                interp_pos = center_pos_odom + self.radius * np.array(
-                    [np.cos(angle), np.sin(angle)]
-                )
+                interp_pos = self.radius * np.array([np.cos(angle), np.sin(angle)])
 
                 # The orientation should be such that the target_frame is always facing the center_frame
                 facing_angle = (
@@ -88,10 +87,10 @@ class RotateAroundCenterState(smach.State):
                 )  # The orientation should face the center (180 degrees offset)
                 quaternion = transformations.quaternion_from_euler(0, 0, facing_angle)
 
-                # Broadcast the new transform relative to odom
+                # Broadcast the new transform relative to center_frame
                 t = TransformStamped()
                 t.header.stamp = rospy.Time.now()
-                t.header.frame_id = "odom"
+                t.header.frame_id = self.center_frame
                 t.child_frame_id = self.target_frame
                 t.transform.translation.x = interp_pos[0]
                 t.transform.translation.y = interp_pos[1]
@@ -126,26 +125,26 @@ class RotateAroundBuoyState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
-            smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="red_buoy_target"
-                ),
-                transitions={
-                    "succeeded": "SET_RED_BUOY_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_RED_BUOY_DEPTH",
-                SetDepthState(depth=red_buoy_depth),
-                transitions={
-                    "succeeded": "ROTATE_AROUND_BUOY",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+            # smach.StateMachine.add(
+            #     "SET_ALIGN_CONTROLLER_TARGET",
+            #     SetAlignControllerTargetState(
+            #         source_frame="taluy/base_link", target_frame="red_buoy_target"
+            #     ),
+            #     transitions={
+            #         "succeeded": "SET_RED_BUOY_DEPTH",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "SET_RED_BUOY_DEPTH",
+            #     SetDepthState(depth=red_buoy_depth),
+            #     transitions={
+            #         "succeeded": "ROTATE_AROUND_BUOY",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
                 "ROTATE_AROUND_BUOY",
                 RotateAroundCenterState(
