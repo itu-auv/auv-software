@@ -79,7 +79,7 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
 
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/auv_localization_node/reset_pose",
+            "/taluy/set_pose",
             SetPose,
             request=initial_pose_request,
         )
