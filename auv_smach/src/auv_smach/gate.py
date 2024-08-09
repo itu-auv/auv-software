@@ -70,7 +70,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth),
+                SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "NAVIGATE_TO_GATE_START",
                     "preempted": "preempted",

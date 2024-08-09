@@ -75,9 +75,10 @@ def concatenate_transforms(transform1, transform2):
 
 
 class SetDepthState(smach_ros.ServiceState):
-    def __init__(self, depth: float):
+    def __init__(self, depth: float, sleep_duration=0.0):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
+        self.sleep_duration = sleep_duration
 
         smach_ros.ServiceState.__init__(
             self,
@@ -85,6 +86,14 @@ class SetDepthState(smach_ros.ServiceState):
             SetDepth,
             request=set_depth_request,
         )
+
+    def execute(self, ud):
+        return_data = super().execute(ud)
+
+        if self.sleep_duration > 0:
+            rospy.sleep(self.sleep_duration)
+
+        return return_data
 
 
 class SetGateTransformsState(smach_ros.ServiceState):
