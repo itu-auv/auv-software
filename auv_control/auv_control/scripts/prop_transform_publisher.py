@@ -187,7 +187,6 @@ class ObjectPositionEstimator:
         rospy.init_node("object_position_estimator", anonymous=True)
 
         self.scene = Scene()
-        self.scene_transform_publisher = rospy.Timer(rospy.Duration(0.03), self.scene_transform_publisher_callback)
 
         self.camera_calibrations = {
             "taluy/cameras/cam_front": CameraCalibration("taluy/cameras/cam_front"),
@@ -690,7 +689,10 @@ class ObjectPositionEstimator:
         # transform_message.transform.rotation.w = 1.0
 
     def run(self):
-        rospy.spin()
+        self.rate = rospy.Rate(30.0)
+        while rospy.is_shutdown() is False:
+            self.scene_transform_publisher_callback(None)
+            self.rate.sleep()
 
 
 if __name__ == "__main__":
