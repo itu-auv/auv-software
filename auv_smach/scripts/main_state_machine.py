@@ -8,6 +8,7 @@ from auv_smach.gate import NavigateThroughGateState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
+from auv_smach.octagon import OctagonTaskState
 from std_msgs.msg import Bool
 import threading
 
@@ -27,6 +28,8 @@ class MainStateMachineNode:
         torpedo_map_depth = -1.3
 
         bin_whole_depth = -1.0
+
+        octagon_depth = gate_depth
         # USER EDIT
 
         # automatically select other params
@@ -90,6 +93,17 @@ class MainStateMachineNode:
                 "NAVIGATE_TO_BIN_TASK",
                 BinTaskState(
                     bin_whole_depth=bin_whole_depth,
+                ),
+                transitions={
+                    "succeeded": "NAVIGATE_TO_OCTAGON_TASK",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "NAVIGATE_TO_OCTAGON_TASK",
+                OctagonTaskState(
+                    octagon_depth=octagon_depth,
                 ),
                 transitions={
                     "succeeded": "succeeded",
