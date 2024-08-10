@@ -70,6 +70,7 @@ class ObjectPositionEstimator:
             "gate_blue_arrow": 0.3048,
             "gate_middle_part": 0.6096,
             "torpedo_map": 0.6096,
+            "octagon": 0.7,
         }
         
         self.real_width_map = {
@@ -77,6 +78,7 @@ class ObjectPositionEstimator:
             "gate_red_arrow": 0.3048,
             "gate_blue_arrow": 0.3048,
             "torpedo_map": 0.6096,
+            "octagon": 1.2,
         }
 
         # Initialize TransformBroadcaster
@@ -188,7 +190,7 @@ class ObjectPositionEstimator:
                     distance_avarage = (distance_from_height + distance_from_width) * 0.5
                     
                     detection_distance = Float32()
-                    detection_distance.data = distance_from_height
+                    detection_distance.data = distance_avarage
                     self.detection_distance_pubs[detection_name].publish(detection_distance)
                     
                     # self.process_front_estimated_camera(detection, distance_from_height, suffix="from_height")
