@@ -665,8 +665,13 @@ class ObjectPositionEstimator:
 
         # find the intersection of the line from point1 to point2 to the plane z=0
         # find the xyz here, where z=0
-        x_, y_, z_ = self.calculate_intersection_with_ground(
+        intersect_return = self.calculate_intersection_with_ground(
             point1_odom, point2_odom)
+
+        if not intersect_return:
+            return
+        
+        x_, y_, z_ = intersect_return
 
         self.scene.add_object_to_location(detection_id, x_, y_, z_)
 
