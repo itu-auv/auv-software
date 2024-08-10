@@ -6,6 +6,8 @@ import auv_smach
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.red_buoy import RotateAroundBuoyState
+from auv_smach.torpedo import TorpedoTaskState
+from auv_smach.bin import BinTaskState
 from std_msgs.msg import Bool
 import threading
 
@@ -15,10 +17,16 @@ class MainStateMachineNode:
         self.previous_enabled = False
 
         # USER EDIT
-        target_gate_link = "gate_blue_arrow_link"
-        red_buoy_radius = 1.0
         gate_depth = -0.9
+        target_gate_link = "gate_blue_arrow_link"
+
+        red_buoy_radius = 2.2
         red_buoy_depth = -0.7
+
+        torpedo_map_radius = 1.5
+        torpedo_map_depth = -1.3
+
+        bin_whole_depth = -1.0
         # USER EDIT
 
         # automatically select other params
@@ -59,6 +67,29 @@ class MainStateMachineNode:
                     radius=red_buoy_radius,
                     direction=red_buoy_direction,
                     red_buoy_depth=red_buoy_depth,
+                ),
+                transitions={
+                    "succeeded": "NAVIGATE_TO_TORPEDO_TASK",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "NAVIGATE_TO_TORPEDO_TASK",
+                TorpedoTaskState(
+                    torpedo_map_radius=torpedo_map_radius,
+                    torpedo_map_depth=torpedo_map_depth,
+                ),
+                transitions={
+                    "succeeded": "NAVIGATE_TO_BIN_TASK",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "NAVIGATE_TO_BIN_TASK",
+                BinTaskState(
+                    bin_whole_depth=bin_whole_depth,
                 ),
                 transitions={
                     "succeeded": "succeeded",
