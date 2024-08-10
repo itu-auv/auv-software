@@ -307,8 +307,17 @@ class ObjectPositionEstimator:
                 point1.point.x = obj.filtered_x
                 point1.point.y = obj.filtered_y
                 point1.point.z = obj.filtered_z
+                transform = None
+                try:
+                    transform = self.tf_buffer.lookup_transform("taluy/base_link", "odom", rospy.Time(0), rospy.Duration(1.0))
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
+                ):
+                    rospy.logerr("Error looking up transform")
+                    return
                 
-                transform = self.tf_buffer.lookup_transform("taluy/base_link", "odom", rospy.Time(0), rospy.Duration(1.0))
                 point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
                 
                 distance = math.sqrt(point1_odom.point.x**2 + point1_odom.point.y**2 + point1_odom.point.z**2)
