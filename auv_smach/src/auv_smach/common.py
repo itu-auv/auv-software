@@ -96,11 +96,21 @@ class SetDepthState(smach_ros.ServiceState):
         return return_data
 
 
-class SetGateTransformsState(smach_ros.ServiceState):
+class LaunchTorpedoState(smach_ros.ServiceState):
+    def __init__(self, id: int):
+        smach_ros.ServiceState.__init__(
+            self,
+            f"/taluy/actuators/torpedo_{id}/launch",
+            Trigger,
+            request=TriggerRequest(),
+        )
+
+
+class DropBallState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/create_gate_frames",
+            "/taluy/actuators/ball_dropper/drop",
             Trigger,
             request=TriggerRequest(),
         )
@@ -143,18 +153,17 @@ class NavigateToFrameState(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
-        self.linear_velocity = rospy.get_param("/max_linear_velocity")
-        self.angular_velocity = rospy.get_param("/max_angular_velocity")
+        self.linear_velocity = rospy.get_param("/smach/max_linear_velocity")
+        self.angular_velocity = rospy.get_param("/smach/max_angular_velocity")
 
     def execute(self, userdata):
         try:
             odom_to_start_transform = self.tf_buffer.lookup_transform(
-                "odom", self.start_frame, rospy.Time(0), rospy.Duration(10000.0)
+                "odom", self.start_frame, rospy.Time(0), rospy.Duration(1000.0)
             )
-
             # Lookup the initial transform from start_frame to end_frame
             start_transform = self.tf_buffer.lookup_transform(
-                self.start_frame, self.end_frame, rospy.Time(0), rospy.Duration(10000.0)
+                self.start_frame, self.end_frame, rospy.Time(0), rospy.Duration(1000.0)
             )
 
             start_pos = np.array(

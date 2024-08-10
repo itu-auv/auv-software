@@ -28,7 +28,7 @@ class TransformServiceNode:
         self.new_frame_closer = "gate_enterance"
         self.world_frame = "odom"
 
-        self.selected_frame = "gate_red_arrow_link"
+        self.selected_frame = "gate_blue_arrow_link"
 
     def create_new_frames(self):
         try:
@@ -72,8 +72,8 @@ class TransformServiceNode:
             new_y_away = selected_y + perp_dy
 
             # New frame 1 meter closer
-            new_x_closer = selected_x - perp_dx
-            new_y_closer = selected_y - perp_dy
+            new_x_closer = selected_x - perp_dx * 1.7
+            new_y_closer = selected_y - perp_dy * 1.7
 
             # Calculate orientation to look towards the selected frame
             angle_away = math.atan2(selected_y - new_y_away, selected_x - new_x_away)
