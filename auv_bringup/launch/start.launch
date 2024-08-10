@@ -21,11 +21,11 @@
   </include>
 
   <!-- launch ping360 driver -->
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_ping360_driver.launch.xml">
+  <!-- <include file="$(find auv_bringup)/launch/inc/sensors/start_ping360_driver.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="device_ip" value="192.168.7.151" />
     <arg name="device_port" value="12345" />
-  </include>
+  </include> -->
 
   <!-- launch expansion bridge -->
   <include file="$(find auv_bringup)/launch/inc/boards/start_expansion_board_bridge.launch.xml">
