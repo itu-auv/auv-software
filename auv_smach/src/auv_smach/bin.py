@@ -154,7 +154,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_1",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=8.0),
                 transitions={
                     "succeeded": "DROP_BALL_2",
                     "preempted": "preempted",
