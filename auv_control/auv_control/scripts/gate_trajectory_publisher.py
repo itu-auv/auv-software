@@ -28,7 +28,7 @@ class TransformServiceNode:
         self.new_frame_closer = "gate_enterance"
         self.world_frame = "odom"
 
-        self.selected_frame = "gate_red_arrow_link"
+        self.selected_frame = "gate_blue_arrow_link"
 
     def create_new_frames(self):
         try:
