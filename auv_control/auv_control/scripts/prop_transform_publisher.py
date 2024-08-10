@@ -14,39 +14,46 @@ from sensor_msgs.msg import Range
 import tf2_ros
 import tf2_geometry_msgs
 import time
+import copy
+import threading
 
 class Scene:
     def __init__(self):
+        self.lock = threading.Lock()
         self.objects = {}
     
     def add_object_to_location(self, id: int, x: float, y: float, z: float):
-        if id not in self.objects:
-            self.objects[id] = []
-            
-        # check if the new location belongs to already existing object or a new object, just by checking the distance
-        for obj in self.objects[id]:
-            distance = math.sqrt((obj.x - x)**2 + (obj.y - y)**2 + (obj.z - z)**2)
-            if distance < 4.0:
-                obj.update_position(x, y, z)
-                return
-            
-        new_object = SceneObject(id, x, y, z)
-        self.objects[id].append(new_object)
+        with self.lock:
+            if id not in self.objects:
+                self.objects[id] = []
                 
-    def get_object_by_id(self, id: int):
-        if id in self.objects:
-            return self.objects[id]
-        else:
-            return None
-    
+            # check if the new location belongs to already existing object or a new object, just by checking the distance
+            for obj in self.objects[id]:
+                distance = math.sqrt((obj.x - x)**2 + (obj.y - y)**2 + (obj.z - z)**2)
+                if distance < 4.0:
+                    obj.update_position(x, y, z)
+                    return
+                
+            new_object = SceneObject(id, x, y, z)
+            self.objects[id].append(new_object)
+
+    def get_objects(self):
+        objects_copy = None
+        with self.lock:
+            objects_copy = copy.deepcopy(self.objects)
+        
+        return objects_copy
+
     def update_objects(self):
-        for key, value in self.objects.items():
-            for obj in value:
-                obj.update_filtered_position()
+        with self.lock:
+            for key, value in self.objects.items():
+                for obj in value:
+                    obj.update_filtered_position()
         
     def print_all_objects_and_their_count(self):
-        for key, value in self.objects.items():
-            print(f"Object {id_to_name_map[key]}: {len(value)}")
+        with self.lock:
+            for key, value in self.objects.items():
+                print(f"Object {id_to_name_map[key]}: {len(value)}")
 
 class SceneObject:
     def __init__(self, id: int, x: float, y: float, z: float):
@@ -289,7 +296,7 @@ class ObjectPositionEstimator:
         self.scene.update_objects()
         
         # traverse over all objects in the scene and publish their transform as tf
-        for key, value in self.scene.objects.items():
+        for key, value in self.scene.get_objects().items():
             # find out the closest object to the taluy/base_link
             closest_object = None
             min_distance = 1000.0
