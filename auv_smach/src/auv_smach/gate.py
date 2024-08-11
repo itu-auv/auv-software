@@ -66,8 +66,8 @@ class BarrelRollState(smach.State):
         return "succeeded"
 
 
-class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float):
+class DoBarrelRoll(smach.State):
+    def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         # Initialize the state machine
@@ -78,16 +78,16 @@ class NavigateThroughGateState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                "WAIT_FOR_SETTLE_DOWN_0",
+                DelayState(delay_time=7.0),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER1",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER1",
+                "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
                     "succeeded": "DO_BARREL_ROLL",
@@ -126,7 +126,38 @@ class NavigateThroughGateState(smach.State):
                 "WAIT_FOR_SETTLE_DOWN_2",
                 DelayState(delay_time=7.0),
                 transitions={
-                    "succeeded": "SET_BACK_ALIGN_CONTROLLER_TARGET",
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+    def execute(self, userdata):
+        # Execute the state machine
+        outcome = self.state_machine.execute()
+
+        if outcome is None:
+            return "preempted"
+
+        return outcome
+
+
+class NavigateThroughGateState(smach.State):
+    def __init__(self, gate_depth: float):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        # Initialize the state machine
+        self.state_machine = smach.StateMachine(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        # Open the container for adding states
+        with self.state_machine:
+            smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                transitions={
+                    "succeeded": "BARREL_ROLL",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -168,6 +199,15 @@ class NavigateThroughGateState(smach.State):
                     "taluy/base_link", "gate_enterance", "gate_target"
                 ),
                 transitions={
+                    "succeeded": "BARREL_ROLL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "BARREL_ROLL",
+                DoBarrelRoll(),
+                transitions={
                     "succeeded": "NAVIGATE_TO_GATE_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -176,7 +216,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "NAVIGATE_TO_GATE_EXIT",
                 NavigateToFrameState(
-                    "gate_enterance", "gate_exit", "gate_target", n_turns=-2
+                    "gate_enterance", "gate_exit", "gate_target", n_turns=0
                 ),
                 transitions={
                     "succeeded": "succeeded",
