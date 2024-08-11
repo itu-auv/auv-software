@@ -45,7 +45,7 @@ class BarrelRollState(smach.State):
 
         # Create and publish the Twist message
         twist_msg = Twist()
-        twist_msg.angular.x = 60.0
+        twist_msg.angular.x = 3000.0
 
         # Create and publish the Bool message
         enable_msg = Bool()
