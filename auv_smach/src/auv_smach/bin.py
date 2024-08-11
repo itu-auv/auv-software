@@ -45,15 +45,15 @@ class BinTaskState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
-            smach.StateMachine.add(
-                "SET_BIN_DEPTH",
-                SetDepthState(depth=bin_whole_depth, sleep_duration=3.0),
-                transitions={
-                    "succeeded": "SET_BIN_TRAVEL_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+            # smach.StateMachine.add(
+            #     "SET_BIN_DEPTH",
+            #     SetDepthState(depth=bin_whole_depth, sleep_duration=3.0),
+            #     transitions={
+            #         "succeeded": "SET_BIN_TRAVEL_START",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
                 "SET_BIN_TRAVEL_START",
                 SetFrameLookingAtState(
@@ -128,6 +128,15 @@ class BinTaskState(smach.State):
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link", target_frame="bin_whole_link"
                 ),
+                transitions={
+                    "succeeded": "SET_BIN_DROP_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BIN_DROP_DEPTH",
+                SetDepthState(depth=bin_whole_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_START",
                     "preempted": "preempted",
