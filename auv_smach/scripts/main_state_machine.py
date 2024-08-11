@@ -29,7 +29,7 @@ class MainStateMachineNode:
 
         bin_whole_depth = -1.0
 
-        octagon_depth = gate_depth
+        octagon_depth = -1.0
         # USER EDIT
 
         # automatically select other params
