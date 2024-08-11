@@ -33,9 +33,13 @@ class Scene:
                 if distance < 4.0:
                     obj.update_position(x, y, z)
                     return
-                
-            new_object = SceneObject(id, x, y, z)
-            self.objects[id].append(new_object)
+            
+            # if it is octagon, dont add new octagon if there is already one
+            if id == 14 and len(self.objects[id]) > 0:
+                pass # don't add new octagon
+            else:    
+                new_object = SceneObject(id, x, y, z)
+                self.objects[id].append(new_object)
 
     def get_objects(self):
         objects_copy = None
@@ -187,7 +191,7 @@ class BinWhole(Prop):
 
 class Octagon(Prop):
     def __init__(self):
-        super().__init__(14, "octagon", 0.7, 1.2)
+        super().__init__(14, "octagon", 0.92, 1.30)
 
 class ObjectPositionEstimator:
     def __init__(self):
