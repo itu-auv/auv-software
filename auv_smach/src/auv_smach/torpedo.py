@@ -180,7 +180,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_LAUNCH",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=6.0),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",
                     "preempted": "preempted",
@@ -190,6 +190,35 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_2",
                 LaunchTorpedoState(id=2),
+                transitions={
+                    "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_TORPEDO_2_LAUNCH",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "MOVE_BACK_TO_APPROACH_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "MOVE_BACK_TO_APPROACH_POSE",
+                NavigateToFrameState(
+                    "taluy/base_link", "torpedo_approach_start", "torpedo_map_target"
+                ),
+                transitions={
+                    "succeeded": "SET_TORPEDO_EXIT_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_TORPEDO_EXIT_DEPTH",
+                SetDepthState(depth=-0.7, sleep_duration=3.0),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
