@@ -1,7 +1,7 @@
 <launch>
   <arg name="namespace" default="taluy" />
-  <param name="/smach/max_linear_velocity" value="0.2" />
-  <param name="/smach/max_angular_velocity" value="0.4" />
+  <param name="/smach/max_linear_velocity" value="0.3" />
+  <param name="/smach/max_angular_velocity" value="0.45" />
 
   <node name="main_state_machine" pkg="auv_smach" type="main_state_machine.py" output="screen" />
 </launch>
