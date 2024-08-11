@@ -45,7 +45,7 @@ class BarrelRollState(smach.State):
 
         # Create and publish the Twist message
         twist_msg = Twist()
-        twist_msg.angular.x = 12.0
+        twist_msg.angular.x = 60.0
 
         # Create and publish the Bool message
         enable_msg = Bool()
@@ -61,7 +61,6 @@ class BarrelRollState(smach.State):
 
         for _ in range(5):
             self.cmd_vel_pub.publish(Twist())
-            self.enable_pub.publish(Bool())
             self.rate.sleep()
 
         return "succeeded"
@@ -82,6 +81,15 @@ class NavigateThroughGateState(smach.State):
                 "SET_GATE_DEPTH",
                 SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER1",
+                CancelAlignControllerState(),
+                transitions={
                     "succeeded": "DO_BARREL_ROLL",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -89,7 +97,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "DO_BARREL_ROLL",
-                BarrelRollState(3.0),
+                BarrelRollState(2.5),
                 transitions={
                     "succeeded": "WAIT_FOR_SETTLE_DOWN_1",
                     "preempted": "preempted",
@@ -98,7 +106,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_SETTLE_DOWN_1",
-                DelayState(delay_time=5.0),
+                DelayState(delay_time=7.0),
                 transitions={
                     "succeeded": "DO_BARREL_ROLL_2",
                     "preempted": "preempted",
@@ -107,7 +115,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "DO_BARREL_ROLL_2",
-                BarrelRollState(3.0),
+                BarrelRollState(2.5),
                 transitions={
                     "succeeded": "WAIT_FOR_SETTLE_DOWN_2",
                     "preempted": "preempted",
@@ -116,7 +124,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_SETTLE_DOWN_2",
-                DelayState(delay_time=5.0),
+                DelayState(delay_time=7.0),
                 transitions={
                     "succeeded": "SET_BACK_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
