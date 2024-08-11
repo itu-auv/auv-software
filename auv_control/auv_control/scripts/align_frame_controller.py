@@ -23,8 +23,8 @@ class FrameAligner:
         self.target_frame = ""
         self.angle_offset = 0.0
 
-        self.max_linear_velocity = 0.3
-        self.max_angular_velocity = 0.4
+        self.max_linear_velocity = 0.8
+        self.max_angular_velocity = 0.9
 
         # Initialize the enable signal handler with a timeout duration
         self.rate = rospy.get_param("~rate", 0.1)
