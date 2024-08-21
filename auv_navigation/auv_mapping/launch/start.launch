@@ -11,4 +11,13 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
   </group>
+  
+  <node pkg="auv_control" type="prop_transform_publisher.py" name="prop_transform_publisher" output="screen" />
+
+  <!--
+  <node pkg="auv_control" type="bin_transform_publisher.py" name="bin_transform_publisher" />
+
+  <include file="$(find auv_mission)/launch/start_all_detection_line_servers.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include> -->
 </launch>

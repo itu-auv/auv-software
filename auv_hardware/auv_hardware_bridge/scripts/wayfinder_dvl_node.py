@@ -9,6 +9,7 @@ import std_msgs.msg
 import geometry_msgs.msg
 import std_srvs.srv
 import auv_common_lib.spatial.velocity_transform
+import sensor_msgs.msg
 
 
 def twist_from_vector(vector: np.array) -> geometry_msgs.msg.Twist:
@@ -85,6 +86,8 @@ class WayfinderNode:
         self.pub_altitude = rospy.Publisher(
             "altitude", std_msgs.msg.Float32, queue_size=1
         )
+
+        self.pub_range = rospy.Publisher("range", sensor_msgs.msg.Range, queue_size=1)
 
         self.set_enabled_service = rospy.Service(
             "enable", std_srvs.srv.SetBool, self.set_enable_handler
@@ -219,21 +222,15 @@ class WayfinderNode:
 
         self.pub_velocity_raw_stamped.publish(msg_stamped)
 
-        #transformed_velocity_vector = (
-        #    self.imu_spacial_transformer.transform_linear_velocity(
-        #        velocity_vector, self.frame_id
-        #    )
-        #)
-
-        #msg = twist_from_vector(transformed_velocity_vector)
-        #self.pub_velocity.publish(msg)
-
-        #msg_stamped = twist_stamped_from_vector(
-        #    transformed_velocity_vector, self.frame_id, self.velocity_covariance
-        #)
-        #self.pub_velocity_stamped.publish(msg_stamped)
-
         self.pub_altitude.publish(std_msgs.msg.Float32(data.mean_range))
+
+        range_msg = sensor_msgs.msg.Range()
+        range_msg.header.stamp = rospy.Time.now()
+        range_msg.header.frame_id = self.frame_id
+        range_msg.range = data.mean_range
+        range_msg.min_range = 0.0
+        range_msg.max_range = 100.0
+        self.pub_range.publish(range_msg)
 
 
 if __name__ == "__main__":

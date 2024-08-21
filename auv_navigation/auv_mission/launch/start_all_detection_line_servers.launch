@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="turquoise" />
+
+  <include file="$(find auv_mission)/launch/start_detection_line_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="detection_namespace" value="red_buoy" />
+  </include>
+
+  <include file="$(find auv_mission)/launch/start_detection_line_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="detection_namespace" value="path" />
+  </include>
+
+  <include file="$(find auv_mission)/launch/start_detection_line_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="detection_namespace" value="bin_whole" />
+  </include>
+
+  <include file="$(find auv_mission)/launch/start_detection_line_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="detection_namespace" value="torpedo_map" />
+  </include>
+
+  <include file="$(find auv_mission)/launch/start_detection_line_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="detection_namespace" value="torpedo_hole" />
+  </include>
+
+  <include file="$(find auv_mission)/launch/start_detection_line_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="detection_namespace" value="gate_blue_arrow" />
+  </include>
+
+  <include file="$(find auv_mission)/launch/start_detection_line_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="detection_namespace" value="gate_red_arrow" />
+  </include>
+  
+</launch>
