@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rosfmt
   auv_msgs
+  geometry_msgs
   auv_common_lib
   auv_controllers
   pluginlib
@@ -28,6 +29,7 @@ find_package(Eigen3 REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
+  CATKIN_DEPENDS geometry_msgs
 #  LIBRARIES auv_control
   # CATKIN_DEPENDS auv_controllers auv_common_lib
 #  DEPENDS system_lib

@@ -8,10 +8,11 @@
 #include "auv_controllers/controller_base.h"
 #include "auv_controllers/multidof_pid_controller.h"
 #include "geometry_msgs/Wrench.h"
+#include "geometry_msgs/AccelWithCovarianceStamped.h"
 #include "nav_msgs/Odometry.h"
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
-#include "sensor_msgs/Imu.h"
+// #include "sensor_msgs/Imu.h"
 #include "std_msgs/Bool.h"
 #include <dynamic_reconfigure/server.h>
 #include <auv_control/ControllerConfig.h> // Include your dynamic reconfigure header
@@ -75,8 +76,11 @@ class ControllerROS {
         nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
     cmd_pose_sub_ =
         nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
-    imu_sub_ = nh_.subscribe("imu", 1, &ControllerROS::imu_callback, this);
-
+    // imu_sub_ = 
+    //     nh_.subscribe("imu", 1, &ControllerROS::imu_callback, this);        
+    accel_sub_ = 
+        nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this);
+        
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
         []() { ROS_WARN_STREAM("control enable message timeouted"); },
@@ -153,12 +157,20 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
-  void imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
-    d_state_(6) = msg->linear_acceleration.x;
-    d_state_(7) = msg->linear_acceleration.y;
-    d_state_(8) = msg->linear_acceleration.z;
+  // void imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
+  //   d_state_(6) = msg->linear_acceleration.x;
+  //   d_state_(7) = msg->linear_acceleration.y;
+  //   d_state_(8) = msg->linear_acceleration.z;
+  //   d_state_.tail(3) = Eigen::Vector3d::Zero();
+  // }
+
+  void accel_callback(const geometry_msgs::AccelWithCovarianceStamped::ConstPtr& msg) {
+    d_state_(6) = msg->accel.accel.linear.x;
+    d_state_(7) = msg->accel.accel.linear.y;
+    d_state_(8) = msg->accel.accel.linear.z;
     d_state_.tail(3) = Eigen::Vector3d::Zero();
   }
+
 
   void reconfigure_callback(auv_control::ControllerConfig& config, uint32_t level) {
     auto controller = dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
@@ -250,8 +262,10 @@ void save_parameters() {
   ros::Subscriber odometry_sub_;
   ros::Subscriber cmd_vel_sub_;
   ros::Subscriber cmd_pose_sub_;
-  ros::Subscriber imu_sub_;
+  // ros::Subscriber imu_sub_;
+  ros::Subscriber accel_sub_;
   ros::Publisher wrench_pub_;
+
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;
   ros::Time latest_command_time_{ros::Time(0)};

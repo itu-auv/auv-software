@@ -27,7 +27,7 @@ odom_frame: odom
 base_link_frame: taluy/base_link
 world_frame: odom
 
-odom0: /taluy/localization/odom_imu
+odom0: /taluy/acceleration
 odom0_config: [false, false, false,
                true, true, true,
                false, false, false,
