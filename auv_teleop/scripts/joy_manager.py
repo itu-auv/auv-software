@@ -96,22 +96,12 @@ class JoystickNode:
             with self.lock:
                 if self.joy_data:
 
-                    # if button 1 pressed, control z axis
-                    if self.joy_data.buttons[1]:
-                        twist.linear.x = 0.0
-                        twist.linear.z = self.joy_data.axes[1] * 0.4
-                    else:
-                        twist.linear.x = self.joy_data.axes[1] * 0.4
-                        twist.linear.z = 0.0
-
-                    # control y and angular z axis
-                    twist.linear.y = (
-                        self.joy_data.axes[0] * 0.4
-                    )
+                    twist.linear.z = -self.joy_data.axes[2] * 0.4
+                    twist.linear.x = -self.joy_data.axes[1] * 0.4
+                    twist.linear.y = self.joy_data.axes[0] * 0.4
                     twist.angular.z = self.joy_data.axes[3] * 0.5
-
-                else:
                     twist.linear.x = 0.0
+                    twist.linear.y = self.joy_data.buttons[9] 
                     twist.angular.z = 0.0
 
             self.enable_pub.publish(Bool(True))
