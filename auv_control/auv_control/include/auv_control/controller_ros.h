@@ -15,7 +15,9 @@
 #include "std_msgs/Bool.h"
 #include <dynamic_reconfigure/server.h>
 #include <auv_control/ControllerConfig.h> // Include your dynamic reconfigure header
-
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include "std_msgs/Float64.h"
 
 namespace auv {
 namespace control {
@@ -74,7 +76,7 @@ class ControllerROS {
     cmd_vel_sub_ =
         nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
     cmd_pose_sub_ =
-        nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
+        nh_.subscribe("cmd_pose_stamped", 1, &ControllerROS::cmd_pose_callback, this);
     imu_sub_ = nh_.subscribe("imu", 1, &ControllerROS::imu_callback, this);
 
     control_enable_sub_.subscribe(
@@ -84,6 +86,7 @@ class ControllerROS {
     control_enable_sub_.set_default_message(std_msgs::Bool{});
 
     wrench_pub_ = nh_.advertise<geometry_msgs::Wrench>("wrench", 1);
+    transformed_pose_z_pub_ = nh_.advertise<std_msgs::Float64>("transformed_pose_z", 1);
   }
 
   bool load_controller(const std::string& controller_name) {
@@ -126,6 +129,7 @@ class ControllerROS {
   }
 
  private:
+  ros::Publisher transformed_pose_z_pub_;
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
 
   bool is_timeouted() const {
@@ -146,12 +150,46 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
-  void cmd_pose_callback(const geometry_msgs::Pose::ConstPtr& msg) {
+  void cmd_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
+    const std::string base_frame = "taluy/base_link";
+
+    static tf2_ros::Buffer tf_buffer;
+    static tf2_ros::TransformListener tf_listener(tf_buffer);
+
+    geometry_msgs::TransformStamped transform_stamped;
+    geometry_msgs::Pose transformed_pose;
+
+    ROS_DEBUG_STREAM_THROTTLE(10.0, "Received cmd_pose with frame_id: " << msg->header.frame_id);
+
+    std::string source_frame = msg->header.frame_id;
+    if (!source_frame.empty() && source_frame[0] == '/') {
+        source_frame = source_frame.substr(1);
+    }
+
+    try {
+        if (!source_frame.empty() && source_frame != base_frame) {
+            transform_stamped = tf_buffer.lookupTransform(base_frame, source_frame, ros::Time(0));
+            tf2::doTransform(msg->pose, transformed_pose, transform_stamped);  
+            ROS_DEBUG_STREAM_THROTTLE(10.0,"Transformed pose from " << source_frame << " to " << base_frame); 
+        } else {
+            ROS_DEBUG_STREAM_THROTTLE(10.0, "Using original pose (no transformation needed)");
+            transformed_pose = msg->pose;
+        }
+    } catch (tf2::TransformException &ex) {
+        ROS_DEBUG_STREAM_THROTTLE(10.0,"Could not transform from " << msg->header.frame_id << " to " << base_frame << ": " << ex.what());
+        transformed_pose = msg->pose;
+    }
+
+    std_msgs::Float64 z_msg;
+    z_msg.data = transformed_pose.position.z;
+    transformed_pose_z_pub_.publish(z_msg);
+
     desired_state_.head(6) =
         auv::common::conversions::convert<geometry_msgs::Pose,
-                                          ControllerBase::Vector>(*msg);
+                                          ControllerBase::Vector>(
+                                            transformed_pose);
     latest_command_time_ = ros::Time::now();
-  }
+}
 
   void imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
     d_state_(6) = msg->linear_acceleration.x;
