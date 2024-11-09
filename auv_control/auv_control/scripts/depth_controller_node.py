@@ -5,17 +5,12 @@ from std_msgs.msg import Bool, Float32
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Pose, PoseStamped
 from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
-import tf2_geometry_msgs
-import tf2_ros
+
 
 
 class DepthControllerNode:
     def __init__(self):
         rospy.init_node("depth_controller_node")
-        rospy.loginfo("DepthControllerNode has started.")
-        
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # Initialize subscribers
         self.odometry_sub = rospy.Subscriber(
@@ -32,10 +27,9 @@ class DepthControllerNode:
         # Initialize internal state
         self.target_depth = 0.0
         self.current_depth = 0.0
-        self.target_frame_id = "taluy/base_link" # default to "taluy/base_link" if not set
+        self.target_frame_id = ""  
 
         # Parameters
-        self.base_frame = rospy.get_param("~base_link", "taluy/base_link")  # Default to "taluy/base_link" if not set
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.tau = rospy.get_param("~tau", 2.0)
         self.dt = 1.0 / self.update_rate
@@ -44,18 +38,11 @@ class DepthControllerNode:
         rospy.Timer(rospy.Duration(1.0 / self.update_rate), self.control_loop)
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
-        rospy.loginfo(f"Received SetDepth request with target depth: {req.target_depth} and frame_id: {req.frame_id}")
     
-        # Check if frame_id is provided
-        if not req.frame_id:
-            rospy.logwarn("No frame_id provided in SetDepth request. Using target depth directly.")
-            self.target_depth = req.target_depth
-            return SetDepthResponse(success=True, message="Depth set successfully without transformation")
-
-        # Use the provided frame_id
-        self.target_frame_id = req.frame_id
+        self.target_frame_id = req.frame_id  # If the target frame_id is not given, simply empty the frame_id.
+        # We get the target frame_id as empty string from the service request if not given anything. 
         self.target_depth = req.target_depth
-
+        
         return SetDepthResponse(success=True, message="Depth set successfully")
 
 
