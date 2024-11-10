@@ -11,8 +11,11 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>auv_mapping</build_depend>
-  <build_export_depend>auv_mapping</build_export_depend>
+  <build_depend>auv_localization</build_depend>
+  <build_depend>auv_mapping</build_depend>
+  <build_export_depend>auv_localization</build_export_depend>
   <exec_depend>auv_mapping</exec_depend>
+  <exec_depend>auv_localization</exec_depend>
 
   <export>
 
