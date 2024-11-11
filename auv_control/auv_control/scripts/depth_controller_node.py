@@ -22,7 +22,7 @@ class DepthControllerNode:
 
         # Initialize publisher
         self.cmd_pose_pub = rospy.Publisher(
-            "/taluy/cmd_pose_stamped", PoseStamped, queue_size=10)
+            "/taluy/cmd_pose", PoseStamped, queue_size=10)
 
         # Initialize internal state
         self.target_depth = 0.0

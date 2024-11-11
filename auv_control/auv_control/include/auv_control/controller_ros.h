@@ -42,6 +42,9 @@ class ControllerROS {
       : nh_{nh}, rate_{1.0}, control_enable_sub_{nh} {
     ros::NodeHandle nh_private("~");
 
+    // default_frame as a ros parameter (default is odom)
+    position_control_default_frame_ = nh_private.param<std::string>("position_control_default_frame", "odom");
+
     auto model = ModelParser::parse("model", nh_private);
     load_parameters();
 
@@ -76,8 +79,8 @@ class ControllerROS {
         nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
     cmd_vel_sub_ =
         nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
-    cmd_pose_sub_ = nh_.subscribe("cmd_pose_stamped", 1,
-                                  &ControllerROS::cmd_pose_callback, this);
+    cmd_pose_sub_ =
+        nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
     imu_sub_ = nh_.subscribe("imu", 1, &ControllerROS::imu_callback, this);
 
     control_enable_sub_.subscribe(
@@ -87,7 +90,6 @@ class ControllerROS {
     control_enable_sub_.set_default_message(std_msgs::Bool{});
 
     wrench_pub_ = nh_.advertise<geometry_msgs::Wrench>("wrench", 1);
-
   }
 
   bool load_controller(const std::string& controller_name) {
@@ -128,7 +130,7 @@ class ControllerROS {
     }
   }
 
- private:
+ private:  
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
 
   bool is_timeouted() const {
@@ -149,50 +151,50 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
+  const std::optional<std::string> get_source_frame(const std::string& source_frame) {
+    if (source_frame.empty()) { // No source provided.
+      return std::nullopt;
+    }
+
+    if (source_frame == position_control_default_frame_) { // Exact same frame as default.
+      return std::nullopt;
+    }
+
+    // Transform is required.
+    if (source_frame[0] == '/') { // The slash causes errors with tf.
+      return source_frame.substr(1);
+    }
+    return source_frame;
+  }
+
   void cmd_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
-    const std::string default_frame = "odom";
+    // Get frame and pose.
+    const auto source_frame = get_source_frame(msg->header.frame_id);
+    auto transformed_pose = msg->pose;
 
     static tf2_ros::Buffer tf_buffer;
     static tf2_ros::TransformListener tf_listener(tf_buffer);
-
     geometry_msgs::TransformStamped transform_stamped;
-    geometry_msgs::Pose transformed_pose;
-
-
-    std::string source_frame = msg->header.frame_id;
-
-    if (!source_frame.empty() && source_frame[0] == '/') {
-      source_frame = source_frame.substr(1);
-    } // the / causes errors.
     
-    try {
-      const auto is_transform_required =
-          !source_frame.empty() && source_frame != default_frame;
-
-      if (is_transform_required) {
+    if (source_frame.has_value()) {
+      ROS_DEBUG("Source frame: %s, Desired frame: %s", source_frame.value().c_str(), position_control_default_frame_.c_str());
+      try {
         transform_stamped = tf_buffer.lookupTransform(
-            default_frame, source_frame, ros::Time(0));
+          position_control_default_frame_, source_frame.value(), ros::Time(0));
+
         tf2::doTransform(msg->pose, transformed_pose, transform_stamped);
-        ROS_DEBUG("Transformed pose from %s to %s", source_frame.c_str(),
-                  default_frame.c_str());
-
-      } else {  // if no transformation needed, pass the original pose
-        ROS_DEBUG("Using original pose (no transformation needed)");
-        transformed_pose = msg->pose;
+        ROS_DEBUG("Transformed Z value: %f", transformed_pose.position.z);
+      } catch (tf2::TransformException& ex) { // If unsuccessful, return without pose.
+        ROS_DEBUG("Failed to transform pose");
+        return;
       }
-    } catch (tf2::TransformException&
-                 ex) {  // if transformation failed, ignore the target pose.
-      ROS_DEBUG("TF Exception while transforming pose: %s", ex.what());
-      return;
     }
-
 
     desired_state_.head(6) = auv::common::conversions::convert<
         geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
     
     latest_command_time_ = ros::Time::now();
   }
-  
 
   void imu_callback(const sensor_msgs::Imu::ConstPtr& msg) {
     d_state_(6) = msg->linear_acceleration.x;
@@ -346,6 +348,8 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;                   // Parameters to be dynamically reconfigured
   std::string config_file_;  // Path to the config file
+
+  std::string position_control_default_frame_;  
 };
 
 }  // namespace control
