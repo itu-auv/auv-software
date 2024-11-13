@@ -180,16 +180,16 @@ class ControllerROS {
       ROS_DEBUG("Source frame: %s, Desired frame: %s", source_frame.value().c_str(), position_control_default_frame_.c_str());
       try {
         transform_stamped = tf_buffer.lookupTransform(
-          position_control_default_frame_, source_frame.value(), ros::Time(0));
+          position_control_default_frame_, source_frame.value(), ros::Time::now());
 
         tf2::doTransform(msg->pose, transformed_pose, transform_stamped);
-        ROS_DEBUG("Transformed Z value: %f", transformed_pose.position.z);
+
       } catch (tf2::TransformException& ex) { // If unsuccessful, return without pose.
         ROS_DEBUG("Failed to transform pose");
         return;
       }
     }
-
+    ROS_DEBUG_STREAM("Final transformed pose: " << transformed_pose.position.z);
     desired_state_.head(6) = auv::common::conversions::convert<
         geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
     
