@@ -1,5 +1,8 @@
 #pragma once
 
+#include <auv_control/ControllerConfig.h>  // Include your dynamic reconfigure header
+#include <dynamic_reconfigure/server.h>
+
 #include <type_traits>
 
 #include "auv_common_lib/ros/conversions.h"
@@ -7,15 +10,13 @@
 #include "auv_common_lib/ros/subscriber_with_timeout.h"
 #include "auv_controllers/controller_base.h"
 #include "auv_controllers/multidof_pid_controller.h"
-#include "geometry_msgs/Wrench.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
+#include "geometry_msgs/Wrench.h"
+#include "geometry_msgs/WrenchStamped.h"
 #include "nav_msgs/Odometry.h"
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
 #include "std_msgs/Bool.h"
-#include <dynamic_reconfigure/server.h>
-#include <auv_control/ControllerConfig.h> // Include your dynamic reconfigure header
-
 
 namespace auv {
 namespace control {
@@ -68,23 +69,23 @@ class ControllerROS {
     f = boost::bind(&ControllerROS::reconfigure_callback, this, _1, _2);
     dr_srv_.updateConfig(initial_config);  // Apply the initial configuration
     dr_srv_.setCallback(f);
-    
+
     odometry_sub_ =
         nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
     cmd_vel_sub_ =
         nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
     cmd_pose_sub_ =
         nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
-    accel_sub_ = 
+    accel_sub_ =
         nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this);
-        
+
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
         []() { ROS_WARN_STREAM("control enable message timeouted"); },
         ros::Duration{1.0});
     control_enable_sub_.set_default_message(std_msgs::Bool{});
 
-    wrench_pub_ = nh_.advertise<geometry_msgs::Wrench>("wrench", 1);
+    wrench_pub_ = nh_.advertise<geometry_msgs::WrenchStamped>("wrench", 1);
   }
 
   bool load_controller(const std::string& controller_name) {
@@ -114,15 +115,17 @@ class ControllerROS {
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
-      const auto wrench_msg =
+      geometry_msgs::WrenchStamped wrench_stamped_msg;
+      wrench_stamped_msg.header.stamp = ros::Time::now();
+      wrench_stamped_msg.header.frame_id = "base_link";
+
+      wrench_stamped_msg.wrench =
           (is_control_enabled() && !is_timeouted())
               ? auv::common::conversions::convert<ControllerBase::WrenchVector,
                                                   geometry_msgs::Wrench>(
                     control_output)
               : geometry_msgs::Wrench{};
-
-      wrench_pub_.publish(wrench_msg);
-
+      wrench_pub_.publish(wrench_stamped_msg);
     }
   }
 
@@ -154,20 +157,28 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
-  void accel_callback(const geometry_msgs::AccelWithCovarianceStamped::ConstPtr& msg) {
+  void accel_callback(
+      const geometry_msgs::AccelWithCovarianceStamped::ConstPtr& msg) {
     d_state_(6) = msg->accel.accel.linear.x;
     d_state_(7) = msg->accel.accel.linear.y;
     d_state_(8) = msg->accel.accel.linear.z;
     d_state_.tail(3) = Eigen::Vector3d::Zero();
   }
 
+  void reconfigure_callback(auv_control::ControllerConfig& config,
+                            uint32_t level) {
+    auto controller =
+        dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
 
-  void reconfigure_callback(auv_control::ControllerConfig& config, uint32_t level) {
-    auto controller = dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
-
-    kp_ << config.kp_0, config.kp_1, config.kp_2, config.kp_3, config.kp_4, config.kp_5, config.kp_6, config.kp_7, config.kp_8, config.kp_9, config.kp_10, config.kp_11;
-    ki_ << config.ki_0, config.ki_1, config.ki_2, config.ki_3, config.ki_4, config.ki_5, config.ki_6, config.ki_7, config.ki_8, config.ki_9, config.ki_10, config.ki_11;
-    kd_ << config.kd_0, config.kd_1, config.kd_2, config.kd_3, config.kd_4, config.kd_5, config.kd_6, config.kd_7, config.kd_8, config.kd_9, config.kd_10, config.kd_11;
+    kp_ << config.kp_0, config.kp_1, config.kp_2, config.kp_3, config.kp_4,
+        config.kp_5, config.kp_6, config.kp_7, config.kp_8, config.kp_9,
+        config.kp_10, config.kp_11;
+    ki_ << config.ki_0, config.ki_1, config.ki_2, config.ki_3, config.ki_4,
+        config.ki_5, config.ki_6, config.ki_7, config.ki_8, config.ki_9,
+        config.ki_10, config.ki_11;
+    kd_ << config.kd_0, config.kd_1, config.kd_2, config.kd_3, config.kd_4,
+        config.kd_5, config.kd_6, config.kd_7, config.kd_8, config.kd_9,
+        config.kd_10, config.kd_11;
     controller->set_kp(kp_);
     controller->set_ki(ki_);
     controller->set_kd(kd_);
@@ -182,20 +193,47 @@ class ControllerROS {
   }
 
   void set_initial_config(auv_control::ControllerConfig& config) {
-    config.kp_0 = kp_(0); config.kp_1 = kp_(1); config.kp_2 = kp_(2); config.kp_3 = kp_(3);
-    config.kp_4 = kp_(4); config.kp_5 = kp_(5); config.kp_6 = kp_(6); config.kp_7 = kp_(7);
-    config.kp_8 = kp_(8); config.kp_9 = kp_(9); config.kp_10 = kp_(10); config.kp_11 = kp_(11);
+    config.kp_0 = kp_(0);
+    config.kp_1 = kp_(1);
+    config.kp_2 = kp_(2);
+    config.kp_3 = kp_(3);
+    config.kp_4 = kp_(4);
+    config.kp_5 = kp_(5);
+    config.kp_6 = kp_(6);
+    config.kp_7 = kp_(7);
+    config.kp_8 = kp_(8);
+    config.kp_9 = kp_(9);
+    config.kp_10 = kp_(10);
+    config.kp_11 = kp_(11);
 
-    config.ki_0 = ki_(0); config.ki_1 = ki_(1); config.ki_2 = ki_(2); config.ki_3 = ki_(3);
-    config.ki_4 = ki_(4); config.ki_5 = ki_(5); config.ki_6 = ki_(6); config.ki_7 = ki_(7);
-    config.ki_8 = ki_(8); config.ki_9 = ki_(9); config.ki_10 = ki_(10); config.ki_11 = ki_(11);
+    config.ki_0 = ki_(0);
+    config.ki_1 = ki_(1);
+    config.ki_2 = ki_(2);
+    config.ki_3 = ki_(3);
+    config.ki_4 = ki_(4);
+    config.ki_5 = ki_(5);
+    config.ki_6 = ki_(6);
+    config.ki_7 = ki_(7);
+    config.ki_8 = ki_(8);
+    config.ki_9 = ki_(9);
+    config.ki_10 = ki_(10);
+    config.ki_11 = ki_(11);
 
-    config.kd_0 = kd_(0); config.kd_1 = kd_(1); config.kd_2 = kd_(2); config.kd_3 = kd_(3);
-    config.kd_4 = kd_(4); config.kd_5 = kd_(5); config.kd_6 = kd_(6); config.kd_7 = kd_(7);
-    config.kd_8 = kd_(8); config.kd_9 = kd_(9); config.kd_10 = kd_(10); config.kd_11 = kd_(11);
+    config.kd_0 = kd_(0);
+    config.kd_1 = kd_(1);
+    config.kd_2 = kd_(2);
+    config.kd_3 = kd_(3);
+    config.kd_4 = kd_(4);
+    config.kd_5 = kd_(5);
+    config.kd_6 = kd_(6);
+    config.kd_7 = kd_(7);
+    config.kd_8 = kd_(8);
+    config.kd_9 = kd_(9);
+    config.kd_10 = kd_(10);
+    config.kd_11 = kd_(11);
   }
 
-void save_parameters() {
+  void save_parameters() {
     ros::NodeHandle nh_private("~");
     nh_private.param("config_file", config_file_, std::string{});
     if (config_file_.empty()) {
@@ -214,13 +252,14 @@ void save_parameters() {
     std::string content = buffer.str();
     in_file.close();
 
-    auto replace_param = [](std::string& content, const std::string& param, const Eigen::Matrix<double, 12, 1>& values) {
+    auto replace_param = [](std::string& content, const std::string& param,
+                            const Eigen::Matrix<double, 12, 1>& values) {
       std::stringstream ss;
       ss << std::fixed << std::setprecision(1);
       ss << param << ": [" << values(0);
       for (int i = 1; i < 12; ++i) ss << ", " << values(i);
       ss << "]";
-      
+
       std::string::size_type start_pos = content.find(param + ": [");
       if (start_pos == std::string::npos) {
         // If parameter not found, add it to the end
@@ -237,15 +276,15 @@ void save_parameters() {
 
     std::ofstream out_file(config_file_);
     if (!out_file.is_open()) {
-      ROS_ERROR_STREAM("Failed to open config file for writing: " << config_file_);
+      ROS_ERROR_STREAM(
+          "Failed to open config file for writing: " << config_file_);
       return;
     }
     out_file << content;
     out_file.close();
 
     ROS_INFO_STREAM("Parameters saved to " << config_file_);
-}
-
+  }
 
   ros::Rate rate_;
   ros::NodeHandle nh_;
@@ -267,9 +306,11 @@ void save_parameters() {
   ControllerLoader controller_loader_{"auv_controllers",
                                       "auv::control::SixDOFControllerBase"};
 
-  dynamic_reconfigure::Server<auv_control::ControllerConfig> dr_srv_; // Dynamic reconfigure server
-  Eigen::Matrix<double, 12, 1> kp_, ki_, kd_; // Parameters to be dynamically reconfigured
-  std::string config_file_; // Path to the config file
+  dynamic_reconfigure::Server<auv_control::ControllerConfig>
+      dr_srv_;  // Dynamic reconfigure server
+  Eigen::Matrix<double, 12, 1> kp_, ki_,
+      kd_;                   // Parameters to be dynamically reconfigured
+  std::string config_file_;  // Path to the config file
 };
 
 }  // namespace control

@@ -8,6 +8,11 @@
 #include "auv_msgs/Power.h"
 #include "ros/ros.h"
 
+#include "geometry_msgs/WrenchStamped.h"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+
 namespace auv {
 namespace control {
 
@@ -19,7 +24,7 @@ class ThrusterManagerROS {
   using ThrusterEffortVector = ThrusterAllocator::ThrusterEffortVector;
 
   ThrusterManagerROS(const ros::NodeHandle &nh)
-      : nh_{nh}, allocator_{ros::NodeHandle{"~"}} {
+      : nh_{nh}, allocator_{ros::NodeHandle{"~"}}, tf_listener_{tf_buffer_} {
     ROS_INFO("ThrusterManagerROS initialized");
 
     ros::NodeHandle nh_private("~");
@@ -28,6 +33,9 @@ class ThrusterManagerROS {
     nh_private.getParam("mapping", mapping_);
     nh_private.getParam("max_thrust", max_wrench_);
     nh_private.getParam("min_thrust", min_wrench_);
+    if (!nh_private.getParam("base_frame", base_frame_)) {
+    base_frame_ = "base_link";
+    }
 
     for (size_t i = 0; i < kThrusterCount; ++i) {
       thruster_wrench_pubs_[i] = nh_.advertise<geometry_msgs::WrenchStamped>(
@@ -42,7 +50,7 @@ class ThrusterManagerROS {
     drive_pub_ = nh_.advertise<auv_msgs::MotorCommand>("board/drive_pulse", 1);
   }
 
-  void spin() {
+ void spin() {
     ros::Rate rate(10);
     while (ros::ok()) {
       if (!latest_wrench_ || !latest_power_) {
@@ -51,9 +59,17 @@ class ThrusterManagerROS {
         continue;
       }
       const auto wrench_msg = latest_wrench_.value();
-      auto thruster_efforts = allocator_.allocate(to_vector(wrench_msg));
-      allocator_.get_wrench_stamped_vector(thruster_efforts.value(),
-                                           thruster_wrench_msgs_);
+      auto transformed_wrench = transform_wrench_to_body_frame(wrench_msg);
+      
+      if (!transformed_wrench) {
+        ROS_WARN("Failed to transform wrench to body frame");
+        ros::spinOnce();
+        rate.sleep();
+        continue;
+      }
+
+      auto thruster_efforts = allocator_.allocate(to_vector(transformed_wrench.value()));
+      allocator_.get_wrench_stamped_vector(thruster_efforts.value(), thruster_wrench_msgs_);
 
       ThrusterEffortVector efforts = ThrusterEffortVector::Zero();
       if (thruster_efforts && !is_timeouted()) {
@@ -91,7 +107,7 @@ class ThrusterManagerROS {
     return (ros::Time::now() - latest_wrench_time_).toSec() > 1.0;
   }
 
-  void wrench_callback(const geometry_msgs::Wrench &msg) {
+  void wrench_callback(const geometry_msgs::WrenchStamped &msg) {
     latest_wrench_ = msg;
     latest_wrench_time_ = ros::Time::now();
   }
@@ -124,9 +140,30 @@ class ThrusterManagerROS {
     return static_cast<uint16_t>(drive_value);
   }
 
+  std::optional<geometry_msgs::Wrench> transform_wrench_to_body_frame(const geometry_msgs::WrenchStamped &wrench_stamped) {
+    if (wrench_stamped.header.frame_id.empty() || wrench_stamped.header.frame_id == base_frame_) {
+      return wrench_stamped.wrench;
+    }
+
+    try {
+      geometry_msgs::TransformStamped transform_stamped = tf_buffer_.lookupTransform(
+          base_frame_, wrench_stamped.header.frame_id, wrench_stamped.header.stamp, ros::Duration(1.0));
+
+      geometry_msgs::WrenchStamped transformed_wrench_stamped;
+      tf2::doTransform(wrench_stamped, transformed_wrench_stamped, transform_stamped);
+
+      return transformed_wrench_stamped.wrench;
+    } catch (tf2::TransformException &ex) {
+      ROS_WARN("Could not transform wrench: %s", ex.what());
+      return std::nullopt;
+    }
+  }
+  
   ros::NodeHandle nh_;
   ThrusterAllocator allocator_;
-  std::optional<geometry_msgs::Wrench> latest_wrench_;
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
+  std::optional<geometry_msgs::WrenchStamped> latest_wrench_;
   std::optional<auv_msgs::Power> latest_power_;
   ros::Time latest_wrench_time_{ros::Time(0)};
   std::array<ros::Publisher, kThrusterCount> thruster_wrench_pubs_;
@@ -141,6 +178,7 @@ class ThrusterManagerROS {
   std::vector<int> mapping_;
   double max_wrench_{0.0};
   double min_wrench_{0.0};
+  std::string base_frame_;
 };
 
 }  // namespace control
