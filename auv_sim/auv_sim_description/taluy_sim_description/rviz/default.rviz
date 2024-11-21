@@ -1,0 +1,702 @@
+Panels:
+  - Class: rviz/Displays
+    Help Height: 78
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /Status1
+        - /RobotModel1
+        - /TF1/Frames1
+        - /WrenchVectors1
+        - /WrenchVectors1/Thruster 71
+      Splitter Ratio: 0.5438799262046814
+    Tree Height: 289
+  - Class: rviz/Selection
+    Name: Selection
+  - Class: rviz/Tool Properties
+    Expanded:
+      - /2D Pose Estimate1
+      - /2D Nav Goal1
+      - /Publish Point1
+    Name: Tool Properties
+    Splitter Ratio: 0.5886790156364441
+  - Class: rviz/Views
+    Expanded:
+      - /Current View1
+      - /Current View1/Focal Point1
+    Name: Views
+    Splitter Ratio: 0.5
+  - Class: rviz/Time
+    Name: Time
+    SyncMode: 0
+    SyncSource: Image
+Preferences:
+  PromptSaveOnExit: true
+Toolbars:
+  toolButtonStyle: 2
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz/Grid
+      Color: 160; 160; 164
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 10
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Alpha: 1
+      Class: rviz/RobotModel
+      Collision Enabled: false
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/bottom_camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/bottom_camera_optical_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/dvl_cog:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/dvl_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/dvl_mount_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/dvl_sensor_surface_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/external_pressure_sensor_chasis_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/external_pressure_sensor_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/front_camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/front_camera_optical_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/hydrophone_0_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/hydrophone_1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/hydrophone_2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/hydrophone_3_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/imu_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/left_torpedo_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/left_torpedo_lower_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/left_torpedo_upper_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/ping360_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/ping360_mount_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/right_torpedo_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        base_link/right_torpedo_lower_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/right_torpedo_upper_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/sonar_back_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/sonar_front_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/sonar_left_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link/sonar_right_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link_ned:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        thruster_0_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_0_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_1_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_2_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_3_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_3_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_4_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_4_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_5_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_5_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_6_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_6_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_7_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        thruster_7_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Name: RobotModel
+      Robot Description: robot_description
+      TF Prefix: taluy
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Class: rviz/TF
+      Enabled: true
+      Filter (blacklist): ""
+      Filter (whitelist): ""
+      Frame Timeout: 15
+      Frames:
+        All Enabled: true
+        binlink:
+          Value: true
+        farlink:
+          Value: true
+        farlink2:
+          Value: true
+        odom:
+          Value: true
+        sonar_frame:
+          Value: true
+        taluy/base_link:
+          Value: true
+        taluy/base_link/bottom_camera_link:
+          Value: true
+        taluy/base_link/bottom_camera_optical_link:
+          Value: true
+        taluy/base_link/dvl_cog:
+          Value: true
+        taluy/base_link/dvl_link:
+          Value: true
+        taluy/base_link/dvl_mount_link:
+          Value: true
+        taluy/base_link/dvl_sensor_surface_link:
+          Value: true
+        taluy/base_link/external_pressure_sensor_chasis_link:
+          Value: true
+        taluy/base_link/external_pressure_sensor_link:
+          Value: true
+        taluy/base_link/front_camera_link:
+          Value: true
+        taluy/base_link/front_camera_optical_link:
+          Value: true
+        taluy/base_link/hydrophone_0_link:
+          Value: true
+        taluy/base_link/hydrophone_1_link:
+          Value: true
+        taluy/base_link/hydrophone_2_link:
+          Value: true
+        taluy/base_link/hydrophone_3_link:
+          Value: true
+        taluy/base_link/imu_link:
+          Value: true
+        taluy/base_link/left_torpedo_link:
+          Value: true
+        taluy/base_link/left_torpedo_lower_link:
+          Value: true
+        taluy/base_link/left_torpedo_upper_link:
+          Value: true
+        taluy/base_link/ping360_link:
+          Value: true
+        taluy/base_link/ping360_mount_link:
+          Value: true
+        taluy/base_link/right_torpedo_link:
+          Value: true
+        taluy/base_link/right_torpedo_lower_link:
+          Value: true
+        taluy/base_link/right_torpedo_upper_link:
+          Value: true
+        taluy/base_link/sonar_back_link:
+          Value: true
+        taluy/base_link/sonar_front_link:
+          Value: true
+        taluy/base_link/sonar_left_link:
+          Value: true
+        taluy/base_link/sonar_right_link:
+          Value: true
+        taluy/base_link_ned:
+          Value: true
+        taluy/thruster_0_link:
+          Value: true
+        taluy/thruster_0_propeller_link:
+          Value: true
+        taluy/thruster_1_link:
+          Value: true
+        taluy/thruster_1_propeller_link:
+          Value: true
+        taluy/thruster_2_link:
+          Value: true
+        taluy/thruster_2_propeller_link:
+          Value: true
+        taluy/thruster_3_link:
+          Value: true
+        taluy/thruster_3_propeller_link:
+          Value: true
+        taluy/thruster_4_link:
+          Value: true
+        taluy/thruster_4_propeller_link:
+          Value: true
+        taluy/thruster_5_link:
+          Value: true
+        taluy/thruster_5_propeller_link:
+          Value: true
+        taluy/thruster_6_link:
+          Value: true
+        taluy/thruster_6_propeller_link:
+          Value: true
+        taluy/thruster_7_link:
+          Value: true
+        taluy/thruster_7_propeller_link:
+          Value: true
+      Marker Alpha: 1
+      Marker Scale: 0.25
+      Name: TF
+      Show Arrows: true
+      Show Axes: true
+      Show Names: true
+      Tree:
+        odom:
+          binlink:
+            {}
+          farlink:
+            {}
+          farlink2:
+            {}
+          taluy/base_link:
+            taluy/base_link/bottom_camera_link:
+              taluy/base_link/bottom_camera_optical_link:
+                {}
+            taluy/base_link/dvl_mount_link:
+              taluy/base_link/dvl_cog:
+                {}
+              taluy/base_link/dvl_sensor_surface_link:
+                taluy/base_link/dvl_link:
+                  {}
+            taluy/base_link/external_pressure_sensor_chasis_link:
+              taluy/base_link/external_pressure_sensor_link:
+                {}
+            taluy/base_link/front_camera_link:
+              taluy/base_link/front_camera_optical_link:
+                {}
+            taluy/base_link/hydrophone_0_link:
+              {}
+            taluy/base_link/hydrophone_1_link:
+              {}
+            taluy/base_link/hydrophone_2_link:
+              {}
+            taluy/base_link/hydrophone_3_link:
+              {}
+            taluy/base_link/imu_link:
+              {}
+            taluy/base_link/left_torpedo_link:
+              taluy/base_link/left_torpedo_lower_link:
+                {}
+              taluy/base_link/left_torpedo_upper_link:
+                {}
+            taluy/base_link/ping360_mount_link:
+              taluy/base_link/ping360_link:
+                sonar_frame:
+                  {}
+            taluy/base_link/right_torpedo_link:
+              taluy/base_link/right_torpedo_lower_link:
+                {}
+              taluy/base_link/right_torpedo_upper_link:
+                {}
+            taluy/base_link/sonar_back_link:
+              {}
+            taluy/base_link/sonar_front_link:
+              {}
+            taluy/base_link/sonar_left_link:
+              {}
+            taluy/base_link/sonar_right_link:
+              {}
+            taluy/thruster_0_link:
+              taluy/thruster_0_propeller_link:
+                {}
+            taluy/thruster_1_link:
+              taluy/thruster_1_propeller_link:
+                {}
+            taluy/thruster_2_link:
+              taluy/thruster_2_propeller_link:
+                {}
+            taluy/thruster_3_link:
+              taluy/thruster_3_propeller_link:
+                {}
+            taluy/thruster_4_link:
+              taluy/thruster_4_propeller_link:
+                {}
+            taluy/thruster_5_link:
+              taluy/thruster_5_propeller_link:
+                {}
+            taluy/thruster_6_link:
+              taluy/thruster_6_propeller_link:
+                {}
+            taluy/thruster_7_link:
+              taluy/thruster_7_propeller_link:
+                {}
+        taluy/base_link_ned:
+          {}
+      Update Interval: 0
+      Value: true
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 1
+          Arrow Width: 0.20000000298023224
+          Class: rviz/WrenchStamped
+          Enabled: true
+          Force Arrow Scale: 0.10000000149011612
+          Force Color: 204; 51; 51
+          Hide Small Values: true
+          History Length: 1
+          Name: Thruster 0
+          Queue Size: 10
+          Topic: /taluy/thrusters/thruster_0/wrench
+          Torque Arrow Scale: 0
+          Torque Color: 204; 204; 51
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Arrow Width: 0.20000000298023224
+          Class: rviz/WrenchStamped
+          Enabled: true
+          Force Arrow Scale: 0.10000000149011612
+          Force Color: 204; 51; 51
+          Hide Small Values: true
+          History Length: 1
+          Name: Thruster 1
+          Queue Size: 10
+          Topic: /taluy/thrusters/thruster_1/wrench
+          Torque Arrow Scale: 0
+          Torque Color: 204; 204; 51
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Arrow Width: 0.20000000298023224
+          Class: rviz/WrenchStamped
+          Enabled: true
+          Force Arrow Scale: 0.10000000149011612
+          Force Color: 204; 51; 51
+          Hide Small Values: true
+          History Length: 1
+          Name: Thruster 2
+          Queue Size: 10
+          Topic: /taluy/thrusters/thruster_2/wrench
+          Torque Arrow Scale: 0
+          Torque Color: 204; 204; 51
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Arrow Width: 0.20000000298023224
+          Class: rviz/WrenchStamped
+          Enabled: true
+          Force Arrow Scale: 0.10000000149011612
+          Force Color: 204; 51; 51
+          Hide Small Values: true
+          History Length: 1
+          Name: Thruster 3
+          Queue Size: 10
+          Topic: /taluy/thrusters/thruster_3/wrench
+          Torque Arrow Scale: 0
+          Torque Color: 204; 204; 51
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Arrow Width: 0.20000000298023224
+          Class: rviz/WrenchStamped
+          Enabled: true
+          Force Arrow Scale: 0.10000000149011612
+          Force Color: 204; 51; 51
+          Hide Small Values: true
+          History Length: 1
+          Name: Thruster 4
+          Queue Size: 10
+          Topic: /taluy/thrusters/thruster_4/wrench
+          Torque Arrow Scale: 0
+          Torque Color: 204; 204; 51
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Arrow Width: 0.20000000298023224
+          Class: rviz/WrenchStamped
+          Enabled: true
+          Force Arrow Scale: 0.10000000149011612
+          Force Color: 204; 51; 51
+          Hide Small Values: true
+          History Length: 1
+          Name: Thruster 5
+          Queue Size: 10
+          Topic: /taluy/thrusters/thruster_5/wrench
+          Torque Arrow Scale: 0
+          Torque Color: 204; 204; 51
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Arrow Width: 0.20000000298023224
+          Class: rviz/WrenchStamped
+          Enabled: true
+          Force Arrow Scale: 0.10000000149011612
+          Force Color: 204; 51; 51
+          Hide Small Values: true
+          History Length: 1
+          Name: Thruster 6
+          Queue Size: 10
+          Topic: /taluy/thrusters/thruster_6/wrench
+          Torque Arrow Scale: 0
+          Torque Color: 204; 204; 51
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Arrow Width: 0.20000000298023224
+          Class: rviz/WrenchStamped
+          Enabled: true
+          Force Arrow Scale: 0.10000000149011612
+          Force Color: 204; 51; 51
+          Hide Small Values: true
+          History Length: 1
+          Name: Thruster 7
+          Queue Size: 10
+          Topic: /taluy/thrusters/thruster_7/wrench
+          Torque Arrow Scale: 0
+          Torque Color: 204; 204; 51
+          Unreliable: false
+          Value: true
+      Enabled: true
+      Name: WrenchVectors
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /taluy/cameras/cam_front/image_raw
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
+      Value: true
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /taluy/cameras/cam_bottom/image_raw
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: compressed
+      Unreliable: false
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 48; 48; 48
+    Default Light: true
+    Fixed Frame: odom
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+      Hide Inactive Objects: true
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+    - Class: rviz/Measure
+    - Class: rviz/SetInitialPose
+      Theta std deviation: 0.2617993950843811
+      Topic: /initialpose
+      X std deviation: 0.5
+      Y std deviation: 0.5
+    - Class: rviz/SetGoal
+      Topic: /move_base_simple/goal
+    - Class: rviz/PublishPoint
+      Single click: true
+      Topic: /clicked_point
+  Value: true
+  Views:
+    Current:
+      Class: rviz/Orbit
+      Distance: 5.70198917388916
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Field of View: 0.7853981852531433
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 1.479795217514038
+      Target Frame: <Fixed Frame>
+      Yaw: 4.240433216094971
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 989
+  Hide Left Dock: false
+  Hide Right Dock: false
+  Image:
+    collapsed: false
+  QMainWindow State: 000000ff00000000fd0000000400000000000001f30000033ffc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003d000001ac000000c900fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d00610067006501000001ef0000018d0000001600ffffff00000001000001cd0000033ffc0200000004fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073010000003d000001c8000000a400fffffffb0000000a0049006d006100670065010000020b000001710000001600fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d00650100000000000007800000033700fffffffb0000000800540069006d00650100000000000004500000000000000000000003b40000033f00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Selection:
+    collapsed: false
+  Time:
+    collapsed: false
+  Tool Properties:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1920
+  X: 0
+  Y: 55

@@ -32,7 +32,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-  include
+  #include
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -62,6 +62,6 @@ include_directories(
 #   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
 
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-)
+#install(DIRECTORY include/${PROJECT_NAME}/
+ # DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+#)
