@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<robot name="wayfinder_dvl" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:macro name="wayfinder_dvl" params="name parent position:='0 0 0' orientation:='0 0 0'">
+    <link name="${name}_mount_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${math.pi} 0 0" />
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae"
+            scale="0.001 0.001 0.001" />
+          <material name="black" />
+        </geometry>
+      </visual>
+      <collision name="${name}_collision">
+        <origin xyz="0 0 0" rpy="${math.pi} 0 0" />
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae"
+            scale="0.001 0.001 0.001" />
+          <material name="black" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="${name}_cog">
+      <inertial>
+        <!-- 0.313 in water -->
+        <mass value="0.947" />
+        <!-- volume: 100mm x 100mm x 70mm -->
+        <!-- 0.0007 m^3-->
+        <inertia ixx="0.001176" ixy="0.0" ixz="0.0" iyy="0.001176" iyz="0.0" izz="0.001578" />
+      </inertial>
+    </link>
+    <link name="${name}_sensor_surface_link" />
+    <link name="${name}_link" />
+
+    <joint name="${name}_chasis_joint" type="fixed">
+      <parent link="${parent}" />
+      <child link="${name}_mount_link" />
+      <origin xyz="${position}" rpy="${orientation}" />
+      <axis rpy="0 0 0" xyz="0 0 1" />
+    </joint>
+
+    <joint name="${name}_sensor_surface_joint" type="fixed">
+      <axis rpy="0 0 0" xyz="0 0 1" />
+      <parent link="${name}_mount_link" />
+      <child link="${name}_sensor_surface_link" />
+      <origin xyz="0 0 -0.07" rpy="0 0 0" />
+    </joint>
+
+    <joint name="${name}_cog_joint" type="fixed">
+      <axis rpy="0 0 0" xyz="0 0 1" />
+      <parent link="${name}_mount_link" />
+      <child link="${name}_cog" />
+      <origin xyz="0 0 -0.035" rpy="0 0 0" />
+    </joint>
+
+    <joint name="${name}_sensor_joint" type="fixed">
+      <axis rpy="0 0 0" xyz="0 0 1" />
+      <parent link="${name}_sensor_surface_link" />
+      <child link="${name}_link" />
+      <origin xyz="0 0 0" rpy="0 0 ${-3*math.pi/4}" />
+    </joint>
+
+    <!-- <gazebo reference="${name}_propeller_link">
+      <material>Gazebo/Orange</material>
+    </gazebo>
+
+    <gazebo reference="${name}_link">
+      <material>Gazebo/Orange</material>
+    </gazebo> -->
+
+  </xacro:macro>
+</robot>

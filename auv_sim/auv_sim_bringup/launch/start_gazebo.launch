@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="gui" default="true" />
+  <arg name="world_name" default="$(find dave_worlds)/worlds/dave_ocean_waves.world" />
+  <arg name="namespace" default="taluy" />
+  <arg name="velocity_control" default="true" />
+  <arg name="joy_id" default="0" />
+  <arg name="control_rate" default="45.0" />
+
+  <!-- use Gazebo's empty_world.launch with dave_ocean_waves.world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(arg world_name)" />
+    <arg name="use_sim_time" value="true" />
+    <arg name="gui" value="$(arg gui)" />
+    <arg name="headless" value="false" />
+    <arg name="debug" value="false" />
+    <arg name="verbose" value="true" />
+  </include>
+
+
+  <!-- use ned frame north east down -->
+  <include file="$(find uuv_assistants)/launch/publish_world_ned_frame.launch" />
+
+  <!-- world models -->
+  <node name="publish_world_models" pkg="uuv_assistants" type="publish_world_models.py" output="screen">
+    <rosparam subst_value="true">
+            meshes:
+                heightmap:
+                    mesh: package://uuv_gazebo_worlds/models/sand_heightmap/meshes/heightmap.dae
+                    model: sand_heightmap
+                seafloor:
+                    plane: [2000, 2000, 0.1]
+                    pose:
+                        position: [0, 0, -100]
+                north:
+                    plane: [0.1, 2000, 100]
+                    pose:
+                        position: [1000, 0, -50]
+                south:
+                    plane: [0.1, 2000, 100]
+                    pose:
+                        position: [-1000, 0, -50]
+                west:
+                    plane: [2000, 0.1, 100]
+                    pose:
+                        position: [0, -1000, -50]
+                east:
+                    plane: [2000, 0.1, 100]
+                    pose:
+                        position: [0, 1000, -50]
+        </rosparam>
+  </node>
+
+
+  <rosparam command="load" file="$(find auv_sim_description)/auv_sim_description/config/environment.yaml" />
+  <!-- singapore pool -->
+  <!--node name="spawn_pool" pkg="gazebo_ros" type="spawn_model" args="-file $(find auv_sim_description)/models/pool/model.sdf -sdf -model singapore_pool -x 0 -y -0 -z -2.2"></node-->
+  <!-- taluy robot spawn -->
+  <include file="$(find auv_sim_bringup)/launch/spawn.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="x" value="9.0" />
+    <arg name="y" value="-3.0" />
+    <arg name="z" value="-87.0" />
+    <arg name="yaw" value="-1.8" />
+  </include>
+
+</launch>
