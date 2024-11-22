@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
+  <arg name="namespace" default="taluy" />
   <arg name="rate" default="20" />
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
