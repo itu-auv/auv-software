@@ -2,4 +2,21 @@
 <robot name="taluy" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:include filename="$(find taluy_description)/urdf/auv_base.urdf.xacro" />
   <xacro:taluy_base />
+
+  <!-- Gazebo plugins -->
+  <xacro:include filename="$(find auv_sim_description)/urdf/gazebo_plugins.urdf.xacro" />
+
+  <xacro:logitech_c920_camera_sim name="base_link/front_camera" />
+
+  <xacro:xsens_mti_g710_sim name="base_link/imu" />
+
+  <xacro:t200_thruster_sim name="thruster_0" thrusterID="0" />
+  <xacro:t200_thruster_sim name="thruster_1" thrusterID="1" />
+  <xacro:t200_thruster_sim name="thruster_2" thrusterID="2" />
+  <xacro:t200_thruster_sim name="thruster_3" thrusterID="3" />
+  <xacro:t200_thruster_sim name="thruster_4" thrusterID="4" />
+  <xacro:t200_thruster_sim name="thruster_5" thrusterID="5" />
+  <xacro:t200_thruster_sim name="thruster_6" thrusterID="6" />
+  <xacro:t200_thruster_sim name="thruster_7" thrusterID="7" />
+  <!--  -->
 </robot>
