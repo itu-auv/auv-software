@@ -1,16 +1,16 @@
 <?xml version="1.0"?>
 <robot name="gazebo_plugins" xmlns:xacro="http://ros.org/wiki/xacro">
   <!-- camera plugin -->
-  <xacro:macro name="logitech_c920_camera_sim" params="name topic_name">
+  <xacro:macro name="logitech_c920_camera_sim" params="name">
     <gazebo reference="${name}_link">
       <sensor type="camera" name="${name}_sensor">
         <update_rate>30.0</update_rate>
         <camera name="head">
-          <horizontal_fov>1.36136</horizontal_fov>
+          <horizontal_fov>1.3962634</horizontal_fov>
           <image>
-            <width>640</width>
-            <height>480</height>
-            <format>B8G8R8</format>
+            <width>800</width>
+            <height>800</height>
+            <format>R8G8B8</format>
           </image>
           <clip>
             <near>0.02</near>
@@ -27,9 +27,10 @@
         </camera>
         <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
           <alwaysOn>true</alwaysOn>
-          <updateRate>0.0</updateRate>
-          <cameraName>${topic_name}</cameraName>
+          <updateRate>30.0</updateRate>
+          <cameraName>${name}</cameraName>
           <imageTopicName>image_raw</imageTopicName>
+          <cameraInfoTopicName>camera_info</cameraInfoTopicName>
           <frameName>${name}_link</frameName>
           <hackBaseline>0.07</hackBaseline>
           <distortionK1>0.0</distortionK1>
@@ -44,36 +45,35 @@
 
   <!-- imu plugin -->
   <xacro:macro name="xsens_mti_g710_sim" params="name">
-    <gazebo>
-      <plugin filename="libuuv_gazebo_ros_imu_plugin.so"
-        name="${name}_imu_plugin">
-        <robot_namespace>taluy</robot_namespace>
-        <link_name>${name}_link</link_name>
-        <sensor_topic>sensors/imu/data</sensor_topic>
-        <gyroscope_noise_density>0.0002514074</gyroscope_noise_density>
-        <gyroscope_random_walk>0.000038785</gyroscope_random_walk>
-        <gyroscope_bias_correlation_time>1000.0</gyroscope_bias_correlation_time>
-        <gyroscope_turn_on_bias_sigma>0.0087</gyroscope_turn_on_bias_sigma>
-        <accelerometer_noise_density>0.00104347826</accelerometer_noise_density>
-        <accelerometer_random_walk>0.006</accelerometer_random_walk>
-        <accelerometer_bias_correlation_time>300.0</accelerometer_bias_correlation_time>
-        <accelerometer_turn_on_bias_sigma>0.1960</accelerometer_turn_on_bias_sigma>
-        <orientation_noise>0.05</orientation_noise>
-        <update_rate>80</update_rate>
-        <enable_gazebo_messages>false</enable_gazebo_messages>
-        <enable_local_ned_frame>false</enable_local_ned_frame>
-        <static_reference_frame>world</static_reference_frame>
-      </plugin>
+    <gazebo reference="${name}_link">
+      <gravity>true</gravity>
+      <sensor name="${name}_sensor" type="imu">
+        <always_on>true</always_on>
+        <update_rate>100</update_rate>
+        <visualize>true</visualize>
+        <topic>__default_topic__</topic>
+        <plugin filename="libgazebo_ros_imu_sensor.so" name="imu_plugin">
+          <topicName>sensors/imu/data</topicName>
+          <bodyName>${name}_link</bodyName>
+          <updateRateHZ>10.0</updateRateHZ>
+          <gaussianNoise>0.0</gaussianNoise>
+          <xyzOffset>0 0 0</xyzOffset>
+          <rpyOffset>0 0 0</rpyOffset>
+          <frameName>${name}_link</frameName>
+          <initialOrientationAsReference>false</initialOrientationAsReference>
+        </plugin>
+        <pose>0 0 0 0 0 0</pose>
+      </sensor>
     </gazebo>
   </xacro:macro>
 
   <!-- thruster plugin -->
-  <xacro:macro name="t200_thruster_sim" params="name thruster_id">
+  <xacro:macro name="t200_thruster_sim" params="name thrusterID">
     <gazebo>
       <plugin name="${name}_plugin" filename="libuuv_thruster_ros_plugin.so">
         <linkName>${name}_propeller_link</linkName>
         <jointName>${name}_propeller_joint</jointName>
-        <thrusterID>${thruster_id}</thrusterID>
+        <thrusterID>${thrusterID}</thrusterID>
         <dynamics>
           <type>FirstOrder</type>
           <timeConstant>0.05</timeConstant>
@@ -86,120 +86,7 @@
     </gazebo>
 
     <gazebo reference="${name}_propeller_link">
-      <material>Gazebo/Orange</material>
       <selfCollide>false</selfCollide>
-    </gazebo>
-
-    <gazebo reference="${name}_link">
-      <material>Gazebo/Orange</material>
-    </gazebo>
-  </xacro:macro>
-
-  <!-- bar30 plugin -->
-  <xacro:macro name="bar30_sim" params="name">
-    <gazebo>
-      <plugin filename="libuuv_gazebo_ros_subsea_pressure_plugin.so"
-        name="${name}_pressure_plugin">
-        <robot_namespace>taluy</robot_namespace>
-        <link_name>${name}_chasis_link</link_name>
-        <sensor_topic>sensors/pressure/data</sensor_topic>
-        <update_rate>50.0</update_rate>
-        <saturation>5000</saturation>
-        <noise_sigma>0.4</noise_sigma>
-        <noise_amplitude>0.13</noise_amplitude>
-        <estimate_depth_on>false</estimate_depth_on>
-        <standard_pressure>101.325</standard_pressure>
-        <kPa_per_meter>9.80638</kPa_per_meter>
-        <enable_gazebo_messages>false</enable_gazebo_messages>
-      </plugin>
-    </gazebo>
-  </xacro:macro>
-
-  <!-- sonar plugin -->
-  <xacro:macro name="sonar_sim" params="name">
-    <gazebo reference="${name}_link">
-      <sensor type="ray" name="${name}">
-        <pose>0 0 0 0 0 0</pose>
-        <visualize>false</visualize>
-        <update_rate>10</update_rate>
-        <ray>
-          <scan>
-            <horizontal>
-              <samples>1</samples>
-              <resolution>0.15</resolution>
-              <min_angle>-0.5*0.523599</min_angle>
-              <max_angle>${0.5*0.523599}</max_angle>
-            </horizontal>
-            <vertical>
-              <samples>1</samples>
-              <resolution>0.15</resolution>
-              <min_angle>-${0.5*0.523599}</min_angle>
-              <max_angle>${0.5*0.523599}</max_angle>
-            </vertical>
-          </scan>
-          <range>
-            <min>0.5</min>
-            <max>30.0</max>
-            <resolution>0.15</resolution>
-          </range>
-          <noise>
-            <type>gaussian</type>
-            <mean>0.0</mean>
-            <stddev>0.5</stddev>
-          </noise>
-        </ray>
-        <plugin filename="libgazebo_ros_range.so" name="${name}_range_plugin">
-          <topicName>${name}/data</topicName>
-          <frameName>${name}_link</frameName>
-          <gaussianNoise>0.005</gaussianNoise>
-          <alwaysOn>true</alwaysOn>
-          <updateRate>10</updateRate>
-          <visualize>true</visualize>
-          <radiation>infrared</radiation>
-          <fov>0.523599</fov>
-        </plugin>
-      </sensor>
-    </gazebo>
-  </xacro:macro>
-
-  <!-- base link hydrodynamics plugin -->
-  <xacro:macro name="base_link_sim">
-    <gazebo>
-      <plugin name="uuv_plugin" filename="libuuv_underwater_object_ros_plugin.so">
-        <fluid_density>1028.0</fluid_density>
-        <flow_velocity_topic>hydrodynamics/current_velocity</flow_velocity_topic>
-        <debug>$(arg debug)</debug>
-
-        <link name="base_link_ned">
-          <neutrally_buoyant>1</neutrally_buoyant>
-          <volume>0.024</volume>
-          <box>
-            <width>0.665</width>
-            <length>0.875</length>
-            <height>0.525</height>
-          </box>
-          <center_of_buoyancy>
-            0.013859156 0.000063641869 0.3332835841
-          </center_of_buoyancy>
-          <hydrodynamic_model>
-            <type>fossen</type>
-            <added_mass>
-              10.7727 0 0 0 0 0
-              0 10.7727 0 0 0 0
-              0 0 49.7679 0 0 0
-              0 0 0 1.0092 0 0
-              0 0 0 0 1.0092 0
-              0 0 0 0 0 0
-            </added_mass>
-            <linear_damping>
-              -19.5909 -19.5909 -50.5595 -13.3040 -13.2181 -1.1559
-            </linear_damping>
-            <quadratic_damping>
-              -5.1386 -5.1386 -26.1105 0 0 0
-            </quadratic_damping>
-          </hydrodynamic_model>
-        </link>
-      </plugin>
     </gazebo>
   </xacro:macro>
 </robot>
