@@ -52,7 +52,7 @@
   </node>
 
 
-  <rosparam command="load" file="$(find auv_sim_description)/auv_sim_description/config/environment.yaml" />
+  <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
   <!-- singapore pool -->
  
   <!--node name="spawn_pool" pkg="gazebo_ros" type="spawn_model" args="-file $(find auv_sim_description)/models/pool/model.sdf -sdf -model singapore_pool -x 0 -y -0 -z -2.2"></node-->
