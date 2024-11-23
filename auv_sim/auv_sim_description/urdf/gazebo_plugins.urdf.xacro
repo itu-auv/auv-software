@@ -94,4 +94,24 @@
       <material>Gazebo/Orange</material>
     </gazebo>
   </xacro:macro>
+
+  <!-- bar30 plugin -->
+  <xacro:macro name="bar30_sim" params="name">
+    <gazebo>
+      <plugin filename="libuuv_gazebo_ros_subsea_pressure_plugin.so"
+        name="${name}_pressure_plugin">
+        <robot_namespace>taluy</robot_namespace>
+        <link_name>${name}_chasis_link</link_name>
+        <sensor_topic>sensors/pressure/data</sensor_topic>
+        <update_rate>50.0</update_rate>
+        <saturation>5000</saturation>
+        <noise_sigma>0.4</noise_sigma>
+        <noise_amplitude>0.13</noise_amplitude>
+        <estimate_depth_on>false</estimate_depth_on>
+        <standard_pressure>101.325</standard_pressure>
+        <kPa_per_meter>9.80638</kPa_per_meter>
+        <enable_gazebo_messages>false</enable_gazebo_messages>
+      </plugin>
+    </gazebo>
+  </xacro:macro>
 </robot>
