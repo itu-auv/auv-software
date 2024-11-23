@@ -85,7 +85,12 @@
     </gazebo>
 
     <gazebo reference="${name}_propeller_link">
+      <material>Gazebo/Orange</material>
       <selfCollide>false</selfCollide>
+    </gazebo>
+
+    <gazebo reference="${name}_link">
+      <material>Gazebo/Orange</material>
     </gazebo>
   </xacro:macro>
 </robot>
