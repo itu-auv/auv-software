@@ -6,8 +6,8 @@
   <!-- Gazebo plugins -->
   <xacro:include filename="$(find auv_sim_description)/urdf/gazebo_plugins.urdf.xacro" />
 
-  <xacro:logitech_c920_camera_sim name="base_link/front_camera" />
-  <xacro:logitech_c920_camera_sim name="base_link/bottom_camera" />
+  <xacro:logitech_c920_camera_sim name="base_link/front_camera" topic_name="cameras/cam_front" />
+  <xacro:logitech_c920_camera_sim name="base_link/bottom_camera" topic_name="cameras/cam_bottom" />
 
   <xacro:xsens_mti_g710_sim name="base_link/imu" />
 
