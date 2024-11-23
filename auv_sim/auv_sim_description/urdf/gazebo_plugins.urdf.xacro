@@ -67,12 +67,12 @@
   </xacro:macro>
 
   <!-- thruster plugin -->
-  <xacro:macro name="t200_thruster_sim" params="name thrusterID">
+  <xacro:macro name="t200_thruster_sim" params="name thruster_id">
     <gazebo>
       <plugin name="${name}_plugin" filename="libuuv_thruster_ros_plugin.so">
         <linkName>${name}_propeller_link</linkName>
         <jointName>${name}_propeller_joint</jointName>
-        <thrusterID>${thrusterID}</thrusterID>
+        <thrusterID>${thruster_id}</thrusterID>
         <dynamics>
           <type>FirstOrder</type>
           <timeConstant>0.05</timeConstant>
