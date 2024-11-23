@@ -20,7 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        host: [ubuntu-20.04, self-hosted]
+        # host: [ubuntu-20.04, self-hosted]
+        host: [ubuntu-20.04]
     uses: ./.github/workflows/industrial_ci.yml
     with:
       runner: ${{ matrix.host }}
