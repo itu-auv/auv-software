@@ -8,35 +8,7 @@ using Matrix6d = Eigen::Matrix<double, 6, 6>;
 constexpr auto kEpsilon = 1e-6;
 }  // namespace
 
-TEST(MultiDOFPIDController, TestSingleAxis) {
-  using Vector = Eigen::Matrix<double, 1, 1>;
-  using StateVector = Eigen::Matrix<double, 2, 1>;
-  using Matrix = Eigen::Matrix<double, 1, 1>;
-  auv::control::MultiDOFPIDController<1> controller;
-  auv::control::Model<1> model;
-
-  model.mass_inertia_matrix = Matrix::Identity() * 2;
-  model.linear_damping_matrix = Matrix::Identity();
-  model.quadratic_damping_matrix = Matrix::Identity() * 3;
-
-  controller.set_model(model);
-
-  controller.set_kp(Vector::Ones() * 1);
-  controller.set_ki(Vector::Ones() * 2);
-  controller.set_kd(Vector::Ones() * 3);
-
-  const auto state = StateVector::Zero();
-  const auto desired_state = StateVector::Ones();
-  const auto d_state = StateVector::Ones();
-  const auto dt = 0.1;
-
-  const auto force_torque =
-      controller.control(state, desired_state, d_state, dt);
-
-  EXPECT_NEAR(force_torque(0), 0.4, kEpsilon);
-}
-
-TEST(MultiDOFPIDController, TestIdenticalAxis) {
+TEST(MultiDOFPIDController, TestVelocityControlOnly) {
   auv::control::MultiDOFPIDController<6> controller;
   auv::control::Model<6> model;
 
@@ -46,9 +18,13 @@ TEST(MultiDOFPIDController, TestIdenticalAxis) {
 
   controller.set_model(model);
 
-  controller.set_kp(Vector6d::Ones() * 1);
-  controller.set_ki(Vector6d::Ones() * 2);
-  controller.set_kd(Vector6d::Ones() * 3);
+  // Vector6d ones and rest is zero
+  Vector12d controller_gains = Vector12d::Zero();
+  controller_gains.head(6) = Vector6d::Ones();
+
+  controller.set_kp(controller_gains * 1);
+  controller.set_ki(controller_gains * 2);
+  controller.set_kd(controller_gains * 3);
 
   const auto state = Vector12d::Zero();
   const auto desired_state = Vector12d::Ones();
@@ -58,10 +34,12 @@ TEST(MultiDOFPIDController, TestIdenticalAxis) {
   const auto force_torque =
       controller.control(state, desired_state, d_state, dt);
 
-  EXPECT_NEAR(force_torque(0), 0.4, kEpsilon);
-  EXPECT_NEAR(force_torque(1), 0.4, kEpsilon);
-  EXPECT_NEAR(force_torque(2), 0.4, kEpsilon);
-  EXPECT_NEAR(force_torque(3), 0.4, kEpsilon);
-  EXPECT_NEAR(force_torque(4), 0.4, kEpsilon);
-  EXPECT_NEAR(force_torque(5), 0.4, kEpsilon);
+  const auto expected_force = -2.72;
+
+  EXPECT_NEAR(force_torque(0), expected_force, kEpsilon);
+  EXPECT_NEAR(force_torque(1), expected_force, kEpsilon);
+  EXPECT_NEAR(force_torque(2), expected_force, kEpsilon);
+  EXPECT_NEAR(force_torque(3), expected_force, kEpsilon);
+  EXPECT_NEAR(force_torque(4), expected_force, kEpsilon);
+  EXPECT_NEAR(force_torque(5), expected_force, kEpsilon);
 }
