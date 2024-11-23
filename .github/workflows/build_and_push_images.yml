@@ -83,7 +83,9 @@ jobs:
           context: .
           file: ${{ steps.set_build_config.outputs.dockerfile }}
           platforms: ${{ matrix.platform }}
-          push: ${{ github.event_name == 'push' && matrix.host == 'desktop' }}
+          # push: ${{ github.event_name == 'push' && matrix.host == 'desktop' }}
+          # TODO: Temporarily allow push for emulated ARM tags, since self hosted is disabled
+          push: ${{ github.event_name == 'push' }}
           build-args: |
             BASE_IMAGE=${{ steps.set_build_config.outputs.base_image_tag }}
           cache-from: type=gha
