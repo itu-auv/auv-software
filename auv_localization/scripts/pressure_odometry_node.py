@@ -2,11 +2,13 @@
 
 import rospy
 from std_msgs.msg import Float32
+from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
 import numpy as np
 import yaml
 import auv_common_lib.transform.transformer
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
+import tf
 
 
 class PressureToOdom:
@@ -21,12 +23,13 @@ class PressureToOdom:
         self.odom_publisher = rospy.Publisher(
             "localization/odom_pressure", Odometry, queue_size=10
         )
+        
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
         self.odom_msg.header.frame_id = "odom"
         self.odom_msg.child_frame_id = "taluy/base_link"
-
+        
         self.transformer = auv_common_lib.transform.transformer.Transformer()
 
         # Initialize covariances with zeros
@@ -44,22 +47,35 @@ class PressureToOdom:
         rospy.loginfo(
             f"{pressure_odometry_colored} : depth covariance: {self.depth_calibration_covariance}"
         )
+        
         self.depth_subscriber = rospy.Subscriber("depth", Float32, self.depth_callback)
+ 
+    def get_global_base_to_pressure_height(self):
+        translation, _ = self.transformer.get_transform(
+            "taluy/base_link", "taluy/base_link/external_pressure_sensor_link"
+        )
+
+        # Getting the rotation matrix
+        _, global_rotation = self.transformer.get_transform("odom", "taluy/base_link")
+        rotation_matrix = tf.transformations.quaternion_matrix(global_rotation)
+        
+        # Rotating
+        sensor_position_vector = np.array([[translation[0], translation[1], translation[2], 1.0]])
+        global_sensor_position_vector = np.dot(rotation_matrix, sensor_position_vector)
+        return global_sensor_position_vector[2]
 
     def depth_callback(self, depth_msg):
         # Fill the odometry message with depth data as the z component of the linear position
         self.odom_msg.header.stamp = rospy.Time.now()
 
+        # Calibrate depth with the offset
         calibrated_depth = depth_msg.data + self.depth_calibration_offset
-        translation, rotation = self.transformer.get_transform(
-            "taluy/base_link", "taluy/base_link/external_pressure_sensor_link"
-        )
-        base_depth = calibrated_depth + translation[0, 2]
 
-        # Set the z component in pose position to the depth value
-        self.odom_msg.pose.pose.position.z = base_depth
+        # Calculate the depth of the base link
+        base_link_depth = calibrated_depth + self.get_global_base_to_pressure_height()
 
-        # Set other components to zero as we are not using them
+        # Update odom message with transformed depth
+        self.odom_msg.pose.pose.position.z = base_link_depth
         self.odom_msg.pose.pose.position.x = 0.0
         self.odom_msg.pose.pose.position.y = 0.0
 
