@@ -26,11 +26,12 @@
 
     <link name="${name}_link" />
 
-    <joint name="${name}_joint" type="fixed">
+    <joint name="${name}_joint" type="revolute">
       <parent link="${parent}" />
       <child link="${name}_chasis_link" />
       <origin xyz="${position}" rpy="${orientation}" />
       <axis rpy="0 0 0" xyz="0 0 1" />
+      <limit upper="0" lower="0" effort="0" velocity="0" />
     </joint>
 
     <joint name="${name}_sensor_joint" type="fixed">
