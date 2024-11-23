@@ -51,11 +51,5 @@
       <limit effort="100" velocity="100"/>
       <dynamics friction="0.05" damping="0.05"/>
     </joint>
-    <gazebo reference="${name}_propeller_link">
-      <material>Gazebo/Orange</material>
-    </gazebo>
-    <gazebo reference="${name}_link">
-      <material>Gazebo/Orange</material>
-    </gazebo>
   </xacro:macro>
 </robot>
