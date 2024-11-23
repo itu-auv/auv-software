@@ -15,6 +15,14 @@
     <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
       <param name="rate" value="$(arg rate)" />
       <param name="config_file" value="$(find auv_control)/config/default.yaml" />
+
+      <remap from="odometry" to="odometry" />
+      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="cmd_pose" to="cmd_pose" />
+      <remap from="acceleration" to="acceleration" />
+      <remap from="enable" to="enable" />
+    
+      <remap from="wrench" to="wrench" />
       <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
     </node>
 
