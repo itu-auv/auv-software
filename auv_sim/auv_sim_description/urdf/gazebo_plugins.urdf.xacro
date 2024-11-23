@@ -114,4 +114,51 @@
       </plugin>
     </gazebo>
   </xacro:macro>
+
+  <!-- sonar plugin -->
+  <xacro:macro name="sonar_sim" params="name">
+    <gazebo reference="${name}_link">
+      <sensor type="ray" name="${name}">
+        <pose>0 0 0 0 0 0</pose>
+        <visualize>false</visualize>
+        <update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>1</samples>
+              <resolution>0.15</resolution>
+              <min_angle>-0.5*0.523599</min_angle>
+              <max_angle>${0.5*0.523599}</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>1</samples>
+              <resolution>0.15</resolution>
+              <min_angle>-${0.5*0.523599}</min_angle>
+              <max_angle>${0.5*0.523599}</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.5</min>
+            <max>30.0</max>
+            <resolution>0.15</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.5</stddev>
+          </noise>
+        </ray>
+        <plugin filename="libgazebo_ros_range.so" name="${name}_range_plugin">
+          <topicName>${name}/data</topicName>
+          <frameName>${name}_link</frameName>
+          <gaussianNoise>0.005</gaussianNoise>
+          <alwaysOn>true</alwaysOn>
+          <updateRate>10</updateRate>
+          <visualize>true</visualize>
+          <radiation>infrared</radiation>
+          <fov>0.523599</fov>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
 </robot>

@@ -21,5 +21,10 @@
   <xacro:t200_thruster_sim name="thruster_7" thruster_id="7" />
 
   <xacro:bar30_sim name="base_link/external_pressure_sensor" />
+
+  <xacro:sonar_sim name="base_link/sonar_front" />
+  <xacro:sonar_sim name="base_link/sonar_back" />
+  <xacro:sonar_sim name="base_link/sonar_right" />
+  <xacro:sonar_sim name="base_link/sonar_left" />
   <!--  -->
 </robot>
