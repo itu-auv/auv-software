@@ -44,25 +44,26 @@
 
   <!-- imu plugin -->
   <xacro:macro name="xsens_mti_g710_sim" params="name">
-    <gazebo reference="${name}_link">
-      <gravity>true</gravity>
-      <sensor name="${name}_sensor" type="imu">
-        <always_on>true</always_on>
-        <update_rate>100</update_rate>
-        <visualize>true</visualize>
-        <topic>__default_topic__</topic>
-        <plugin filename="libgazebo_ros_imu_sensor.so" name="imu_plugin">
-          <topicName>sensors/imu/data</topicName>
-          <bodyName>${name}_link</bodyName>
-          <updateRateHZ>10.0</updateRateHZ>
-          <gaussianNoise>0.0</gaussianNoise>
-          <xyzOffset>0 0 0</xyzOffset>
-          <rpyOffset>0 0 0</rpyOffset>
-          <frameName>${name}_link</frameName>
-          <initialOrientationAsReference>false</initialOrientationAsReference>
-        </plugin>
-        <pose>0 0 0 0 0 0</pose>
-      </sensor>
+    <gazebo>
+      <plugin filename="libuuv_gazebo_ros_imu_plugin.so"
+        name="${name}_imu_plugin">
+        <robot_namespace>taluy</robot_namespace>
+        <link_name>${name}_link</link_name>
+        <sensor_topic>sensors/imu/data</sensor_topic>
+        <gyroscope_noise_density>0.0002514074</gyroscope_noise_density>
+        <gyroscope_random_walk>0.000038785</gyroscope_random_walk>
+        <gyroscope_bias_correlation_time>1000.0</gyroscope_bias_correlation_time>
+        <gyroscope_turn_on_bias_sigma>0.0087</gyroscope_turn_on_bias_sigma>
+        <accelerometer_noise_density>0.00104347826</accelerometer_noise_density>
+        <accelerometer_random_walk>0.006</accelerometer_random_walk>
+        <accelerometer_bias_correlation_time>300.0</accelerometer_bias_correlation_time>
+        <accelerometer_turn_on_bias_sigma>0.1960</accelerometer_turn_on_bias_sigma>
+        <orientation_noise>0.05</orientation_noise>
+        <update_rate>80</update_rate>
+        <enable_gazebo_messages>false</enable_gazebo_messages>
+        <enable_local_ned_frame>false</enable_local_ned_frame>
+        <static_reference_frame>world</static_reference_frame>
+      </plugin>
     </gazebo>
   </xacro:macro>
 
