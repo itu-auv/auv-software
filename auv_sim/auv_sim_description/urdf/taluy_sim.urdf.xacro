@@ -11,13 +11,13 @@
 
   <xacro:xsens_mti_g710_sim name="base_link/imu" />
 
-  <xacro:t200_thruster_sim name="thruster_0" thrusterID="0" />
-  <xacro:t200_thruster_sim name="thruster_1" thrusterID="1" />
-  <xacro:t200_thruster_sim name="thruster_2" thrusterID="2" />
-  <xacro:t200_thruster_sim name="thruster_3" thrusterID="3" />
-  <xacro:t200_thruster_sim name="thruster_4" thrusterID="4" />
-  <xacro:t200_thruster_sim name="thruster_5" thrusterID="5" />
-  <xacro:t200_thruster_sim name="thruster_6" thrusterID="6" />
-  <xacro:t200_thruster_sim name="thruster_7" thrusterID="7" />
+  <xacro:t200_thruster_sim name="thruster_0" thruster_id="0" />
+  <xacro:t200_thruster_sim name="thruster_1" thruster_id="1" />
+  <xacro:t200_thruster_sim name="thruster_2" thruster_id="2" />
+  <xacro:t200_thruster_sim name="thruster_3" thruster_id="3" />
+  <xacro:t200_thruster_sim name="thruster_4" thruster_id="4" />
+  <xacro:t200_thruster_sim name="thruster_5" thruster_id="5" />
+  <xacro:t200_thruster_sim name="thruster_6" thruster_id="6" />
+  <xacro:t200_thruster_sim name="thruster_7" thruster_id="7" />
   <!--  -->
 </robot>
