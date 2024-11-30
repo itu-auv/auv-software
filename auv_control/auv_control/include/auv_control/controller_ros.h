@@ -1,5 +1,10 @@
 #pragma once
 
+#include <auv_control/ControllerConfig.h>  // Include your dynamic reconfigure header
+#include <dynamic_reconfigure/server.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/transform_listener.h>
+
 #include <type_traits>
 
 #include "auv_common_lib/ros/conversions.h"
@@ -13,9 +18,7 @@
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
 #include "std_msgs/Bool.h"
-#include <dynamic_reconfigure/server.h>
-#include <auv_control/ControllerConfig.h> // Include your dynamic reconfigure header
-
+#include "std_msgs/Float64.h"
 
 namespace auv {
 namespace control {
@@ -38,6 +41,9 @@ class ControllerROS {
   ControllerROS(const ros::NodeHandle& nh)
       : nh_{nh}, rate_{1.0}, control_enable_sub_{nh} {
     ros::NodeHandle nh_private("~");
+
+    // default_frame as a ros parameter (default is odom)
+    position_control_default_frame_ = nh_private.param<std::string>("position_control_default_frame", "odom");
 
     auto model = ModelParser::parse("model", nh_private);
     load_parameters();
@@ -68,7 +74,7 @@ class ControllerROS {
     f = boost::bind(&ControllerROS::reconfigure_callback, this, _1, _2);
     dr_srv_.updateConfig(initial_config);  // Apply the initial configuration
     dr_srv_.setCallback(f);
-    
+
     odometry_sub_ =
         nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
     cmd_vel_sub_ =
@@ -122,11 +128,10 @@ class ControllerROS {
               : geometry_msgs::Wrench{};
 
       wrench_pub_.publish(wrench_msg);
-
     }
   }
 
- private:
+ private:  
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
 
   bool is_timeouted() const {
@@ -147,10 +152,48 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
-  void cmd_pose_callback(const geometry_msgs::Pose::ConstPtr& msg) {
-    desired_state_.head(6) =
-        auv::common::conversions::convert<geometry_msgs::Pose,
-                                          ControllerBase::Vector>(*msg);
+  const std::optional<std::string> get_source_frame(const std::string& source_frame) {
+    if (source_frame.empty()) { // No source provided.
+      return std::nullopt;
+    }
+
+    if (source_frame == position_control_default_frame_) { // Exact same frame as default.
+      return std::nullopt;
+    }
+
+    // Transform is required.
+    if (source_frame[0] == '/') { // The slash causes errors with tf.
+      return source_frame.substr(1);
+    }
+    return source_frame;
+  }
+
+  void cmd_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
+    // Get frame and pose.
+    const auto source_frame = get_source_frame(msg->header.frame_id);
+    auto transformed_pose = msg->pose;
+
+    static tf2_ros::Buffer tf_buffer;
+    static tf2_ros::TransformListener tf_listener(tf_buffer);
+    geometry_msgs::TransformStamped transform_stamped;
+    
+    if (source_frame.has_value()) {
+      ROS_DEBUG("Source frame: %s, Desired frame: %s", source_frame.value().c_str(), position_control_default_frame_.c_str());
+      try {
+        transform_stamped = tf_buffer.lookupTransform(
+          position_control_default_frame_, source_frame.value(), ros::Time::now());
+
+        tf2::doTransform(msg->pose, transformed_pose, transform_stamped);
+
+      } catch (tf2::TransformException& ex) { // If unsuccessful, return without pose.
+        ROS_DEBUG("Failed to transform pose");
+        return;
+      }
+    }
+    ROS_DEBUG_STREAM("Final transformed pose: " << transformed_pose.position.z);
+    desired_state_.head(6) = auv::common::conversions::convert<
+        geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
+    
     latest_command_time_ = ros::Time::now();
   }
 
@@ -161,13 +204,18 @@ class ControllerROS {
     d_state_.tail(3) = Eigen::Vector3d::Zero();
   }
 
-
   void reconfigure_callback(auv_control::ControllerConfig& config, uint32_t level) {
     auto controller = dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
 
-    kp_ << config.kp_0, config.kp_1, config.kp_2, config.kp_3, config.kp_4, config.kp_5, config.kp_6, config.kp_7, config.kp_8, config.kp_9, config.kp_10, config.kp_11;
-    ki_ << config.ki_0, config.ki_1, config.ki_2, config.ki_3, config.ki_4, config.ki_5, config.ki_6, config.ki_7, config.ki_8, config.ki_9, config.ki_10, config.ki_11;
-    kd_ << config.kd_0, config.kd_1, config.kd_2, config.kd_3, config.kd_4, config.kd_5, config.kd_6, config.kd_7, config.kd_8, config.kd_9, config.kd_10, config.kd_11;
+    kp_ << config.kp_0, config.kp_1, config.kp_2, config.kp_3, config.kp_4,
+        config.kp_5, config.kp_6, config.kp_7, config.kp_8, config.kp_9,
+        config.kp_10, config.kp_11;
+    ki_ << config.ki_0, config.ki_1, config.ki_2, config.ki_3, config.ki_4,
+        config.ki_5, config.ki_6, config.ki_7, config.ki_8, config.ki_9,
+        config.ki_10, config.ki_11;
+    kd_ << config.kd_0, config.kd_1, config.kd_2, config.kd_3, config.kd_4,
+        config.kd_5, config.kd_6, config.kd_7, config.kd_8, config.kd_9,
+        config.kd_10, config.kd_11;
     controller->set_kp(kp_);
     controller->set_ki(ki_);
     controller->set_kd(kd_);
@@ -182,20 +230,47 @@ class ControllerROS {
   }
 
   void set_initial_config(auv_control::ControllerConfig& config) {
-    config.kp_0 = kp_(0); config.kp_1 = kp_(1); config.kp_2 = kp_(2); config.kp_3 = kp_(3);
-    config.kp_4 = kp_(4); config.kp_5 = kp_(5); config.kp_6 = kp_(6); config.kp_7 = kp_(7);
-    config.kp_8 = kp_(8); config.kp_9 = kp_(9); config.kp_10 = kp_(10); config.kp_11 = kp_(11);
+    config.kp_0 = kp_(0);
+    config.kp_1 = kp_(1);
+    config.kp_2 = kp_(2);
+    config.kp_3 = kp_(3);
+    config.kp_4 = kp_(4);
+    config.kp_5 = kp_(5);
+    config.kp_6 = kp_(6);
+    config.kp_7 = kp_(7);
+    config.kp_8 = kp_(8);
+    config.kp_9 = kp_(9);
+    config.kp_10 = kp_(10);
+    config.kp_11 = kp_(11);
 
-    config.ki_0 = ki_(0); config.ki_1 = ki_(1); config.ki_2 = ki_(2); config.ki_3 = ki_(3);
-    config.ki_4 = ki_(4); config.ki_5 = ki_(5); config.ki_6 = ki_(6); config.ki_7 = ki_(7);
-    config.ki_8 = ki_(8); config.ki_9 = ki_(9); config.ki_10 = ki_(10); config.ki_11 = ki_(11);
+    config.ki_0 = ki_(0);
+    config.ki_1 = ki_(1);
+    config.ki_2 = ki_(2);
+    config.ki_3 = ki_(3);
+    config.ki_4 = ki_(4);
+    config.ki_5 = ki_(5);
+    config.ki_6 = ki_(6);
+    config.ki_7 = ki_(7);
+    config.ki_8 = ki_(8);
+    config.ki_9 = ki_(9);
+    config.ki_10 = ki_(10);
+    config.ki_11 = ki_(11);
 
-    config.kd_0 = kd_(0); config.kd_1 = kd_(1); config.kd_2 = kd_(2); config.kd_3 = kd_(3);
-    config.kd_4 = kd_(4); config.kd_5 = kd_(5); config.kd_6 = kd_(6); config.kd_7 = kd_(7);
-    config.kd_8 = kd_(8); config.kd_9 = kd_(9); config.kd_10 = kd_(10); config.kd_11 = kd_(11);
+    config.kd_0 = kd_(0);
+    config.kd_1 = kd_(1);
+    config.kd_2 = kd_(2);
+    config.kd_3 = kd_(3);
+    config.kd_4 = kd_(4);
+    config.kd_5 = kd_(5);
+    config.kd_6 = kd_(6);
+    config.kd_7 = kd_(7);
+    config.kd_8 = kd_(8);
+    config.kd_9 = kd_(9);
+    config.kd_10 = kd_(10);
+    config.kd_11 = kd_(11);
   }
 
-void save_parameters() {
+  void save_parameters() {
     ros::NodeHandle nh_private("~");
     nh_private.param("config_file", config_file_, std::string{});
     if (config_file_.empty()) {
@@ -214,13 +289,14 @@ void save_parameters() {
     std::string content = buffer.str();
     in_file.close();
 
-    auto replace_param = [](std::string& content, const std::string& param, const Eigen::Matrix<double, 12, 1>& values) {
+    auto replace_param = [](std::string& content, const std::string& param,
+                            const Eigen::Matrix<double, 12, 1>& values) {
       std::stringstream ss;
       ss << std::fixed << std::setprecision(1);
       ss << param << ": [" << values(0);
       for (int i = 1; i < 12; ++i) ss << ", " << values(i);
       ss << "]";
-      
+
       std::string::size_type start_pos = content.find(param + ": [");
       if (start_pos == std::string::npos) {
         // If parameter not found, add it to the end
@@ -237,15 +313,15 @@ void save_parameters() {
 
     std::ofstream out_file(config_file_);
     if (!out_file.is_open()) {
-      ROS_ERROR_STREAM("Failed to open config file for writing: " << config_file_);
+      ROS_ERROR_STREAM(
+          "Failed to open config file for writing: " << config_file_);
       return;
     }
     out_file << content;
     out_file.close();
 
     ROS_INFO_STREAM("Parameters saved to " << config_file_);
-}
-
+  }
 
   ros::Rate rate_;
   ros::NodeHandle nh_;
@@ -267,9 +343,13 @@ void save_parameters() {
   ControllerLoader controller_loader_{"auv_controllers",
                                       "auv::control::SixDOFControllerBase"};
 
-  dynamic_reconfigure::Server<auv_control::ControllerConfig> dr_srv_; // Dynamic reconfigure server
-  Eigen::Matrix<double, 12, 1> kp_, ki_, kd_; // Parameters to be dynamically reconfigured
-  std::string config_file_; // Path to the config file
+  dynamic_reconfigure::Server<auv_control::ControllerConfig>
+      dr_srv_;  // Dynamic reconfigure server
+  Eigen::Matrix<double, 12, 1> kp_, ki_,
+      kd_;                   // Parameters to be dynamically reconfigured
+  std::string config_file_;  // Path to the config file
+
+  std::string position_control_default_frame_;  
 };
 
 }  // namespace control
