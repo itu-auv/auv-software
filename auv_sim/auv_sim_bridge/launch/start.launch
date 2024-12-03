@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="control_rate" default="20.0" />
+  <arg name="namespace" default="taluy" />
+  <group ns="$(arg namespace)">
+    <node pkg="auv_sim_bridge" type="simulation_mock_node" name="simulation_mock_node">
+      <remap from="depth" to="sensors/pressure/depth" />
+      <remap from="pressure" to="sensors/pressure/data" />
+      <remap from="dvl" to="sensors/dvl" />
+      <remap from="velocity_raw" to="sensors/dvl/velocity_raw" />
+      <remap from="is_valid" to="sensors/dvl/is_valid" />
+      <remap from="drive_pulse" to="board/drive_pulse" />
+      <remap from="power" to="mainboard/power_sensor/power" />
+
+      <param name="rate" value="$(arg control_rate)" />
+    </node>
+  </group>
+
+</launch>

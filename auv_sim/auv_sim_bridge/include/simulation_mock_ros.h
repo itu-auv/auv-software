@@ -8,6 +8,7 @@
 #include "geometry_msgs/TwistWithCovarianceStamped.h"
 #include "sensor_msgs/FluidPressure.h"
 #include "sim_thruster_ros.h"
+#include "std_msgs/Bool.h"
 #include "std_msgs/Float32.h"
 #include "std_srvs/SetBool.h"
 #include "uuv_gazebo_ros_plugins_msgs/FloatStamped.h"
@@ -23,33 +24,23 @@ class SimulationMockROS {
   ros::NodeHandle nh_;
   ros::Rate rate_;  /// simulation control rate
 
-  ros::Subscriber direct_drive_sub_;
+  ros::Subscriber drive_pulse_sub_;
   ros::Subscriber depth_sub_;
   ros::Subscriber dvl_sub_;
   ros::Publisher depth_pub_;
   ros::Publisher altitude_pub_;
   ros::Publisher velocity_pub_;
-  ros::Publisher velocity_stamped_pub_;
+  ros::Publisher is_valid_pub_;
   ros::Publisher battery_sim_pub_;
-  ros::ServiceServer arm_srv_;
   ros::ServiceServer set_dvl_ping_srv_;
 
   std::vector<SimThruster> thrusters_;  /// thruster UUV interface
-  bool armed_;
 
   double gravity_;            /// m/s^2
   double density_;            /// kg / m^3
   double standard_pressure_;  /// kPa
   double battery_voltage_;    /// V
   double battery_current_;    /// A
-
-  bool setArmHandler(std_srvs::SetBoolRequest &req,
-                     std_srvs::SetBoolResponse &resp) {
-    armed_ = req.data;
-    resp.success = true;
-    ROS_INFO("AUV armed state set to: %s", armed_ ? "true" : "false");
-    return true;
-  }
 
   bool setDVLPing(std_srvs::SetBoolRequest &req,
                   std_srvs::SetBoolResponse &resp) {
@@ -59,15 +50,11 @@ class SimulationMockROS {
     return true;
   }
 
-  void directDriveCallback(const auv_msgs::MotorCommand &msg) {
+  void drivePulseCallback(const auv_msgs::MotorCommand &msg) {
     const auto stamp = ros::Time::now();
     for (int i = 0; i < kThrusterSize; i++) {
       if (i < msg.channels.size()) {
-        if (armed_) {
-          thrusters_[i].publish(msg.channels.at(i), stamp);
-        } else {
-          thrusters_[i].publish(1500, stamp);
-        }
+        thrusters_[i].publish(msg.channels.at(i), stamp);
       } else {
         ROS_WARN("Received MotorCommand with insufficient channels.");
       }
@@ -85,22 +72,20 @@ class SimulationMockROS {
 
   void dvlCallback(const uuv_sensor_ros_plugins_msgs::DVL &msg) {
     std_msgs::Float32 altitude_msg;
-    geometry_msgs::Twist velocity_msg;
-    geometry_msgs::TwistWithCovarianceStamped velocity_stamped_msg;
+    geometry_msgs::Twist velocity_raw_msg;
+
     // Dvl altitude
     altitude_msg.data = msg.altitude;
     altitude_pub_.publish(altitude_msg);
 
-    // Dvl velocity
-    velocity_msg.linear = msg.velocity;
-    velocity_pub_.publish(velocity_msg);
+    // DVL is_valid
+    std_msgs::Bool is_valid_msg;
+    is_valid_msg.data = true;
+    is_valid_pub_.publish(is_valid_msg);
 
-    boost::array<double, 36> covariance;
-    covariance.fill(1e-6);
-    velocity_stamped_msg.header.frame_id = "dvl_link";
-    velocity_stamped_msg.twist.twist = velocity_msg;
-    velocity_stamped_msg.twist.covariance = covariance;
-    velocity_stamped_pub_.publish(velocity_stamped_msg);
+    // Dvl velocity_raw
+    velocity_raw_msg.linear = msg.velocity;
+    velocity_pub_.publish(velocity_raw_msg);
   }
 
   void initializeParameters() {
@@ -115,7 +100,9 @@ class SimulationMockROS {
 
     if (!nh_.getParam("/env/standard_pressure", standard_pressure_)) {
       standard_pressure_ = 101325.0 / 1000.0;  // convert to kPa
-      ROS_WARN("Parameter '/env/standard_pressure' not set. Using default: 101.325 kPa");
+      ROS_WARN(
+          "Parameter '/env/standard_pressure' not set. Using default: 101.325 "
+          "kPa");
     } else {
       standard_pressure_ /= 1000.0;  // convert to kPa
     }
@@ -127,27 +114,26 @@ class SimulationMockROS {
 
     if (!nh_.getParam("/env/density", density_)) {
       density_ = 1000.0;
-      ROS_WARN("Parameter '/env/density' not set. Using default: 1000.0 kg/m^3");
+      ROS_WARN(
+          "Parameter '/env/density' not set. Using default: 1000.0 kg/m^3");
     }
 
     if (!nh_priv.getParam("battery_voltage", battery_voltage_)) {
-      battery_voltage_ = 14;
-      ROS_WARN("Parameter 'battery_voltage' not set. Using default: 14 V");
+      battery_voltage_ = 16;
+      ROS_WARN("Parameter 'battery_voltage' not set. Using default: 16 V");
     }
 
     if (!nh_priv.getParam("battery_current", battery_current_)) {
-      battery_current_ = 5;
-      ROS_WARN("Parameter 'battery_current' not set. Using default: 5 A");
+      battery_current_ = 10;
+      ROS_WARN("Parameter 'battery_current' not set. Using default: 10 A");
     }
   }
 
   void initializePublishers() {
     depth_pub_ = nh_.advertise<std_msgs::Float32>("depth", 1);
-    altitude_pub_ = nh_.advertise<std_msgs::Float32>("altitude", 1);
-    velocity_pub_ = nh_.advertise<geometry_msgs::Twist>("velocity", 1);
-    velocity_stamped_pub_ =
-        nh_.advertise<geometry_msgs::TwistWithCovarianceStamped>(
-            "velocity_stamped", 1);
+    velocity_pub_ = nh_.advertise<geometry_msgs::Twist>("velocity_raw", 1);
+    // fix 1  error: template argument 1 is invalid
+    is_valid_pub_ = nh_.advertise<std_msgs::Bool>("is_valid", 1);
     battery_sim_pub_ = nh_.advertise<auv_msgs::Power>("power", 1);
   }
 
@@ -155,15 +141,13 @@ class SimulationMockROS {
     depth_sub_ =
         nh_.subscribe("pressure", 1, &SimulationMockROS::depthCallback, this);
     dvl_sub_ = nh_.subscribe("dvl", 1, &SimulationMockROS::dvlCallback, this);
-    direct_drive_sub_ = nh_.subscribe(
-        "direct_drive", 1, &SimulationMockROS::directDriveCallback, this);
+    drive_pulse_sub_ = nh_.subscribe(
+        "drive_pulse", 1, &SimulationMockROS::drivePulseCallback, this);
   }
 
   void initializeServices() {
-    arm_srv_ = nh_.advertiseService("set_arming",
-                                    &SimulationMockROS::setArmHandler, this);
     set_dvl_ping_srv_ = nh_.advertiseService(
-        "sensors/dvl/set_ping", &SimulationMockROS::setDVLPing, this);
+        "sensors/dvl/enable", &SimulationMockROS::setDVLPing, this);
   }
 
   void initializeThrusters() {
@@ -174,7 +158,7 @@ class SimulationMockROS {
   }
 
  public:
-  SimulationMockROS(const ros::NodeHandle &nh) : nh_(nh), rate_(1.0), armed_(false) {
+  SimulationMockROS(const ros::NodeHandle &nh) : nh_(nh), rate_(1.0) {
     initializeParameters();
     initializePublishers();
     initializeSubscribers();
