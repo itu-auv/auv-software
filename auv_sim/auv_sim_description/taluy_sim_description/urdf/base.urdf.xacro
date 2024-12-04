@@ -1,20 +1,4 @@
 <?xml version="1.0"?>
-<!-- Copyright (c) 2016 The UUV Simulator Authors.
-     All rights reserved.
-
-     Licensed under the Apache License, Version 2.0 (the "License");
-     you may not use this file except in compliance with the License.
-     You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-     Unless required by applicable law or agreed to in writing, software
-     distributed under the License is distributed on an "AS IS" BASIS,
-     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-     See the License for the specific language governing permissions and
-     limitations under the License.
--->
-
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro name="auv_sim_base" params="namespace *gazebo inertial_reference_frame">
     <xacro:insert_block name="gazebo" />
@@ -22,31 +6,7 @@
     <xacro:include filename="$(find taluy_description)/urdf/auv_base.urdf.xacro" />
     <xacro:taluy_base />
 
-    <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/actuators.urdf.xacro" />
-    <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/sensors.urdf.xacro" />
-
-    <xacro:t200_thruster_sim name="${namespace}/thruster_0" thruster_id="0" />
-    <xacro:t200_thruster_sim name="${namespace}/thruster_1" thruster_id="1" />
-    <xacro:t200_thruster_sim name="${namespace}/thruster_2" thruster_id="2" />
-    <xacro:t200_thruster_sim name="${namespace}/thruster_3" thruster_id="3" />
-    <xacro:t200_thruster_sim name="${namespace}/thruster_4" thruster_id="4" />
-    <xacro:t200_thruster_sim name="${namespace}/thruster_5" thruster_id="5" />
-    <xacro:t200_thruster_sim name="${namespace}/thruster_6" thruster_id="6" />
-    <xacro:t200_thruster_sim name="${namespace}/thruster_7" thruster_id="7" />
-
-    <xacro:bar30_sim name="${namespace}/base_link/external_pressure_sensor" />
-
-    <xacro:sonar_sim name="${namespace}/base_link/sonar_front" />
-    <xacro:sonar_sim name="${namespace}/base_link/sonar_back" />
-    <xacro:sonar_sim name="${namespace}/base_link/sonar_right" />
-    <xacro:sonar_sim name="${namespace}/base_link/sonar_left" />
-
-    <xacro:logitech_c920_camera_sim name="${namespace}/base_link/front_camera"
-      topic_name="cameras/cam_front" />
-    <xacro:logitech_c920_camera_sim name="${namespace}/base_link/bottom_camera"
-      topic_name="cameras/cam_bottom" />
-
-    <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}"
-      static_reference_frame="${inertial_reference_frame}" />
+    <xacro:include filename="$(find taluy_sim_desription)/urdf/actuators.urdf.xacro" />
+    <xacro:include filename="$(find taluy_sim_desription)/urdf/sensors.urdf.xacro" />
   </xacro:macro>
 </robot>
