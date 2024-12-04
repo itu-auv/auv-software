@@ -6,8 +6,8 @@
   <xacro:arg name="control_rate" default="20" />
   <xacro:arg name="inertial_reference_frame" default="world" />
 
-  <xacro:include filename="$(find auv_sim_description)/urdf/base.urdf.xacro" />
-  <xacro:include filename="$(find auv_sim_description)/urdf/dynamics.urdf.xacro" />
+  <xacro:include filename="$(find taluy_sim_description)/urdf/base.urdf.xacro" />
+  <xacro:include filename="$(find taluy_sim_description)/urdf/dynamics.urdf.xacro" />
 
   <xacro:auv_sim_base
     namespace="$(arg namespace)"

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:include filename="$(find auv_sim_description)/urdf/gazebo_plugins.urdf.xacro" />
+  <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/actuators/t200_sim.urdf.xacro" />
 
   <xacro:t200_thruster_sim name="${namespace}/thruster_0" thruster_id="0" />
   <xacro:t200_thruster_sim name="${namespace}/thruster_1" thruster_id="1" />
