@@ -14,6 +14,7 @@
   <depend>uuv_sensor_ros_plugins</depend>
   <depend>uuv_gazebo_ros_plugins</depend>
   <depend>gazebo_ros</depend>
+  <depend>auv_common_sim_descriptions</depend>
 
   <export>
     <gazebo_ros gazebo_model_path="${prefix}/meshes" />
