@@ -6,7 +6,7 @@
     <xacro:include filename="$(find taluy_description)/urdf/auv_base.urdf.xacro" />
     <xacro:taluy_base />
 
-    <xacro:include filename="$(find taluy_sim_desription)/urdf/actuators.urdf.xacro" />
-    <xacro:include filename="$(find taluy_sim_desription)/urdf/sensors.urdf.xacro" />
+    <xacro:include filename="$(find taluy_sim_description)/urdf/actuators.urdf.xacro" />
+    <xacro:include filename="$(find taluy_sim_description)/urdf/sensors.urdf.xacro" />
   </xacro:macro>
 </robot>
