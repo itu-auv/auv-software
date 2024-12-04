@@ -23,7 +23,7 @@ class SimulationMockROS {
   ros::NodeHandle nh_;
   ros::Rate rate_;  /// simulation control rate
 
-  ros::Subscriber direct_drive_sub_;
+  ros::Subscriber drive_pulse_sub_;
   ros::Subscriber depth_sub_;
   ros::Subscriber dvl_sub_;
   ros::Publisher depth_pub_;
@@ -31,25 +31,15 @@ class SimulationMockROS {
   ros::Publisher velocity_pub_;
   ros::Publisher velocity_stamped_pub_;
   ros::Publisher battery_sim_pub_;
-  ros::ServiceServer arm_srv_;
   ros::ServiceServer set_dvl_ping_srv_;
 
   std::vector<SimThruster> thrusters_;  /// thruster UUV interface
-  bool armed_;
 
   double gravity_;            /// m/s^2
   double density_;            /// kg / m^3
   double standard_pressure_;  /// kPa
   double battery_voltage_;    /// V
   double battery_current_;    /// A
-
-  bool setArmHandler(std_srvs::SetBoolRequest &req,
-                     std_srvs::SetBoolResponse &resp) {
-    armed_ = req.data;
-    resp.success = true;
-    ROS_INFO("AUV armed state set to: %s", armed_ ? "true" : "false");
-    return true;
-  }
 
   bool setDVLPing(std_srvs::SetBoolRequest &req,
                   std_srvs::SetBoolResponse &resp) {
@@ -59,17 +49,25 @@ class SimulationMockROS {
     return true;
   }
 
-  void directDriveCallback(const auv_msgs::MotorCommand &msg) {
+  void drivePulseCallback(const auv_msgs::MotorCommand &msg) {
     const auto stamp = ros::Time::now();
+
+    // Remapping array: maps input channels to specific thruster indices
+    std::vector<int> channelRemap = {1, 7, 2, 5, 0, 6, 3, 4};
+
+    if (msg.channels.size() < kThrusterSize) {
+      ROS_WARN("Received MotorCommand with insufficient channels.");
+      return;
+    }
+
     for (int i = 0; i < kThrusterSize; i++) {
-      if (i < msg.channels.size()) {
-        if (armed_) {
-          thrusters_[i].publish(msg.channels.at(i), stamp);
-        } else {
-          thrusters_[i].publish(1500, stamp);
-        }
+      if (i < channelRemap.size() && channelRemap[i] < msg.channels.size()) {
+        int remappedChannel = channelRemap[i];
+        thrusters_[i].publish(msg.channels.at(remappedChannel), stamp);
       } else {
-        ROS_WARN("Received MotorCommand with insufficient channels.");
+        ROS_WARN(
+            "Invalid channel remapping or insufficient channels for "
+            "remapping.");
       }
     }
   }
@@ -134,13 +132,13 @@ class SimulationMockROS {
     }
 
     if (!nh_priv.getParam("battery_voltage", battery_voltage_)) {
-      battery_voltage_ = 14;
-      ROS_WARN("Parameter 'battery_voltage' not set. Using default: 14 V");
+      battery_voltage_ = 16;
+      ROS_WARN("Parameter 'battery_voltage' not set. Using default: 16 V");
     }
 
     if (!nh_priv.getParam("battery_current", battery_current_)) {
-      battery_current_ = 5;
-      ROS_WARN("Parameter 'battery_current' not set. Using default: 5 A");
+      battery_current_ = 10;
+      ROS_WARN("Parameter 'battery_current' not set. Using default: 10 A");
     }
   }
 
@@ -158,13 +156,11 @@ class SimulationMockROS {
     depth_sub_ =
         nh_.subscribe("pressure", 1, &SimulationMockROS::depthCallback, this);
     dvl_sub_ = nh_.subscribe("dvl", 1, &SimulationMockROS::dvlCallback, this);
-    direct_drive_sub_ = nh_.subscribe(
-        "direct_drive", 1, &SimulationMockROS::directDriveCallback, this);
+    drive_pulse_sub_ = nh_.subscribe(
+        "drive_pulse", 1, &SimulationMockROS::drivePulseCallback, this);
   }
 
   void initializeServices() {
-    arm_srv_ = nh_.advertiseService("set_arming",
-                                    &SimulationMockROS::setArmHandler, this);
     set_dvl_ping_srv_ = nh_.advertiseService(
         "sensors/dvl/set_ping", &SimulationMockROS::setDVLPing, this);
   }
@@ -177,8 +173,7 @@ class SimulationMockROS {
   }
 
  public:
-  SimulationMockROS(const ros::NodeHandle &nh)
-      : nh_(nh), rate_(1.0), armed_(false) {
+  SimulationMockROS(const ros::NodeHandle &nh) : nh_(nh), rate_(1.0) {
     initializeParameters();
     initializePublishers();
     initializeSubscribers();
