@@ -1,32 +1,27 @@
 <?xml version="1.0"?>
+
 <robot name="taluy" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:include filename="$(find taluy_description)/urdf/auv_base.urdf.xacro" />
-  <xacro:taluy_base />
+  <xacro:arg name="debug" default="0" />
+  <xacro:arg name="namespace" default="taluy" />
+  <xacro:arg name="inertial_reference_frame" default="world" />
 
-  <!-- Gazebo plugins -->
-  <xacro:include filename="$(find auv_sim_description)/urdf/gazebo_plugins.urdf.xacro" />
+  <xacro:include filename="$(find auv_sim_description)/urdf/base.urdf.xacro" />
+  <xacro:include filename="$(find auv_sim_description)/urdf/dynamics.urdf.xacro" />
 
-  <xacro:base_link_sim />
+  <xacro:auv_sim_base
+    namespace="$(arg namespace)"
+    inertial_reference_frame="$(arg inertial_reference_frame)">
+    <gazebo>
+      <plugin name="uuv_plugin" filename="libuuv_underwater_object_ros_plugin.so">
+        <fluid_density>1028.0</fluid_density>
+        <flow_velocity_topic>hydrodynamics/current_velocity</flow_velocity_topic>
+        <debug>$(arg debug)</debug>
+        <xacro:auv_hydro_model namespace="$(arg namespace)" />
+      </plugin>
+    </gazebo>
+  </xacro:auv_sim_base>
 
-  <xacro:logitech_c920_camera_sim name="base_link/front_camera" topic_name="cameras/cam_front" />
-  <xacro:logitech_c920_camera_sim name="base_link/bottom_camera" topic_name="cameras/cam_bottom" />
-
-  <xacro:xsens_mti_g710_sim name="base_link/imu" />
-
-  <xacro:t200_thruster_sim name="thruster_0" thruster_id="0" />
-  <xacro:t200_thruster_sim name="thruster_1" thruster_id="1" />
-  <xacro:t200_thruster_sim name="thruster_2" thruster_id="2" />
-  <xacro:t200_thruster_sim name="thruster_3" thruster_id="3" />
-  <xacro:t200_thruster_sim name="thruster_4" thruster_id="4" />
-  <xacro:t200_thruster_sim name="thruster_5" thruster_id="5" />
-  <xacro:t200_thruster_sim name="thruster_6" thruster_id="6" />
-  <xacro:t200_thruster_sim name="thruster_7" thruster_id="7" />
-
-  <xacro:bar30_sim name="base_link/external_pressure_sensor" />
-
-  <xacro:sonar_sim name="base_link/sonar_front" />
-  <xacro:sonar_sim name="base_link/sonar_back" />
-  <xacro:sonar_sim name="base_link/sonar_right" />
-  <xacro:sonar_sim name="base_link/sonar_left" />
-  <!--  -->
+  <!-- joint state publisher -->
+  <xacro:include filename="$(find uuv_gazebo_ros_plugins)/urdf/misc.xacro" />
+  <xacro:default_joint_state_publisher namespace="$(arg namespace)" update_rate="50" />
 </robot>
