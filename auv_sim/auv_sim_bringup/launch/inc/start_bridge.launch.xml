@@ -4,7 +4,7 @@
   <arg name="control_rate" default="20" />
   <arg name="use_gui" default="false" />
 
-  <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
+  <rosparam command="load" file="$(find auv_common_sim_descriptions)/config/environment.yaml" />
 
   <group ns="$(arg namespace)">
     <node name="auv_sim_bridge" pkg="auv_sim_bridge" type="simulation_mock_node" output="screen">
