@@ -28,7 +28,7 @@
 
   <xacro:macro name="auv_hydro_model" params="namespace">
     <link name="${namespace}/base_link">
-      <neutrally_buoyant>0</neutrally_buoyant>
+      <neutrally_buoyant>1</neutrally_buoyant>
       <volume>${volume}</volume>
       <box>
         <width>0.03</width>
@@ -47,10 +47,10 @@
           0 0 0 0 0 0
         </added_mass>
         <linear_damping>
-          -30 -31 -89 0 0 -1.87
+          -30 -31 -89 -1.87 -1.87 -1.87
         </linear_damping>
         <quadratic_damping>
-          -77 -155 -136 0 0 -7.98
+          -77 -155 -136 -7.98 -7.98 -7.98
         </quadratic_damping>
       </hydrodynamic_model>
     </link>

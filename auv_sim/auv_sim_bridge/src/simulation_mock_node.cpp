@@ -1,4 +1,4 @@
-#include "../include/simulation_mock_ros.h"
+#include "auv_sim_bridge/simulation_mock_ros.h"
 #include "ros/ros.h"
 
 int main(int argc, char *argv[]) {

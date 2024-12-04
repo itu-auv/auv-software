@@ -115,7 +115,9 @@ class SimulationMockROS {
 
     if (!nh_.getParam("/env/standard_pressure", standard_pressure_)) {
       standard_pressure_ = 101325.0 / 1000.0;  // convert to kPa
-      ROS_WARN("Parameter '/env/standard_pressure' not set. Using default: 101.325 kPa");
+      ROS_WARN(
+          "Parameter '/env/standard_pressure' not set. Using default: 101.325 "
+          "kPa");
     } else {
       standard_pressure_ /= 1000.0;  // convert to kPa
     }
@@ -127,7 +129,8 @@ class SimulationMockROS {
 
     if (!nh_.getParam("/env/density", density_)) {
       density_ = 1000.0;
-      ROS_WARN("Parameter '/env/density' not set. Using default: 1000.0 kg/m^3");
+      ROS_WARN(
+          "Parameter '/env/density' not set. Using default: 1000.0 kg/m^3");
     }
 
     if (!nh_priv.getParam("battery_voltage", battery_voltage_)) {
@@ -174,7 +177,8 @@ class SimulationMockROS {
   }
 
  public:
-  SimulationMockROS(const ros::NodeHandle &nh) : nh_(nh), rate_(1.0), armed_(false) {
+  SimulationMockROS(const ros::NodeHandle &nh)
+      : nh_(nh), rate_(1.0), armed_(false) {
     initializeParameters();
     initializePublishers();
     initializeSubscribers();
@@ -183,9 +187,16 @@ class SimulationMockROS {
   }
 
   void spin() {
+    // cumulative current draw sum up all thrusters
+    float current_draw = 0.0f;
+    std::for_each(thrusters_.begin(), thrusters_.end(),
+                  [&current_draw](const SimThruster &thruster) {
+                    current_draw += thruster.get_current_draw();
+                  });
+
     auv_msgs::Power battery_msg;
     battery_msg.voltage = battery_voltage_;
-    battery_msg.current = battery_current_;
+    battery_msg.current = current_draw;
     battery_msg.power = std::fabs(battery_voltage_ * battery_current_);
     while (ros::ok()) {
       battery_sim_pub_.publish(battery_msg);
