@@ -15,8 +15,8 @@
         </geometry>
       </collision>
       <inertial>
-        <mass value="0.5" />
-        <inertia ixx="0.008545" ixy="0.0" ixz="0.0" iyy="0.008545" iyz="0.0" izz="0.0144" />
+        <mass value="0.0001" />
+        <inertia ixx="0.0000001" ixy="0.0" ixz="0.0" iyy="0.0000001" iyz="0.0" izz="0.0000001" />
       </inertial>
     </link>
     <joint name="${name}_joint" type="fixed">
