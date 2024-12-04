@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="gui" default="true" />
-  <arg name="world_name" default="$(find dave_worlds)/worlds/dave_ocean_waves.world" /> 
+  <arg name="world_name" default="$(find dave_worlds)/worlds/valve_manipulation_demo.world" /> 
   <arg name="namespace" default="taluy" />
   <arg name="velocity_control" default="true" />
   <arg name="joy_id" default="0" />
@@ -71,6 +71,9 @@
   <!-- start control -->
   <include file="$(find auv_control)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
+    <!-- <arg name="rate" value="20" />
+    <arg name="use_gui" value="false" /> -->
+    <arg name="start_state_publisher" value="false" />
   </include>
 
 </launch>
