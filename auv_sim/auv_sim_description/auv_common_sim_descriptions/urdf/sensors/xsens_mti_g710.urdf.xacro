@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<robot name="xsens_mti_g710_sim" xmlns:xacro="http://www.ros.org/wiki/xacro">
+<robot name="xsens_mti_g710" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro name="xsens_mti_g710_sim" params="name namespace static_reference_frame">
     <gazebo>
       <plugin filename="libuuv_gazebo_ros_imu_plugin.so"
