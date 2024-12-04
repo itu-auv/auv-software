@@ -9,7 +9,5 @@ include_directories()
 
 install(DIRECTORY
   urdf
-  worlds
-  config
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
