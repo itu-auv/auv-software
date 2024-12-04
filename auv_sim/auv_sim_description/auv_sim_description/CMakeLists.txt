@@ -8,8 +8,7 @@ catkin_package()
 include_directories()
 
 install(DIRECTORY
-  config
-  urdf
   worlds
+  config
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

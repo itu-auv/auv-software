@@ -6,8 +6,8 @@
   <xacro:arg name="control_rate" default="20" />
   <xacro:arg name="inertial_reference_frame" default="world" />
 
-  <xacro:include filename="$(find auv_sim_description)/urdf/base.urdf.xacro" />
-  <xacro:include filename="$(find auv_sim_description)/urdf/dynamics.urdf.xacro" />
+  <xacro:include filename="$(find taluy_sim_description)/urdf/base.urdf.xacro" />
+  <xacro:include filename="$(find taluy_sim_description)/urdf/dynamics.urdf.xacro" />
 
   <xacro:auv_sim_base
     namespace="$(arg namespace)"
@@ -25,7 +25,8 @@
   <!-- joint state publisher -->
   <xacro:include filename="$(find uuv_gazebo_ros_plugins)/urdf/misc.xacro" />
   <xacro:include filename="$(find uuv_sensor_ros_plugins)/urdf/pose_3d_snippets.xacro" />
-  <xacro:default_joint_state_publisher namespace="$(arg namespace)" update_rate="$(arg control_rate)" />
+  <xacro:default_joint_state_publisher namespace="$(arg namespace)"
+    update_rate="$(arg control_rate)" />
 
   <!-- TODO: rename odometry back to pose_gt, to not use -->
   <!-- ground truth odometry -->
@@ -33,7 +34,7 @@
   <xacro:pose_3d_macro
     namespace="$(arg namespace)"
     parent_link="$(arg namespace)/base_link"
-    topic="odometry" 
+    topic="odometry"
     update_rate="$(arg control_rate)"
     noise_sigma="0.0"
     noise_amplitude="0.0"
