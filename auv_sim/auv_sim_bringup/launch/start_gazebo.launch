@@ -7,7 +7,7 @@
 
   <arg name="use_gui" default="true" />
   <arg name="debug" default="false" />
-  <arg name="world_name" default="$(find auv_sim_description)/worlds/seabed.world" />
+  <arg name="world_name" default="$(find auv_common_sim_descriptions)/worlds/seabed.world" />
   <arg name="velocity_control" default="true" />
   <arg name="joy_id" default="0" />
 
