@@ -3,6 +3,7 @@
 <robot name="taluy" xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:arg name="debug" default="0" />
   <xacro:arg name="namespace" default="taluy" />
+  <xacro:arg name="control_rate" default="20" />
   <xacro:arg name="inertial_reference_frame" default="world" />
 
   <xacro:include filename="$(find auv_sim_description)/urdf/base.urdf.xacro" />
@@ -23,5 +24,22 @@
 
   <!-- joint state publisher -->
   <xacro:include filename="$(find uuv_gazebo_ros_plugins)/urdf/misc.xacro" />
-  <xacro:default_joint_state_publisher namespace="$(arg namespace)" update_rate="50" />
+  <xacro:include filename="$(find uuv_sensor_ros_plugins)/urdf/pose_3d_snippets.xacro" />
+  <xacro:default_joint_state_publisher namespace="$(arg namespace)" update_rate="$(arg control_rate)" />
+
+  <!-- TODO: rename odometry back to pose_gt, to not use -->
+  <!-- ground truth odometry -->
+  <!-- and also the odom -->
+  <xacro:pose_3d_macro
+    namespace="$(arg namespace)"
+    parent_link="$(arg namespace)/base_link"
+    topic="odometry" 
+    update_rate="$(arg control_rate)"
+    noise_sigma="0.0"
+    noise_amplitude="0.0"
+    suffix="default"
+    reference_frame="odom"
+    publish_ned_odom="false">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </xacro:pose_3d_macro>
 </robot>
