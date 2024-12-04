@@ -26,7 +26,8 @@ jobs:
       - uses: ros-industrial/industrial_ci@master
         env:
           ROS_DISTRO: noetic
-          UPSTREAM_WORKSPACE: third_party.repos sim.repos
+          UPSTREAM_WORKSPACE: third_party.repos
+          TARGET_WORKSPACE: auv_software
           ADDITIONAL_DEBS: lld
           BASEDIR: ${{ steps.make_temp_build_dir.outputs.build_directory }}
           AFTER_SETUP_UPSTREAM_WORKSPACE: mv $BASEDIR/upstream_ws/third_party $BASEDIR/upstream_ws/src/; vcs pull $BASEDIR/upstream_ws/src
