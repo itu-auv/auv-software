@@ -29,7 +29,7 @@
     <group ns="$(arg namespace)">
         <group if="$(arg use_ned_frame)">
             <param name="robot_description"
-                command="$(find xacro)/xacro '$(find auv_sim_description)/urdf/taluy_sim.urdf.xacro' --inorder
+                command="$(find xacro)/xacro '$(find taluy_sim_description)/urdf/taluy_sim.urdf.xacro' --inorder
                 debug:=$(arg debug)
                 namespace:=$(arg namespace)
                 control_rate:=$(arg control_rate)
@@ -38,7 +38,7 @@
 
         <group unless="$(arg use_ned_frame)">
             <param name="robot_description"
-                command="$(find xacro)/xacro '$(find auv_sim_description)/urdf/taluy_sim.urdf.xacro' --inorder
+                command="$(find xacro)/xacro '$(find taluy_sim_description)/urdf/taluy_sim.urdf.xacro' --inorder
                 debug:=$(arg debug)
                 namespace:=$(arg namespace)
                 control_rate:=$(arg control_rate)
