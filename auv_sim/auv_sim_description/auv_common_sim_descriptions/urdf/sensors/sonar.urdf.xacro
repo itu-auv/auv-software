@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<robot name="sonar_sim" xmlns:xacro="http://ros.org/wiki/xacro">
+<robot name="sonar" xmlns:xacro="http://ros.org/wiki/xacro">
   <xacro:macro name="sonar_sim" params="name">
     <gazebo reference="${name}_link">
       <sensor type="ray" name="${name}">
