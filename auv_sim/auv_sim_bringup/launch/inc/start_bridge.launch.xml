@@ -13,7 +13,7 @@
       <remap from="power" to="mainboard/power_sensor/power" />
 
       <!-- inputs -->
-      <remap from="direct_drive" to="board/drive_pulse" />
+      <remap from="drive_pulse" to="board/drive_pulse" />
       <remap from="pressure" to="sim/pressure" />
     </node>
   </group>
