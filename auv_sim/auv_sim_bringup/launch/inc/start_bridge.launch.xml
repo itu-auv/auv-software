@@ -5,14 +5,17 @@
   <arg name="use_gui" default="false" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
+  <rosparam command="load" file="$(find auv_localization)/config/imu_calibration_data.yaml" />
 
   <group ns="$(arg namespace)">
     <node name="auv_sim_bridge" pkg="auv_sim_bridge" type="simulation_mock_node" output="screen">
       <!-- outputs -->
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="power" to="mainboard/power_sensor/power" />
+      <remap from="imu/data" to="sensors/imu/data" />
 
       <!-- inputs -->
+      <remap from="imu" to="sim/imu" />
       <remap from="drive_pulse" to="board/drive_pulse" />
       <remap from="pressure" to="sim/pressure" />
     </node>
@@ -23,7 +26,7 @@
     <arg name="rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
-  </include> --> 
+  </include> -->
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
     <arg name="namespace" value="$(arg namespace)" />
