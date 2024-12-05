@@ -5,6 +5,7 @@
   <arg name="use_gui" default="false" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
+  <rosparam command="load" file="$(find auv_localization)/config/imu_calibration_data.yaml" />
 
   <group ns="$(arg namespace)">
     <node name="auv_sim_bridge" pkg="auv_sim_bridge" type="simulation_mock_node" output="screen">
@@ -14,8 +15,10 @@
       <remap from="altitude" to="sensors/dvl/altitude" />
       <remap from="velocity_raw" to="sensors/dvl/velocity_raw" />
       <remap from="is_valid" to="sensors/dvl/is_valid" />
+      <remap from="imu/data" to="sensors/imu/data" />
 
       <!-- inputs -->
+      <remap from="imu" to="sim/imu" />
       <remap from="drive_pulse" to="board/drive_pulse" />
       <remap from="pressure" to="sim/pressure" />
       <remap from="dvl" to="sim/dvl" />
@@ -27,7 +30,7 @@
     <arg name="rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
-  </include> --> 
+  </include> -->
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
     <arg name="namespace" value="$(arg namespace)" />

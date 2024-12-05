@@ -28,7 +28,7 @@
         name="${name}_imu_plugin">
         <robot_namespace>${namespace}</robot_namespace>
         <link_name>${name}_sim_link</link_name>
-        <sensor_topic>sensors/imu/data</sensor_topic>
+        <sensor_topic>sim/imu</sensor_topic>
         <gyroscope_noise_density>0.0002514074</gyroscope_noise_density>
         <gyroscope_random_walk>0.000038785</gyroscope_random_walk>
         <gyroscope_bias_correlation_time>1000.0</gyroscope_bias_correlation_time>
