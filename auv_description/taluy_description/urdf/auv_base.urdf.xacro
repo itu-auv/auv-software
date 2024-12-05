@@ -108,6 +108,14 @@
       parent="${namespace}/base_link" position="0 0 -0.07"
       orientation="0 ${math.pi/2} ${math.pi/2}" />
 
+    <xacro:logitech_c920_camera name="${namespace}/base_link/bottom_camera_left"
+      parent="${namespace}/base_link" position="0 0.15 -0.18"
+      orientation="0 ${math.pi/2} 0" />
+
+    <xacro:logitech_c920_camera name="${namespace}/base_link/bottom_camera_right"
+      parent="${namespace}/base_link" position="0 -0.15 -0.18"
+      orientation="0 ${math.pi/2} 0" />
+
     <xacro:torpedo name="${namespace}/base_link/left_torpedo"
       parent="${namespace}/base_link" position="0.2 0.1 -0.11"
       orientation="0 0 0" />

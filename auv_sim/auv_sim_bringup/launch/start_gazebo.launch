@@ -46,4 +46,37 @@
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="use_gui" default="$(arg use_gui)" />
   </include>
+
+  <group ns="$(arg namespace)/cameras">
+    <rosparam command="load" file="$(find auv_bringup)/config/cameras.yaml" />
+  </group>
+
+  <include file="$(find auv_cam)/launch/start_gst_camera.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="compressed" value="false" />
+    <arg name="verbose" value="false" />
+    <arg name="name" value="cam_bottom_left" />
+    <arg name="pub_camera_info" value="true" />
+    <arg name="launch_camera_driver" value="false" />
+  </include>
+
+  <!-- launch bottom camera -->
+  <include file="$(find auv_cam)/launch/start_gst_camera.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="compressed" value="false" />
+    <arg name="verbose" value="false" />
+    <arg name="name" value="cam_bottom_right" />
+    <arg name="pub_camera_info" value="true" />
+    <arg name="launch_camera_driver" value="false" />
+  </include>
+
+  <!-- launch bottom camera -->
+  <include file="$(find auv_cam)/launch/start_gst_camera.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="compressed" value="false" />
+    <arg name="verbose" value="false" />
+    <arg name="name" value="cam_bottom" />
+    <arg name="pub_camera_info" value="true" />
+    <arg name="launch_camera_driver" value="false" />
+  </include>
 </launch>

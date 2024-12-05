@@ -11,6 +11,10 @@
     topic_name="cameras/cam_front" />
   <xacro:logitech_c920_camera_sim name="${namespace}/base_link/bottom_camera"
     topic_name="cameras/cam_bottom" />
+  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/bottom_camera_left"
+    topic_name="cameras/cam_bottom_left" />
+  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/bottom_camera_right"
+    topic_name="cameras/cam_bottom_right" />
   <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}"
     static_reference_frame="${inertial_reference_frame}" />
   <xacro:wayfinder_dvl_sim name="${namespace}/base_link/dvl" namespace="${namespace}"
