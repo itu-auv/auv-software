@@ -34,7 +34,7 @@
   <xacro:pose_3d_macro
     namespace="$(arg namespace)"
     parent_link="$(arg namespace)/base_link"
-    topic="odometry"
+    topic="odometry_gt"
     update_rate="$(arg control_rate)"
     noise_sigma="0.0"
     noise_amplitude="0.0"

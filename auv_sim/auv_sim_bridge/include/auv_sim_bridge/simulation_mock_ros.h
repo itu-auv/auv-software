@@ -5,14 +5,12 @@
 #include "auv_msgs/MotorCommand.h"
 #include "auv_msgs/Power.h"
 #include "geometry_msgs/Twist.h"
-#include "geometry_msgs/TwistWithCovarianceStamped.h"
 #include "sensor_msgs/FluidPressure.h"
 #include "sim_thruster_ros.h"
+#include "std_msgs/Bool.h"
 #include "std_msgs/Float32.h"
 #include "std_srvs/SetBool.h"
-#include "uuv_gazebo_ros_plugins_msgs/FloatStamped.h"
 #include "uuv_sensor_ros_plugins_msgs/DVL.h"
-#include "uuv_sensor_ros_plugins_msgs/DVLBeam.h"
 
 namespace auv_sim_bridge {
 
@@ -28,10 +26,10 @@ class SimulationMockROS {
   ros::Subscriber dvl_sub_;
   ros::Publisher depth_pub_;
   ros::Publisher altitude_pub_;
-  ros::Publisher velocity_pub_;
-  ros::Publisher velocity_stamped_pub_;
+  ros::Publisher velocity_raw_pub_;
+  ros::Publisher is_valid_pub_;
   ros::Publisher battery_sim_pub_;
-  ros::ServiceServer set_dvl_ping_srv_;
+  ros::ServiceServer dvl_enable_srv_;
 
   std::vector<SimThruster> thrusters_;  /// thruster UUV interface
 
@@ -40,12 +38,14 @@ class SimulationMockROS {
   double standard_pressure_;  /// kPa
   double battery_voltage_;    /// V
   double battery_current_;    /// A
+  bool dvl_enabled_;
 
-  bool setDVLPing(std_srvs::SetBoolRequest &req,
-                  std_srvs::SetBoolResponse &resp) {
-    // this is a dummy service, does nothing
+  bool setDVLEnable(std_srvs::SetBoolRequest &req,
+                    std_srvs::SetBoolResponse &resp) {
+    dvl_enabled_ = req.data;
     resp.success = true;
-    ROS_INFO("DVL ping set request received.");
+    ROS_INFO("DVL enable set request received. DVL enabled: %s",
+             dvl_enabled_ ? "true" : "false");
     return true;
   }
 
@@ -83,22 +83,20 @@ class SimulationMockROS {
 
   void dvlCallback(const uuv_sensor_ros_plugins_msgs::DVL &msg) {
     std_msgs::Float32 altitude_msg;
-    geometry_msgs::Twist velocity_msg;
-    geometry_msgs::TwistWithCovarianceStamped velocity_stamped_msg;
+    geometry_msgs::Twist velocity_raw_msg;
+
     // Dvl altitude
     altitude_msg.data = msg.altitude;
     altitude_pub_.publish(altitude_msg);
 
     // Dvl velocity
-    velocity_msg.linear = msg.velocity;
-    velocity_pub_.publish(velocity_msg);
+    velocity_raw_msg.linear = msg.velocity;
+    velocity_raw_pub_.publish(velocity_raw_msg);
 
-    boost::array<double, 36> covariance;
-    covariance.fill(1e-6);
-    velocity_stamped_msg.header.frame_id = "dvl_link";
-    velocity_stamped_msg.twist.twist = velocity_msg;
-    velocity_stamped_msg.twist.covariance = covariance;
-    velocity_stamped_pub_.publish(velocity_stamped_msg);
+    // Dvl validity
+    std_msgs::Bool is_valid_msg;
+    is_valid_msg.data = dvl_enabled_;
+    is_valid_pub_.publish(is_valid_msg);
   }
 
   void initializeParameters() {
@@ -140,15 +138,15 @@ class SimulationMockROS {
       battery_current_ = 10;
       ROS_WARN("Parameter 'battery_current' not set. Using default: 10 A");
     }
+
+    dvl_enabled_ = true;
   }
 
   void initializePublishers() {
     depth_pub_ = nh_.advertise<std_msgs::Float32>("depth", 1);
     altitude_pub_ = nh_.advertise<std_msgs::Float32>("altitude", 1);
-    velocity_pub_ = nh_.advertise<geometry_msgs::Twist>("velocity", 1);
-    velocity_stamped_pub_ =
-        nh_.advertise<geometry_msgs::TwistWithCovarianceStamped>(
-            "velocity_stamped", 1);
+    velocity_raw_pub_ = nh_.advertise<geometry_msgs::Twist>("velocity_raw", 1);
+    is_valid_pub_ = nh_.advertise<std_msgs::Bool>("is_valid", 1);
     battery_sim_pub_ = nh_.advertise<auv_msgs::Power>("power", 1);
   }
 
@@ -161,8 +159,8 @@ class SimulationMockROS {
   }
 
   void initializeServices() {
-    set_dvl_ping_srv_ = nh_.advertiseService(
-        "sensors/dvl/set_ping", &SimulationMockROS::setDVLPing, this);
+    dvl_enable_srv_ = nh_.advertiseService(
+        "sensors/dvl/enable", &SimulationMockROS::setDVLEnable, this);
   }
 
   void initializeThrusters() {
