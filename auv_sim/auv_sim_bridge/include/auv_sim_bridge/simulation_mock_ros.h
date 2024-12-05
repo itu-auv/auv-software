@@ -6,6 +6,7 @@
 #include "auv_msgs/Power.h"
 #include "geometry_msgs/Twist.h"
 #include "sensor_msgs/FluidPressure.h"
+#include "sensor_msgs/Imu.h"
 #include "sim_thruster_ros.h"
 #include "std_msgs/Bool.h"
 #include "std_msgs/Float32.h"
@@ -24,14 +25,17 @@ class SimulationMockROS {
   ros::Subscriber drive_pulse_sub_;
   ros::Subscriber depth_sub_;
   ros::Subscriber dvl_sub_;
+  ros::Subscriber imu_sub_;
   ros::Publisher depth_pub_;
   ros::Publisher altitude_pub_;
+  ros::Publisher imu_pub_;
   ros::Publisher velocity_raw_pub_;
   ros::Publisher is_valid_pub_;
   ros::Publisher battery_sim_pub_;
   ros::ServiceServer dvl_enable_srv_;
 
   std::vector<SimThruster> thrusters_;  /// thruster UUV interface
+  std::vector<double> imu_offset_;
 
   double gravity_;            /// m/s^2
   double density_;            /// kg / m^3
@@ -81,6 +85,16 @@ class SimulationMockROS {
     depth_pub_.publish(depth_msg);
   }
 
+  void imuCallback(const sensor_msgs::Imu &msg) {
+      sensor_msgs::Imu imu_msg = msg;
+
+      imu_msg.angular_velocity.x += imu_offset_[0];
+      imu_msg.angular_velocity.y += imu_offset_[1];
+      imu_msg.angular_velocity.z += imu_offset_[2];
+
+      imu_pub_.publish(imu_msg);
+  }
+
   void dvlCallback(const uuv_sensor_ros_plugins_msgs::DVL &msg) {
     std_msgs::Float32 altitude_msg;
     geometry_msgs::Twist velocity_raw_msg;
@@ -123,6 +137,13 @@ class SimulationMockROS {
       ROS_WARN("Parameter '/env/gravity' not set. Using default: 9.81 m/s^2");
     }
 
+    if (!nh_priv.getParam("drift", imu_offset_)) {
+      imu_offset_ = {0.0, 0.0, 0.0};
+      ROS_WARN(
+          "Parameter 'imu_offset_' not set. Using default: {0.0, 0.0, "
+          "0.0}");
+    }
+
     if (!nh_.getParam("/env/density", density_)) {
       density_ = 1000.0;
       ROS_WARN(
@@ -144,6 +165,7 @@ class SimulationMockROS {
 
   void initializePublishers() {
     depth_pub_ = nh_.advertise<std_msgs::Float32>("depth", 1);
+    imu_pub_ = nh_.advertise<sensor_msgs::Imu>("imu/data", 1);
     altitude_pub_ = nh_.advertise<std_msgs::Float32>("altitude", 1);
     velocity_raw_pub_ = nh_.advertise<geometry_msgs::Twist>("velocity_raw", 1);
     is_valid_pub_ = nh_.advertise<std_msgs::Bool>("is_valid", 1);
@@ -153,6 +175,7 @@ class SimulationMockROS {
   void initializeSubscribers() {
     depth_sub_ =
         nh_.subscribe("pressure", 1, &SimulationMockROS::depthCallback, this);
+    imu_sub_ = nh_.subscribe("imu", 1, &SimulationMockROS::imuCallback, this);
     dvl_sub_ = nh_.subscribe("dvl", 1, &SimulationMockROS::dvlCallback, this);
     drive_pulse_sub_ = nh_.subscribe(
         "drive_pulse", 1, &SimulationMockROS::drivePulseCallback, this);
