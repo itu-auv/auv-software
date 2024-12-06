@@ -1,10 +1,12 @@
 #ifndef _AUV_SIM_BRIDGE_SIMULATION_MOCK_H_
 #define _AUV_SIM_BRIDGE_SIMULATION_MOCK_H_
+#include <Eigen/Dense>
 #include <boost/array.hpp>
 
 #include "auv_msgs/MotorCommand.h"
 #include "auv_msgs/Power.h"
 #include "geometry_msgs/Twist.h"
+#include "nav_msgs/Odometry.h"
 #include "sensor_msgs/FluidPressure.h"
 #include "sim_thruster_ros.h"
 #include "std_msgs/Bool.h"
@@ -39,6 +41,27 @@ class SimulationMockROS {
   double battery_voltage_;    /// V
   double battery_current_;    /// A
   bool dvl_enabled_;
+  ros::Rate dvl_rate_;  /// Hz
+
+  geometry_msgs::Twist rotateVelocity(
+      const geometry_msgs::Twist &input_velocity, double angle) {
+    const double theta = angle * M_PI / 180.0;
+    Eigen::Matrix3d rotation_matrix;
+    rotation_matrix << std::cos(theta), -std::sin(theta), 0, std::sin(theta),
+        std::cos(theta), 0, 0, 0, 1;
+
+    Eigen::Vector3d velocity_vector(input_velocity.linear.x,
+                                    input_velocity.linear.y,
+                                    input_velocity.linear.z);
+
+    Eigen::Vector3d rotated_velocity = rotation_matrix * velocity_vector;
+
+    geometry_msgs::Twist velocity_msg;
+    velocity_msg.linear.x = rotated_velocity.x();
+    velocity_msg.linear.y = rotated_velocity.y();
+    velocity_msg.linear.z = rotated_velocity.z();
+    return velocity_msg;
+  }
 
   bool setDVLEnable(std_srvs::SetBoolRequest &req,
                     std_srvs::SetBoolResponse &resp) {
@@ -81,22 +104,25 @@ class SimulationMockROS {
     depth_pub_.publish(depth_msg);
   }
 
-  void dvlCallback(const uuv_sensor_ros_plugins_msgs::DVL &msg) {
+  void dvlCallback(const nav_msgs::Odometry &msg) {
     std_msgs::Float32 altitude_msg;
     geometry_msgs::Twist velocity_raw_msg;
+    std_msgs::Bool is_valid_msg;
 
+    // TODO: add altitude data
     // Dvl altitude
-    altitude_msg.data = msg.altitude;
+    altitude_msg.data = 0;
     altitude_pub_.publish(altitude_msg);
 
     // Dvl velocity
-    velocity_raw_msg.linear = msg.velocity;
+    velocity_raw_msg = rotateVelocity(msg.twist.twist, 135.0);
     velocity_raw_pub_.publish(velocity_raw_msg);
 
     // Dvl validity
-    std_msgs::Bool is_valid_msg;
     is_valid_msg.data = dvl_enabled_;
     is_valid_pub_.publish(is_valid_msg);
+
+    dvl_rate_.sleep();
   }
 
   void initializeParameters() {
@@ -140,6 +166,13 @@ class SimulationMockROS {
     }
 
     dvl_enabled_ = true;
+
+    double dvl_rate;
+    if (!nh_priv.getParam("dvl_publish_rate", dvl_rate)) {
+      dvl_rate = 10.0;
+      ROS_WARN("Parameter 'dvl_publish_rate' not set. Using default: 10.0 Hz");
+    }
+    dvl_rate_ = ros::Rate(dvl_rate);
   }
 
   void initializePublishers() {
@@ -153,7 +186,8 @@ class SimulationMockROS {
   void initializeSubscribers() {
     depth_sub_ =
         nh_.subscribe("pressure", 1, &SimulationMockROS::depthCallback, this);
-    dvl_sub_ = nh_.subscribe("dvl", 1, &SimulationMockROS::dvlCallback, this);
+    dvl_sub_ =
+        nh_.subscribe("odometry_gt", 1, &SimulationMockROS::dvlCallback, this);
     drive_pulse_sub_ = nh_.subscribe(
         "drive_pulse", 1, &SimulationMockROS::drivePulseCallback, this);
   }
@@ -171,7 +205,8 @@ class SimulationMockROS {
   }
 
  public:
-  SimulationMockROS(const ros::NodeHandle &nh) : nh_(nh), rate_(1.0) {
+  SimulationMockROS(const ros::NodeHandle &nh)
+      : nh_(nh), rate_(1.0), dvl_rate_(1.0) {
     initializeParameters();
     initializePublishers();
     initializeSubscribers();

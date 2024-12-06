@@ -18,7 +18,7 @@
       <!-- inputs -->
       <remap from="drive_pulse" to="board/drive_pulse" />
       <remap from="pressure" to="sim/pressure" />
-      <remap from="dvl" to="sim/dvl" />
+      <remap from="odometry_gt" to="odometry_gt" />
     </node>
   </group>
 
