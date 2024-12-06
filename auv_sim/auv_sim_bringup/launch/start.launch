@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <launch>
+  <env name="GAZEBO_MODEL_PATH" value="$(find auv_sim_description)/models:${GAZEBO_MODEL_PATH}"/>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
   <arg name="use_ned_frame" default="false" />
@@ -7,21 +8,26 @@
 
   <arg name="use_gui" default="true" />
   <arg name="debug" default="false" />
-  <arg name="world_name" default="$(find auv_sim_description)/worlds/seabed.world" />
+  <arg name="world_name" default="$(find auv_sim_description)/worlds/pool.world" />
+  <arg name="world" default="pool" />
   <arg name="velocity_control" default="true" />
   <arg name="joy_id" default="0" />
 
   <arg name="x" value="9.0" />
   <arg name="y" value="-3.0" />
-  <arg name="z" value="-87.0" />
+  <arg name="z" value="0.0" />
   <arg name="roll" value="0" />
   <arg name="pitch" value="0" />
   <arg name="yaw" value="-1.8" />
 
+  <arg name="use_sea" default="$(eval arg('world') == 'sea')" />
+  <arg name="use_pool" default="$(eval arg('world') == 'pool')" />
+
   <include file="$(find auv_sim_bringup)/launch/inc/start_world.launch.xml">
     <arg name="gui" default="$(arg use_gui)" />
     <arg name="debug" default="$(arg debug)" />
-    <arg name="world_name" default="$(arg world_name)" />
+    <arg name="world_name" default="$(eval '$(find auv_sim_description)/worlds/seabed.world' if arg('use_sea') else '$(find auv_sim_description)/worlds/pool.world')" />
+    <arg name="world" default="$(eval 'sea' if arg('use_sea') else 'pool')" />
     <arg name="namespace" default="$(arg namespace)" />
     <arg name="velocity_control" default="$(arg velocity_control)" />
     <arg name="joy_id" default="$(arg joy_id)" />
@@ -35,7 +41,7 @@
     <arg name="reference_frame" value="$(arg reference_frame)" />
     <arg name="x" value="$(arg x)" />
     <arg name="y" value="$(arg y)" />
-    <arg name="z" value="$(arg z)" />
+    <arg name="z" value="$(eval -87 if arg('use_sea') else 0)" />
     <arg name="roll" value="$(arg roll)" />
     <arg name="pitch" value="$(arg pitch)" />
     <arg name="yaw" value="$(arg yaw)" />
@@ -46,4 +52,5 @@
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="use_gui" default="$(arg use_gui)" />
   </include>
+  
 </launch>
