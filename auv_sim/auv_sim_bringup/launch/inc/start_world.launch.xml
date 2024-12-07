@@ -2,10 +2,9 @@
 <launch>
   <arg name="gui" default="true" />
   <arg name="debug" default="false" />
-  <arg name="world_name"/>
+  <arg name="world_name" default="$(find auv_sim_description)/worlds/seabed.world" />
   <arg name="namespace" default="taluy" />
-  <arg name="velocity_control" default="true" />
-  <arg name="joy_id" default="0" />
+  <arg name="seabed_world" default="$(find auv_sim_description)/worlds/seabed.world" />
 
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
     <arg name="world_name" value="$(arg world_name)" />
@@ -16,9 +15,9 @@
     <arg name="verbose" value="true" />
   </include>
 
-  <node if="$(eval arg('world_name') == '$(find auv_sim_description)/worlds/seabed.world')" 
-        name="publish_world_models" pkg="uuv_assistants" type="publish_world_models.py"
-        output="screen">
-    <rosparam command="load" file="$(find auv_sim_bringup)/config/world_models.yaml" />
-  </node>
+  <group if="$(eval arg('world_name') == arg('seabed_world'))">
+    <node name="publish_world_models" pkg="uuv_assistants" type="publish_world_models.py" output="screen">
+      <rosparam command="load" file="$(find auv_sim_bringup)/config/world_models.yaml" />
+    </node>
+  </group>
 </launch>
