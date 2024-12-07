@@ -2,7 +2,7 @@
 <launch>
   <arg name="gui" default="true" />
   <arg name="debug" default="false" />
-  <arg name="world_name" default="$(find auv_sim_description)/worlds/seabed.world" />
+  <arg name="world_name" default="$(find auv_sim_description)/worlds/pool.world" />
   <arg name="namespace" default="taluy" />
   <arg name="seabed_world" default="$(find auv_sim_description)/worlds/seabed.world" />
 
