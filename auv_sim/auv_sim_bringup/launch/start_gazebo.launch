@@ -1,13 +1,14 @@
 <?xml version="1.0"?>
 <launch>
+  <env name="GAZEBO_MODEL_PATH" value="$(find auv_sim_description)/models:${GAZEBO_MODEL_PATH}"/>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
   <arg name="use_ned_frame" default="false" />
   <arg name="reference_frame" value="world" />
-
+  
   <arg name="use_gui" default="true" />
   <arg name="debug" default="false" />
-  <arg name="world_name" default="$(find auv_sim_description)/worlds/seabed.world" />
+  <arg name="world_name" default="$(find auv_sim_description)/worlds/pool.world" />
   <arg name="velocity_control" default="true" />
   <arg name="joy_id" default="0" />
 
