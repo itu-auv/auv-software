@@ -8,6 +8,7 @@
 #include "geometry_msgs/Twist.h"
 #include "nav_msgs/Odometry.h"
 #include "sensor_msgs/FluidPressure.h"
+#include "sensor_msgs/Range.h"
 #include "sim_thruster_ros.h"
 #include "std_msgs/Bool.h"
 #include "std_msgs/Float32.h"
@@ -26,6 +27,7 @@ class SimulationMockROS {
   ros::Subscriber drive_pulse_sub_;
   ros::Subscriber depth_sub_;
   ros::Subscriber dvl_sub_;
+  ros::Subscriber altimeter_sub_;
   ros::Publisher depth_pub_;
   ros::Publisher altitude_pub_;
   ros::Publisher velocity_raw_pub_;
@@ -42,6 +44,7 @@ class SimulationMockROS {
   double battery_current_;    /// A
   bool dvl_enabled_;
   ros::Rate dvl_rate_;  /// Hz
+  double latest_altitude_;
 
   geometry_msgs::Twist rotateVelocity(
       const geometry_msgs::Twist &input_velocity, double angle) {
@@ -104,22 +107,28 @@ class SimulationMockROS {
     depth_pub_.publish(depth_msg);
   }
 
-  void dvlCallback(const nav_msgs::Odometry &msg) {
+  void altimeterCallback(const sensor_msgs::Range &msg) {
     std_msgs::Float32 altitude_msg;
+
+    altitude_msg.data = msg.range;
+    altitude_pub_.publish(altitude_msg);
+
+    latest_altitude_ = msg.range;
+  }
+
+  void dvlCallback(const nav_msgs::Odometry &msg) {
     geometry_msgs::Twist velocity_raw_msg;
     std_msgs::Bool is_valid_msg;
 
-    // TODO: add altitude data
-    // Dvl altitude
-    altitude_msg.data = 0;
-    altitude_pub_.publish(altitude_msg);
+    if (latest_altitude_ > 0.3 && dvl_enabled_) {
+      velocity_raw_msg = rotateVelocity(msg.twist.twist, 135.0);
+      is_valid_msg.data = true;
+    }
 
     // Dvl velocity
-    velocity_raw_msg = rotateVelocity(msg.twist.twist, 135.0);
     velocity_raw_pub_.publish(velocity_raw_msg);
 
     // Dvl validity
-    is_valid_msg.data = dvl_enabled_;
     is_valid_pub_.publish(is_valid_msg);
 
     dvl_rate_.sleep();
@@ -188,6 +197,8 @@ class SimulationMockROS {
         nh_.subscribe("pressure", 1, &SimulationMockROS::depthCallback, this);
     dvl_sub_ =
         nh_.subscribe("odometry_gt", 1, &SimulationMockROS::dvlCallback, this);
+    altimeter_sub_ = nh_.subscribe("sim/altimeter", 1,
+                                   &SimulationMockROS::altimeterCallback, this);
     drive_pulse_sub_ = nh_.subscribe(
         "drive_pulse", 1, &SimulationMockROS::drivePulseCallback, this);
   }

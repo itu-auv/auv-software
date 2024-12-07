@@ -13,4 +13,6 @@
     topic_name="cameras/cam_bottom" />
   <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}"
     static_reference_frame="${inertial_reference_frame}" />
+  <xacro:altimeter_sim name="${namespace}/base_link/altimeter" parent="${namespace}/base_link"
+    position="0.2 0 -0.11" orientation="0 0 0" />
 </robot>
