@@ -37,13 +37,13 @@
           <noise>
             <type>gaussian</type>
             <mean>0.0</mean>
-            <stddev>0.0</stddev>
+            <stddev>0.05</stddev>
           </noise>
         </ray>
         <plugin filename="libgazebo_ros_range.so" name="${name}_range_plugin">
           <topicName>sim/altimeter</topicName>
           <frameName>${name}_link</frameName>
-          <gaussianNoise>0.000</gaussianNoise>
+          <gaussianNoise>0.005</gaussianNoise>
           <alwaysOn>true</alwaysOn>
           <updateRate>20</updateRate>
           <visualize>true</visualize>

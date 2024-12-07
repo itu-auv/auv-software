@@ -45,6 +45,8 @@ class SimulationMockROS {
   bool dvl_enabled_;
   ros::Rate dvl_rate_;  /// Hz
   double latest_altitude_;
+  Eigen::Matrix3d linear_covariance_;
+  Eigen::Matrix3d noise_transform_;
 
   geometry_msgs::Twist rotateVelocity(
       const geometry_msgs::Twist &input_velocity, double angle) {
@@ -64,6 +66,17 @@ class SimulationMockROS {
     velocity_msg.linear.y = rotated_velocity.y();
     velocity_msg.linear.z = rotated_velocity.z();
     return velocity_msg;
+  }
+
+  geometry_msgs::Twist addNoiseToTwist(const geometry_msgs::Twist &input) {
+    Eigen::Vector3d noise = noise_transform_ * Eigen::Vector3d::Random();
+
+    geometry_msgs::Twist noisy_twist = input;
+    noisy_twist.linear.x += noise(0);
+    noisy_twist.linear.y += noise(1);
+    noisy_twist.linear.z += noise(2);
+
+    return noisy_twist;
   }
 
   bool setDVLEnable(std_srvs::SetBoolRequest &req,
@@ -121,7 +134,8 @@ class SimulationMockROS {
     std_msgs::Bool is_valid_msg;
 
     if (latest_altitude_ > 0.3 && dvl_enabled_) {
-      velocity_raw_msg = rotateVelocity(msg.twist.twist, 135.0);
+      velocity_raw_msg = addNoiseToTwist(msg.twist.twist);
+      velocity_raw_msg = rotateVelocity(velocity_raw_msg, 135.0);
       is_valid_msg.data = true;
     }
 
@@ -182,6 +196,41 @@ class SimulationMockROS {
       ROS_WARN("Parameter 'dvl_publish_rate' not set. Using default: 10.0 Hz");
     }
     dvl_rate_ = ros::Rate(dvl_rate);
+
+    // DVL covariance
+    if (!nh_.getParam("sensors/dvl/covariance/linear_x",
+                      linear_covariance_(0, 0))) {
+      linear_covariance_(0, 0) = 0.000015;
+      ROS_WARN(
+          "Parameter 'sensors/dvl/covariance/linear_x' not set. Using default: "
+          "0.000015");
+    }
+    if (!nh_.getParam("sensors/dvl/covariance/linear_y",
+                      linear_covariance_(1, 1))) {
+      linear_covariance_(1, 1) = 0.000015;
+      ROS_WARN(
+          "Parameter 'sensors/dvl/covariance/linear_y' not set. Using default: "
+          "0.000015");
+    }
+    if (!nh_.getParam("sensors/dvl/covariance/linear_z",
+                      linear_covariance_(2, 2))) {
+      linear_covariance_(2, 2) = 0.00005;
+      ROS_WARN(
+          "Parameter 'sensors/dvl/covariance/linear_z' not set. Using default: "
+          "0.00005");
+    }
+
+    // Compute eigendecomposition once
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigen_solver(
+        linear_covariance_);
+    if (eigen_solver.info() != Eigen::Success) {
+      ROS_WARN("Failed to compute eigenvalues for the covariance matrix!");
+      noise_transform_ = Eigen::Matrix3d::Zero();
+    } else {
+      noise_transform_ =
+          eigen_solver.eigenvectors() *
+          eigen_solver.eigenvalues().cwiseMax(0.0).cwiseSqrt().asDiagonal();
+    }
   }
 
   void initializePublishers() {
