@@ -28,7 +28,6 @@ class SimulationMockROS {
   ros::Subscriber drive_pulse_sub_;
   ros::Subscriber depth_sub_;
   ros::Subscriber dvl_sub_;
-  ros::Subscriber dvl_altimeter_sub_;
   ros::Publisher depth_pub_;
   ros::Publisher altitude_pub_;
   ros::Publisher velocity_raw_pub_;
@@ -44,15 +43,10 @@ class SimulationMockROS {
   double battery_voltage_;    /// V
   double battery_current_;    /// A
   bool dvl_enabled_;
-  double dvl_rate_;  /// Hz
-  double latest_altitude_;
   Eigen::Matrix3d linear_covariance_;
   Eigen::Matrix3d noise_transform_;
-  geometry_msgs::Twist latest_dvl_twist_;
-  ros::Timer dvl_timer_;
 
-  geometry_msgs::Twist rotateVelocity(
-      const geometry_msgs::Twist &input_velocity, double angle) {
+  void rotateVelocity(geometry_msgs::Twist &input_velocity, double angle) {
     const double theta = angle * M_PI / 180.0;
     Eigen::Matrix3d rotation_matrix;
     rotation_matrix << std::cos(theta), -std::sin(theta), 0, std::sin(theta),
@@ -64,11 +58,9 @@ class SimulationMockROS {
 
     Eigen::Vector3d rotated_velocity = rotation_matrix * velocity_vector;
 
-    geometry_msgs::Twist velocity_msg;
-    velocity_msg.linear.x = rotated_velocity.x();
-    velocity_msg.linear.y = rotated_velocity.y();
-    velocity_msg.linear.z = rotated_velocity.z();
-    return velocity_msg;
+    input_velocity.linear.x = rotated_velocity.x();
+    input_velocity.linear.y = rotated_velocity.y();
+    input_velocity.linear.z = rotated_velocity.z();
   }
 
   void addNoiseToTwist(geometry_msgs::Twist &input) {
@@ -120,25 +112,19 @@ class SimulationMockROS {
     depth_pub_.publish(depth_msg);
   }
 
-  void dvlAltimeterCallback(const sensor_msgs::Range &msg) {
-    latest_altitude_ = msg.range;
-  }
-
-  void dvlCallback(const nav_msgs::Odometry &msg) {
-    latest_dvl_twist_ = msg.twist.twist;
-  }
-
-  void dvlTimerCallback(const ros::TimerEvent &) {
-    geometry_msgs::Twist velocity_raw_msg = latest_dvl_twist_;
+  void dvlCallback(const uuv_sensor_ros_plugins_msgs::DVL &msg) {
+    geometry_msgs::Twist velocity_raw_msg;
     std_msgs::Bool is_valid_msg;
     std_msgs::Float32 altitude_msg;
 
-    if (latest_altitude_ > kMinDvlAltitude && dvl_enabled_) {
+    if (msg.altitude > kMinDvlAltitude && dvl_enabled_) {
+      velocity_raw_msg.linear = msg.velocity;
       addNoiseToTwist(velocity_raw_msg);
-      velocity_raw_msg = rotateVelocity(velocity_raw_msg, 135.0);
+      rotateVelocity(velocity_raw_msg, 135.0);
+
       is_valid_msg.data = true;
     }
-    altitude_msg.data = latest_altitude_;
+    altitude_msg.data = msg.altitude;
 
     altitude_pub_.publish(altitude_msg);
     velocity_raw_pub_.publish(velocity_raw_msg);
@@ -187,13 +173,6 @@ class SimulationMockROS {
 
     dvl_enabled_ = true;
 
-    if (!nh_priv.getParam("dvl_rate", dvl_rate_)) {
-      dvl_rate_ = 10.0;
-      ROS_WARN("Parameter 'dvl_rate' not set. Using default: 10.0 Hz");
-    }
-    dvl_timer_ = nh_.createTimer(ros::Duration(1.0 / dvl_rate_),
-                                 &SimulationMockROS::dvlTimerCallback, this);
-
     // DVL covariance
     if (!nh_.getParam("sensors/dvl/covariance/linear_x",
                       linear_covariance_(0, 0))) {
@@ -241,10 +220,7 @@ class SimulationMockROS {
   void initializeSubscribers() {
     depth_sub_ =
         nh_.subscribe("pressure", 1, &SimulationMockROS::depthCallback, this);
-    dvl_sub_ =
-        nh_.subscribe("odometry_gt", 1, &SimulationMockROS::dvlCallback, this);
-    dvl_altimeter_sub_ = nh_.subscribe(
-        "dvl_altimeter", 1, &SimulationMockROS::dvlAltimeterCallback, this);
+    dvl_sub_ = nh_.subscribe("dvl", 1, &SimulationMockROS::dvlCallback, this);
     drive_pulse_sub_ = nh_.subscribe(
         "drive_pulse", 1, &SimulationMockROS::drivePulseCallback, this);
   }

@@ -13,6 +13,6 @@
     topic_name="cameras/cam_bottom" />
   <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}"
     static_reference_frame="${inertial_reference_frame}" />
-  <xacro:dvl_altimeter_sim name="${namespace}/base_link/dvl_altimeter"
-    parent="${namespace}/base_link/dvl_link" orientation="0 ${math.pi/2} 0" />
+  <xacro:wayfinder_dvl_sim name="${namespace}/base_link/dvl" namespace="${namespace}"
+    static_reference_frame="${inertial_reference_frame}" update_rate="10" />
 </robot>
