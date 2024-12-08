@@ -48,6 +48,8 @@ class SimulationMockROS {
   double latest_altitude_;
   Eigen::Matrix3d linear_covariance_;
   Eigen::Matrix3d noise_transform_;
+  geometry_msgs::Twist latest_dvl_twist_;
+  ros::Timer dvl_timer_;
 
   geometry_msgs::Twist rotateVelocity(
       const geometry_msgs::Twist &input_velocity, double angle) {
@@ -119,31 +121,28 @@ class SimulationMockROS {
   }
 
   void altimeterCallback(const sensor_msgs::Range &msg) {
-    std_msgs::Float32 altitude_msg;
-
-    altitude_msg.data = msg.range;
-    altitude_pub_.publish(altitude_msg);
-
     latest_altitude_ = msg.range;
   }
 
   void dvlCallback(const nav_msgs::Odometry &msg) {
-    geometry_msgs::Twist velocity_raw_msg;
+    latest_dvl_twist_ = msg.twist.twist;
+  }
+
+  void dvlTimerCallback(const ros::TimerEvent &) {
+    geometry_msgs::Twist velocity_raw_msg = latest_dvl_twist_;
     std_msgs::Bool is_valid_msg;
+    std_msgs::Float32 altitude_msg;
 
     if (latest_altitude_ > kMinDvlAltitude && dvl_enabled_) {
       addNoiseToTwist(velocity_raw_msg);
       velocity_raw_msg = rotateVelocity(velocity_raw_msg, 135.0);
       is_valid_msg.data = true;
     }
+    altitude_msg.data = latest_altitude_;
 
-    // Dvl velocity
+    altitude_pub_.publish(altitude_msg);
     velocity_raw_pub_.publish(velocity_raw_msg);
-
-    // Dvl validity
     is_valid_pub_.publish(is_valid_msg);
-
-    dvl_rate_.sleep();
   }
 
   void initializeParameters() {
@@ -194,6 +193,8 @@ class SimulationMockROS {
       ROS_WARN("Parameter 'dvl_publish_rate' not set. Using default: 10.0 Hz");
     }
     dvl_rate_ = ros::Rate(dvl_rate);
+    dvl_timer_ = nh_.createTimer(ros::Duration(1.0 / dvl_rate),
+                                 &SimulationMockROS::dvlTimerCallback, this);
 
     // DVL covariance
     if (!nh_.getParam("sensors/dvl/covariance/linear_x",
