@@ -9,7 +9,7 @@
 				<pose>0 0 0 0 0 0</pose>
 				<geometry>
 					<mesh>
-						<uri>model://robosub_gate/meshes/robosub_gate.dae</uri>
+						<uri>model://robosub_gate/meshes/gate.dae</uri>
 					</mesh>
 				</geometry>
 			</collision>
@@ -17,7 +17,7 @@
 				<pose>0 0 0 0 0 0</pose>
 				<geometry>
 					<mesh>
-						<uri>model://robosub_gate/meshes/robosub_gate.dae</uri>
+						<uri>model://robosub_gate/meshes/gate.dae</uri>
 					</mesh>
 				</geometry>
 			</visual>
