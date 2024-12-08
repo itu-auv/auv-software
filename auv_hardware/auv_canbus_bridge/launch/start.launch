@@ -1,0 +1,11 @@
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="interface" default="vcan0" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="auv_canbus_bridge" type="auv_canbus_bridge_node" name="auv_canbus_bridge_node"
+      output="screen">
+      <param name="interface" value="$(arg interface)" />
+    </node>
+  </group>
+</launch>
