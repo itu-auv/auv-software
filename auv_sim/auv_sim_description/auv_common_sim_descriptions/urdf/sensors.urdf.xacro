@@ -9,5 +9,5 @@
   <xacro:include
     filename="$(find auv_common_sim_descriptions)/urdf/sensors/sonar.urdf.xacro" />
   <xacro:include
-    filename="$(find auv_common_sim_descriptions)/urdf/sensors/altimeter.urdf.xacro" />
+    filename="$(find auv_common_sim_descriptions)/urdf/sensors/dvl_altimeter.urdf.xacro" />
 </robot>

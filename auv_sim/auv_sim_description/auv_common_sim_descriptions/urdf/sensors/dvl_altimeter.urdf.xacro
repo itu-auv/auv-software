@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
-<robot name="altimeter" xmlns:xacro="http://ros.org/wiki/xacro">
-  <xacro:macro name="altimeter_sim" params="name parent position:='0 0 0' orientation:='0 0 0'">
+<robot name="dvl_altimeter" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:macro name="dvl_altimeter_sim" params="name parent orientation:='0 0 0'">
     <link name="${name}_link" />
 
     <joint name="${name}_joint" type="fixed">
-      <origin xyz="${position}" rpy="${orientation}" />
+      <origin xyz="0 0 0" rpy="${orientation}" />
       <parent link="${parent}" />
       <child link="${name}_link" />
     </joint>
@@ -12,27 +12,27 @@
     <gazebo reference="${name}_link">
       <sensor type="ray" name="${name}">
         <pose>0 0 0 0 0 0</pose>
-        <visualize>false</visualize>
+        <visualize>true</visualize>
         <update_rate>20</update_rate>
         <ray>
           <scan>
             <horizontal>
               <samples>1</samples>
-              <resolution>0.15</resolution>
+              <resolution>0.01</resolution>
               <min_angle>-0.5*0.523599</min_angle>
               <max_angle>${0.5*0.523599}</max_angle>
             </horizontal>
             <vertical>
               <samples>1</samples>
-              <resolution>0.15</resolution>
+              <resolution>0.01</resolution>
               <min_angle>-${0.5*0.523599}</min_angle>
               <max_angle>${0.5*0.523599}</max_angle>
             </vertical>
           </scan>
           <range>
-            <min>0.15</min>
+            <min>0.01</min>
             <max>100.0</max>
-            <resolution>0.15</resolution>
+            <resolution>0.01</resolution>
           </range>
           <noise>
             <type>gaussian</type>
@@ -41,7 +41,7 @@
           </noise>
         </ray>
         <plugin filename="libgazebo_ros_range.so" name="${name}_range_plugin">
-          <topicName>sim/altimeter</topicName>
+          <topicName>sim/dvl_altimeter</topicName>
           <frameName>${name}_link</frameName>
           <gaussianNoise>0.005</gaussianNoise>
           <alwaysOn>true</alwaysOn>

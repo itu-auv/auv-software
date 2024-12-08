@@ -19,6 +19,7 @@
       <remap from="drive_pulse" to="board/drive_pulse" />
       <remap from="pressure" to="sim/pressure" />
       <remap from="odometry_gt" to="odometry_gt" />
+      <remap from="dvl_altimeter" to="sim/dvl_altimeter" />
     </node>
   </group>
 

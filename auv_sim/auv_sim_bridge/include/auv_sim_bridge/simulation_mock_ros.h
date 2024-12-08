@@ -28,7 +28,7 @@ class SimulationMockROS {
   ros::Subscriber drive_pulse_sub_;
   ros::Subscriber depth_sub_;
   ros::Subscriber dvl_sub_;
-  ros::Subscriber altimeter_sub_;
+  ros::Subscriber dvl_altimeter_sub_;
   ros::Publisher depth_pub_;
   ros::Publisher altitude_pub_;
   ros::Publisher velocity_raw_pub_;
@@ -120,7 +120,7 @@ class SimulationMockROS {
     depth_pub_.publish(depth_msg);
   }
 
-  void altimeterCallback(const sensor_msgs::Range &msg) {
+  void dvlAltimeterCallback(const sensor_msgs::Range &msg) {
     latest_altitude_ = msg.range;
   }
 
@@ -245,8 +245,8 @@ class SimulationMockROS {
         nh_.subscribe("pressure", 1, &SimulationMockROS::depthCallback, this);
     dvl_sub_ =
         nh_.subscribe("odometry_gt", 1, &SimulationMockROS::dvlCallback, this);
-    altimeter_sub_ = nh_.subscribe("sim/altimeter", 1,
-                                   &SimulationMockROS::altimeterCallback, this);
+    dvl_altimeter_sub_ = nh_.subscribe(
+        "dvl_altimeter", 1, &SimulationMockROS::dvlAltimeterCallback, this);
     drive_pulse_sub_ = nh_.subscribe(
         "drive_pulse", 1, &SimulationMockROS::drivePulseCallback, this);
   }
