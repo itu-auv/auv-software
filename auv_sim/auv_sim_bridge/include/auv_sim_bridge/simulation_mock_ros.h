@@ -44,7 +44,7 @@ class SimulationMockROS {
   double battery_voltage_;    /// V
   double battery_current_;    /// A
   bool dvl_enabled_;
-  ros::Rate dvl_rate_;  /// Hz
+  double dvl_rate_;  /// Hz
   double latest_altitude_;
   Eigen::Matrix3d linear_covariance_;
   Eigen::Matrix3d noise_transform_;
@@ -187,13 +187,11 @@ class SimulationMockROS {
 
     dvl_enabled_ = true;
 
-    double dvl_rate;
-    if (!nh_priv.getParam("dvl_publish_rate", dvl_rate)) {
-      dvl_rate = 10.0;
-      ROS_WARN("Parameter 'dvl_publish_rate' not set. Using default: 10.0 Hz");
+    if (!nh_priv.getParam("dvl_rate", dvl_rate_)) {
+      dvl_rate_ = 10.0;
+      ROS_WARN("Parameter 'dvl_rate' not set. Using default: 10.0 Hz");
     }
-    dvl_rate_ = ros::Rate(dvl_rate);
-    dvl_timer_ = nh_.createTimer(ros::Duration(1.0 / dvl_rate),
+    dvl_timer_ = nh_.createTimer(ros::Duration(1.0 / dvl_rate_),
                                  &SimulationMockROS::dvlTimerCallback, this);
 
     // DVL covariance
@@ -264,8 +262,7 @@ class SimulationMockROS {
   }
 
  public:
-  SimulationMockROS(const ros::NodeHandle &nh)
-      : nh_(nh), rate_(1.0), dvl_rate_(1.0) {
+  SimulationMockROS(const ros::NodeHandle &nh) : nh_(nh), rate_(1.0) {
     initializeParameters();
     initializePublishers();
     initializeSubscribers();
