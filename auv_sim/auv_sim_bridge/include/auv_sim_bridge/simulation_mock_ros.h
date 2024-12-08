@@ -19,6 +19,7 @@ namespace auv_sim_bridge {
 
 class SimulationMockROS {
   const size_t kThrusterSize = 8;
+  const double kMinDvlAltitude = 0.3;
 
  private:
   ros::NodeHandle nh_;
@@ -130,7 +131,7 @@ class SimulationMockROS {
     geometry_msgs::Twist velocity_raw_msg;
     std_msgs::Bool is_valid_msg;
 
-    if (latest_altitude_ > 0.3 && dvl_enabled_) {
+    if (latest_altitude_ > kMinDvlAltitude && dvl_enabled_) {
       addNoiseToTwist(velocity_raw_msg);
       velocity_raw_msg = rotateVelocity(velocity_raw_msg, 135.0);
       is_valid_msg.data = true;
