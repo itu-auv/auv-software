@@ -68,15 +68,12 @@ class SimulationMockROS {
     return velocity_msg;
   }
 
-  geometry_msgs::Twist addNoiseToTwist(const geometry_msgs::Twist &input) {
+  void addNoiseToTwist(geometry_msgs::Twist &input) {
     Eigen::Vector3d noise = noise_transform_ * Eigen::Vector3d::Random();
 
-    geometry_msgs::Twist noisy_twist = input;
-    noisy_twist.linear.x += noise(0);
-    noisy_twist.linear.y += noise(1);
-    noisy_twist.linear.z += noise(2);
-
-    return noisy_twist;
+    input.linear.x += noise(0);
+    input.linear.y += noise(1);
+    input.linear.z += noise(2);
   }
 
   bool setDVLEnable(std_srvs::SetBoolRequest &req,
@@ -134,7 +131,7 @@ class SimulationMockROS {
     std_msgs::Bool is_valid_msg;
 
     if (latest_altitude_ > 0.3 && dvl_enabled_) {
-      velocity_raw_msg = addNoiseToTwist(msg.twist.twist);
+      addNoiseToTwist(velocity_raw_msg);
       velocity_raw_msg = rotateVelocity(velocity_raw_msg, 135.0);
       is_valid_msg.data = true;
     }
