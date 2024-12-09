@@ -69,6 +69,4 @@
 
   </group>
 
-  <node pkg="auv_control" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher" />
-
 </launch>
