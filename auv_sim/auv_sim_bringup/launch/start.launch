@@ -20,10 +20,9 @@
   <arg name="yaw" value="-1.8" />
 
 
-  <include file="$(find auv_sim_bringup)/launch/inc/start_world.launch.xml">
+  <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch.xml">
     <arg name="gui" value="$(arg use_gui)" />
     <arg name="debug" value="$(arg debug)" />
-    <arg name="world" value="$(arg world)" />
     <arg name="namespace" value="$(arg namespace)" />
   </include>
 
