@@ -5,15 +5,15 @@ import tf2_ros
 import geometry_msgs.msg
 import math
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import SetBool, SetBoolResponse
 import tf
 import sys
 
 
 class TransformServiceNode:
     def __init__(self):
+        self.enable = False
         rospy.init_node("create_gate_frames_node")
-
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
@@ -29,7 +29,8 @@ class TransformServiceNode:
         self.world_frame = "odom"
 
         self.selected_frame = "gate_blue_arrow_link"
-
+        self.set_enable_service = rospy.Service('taluy/set_gate_trajectory_enable', SetBool, self.handle_enable_service)
+        
     def create_new_frames(self):
         try:
             trans1 = self.tf_buffer.lookup_transform(
@@ -148,10 +149,17 @@ class TransformServiceNode:
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
 
+    def handle_enable_service(self, req):
+        self.enable = req.data
+        rospy.loginfo(f"Set enable to {self.enable}")
+        return SetBoolResponse(success=True, message="Enable set to " + str(self.enable))
+
+
     def spin(self):
         rate = rospy.Rate(2.0)
         while not rospy.is_shutdown():
-            self.create_new_frames()
+            if self.enable:
+                self.create_new_frames()
             rate.sleep()
 
 

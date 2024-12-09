@@ -31,6 +31,15 @@ from std_msgs.msg import Bool
 
 from auv_smach.initialize import DelayState
 
+class TransformServiceEnableState(smach_ros.ServiceState):
+    def __init__(self, req:bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "taluy/set_gate_trajectory_enable",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
 
 class NavigateThroughGateState(smach.State):
     def __init__(self, gate_depth: float):
@@ -41,8 +50,21 @@ class NavigateThroughGateState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"]
         )
 
+        # Service to control the enable state of the TransformServiceNode 
+        self.set_enable_service = rospy.ServiceProxy('taluy/set_gate_trajectory_enable', SetBool)
+
         # Open the container for adding states
         with self.state_machine:
+            
+            smach.StateMachine.add(
+                "ENABLE_GATE_TRAJECTORY",
+                TransformServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "SET_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
                 SetDepthState(depth=gate_depth, sleep_duration=3.0),
@@ -80,11 +102,22 @@ class NavigateThroughGateState(smach.State):
                     "gate_enterance", "gate_exit", "gate_target", n_turns=-1
                 ),
                 transitions={
+                    "succeeded": "DISABLE_GATE_TRAJECTORY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "DISABLE_GATE_TRAJECTORY",
+                TransformServiceEnableState(req=False),
+                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
             # smach.StateMachine.add(
             #     "CANCEL_ALIGN_CONTROLLER",
             #     CancelAlignControllerState(),
