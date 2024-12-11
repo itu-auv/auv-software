@@ -70,7 +70,7 @@
   </xacro:macro>
 
   <xacro:macro name="wayfinder_dvl_sim"
-    params="name namespace static_reference_frame update_rate position orientation">
+    params="name namespace static_reference_frame update_rate">
     <link name="${name}_sim_link">
       <inertial>
         <mass value="0.001" />
