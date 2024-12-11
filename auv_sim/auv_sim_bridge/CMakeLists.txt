@@ -9,7 +9,11 @@ find_package(catkin REQUIRED
   uuv_sensor_ros_plugins_msgs
   sensor_msgs
   std_msgs
+  nav_msgs
 )
+
+find_package(Eigen3 REQUIRED)
+
 
 catkin_package(
   INCLUDE_DIRS include
@@ -17,6 +21,7 @@ catkin_package(
 
 include_directories(
   include
+  ${EIGEN3_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
 
