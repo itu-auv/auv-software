@@ -14,5 +14,6 @@
   <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}"
     static_reference_frame="${inertial_reference_frame}" />
   <xacro:wayfinder_dvl_sim name="${namespace}/base_link/dvl" namespace="${namespace}"
-    static_reference_frame="${inertial_reference_frame}" update_rate="10" />
+    static_reference_frame="${inertial_reference_frame}" position="0.2 0 -0.11"
+    orientation="0 0 0" update_rate="10" />
 </robot>

@@ -69,7 +69,30 @@
     </gazebo>
   </xacro:macro>
 
-  <xacro:macro name="wayfinder_dvl_sim" params="name namespace static_reference_frame update_rate">
+  <xacro:macro name="wayfinder_dvl_sim"
+    params="name namespace static_reference_frame update_rate position orientation">
+    <link name="${name}_sim_link">
+      <inertial>
+        <mass value="0.001" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <inertia ixx="0.0000001" ixy="0" ixz="0" iyy="0.0000001" iyz="0" izz="0.0000001" />
+      </inertial>
+      <collision>
+        <geometry>
+          <cylinder length="${0.000001}" radius="${0.000001}" />
+        </geometry>
+        <origin xyz="0 0 0" rpy="0 ${0.5*pi} 0" />
+      </collision>
+    </link>
+
+    <joint name="${name}_sim_joint" type="revolute">
+      <parent link="${name}_mount_link" />
+      <child link="${name}_sim_link" />
+      <origin xyz="${position}" rpy="${orientation}" />
+      <axis rpy="0 0 0" xyz="0 0 1" />
+      <limit lower="0.0" upper="0.0" effort="0.0" velocity="0.0" />
+    </joint>
+
     <xacro:dvl_single_sonar
       namespace="${namespace}"
       name="${name}"
@@ -101,7 +124,7 @@
     <gazebo>
       <plugin filename="libuuv_gazebo_ros_dvl_plugin.so" name="libuuv_gazebo_dvl_plugin">
         <robot_namespace>${namespace}</robot_namespace>
-        <link_name>${name}_mount_link</link_name>
+        <link_name>${name}_sim_link</link_name>
         <sensor_topic>sim/dvl</sensor_topic>
         <update_rate>${update_rate}</update_rate>
         <noise_sigma>0</noise_sigma>
