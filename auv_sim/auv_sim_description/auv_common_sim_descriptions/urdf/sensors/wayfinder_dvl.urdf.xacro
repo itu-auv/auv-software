@@ -1,0 +1,148 @@
+<?xml version="1.0"?>
+<robot name="wayfinder_dvl" xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:macro name="dvl_single_sonar" params="namespace name index update_rate">
+    <link name="${namespace}/dvl_sonar${index}_link">
+      <inertial>
+        <mass value="0.001" />  <!-- [kg] -->
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <inertia ixx="0.000000017" ixy="0" ixz="0" iyy="0.000000017" iyz="0" izz="0.000000017" />
+      </inertial>
+      <collision>
+        <geometry>
+          <cylinder length="${0.000001}" radius="${0.000001}" />
+        </geometry>
+        <origin xyz="0 0 0" rpy="0 ${0.5*pi} 0" />
+      </collision>
+    </link>
+
+    <joint name="${namespace}/dvl_sonar${index}_joint" type="revolute">
+      <origin xyz="0 0 -0.07" rpy="0 ${math.pi/2} 0" />
+      <parent link="${name}_mount_link" />
+      <child link="${namespace}/dvl_sonar${index}_link" />
+      <limit upper="0" lower="0" effort="0" velocity="0" />
+      <axis xyz="1 0 0" />
+    </joint>
+
+    <gazebo reference="${namespace}/dvl_sonar${index}_link">
+      <sensor type="ray" name="${namespace}/dvl_sonar${index}">
+        <pose>0 0 0 0 0 0</pose>
+        <update_rate>${update_rate}</update_rate>
+        <visualize>false</visualize>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>3</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.03</min_angle>
+              <max_angle>0.03</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>3</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.03</min_angle>
+              <max_angle>0.03</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.01</min>
+            <max>100</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.05</stddev>
+          </noise>
+        </ray>
+
+        <plugin filename="libgazebo_ros_range.so" name="${namespace}/dvl_sonar${index}_range_plugin">
+          <topicName>sim/dvl_sonar/${index}</topicName>
+          <frameName>${namespace}/dvl_sonar${index}_link</frameName>
+          <gaussianNoise>0.005</gaussianNoise>
+          <alwaysOn>true</alwaysOn>
+          <updateRate>${update_rate}</updateRate>
+          <visualize>false</visualize>
+          <radiation>ultrasound</radiation>
+          <fov>0.06</fov>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="wayfinder_dvl_sim"
+    params="name namespace static_reference_frame update_rate position orientation">
+    <link name="${name}_sim_link">
+      <inertial>
+        <mass value="0.001" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <inertia ixx="0.0000001" ixy="0" ixz="0" iyy="0.0000001" iyz="0" izz="0.0000001" />
+      </inertial>
+      <collision>
+        <geometry>
+          <cylinder length="${0.000001}" radius="${0.000001}" />
+        </geometry>
+        <origin xyz="0 0 0" rpy="0 ${0.5*pi} 0" />
+      </collision>
+    </link>
+
+    <joint name="${name}_sim_joint" type="revolute">
+      <parent link="${name}_mount_link" />
+      <child link="${name}_sim_link" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <axis rpy="0 0 0" xyz="0 0 1" />
+      <limit lower="0.0" upper="0.0" effort="0.0" velocity="0.0" />
+    </joint>
+
+    <xacro:dvl_single_sonar
+      namespace="${namespace}"
+      name="${name}"
+      index="0"
+      update_rate="${update_rate}">
+    </xacro:dvl_single_sonar>
+
+    <xacro:dvl_single_sonar
+      namespace="${namespace}"
+      name="${name}"
+      index="1"
+      update_rate="${update_rate}">
+    </xacro:dvl_single_sonar>
+
+    <xacro:dvl_single_sonar
+      namespace="${namespace}"
+      name="${name}"
+      index="2"
+      update_rate="${update_rate}">
+    </xacro:dvl_single_sonar>
+
+    <xacro:dvl_single_sonar
+      namespace="${namespace}"
+      name="${name}"
+      index="3"
+      update_rate="${update_rate}">
+    </xacro:dvl_single_sonar>
+
+    <gazebo>
+      <plugin filename="libuuv_gazebo_ros_dvl_plugin.so" name="libuuv_gazebo_dvl_plugin">
+        <robot_namespace>${namespace}</robot_namespace>
+        <link_name>${name}_sim_link</link_name>
+        <sensor_topic>sim/dvl</sensor_topic>
+        <update_rate>${update_rate}</update_rate>
+        <noise_sigma>0</noise_sigma>
+        <noise_amplitude>0</noise_amplitude>
+        <enable_gazebo_messages>false</enable_gazebo_messages>
+        <enable_local_ned_frame>false</enable_local_ned_frame>
+        <static_reference_frame>${static_reference_frame}</static_reference_frame>
+
+        <beam_link_name_0>${namespace}/dvl_sonar0_link</beam_link_name_0>
+        <beam_link_name_1>${namespace}/dvl_sonar1_link</beam_link_name_1>
+        <beam_link_name_2>${namespace}/dvl_sonar2_link</beam_link_name_2>
+        <beam_link_name_3>${namespace}/dvl_sonar3_link</beam_link_name_3>
+
+        <beam_topic_0>sim/dvl_sonar/0</beam_topic_0>
+        <beam_topic_1>sim/dvl_sonar/1</beam_topic_1>
+        <beam_topic_2>sim/dvl_sonar/2</beam_topic_2>
+        <beam_topic_3>sim/dvl_sonar/3</beam_topic_3>
+      </plugin>
+    </gazebo>
+  </xacro:macro>
+</robot>

@@ -11,10 +11,14 @@
       <!-- outputs -->
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="power" to="mainboard/power_sensor/power" />
+      <remap from="altitude" to="sensors/dvl/altitude" />
+      <remap from="velocity_raw" to="sensors/dvl/velocity_raw" />
+      <remap from="is_valid" to="sensors/dvl/is_valid" />
 
       <!-- inputs -->
       <remap from="drive_pulse" to="board/drive_pulse" />
       <remap from="pressure" to="sim/pressure" />
+      <remap from="dvl" to="sim/dvl" />
     </node>
   </group>
 
