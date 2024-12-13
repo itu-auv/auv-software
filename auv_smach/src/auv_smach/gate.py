@@ -35,7 +35,7 @@ class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req:bool):
         smach_ros.ServiceState.__init__(
             self,
-            "taluy/set_gate_trajectory_enable",
+            "set_transform_gate_trajectory",
             SetBool,
             request=SetBoolRequest(data=req),
         )
@@ -50,14 +50,11 @@ class NavigateThroughGateState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"]
         )
 
-        # Service to control the enable state of the TransformServiceNode 
-        self.set_enable_service = rospy.ServiceProxy('taluy/set_gate_trajectory_enable', SetBool)
-
         # Open the container for adding states
         with self.state_machine:
             
             smach.StateMachine.add(
-                "ENABLE_GATE_TRAJECTORY",
+                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
                 transitions={
                     "succeeded": "SET_GATE_DEPTH",
@@ -109,7 +106,7 @@ class NavigateThroughGateState(smach.State):
             )
 
             smach.StateMachine.add(
-                "DISABLE_GATE_TRAJECTORY",
+                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "succeeded",
