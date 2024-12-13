@@ -99,7 +99,7 @@ class NavigateThroughGateState(smach.State):
                     "gate_enterance", "gate_exit", "gate_target", n_turns=-1
                 ),
                 transitions={
-                    "succeeded": "DISABLE_GATE_TRAJECTORY",
+                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
