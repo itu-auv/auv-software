@@ -19,54 +19,6 @@
         <falloff>0</falloff>
       </spot>
     </light>
-    <model name='ground_plane'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>100 100</size>
-            </plane>
-          </geometry>
-          <surface>
-            <contact>
-              <collide_bitmask>65535</collide_bitmask>
-              <ode />
-            </contact>
-            <friction>
-              <ode>
-                <mu>100</mu>
-                <mu2>50</mu2>
-              </ode>
-              <torsional>
-                <ode />
-              </torsional>
-            </friction>
-            <bounce />
-          </surface>
-          <max_contacts>10</max_contacts>
-        </collision>
-        <visual name='visual'>
-          <cast_shadows>0</cast_shadows>
-          <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>100 100</size>
-            </plane>
-          </geometry>
-          <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Grey</name>
-            </script>
-          </material>
-        </visual>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
     <gravity>0 0 -9.8</gravity>
     <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
     <atmosphere type='adiabatic' />
@@ -90,7 +42,7 @@
     </spherical_coordinates>
     <model name='singapore_pool'>
       <static>1</static>
-      <pose>2.00285 -2.94333 0 0 -0 0</pose>
+      <pose>2.00285 -2.94333 -2 0 -0 0</pose>
       <link name='singapore_pool'>
         <pose>0 0 0 0 -0 0</pose>
         <collision name='singapore_pool_col'>
@@ -132,21 +84,11 @@
       <real_time>134 879326904</real_time>
       <wall_time>1732966767 784880185</wall_time>
       <iterations>46235</iterations>
-      <model name='ground_plane'>
-        <pose>0 0 0 0 -0 0</pose>
-        <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>0 0 0 0 -0 0</pose>
-          <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0 0 0 0 -0 0</acceleration>
-          <wrench>0 0 0 0 -0 0</wrench>
-        </link>
-      </model>
       <model name='singapore_pool'>
-        <pose>2.00285 -2.94333 0 0 -0 0</pose>
+        <pose>2.00285 -2.94333 -2 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='singapore_pool'>
-          <pose>2.00285 -2.94333 0 0 -0 0</pose>
+          <pose>2.00285 -2.94333 -2 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
