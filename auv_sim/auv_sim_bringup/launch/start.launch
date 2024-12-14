@@ -9,6 +9,11 @@
   <arg name="world" default="pool" />
   <arg name="use_ned_frame" default="false" />
 
+    <!--Run rviz-->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/default.rviz"
+    if="$(arg use_gui)" />
+
+
 
   <!--Initial robot poisition and orientation-->
   <arg name="x" value="0.0" />
@@ -20,13 +25,13 @@
   <arg name="yaw" value="-1.8" />
 
 
-  <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch.xml">
+  <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch">
     <arg name="gui" value="$(arg use_gui)" />
     <arg name="debug" value="$(arg debug)" />
     <arg name="namespace" value="$(arg namespace)" />
   </include>
 
-  <include file="$(find auv_sim_bringup)/launch/inc/spawn_robot.launch.xml">
+  <include file="$(find auv_sim_bringup)/launch/inc/spawn_robot.launch">
     <arg name="debug" value="$(arg debug)" />
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
@@ -40,7 +45,7 @@
     <arg name="yaw" value="$(arg yaw)" />
   </include>
 
-  <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch.xml">
+  <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
