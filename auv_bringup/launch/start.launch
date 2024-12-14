@@ -7,6 +7,11 @@
 
   <rosparam file="$(find auv_bringup)/config/environment.yaml" command="load" ns="" />
 
+  <!-- launch state publisher  -->
+  <include file="$(find auv_bringup)/launch/inc/localization/start_state_publisher.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="use_gui" value="$(arg use_gui)" />
+  </include>
 
   <!-- launch xsens driver -->
   <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
