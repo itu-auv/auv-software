@@ -50,5 +50,6 @@
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
   </include>
-  
+  <!--start camera process-->
+
 </launch>
