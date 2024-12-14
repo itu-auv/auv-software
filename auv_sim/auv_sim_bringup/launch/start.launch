@@ -10,7 +10,7 @@
   <arg name="use_ned_frame" default="false" />
 
     <!--Run rviz-->
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/default.rviz"
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/yolo_cam.rviz"
     if="$(arg use_gui)" />
 
 
