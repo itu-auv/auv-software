@@ -35,12 +35,4 @@
     <arg name="start_state_publisher" value="false" />
   </include>  
   
-  <!--
-  <include file="$(find auv_bringup)/launch/start.launch">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="use_gui" value="$(arg use_gui)" />
-  
-    
-  </include>-->
 </launch>
