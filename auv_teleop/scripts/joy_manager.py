@@ -85,9 +85,9 @@ class JoystickNode:
         with self.lock:
             self.joy_data = msg
 
-            self.torpedo1_button_event.update(self.joy_data.buttons[0])
-            self.torpedo2_button_event.update(self.joy_data.buttons[1])
-            self.droper_button_event.update(self.joy_data.buttons[3])
+            self.torpedo1_button_event.update(self.joy_data.buttons[4])
+            self.torpedo2_button_event.update(self.joy_data.buttons[2])
+            self.droper_button_event.update(self.joy_data.buttons[0])
 
     def run(self):
         while not rospy.is_shutdown():
@@ -108,7 +108,7 @@ class JoystickNode:
                     twist.linear.y = (
                         self.joy_data.axes[0] * 0.4
                     )
-                    twist.angular.z = self.joy_data.axes[3] * 0.5
+                    twist.angular.z = self.joy_data.axes[2] * 0.5
 
                 else:
                     twist.linear.x = 0.0
