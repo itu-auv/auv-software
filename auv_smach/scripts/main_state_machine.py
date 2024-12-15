@@ -72,46 +72,12 @@ class MainStateMachineNode:
                     red_buoy_depth=red_buoy_depth,
                 ),
                 transitions={
-                    "succeeded": "NAVIGATE_TO_TORPEDO_TASK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_TO_TORPEDO_TASK",
-                TorpedoTaskState(
-                    torpedo_map_radius=torpedo_map_radius,
-                    torpedo_map_depth=torpedo_map_depth,
-                ),
-                transitions={
-                    "succeeded": "NAVIGATE_TO_BIN_TASK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_TO_BIN_TASK",
-                BinTaskState(
-                    bin_whole_depth=bin_whole_depth,
-                ),
-                transitions={
-                    "succeeded": "NAVIGATE_TO_OCTAGON_TASK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_TO_OCTAGON_TASK",
-                OctagonTaskState(
-                    octagon_depth=octagon_depth,
-                ),
-                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
+            
         outcome = self.sm.execute()
 
         # rospy.Timer(rospy.Duration(0.1), self.start)
