@@ -59,5 +59,6 @@
         <arg name="use_gui" value="$(arg use_gui)" />
     </include>
 
+<!-- TODO (eminmeydanoglu): add start camera process here -->
 
 </launch>
