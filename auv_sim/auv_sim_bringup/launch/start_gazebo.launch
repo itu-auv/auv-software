@@ -22,10 +22,10 @@
     />
 
     <!-- Initial robot position and orientation -->
-    <arg name="x" value="0.0" />
-    <arg name="y" value="0.0" />
-    <arg name="z" value="-1.50" />
-    <arg name="z_sea" value="-87" if="$(eval arg('world') == 'seabed')" />
+    <arg name="x" default="0.0" />
+    <arg name="y" default="0.0" />
+    <arg name="z" default="-1.5" if="$(eval arg('world') == 'pool')" />
+    <arg name="z" default="-87.0" if="$(eval arg('world') == 'seabed')" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="-1.8" />
@@ -46,7 +46,7 @@
         <arg name="reference_frame" value="$(arg reference_frame)" />
         <arg name="x" value="$(arg x)" />
         <arg name="y" value="$(arg y)" />
-        <arg name="z" value="$(eval arg('z_sea') if arg('world') == 'seabed' else arg('z'))" />
+        <arg name="z" value="$(arg z)" />
         <arg name="roll" value="$(arg roll)" />
         <arg name="pitch" value="$(arg pitch)" />
         <arg name="yaw" value="$(arg yaw)" />
