@@ -14,9 +14,11 @@
         <arg name="verbose" value="true" />
     </include>
 
-    <node name="publish_world_models" pkg="uuv_assistants" type="publish_world_models.py"
-    output="screen">
-    <rosparam command="load" file="$(find auv_sim_bringup)/config/world_models.yaml" />
+    <node 
+        name="publish_world_models" 
+        pkg="uuv_assistants" 
+        type="publish_world_models.py" 
+        output="screen">
+        <rosparam command="load" file="$(find auv_sim_bringup)/config/world_models.yaml" />
     </node>
-
 </launch>
