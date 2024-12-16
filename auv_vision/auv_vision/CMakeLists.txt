@@ -3,14 +3,10 @@ project(auv_vision)
 
 find_package(catkin REQUIRED COMPONENTS
   auv_detection
-  roscpp
-  rospy
 )
 
 catkin_package(
   CATKIN_DEPENDS 
-  roscpp 
-  rospy
 )
 
 include_directories(

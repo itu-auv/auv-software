@@ -4,19 +4,12 @@
   <version>0.1.0</version>
   <description>The auv_vision package</description>
 
-  <maintainer email="mimarlarf@gmail.com">farukmimarlar</maintainer>
-  <author email="mimarlarf@gmail.com">farukmimarlar</author>
+  <maintainer email="mimarlarf@gmail.com">Faruk Mimarlar</maintainer>
+  <author email="mimarlarf@gmail.com">Faruk Mimarlar</author>
 
   <license>BSD-3-Clause</license>
 
   <buildtool_depend>catkin</buildtool_depend>
-
-  <build_depend>roscpp</build_depend>
-  <build_depend>rospy</build_depend>
-
-  <exec_depend>roscpp</exec_depend>
-  <exec_depend>rospy</exec_depend>
-
   <depend>auv_detection</depend>
 
   <export>
