@@ -139,7 +139,7 @@ class SimulationMockROS {
       ROS_WARN("Parameter '/env/gravity' not set. Using default: 9.81 m/s^2");
     }
 
-    if (!nh_priv.getParam("drift", imu_offset_)) {
+    if (!nh_priv.getParam("imu/drift", imu_offset_)) {
       imu_offset_ = {0.0, 0.0, 0.0};
       ROS_WARN(
           "Parameter 'imu_offset_' not set. Using default: {0.0, 0.0, "

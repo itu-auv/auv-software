@@ -5,10 +5,12 @@
   <arg name="use_gui" default="false" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
-  <rosparam command="load" file="$(find auv_localization)/config/imu_calibration_data.yaml" />
 
   <group ns="$(arg namespace)">
     <node name="auv_sim_bridge" pkg="auv_sim_bridge" type="simulation_mock_node" output="screen">
+      <rosparam command="load" file="$(find auv_localization)/config/imu_calibration_data.yaml"
+        ns="imu" />
+
       <!-- outputs -->
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="power" to="mainboard/power_sensor/power" />
