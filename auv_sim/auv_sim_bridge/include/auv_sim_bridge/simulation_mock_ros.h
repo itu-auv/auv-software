@@ -232,7 +232,7 @@ class SimulationMockROS {
 
   void initializePublishers() {
     depth_pub_ = nh_.advertise<std_msgs::Float32>("depth", 1);
-    imu_pub_ = nh_.advertise<sensor_msgs::Imu>("imu/data", 1);
+    imu_pub_ = nh_.advertise<sensor_msgs::Imu>("imu_drifted", 1);
     altitude_pub_ = nh_.advertise<std_msgs::Float32>("altitude", 1);
     velocity_raw_pub_ = nh_.advertise<geometry_msgs::Twist>("velocity_raw", 1);
     is_valid_pub_ = nh_.advertise<std_msgs::Bool>("is_valid", 1);
@@ -242,7 +242,7 @@ class SimulationMockROS {
   void initializeSubscribers() {
     depth_sub_ =
         nh_.subscribe("pressure", 1, &SimulationMockROS::depthCallback, this);
-    imu_sub_ = nh_.subscribe("imu", 1, &SimulationMockROS::imuCallback, this);
+    imu_sub_ = nh_.subscribe("imu_raw", 1, &SimulationMockROS::imuCallback, this);
     dvl_sub_ = nh_.subscribe("dvl", 1, &SimulationMockROS::dvlCallback, this);
     drive_pulse_sub_ = nh_.subscribe(
         "drive_pulse", 1, &SimulationMockROS::drivePulseCallback, this);

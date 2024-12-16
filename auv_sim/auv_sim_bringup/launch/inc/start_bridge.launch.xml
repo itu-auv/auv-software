@@ -17,10 +17,10 @@
       <remap from="altitude" to="sensors/dvl/altitude" />
       <remap from="velocity_raw" to="sensors/dvl/velocity_raw" />
       <remap from="is_valid" to="sensors/dvl/is_valid" />
-      <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="imu_drifted" to="sensors/imu/data" />
 
       <!-- inputs -->
-      <remap from="imu" to="sim/imu" />
+      <remap from="imu_raw" to="sim/imu" />
       <remap from="drive_pulse" to="board/drive_pulse" />
       <remap from="pressure" to="sim/pressure" />
       <remap from="dvl" to="sim/dvl" />
