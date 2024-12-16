@@ -4,6 +4,7 @@
 #include <array>
 #include <vector>
 
+#include "angles/angles.h"
 #include "auv_controllers/controller_base.h"
 
 namespace auv {
@@ -44,7 +45,13 @@ class MultiDOFPIDController : public ControllerBase<N> {
       const auto desired_position = desired_state.head(N);
       const auto velocity_state = d_state.head(N);
 
-      const auto error = desired_position - position_state;
+      Vectornd error = Vectornd::Zero();
+      error.head(3) = desired_position.head(3) - position_state.head(3);
+      for (size_t i = 3; i < N; ++i) {
+        error(i) = angles::shortest_angular_distance(position_state(i),
+                                                     desired_position(i));
+      }
+
       const auto p_term = kp_.template block<N, N>(0, 0) * error;
 
       integral_.head(N) += error * dt;
