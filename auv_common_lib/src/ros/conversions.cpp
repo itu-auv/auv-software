@@ -6,6 +6,8 @@
 #include "geometry_msgs/Pose.h"
 #include "geometry_msgs/Wrench.h"
 #include "nav_msgs/Odometry.h"
+#include "tf2/LinearMath/Matrix3x3.h"
+#include "tf2/LinearMath/Quaternion.h"
 
 namespace auv {
 namespace common {
@@ -32,9 +34,10 @@ geometry_msgs::Point convert(const Eigen::Vector3d& from) {
 
 template <>
 Eigen::Vector3d convert(const geometry_msgs::Quaternion& from) {
-  // quaternion to euler angles
-  Eigen::Quaterniond q(from.w, from.x, from.y, from.z);
-  return q.toRotationMatrix().eulerAngles(0, 1, 2);
+  const auto quaternion = tf2::Quaternion(from.x, from.y, from.z, from.w);
+  double roll, pitch, yaw;
+  tf2::Matrix3x3(quaternion).getRPY(roll, pitch, yaw);
+  return Eigen::Vector3d(roll, pitch, yaw);
 }
 
 template <>
