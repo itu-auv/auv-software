@@ -1,0 +1,6 @@
+string frame_name
+bool keep_orientation
+bool dynamic_update
+---
+bool success
+string message

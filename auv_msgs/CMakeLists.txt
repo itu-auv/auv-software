@@ -5,6 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_generation
   nav_msgs
+  actionlib_msgs
 )
 
 
@@ -20,6 +21,12 @@ add_service_files(
   AlignFrameController.srv
   SetDepth.srv
   SetObjectTransform.srv
+  SetFrameTarget.srv
+)
+
+add_action_files(
+  DIRECTORY action
+  FILES FollowPath.action
 )
 
 ## Generate added messages and services with any dependencies listed here
@@ -27,6 +34,8 @@ generate_messages(
   DEPENDENCIES
   std_msgs
   geometry_msgs
+  actionlib_msgs
+  nav_msgs
 )
 
 catkin_package(
