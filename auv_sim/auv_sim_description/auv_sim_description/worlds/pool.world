@@ -79,65 +79,65 @@
       </link>
     </model>
     <state world_name='default'>
-      <sim_time>1597 272000000</sim_time>
-      <real_time>1869 617397165</real_time>
-      <wall_time>1734182305 740736845</wall_time>
-      <iterations>1551037</iterations>
+      <sim_time>1711 633000000</sim_time>
+      <real_time>62 375293282</real_time>
+      <wall_time>1734459289 293355600</wall_time>
+      <iterations>62177</iterations>
       <model name='robosub_bin'>
-        <pose>11.46 -11.3964 -1.90606 0 -0 0</pose>
+        <pose>5.35801 -15.9923 -1.90606 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='robosub_bin'>
-          <pose>11.46 -11.3964 -1.90606 0 -0 0</pose>
+          <pose>5.35801 -15.9923 -1.90606 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_buoy'>
-        <pose>11.2152 -6.81286 -1.90257 0 -0 0</pose>
+        <pose>-2.05488 -12.0195 -1.90257 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='robosub_buoy'>
-          <pose>11.2152 -6.81286 -1.90257 0 -0 0</pose>
+          <pose>-2.05488 -12.0195 -1.90257 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_gate'>
-        <pose>9.68754 -2.86603 -1.95258 0 -0 1.57516</pose>
+        <pose>-0.728443 -6.67244 -1.95258 0 -0 1.57516</pose>
         <scale>1 1 1</scale>
         <link name='robosub_gate'>
-          <pose>9.68754 -2.86603 -1.95258 0 -0 1.57516</pose>
+          <pose>-0.728443 -6.67244 -1.95258 0 -0 1.57516</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_octagon'>
-        <pose>8.16608 -14.0863 -1.97356 0 -0 0</pose>
+        <pose>-3.53197 -17.8559 -1.97356 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='robosub_octagon'>
-          <pose>8.16608 -14.0863 -1.97356 0 -0 0</pose>
+          <pose>-3.53197 -17.8559 -1.97356 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_torpedo'>
-        <pose>8.35507 -8.65644 -1.99636 0 -0 1.5473</pose>
+        <pose>0.006323 -15.4031 -1.99636 0 -0 1.5473</pose>
         <scale>1 1 1</scale>
         <link name='robosub_torpedo'>
-          <pose>8.35507 -8.65644 -1.99636 0 -0 1.5473</pose>
+          <pose>0.006323 -15.4031 -1.99636 0 -0 1.5473</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='singapore_pool'>
-        <pose>4.72065 2.82136 -2 0 -0 0</pose>
+        <pose>4.53158 2.81103 -2 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='singapore_pool'>
-          <pose>4.72065 2.82136 -2 0 -0 0</pose>
+          <pose>4.53158 2.81103 -2 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -149,7 +149,7 @@
     </state>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>17.8821 -20.3559 2.4087 0 0.303643 2.22421</pose>
+        <pose>-1.83265 9.56062 12.0698 0 0.603644 -1.51579</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
