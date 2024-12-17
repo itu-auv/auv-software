@@ -1,49 +1,64 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="taluy" />
-  <arg name="control_rate" default="20.0" />
-  <arg name="use_ned_frame" default="false" />
-  <arg name="reference_frame" value="world" />
+    <env 
+        name="GAZEBO_MODEL_PATH" 
+        value="$(find auv_sim_description)/models:${GAZEBO_MODEL_PATH}" 
+    />
+    <arg name="namespace" default="taluy" />
+    <arg name="control_rate" default="20.0" />
+    <arg name="reference_frame" value="world" />
+    <arg name="use_gui" default="true" />
+    <arg name="debug" default="false" />
+    <arg name="world" default="pool" />
+    <arg name="use_ned_frame" default="false" />
 
-  <arg name="use_gui" default="true" />
-  <arg name="debug" default="false" />
-  <arg name="world_name" default="$(find auv_sim_description)/worlds/seabed.world" />
-  <arg name="velocity_control" default="true" />
-  <arg name="joy_id" default="0" />
+    <!-- Run RViz -->
+    <node 
+        name="rviz" 
+        pkg="rviz" 
+        type="rviz" 
+        args="-d $(find taluy_description)/rviz/yolo_cam.rviz" 
+        if="$(arg use_gui)" 
+    />
 
-  <arg name="x" value="9.0" />
-  <arg name="y" value="-3.0" />
-  <arg name="z" value="-87.0" />
-  <arg name="roll" value="0" />
-  <arg name="pitch" value="0" />
-  <arg name="yaw" value="-1.8" />
+    <!-- Initial robot position and orientation -->
+    <arg name="x" default="0.0" />
+    <arg name="y" default="0.0" />
+    <arg name="z" default="-1.5" if="$(eval arg('world') == 'pool')" />
+    <arg name="z" default="-87.0" if="$(eval arg('world') == 'seabed')" />
+    <arg name="roll" value="0" />
+    <arg name="pitch" value="0" />
+    <arg name="yaw" value="-1.8" />
 
-  <include file="$(find auv_sim_bringup)/launch/inc/start_world.launch.xml">
-    <arg name="gui" default="$(arg use_gui)" />
-    <arg name="debug" default="$(arg debug)" />
-    <arg name="world_name" default="$(arg world_name)" />
-    <arg name="namespace" default="$(arg namespace)" />
-    <arg name="velocity_control" default="$(arg velocity_control)" />
-    <arg name="joy_id" default="$(arg joy_id)" />
-  </include>
+    <!-- Start world launch -->
+    <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch">
+        <arg name="gui" value="$(arg use_gui)" />
+        <arg name="debug" value="$(arg debug)" />
+        <arg name="namespace" value="$(arg namespace)" />
+    </include>
 
-  <include file="$(find auv_sim_bringup)/launch/inc/spawn_robot.launch.xml">
-    <arg name="debug" value="$(arg debug)" />
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="use_ned_frame" value="$(arg use_ned_frame)" />
-    <arg name="reference_frame" value="$(arg reference_frame)" />
-    <arg name="x" value="$(arg x)" />
-    <arg name="y" value="$(arg y)" />
-    <arg name="z" value="$(arg z)" />
-    <arg name="roll" value="$(arg roll)" />
-    <arg name="pitch" value="$(arg pitch)" />
-    <arg name="yaw" value="$(arg yaw)" />
-  </include>
+    <!-- Spawn robot -->
+    <include file="$(find auv_sim_bringup)/launch/inc/spawn_robot.launch">
+        <arg name="debug" value="$(arg debug)" />
+        <arg name="namespace" value="$(arg namespace)" />
+        <arg name="control_rate" value="$(arg control_rate)" />
+        <arg name="use_ned_frame" value="$(arg use_ned_frame)" />
+        <arg name="reference_frame" value="$(arg reference_frame)" />
+        <arg name="x" value="$(arg x)" />
+        <arg name="y" value="$(arg y)" />
+        <arg name="z" value="$(arg z)" />
+        <arg name="roll" value="$(arg roll)" />
+        <arg name="pitch" value="$(arg pitch)" />
+        <arg name="yaw" value="$(arg yaw)" />
+    </include>
 
-  <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch.xml">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="use_gui" default="$(arg use_gui)" />
-  </include>
+    <!-- Start bridge -->
+    <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch">
+        <arg name="namespace" value="$(arg namespace)" />
+        <arg name="control_rate" value="$(arg control_rate)" />
+        <arg name="use_gui" value="$(arg use_gui)" />
+    </include>
+
+<!-- TODO (eminmeydanoglu): add start camera process here -->
+
 </launch>

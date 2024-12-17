@@ -22,17 +22,13 @@
     </node>
   </group>
 
-  <!-- <include file="$(find auv_control)/launch/start.launch">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="rate" value="$(arg control_rate)" />
-    <arg name="use_gui" value="$(arg use_gui)" />
-    <arg name="start_state_publisher" value="false" />
-  </include> --> 
+  
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
-  </include>
+  </include>  
+  
 </launch>
