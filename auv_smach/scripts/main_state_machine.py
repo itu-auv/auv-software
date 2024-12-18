@@ -10,6 +10,11 @@ from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
 from std_msgs.msg import Bool
+from auv_smach.common import (
+    CancelAlignControllerState,
+    SetDepthState,
+)
+from auv_smach.initialize import DelayState
 import threading
 
 
@@ -21,7 +26,7 @@ class MainStateMachineNode:
         gate_depth = -0.9
         target_gate_link = "gate_blue_arrow_link"
 
-        red_buoy_radius = 2.2
+        red_buoy_radius = 1.5
         red_buoy_depth = -0.7
 
         torpedo_map_radius = 1.5
@@ -71,6 +76,33 @@ class MainStateMachineNode:
                     direction=red_buoy_direction,
                     red_buoy_depth=red_buoy_depth,
                 ),
+                transitions={
+                    "succeeded": "WAIT_FOR_SURFACING",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_SURFACING",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "SURFACING",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SURFACING",
+                SetDepthState(depth=0.3, sleep_duration=4.0),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
