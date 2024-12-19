@@ -11,6 +11,7 @@ enum class Endpoint : uint16_t {
   SetHSS2OutputCommand,
   SetHSS3OutputCommand,
   LatchedServoCommand,
+  SonarActivationCommand,
   MainboardPowerReport,
   BackSonarReport,
   FrontSonarReport,

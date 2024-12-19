@@ -43,8 +43,8 @@ class DrivePulseModule : public ModuleBase {
     auto pack_pulse = [&data, &msg](const int offset) {
       for (int i = 0; i < 4; ++i) {
         const auto pulse = msg->channels[offset + i];
-        data[2 * i] = (pulse >> 8) & 0xFF;  // High byte
-        data[2 * i + 1] = pulse & 0xFF;     // Low byte
+        data[2 * i] = pulse & 0xFF;
+        data[2 * i + 1] = (pulse >> 8) & 0xFF;
       }
     };
 
