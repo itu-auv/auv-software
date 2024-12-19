@@ -45,13 +45,13 @@ install(DIRECTORY include/${PROJECT_NAME}/
 ## Testing ##
 #############
 
-catkin_add_gtest(${PROJECT_NAME}-test 
+catkin_add_gtest(${PROJECT_NAME}-test
   test/test_multidof_pid_controller/test_multidof_pid_controller.cpp
   test/main.cpp
 )
 
 if(TARGET ${PROJECT_NAME}-test)
-target_link_libraries(${PROJECT_NAME}-test 
+target_link_libraries(${PROJECT_NAME}-test
   ${PROJECT_NAME}
   ${catkin_LIBRARIES}
 )

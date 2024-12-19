@@ -11,7 +11,7 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
   </group>
-  
+
   <node pkg="auv_control" type="prop_transform_publisher.py" name="prop_transform_publisher" output="screen" />
 
   <!--

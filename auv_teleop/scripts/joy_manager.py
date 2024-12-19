@@ -31,7 +31,7 @@ class JoystickNode:
 
         self.publish_rate = 50  # 50 Hz
         self.rate = rospy.Rate(self.publish_rate)
-        
+
         self.buttons = rospy.get_param("~buttons")
         self.axes = rospy.get_param("~axes")
 

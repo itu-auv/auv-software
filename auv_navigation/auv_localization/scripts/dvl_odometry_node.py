@@ -26,12 +26,12 @@ class DvlToOdom:
         self.linear_z_covariance = rospy.get_param(
             "sensors/dvl/covariance/linear_z", 0.00005
         )
-        
+
         # Subscribers and Publishers
         self.dvl_velocity_subscriber = message_filters.Subscriber("sensors/dvl/velocity_raw", Twist)
         self.is_valid_subscriber = message_filters.Subscriber("sensors/dvl/is_valid", Bool)
         self.cmd_vel_subscriber = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
-        
+
         self.sync = message_filters.ApproximateTimeSynchronizer([self.dvl_velocity_subscriber, self.is_valid_subscriber], queue_size=10, slop=0.1, allow_headerless=True)
         self.sync.registerCallback(self.dvl_callback)
 
@@ -49,14 +49,14 @@ class DvlToOdom:
         self.odom_msg.twist.covariance[0] = self.linear_x_covariance
         self.odom_msg.twist.covariance[7] = self.linear_y_covariance
         self.odom_msg.twist.covariance[14] = self.linear_z_covariance
-        
+
         # Log loaded parameters
         DVL_odometry_colored = TerminalColors.color_text("DVL Odometry Calibration data loaded", TerminalColors.PASTEL_BLUE)
         rospy.loginfo(f"{DVL_odometry_colored} : cmdvel_tau: {self.cmdvel_tau}")
         rospy.loginfo(f"{DVL_odometry_colored} : linear x covariance: {self.linear_x_covariance}")
         rospy.loginfo(f"{DVL_odometry_colored} : linear y covariance: {self.linear_y_covariance}")
         rospy.loginfo(f"{DVL_odometry_colored} : linear z covariance: {self.linear_z_covariance}")
-        
+
         # Initialize variables for fallback mechanism
         self.cmd_vel_twist = Twist()
         self.filtered_cmd_vel = Twist()
@@ -101,7 +101,7 @@ class DvlToOdom:
             velocity_msg.linear.x = self.filtered_cmd_vel.linear.x
             velocity_msg.linear.y = self.filtered_cmd_vel.linear.y
             velocity_msg.linear.z = self.filtered_cmd_vel.linear.z
-        
+
         # Fill the odometry message
         self.odom_msg.header.stamp = rospy.Time.now()
         self.odom_msg.twist.twist = velocity_msg
