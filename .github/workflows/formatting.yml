@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format xmllint
+          sudo apt-get install -y clang-format libxml2-utils
 
       - name: Run pre-commit
         run: pre-commit run --all-files
