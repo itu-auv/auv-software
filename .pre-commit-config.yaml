@@ -26,3 +26,8 @@ repos:
     hooks:
       - id: format-xmllint
         files: \.(xml|launch|launch\.xml|sdf|urdf\.xacro|xacro|urdf)$|model\.config$
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v19.1.5
+    hooks:
+      - id: clang-format
+        files: \.(cpp|h|hpp)$
