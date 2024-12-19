@@ -5,9 +5,16 @@ repos:
     hooks:
       - id: check-yaml
         files: \.(yaml|yml)$
+      - id: check-xml
+        files: \.(xml|launch|launch\.xml|sdf|urdf\.xacro|xacro|urdf|model\.config)$
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
     rev: 0.2.3
     hooks:
       - id: yamlfmt
         args: [--mapping, "2", --sequence, "4", --offset, "2", --width, "150", --preserve-quotes]
         exclude: ^auv_bringup/config/ekf.yaml$
+  - repo: https://github.com/lsst-ts/pre-commit-xmllint
+    rev: v1.0.0
+    hooks:
+      - id: format-xmllint
+        files: \.(xml|launch|launch\.xml|sdf|urdf\.xacro|xacro|urdf)$|model\.config$
