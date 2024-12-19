@@ -9,12 +9,12 @@
 
 namespace auv_hardware {
 class SerialToROSBridge {
-public:
+ public:
   SerialToROSBridge(ros::NodeHandle &nh);
 
   void spin();
 
-private:
+ private:
   void input_data_callback(const std_msgs::UInt8MultiArray::ConstPtr &msg);
 
   void handle_incoming_messages();
@@ -29,4 +29,4 @@ private:
   char buffer_[1024];
 };
 
-}; // namespace auv_hardware
+};  // namespace auv_hardware
