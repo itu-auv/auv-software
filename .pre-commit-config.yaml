@@ -6,7 +6,8 @@ repos:
       - id: check-yaml
         files: \.(yaml|yml)$
       - id: check-xml
-        files: \.(xml|launch|launch\.xml|sdf|urdf\.xacro|xacro|urdf|model\.config)$
+        files: \.(xml|launch|launch\.xml|sdf|urdf\.xacro|xacro|urdf)$|model\.config$
+      - id: end-of-file-fixer
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
     rev: 0.2.3
     hooks:
