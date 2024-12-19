@@ -3,11 +3,9 @@
   <name>auv_teleop</name>
   <version>1.0.0</version>
   <description>This package consists of scripts for teleoperating the vehicle.</description>
-
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <license>BSD-3-Clause</license>
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
-
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>joy</build_depend>
@@ -21,10 +19,8 @@
   <exec_depend>joy</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
-
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->
-
   </export>
 </package>

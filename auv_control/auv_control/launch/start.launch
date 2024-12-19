@@ -21,7 +21,7 @@
       <remap from="cmd_pose" to="cmd_pose" />
       <remap from="acceleration" to="acceleration" />
       <remap from="enable" to="enable" />
-    
+
       <remap from="wrench" to="wrench" />
       <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
     </node>

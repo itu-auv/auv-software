@@ -1,30 +1,24 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
-  <arg name="port" default="/dev/ttyACM0" />
-  <arg name="baudrate" default="1500000" />
-  <arg name="virtual_port" default="/tmp/vcom0" />
-  <arg name="respawn" default="true" />
-
+  <arg name="namespace" default="turquoise"/>
+  <arg name="port" default="/dev/ttyACM0"/>
+  <arg name="baudrate" default="1500000"/>
+  <arg name="virtual_port" default="/tmp/vcom0"/>
+  <arg name="respawn" default="true"/>
   <group ns="$(arg namespace)">
     <!-- start expansion board bridge -->
-    <node pkg="rosserial_python" type="serial_node.py" name="expansion_board_bridge_node"
-      args="$(arg port) _baud:=$(arg baudrate)" output="screen" respawn="$(arg respawn)" />
-
+    <node pkg="rosserial_python" type="serial_node.py" name="expansion_board_bridge_node" args="$(arg port) _baud:=$(arg baudrate)" output="screen" respawn="$(arg respawn)"/>
     <!-- start serial to ros bridge -->
-    <node pkg="auv_hardware_bridge" type="serial_to_ros_bridge_node"
-      name="expansion_serial_to_ros_bridge_node" output="screen" respawn="$(arg respawn)">
-      <param name="virtual_port" value="$(arg virtual_port)" />
-      <remap from="incoming" to="board/serial_port/incoming" />
-      <remap from="outgoing" to="board/serial_port/outgoing" />
+    <node pkg="auv_hardware_bridge" type="serial_to_ros_bridge_node" name="expansion_serial_to_ros_bridge_node" output="screen" respawn="$(arg respawn)">
+      <param name="virtual_port" value="$(arg virtual_port)"/>
+      <remap from="incoming" to="board/serial_port/incoming"/>
+      <remap from="outgoing" to="board/serial_port/outgoing"/>
     </node>
-
     <!-- start remapper node: depth -> pose -->
-    <node pkg="auv_hardware_bridge" type="expansion_bridge_remapper_node.py"
-      name="expansion_bridge_remapper_node" respawn="$(arg respawn)">
-      <param name="pressure_sensor_position_covariance" value="0.1" />
-      <remap from="depth" to="sensors/external_pressure_sensor/depth" />
-      <remap from="pose" to="sensors/external_pressure_sensor/pose" />
+    <node pkg="auv_hardware_bridge" type="expansion_bridge_remapper_node.py" name="expansion_bridge_remapper_node" respawn="$(arg respawn)">
+      <param name="pressure_sensor_position_covariance" value="0.1"/>
+      <remap from="depth" to="sensors/external_pressure_sensor/depth"/>
+      <remap from="pose" to="sensors/external_pressure_sensor/pose"/>
     </node>
   </group>
 </launch>

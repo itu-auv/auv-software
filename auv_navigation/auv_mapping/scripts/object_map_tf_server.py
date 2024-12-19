@@ -99,7 +99,7 @@ class ObjectMapTFServer:
             # Store or update the transform in the dictionary using the lock
             with self.lock:
                 self.transforms[target_frame] = static_transform
-            
+
             rospy.loginfo("Stored static transform for frame: %s", target_frame)
 
             return SetObjectTransformResponse(

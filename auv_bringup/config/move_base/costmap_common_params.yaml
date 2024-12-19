@@ -1,3 +1,4 @@
+---
 obstacle_range: 20.0
 raytrace_range: 30.0
 
@@ -20,4 +21,3 @@ map_type: costmap
 
 observation_sources: pointcloud
 pointcloud: {sensor_frame: taluy/base_link, data_type: PointCloud, topic: pointcloud, marking: true, clearing: true}
-

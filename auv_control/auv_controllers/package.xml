@@ -3,19 +3,15 @@
   <name>auv_controllers</name>
   <version>0.1.0</version>
   <description>The auv_controllers package</description>
-
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
-
   <license>BSD-3-Clause</license>
-
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
   <build_export_depend>roscpp</build_export_depend>
   <exec_depend>roscpp</exec_depend>
   <depend>auv_common_lib</depend>
-
   <export>
-    <auv_controllers plugin="${prefix}/controller_plugins.xml" />
+    <auv_controllers plugin="${prefix}/controller_plugins.xml"/>
   </export>
 </package>

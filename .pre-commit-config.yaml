@@ -1,0 +1,39 @@
+---
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+        files: \.(yaml|yml)$
+      - id: check-xml
+        files: \.(xml|launch|launch\.xml|sdf|urdf\.xacro|xacro|urdf)$|model\.config$
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: destroyed-symlinks
+      - id: check-executables-have-shebangs
+        exclude: \.cpp|\.cxx|\.hpp|\.h$
+      - id: forbid-submodules
+      - id: check-added-large-files
+      - id: check-case-conflict
+  - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
+    rev: 0.2.3
+    hooks:
+      - id: yamlfmt
+        args: [--mapping, "2", --sequence, "4", --offset, "2", --width, "150", --preserve-quotes]
+        exclude: ^auv_bringup/config/ekf.yaml$
+  - repo: https://github.com/lsst-ts/pre-commit-xmllint
+    rev: v1.0.0
+    hooks:
+      - id: format-xmllint
+        files: \.(xml|launch|launch\.xml|sdf|urdf\.xacro|xacro|urdf)$|model\.config$
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v19.1.5
+    hooks:
+      - id: clang-format
+        files: \.(cpp|h|hpp)$
+  - repo: https://github.com/psf/black
+    rev: 24.8.0
+    hooks:
+      - id: black
+        language_version: python3
+        files: \.py$
