@@ -23,8 +23,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          apt-get update
-          apt-get install -y clang-format xmllint
+          sudo apt-get update
+          sudo apt-get install -y clang-format xmllint
 
       - name: Run pre-commit
         run: pre-commit run --all-files
