@@ -1,17 +1,17 @@
 class TerminalColors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    OKYELLOW = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-    ORANGE = '\033[38;5;214m'
-    PASTEL_BLUE = '\033[38;5;110m'
-    PASTEL_GREEN = '\033[38;5;157m'
-    PASTEL_PURPLE = '\033[38;5;183m'
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    OKYELLOW = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+    ORANGE = "\033[38;5;214m"
+    PASTEL_BLUE = "\033[38;5;110m"
+    PASTEL_GREEN = "\033[38;5;157m"
+    PASTEL_PURPLE = "\033[38;5;183m"
 
     @staticmethod
     def color_text(text, color):
@@ -28,6 +28,7 @@ class TerminalColors:
     @staticmethod
     def rgb_text(text, r, g, b):
         return f"\033[38;2;{r};{g};{b}m{text}{TerminalColors.ENDC}"
+
 
 # Example usage
 # print(TerminalColors.color_text("This is a pastel blue text.", TerminalColors.PASTEL_BLUE))

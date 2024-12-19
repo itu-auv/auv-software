@@ -7,6 +7,7 @@ from std_msgs.msg import Bool
 import threading
 from std_srvs.srv import Trigger, TriggerRequest
 
+
 class JoystickEvent:
     def __init__(self, change_threshold, callback):
         self.previous_value = 0.0
@@ -54,7 +55,6 @@ class JoystickNode:
         self.joy_sub = rospy.Subscriber("joy", Joy, self.joy_callback)
         rospy.loginfo("Joystick node initialized")
 
-
     def call_service_if_available(self, service, success_message, failure_message):
         try:
             service.wait_for_service(timeout=1)
@@ -81,14 +81,19 @@ class JoystickNode:
             self.dropper_service, "Ball dropped", "Failed to drop the ball"
         )
 
-
     def joy_callback(self, msg):
         with self.lock:
             self.joy_data = msg
 
-            self.torpedo1_button_event.update(self.joy_data.buttons[self.buttons["launch_torpedo1"]])
-            self.torpedo2_button_event.update(self.joy_data.buttons[self.buttons["launch_torpedo2"]])
-            self.dropper_button_event.update(self.joy_data.buttons[self.buttons["drop_ball"]])
+            self.torpedo1_button_event.update(
+                self.joy_data.buttons[self.buttons["launch_torpedo1"]]
+            )
+            self.torpedo2_button_event.update(
+                self.joy_data.buttons[self.buttons["launch_torpedo2"]]
+            )
+            self.dropper_button_event.update(
+                self.joy_data.buttons[self.buttons["drop_ball"]]
+            )
 
     def run(self):
         while not rospy.is_shutdown():
@@ -99,13 +104,25 @@ class JoystickNode:
                     # Use axes with gain
                     if self.joy_data.buttons[self.buttons["z_control"]]:
                         twist.linear.x = 0.0
-                        twist.linear.z = self.joy_data.axes[self.axes["z_axis"]["index"]] * self.axes["z_axis"]["gain"]
+                        twist.linear.z = (
+                            self.joy_data.axes[self.axes["z_axis"]["index"]]
+                            * self.axes["z_axis"]["gain"]
+                        )
                     else:
-                        twist.linear.x = self.joy_data.axes[self.axes["x_axis"]["index"]] * self.axes["x_axis"]["gain"]
+                        twist.linear.x = (
+                            self.joy_data.axes[self.axes["x_axis"]["index"]]
+                            * self.axes["x_axis"]["gain"]
+                        )
                         twist.linear.z = 0.0
 
-                    twist.linear.y = self.joy_data.axes[self.axes["y_axis"]["index"]] * self.axes["y_axis"]["gain"]
-                    twist.angular.z = self.joy_data.axes[self.axes["yaw_axis"]["index"]] * self.axes["yaw_axis"]["gain"]
+                    twist.linear.y = (
+                        self.joy_data.axes[self.axes["y_axis"]["index"]]
+                        * self.axes["y_axis"]["gain"]
+                    )
+                    twist.angular.z = (
+                        self.joy_data.axes[self.axes["yaw_axis"]["index"]]
+                        * self.axes["yaw_axis"]["gain"]
+                    )
                 else:
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
