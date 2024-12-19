@@ -125,6 +125,10 @@ class ObjectMapTFServerROS {
   std::optional<tf::StampedTransform> get_transform(
       const std::string &target_frame, const std::string &source_frame,
       const ros::Duration timeout) {
+        if (!tf_listener) {
+      return std::nullopt;
+    }
+
     try {
       tf_listener_->waitForTransform(target_frame, source_frame, ros::Time(0),
                                      timeout);
