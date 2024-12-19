@@ -9,6 +9,7 @@ repos:
         files: \.(xml|launch|launch\.xml|sdf|urdf\.xacro|xacro|urdf)$|model\.config$
       - id: end-of-file-fixer
       - id: trailing-whitespace
+      - id: destroyed-symlinks
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
     rev: 0.2.3
     hooks:
