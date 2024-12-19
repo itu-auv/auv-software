@@ -20,7 +20,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(serial_to_ros_bridge_node 
+add_executable(serial_to_ros_bridge_node
   src/serial_to_ros_bridge_node.cpp
   src/serial_to_ros_bridge.cpp
 )

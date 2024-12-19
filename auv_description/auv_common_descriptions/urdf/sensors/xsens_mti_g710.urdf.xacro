@@ -1,34 +1,29 @@
 <?xml version="1.0"?>
-<robot name="xsens_mti_g710" xmlns:xacro="http://ros.org/wiki/xacro">
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="xsens_mti_g710">
   <xacro:macro name="xsens_mti_g710" params="name parent position:='0 0 0' orientation:='0 0 0'">
     <link name="${name}_link">
       <visual>
-        <origin xyz="0 0 0" rpy="0 0 ${math.pi}" />
+        <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
         <geometry>
-          <mesh
-            filename="package://auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae"
-            scale="0.001 0.001 0.001" />
+          <mesh filename="package://auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae" scale="0.001 0.001 0.001"/>
         </geometry>
       </visual>
       <collision name="${name}_collision">
-        <origin xyz="0 0 0" rpy="0 0 ${math.pi}" />
+        <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
         <geometry>
-          <mesh
-            filename="package://auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae"
-            scale="0.001 0.001 0.001" />
+          <mesh filename="package://auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae" scale="0.001 0.001 0.001"/>
         </geometry>
       </collision>
       <inertial>
-        <mass value="0.5" />
-        <inertia ixx="0.008545" ixy="0.0" ixz="0.0" iyy="0.008545" iyz="0.0" izz="0.0144" />
+        <mass value="0.5"/>
+        <inertia ixx="0.008545" ixy="0.0" ixz="0.0" iyy="0.008545" iyz="0.0" izz="0.0144"/>
       </inertial>
     </link>
-
     <joint name="${name}_joint" type="fixed">
-      <parent link="${parent}" />
-      <child link="${name}_link" />
-      <origin xyz="${position}" rpy="${orientation}" />
-      <axis rpy="0 0 0" xyz="0 0 1" />
+      <parent link="${parent}"/>
+      <child link="${name}_link"/>
+      <origin xyz="${position}" rpy="${orientation}"/>
+      <axis rpy="0 0 0" xyz="0 0 1"/>
     </joint>
   </xacro:macro>
 </robot>

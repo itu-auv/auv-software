@@ -1,3 +1,4 @@
+---
 DWAPlannerROS:
 
 # Robot Configuration Parameters
@@ -16,7 +17,7 @@ DWAPlannerROS:
 
   acc_lim_x: 2.0
   acc_lim_y: 0.0
-  acc_lim_theta: 3.0 
+  acc_lim_theta: 3.0
   acc_lim_trans: 5.0
 
 # Goal Tolerance Parametes
@@ -44,5 +45,5 @@ DWAPlannerROS:
   oscillation_reset_dist: 0.05
 
 # Debugging
-  publish_traj_pc : true
+  publish_traj_pc: true
   publish_cost_grid_pc: true
