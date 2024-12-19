@@ -36,4 +36,3 @@ jobs:
     uses: ./.github/workflows/build_and_push_images.yml
     with:
       image_type: main
-
