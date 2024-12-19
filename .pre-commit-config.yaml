@@ -12,6 +12,9 @@ repos:
       - id: destroyed-symlinks
       - id: check-executables-have-shebangs
         exclude: \.cpp|\.cxx|\.hpp|\.h$
+      - id: forbid-submodules
+      - id: check-added-large-files
+      - id: check-case-conflict
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
     rev: 0.2.3
     hooks:
