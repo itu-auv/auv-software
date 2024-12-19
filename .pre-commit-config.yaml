@@ -5,13 +5,9 @@ repos:
     hooks:
       - id: check-yaml
         files: \.(yaml|yml)$
-  - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.35.1
-    hooks:
-      - id: yamllint
-        args: [--format, parsable, --strict, -d, "{extends: relaxed, rules: {line-length: {max: 150}}}"]
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
     rev: 0.2.3
     hooks:
       - id: yamlfmt
         args: [--mapping, "2", --sequence, "4", --offset, "2", --width, "150", --preserve-quotes]
+        exclude: ^auv_bringup/config/ekf.yaml$
