@@ -1,15 +1,14 @@
+<?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
-  <arg name="control_rate" default="20.0" />
-
+  <arg name="namespace" default="turquoise"/>
+  <arg name="control_rate" default="20.0"/>
   <group ns="$(arg namespace)">
-    <node pkg="robot_localization" type="ekf_localization_node" name="auv_localization_node"
-      clear_params="true">
-      <rosparam command="load" file="$(find auv_bringup)/config/ekf.yaml" />
-      <remap from="odometry/filtered" to="odometry" />
-      <remap from="accel/filtered" to="acceleration" />
-      <param name="disabled_at_startup" value="true" type="bool" />
-      <param name="frequency" value="$(arg control_rate)" type="double" />
+    <node pkg="robot_localization" type="ekf_localization_node" name="auv_localization_node" clear_params="true">
+      <rosparam command="load" file="$(find auv_bringup)/config/ekf.yaml"/>
+      <remap from="odometry/filtered" to="odometry"/>
+      <remap from="accel/filtered" to="acceleration"/>
+      <param name="disabled_at_startup" value="true" type="bool"/>
+      <param name="frequency" value="$(arg control_rate)" type="double"/>
     </node>
   </group>
 </launch>

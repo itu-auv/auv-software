@@ -1,15 +1,13 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
-  <arg name="prefix" default="log" />
-  <arg name="logging_directory" default="$(optenv PWD)" />
-  <arg name="include_pattern" default=".*" />
+  <arg name="namespace" default="turquoise"/>
+  <arg name="prefix" default="log"/>
+  <arg name="logging_directory" default="$(optenv PWD)"/>
+  <arg name="include_pattern" default=".*"/>
   <!-- <arg name="exclude_pattern" default="/.*image_[^/]*$" /> -->
-  <arg name="exclude_pattern" default="/.*image_[^/]*$|/.*theora$|/(?!.*image_raw/compressed$).*compressed$" />
-  <arg name="topics" default="" />
-
+  <arg name="exclude_pattern" default="/.*image_[^/]*$|/.*theora$|/(?!.*image_raw/compressed$).*compressed$"/>
+  <arg name="topics" default=""/>
   <group ns="$(arg namespace)">
-    <node name="auv_logger" pkg="rosbag" type="record" output="screen"
-      args=" --output-prefix=$(arg logging_directory)/$(arg prefix) -e $(arg include_pattern) -x $(arg exclude_pattern) $(arg topics)" />
+    <node name="auv_logger" pkg="rosbag" type="record" output="screen" args=" --output-prefix=$(arg logging_directory)/$(arg prefix) -e $(arg include_pattern) -x $(arg exclude_pattern) $(arg topics)"/>
   </group>
 </launch>

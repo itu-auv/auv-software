@@ -1,63 +1,53 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
-  <arg name="control_rate" default="20.0" />
-  <arg name="imu_topic" default="data" />
-  <arg name="port" default="/dev/ttyUSB0" />
-
+  <arg name="namespace" default="turquoise"/>
+  <arg name="control_rate" default="20.0"/>
+  <arg name="imu_topic" default="data"/>
+  <arg name="port" default="/dev/ttyUSB0"/>
   <group ns="$(arg namespace)">
     <node name="auv_imu_node" pkg="xsens_mti_driver" type="xsens_mti_node" output="screen">
-
       <!-- Topic Remappings -->
-      <remap from="temperature" to="sensors/imu/temperature" />
-      <remap from="imu/data" to="sensors/imu/$(arg imu_topic)" />
-      <remap from="imu/mag" to="sensors/imu/mag_stamped" />
-      <remap from="imu/time_ref" to="sensors/imu/time_ref" />
-      <remap from="imu/dq" to="sensors/imu/dq" />
-      <remap from="imu/dv" to="sensors/imu/dv" />
-      <remap from="imu/acceleration" to="sensors/imu/acceleration" />
-      <remap from="imu/angular_velocity" to="sensors/imu/angular_velocity" />
-      <remap from="pressure" to="sensors/imu/pressure" />
-      <remap from="filter/free_acceleration" to="sensors/imu/filter/free_acceleration" />
-      <remap from="filter/positionlla" to="sensors/imu/filter/positionlla" />
-      <remap from="filter/quaternion" to="sensors/imu/filter/quaternion" />
-      <remap from="filter/twist" to="sensors/imu/filter/twist" />
-      <remap from="filter/velocity" to="sensors/imu/filter/velocity" />
-      <remap from="gnss" to="sensors/imu/gnss" />
-
+      <remap from="temperature" to="sensors/imu/temperature"/>
+      <remap from="imu/data" to="sensors/imu/$(arg imu_topic)"/>
+      <remap from="imu/mag" to="sensors/imu/mag_stamped"/>
+      <remap from="imu/time_ref" to="sensors/imu/time_ref"/>
+      <remap from="imu/dq" to="sensors/imu/dq"/>
+      <remap from="imu/dv" to="sensors/imu/dv"/>
+      <remap from="imu/acceleration" to="sensors/imu/acceleration"/>
+      <remap from="imu/angular_velocity" to="sensors/imu/angular_velocity"/>
+      <remap from="pressure" to="sensors/imu/pressure"/>
+      <remap from="filter/free_acceleration" to="sensors/imu/filter/free_acceleration"/>
+      <remap from="filter/positionlla" to="sensors/imu/filter/positionlla"/>
+      <remap from="filter/quaternion" to="sensors/imu/filter/quaternion"/>
+      <remap from="filter/twist" to="sensors/imu/filter/twist"/>
+      <remap from="filter/velocity" to="sensors/imu/filter/velocity"/>
+      <remap from="gnss" to="sensors/imu/gnss"/>
       <!-- Parameters -->
-      <param name="frame_id" value="$(arg namespace)/base_link/imu_link" />
-      <param name="port" value="$(arg port)" />
+      <param name="frame_id" value="$(arg namespace)/base_link/imu_link"/>
+      <param name="port" value="$(arg port)"/>
       <!-- This is not important since USB CDC doesn't require baudrate -->
-      <param name="baudrate" value="2000000" />
-
-      <param name="pub_imu" value="true" />
-      <param name="pub_quaternion" value="true" />
-      <param name="pub_acceleration" value="true" />
-      <param name="pub_angular_velocity" value="true" />
-      <param name="pub_mag" value="true" />
-      <param name="pub_dq" value="true" />
-      <param name="pub_dv" value="true" />
-      <param name="pub_sampletime" value="true" />
-      <param name="pub_temperature" value="true" />
-      <param name="pub_pressure" value="true" />
-      <param name="pub_gnss" value="true" />
-      <param name="pub_twist" value="true" />
-      <param name="pub_free_acceleration" value="true" />
-
+      <param name="baudrate" value="2000000"/>
+      <param name="pub_imu" value="true"/>
+      <param name="pub_quaternion" value="true"/>
+      <param name="pub_acceleration" value="true"/>
+      <param name="pub_angular_velocity" value="true"/>
+      <param name="pub_mag" value="true"/>
+      <param name="pub_dq" value="true"/>
+      <param name="pub_dv" value="true"/>
+      <param name="pub_sampletime" value="true"/>
+      <param name="pub_temperature" value="true"/>
+      <param name="pub_pressure" value="true"/>
+      <param name="pub_gnss" value="true"/>
+      <param name="pub_twist" value="true"/>
+      <param name="pub_free_acceleration" value="true"/>
       <!-- disable world->imu_link transform -->
-      <param name="pub_transform" value="false" />
-      <param name="pub_positionLLA" value="true" />
-      <param name="pub_velocity" value="true" />
-
-      <param name="linear_acceleration_stddev" type="yaml"
-        value="[0.004908039550431511,0.0070260067392083755,0.006481069334617469]" />
-      <param name="angular_velocity_stddev" type="yaml"
-        value="[0.0010349011225749835,0.0027708115247918187,0.0010211210420728483]" />
-      <param name="orientation_stddev" type="yaml"
-        value="[0.0013421952371246086,0.0010453284302246418,2.4719462779466497]" />
-      <param name="magnetic_field_stddev" type="yaml"
-        value="[0.02560214834735554,0.019545076106272905,0.025738104048278303]" />
+      <param name="pub_transform" value="false"/>
+      <param name="pub_positionLLA" value="true"/>
+      <param name="pub_velocity" value="true"/>
+      <param name="linear_acceleration_stddev" type="yaml" value="[0.004908039550431511,0.0070260067392083755,0.006481069334617469]"/>
+      <param name="angular_velocity_stddev" type="yaml" value="[0.0010349011225749835,0.0027708115247918187,0.0010211210420728483]"/>
+      <param name="orientation_stddev" type="yaml" value="[0.0013421952371246086,0.0010453284302246418,2.4719462779466497]"/>
+      <param name="magnetic_field_stddev" type="yaml" value="[0.02560214834735554,0.019545076106272905,0.025738104048278303]"/>
     </node>
   </group>
 </launch>
