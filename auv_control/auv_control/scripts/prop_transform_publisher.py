@@ -21,23 +21,23 @@ class Scene:
     def __init__(self):
         self.lock = threading.Lock()
         self.objects = {}
-    
+
     def add_object_to_location(self, id: int, x: float, y: float, z: float):
         with self.lock:
             if id not in self.objects:
                 self.objects[id] = []
-                
+
             # check if the new location belongs to already existing object or a new object, just by checking the distance
             for obj in self.objects[id]:
                 distance = math.sqrt((obj.x - x)**2 + (obj.y - y)**2 + (obj.z - z)**2)
                 if distance < 4.0:
                     obj.update_position(x, y, z)
                     return
-            
+
             # if it is octagon, dont add new octagon if there is already one
             if id == 14 and len(self.objects[id]) > 0:
                 pass # don't add new octagon
-            else:    
+            else:
                 new_object = SceneObject(id, x, y, z)
                 self.objects[id].append(new_object)
 
@@ -45,7 +45,7 @@ class Scene:
         objects_copy = None
         with self.lock:
             objects_copy = copy.deepcopy(self.objects)
-        
+
         return objects_copy
 
     def update_objects(self):
@@ -53,7 +53,7 @@ class Scene:
             for key, value in self.objects.items():
                 for obj in value:
                     obj.update_filtered_position()
-        
+
     def print_all_objects_and_their_count(self):
         with self.lock:
             for key, value in self.objects.items():
@@ -68,16 +68,16 @@ class SceneObject:
         self.filtered_x = x
         self.filtered_y = y
         self.filtered_z = z
-        
+
     def get_position(self):
         return self.x, self.y, self.z
-    
+
     def update_filtered_position(self):
         alpha = 0.2
         self.filtered_x = alpha * self.x + (1 - alpha) * self.filtered_x
         self.filtered_y = alpha * self.y + (1 - alpha) * self.filtered_y
         self.filtered_z = alpha * self.z + (1 - alpha) * self.filtered_z
-    
+
     def update_position(self, x: float, y: float, z: float):
         self.x = x
         self.y = y
@@ -118,12 +118,12 @@ class CameraCalibration:
         angle_x = math.atan(norm_x)
         angle_y = math.atan(norm_y)
         return angle_x, angle_y
-    
+
     def distance_from_height(self, real_height: float, measured_height: float) -> float:
         focal_length = self.calibration.K[4]
         distance = (real_height * focal_length) / measured_height
         return distance
-    
+
     def distance_from_width(self, real_width: float, measured_width: float) -> float:
         focal_length = self.calibration.K[0]
         distance = (real_width * focal_length) / measured_width
@@ -138,17 +138,17 @@ class Prop:
         self.scene_objects = {}
 
     def estimate_distance(self, measured_height: float, measured_width: float, calibration: CameraCalibration):
-        
+
         distance_from_height = None
         distance_from_width = None
         distance_avarage = None
-        
+
         if self.real_height is not None:
             distance_from_height = calibration.distance_from_height(self.real_height, measured_height)
-        
+
         if self.real_width is not None:
             distance_from_width = calibration.distance_from_width(self.real_width, measured_width)
-        
+
         if distance_from_height is not None and distance_from_width is not None:
             distance_avarage = (distance_from_height + distance_from_width) * 0.5
             return distance_avarage
@@ -298,14 +298,14 @@ class ObjectPositionEstimator:
     def scene_transform_publisher_callback(self, event):
         # first update scene objects
         self.scene.update_objects()
-        
+
         # traverse over all objects in the scene and publish their transform as tf
         for key, value in self.scene.get_objects().items():
             # find out the closest object to the taluy/base_link
             closest_object = None
             min_distance = 1000.0
             for obj in value:
-                
+
                 point1 = PointStamped()
                 point1.header.frame_id = "odom"
                 point1.point.x = obj.filtered_x
@@ -321,14 +321,14 @@ class ObjectPositionEstimator:
                 ):
                     rospy.logerr("Error looking up transform")
                     return
-                
+
                 point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
-                
+
                 distance = math.sqrt(point1_odom.point.x**2 + point1_odom.point.y**2 + point1_odom.point.z**2)
                 if distance < min_distance:
                     min_distance = distance
                     closest_object = obj
-            
+
             for obj in value:
                 transform_message = TransformStamped()
                 transform_message.header.stamp = rospy.Time.now()
@@ -344,10 +344,10 @@ class ObjectPositionEstimator:
                 transform_message.transform.rotation.y = 0.0
                 transform_message.transform.rotation.z = 0.0
                 transform_message.transform.rotation.w = 1.0
-                
+
                 self.broadcaster.sendTransform(transform_message)
-                
-        
+
+
     # def dvl_callback(self, msg: Float32):
     #     self.latest_altitude = msg.data
 
@@ -390,11 +390,11 @@ class ObjectPositionEstimator:
 
             if detection_id in self.id_tf_map["taluy/cameras/cam_front"]:
                 detection_name = self.id_tf_map["taluy/cameras/cam_front"][detection_id]
-                
+
                 if detection_id == 9:
                     self.process_altitude_projection(detection, altitude)
                     continue
-                
+
                 if detection_name in self.props:
                     prop = self.props[detection_name]
                     measured_height = detection.bbox.size_y
@@ -580,7 +580,7 @@ class ObjectPositionEstimator:
         point1.point.x = offset_x
         point1.point.y = offset_y
         point1.point.z = distance
-        
+
         try:
             # transform from optical_camera_frame to odom frame
             transform = self.tf_buffer.lookup_transform(
@@ -588,7 +588,7 @@ class ObjectPositionEstimator:
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             self.scene.add_object_to_location(detection_id, point1_odom.point.x, point1_odom.point.y, point1_odom.point.z)
             self.scene.print_all_objects_and_their_count()
-            
+
         except tf2_ros.LookupException as e:
             rospy.logerr(f"Error transforming point: {e}")
 
@@ -683,7 +683,7 @@ class ObjectPositionEstimator:
 
         if not intersect_return:
             return
-        
+
         x_, y_, z_ = intersect_return
 
         self.scene.add_object_to_location(detection_id, x_, y_, z_)

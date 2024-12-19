@@ -68,16 +68,16 @@ class ControllerROS {
     f = boost::bind(&ControllerROS::reconfigure_callback, this, _1, _2);
     dr_srv_.updateConfig(initial_config);  // Apply the initial configuration
     dr_srv_.setCallback(f);
-    
+
     odometry_sub_ =
         nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
     cmd_vel_sub_ =
         nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
     cmd_pose_sub_ =
         nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
-    accel_sub_ = 
+    accel_sub_ =
         nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this);
-        
+
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
         []() { ROS_WARN_STREAM("control enable message timeouted"); },
@@ -220,7 +220,7 @@ void save_parameters() {
       ss << param << ": [" << values(0);
       for (int i = 1; i < 12; ++i) ss << ", " << values(i);
       ss << "]";
-      
+
       std::string::size_type start_pos = content.find(param + ": [");
       if (start_pos == std::string::npos) {
         // If parameter not found, add it to the end

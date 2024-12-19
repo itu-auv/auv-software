@@ -49,7 +49,7 @@ catkin_install_python(PROGRAMS
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-add_executable(${PROJECT_NAME}_node 
+add_executable(${PROJECT_NAME}_node
   src/controller_ros.cpp
   src/controller_node.cpp
 )
@@ -65,7 +65,7 @@ install(TARGETS ${PROJECT_NAME}_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-add_executable(thruster_manager_node 
+add_executable(thruster_manager_node
   src/thruster_manager_ros.cpp
   src/thruster_manager_node.cpp
 )
