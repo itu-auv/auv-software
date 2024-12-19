@@ -12,6 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  formatting:
+    uses: ./.github/workflows/formatting.yml
+
   build-and-push-base-docker:
     uses: ./.github/workflows/build_and_push_images.yml
     with:
