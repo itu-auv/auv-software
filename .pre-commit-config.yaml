@@ -9,9 +9,9 @@ repos:
     rev: v1.35.1
     hooks:
       - id: yamllint
-        args: [--format, parsable, --strict, -d, "{extends: relaxed, rules: {line-length: {max: 120}}}"]
+        args: [--format, parsable, --strict, -d, "{extends: relaxed, rules: {line-length: {max: 150}}}"]
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
     rev: 0.2.3
     hooks:
       - id: yamlfmt
-        args: [--mapping, "2", --sequence, "4", --offset, "2", --width, "120", --preserve-quotes]
+        args: [--mapping, "2", --sequence, "4", --offset, "2", --width, "150", --preserve-quotes]
