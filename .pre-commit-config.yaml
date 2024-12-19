@@ -10,6 +10,8 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: destroyed-symlinks
+      - id: check-executables-have-shebangs
+        exclude: \.cpp|\.cxx|\.hpp|\.h$
   - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
     rev: 0.2.3
     hooks:
