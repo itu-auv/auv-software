@@ -1,5 +1,6 @@
 #pragma once
 
+#include <fcntl.h>
 #include <linux/can.h>
 #include <linux/can/raw.h>
 #include <net/if.h>
@@ -12,30 +13,35 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
 
 namespace auv_hardware {
+struct CanMessage {
+  auv_hardware::canbus::ExtendedIdType id;
+  std::vector<uint8_t> data;
+};
 
 class CanbusSocket {
  public:
   CanbusSocket() : socket_fd_(-1) {}
 
-  void initialize(const std::string &intarface_name) {
+  void initialize(const std::string &interface_name) {
     socket_fd_ = ::socket(PF_CAN, SOCK_RAW, CAN_RAW);
     if (socket_fd_ < 0) {
       throw std::runtime_error("Failed to open CAN socket");
     }
 
     struct ifreq ifr;
-    std::strncpy(ifr.ifr_name, intarface_name.c_str(), IFNAMSIZ - 1);
+    std::strncpy(ifr.ifr_name, interface_name.c_str(), IFNAMSIZ - 1);
     ifr.ifr_name[IFNAMSIZ - 1] = '\0';
 
     const auto ioctl_status = ::ioctl(socket_fd_, SIOCGIFINDEX, &ifr);
 
     if (ioctl_status < 0) {
-      ROS_ERROR_STREAM("Failed to get CAN interface index: " << intarface_name);
+      ROS_ERROR_STREAM("Failed to get CAN interface index: " << interface_name);
       close();
       throw std::runtime_error("Failed to get CAN interface index");
     }
@@ -50,8 +56,15 @@ class CanbusSocket {
     if (bind_status < 0) {
       close();
       ROS_ERROR_STREAM(
-          "Failed to bind CAN socket on interface: " << intarface_name);
+          "Failed to bind CAN socket on interface: " << interface_name);
       throw std::runtime_error("Failed to bind CAN socket");
+    }
+
+    // Set socket to non-blocking mode
+    const auto flags = fcntl(socket_fd_, F_GETFL, 0);
+    if (flags == -1 || fcntl(socket_fd_, F_SETFL, flags | O_NONBLOCK) == -1) {
+      close();
+      throw std::runtime_error("Failed to set CAN socket to non-blocking mode");
     }
   }
 
@@ -108,6 +121,38 @@ class CanbusSocket {
     }
 
     return true;
+  }
+
+  std::optional<CanMessage> handle() {
+    if (!is_connected()) {
+      ROS_ERROR_STREAM("Cannot receive CAN frame: (not connected)");
+      return std::nullopt;
+    }
+
+    struct can_frame frame = {};
+    {
+      std::scoped_lock lock{socket_mutex_};
+      const auto bytes_read = ::read(socket_fd_, &frame, sizeof(frame));
+
+      if (bytes_read < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          // No data available, this is expected in non-blocking mode
+          return std::nullopt;
+        } else {
+          throw std::runtime_error("Failed to read from CAN socket");
+        }
+      }
+
+      if (bytes_read != sizeof(frame)) {
+        throw std::runtime_error("Incomplete CAN frame received");
+      }
+    }
+
+    CanMessage message;
+    message.id = frame.can_id & CAN_EFF_MASK;
+    message.data.resize(frame.can_dlc);
+    std::memcpy(message.data.data(), frame.data, frame.can_dlc);
+    return message;
   }
 
  protected:
