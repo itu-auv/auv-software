@@ -1,25 +1,18 @@
+<?xml version="1.0"?>
 <launch>
-  <arg name="namespace" />
-  <arg name="use_gui" default="false" />
-  <arg name="model" default="$(find taluy_description)/urdf/auv.urdf.xacro" />
-
-  <param name="robot_description" command="xacro $(arg model)" />
-
+  <arg name="namespace"/>
+  <arg name="use_gui" default="false"/>
+  <arg name="model" default="$(find taluy_description)/urdf/auv.urdf.xacro"/>
+  <param name="robot_description" command="xacro $(arg model)"/>
   <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
-    <param name="tf_prefix" value="$(arg namespace)" type="string" />
+    <param name="tf_prefix" value="$(arg namespace)" type="string"/>
   </node>
-
-  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"
-    unless="$(arg use_gui)">
-    <param name="tf_prefix" value="$(arg namespace)" type="string" />
+  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" unless="$(arg use_gui)">
+    <param name="tf_prefix" value="$(arg namespace)" type="string"/>
   </node>
-
   <!-- TODO: remove the joint_state_publisher_gui after debugging to reduce dependencies -->
-  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui"
-    type="joint_state_publisher_gui" if="$(arg use_gui)">
-    <param name="tf_prefix" value="$(arg namespace)" type="string" />
+  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" if="$(arg use_gui)">
+    <param name="tf_prefix" value="$(arg namespace)" type="string"/>
   </node>
-
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/default.rviz"
-    if="$(arg use_gui)" />
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/default.rviz" if="$(arg use_gui)"/>
 </launch>
