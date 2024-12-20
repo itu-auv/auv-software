@@ -18,7 +18,7 @@ class ObjectMapTFServerROS {
  public:
   ObjectMapTFServerROS(const ros::NodeHandle &nh)
       : nh_{nh},
-        tf_listener_{std::make_shared<tf::TransformListener>()},
+        tf_listener_{nh_},
         rate_{10.0},
         static_frame_{""},
         transforms_{},
@@ -125,16 +125,12 @@ class ObjectMapTFServerROS {
   std::optional<tf::StampedTransform> get_transform(
       const std::string &target_frame, const std::string &source_frame,
       const ros::Duration timeout) {
-        if (!tf_listener) {
-      return std::nullopt;
-    }
-
     try {
-      tf_listener_->waitForTransform(target_frame, source_frame, ros::Time(0),
-                                     timeout);
+      tf_listener_.waitForTransform(target_frame, source_frame, ros::Time(0),
+                                    timeout);
       tf::StampedTransform tf_transform;
-      tf_listener_->lookupTransform(target_frame, source_frame, ros::Time(0),
-                                    tf_transform);
+      tf_listener_.lookupTransform(target_frame, source_frame, ros::Time(0),
+                                   tf_transform);
       return tf_transform;
     } catch (tf::TransformException &ex) {
       return std::nullopt;
@@ -142,7 +138,7 @@ class ObjectMapTFServerROS {
   }
 
   ros::NodeHandle nh_;
-  std::shared_ptr<tf::TransformListener> tf_listener_;
+  tf::TransformListener tf_listener_;
   double rate_;
   std::string static_frame_;
   TransformMap transforms_;
