@@ -3,10 +3,10 @@
   <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/sensors.urdf.xacro" />
 
   <xacro:bar30_sim name="${namespace}/base_link/external_pressure_sensor" />
-  <xacro:sonar_sim name="${namespace}/base_link/sonar_front" />
-  <xacro:sonar_sim name="${namespace}/base_link/sonar_back" />
-  <xacro:sonar_sim name="${namespace}/base_link/sonar_right" />
-  <xacro:sonar_sim name="${namespace}/base_link/sonar_left" />
+  <xacro:sonar_sim name="${namespace}/base_link/sonar_front" topic="sensors/sonar_front" />
+  <xacro:sonar_sim name="${namespace}/base_link/sonar_back" topic="sensors/sonar_back" />
+  <xacro:sonar_sim name="${namespace}/base_link/sonar_right" topic="sensors/sonar_right" />
+  <xacro:sonar_sim name="${namespace}/base_link/sonar_left" topic="sensors/sonar_left" />
   <xacro:logitech_c920_camera_sim name="${namespace}/base_link/front_camera"
     topic_name="cameras/cam_front" />
   <xacro:logitech_c920_camera_sim name="${namespace}/base_link/bottom_camera"
