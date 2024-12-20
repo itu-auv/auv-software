@@ -3,8 +3,9 @@
 #include <auv_msgs/SetObjectTransform.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <ros/ros.h>
-#include <tf/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <mutex>
 #include <optional>
@@ -18,7 +19,8 @@ class ObjectMapTFServerROS {
  public:
   ObjectMapTFServerROS(const ros::NodeHandle &nh)
       : nh_{nh},
-        tf_listener_{nh_},
+        tf_buffer_{},
+        tf_listener_{tf_buffer_},
         rate_{10.0},
         static_frame_{""},
         transforms_{},
@@ -51,33 +53,38 @@ class ObjectMapTFServerROS {
       return false;
     }
 
-    const auto parent_to_target_quaternion = tf::Quaternion(
+    const auto parent_to_target_quaternion = tf2::Quaternion(
         req.transform.transform.rotation.x, req.transform.transform.rotation.y,
         req.transform.transform.rotation.z, req.transform.transform.rotation.w);
 
-    tf::Matrix3x3 parent_to_target_orientation(parent_to_target_quaternion);
+    auto parent_to_target_orientation =
+        tf2::Matrix3x3{parent_to_target_quaternion};
 
-    tf::Vector3 parent_to_target_translation(
-        req.transform.transform.translation.x,
-        req.transform.transform.translation.y,
-        req.transform.transform.translation.z);
+    auto parent_to_target_translation =
+        tf2::Vector3{req.transform.transform.translation.x,
+                     req.transform.transform.translation.y,
+                     req.transform.transform.translation.z};
 
-    // Static frame to parent transformation matrix
-    tf::Matrix3x3 static_to_parent_orientation(
-        static_to_parent_transform->getRotation());
+    auto static_to_parent_quaternion = tf2::Quaternion{};
+    tf2::fromMsg(static_to_parent_transform->transform.rotation,
+                 static_to_parent_quaternion);
 
-    tf::Vector3 static_to_parent_translation =
-        static_to_parent_transform->getOrigin();
+    const auto static_to_parent_orientation =
+        tf2::Matrix3x3{static_to_parent_quaternion};
 
-    // Combined transformation: static frame to target
-    tf::Matrix3x3 static_to_target_orientation =
-        static_to_parent_orientation * parent_to_target_orientation;
+    const auto static_to_parent_translation =
+        tf2::Vector3{static_to_parent_transform->transform.translation.x,
+                     static_to_parent_transform->transform.translation.y,
+                     static_to_parent_transform->transform.translation.z};
 
-    tf::Vector3 static_to_target_translation =
+    const auto static_to_target_orientation = tf2::Matrix3x3{
+        static_to_parent_orientation * parent_to_target_orientation};
+
+    const auto static_to_target_translation = tf2::Vector3{
         static_to_parent_translation +
-        static_to_parent_orientation * parent_to_target_translation;
+        static_to_parent_orientation * parent_to_target_translation};
 
-    geometry_msgs::TransformStamped static_transform;
+    auto static_transform = geometry_msgs::TransformStamped{};
     static_transform.header.stamp = ros::Time::now();
     static_transform.header.frame_id = static_frame_;
     static_transform.child_frame_id = target_frame;
@@ -86,12 +93,10 @@ class ObjectMapTFServerROS {
     static_transform.transform.translation.y = static_to_target_translation.y();
     static_transform.transform.translation.z = static_to_target_translation.z();
 
-    tf::Quaternion static_to_target_quaternion;
+    auto static_to_target_quaternion = tf2::Quaternion{};
     static_to_target_orientation.getRotation(static_to_target_quaternion);
-    static_transform.transform.rotation.x = static_to_target_quaternion.x();
-    static_transform.transform.rotation.y = static_to_target_quaternion.y();
-    static_transform.transform.rotation.z = static_to_target_quaternion.z();
-    static_transform.transform.rotation.w = static_to_target_quaternion.w();
+    static_transform.transform.rotation =
+        tf2::toMsg(static_to_target_quaternion);
 
     {
       auto lock = std::scoped_lock(mutex_);
@@ -122,23 +127,22 @@ class ObjectMapTFServerROS {
   }
 
  private:
-  std::optional<tf::StampedTransform> get_transform(
+  std::optional<geometry_msgs::TransformStamped> get_transform(
       const std::string &target_frame, const std::string &source_frame,
       const ros::Duration timeout) {
     try {
-      tf_listener_.waitForTransform(target_frame, source_frame, ros::Time(0),
-                                    timeout);
-      tf::StampedTransform tf_transform;
-      tf_listener_.lookupTransform(target_frame, source_frame, ros::Time(0),
-                                   tf_transform);
-      return tf_transform;
-    } catch (tf::TransformException &ex) {
+      auto transform = tf_buffer_.lookupTransform(target_frame, source_frame,
+                                                  ros::Time(0), timeout);
+      return transform;
+    } catch (tf2::TransformException &ex) {
+      ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
       return std::nullopt;
     }
   }
 
   ros::NodeHandle nh_;
-  tf::TransformListener tf_listener_;
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
   double rate_;
   std::string static_frame_;
   TransformMap transforms_;
