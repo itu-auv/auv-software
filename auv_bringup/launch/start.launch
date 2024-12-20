@@ -4,6 +4,7 @@
   <arg name="control_rate" default="20.0" />
   <arg name="dvl_virtual_port" default="/tmp/vcom0" />
   <arg name="use_gui" default="false" />
+  <arg name="logging_directory" default="$(optenv HOME)/bags" />
 
   <rosparam file="$(find auv_bringup)/config/environment.yaml" command="load" ns="" />
 
@@ -60,7 +61,7 @@
 
   <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
-    <arg name="logging_directory" value="/home/jetson/bags/" />
+    <arg name="logging_directory" value="$(arg logging_directory)" />
   </include>
 
   <include file="$(find auv_mapping)/launch/start.launch">

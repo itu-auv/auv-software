@@ -1,3 +1,4 @@
+---
 name: industrial_ci
 
 on:
@@ -23,7 +24,7 @@ jobs:
           directory=$(mktemp -d)
           echo build_directory=$directory >> $GITHUB_ENV
       - uses: ros-industrial/industrial_ci@master
-        env: 
+        env:
           ROS_DISTRO: noetic
           UPSTREAM_WORKSPACE: third_party.repos
           ADDITIONAL_DEBS: lld
