@@ -1,4 +1,3 @@
-<?xml version="1.0"?>
 <sdf version='1.7'>
   <world name='default'>
     <light name='sun' type='directional'>
@@ -19,57 +18,9 @@
         <falloff>0</falloff>
       </spot>
     </light>
-    <model name='ground_plane'>
-      <static>1</static>
-      <link name='link'>
-        <collision name='collision'>
-          <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>100 100</size>
-            </plane>
-          </geometry>
-          <surface>
-            <contact>
-              <collide_bitmask>65535</collide_bitmask>
-              <ode />
-            </contact>
-            <friction>
-              <ode>
-                <mu>100</mu>
-                <mu2>50</mu2>
-              </ode>
-              <torsional>
-                <ode />
-              </torsional>
-            </friction>
-            <bounce />
-          </surface>
-          <max_contacts>10</max_contacts>
-        </collision>
-        <visual name='visual'>
-          <cast_shadows>0</cast_shadows>
-          <geometry>
-            <plane>
-              <normal>0 0 1</normal>
-              <size>100 100</size>
-            </plane>
-          </geometry>
-          <material>
-            <script>
-              <uri>file://media/materials/scripts/gazebo.material</uri>
-              <name>Gazebo/Grey</name>
-            </script>
-          </material>
-        </visual>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
     <gravity>0 0 -9.8</gravity>
     <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
-    <atmosphere type='adiabatic' />
+    <atmosphere type='adiabatic'/>
     <physics type='ode'>
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1</real_time_factor>
@@ -80,7 +31,7 @@
       <background>0.7 0.7 0.7 1</background>
       <shadows>1</shadows>
     </scene>
-    <wind />
+    <wind/>
     <spherical_coordinates>
       <surface_model>EARTH_WGS84</surface_model>
       <latitude_deg>0</latitude_deg>
@@ -90,7 +41,7 @@
     </spherical_coordinates>
     <model name='singapore_pool'>
       <static>1</static>
-      <pose>2.00285 -2.94333 0 0 -0 0</pose>
+      <pose>2.00285 -2.94333 -2 0 -0 0</pose>
       <link name='singapore_pool'>
         <pose>0 0 0 0 -0 0</pose>
         <collision name='singapore_pool_col'>
@@ -103,14 +54,14 @@
           <max_contacts>10</max_contacts>
           <surface>
             <contact>
-              <ode />
+              <ode/>
             </contact>
-            <bounce />
+            <bounce/>
             <friction>
               <torsional>
-                <ode />
+                <ode/>
               </torsional>
-              <ode />
+              <ode/>
             </friction>
           </surface>
         </collision>
@@ -128,25 +79,65 @@
       </link>
     </model>
     <state world_name='default'>
-      <sim_time>46 235000000</sim_time>
-      <real_time>134 879326904</real_time>
-      <wall_time>1732966767 784880185</wall_time>
-      <iterations>46235</iterations>
-      <model name='ground_plane'>
-        <pose>0 0 0 0 -0 0</pose>
+      <sim_time>1711 633000000</sim_time>
+      <real_time>62 375293282</real_time>
+      <wall_time>1734459289 293355600</wall_time>
+      <iterations>62177</iterations>
+      <model name='robosub_bin'>
+        <pose>5.35801 -15.9923 -1.90606 0 -0 0</pose>
         <scale>1 1 1</scale>
-        <link name='link'>
-          <pose>0 0 0 0 -0 0</pose>
+        <link name='robosub_bin'>
+          <pose>5.35801 -15.9923 -1.90606 0 -0 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='robosub_buoy'>
+        <pose>-2.05488 -12.0195 -1.90257 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='robosub_buoy'>
+          <pose>-2.05488 -12.0195 -1.90257 0 -0 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='robosub_gate'>
+        <pose>-0.728443 -6.67244 -1.95258 0 -0 1.57516</pose>
+        <scale>1 1 1</scale>
+        <link name='robosub_gate'>
+          <pose>-0.728443 -6.67244 -1.95258 0 -0 1.57516</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='robosub_octagon'>
+        <pose>-3.53197 -17.8559 -1.97356 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='robosub_octagon'>
+          <pose>-3.53197 -17.8559 -1.97356 0 -0 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='robosub_torpedo'>
+        <pose>0.006323 -15.4031 -1.99636 0 -0 1.5473</pose>
+        <scale>1 1 1</scale>
+        <link name='robosub_torpedo'>
+          <pose>0.006323 -15.4031 -1.99636 0 -0 1.5473</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='singapore_pool'>
-        <pose>2.00285 -2.94333 0 0 -0 0</pose>
+        <pose>4.53158 2.81103 -2 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='singapore_pool'>
-          <pose>2.00285 -2.94333 0 0 -0 0</pose>
+          <pose>4.53158 2.81103 -2 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -158,10 +149,205 @@
     </state>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>2.24346 -43.0463 6.01476 -0 0.231644 1.6482</pose>
+        <pose>-1.83265 9.56062 12.0698 0 0.603644 -1.51579</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
     </gui>
+    <model name='robosub_bin'>
+      <static>1</static>
+      <pose>11.1506 -3.22181 0 0 -0 0</pose>
+      <link name='robosub_bin'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_bin_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_bin/meshes/bin.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='robosub_bin_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_bin/meshes/bin.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+    </model>
+    <model name='robosub_gate'>
+      <static>1</static>
+      <pose>7.43948 -3.97964 0 0 -0 0</pose>
+      <link name='robosub_gate'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_gate_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_gate/meshes/gate.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='robosub_gate_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_gate/meshes/gate.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+    </model>
+    <model name='robosub_torpedo'>
+      <static>1</static>
+      <pose>8.90833 -5.08086 0 0 -0 0</pose>
+      <link name='robosub_torpedo'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_torpedo_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_torpedo/meshes/torpedo.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='robosub_torpedo_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_torpedo/meshes/torpedo.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+    </model>
+    <model name='robosub_octagon'>
+      <static>1</static>
+      <pose>7.82493 -2.79177 0 0 -0 0</pose>
+      <link name='robosub_octagon'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_octagon_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/octagon.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='robosub_octagon_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/octagon.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+    </model>
+    <model name='robosub_buoy'>
+      <static>1</static>
+      <pose>12.7676 -1.20304 0 0 -0 0</pose>
+      <link name='robosub_buoy'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_buoy_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_buoy/meshes/buoy.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='robosub_buoy_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_buoy/meshes/buoy.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+    </model>
   </world>
 </sdf>
