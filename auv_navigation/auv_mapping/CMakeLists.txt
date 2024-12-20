@@ -23,7 +23,7 @@ include_directories(
 )
 
 
-add_executable(object_map_tf_server_node 
+add_executable(object_map_tf_server_node
   src/object_map_tf_server_node.cpp
 )
 
@@ -43,7 +43,7 @@ install(DIRECTORY include/${PROJECT_NAME}/
   PATTERN ".svn" EXCLUDE
 )
 
-install(DIRECTORY 
+install(DIRECTORY
   launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

@@ -13,7 +13,6 @@
   <depend>auv_navigation</depend>
   <depend>auv_localization</depend>
   <depend>auv_vision</depend>
-  
   <export>
 
   </export>
