@@ -7,8 +7,8 @@ catkin_package()
 
 include_directories()
 
-install(DIRECTORY 
-  launch 
+install(DIRECTORY
+  launch
   config
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}  
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

@@ -10,7 +10,7 @@
     <node name="auv_sim_bridge" pkg="auv_sim_bridge" type="simulation_mock_node" output="screen">
       <rosparam command="load" file="$(find auv_localization)/config/imu_calibration_data.yaml"
         ns="imu" />
-      
+
       <!-- outputs -->
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="power" to="mainboard/power_sensor/power" />
@@ -32,6 +32,6 @@
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
-  </include>  
-  
+  </include>
+
 </launch>

@@ -14,18 +14,15 @@
      See the License for the specific language governing permissions and
      limitations under the License.
 -->
-
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <!--
     Center of buoyancy according to eq. (3.1) p. 28 in Berg2012.
     The original values, [0.0822, -0.00773, 0.3872] however, seem to
     assume NWU (otherwise cob is below cog?).
     -->
-  <xacro:property name="cob" value="0.0 0.0 0.2" />
-
+  <xacro:property name="cob" value="0.0 0.0 0.2"/>
   <!-- Volume, see p.31 in Berg2012, normally 0.009165088 -->
-  <xacro:property name="volume" value="0.027" />
-
+  <xacro:property name="volume" value="0.027"/>
   <xacro:macro name="auv_hydro_model" params="namespace">
     <link name="${namespace}/base_link">
       <neutrally_buoyant>1</neutrally_buoyant>
@@ -55,5 +52,4 @@
       </hydrodynamic_model>
     </link>
   </xacro:macro>
-
 </robot>
