@@ -8,8 +8,8 @@
 #include "geometry_msgs/Twist.h"
 #include "nav_msgs/Odometry.h"
 #include "sensor_msgs/FluidPressure.h"
-#include "sensor_msgs/Range.h"
 #include "sensor_msgs/Imu.h"
+#include "sensor_msgs/Range.h"
 #include "sim_thruster_ros.h"
 #include "std_msgs/Bool.h"
 #include "std_msgs/Float32.h"
@@ -242,7 +242,8 @@ class SimulationMockROS {
   void initializeSubscribers() {
     depth_sub_ =
         nh_.subscribe("pressure", 1, &SimulationMockROS::depthCallback, this);
-    imu_sub_ = nh_.subscribe("imu_raw", 1, &SimulationMockROS::imuCallback, this);
+    imu_sub_ =
+        nh_.subscribe("imu_raw", 1, &SimulationMockROS::imuCallback, this);
     dvl_sub_ = nh_.subscribe("dvl", 1, &SimulationMockROS::dvlCallback, this);
     drive_pulse_sub_ = nh_.subscribe(
         "drive_pulse", 1, &SimulationMockROS::drivePulseCallback, this);

@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <launch>
-    <env 
-        name="GAZEBO_MODEL_PATH" 
-        value="$(find auv_sim_description)/models:${GAZEBO_MODEL_PATH}" 
+    <env
+        name="GAZEBO_MODEL_PATH"
+        value="$(find auv_sim_description)/models:${GAZEBO_MODEL_PATH}"
     />
     <arg name="debug" default="false" />
     <arg name="namespace" default="taluy" />

@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <launch>
-    <env 
-        name="GAZEBO_MODEL_PATH" 
-        value="$(find auv_sim_description)/models:${GAZEBO_MODEL_PATH}" 
+    <env
+        name="GAZEBO_MODEL_PATH"
+        value="$(find auv_sim_description)/models:${GAZEBO_MODEL_PATH}"
     />
     <arg name="namespace" default="taluy" />
     <arg name="control_rate" default="20.0" />
@@ -13,12 +13,12 @@
     <arg name="use_ned_frame" default="false" />
 
     <!-- Run RViz -->
-    <node 
-        name="rviz" 
-        pkg="rviz" 
-        type="rviz" 
-        args="-d $(find taluy_description)/rviz/yolo_cam.rviz" 
-        if="$(arg use_gui)" 
+    <node
+        name="rviz"
+        pkg="rviz"
+        type="rviz"
+        args="-d $(find taluy_description)/rviz/yolo_cam.rviz"
+        if="$(arg use_gui)"
     />
 
     <!-- Initial robot position and orientation -->
