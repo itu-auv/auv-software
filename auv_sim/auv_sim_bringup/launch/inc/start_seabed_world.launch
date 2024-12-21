@@ -4,7 +4,7 @@
     <arg name="namespace" default="taluy" />
     <arg name="gui" default="true" />
     <arg name="world_name" value="$(find auv_sim_description)/worlds/seabed.world" />
-    
+
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name" value="$(arg world_name)" />
         <arg name="use_sim_time" value="true" />
@@ -14,10 +14,10 @@
         <arg name="verbose" value="true" />
     </include>
 
-    <node 
-        name="publish_world_models" 
-        pkg="uuv_assistants" 
-        type="publish_world_models.py" 
+    <node
+        name="publish_world_models"
+        pkg="uuv_assistants"
+        type="publish_world_models.py"
         output="screen">
         <rosparam command="load" file="$(find auv_sim_bringup)/config/world_models.yaml" />
     </node>
