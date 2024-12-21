@@ -2,7 +2,9 @@
 
 import rospy
 import smach
+import signal
 import auv_smach
+from std_srvs.srv import Trigger, TriggerRequest
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.red_buoy import RotateAroundBuoyState
@@ -41,6 +43,12 @@ class MainStateMachineNode:
         # automatically select other params
 
         rospy.Subscriber("/taluy/propulsion_board/status", Bool, self.enabled_callback)
+
+        self.cancel_align_controller_service = rospy.ServiceProxy(
+            "/taluy/control/align_frame/cancel", Trigger
+        )
+
+        signal.signal(signal.SIGINT, self.shutdown_handler)
 
         self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
 
@@ -129,6 +137,15 @@ class MainStateMachineNode:
             self.sm.request_preempt()
             # restart
             rospy.Timer(rospy.Duration(0.1), self.start)
+
+    def shutdown_handler(self):
+        rospy.loginfo("Starting cleanup before exiting smach")
+
+        rospy.loginfo("Calling cancel_align_controller service")
+        self.cancel_align_controller_service(TriggerRequest())
+
+        rospy.loginfo("Cleanup complete. Shutting down.")
+        rospy.signal_shutdown("SIGINT received.")
 
 
 if __name__ == "__main__":
