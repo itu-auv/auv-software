@@ -10,7 +10,7 @@ from auv_common_lib.control.enable_state import ControlEnableHandler
 
 class DepthControllerNode:
     def __init__(self):
-        rospy.init_node("depth_controller_node")
+        rospy.init_node("reference_pose_publisher_node")
 
         # Initialize subscribers
         self.odometry_sub = rospy.Subscriber(
