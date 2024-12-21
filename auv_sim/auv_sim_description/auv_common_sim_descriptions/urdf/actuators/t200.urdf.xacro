@@ -1,6 +1,5 @@
 <?xml version="1.0"?>
-
-<robot name="t200_thruster" xmlns:xacro="http://ros.org/wiki/xacro">
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="t200_thruster">
   <xacro:macro name="t200_thruster_sim" params="name thruster_id">
     <gazebo>
       <plugin name="${name}_plugin" filename="libuuv_thruster_ros_plugin.so">
@@ -50,12 +49,10 @@
         </conversion>
       </plugin>
     </gazebo>
-
     <gazebo reference="${name}_propeller_link">
       <material>Gazebo/Orange</material>
       <selfCollide>false</selfCollide>
     </gazebo>
-
     <gazebo reference="${name}_link">
       <material>Gazebo/Orange</material>
     </gazebo>
