@@ -40,7 +40,9 @@ class DepthControllerNode:
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         self.target_depth = req.target_depth
-        return SetDepthResponse()
+        return SetDepthResponse(
+            success=True, message=f"Target depth set to {self.target_depth}"
+        )
 
     def odometry_callback(self, msg):
         if self.control_enable_handler.is_enabled():
