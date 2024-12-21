@@ -20,7 +20,7 @@
 
 namespace auv_hardware {
 struct CanMessage {
-  auv_hardware::canbus::ExtendedIdType id;
+  auv_hardware::canbus::Identifier id;
   std::vector<uint8_t> data;
 };
 
@@ -70,54 +70,47 @@ class CanbusSocket {
 
   ~CanbusSocket() { close(); }
 
-  template <size_t N>
-  bool dispatch_message(const auv_hardware::canbus::ExtendedIdType id,
-                        const std::array<uint8_t, N> &data) {
-    struct can_frame frame = {};
-    frame.can_id = id | CAN_EFF_FLAG;
-    frame.can_dlc = N;
+  // template <size_t N>
+  // bool dispatch_message(const auv_hardware::canbus::Identifier id,
+  //                       const std::array<uint8_t, N> &data) {
+  //   struct can_frame frame = {};
+  //   frame.can_id = id | CAN_EFF_FLAG;
+  //   frame.can_dlc = N;
 
-    std::memcpy(frame.data, data.data(), N);
+  //   std::memcpy(frame.data, data.data(), N);
 
+  //   if (!is_connected()) {
+  //     ROS_ERROR_STREAM("Failed to write CAN frame: (not connected)");
+  //     return false;
+  //   }
+
+  //   {
+  //     std::scoped_lock lock{socket_mutex_};
+  //     const auto bytes_written = ::write(socket_fd_, &frame, sizeof(frame));
+
+  //     if (bytes_written != sizeof(frame)) {
+  //       ROS_ERROR_STREAM("Failed to write CAN frame");
+  //       return false;
+  //     }
+  //   }
+
+  //   return true;
+  // }
+
+  bool dispatch_message(const auv_hardware::canbus::Identifier id,
+                        const struct can_frame &frame) {
     if (!is_connected()) {
       ROS_ERROR_STREAM("Failed to write CAN frame: (not connected)");
       return false;
     }
 
-    {
-      std::scoped_lock lock{socket_mutex_};
-      const auto bytes_written = ::write(socket_fd_, &frame, sizeof(frame));
+    auto lock = std::scoped_lock{socket_mutex_};
 
-      if (bytes_written != sizeof(frame)) {
-        ROS_ERROR_STREAM("Failed to write CAN frame");
-        return false;
-      }
-    }
+    const auto bytes_written = ::write(socket_fd_, &frame, sizeof(frame));
 
-    return true;
-  }
-
-  bool dispatch_message(const auv_hardware::canbus::ExtendedIdType id,
-                        const std::vector<uint8_t> &data) {
-    struct can_frame frame = {};
-    frame.can_id = id | CAN_EFF_FLAG;
-    frame.can_dlc = data.size();
-
-    std::memcpy(frame.data, data.data(), data.size());
-
-    if (!is_connected()) {
-      ROS_ERROR_STREAM("Failed to write CAN frame: (not connected)");
+    if (bytes_written != sizeof(frame)) {
+      ROS_ERROR_STREAM("Failed to write CAN frame");
       return false;
-    }
-
-    {
-      std::scoped_lock lock{socket_mutex_};
-      const auto bytes_written = ::write(socket_fd_, &frame, sizeof(frame));
-
-      if (bytes_written != sizeof(frame)) {
-        ROS_ERROR_STREAM("Failed to write CAN frame");
-        return false;
-      }
     }
 
     return true;
@@ -129,29 +122,29 @@ class CanbusSocket {
       return std::nullopt;
     }
 
-    struct can_frame frame = {};
-    {
-      std::scoped_lock lock{socket_mutex_};
-      const auto bytes_read = ::read(socket_fd_, &frame, sizeof(frame));
+    auto lock = std::scoped_lock{socket_mutex_};
+    const auto bytes_read =
+        ::read(socket_fd_, &incoming_frame_, sizeof(incoming_frame_));
 
-      if (bytes_read < 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-          // No data available, this is expected in non-blocking mode
-          return std::nullopt;
-        } else {
-          throw std::runtime_error("Failed to read from CAN socket");
-        }
-      }
-
-      if (bytes_read != sizeof(frame)) {
-        throw std::runtime_error("Incomplete CAN frame received");
+    if (bytes_read < 0) {
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        // No data available, this is expected in non-blocking mode
+        return std::nullopt;
+      } else {
+        throw std::runtime_error("Failed to read from CAN socket");
       }
     }
 
+    if (bytes_read != sizeof(incoming_frame_)) {
+      throw std::runtime_error("Incomplete CAN frame received");
+    }
+
     CanMessage message;
-    message.id = frame.can_id & CAN_EFF_MASK;
-    message.data.resize(frame.can_dlc);
-    std::memcpy(message.data.data(), frame.data, frame.can_dlc);
+    message.id = incoming_frame_.can_id & CAN_EFF_MASK;
+    message.data.resize(incoming_frame_.can_dlc);
+    std::memcpy(message.data.data(), incoming_frame_.data,
+                incoming_frame_.can_dlc);
+
     return message;
   }
 
@@ -168,6 +161,7 @@ class CanbusSocket {
   }
 
   int socket_fd_;
+  struct can_frame incoming_frame_;
   std::mutex socket_mutex_;
 };
 

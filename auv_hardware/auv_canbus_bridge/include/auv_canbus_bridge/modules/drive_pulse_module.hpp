@@ -2,6 +2,7 @@
 #include <array>
 
 #include "auv_canbus_bridge/modules/module_base.hpp"
+#include "auv_canbus_msgs/QuadDrivePulse.h"
 #include "auv_msgs/MotorCommand.h"
 
 namespace auv_hardware {
@@ -30,31 +31,24 @@ class DrivePulseModule : public ModuleBase {
     ROS_INFO_STREAM("Initialized DrivePulseModule for CANBUS");
   }
 
-  virtual void on_received_message(auv_hardware::canbus::ExtendedIdType id,
+  virtual void on_received_message(auv_hardware::canbus::Identifier id,
                                    const std::vector<uint8_t> &data) override {
     //
   };
 
  private:
   void drive_pulse_callback(const auv_msgs::MotorCommand::ConstPtr &msg) {
-    std::vector<uint8_t> data;
-    data.resize(8);
+    auv_canbus_msgs::QuadDrivePulse pulse_msg;
 
-    auto pack_pulse = [&data, &msg](const int offset) {
-      for (int i = 0; i < 4; ++i) {
-        const auto pulse = msg->channels[offset + i];
-        data[2 * i] = pulse & 0xFF;
-        data[2 * i + 1] = (pulse >> 8) & 0xFF;
-      }
-    };
+    std::copy(msg->channels.begin(), msg->channels.begin() + 4,
+              pulse_msg.pulse_width.begin());
 
-    pack_pulse(0);
+    dispatch_message(kFirstQuadDriveExtendedId, pulse_msg);
 
-    dispatch_message(kFirstQuadDriveExtendedId, data);
+    std::copy(msg->channels.begin() + 4, msg->channels.end(),
+              pulse_msg.pulse_width.begin());
 
-    pack_pulse(4);
-
-    dispatch_message(kSecondQuadDriveExtendedId, data);
+    dispatch_message(kSecondQuadDriveExtendedId, pulse_msg);
   }
 
   ros::Subscriber drive_subscriber_;

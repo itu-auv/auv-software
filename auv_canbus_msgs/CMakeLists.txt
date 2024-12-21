@@ -1,39 +1,40 @@
 cmake_minimum_required(VERSION 3.10.2)
-project(auv_msgs)
+project(auv_canbus_msgs)
 
 find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
+  # geometry_msgs
   message_generation
-  nav_msgs
+  # nav_msgs
 )
 
 
 ## Generate messages in the 'msg' folder
 add_message_files(
   FILES
-  CanFrame.msg
-  MotorCommand.msg
+  Bool.msg
+  DistanceMeasurement.msg
   Power.msg
+  QuadDrivePulse.msg
 )
 
-add_service_files(
-  FILES
-  AlignFrameController.srv
-  SetDepth.srv
-  SetObjectTransform.srv
-)
+# add_service_files(
+#   FILES
+#   AlignFrameController.srv
+#   SetDepth.srv
+#   SetObjectTransform.srv
+# )
 
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  std_msgs
-  geometry_msgs
+  # std_msgs
+  # geometry_msgs
 )
 
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES auv_msgs
-  CATKIN_DEPENDS actionlib_msgs
+#  LIBRARIES auv_canbus_msgs
+  CATKIN_DEPENDS
 #  DEPENDS system_lib
 )
 

@@ -15,6 +15,7 @@
   <exec_depend>rospy</exec_depend>
   <depend>std_msgs</depend>
   <depend>auv_msgs</depend>
+  <depend>auv_canbus_msgs</depend>
   <export>
 
   </export>

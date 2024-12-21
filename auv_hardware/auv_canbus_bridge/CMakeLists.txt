@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   auv_msgs
+  auv_canbus_msgs
 )
 
 catkin_package()
@@ -21,7 +22,7 @@ include_directories(
 add_executable(auv_canbus_bridge_node src/auv_canbus_bridge_node.cpp)
 target_link_libraries(auv_canbus_bridge_node ${catkin_LIBRARIES})
 
-catkin_install_python(PROGRAMS
-  scripts/send_can_msg.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+# catkin_install_python(PROGRAMS
+#   scripts/send_can_msg.py
+#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )

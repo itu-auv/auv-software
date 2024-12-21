@@ -25,7 +25,7 @@ class PowerReportModule : public ModuleBase {
     ROS_INFO_STREAM("Initialized PowerReportModule for CANBUS");
   }
 
-  virtual void on_received_message(auv_hardware::canbus::ExtendedIdType id,
+  virtual void on_received_message(auv_hardware::canbus::Identifier id,
                                    const std::vector<uint8_t> &data) override {
     if (id != kPowerReportIdentifier) {
       return;

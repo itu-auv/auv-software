@@ -50,13 +50,13 @@ class LaunchTorpedoModule : public ModuleBase {
     return true;
   }
 
-  virtual void on_received_message(auv_hardware::canbus::ExtendedIdType id,
+  virtual void on_received_message(auv_hardware::canbus::Identifier id,
                                    const std::vector<uint8_t> &data) override {
     //
   };
 
  protected:
-  bool send_hss_pulse(auv_hardware::canbus::ExtendedIdType id) {
+  bool send_hss_pulse(auv_hardware::canbus::Identifier id) {
     bool success = true;
     std::array<uint8_t, 1> data = {1};
 

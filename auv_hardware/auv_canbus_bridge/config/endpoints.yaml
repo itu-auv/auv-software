@@ -1,0 +1,68 @@
+---
+node_id_list:
+  propulsion_board: 0
+  mainboard: 1
+  expansion_board: 2
+  ros_bridge: 3
+
+
+bridge_configuration:
+  endpoint_mask: 0x00000000
+  node_id_mask: 0x00000000
+  can_interface: vcan0
+
+  local_node: ros_bridge
+
+  endpoints:
+    - id: 0
+      topic: canbus/first_quad_thruster_command
+      type: auv_canbus_msgs/QuadDrivePulse
+      target_node: propulsion_board
+    - id: 1
+      topic: canbus/second_quad_thruster_command
+      type: auv_canbus_msgs/QuadDrivePulse
+      target_node: propulsion_board
+    - id: 2
+      topic: canbus/set_hss1_output_command
+      type: auv_canbus_msgs/Bool
+      target_node: mainboard
+    - id: 3
+      topic: canbus/set_hss2_output_command
+      type: auv_canbus_msgs/Bool
+      target_node: mainboard
+    - id: 4
+      topic: canbus/set_hss3_output_command
+      type: auv_canbus_msgs/Bool
+      target_node: mainboard
+    - id: 5
+      topic: canbus/latched_servo_commmand
+      type: auv_canbus_msgs/Bool
+      target_node: mainboard
+    # - id: 6
+    #   topic: canbus/sonar_activation_command
+    #   type: auv_canbus_msgs/Bool
+    #   target_node: output
+    - id: 7
+      topic: canbus/mainboard_power_report
+      type: auv_canbus_msgs/Power
+      target_node: ros_bridge
+    - id: 8
+      topic: canbus/back_sonar_report
+      type: auv_canbus_msgs/DistanceMeasurement
+      target_node: ros_bridge
+    - id: 9
+      topic: canbus/front_sonar_report
+      type: auv_canbus_msgs/DistanceMeasurement
+      target_node: ros_bridge
+    - id: 10
+      topic: canbus/right_sonar_report
+      type: auv_canbus_msgs/DistanceMeasurement
+      target_node: ros_bridge
+    - id: 11
+      topic: canbus/left_sonar_report
+      type: auv_canbus_msgs/DistanceMeasurement
+      target_node: ros_bridge
+    - id: 12
+      topic: canbus/propulsion_board_status_report
+      type: auv_canbus_msgs/Bool
+      target_node: ros_bridge
