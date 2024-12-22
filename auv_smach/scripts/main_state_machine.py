@@ -4,7 +4,6 @@ import rospy
 import smach
 import auv_smach
 from auv_smach.common import CancelAlignControllerState
-from std_srvs.srv import Trigger, TriggerRequest
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.red_buoy import RotateAroundBuoyState
