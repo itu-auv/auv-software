@@ -69,15 +69,6 @@ class NavigateThroughGateState(smach.State):
                     "taluy/base_link", "gate_enterance", "gate_target"
                 ),
                 transitions={
-                    "succeeded": "BARREL_ROLL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "BARREL_ROLL",
-                DoBarrelRoll(),
-                transitions={
                     "succeeded": "NAVIGATE_TO_GATE_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
