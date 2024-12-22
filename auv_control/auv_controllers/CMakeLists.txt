@@ -7,6 +7,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   auv_common_lib
   pluginlib
+  angles
+  tf2
 )
 
 find_package(Eigen3 REQUIRED)
@@ -14,7 +16,7 @@ find_package(Eigen3 REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES auv_controllers
-#  CATKIN_DEPENDS roscpp
+  CATKIN_DEPENDS roscpp auv_common_lib pluginlib angles tf2
 #  DEPENDS system_lib
 )
 
