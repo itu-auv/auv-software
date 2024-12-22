@@ -8,23 +8,19 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from auv_common_lib.control.enable_state import ControlEnableHandler
 
 
-class DepthControllerNode:
+class ReferencePosePublisherNode:
     def __init__(self):
-        rospy.init_node("reference_pose_publisher_node")
-
         # Initialize subscribers
         self.odometry_sub = rospy.Subscriber(
-            "/taluy/odometry", Odometry, self.odometry_callback
+            "odometry", Odometry, self.odometry_callback
         )
         self.set_depth_service = rospy.Service(
-            "/taluy/set_depth", SetDepth, self.target_depth_handler
+            "set_depth", SetDepth, self.target_depth_handler
         )
-        self.cmd_vel_sub = rospy.Subscriber(
-            "/taluy/cmd_vel", Twist, self.cmd_vel_callback
-        )
+        self.cmd_vel_sub = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
 
         # Initialize publisher
-        self.cmd_pose_pub = rospy.Publisher("/taluy/cmd_pose", Pose, queue_size=10)
+        self.cmd_pose_pub = rospy.Publisher("cmd_pose", Pose, queue_size=10)
 
         self.control_enable_handler = ControlEnableHandler(1.0)
 
@@ -35,6 +31,7 @@ class DepthControllerNode:
 
         # Parameters
         self.update_rate = rospy.get_param("~update_rate", 10)
+        self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
         rospy.Timer(rospy.Duration(1.0 / self.update_rate), self.control_loop)
 
@@ -61,7 +58,7 @@ class DepthControllerNode:
             return
 
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
-        dt = min(dt, 0.1)
+        dt = min(dt, self.command_timeout)
 
         self.target_heading += msg.angular.z * dt
         self.last_cmd_time = rospy.Time.now()
@@ -86,7 +83,8 @@ class DepthControllerNode:
 
 if __name__ == "__main__":
     try:
-        depth_controller_node = DepthControllerNode()
-        depth_controller_node.run()
+        rospy.init_node("reference_pose_publisher_node")
+        reference_pose_publisher_node = ReferencePosePublisherNode()
+        reference_pose_publisher_node.run()
     except rospy.ROSInterruptException:
         pass
