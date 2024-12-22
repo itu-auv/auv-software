@@ -33,8 +33,6 @@ class ReferencePosePublisherNode:
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
-        rospy.Timer(rospy.Duration(1.0 / self.update_rate), self.control_loop)
-
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         self.target_depth = req.target_depth
         return SetDepthResponse(
@@ -63,7 +61,7 @@ class ReferencePosePublisherNode:
         self.target_heading += msg.angular.z * dt
         self.last_cmd_time = rospy.Time.now()
 
-    def control_loop(self, event):
+    def control_loop(self):
         # Create and publish the cmd_pose message
         cmd_pose = Pose()
 
@@ -78,7 +76,11 @@ class ReferencePosePublisherNode:
         self.cmd_pose_pub.publish(cmd_pose)
 
     def run(self):
-        rospy.spin()
+        rate = rospy.Rate(self.update_rate)
+
+        while not rospy.is_shutdown():
+            self.control_loop()
+            rate.sleep()
 
 
 if __name__ == "__main__":
