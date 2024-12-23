@@ -3,6 +3,7 @@
 import rospy
 import smach
 import auv_smach
+from auv_smach.common import CancelAlignControllerState
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.red_buoy import RotateAroundBuoyState
@@ -52,7 +53,7 @@ class MainStateMachineNode:
                 transitions={
                     "succeeded": "NAVIGATE_THROUGH_GATE",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -61,7 +62,7 @@ class MainStateMachineNode:
                 transitions={
                     "succeeded": "NAVIGATE_AROUND_RED_BUOY",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -74,7 +75,7 @@ class MainStateMachineNode:
                 transitions={
                     "succeeded": "NAVIGATE_TO_TORPEDO_TASK",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -86,7 +87,7 @@ class MainStateMachineNode:
                 transitions={
                     "succeeded": "NAVIGATE_TO_BIN_TASK",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -97,7 +98,7 @@ class MainStateMachineNode:
                 transitions={
                     "succeeded": "NAVIGATE_TO_OCTAGON_TASK",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -107,6 +108,15 @@ class MainStateMachineNode:
                 ),
                 transitions={
                     "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "aborted",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
