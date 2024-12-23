@@ -43,7 +43,7 @@ include_directories(
 )
 
 catkin_install_python(PROGRAMS
-  scripts/depth_controller_node.py
+  scripts/reference_pose_publisher.py
   scripts/battery_monitor_node.py
   scripts/prop_transform_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
