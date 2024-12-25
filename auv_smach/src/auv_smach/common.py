@@ -161,73 +161,54 @@ class NavigateToFrameState(smach.State):
             odom_to_start_transform = self.tf_buffer.lookup_transform(
                 "odom", self.start_frame, rospy.Time(0), rospy.Duration(1000.0)
             )
-            # Lookup the initial transform from start_frame to end_frame
             start_transform = self.tf_buffer.lookup_transform(
                 self.start_frame, self.end_frame, rospy.Time(0), rospy.Duration(1000.0)
             )
 
-            start_pos = np.array(
-                [
-                    0,  # Start position is the origin in the start_frame
-                    0,
-                ]
-            )
+            start_pos = np.array([0.0, 0.0])
+            end_pos = np.array([
+                start_transform.transform.translation.x,
+                start_transform.transform.translation.y,
+            ])
 
-            end_pos = np.array(
-                [
-                    start_transform.transform.translation.x,
-                    start_transform.transform.translation.y,
-                ]
-            )
+            start_orientation = 0.0
+            end_orientation = transformations.euler_from_quaternion([
+                start_transform.transform.rotation.x,
+                start_transform.transform.rotation.y,
+                start_transform.transform.rotation.z,
+                start_transform.transform.rotation.w,
+            ])[2]
 
-            start_orientation = 0.0  # Start with no rotation relative to start_frame
-
-            end_orientation = transformations.euler_from_quaternion(
-                [
-                    start_transform.transform.rotation.x,
-                    start_transform.transform.rotation.y,
-                    start_transform.transform.rotation.z,
-                    start_transform.transform.rotation.w,
-                ]
-            )[2]
-
-            # Incorporate full rotations into the angular difference
             angular_diff = (end_orientation - start_orientation) + (
                 2 * np.pi * self.n_turns
             )
 
-            # Calculate the distance and ensure the angular velocity limit is respected
             distance = np.linalg.norm(end_pos - start_pos)
             duration_linear = distance / self.linear_velocity
             duration_angular = abs(angular_diff) / self.angular_velocity
 
-            # The overall duration is the maximum of the two
             duration = max(duration_linear, duration_angular)
-            num_steps = int(duration * 10)  # Number of steps based on the rate
+            num_steps = int(duration * 10)
 
             for i in range(num_steps):
                 if self.preempt_requested():
                     self.service_preempt()
                     return "preempted"
 
-                # Linear interpolation for position
                 t = float(i) / num_steps
                 interp_pos = (1 - t) * start_pos + t * end_pos
-
-                # Linear interpolation for orientation (in 2D, yaw only)
                 interp_orientation = start_orientation + t * angular_diff
                 quaternion = transformations.quaternion_from_euler(
                     0, 0, interp_orientation
                 )
 
-                # Broadcast the new transform
                 t = TransformStamped()
                 t.header.stamp = rospy.Time.now()
                 t.header.frame_id = self.start_frame
                 t.child_frame_id = self.target_frame
                 t.transform.translation.x = interp_pos[0]
                 t.transform.translation.y = interp_pos[1]
-                t.transform.translation.z = 0.0  # Assume 2D movement (z = 0)
+                t.transform.translation.z = 0.0
                 t.transform.rotation.x = quaternion[0]
                 t.transform.rotation.y = quaternion[1]
                 t.transform.rotation.z = quaternion[2]
@@ -241,12 +222,33 @@ class NavigateToFrameState(smach.State):
                 self.tf_broadcaster.sendTransform(combined_transform)
                 self.rate.sleep()
 
-            return "succeeded"
+            rospy.loginfo("Checking alignment...")
+            start_time = rospy.Time.now()
+            while rospy.Time.now() - start_time < rospy.Duration(30):
+                try:
+                    aligned_transform = self.tf_buffer.lookup_transform(
+                        "taluy/base_link", self.end_frame, rospy.Time(0)
+                    )
+                    aligned_distance = np.linalg.norm([
+                        aligned_transform.transform.translation.x,
+                        aligned_transform.transform.translation.y,
+                    ])
+                    if aligned_distance < 0.3:
+                        rospy.loginfo("Alignment successful.")
+                        return "succeeded"
+                except tf2_ros.LookupException:
+                    rospy.logwarn("Waiting for alignment...")
+
+                self.rate.sleep()
+
+            rospy.logwarn("Alignment failed within timeout.")
+            return "aborted"
 
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"TF lookup exception: {e}")
+            rospy.logwarn(f"TF lookup exception during setup: {e}")
             return "aborted"
+
