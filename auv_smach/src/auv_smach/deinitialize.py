@@ -1,8 +1,4 @@
 import smach
-import rospy
-import tf2_ros
-
-from std_msgs.msg import Bool
 
 from auv_smach.common import CancelAlignControllerState, ClearObjectTransformsState
 
