@@ -4,6 +4,7 @@
   <arg name="rate" default="20" />
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
+  <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch"
     if="$(arg start_state_publisher)">
@@ -14,7 +15,7 @@
   <group ns="$(arg namespace)">
     <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
       <param name="rate" value="$(arg rate)" />
-      <param name="config_file" value="$(find auv_control)/config/default.yaml" />
+      <param name="config_file" value="$(arg config_file)" />
 
       <remap from="odometry" to="odometry" />
       <remap from="cmd_vel" to="cmd_vel" />

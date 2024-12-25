@@ -35,6 +35,7 @@
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
+    <arg name="config_file" value="$(find auv_sim_bridge)/config/control_config.yaml"/>
   </include>
 
 </launch>
