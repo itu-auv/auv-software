@@ -31,8 +31,9 @@ from std_msgs.msg import Bool
 
 from auv_smach.initialize import DelayState
 
+
 class TransformServiceEnableState(smach_ros.ServiceState):
-    def __init__(self, req:bool):
+    def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
             "set_transform_gate_trajectory",
@@ -52,7 +53,7 @@ class NavigateThroughGateState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
-            
+
             smach.StateMachine.add(
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
