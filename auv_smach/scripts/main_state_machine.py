@@ -10,6 +10,7 @@ from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
+from auv_smach.deinitialize import DeinitializeState
 from std_msgs.msg import Bool
 import threading
 
@@ -52,8 +53,8 @@ class MainStateMachineNode:
                 InitializeState(),
                 transitions={
                     "succeeded": "NAVIGATE_THROUGH_GATE",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "DEINITIALIZE",
+                    "aborted": "DEINITIALIZE",
                 },
             )
             smach.StateMachine.add(
@@ -61,8 +62,8 @@ class MainStateMachineNode:
                 NavigateThroughGateState(gate_depth=gate_depth),
                 transitions={
                     "succeeded": "NAVIGATE_AROUND_RED_BUOY",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "DEINITIALIZE",
+                    "aborted": "DEINITIALIZE",
                 },
             )
             smach.StateMachine.add(
@@ -74,8 +75,8 @@ class MainStateMachineNode:
                 ),
                 transitions={
                     "succeeded": "NAVIGATE_TO_TORPEDO_TASK",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "DEINITIALIZE",
+                    "aborted": "DEINITIALIZE",
                 },
             )
             smach.StateMachine.add(
@@ -86,8 +87,8 @@ class MainStateMachineNode:
                 ),
                 transitions={
                     "succeeded": "NAVIGATE_TO_BIN_TASK",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "DEINITIALIZE",
+                    "aborted": "DEINITIALIZE",
                 },
             )
             smach.StateMachine.add(
@@ -97,8 +98,8 @@ class MainStateMachineNode:
                 ),
                 transitions={
                     "succeeded": "NAVIGATE_TO_OCTAGON_TASK",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "DEINITIALIZE",
+                    "aborted": "DEINITIALIZE",
                 },
             )
             smach.StateMachine.add(
@@ -108,13 +109,13 @@ class MainStateMachineNode:
                 ),
                 transitions={
                     "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "DEINITIALIZE",
+                    "aborted": "DEINITIALIZE",
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER",
-                CancelAlignControllerState(),
+                "DEINITIALIZE",
+                DeinitializeState(),
                 transitions={
                     "succeeded": "aborted",
                     "preempted": "preempted",

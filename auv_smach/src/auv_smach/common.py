@@ -250,3 +250,13 @@ class NavigateToFrameState(smach.State):
         ) as e:
             rospy.logwarn(f"TF lookup exception: {e}")
             return "aborted"
+
+
+class ClearObjectTransformsState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "/taluy/map/clear_object_transforms",
+            Trigger,
+            request=TriggerRequest(),
+        )
