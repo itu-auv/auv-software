@@ -10,7 +10,7 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
   </group>
-  
+
   <node pkg="auv_mapping" type="prop_transform_publisher.py" name="prop_transform_publisher" output="screen" />
   <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher" />
     <param name="gate_frame1" value="gate_blue_arrow_link" />
