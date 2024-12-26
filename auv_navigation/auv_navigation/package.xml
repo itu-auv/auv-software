@@ -12,6 +12,12 @@
   <buildtool_depend>catkin</buildtool_depend>
   <depend>auv_mapping</depend>
   <depend>auv_localization</depend>
+  <depend>rospy</depend>
+  <depend>actionlib</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>auv_msgs</depend>
 
   <export>
 
