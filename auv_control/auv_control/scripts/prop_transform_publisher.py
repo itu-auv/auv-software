@@ -227,7 +227,7 @@ class ObjectPositionEstimator:
 
         self.camera_calibrations = {
             "taluy/cameras/cam_front": CameraCalibration("taluy/cameras/cam_front"),
-            "taluy/cameras/cam_bottom": CameraCalibration("taluy/cameras/cam_bottom"),
+            "taluy/cameras/cam_bottom": CameraCalibration("taluy/cameras/cam_front"),
         }
 
         self.camera_frames = {
