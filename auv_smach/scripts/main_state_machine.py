@@ -23,7 +23,7 @@ class MainStateMachineNode:
         self.previous_enabled = False
 
         # USER EDIT
-        gate_depth = -0.9
+        gate_depth = -1.75
         target_gate_link = "gate_blue_arrow_link"
 
         red_buoy_radius = 1.5
@@ -109,7 +109,7 @@ class MainStateMachineNode:
                     "aborted": "aborted",
                 },
             )
-            
+
         outcome = self.sm.execute()
 
         # rospy.Timer(rospy.Duration(0.1), self.start)
