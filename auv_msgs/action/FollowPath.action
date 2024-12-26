@@ -1,0 +1,11 @@
+# Goal
+nav_msgs/Path path
+string target_frame
+
+---
+# Result
+bool success
+---
+# Feedback
+float64 distance_to_goal
+geometry_msgs/PoseStamped carrot_pose
