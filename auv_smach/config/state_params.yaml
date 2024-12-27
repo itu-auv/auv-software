@@ -1,4 +1,10 @@
 # Configuration for state machine testing
+#- INITIALIZE
+#- NAVIGATE_THROUGH_GATE
+#- NAVIGATE_AROUND_RED_BUOY
+#- NAVIGATE_TO_TORPEDO_TASK
+#- NAVIGATE_TO_BIN_TASK
+#- NAVIGATE_TO_OCTAGON_TASK
 test_configuration:
   # List of states to run in order
   run_states:
@@ -40,3 +46,4 @@ state_machine:
     type: auv_smach.octagon.OctagonTaskState
     parameters:
       octagon_depth: -1.0
+  
