@@ -20,6 +20,7 @@ add_service_files(
   AlignFrameController.srv
   SetDepth.srv
   SetObjectTransform.srv
+  ExecuteStateMachine.srv
 )
 
 ## Generate added messages and services with any dependencies listed here

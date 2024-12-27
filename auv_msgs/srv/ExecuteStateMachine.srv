@@ -1,0 +1,6 @@
+# ExecuteStateMachine.srv
+string name
+string[] type
+---
+bool success
+string message
