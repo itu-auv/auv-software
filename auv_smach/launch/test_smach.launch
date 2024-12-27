@@ -1,0 +1,8 @@
+<launch>
+  <arg name="namespace" default="taluy" />
+  <param name="/smach/max_linear_velocity" value="0.3" />
+  <param name="/smach/max_angular_velocity" value="0.45" />
+
+  <node name="state_service_handler" pkg="auv_smach" type="state_service_handler.py" output="screen" />
+  <node name="test_state_service" pkg="auv_smach" type="test_state_service.py" output="screen" />
+</launch>

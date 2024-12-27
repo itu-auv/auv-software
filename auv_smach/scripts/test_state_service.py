@@ -6,18 +6,7 @@ from auv_msgs.srv import ExecuteStateMachine
 
 def test_state_service():
     rospy.init_node('test_state_service')
-    
-    # Load test states from configuration
-    try:
-        with open('/home/frk/catkin_ws/src/auv-software/auv_smach/config/state_params.yaml', 'r') as f:
-            config = yaml.safe_load(f)
-        
-        rospy.loginfo(f"Loaded configuration: {config}")
-    except Exception as e:
-        rospy.logerr(f"Failed to load configuration: {e}")
-        traceback.print_exc()
-        return
-    
+
     # Wait for the service to be available
     try:
         rospy.wait_for_service('/taluy/state_machine/execute', timeout=10)
