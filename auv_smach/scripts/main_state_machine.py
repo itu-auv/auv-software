@@ -19,7 +19,7 @@ class MainStateMachineNode:
         self.previous_enabled = False
 
         # USER EDIT
-        self.gate_depth = -0.9
+        self.gate_depth = -1.5
         self.target_gate_link = "gate_blue_arrow_link"
 
         self.red_buoy_radius = 2.2
@@ -45,20 +45,7 @@ class MainStateMachineNode:
 
         rospy.Subscriber("/taluy/propulsion_board/status", Bool, self.enabled_callback)
 
-        self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
-
-        with self.sm:
-            # Add the FullMissionState as the single state in this state machine
-            smach.StateMachine.add(
-                "INITIALIZE",
-                InitializeState(),
-                transitions={
-                    "succeeded": "NAVIGATE_THROUGH_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                })
-
-
+        #self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
     def set_test_mode(self, test_mode, test_states=None):
         self.test_mode = test_mode
         if test_states is not None:
@@ -67,12 +54,25 @@ class MainStateMachineNode:
     def execute_state_machine(self):
         # Map state names to their corresponding classes and parameters using variables defined at the start
         state_mapping = {
-            "INITIALIZE": (InitializeState, {}),
-            "NAVIGATE_THROUGH_GATE": (NavigateThroughGateState, {"gate_depth": self.gate_depth}),
-            "NAVIGATE_AROUND_RED_BUOY": (RotateAroundBuoyState, {"radius": self.red_buoy_radius, "depth": self.red_buoy_depth, "direction": self.red_buoy_direction}),
-            "NAVIGATE_TO_TORPEDO_TASK": (TorpedoTaskState, {"radius": self.torpedo_map_radius, "depth": self.torpedo_map_depth}),
-            "NAVIGATE_TO_BIN_TASK": (BinTaskState, {"depth": self.bin_whole_depth}),
-            "NAVIGATE_TO_OCTAGON_TASK": (OctagonTaskState, {"depth": self.octagon_depth}),
+        "INITIALIZE": (InitializeState, {}),
+        "NAVIGATE_THROUGH_GATE": (NavigateThroughGateState, {
+            "gate_depth": self.gate_depth
+        }),
+        "NAVIGATE_AROUND_RED_BUOY": (RotateAroundBuoyState, {
+            "radius": self.red_buoy_radius, 
+            "direction": self.red_buoy_direction, 
+            "red_buoy_depth": self.red_buoy_depth
+        }),
+        "NAVIGATE_TO_TORPEDO_TASK": (TorpedoTaskState, {
+            "radius": self.torpedo_map_radius, 
+            "depth": self.torpedo_map_depth
+        }),
+        "NAVIGATE_TO_BIN_TASK": (BinTaskState, {
+            "depth": self.bin_whole_depth
+        }),
+        "NAVIGATE_TO_OCTAGON_TASK": (OctagonTaskState, {
+            "depth": self.octagon_depth
+        }),
         }
 
         # Execute the state machine
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     node = None
     try:
         node = MainStateMachineNode()
-        node.set_test_mode(True, ["NAVIGATE_AROUND_RED_BUOY"])
+        node.set_test_mode(True, ["INITIALIZE", "NAVIGATE_THROUGH_GATE", "NAVIGATE_AROUND_RED_BUOY"])
         #optionally set test mode
         node.start()
     except KeyboardInterrupt:
