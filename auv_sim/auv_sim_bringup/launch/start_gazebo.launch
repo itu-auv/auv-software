@@ -22,8 +22,8 @@
     />
 
     <!-- Initial robot position and orientation -->
-    <arg name="x" default="0.0" />
-    <arg name="y" default="0.0" />
+    <arg name="x" default="10.0" />
+    <arg name="y" default="-3.0" />
     <arg name="z" default="-1.5" if="$(eval arg('world') == 'pool')" />
     <arg name="z" default="-87.0" if="$(eval arg('world') == 'seabed')" />
     <arg name="roll" value="0" />
