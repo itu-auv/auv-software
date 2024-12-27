@@ -1,3 +1,12 @@
+# Configuration for state machine testing
+test_configuration:
+  # List of states to run in order
+  run_states:
+    - INITIALIZE
+    - NAVIGATE_THROUGH_GATE
+    - NAVIGATE_AROUND_RED_BUOY
+
+# Predefined state configurations
 state_machine:
   INITIALIZE:
     type: auv_smach.initialize.InitializeState

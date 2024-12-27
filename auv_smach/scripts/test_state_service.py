@@ -29,11 +29,20 @@ def test_state_service():
         # Create a service proxy
         execute_state = rospy.ServiceProxy('/taluy/state_machine/execute', ExecuteStateMachine)
         
-        # Extract states from the nested structure
-        test_states = config.get('state_machine', {})
-        rospy.loginfo(f"Found {len(test_states)} states to test")
+        # Get states to run from configuration
+        states_to_run = config.get('test_configuration', {}).get('run_states', [])
+        rospy.loginfo(f"States to run: {states_to_run}")
         
-        for name, state_config in test_states.items():
+        # Get state machine configurations
+        state_machine_config = config.get('state_machine', {})
+        
+        for name in states_to_run:
+            # Skip if state not found in configuration
+            if name not in state_machine_config:
+                rospy.logerr(f"State {name} not found in configuration")
+                continue
+            
+            state_config = state_machine_config[name]
             rospy.loginfo(f"Testing state: {name}")
             
             # Prepare service call parameters
