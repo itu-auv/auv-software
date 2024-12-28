@@ -6,6 +6,7 @@ import actionlib
 import numpy as np
 from nav_msgs.msg import Path
 from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 from auv_msgs.msg import FollowPathAction, FollowPathFeedback, FollowPathResult, FollowPathGoal
 from auv_msgs.srv import AlignFrame, AlignFrameResponse
 import tf2_ros
@@ -23,14 +24,12 @@ class FollowPathActionServer:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.carrot_distance = rospy.get_param('~carrot_distance', 1.0)
-        self.goal_threshold = rospy.get_param('~goal_threshold', 0.1)
+        self.goal_position_threshold = rospy.get_param('~goal_position_threshold', 0.1)
+        self.goal_angle_threshold = rospy.get_param('~goal_angle_threshold', 0.1)
         self.source_frame = rospy.get_param('~source_frame', "taluy/base_link")
         self.carrot_frame = rospy.get_param('~carrot_frame', "carrot")
-        self.control_rate = rospy.get_param('~control_rate', 10)
+        self.control_rate = rospy.Rate(rospy.get_param('~control_rate', 10))
         self.last_target_frame = None
-        self.goal_position_threshold = 0.1
-        self.goal_angle_threshold = 0.1
-        
         self.frame_controller = AlignFrameController(
             max_linear_velocity=rospy.get_param('~max_linear_velocity', 0.8),
             max_angular_velocity=rospy.get_param('~max_angular_velocity', 0.9),
@@ -40,6 +39,13 @@ class FollowPathActionServer:
 
         self.path_pub = rospy.Publisher('path', Path, queue_size=1)
         self.cmd_vel_pub = rospy.Publisher('taluy/cmd_vel', Twist, queue_size=1) #TODO change to cmd_vel after given a namespace in start.launch
+        
+        self.killswitch_sub = rospy.Subscriber(
+            "/taluy/propulsion_board/status",
+            Bool,
+            self.killswitch_callback,
+        )
+        
         rospy.Service(
             "align_frame",
             AlignFrame,
@@ -61,17 +67,21 @@ class FollowPathActionServer:
         rospy.logdebug("FollowPath Action Server is ready.")
         self.action_client.wait_for_server()
         rospy.logdebug("Internal Action Client connected to the FollowPath Action Server.")
+        
+    def killswitch_callback(self, msg):
+        if not msg.data:
+            if self.server.is_active():
+                self.action_client.cancel_goal() 
+                rospy.logwarn("Control canceled")
 
     def handle_align_frame_request(self, req):
         response = AlignFrameResponse()
         
         path = None # clear any paths
-        
         goal = FollowPathGoal()
         goal.target_frame = req.target_frame
         
         if req.do_planning:
-            
             try:
                 path = create_path_from_frame(
                     self.tf_buffer,
@@ -106,13 +116,20 @@ class FollowPathActionServer:
             return False
             
         try:
-            rate = rospy.Rate(self.control_rate) 
             feedback = FollowPathFeedback()
             
             while not rospy.is_shutdown(): # try to succeed until rospy is shutdown
+                
                 if self.server.is_preempt_requested():
-                    rospy.logwarn("Alignment preempted by client.")
-                    self.server.set_preempted()
+                    
+                    # publish stop command for 2 seconds to ensure we stop. 
+                    start_time = rospy.get_time()
+                    while rospy.get_time() - start_time < 2.0:
+                        stop_cmd = Twist()
+                        self.cmd_vel_pub.publish(stop_cmd)
+                        self.control_rate.sleep()
+                    self.server.set_preempted() # then kill.
+                    rospy.logwarn("Alignment preempted (do_alignment)")
                     return False
                 
                 self.frame_controller.enable_alignment()
@@ -122,7 +139,7 @@ class FollowPathActionServer:
                     current_pose = get_current_pose(self.tf_buffer, self.source_frame)
                     if current_pose is None: 
                         rospy.logwarn("Failed to get current pose. Retrying...")
-                        rate.sleep()
+                        self.control_rate.sleep()
                         continue
                     
                     carrot_pose = calculate_carrot_pose(path, current_pose, self.carrot_distance)
@@ -135,7 +152,7 @@ class FollowPathActionServer:
                     )
                     if trans is None or rot is None: 
                         rospy.logwarn(f"Failed to get transform between {self.source_frame} and {target_frame}")
-                        rate.sleep() 
+                        self.control_rate.sleep() 
                         continue
                     
                     if self.frame_controller.is_aligned(trans, rot, self.goal_position_threshold, self.goal_angle_threshold):
@@ -168,15 +185,15 @@ class FollowPathActionServer:
                     cmd_vel = self.frame_controller.compute_cmd_vel(trans, rot)
                     self.cmd_vel_pub.publish(cmd_vel)
 
-                rate.sleep()
+                self.control_rate.sleep()
 
             return False # If exited the loop, success is False
         except Exception as e:
-            rospy.logerr(f"Error during alignment: {e}")
-            self.frame_controller.disable_alignment()  
+            rospy.logerr(f"Error during alignment: {e}") 
             return False
 
     def execute(self, goal):
+        self.preempt_requested = False  # Reset cancel flag when startin a new goal.
         rospy.loginfo("Received a new FollowPath goal.")
         
         if goal.path and goal.path.poses:
@@ -188,11 +205,12 @@ class FollowPathActionServer:
         if success:
             result= FollowPathResult(success = True)
             self.server.set_succeeded(result) 
-        
+            
         else: 
             rospy.logwarn("FollowPath action failed or was preempted.") 
             result = FollowPathResult(success = False)
             self.server.set_aborted(result) 
+
         
 
 if __name__ == "__main__":
