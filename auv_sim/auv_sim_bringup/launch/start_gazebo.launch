@@ -11,6 +11,8 @@
     <arg name="debug" default="false" />
     <arg name="world" default="pool" />
     <arg name="use_ned_frame" default="false" />
+    <arg name="enable_logging" default="false" />
+    <arg name="logging_directory" default="$(optenv HOME)/bags" />  
 
     <!-- Run RViz -->
     <node
@@ -58,6 +60,13 @@
         <arg name="control_rate" value="$(arg control_rate)" />
         <arg name="use_gui" value="$(arg use_gui)" />
     </include>
+
+    <group if="$(arg enable_logging)">
+        <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
+            <arg name="namespace" value="$(arg namespace)" />
+            <arg name="logging_directory" value="$(arg logging_directory)" />
+        </include>
+    </group>
 
 <!-- TODO (eminmeydanoglu): add start camera process here -->
 
