@@ -13,7 +13,9 @@ class IMUSpatialTransformer:
         self.transformer = auv_common_lib.transform.transformer.Transformer()
         self.source_frame = source_frame
 
-        rospy.Subscriber("imu/data", sensor_msgs.msg.Imu, self.imu_data_callback)
+        rospy.Subscriber(
+            "imu/data", sensor_msgs.msg.Imu, self.imu_data_callback, tcp_nodelay=True
+        )
 
     def imu_data_callback(self, data: sensor_msgs.msg.Imu):
         angular_rate_raw = np.array(
