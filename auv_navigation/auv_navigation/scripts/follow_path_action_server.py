@@ -101,10 +101,13 @@ class FollowPathActionServer:
                 
             except Exception as e:
                 rospy.logerr(f"Error while creating path: {e}")
-        
         else:
             response.success = True
             response.message = "Won't create path. Starting direct alignment"
+        
+        if self.server.is_active():
+            self.action_client.cancel_goal()
+            rospy.loginfo("Cancelled existing goal before starting new alignment")
             
         self.action_client.send_goal(goal)
         rospy.logdebug("Goal sent to the Action Server successfully.")
@@ -124,6 +127,7 @@ class FollowPathActionServer:
                     
                     # publish stop command for 2 seconds to ensure we stop. 
                     start_time = rospy.get_time()
+                    
                     while rospy.get_time() - start_time < 2.0:
                         stop_cmd = Twist()
                         self.cmd_vel_pub.publish(stop_cmd)
@@ -193,26 +197,23 @@ class FollowPathActionServer:
             return False
 
     def execute(self, goal):
-        self.preempt_requested = False  # Reset cancel flag when startin a new goal.
         rospy.loginfo("Received a new FollowPath goal.")
         
         if goal.path and goal.path.poses:
-            self.path_pub.publish(goal.path)
+            success = self.do_alignment(path=goal.path)
+        else:
+            success = self.do_alignment(target_frame=goal.target_frame)
             
-        success = self.do_alignment(path= goal.path if goal.path and goal.path.poses else None,
-                                    target_frame=goal.target_frame)
-        
         if success:
-            result= FollowPathResult(success = True)
+            result = FollowPathResult(success=True)
             self.server.set_succeeded(result) 
-            
         else: 
-            rospy.logwarn("FollowPath action failed or was preempted.") 
-            result = FollowPathResult(success = False)
-            self.server.set_aborted(result) 
+            rospy.logwarn("FollowPath action couldn't succeed.") 
+            result = FollowPathResult(success=False)
 
-        
-
+            if not self.server.is_preempt_requested():
+                self.server.set_aborted(result)
+                
 if __name__ == "__main__":
     FollowPathActionServer()
     rospy.spin()
