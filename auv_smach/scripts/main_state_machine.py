@@ -37,7 +37,7 @@ class MainStateMachineNode:
         if test_mode:
             state_map = rospy.get_param("~state_map")
             
-            short_state_list = rospy.get_param("~state_list", "").split(',')
+            short_state_list = rospy.get_param("~test_states", "").split(',')
 
             # Parse state mapping
             state_mapping = {
