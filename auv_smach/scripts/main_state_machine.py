@@ -29,35 +29,39 @@ class MainStateMachineNode:
 
         self.bin_whole_depth = -1.0
 
-        self.octagon_depth = -1.0 
+        self.octagon_depth = -1.0
         # USER EDIT
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
         if test_mode:
             state_map = rospy.get_param("~state_map")
-            
-            short_state_list = rospy.get_param("~test_states", "").split(',')
+
+            short_state_list = rospy.get_param("~test_states", "").split(",")
 
             # Parse state mapping
             state_mapping = {
-                item.split(':')[0].strip(): item.split(':')[1].strip()
-                for item in state_map.strip().split(',')
+                item.split(":")[0].strip(): item.split(":")[1].strip()
+                for item in state_map.strip().split(",")
             }
 
             # Map test states to full names
             self.state_list = [
-                state_mapping[state.strip()] for state in short_state_list if state.strip() in state_mapping
+                state_mapping[state.strip()]
+                for state in short_state_list
+                if state.strip() in state_mapping
             ]
         else:
-            self.state_list=rospy.get_param("~full_mission_states")
+            self.state_list = rospy.get_param("~full_mission_states")
 
         # automatically select other params
         mission_selection_map = {
             "gate_red_arrow_link": {"red_buoy": "cw"},
             "gate_blue_arrow_link": {"red_buoy": "ccw"},
         }
-        self.red_buoy_direction = mission_selection_map[self.target_gate_link]["red_buoy"]
+        self.red_buoy_direction = mission_selection_map[self.target_gate_link][
+            "red_buoy"
+        ]
         # Subscribe to propulsion status
         rospy.Subscriber("/taluy/propulsion_board/status", Bool, self.enabled_callback)
 
@@ -65,24 +69,33 @@ class MainStateMachineNode:
         # Map state names to their corresponding classes and parameters
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
-            "NAVIGATE_THROUGH_GATE": (NavigateThroughGateState, {
-                "gate_depth": self.gate_depth
-            }),
-            "NAVIGATE_AROUND_RED_BUOY": (RotateAroundBuoyState, {
-                "radius": self.red_buoy_radius, 
-                "direction": self.red_buoy_direction, 
-                "red_buoy_depth": self.red_buoy_depth
-            }),
-            "NAVIGATE_TO_TORPEDO_TASK": (TorpedoTaskState, {
-                "torpedo_map_radius": self.torpedo_map_radius, 
-                "torpedo_map_depth": self.torpedo_map_depth
-            }),
-            "NAVIGATE_TO_BIN_TASK": (BinTaskState, {
-                "bin_whole_depth": self.bin_whole_depth
-            }),
-            "NAVIGATE_TO_OCTAGON_TASK": (OctagonTaskState, {
-                "octagon_depth": self.octagon_depth
-            }),
+            "NAVIGATE_THROUGH_GATE": (
+                NavigateThroughGateState,
+                {"gate_depth": self.gate_depth},
+            ),
+            "NAVIGATE_AROUND_RED_BUOY": (
+                RotateAroundBuoyState,
+                {
+                    "radius": self.red_buoy_radius,
+                    "direction": self.red_buoy_direction,
+                    "red_buoy_depth": self.red_buoy_depth,
+                },
+            ),
+            "NAVIGATE_TO_TORPEDO_TASK": (
+                TorpedoTaskState,
+                {
+                    "torpedo_map_radius": self.torpedo_map_radius,
+                    "torpedo_map_depth": self.torpedo_map_depth,
+                },
+            ),
+            "NAVIGATE_TO_BIN_TASK": (
+                BinTaskState,
+                {"bin_whole_depth": self.bin_whole_depth},
+            ),
+            "NAVIGATE_TO_OCTAGON_TASK": (
+                OctagonTaskState,
+                {"octagon_depth": self.octagon_depth},
+            ),
         }
 
         # Validate and execute state machine
@@ -92,22 +105,30 @@ class MainStateMachineNode:
 
         rospy.loginfo("Executing state machine with states: %s", self.state_list)
         sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
-        
+
         with sm:
             for i, state_name in enumerate(self.state_list):
-                next_state = self.state_list[i + 1] if i + 1 < len(self.state_list) else "succeeded"
+                next_state = (
+                    self.state_list[i + 1]
+                    if i + 1 < len(self.state_list)
+                    else "succeeded"
+                )
                 state_class, params = state_mapping.get(state_name, (None, {}))
-                
+
                 if state_class is None:
                     rospy.logerr(f"Unknown state: {state_name}")
                     continue
-                
+
                 smach.StateMachine.add(
                     state_name,
                     state_class(**params),
-                    transitions={"succeeded": next_state, "preempted": "preempted", "aborted": "aborted"},
+                    transitions={
+                        "succeeded": next_state,
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
                 )
-        
+
         # Execute the state machine
         try:
             outcome = sm.execute()

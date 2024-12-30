@@ -19,11 +19,11 @@
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
-        'INITIALIZE', 
-        'NAVIGATE_THROUGH_GATE', 
-        'NAVIGATE_AROUND_RED_BUOY', 
-        'NAVIGATE_TO_TORPEDO_TASK', 
-        'NAVIGATE_TO_BIN_TASK', 
+        'INITIALIZE',
+        'NAVIGATE_THROUGH_GATE',
+        'NAVIGATE_AROUND_RED_BUOY',
+        'NAVIGATE_TO_TORPEDO_TASK',
+        'NAVIGATE_TO_BIN_TASK',
         'NAVIGATE_TO_OCTAGON_TASK'
     ]" doc="Full sequence of mission states"/>
 
