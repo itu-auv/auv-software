@@ -28,13 +28,13 @@ class FollowPathActionServer:
         self.goal_angle_threshold = rospy.get_param('~goal_angle_threshold', 0.1)
         self.source_frame = rospy.get_param('~source_frame', "taluy/base_link")
         self.carrot_frame = rospy.get_param('~carrot_frame', "carrot")
-        self.control_rate = rospy.Rate(rospy.get_param('~control_rate', 10))
+        self.control_rate = rospy.Rate(rospy.get_param('~control_rate', 20))
         self.last_target_frame = None
         self.frame_controller = AlignFrameController(
             max_linear_velocity=rospy.get_param('~max_linear_velocity', 0.8),
             max_angular_velocity=rospy.get_param('~max_angular_velocity', 0.9),
             kp=rospy.get_param('~kp', 0.55),
-            angle_kp=rospy.get_param('~angle_kp', 0.2)
+            angle_kp=rospy.get_param('~angle_kp', 0.45)
         )
 
         self.path_pub = rospy.Publisher('path', Path, queue_size=1)
@@ -88,7 +88,7 @@ class FollowPathActionServer:
                     self.source_frame,
                     req.target_frame,
                     req.angle_offset,
-                    #TODO (somebody) add req.keep_orientation
+                    req.keep_orientation
                 )
                 if path and path.poses:
                     response.success = True
@@ -98,7 +98,7 @@ class FollowPathActionServer:
                     rospy.logwarn("Path creation failed")
                     response.success = False
                     response.message = "Path creation failed. Starting direct alignment"
-                
+                    
             except Exception as e:
                 rospy.logerr(f"Error while creating path: {e}")
         else:
@@ -124,15 +124,9 @@ class FollowPathActionServer:
             while not rospy.is_shutdown(): # try to succeed until rospy is shutdown
                 
                 if self.server.is_preempt_requested():
-                    
-                    # publish stop command for 2 seconds to ensure we stop. 
-                    start_time = rospy.get_time()
-                    
-                    while rospy.get_time() - start_time < 2.0:
-                        stop_cmd = Twist()
-                        self.cmd_vel_pub.publish(stop_cmd)
-                        self.control_rate.sleep()
-                    self.server.set_preempted() # then kill.
+                    stop_cmd = Twist()
+                    self.cmd_vel_pub.publish(stop_cmd)
+                    self.server.set_preempted() 
                     rospy.logwarn("Alignment preempted (do_alignment)")
                     return False
                 
@@ -166,7 +160,7 @@ class FollowPathActionServer:
                     cmd_vel = self.frame_controller.compute_cmd_vel(trans, rot)
                     self.cmd_vel_pub.publish(cmd_vel)
                     
-                    feedback.carrot_pose = carrot_pose #TODO (somebody) position of carrot as feedback is probably enough.
+                    feedback.carrot_pose = carrot_pose #TODO (somebody) position of carrot as feedback.carrot_pose is probably enough.
                     feedback.distance_to_goal = np.sqrt(
                         (path.poses[-1].pose.position.x - current_pose.pose.position.x) ** 2 +
                         (path.poses[-1].pose.position.y - current_pose.pose.position.y) ** 2 +

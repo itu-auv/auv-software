@@ -10,7 +10,7 @@ from scipy.interpolate import CubicSpline
 import tf2_geometry_msgs
 
 
-def create_path_from_frame(tf_buffer, source_frame, target_frame, angle_offset=0.0, num_samples=50):
+def create_path_from_frame(tf_buffer, source_frame, target_frame, angle_offset=0.0, keep_orientation=False, num_samples=50):
     try:
         source_transform = tf_buffer.lookup_transform(
             "odom", 
@@ -53,9 +53,12 @@ def create_path_from_frame(tf_buffer, source_frame, target_frame, angle_offset=0
             pose.pose.position.y = src_pos.y + t * (tgt_pos.y - src_pos.y)
             pose.pose.position.z = src_pos.z + t * (tgt_pos.z - src_pos.z)
             
-            # interpolate the orientation difference smoothly between source and target
-            # using slerp 
-            interp_q = quaternion_slerp(src_q, tgt_q, t)
+            # If keep_orientation is True, use source orientation throughout the path
+            # Otherwise interpolate orientation using slerp
+            if keep_orientation:
+                interp_q = src_q
+            else:
+                interp_q = quaternion_slerp(src_q, tgt_q, t)
             
             pose.pose.orientation.x = interp_q[0]
             pose.pose.orientation.y = interp_q[1]
@@ -184,42 +187,5 @@ def broadcast_carrot_frame(tf_broadcaster, tf_buffer, source_frame, carrot_pose)
 
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
         rospy.logerr(f"Failed to broadcast carrot frame: {e}")
-
-# more complicated method to broadcast carrot
-"""def broadcast_carrot_frame(tf_broadcaster, tf_buffer, source_frame, carrot_pose):
-    transform_time = carrot_pose.header.stamp
-    robot_pose = get_current_pose(tf_buffer, source_frame)
     
-    if robot_pose is None:
-        rospy.logwarn("Could not get robot pose, failing carrot frame broadcast")
-        return
-    
-    dx = carrot_pose.pose.position.x - robot_pose.pose.position.x
-    dy = carrot_pose.pose.position.y - robot_pose.pose.position.y
-    dz = carrot_pose.pose.position.z - robot_pose.pose.position.z
-
-    robot_q = [robot_pose.pose.orientation.x, robot_pose.pose.orientation.y,
-            robot_pose.pose.orientation.z, robot_pose.pose.orientation.w]
-
-    R = quaternion_matrix(robot_q)[:3, :3]
-    pos = np.dot(R.T, np.array([dx, dy, dz]))
-    
-    carrot_q = [carrot_pose.pose.orientation.x, carrot_pose.pose.orientation.y,
-                carrot_pose.pose.orientation.z, carrot_pose.pose.orientation.w]
-    relative_q = quaternion_multiply(quaternion_inverse(robot_q), carrot_q)
-    
-    t = TransformStamped()
-    t.header.stamp = rospy.Time.now()
-    t.header.frame_id = source_frame
-    t.child_frame_id = "carrot"
-    
-    t.transform.translation.x = pos[0]
-    t.transform.translation.y = pos[1]
-    t.transform.translation.z = pos[2]
-    
-    t.transform.rotation.x = relative_q[0]
-    t.transform.rotation.y = relative_q[1]
-    t.transform.rotation.z = relative_q[2]
-    t.transform.rotation.w = relative_q[3]
-    
-    tf_broadcaster.sendTransform(t)"""
+    #TODO eminmeydanoglu add carrot visualization marker
