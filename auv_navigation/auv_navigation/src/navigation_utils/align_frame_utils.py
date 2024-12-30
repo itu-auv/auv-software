@@ -67,18 +67,13 @@ class AlignFrameController:
         twist.linear.x = self.constrain(vx, self.max_linear_velocity)
         twist.linear.y = self.constrain(vy, self.max_linear_velocity)
         twist.linear.z = self.constrain(vz, self.max_linear_velocity)
-        
-        desired_yaw = np.arctan2(trans[1], trans[0])
-        _, _, current_yaw = euler_from_quaternion(rot)
-        
-        yaw_error = ((desired_yaw - current_yaw + np.pi) % (2 * np.pi)) - np.pi  # Wrap to [-pi, pi]
-        angular_z = kp_angular * yaw_error
-        
-        twist.angular.z = self.constrain(angular_z, self.max_angular_velocity)
+
+        _, _, yaw = euler_from_quaternion(rot)
+        twist.angular.z = self.constrain(yaw * kp_angular, self.max_angular_velocity)
         
         return twist
 
-    def is_aligned(self, trans, rot, position_threshold, angle_threshold): #? new function
+    def is_aligned(self, trans, rot, position_threshold, angle_threshold):
         _, _, yaw = euler_from_quaternion(rot)
         position_error = np.sqrt(trans[0]**2 + trans[1]**2 + trans[2]**2)
         return position_error < position_threshold and abs(yaw) < angle_threshold
