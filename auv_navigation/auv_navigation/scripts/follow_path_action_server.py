@@ -13,7 +13,7 @@ import tf2_ros
 
 from navigation_utils.path_utils import (
     create_path_from_frame, get_current_pose, 
-    calculate_carrot_pose, broadcast_carrot_frame, delete_carrot_frame
+    calculate_carrot_pose, broadcast_carrot_frame
 )
 from navigation_utils.align_frame_utils import AlignFrameController
 
