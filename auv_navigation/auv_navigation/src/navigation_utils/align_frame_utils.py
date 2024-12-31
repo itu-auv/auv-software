@@ -15,10 +15,6 @@ class AlignFrameController:
         self.kp = kp
         self.angle_kp = angle_kp
         self.enable_pub = rospy.Publisher("taluy/enable", Bool, queue_size=1) 
-
-    def killswitch_callback(self, msg):
-        if not msg.data:
-            self.active = False 
     
     def constrain(self, value, max_value):
         return max(min(value, max_value), -max_value)
