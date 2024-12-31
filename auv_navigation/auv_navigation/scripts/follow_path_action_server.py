@@ -75,9 +75,6 @@ class FollowPathActionServer:
 
     def handle_align_frame_request(self, req):
         response = AlignFrameResponse()
-        
-        self.action_client.cancel_all_goals()
-        rospy.sleep(0.1)  
 
         goal = FollowPathGoal()
         goal.target_frame = req.target_frame
