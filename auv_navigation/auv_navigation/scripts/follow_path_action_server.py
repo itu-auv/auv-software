@@ -13,7 +13,7 @@ import tf2_ros
 
 from navigation_utils.path_utils import (
     create_path_from_frame, get_current_pose, 
-    calculate_carrot_pose, broadcast_carrot_frame
+    calculate_carrot_pose, broadcast_carrot_frame, delete_carrot_frame
 )
 from navigation_utils.align_frame_utils import AlignFrameController
 
@@ -24,12 +24,11 @@ class FollowPathActionServer:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.carrot_distance = rospy.get_param('~carrot_distance', 1.0)
-        self.goal_position_threshold = rospy.get_param('~goal_position_threshold', 0.1)
-        self.goal_angle_threshold = rospy.get_param('~goal_angle_threshold', 0.1)
+        self.position_threshold = rospy.get_param('~position_threshold', 0.1)
+        self.angle_threshold = rospy.get_param('~angle_threshold', 0.1)
         self.source_frame = rospy.get_param('~source_frame', "taluy/base_link")
         self.carrot_frame = rospy.get_param('~carrot_frame', "carrot")
         self.control_rate = rospy.Rate(rospy.get_param('~control_rate', 20))
-        self.last_target_frame = None
         self.frame_controller = AlignFrameController(
             max_linear_velocity=rospy.get_param('~max_linear_velocity', 0.8),
             max_angular_velocity=rospy.get_param('~max_angular_velocity', 0.9),
@@ -77,9 +76,13 @@ class FollowPathActionServer:
     def handle_align_frame_request(self, req):
         response = AlignFrameResponse()
         
-        path = None # clear any paths
+        self.action_client.cancel_all_goals()
+        rospy.sleep(0.1)  
+        
+        self.current_target_frame = req.target_frame # update the current target frame
+
         goal = FollowPathGoal()
-        goal.target_frame = self.current_target_frame
+        goal.target_frame = req.target_frame
         goal.angle_offset = req.angle_offset
         goal.keep_orientation = req.keep_orientation
         
@@ -107,10 +110,6 @@ class FollowPathActionServer:
             response.success = True
             response.message = "Won't create path. Starting direct alignment"
         
-        if self.server.is_active():
-            self.action_client.cancel_goal()
-            rospy.loginfo("Cancelled existing goal before starting new alignment")
-            
         self.action_client.send_goal(goal)
         rospy.logdebug("Goal sent to the Action Server successfully.")
         return response
@@ -160,14 +159,14 @@ class FollowPathActionServer:
                         self.control_rate.sleep() 
                         continue
                     
-                    if self.frame_controller.is_aligned(trans, rot, self.goal_position_threshold, self.goal_angle_threshold):
+                    if self.frame_controller.is_aligned(self.position_threshold, self.angle_threshold,
+                                                        current_pose=current_pose, path=path, trans_error=None, rot_error=None):  
                         rospy.loginfo("Goal reached via path following!")
                         return True
                     
-                    cmd_vel = self.frame_controller.compute_cmd_vel(trans, rot)
+                    cmd_vel = self.frame_controller.compute_cmd_vel(trans_error, rot_error)
                     self.cmd_vel_pub.publish(cmd_vel)
                     
-                    feedback.carrot_pose = carrot_pose #TODO (somebody) position of carrot as feedback.carrot_pose is probably enough.
                     feedback.distance_to_goal = np.sqrt(
                         (path.poses[-1].pose.position.x - current_pose.pose.position.x) ** 2 +
                         (path.poses[-1].pose.position.y - current_pose.pose.position.y) ** 2 +
@@ -178,7 +177,7 @@ class FollowPathActionServer:
                 # 2. If path is not valid, do direct alignment
                 elif path is None: 
                     
-                    trans, rot = self.frame_controller.get_transform(
+                    trans_error, rot_error = self.frame_controller.get_error(
                         self.tf_buffer,
                         self.source_frame,
                         target_frame,
@@ -195,7 +194,7 @@ class FollowPathActionServer:
                         rospy.loginfo("Goal reached via direct alignment!") 
                         return True
                     
-                    cmd_vel = self.frame_controller.compute_cmd_vel(trans, rot)
+                    cmd_vel = self.frame_controller.compute_cmd_vel(trans_error, rot_error)
                     self.cmd_vel_pub.publish(cmd_vel)
 
                 self.control_rate.sleep()
@@ -206,7 +205,7 @@ class FollowPathActionServer:
             return False
 
     def execute(self, goal):
-        rospy.loginfo("Received a new FollowPath goal.")
+        rospy.loginfo("FollowPathActionServer: Received a new FollowPath goal.")
         
         if goal.path and goal.path.poses:
             success = self.do_alignment(
@@ -224,15 +223,16 @@ class FollowPathActionServer:
         result = FollowPathResult(success=success)
         
         if success:
-            result = FollowPathResult(success=True)
-            self.server.set_succeeded(result) 
-        else: 
-            rospy.logwarn("FollowPath action couldn't succeed.") 
-            result = FollowPathResult(success=False)
-
+            self.server.set_succeeded(result)
+        else:
+            rospy.logwarn("FollowPath action did not succeed.")
             if not self.server.is_preempt_requested():
                 self.server.set_aborted(result)
-                
+
+        # Also publish stop command at the end of execute 
+        stop_cmd = Twist()
+        self.cmd_vel_pub.publish(stop_cmd)
+
 if __name__ == "__main__":
     FollowPathActionServer()
     rospy.spin()
