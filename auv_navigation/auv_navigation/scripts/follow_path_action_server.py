@@ -78,8 +78,6 @@ class FollowPathActionServer:
         
         self.action_client.cancel_all_goals()
         rospy.sleep(0.1)  
-        
-        self.current_target_frame = req.target_frame # update the current target frame
 
         goal = FollowPathGoal()
         goal.target_frame = req.target_frame
