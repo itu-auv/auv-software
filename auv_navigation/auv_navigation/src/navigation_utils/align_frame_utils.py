@@ -62,38 +62,56 @@ class AlignFrameController:
             rospy.logwarn(f"Transform lookup failed: {e}")
             return None, None
 
-    def constrain(self, value, max_value):
-        return max(min(value, max_value), -max_value)
-
-    def compute_cmd_vel(self, trans, rot):
-        
-        #TODO add kd. 
-        
+    def compute_cmd_vel(self, trans_error, yaw_error):
         twist = Twist()
-
+        
         kp_linear = self.kp
+        twist.linear.x = self.constrain(trans_error[0] * kp_linear, self.max_linear_velocity)
+        twist.linear.y = self.constrain(trans_error[1] * kp_linear, self.max_linear_velocity)
+        twist.linear.z = self.constrain(trans_error[2] * kp_linear, self.max_linear_velocity)
+        
+        # Angular velocity
         kp_angular = self.angle_kp
-
-        vx = trans[0] * kp_linear
-        vy = trans[1] * kp_linear
-        vz = trans[2] * kp_linear
-
-        twist.linear.x = self.constrain(vx, self.max_linear_velocity)
-        twist.linear.y = self.constrain(vy, self.max_linear_velocity)
-        twist.linear.z = self.constrain(vz, self.max_linear_velocity)
-
-        _, _, yaw = euler_from_quaternion(rot)
-        twist.angular.z = self.constrain(yaw * kp_angular, self.max_angular_velocity)
+        twist.angular.z = self.constrain(yaw_error * kp_angular, self.max_angular_velocity)
         
         return twist
+    
+    def is_aligned(self, position_threshold, angle_threshold, current_pose,
+                    path, trans_error, rot_error):
+        if path is None:
+            total_trans_error = np.linalg.norm(trans_error)
+            within_position = (total_trans_error <= position_threshold)
+            within_angle = (abs(rot_error) <= angle_threshold)
+            return within_position and within_angle
+        
+        # For path-based alignment, calculate error between current pose and last path pose
+        last_pose = path.poses[-1].pose
 
-    def is_aligned(self, trans, rot, position_threshold, angle_threshold):
-        _, _, yaw = euler_from_quaternion(rot)
-        position_error = np.sqrt(trans[0]**2 + trans[1]**2 + trans[2]**2)
-        return position_error < position_threshold and abs(yaw) < angle_threshold
-
+        dx = last_pose.position.x - current_pose.pose.position.x
+        dy = last_pose.position.y - current_pose.pose.position.y
+        dz = last_pose.position.z - current_pose.pose.position.z
+        total_pos_error = np.linalg.norm([dx, dy, dz])
+        
+        _, _, current_yaw = euler_from_quaternion([
+            current_pose.pose.orientation.x,
+            current_pose.pose.orientation.y,
+            current_pose.pose.orientation.z,
+            current_pose.pose.orientation.w
+        ])
+        
+        _, _, last_yaw = euler_from_quaternion([
+            last_pose.orientation.x,
+            last_pose.orientation.y,
+            last_pose.orientation.z,
+            last_pose.orientation.w
+        ])
+        
+        yaw_error = self.wrap_angle(last_yaw - current_yaw)
+        rospy.loginfo(f"Path alignment - Position error: {total_pos_error:.4f}, "
+                    f"Angle error: {yaw_error:.4f}") #TODO change to debug
+        
+        return (total_pos_error <= position_threshold and 
+                abs(yaw_error) <= angle_threshold)
+    
     def enable_alignment(self):
         self.enable_pub.publish(Bool(True))
-
-
-
