@@ -10,6 +10,7 @@ from scipy.interpolate import CubicSpline
 import tf2_geometry_msgs
 
 
+
 def create_path_from_frame(tf_buffer, source_frame, target_frame, angle_offset=0.0, keep_orientation=False, num_samples=50):
     try:
         source_transform = tf_buffer.lookup_transform(
@@ -35,15 +36,16 @@ def create_path_from_frame(tf_buffer, source_frame, target_frame, angle_offset=0
                 target_transform.transform.rotation.y,
                 target_transform.transform.rotation.z,
                 target_transform.transform.rotation.w]
-
-        offset_q = quaternion_from_euler(0, 0, angle_offset)
-        tgt_q = quaternion_multiply(tgt_q, offset_q)
         
         t_vals = np.linspace(0, 1, num_samples) 
         
         path = Path()
         path.header.frame_id = "odom"
         path.header.stamp = rospy.Time.now()
+        
+        # Apply angle offset
+        offset_q = quaternion_from_euler(0, 0, angle_offset)
+        final_q = quaternion_multiply(offset_q, tgt_q)
         
         for t in t_vals:
             pose = PoseStamped()
@@ -53,12 +55,11 @@ def create_path_from_frame(tf_buffer, source_frame, target_frame, angle_offset=0
             pose.pose.position.y = src_pos.y + t * (tgt_pos.y - src_pos.y)
             pose.pose.position.z = src_pos.z + t * (tgt_pos.z - src_pos.z)
             
-            # If keep_orientation is True, use source orientation throughout the path
-            # Otherwise interpolate orientation using slerp
+            # Set orientation based on keep_orientation flag
             if keep_orientation:
                 interp_q = src_q
             else:
-                interp_q = quaternion_slerp(src_q, tgt_q, t)
+                interp_q = quaternion_slerp(src_q, final_q, t)
             
             pose.pose.orientation.x = interp_q[0]
             pose.pose.orientation.y = interp_q[1]
@@ -187,5 +188,4 @@ def broadcast_carrot_frame(tf_broadcaster, tf_buffer, source_frame, carrot_pose)
 
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
         rospy.logerr(f"Failed to broadcast carrot frame: {e}")
-    
-    #TODO eminmeydanoglu add carrot visualization marker
+

@@ -79,7 +79,9 @@ class FollowPathActionServer:
         
         path = None # clear any paths
         goal = FollowPathGoal()
-        goal.target_frame = req.target_frame
+        goal.target_frame = self.current_target_frame
+        goal.angle_offset = req.angle_offset
+        goal.keep_orientation = req.keep_orientation
         
         if req.do_planning:
             try:
@@ -113,7 +115,11 @@ class FollowPathActionServer:
         rospy.logdebug("Goal sent to the Action Server successfully.")
         return response
 
-    def do_alignment(self, path=None, target_frame=None):
+    def do_alignment(self, path=None, target_frame=None, angle_offset=0.0, keep_orientation=False):
+        """
+        This is a blocking loop that won't exit until alignment is done or preempted.
+        """
+        
         if not path and not target_frame:
             rospy.logerr("Both path and target_frame are None. Cannot perform alignment.")
             return False
@@ -143,13 +149,14 @@ class FollowPathActionServer:
                     carrot_pose = calculate_carrot_pose(path, current_pose, self.carrot_distance)
                     broadcast_carrot_frame(self.tf_broadcaster, self.tf_buffer, self.source_frame, carrot_pose)
                     
-                    trans, rot = self.frame_controller.get_transform(
+                    trans_error, rot_error = self.frame_controller.get_error(
                         self.tf_buffer,
                         self.source_frame,
-                        self.carrot_frame, 
+                        self.carrot_frame
+                        # We don't need to set angle_offset or keep_orientation here since they are taken cared of in path. 
                     )
-                    if trans is None or rot is None: 
-                        rospy.logwarn(f"Failed to get transform between {self.source_frame} and {target_frame}")
+                    if trans_error is None or rot_error is None: 
+                        rospy.logwarn(f"Failed to get transform between {self.source_frame} and {self.carrot_frame}")
                         self.control_rate.sleep() 
                         continue
                     
@@ -174,9 +181,17 @@ class FollowPathActionServer:
                     trans, rot = self.frame_controller.get_transform(
                         self.tf_buffer,
                         self.source_frame,
-                        target_frame)
-
-                    if self.frame_controller.is_aligned(trans, rot, self.goal_position_threshold, self.goal_angle_threshold):
+                        target_frame,
+                        angle_offset,
+                        keep_orientation
+                    )
+                    if trans_error is None or rot_error is None: 
+                        rospy.logwarn(f"Failed to get transform between {self.source_frame} and {target_frame}")
+                        self.control_rate.sleep() 
+                        continue
+                    
+                    if self.frame_controller.is_aligned(self.position_threshold, self.angle_threshold,
+                                                        current_pose=None, path=None, trans_error=trans_error, rot_error=rot_error):                                      
                         rospy.loginfo("Goal reached via direct alignment!") 
                         return True
                     
@@ -194,10 +209,20 @@ class FollowPathActionServer:
         rospy.loginfo("Received a new FollowPath goal.")
         
         if goal.path and goal.path.poses:
-            success = self.do_alignment(path=goal.path)
+            success = self.do_alignment(
+                path=goal.path,
+                angle_offset=goal.angle_offset,
+                keep_orientation=goal.keep_orientation
+            )
         else:
-            success = self.do_alignment(target_frame=goal.target_frame)
-            
+            success = self.do_alignment(
+                target_frame=goal.target_frame,
+                angle_offset=goal.angle_offset,
+                keep_orientation=goal.keep_orientation
+            )
+
+        result = FollowPathResult(success=success)
+        
         if success:
             result = FollowPathResult(success=True)
             self.server.set_succeeded(result) 

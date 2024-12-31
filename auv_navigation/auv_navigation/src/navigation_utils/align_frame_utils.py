@@ -4,7 +4,8 @@ import numpy as np
 import rospy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
-from tf.transformations import euler_from_quaternion
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
+import math
 
 class AlignFrameController:
     def __init__(self, max_linear_velocity=0.8, max_angular_velocity=0.9, 
@@ -13,15 +14,20 @@ class AlignFrameController:
         self.max_angular_velocity = max_angular_velocity
         self.kp = kp
         self.angle_kp = angle_kp
-
         self.enable_pub = rospy.Publisher("taluy/enable", Bool, queue_size=1) 
 
     def killswitch_callback(self, msg):
         if not msg.data:
             self.active = False 
     
-    def get_transform(
-        self, tf_buffer, source_frame, target_frame
+    def constrain(self, value, max_value):
+        return max(min(value, max_value), -max_value)
+    
+    def wrap_angle(self, angle):
+        return (angle + math.pi) % (2 * math.pi) - math.pi
+    
+    def get_error(
+        self, tf_buffer, source_frame, target_frame, angle_offset=0.0, keep_orientation=False
         ):
         try:
             transform = tf_buffer.lookup_transform(
@@ -31,7 +37,7 @@ class AlignFrameController:
                 rospy.Duration(2.0)
             )
             
-            trans = (
+            trans_error = (
                 transform.transform.translation.x,
                 transform.transform.translation.y,
                 transform.transform.translation.z,
@@ -42,8 +48,16 @@ class AlignFrameController:
                 transform.transform.rotation.z,
                 transform.transform.rotation.w,
             )
-            return trans, rot
-        
+
+            _, _, yaw_error = euler_from_quaternion(rot)
+            
+            # Apply angle offset and handle keep orientation
+            yaw_error = self.wrap_angle(yaw_error + angle_offset)
+            if keep_orientation:
+                yaw_error = 0.0
+            
+            return trans_error, yaw_error
+            
         except Exception as e:
             rospy.logwarn(f"Transform lookup failed: {e}")
             return None, None
