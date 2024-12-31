@@ -1,6 +1,8 @@
 # Goal
 nav_msgs/Path path
 string target_frame
+float64 angle_offset
+bool keep_orientation
 
 ---
 # Result
@@ -8,4 +10,4 @@ bool success
 ---
 # Feedback
 float64 distance_to_goal
-geometry_msgs/PoseStamped carrot_pose
+
