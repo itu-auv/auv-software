@@ -103,8 +103,8 @@ class AlignFrameController:
         ])
         
         yaw_error = self.wrap_angle(last_yaw - current_yaw)
-        rospy.loginfo(f"Path alignment - Position error: {total_pos_error:.4f}, "
-                    f"Angle error: {yaw_error:.4f}") #TODO change to debug
+        rospy.logdebug(f"Path alignment - Position error: {total_pos_error:.4f}, "
+                    f"Angle error: {yaw_error:.4f}") 
         
         return (total_pos_error <= position_threshold and 
                 abs(yaw_error) <= angle_threshold)
