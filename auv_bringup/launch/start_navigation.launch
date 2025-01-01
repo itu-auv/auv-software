@@ -11,6 +11,7 @@
 
   <include file="$(find auv_bringup)/launch/robot_localization.launch">
     <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
   </include>
 
   <include file="$(find auv_control)/launch/start.launch">

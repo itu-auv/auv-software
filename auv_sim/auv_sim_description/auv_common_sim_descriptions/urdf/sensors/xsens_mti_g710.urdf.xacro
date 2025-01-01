@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="xsens_mti_g710">
-  <xacro:macro name="xsens_mti_g710_sim" params="name namespace static_reference_frame">
+  <xacro:macro name="xsens_mti_g710_sim" params="name namespace static_reference_frame update_rate">
     <link name="${name}_sim_link">
       <inertial>
         <mass value="0.001"/>
@@ -35,7 +35,7 @@
         <accelerometer_bias_correlation_time>300.0</accelerometer_bias_correlation_time>
         <accelerometer_turn_on_bias_sigma>0.1960</accelerometer_turn_on_bias_sigma>
         <orientation_noise>0.05</orientation_noise>
-        <update_rate>80</update_rate>
+        <update_rate>${update_rate}</update_rate>
         <enable_gazebo_messages>false</enable_gazebo_messages>
         <enable_local_ned_frame>false</enable_local_ned_frame>
         <static_reference_frame>${static_reference_frame}</static_reference_frame>
