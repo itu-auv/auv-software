@@ -11,6 +11,9 @@
     <arg name="debug" default="false" />
     <arg name="world" default="pool" />
     <arg name="use_ned_frame" default="false" />
+    <arg name="imu_update_rate" default="20" />
+    <arg name="dvl_update_rate" default="20" />
+    <arg name="pressure_update_rate" default="20" />
 
     <!-- Run RViz -->
     <node
@@ -50,6 +53,9 @@
         <arg name="roll" value="$(arg roll)" />
         <arg name="pitch" value="$(arg pitch)" />
         <arg name="yaw" value="$(arg yaw)" />
+        <arg name="imu_update_rate" value="$(arg imu_update_rate)" />
+        <arg name="dvl_update_rate" value="$(arg dvl_update_rate)" />
+        <arg name="pressure_update_rate" value="$(arg pressure_update_rate)" />
     </include>
 
     <!-- Start bridge -->

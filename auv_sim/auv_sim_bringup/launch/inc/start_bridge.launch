@@ -24,6 +24,9 @@
       <remap from="pressure" to="sim/pressure" />
       <remap from="dvl" to="sim/dvl" />
       <remap from="imu_raw" to="sim/imu" />
+
+      <!-- params -->
+      <param name="rate" value="$(arg control_rate)" />
     </node>
   </group>
 
