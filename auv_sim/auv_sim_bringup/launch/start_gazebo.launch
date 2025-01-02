@@ -35,7 +35,7 @@
 
     <!-- Start world launch -->
     <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch">
-        <arg name="gui" value="$(arg use_gui)" />
+        <arg name="use_gui" value="$(arg use_gui)" />
         <arg name="debug" value="$(arg debug)" />
         <arg name="namespace" value="$(arg namespace)" />
     </include>
