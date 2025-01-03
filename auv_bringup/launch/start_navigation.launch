@@ -4,6 +4,7 @@
   <arg name="control_rate" default="20.0" />
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
+  <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
 
   <include file="$(find auv_localization)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
@@ -19,6 +20,7 @@
     <arg name="rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="$(arg start_state_publisher)" />
+    <arg name="config_file" value="$(arg config_file)"/>
   </include>
 
   <include file="$(find auv_mapping)/launch/start.launch">
