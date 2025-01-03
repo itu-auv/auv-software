@@ -87,23 +87,13 @@ class SimulationMockROS {
   void drivePulseCallback(const auv_msgs::MotorCommand &msg) {
     const auto stamp = ros::Time::now();
 
-    // Remapping array: maps input channels to specific thruster indices
-    std::vector<int> channelRemap = {1, 7, 2, 5, 0, 6, 3, 4};
-
     if (msg.channels.size() < kThrusterSize) {
       ROS_WARN("Received MotorCommand with insufficient channels.");
       return;
     }
 
     for (int i = 0; i < kThrusterSize; i++) {
-      if (i < channelRemap.size() && channelRemap[i] < msg.channels.size()) {
-        int remappedChannel = channelRemap[i];
-        thrusters_[i].publish(msg.channels.at(remappedChannel), stamp);
-      } else {
-        ROS_WARN(
-            "Invalid channel remapping or insufficient channels for "
-            "remapping.");
-      }
+      thrusters_[i].publish(msg.channels.at(i), stamp);
     }
   }
 
