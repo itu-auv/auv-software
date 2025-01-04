@@ -50,28 +50,6 @@ class MainStateMachineNode:
                 "INITIALIZE",
                 InitializeState(),
                 transitions={
-                    "succeeded": "NAVIGATE_THROUGH_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_THROUGH_GATE",
-                NavigateThroughGateState(gate_depth=gate_depth),
-                transitions={
-                    "succeeded": "NAVIGATE_AROUND_RED_BUOY",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_AROUND_RED_BUOY",
-                RotateAroundBuoyState(
-                    radius=red_buoy_radius,
-                    direction=red_buoy_direction,
-                    red_buoy_depth=red_buoy_depth,
-                ),
-                transitions={
                     "succeeded": "NAVIGATE_TO_TORPEDO_TASK",
                     "preempted": "preempted",
                     "aborted": "aborted",
