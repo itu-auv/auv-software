@@ -15,7 +15,7 @@ import threading
 
 class MainStateMachineNode:
     def __init__(self):
-        self.previous_enabled = False
+        self.previous_enabled = True
 
         # USER EDIT
         gate_depth = -0.9
@@ -25,7 +25,7 @@ class MainStateMachineNode:
         red_buoy_depth = -0.7
 
         torpedo_map_radius = 1.5
-        torpedo_map_depth = -1.3
+        torpedo_map_depth = -1.5
 
         bin_whole_depth = -1.0
 
@@ -49,28 +49,6 @@ class MainStateMachineNode:
             smach.StateMachine.add(
                 "INITIALIZE",
                 InitializeState(),
-                transitions={
-                    "succeeded": "NAVIGATE_THROUGH_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_THROUGH_GATE",
-                NavigateThroughGateState(gate_depth=gate_depth),
-                transitions={
-                    "succeeded": "NAVIGATE_AROUND_RED_BUOY",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_AROUND_RED_BUOY",
-                RotateAroundBuoyState(
-                    radius=red_buoy_radius,
-                    direction=red_buoy_direction,
-                    red_buoy_depth=red_buoy_depth,
-                ),
                 transitions={
                     "succeeded": "NAVIGATE_TO_TORPEDO_TASK",
                     "preempted": "preempted",
