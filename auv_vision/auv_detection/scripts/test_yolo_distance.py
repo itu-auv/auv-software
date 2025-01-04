@@ -32,18 +32,6 @@ class CustomCameraCalibration:
                     0.0, 0.0, 1.0  # Last row of camera matrix
                 ],
                 'D': [-0.002190, -0.089089, -0.013968, -0.006001, 0.0]  # Distortion coefficients
-            },
-            'cam_bottom': {
-                'K': [
-                    662.777153,  # fx
-                    0.0,         # skew
-                    316.454652,  # cx
-                    0.0,         # 0
-                    871.683826,  # fy
-                    249.195884,  # cy
-                    0.0, 0.0, 1.0  # Last row of camera matrix
-                ],
-                'D': [0.666467, -0.503379, 0.0089, -0.008196, 0.0]  # Distortion coefficients
             }
         }
         
@@ -162,7 +150,7 @@ class TorpedoMapDistanceNode:
             # Add a small delay to prevent overwhelming processing
             time.sleep(0.1)
             
-            print(f"Received YOLO result with {len(msg.detections.detections)} detections")
+            #print(f"Received YOLO result with {len(msg.detections.detections)} detections")
             
             # Find torpedo map detection
             torpedo_map_detection = None
@@ -172,7 +160,7 @@ class TorpedoMapDistanceNode:
                 # Print out all detection details for debugging
                 print(f"Detection ID: {detection.results[0].id}")
                 print(f"Detection Confidence: {detection.results[0].score}")
-                print(f"Bounding Box: x={detection.bbox.center.x}, y={detection.bbox.center.y}")
+                #print(f"Bounding Box: x={detection.bbox.center.x}, y={detection.bbox.center.y}")
                 print(f"Bounding Box Size: width={detection.bbox.size_x}, height={detection.bbox.size_y}")
                 
                 if detection.results[0].id == torpedo_map_id:
