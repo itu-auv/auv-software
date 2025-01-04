@@ -30,13 +30,12 @@ class CustomCameraCalibration:
                     567.001237,  # fy
                     221.133655,  # cy
                     0.0, 0.0, 1.0  # Last row of camera matrix
-                ],
-                'D': [-0.002190, -0.089089, -0.013968, -0.006001, 0.0]  # Distortion coefficients
+                ]
             }
         }
         
         # Determine camera type
-        self.camera_type = camera_namespace.split('/')[-1] if '/' in camera_namespace else camera_namespace
+        self.camera_type = 'cam_front'
         
         # Fallback to front camera if not recognized
         if self.camera_type not in self.camera_calibrations:
@@ -113,7 +112,7 @@ class TorpedoMapDistanceNode:
             rospy.init_node('torpedo_map_distance_node', disable_signals=True)
             
             # Camera namespace for usb_cam
-            camera_namespace = 'usb_cam'
+            camera_namespace = '/taluy/cameras/cam_front'
             
             print(f"Initializing with camera namespace: {camera_namespace}")
             
@@ -161,7 +160,7 @@ class TorpedoMapDistanceNode:
                 print(f"Detection ID: {detection.results[0].id}")
                 print(f"Detection Confidence: {detection.results[0].score}")
                 #print(f"Bounding Box: x={detection.bbox.center.x}, y={detection.bbox.center.y}")
-                print(f"Bounding Box Size: width={detection.bbox.size_x}, height={detection.bbox.size_y}")
+                #print(f"Bounding Box Size: width={detection.bbox.size_x}, height={detection.bbox.size_y}")
                 
                 if detection.results[0].id == torpedo_map_id:
                     torpedo_map_detection = detection
