@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 
+
 import rospy
 import sys
 import os
 import traceback
 import time
 import numpy as np
+import math
+
+from ultralytics_ros.msg import YoloResult
+from std_msgs.msg import Float32
+from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
+from auv_control.auv_control.scripts.prop_transform_publisher import TorpedoMap, name_to_id_map
 
 # Add the path to the auv_control package
 sys.path.append('/home/frk/catkin_ws/src/auv-software/auv_control/auv_control/scripts')
@@ -104,6 +111,57 @@ class CustomCameraCalibration:
         distance = (real_width * focal_length) / measured_width
         return distance
 
+    def calculate_angles(self, pixel_coordinates: tuple) -> tuple:
+        """
+        Calculate angular coordinates from pixel coordinates.
+        
+        Args:
+            pixel_coordinates (tuple): (x, y) pixel coordinates in the image
+        
+        Returns:
+            tuple: (angle_x, angle_y) angular coordinates in radians
+        """
+        # Extract camera matrix parameters
+        fx = self.calibration.K[0]  # Focal length in x direction
+        fy = self.calibration.K[4]  # Focal length in y direction
+        cx = self.calibration.K[2]  # Principal point x-coordinate
+        cy = self.calibration.K[5]  # Principal point y-coordinate
+        
+        # Normalize pixel coordinates relative to the camera's optical center
+        norm_x = (pixel_coordinates[0] - cx) / fx
+        norm_y = (pixel_coordinates[1] - cy) / fy
+        
+        # Convert to angular coordinates
+        angle_x = math.atan(norm_x)
+        angle_y = math.atan(norm_y)
+        
+        return angle_x, angle_y
+    
+    def calculate_offset_and_distance(self, pixel_coordinates: tuple, distance: float) -> tuple:
+        """
+        Calculate offset and position based on pixel coordinates and distance.
+        
+        Args:
+            pixel_coordinates (tuple): (x, y) pixel coordinates in the image
+            distance (float): Estimated distance to the object
+        
+        Returns:
+            tuple: (offset_x, offset_y, x, y, z)
+        """
+        # Calculate angles
+        angle_x, angle_y = self.calculate_angles(pixel_coordinates)
+        
+        # Calculate offsets
+        offset_x = math.tan(angle_x) * distance
+        offset_y = math.tan(angle_y) * distance
+        
+        # Calculate 3D coordinates
+        x = offset_x
+        y = offset_y
+        z = distance
+        
+        return offset_x, offset_y, x, y, z
+
 
 class TorpedoMapDistanceNode:
     def __init__(self):
@@ -146,97 +204,89 @@ class TorpedoMapDistanceNode:
     
     def yolo_callback(self, msg):
         try:
-            # Add a small delay to prevent overwhelming processing
-            time.sleep(0.1)
-            
-            #print(f"Received YOLO result with {len(msg.detections.detections)} detections")
-            
+            # Check if there are any detections
+            if not msg.detections.detections:
+                return
+
             # Find torpedo map detection
-            torpedo_map_detection = None
             torpedo_map_id = name_to_id_map.get('torpedo_map', 12)  # Fallback to 12 if not found
-            
+            torpedo_map_detection = None
+
             for detection in msg.detections.detections:
-                # Print out all detection details for debugging
-                print(f"Detection ID: {detection.results[0].id}")
-                print(f"Detection Confidence: {detection.results[0].score}")
-                #print(f"Bounding Box: x={detection.bbox.center.x}, y={detection.bbox.center.y}")
-                #print(f"Bounding Box Size: width={detection.bbox.size_x}, height={detection.bbox.size_y}")
-                
                 if detection.results[0].id == torpedo_map_id:
                     torpedo_map_detection = detection
                     break
-            
-            if torpedo_map_detection:
+
+            if not torpedo_map_detection:
+                return
+
+            # Get bounding box details
+            bbox_center_x = torpedo_map_detection.bbox.center.x
+            bbox_center_y = torpedo_map_detection.bbox.center.y
+            measured_height = torpedo_map_detection.bbox.size_y
+            measured_width = torpedo_map_detection.bbox.size_x
+
+            # Check for valid measurements
+            if measured_height == 0 or measured_width == 0:
+                rospy.logerr("Invalid measurement: height or width is zero")
+                return
+
+            try:
                 # Calculate distance using height and width
-                measured_height = torpedo_map_detection.bbox.size_y
-                measured_width = torpedo_map_detection.bbox.size_x
+                distance_from_height = self.camera_calibration.distance_from_height(
+                    self.torpedo_map_prop.real_height, measured_height
+                )
+                distance_from_width = self.camera_calibration.distance_from_width(
+                    self.torpedo_map_prop.real_width, measured_width
+                )
+
+                # Average the distances
+                distance = (distance_from_height + distance_from_width) / 2.0
+
+                # Calculate angles and offsets
+                offset_x, offset_y, x, y, z = self.camera_calibration.calculate_offset_and_distance(
+                    (bbox_center_x, bbox_center_y), distance
+                )
+
+                # Print detailed information
+                print("\n--- Torpedo Map Distance Calculation ---")
+                print(f"Bounding Box Center: ({bbox_center_x}, {bbox_center_y})")
+                print(f"Real Height: {self.torpedo_map_prop.real_height} m")
+                print(f"Real Width: {self.torpedo_map_prop.real_width} m")
+                print(f"Measured Height: {measured_height} pixels")
+                print(f"Measured Width: {measured_width} pixels")
+                print(f"Distance from Height: {distance_from_height:.2f} m")
+                print(f"Distance from Width: {distance_from_width:.2f} m")
+                print(f"Estimated Distance: {distance:.2f} m")
                 
-                print(f"Torpedo map detection - Height: {measured_height}, Width: {measured_width}")
+                # Angle calculations
+                angle_x, angle_y = self.camera_calibration.calculate_angles((bbox_center_x, bbox_center_y))
+                print(f"Angle X: {math.degrees(angle_x):.2f}°")
+                print(f"Angle Y: {math.degrees(angle_y):.2f}°")
                 
-                # Add more detailed debugging for distance estimation
-                try:
-                    # Detailed logging of distance calculation parameters
-                    print(f"Real Height: {self.torpedo_map_prop.real_height}")
-                    print(f"Real Width: {self.torpedo_map_prop.real_width}")
-                    print(f"Focal Length (x): {self.camera_calibration.calibration.K[0]}")
-                    print(f"Focal Length (y): {self.camera_calibration.calibration.K[4]}")
-                    
-                    # Sanity checks
-                    if measured_height == 0 or measured_width == 0:
-                        rospy.logerr("Invalid measurement: height or width is zero")
-                        return
-                    
-                    # Manually calculate distance using both height and width
-                    try:
-                        distance_from_height = self.camera_calibration.distance_from_height(
-                            self.torpedo_map_prop.real_height, measured_height
-                        )
-                        distance_from_width = self.camera_calibration.distance_from_width(
-                            self.torpedo_map_prop.real_width, measured_width
-                        )
-                    except ValueError as ve:
-                        rospy.logerr(f"Distance calculation error: {ve}")
-                        return
-                    
-                    print(f"Manually calculated distance from height: {distance_from_height}")
-                    print(f"Manually calculated distance from width: {distance_from_width}")
-                    
-                    # Use the average of height and width distances
-                    distance = (distance_from_height + distance_from_width) * 0.5
-                    
-                    # Additional sanity check
-                    if not (0 < distance < 10):  # Reasonable distance range
-                        rospy.logwarn(f"Calculated distance {distance} seems unrealistic")
-                        # Optional: use a more conservative estimate
-                        distance = min(max(distance, 0.1), 10)
-                    
-                    # Publish distance
-                    distance_msg = Float32()
-                    distance_msg.data = distance
-                    self.distance_pub.publish(distance_msg)
-                    
-                    rospy.loginfo(f"Torpedo Map Distance: {distance} meters")
-                
-                except Exception as dist_error:
-                    print(f"Unexpected distance estimation error: {dist_error}")
-                    print(traceback.format_exc())
-        
+                print(f"Offset X: {offset_x:.2f} m")
+                print(f"Offset Y: {offset_y:.2f} m")
+                print(f"3D Coordinates (x, y, z): ({x:.2f}, {y:.2f}, {z:.2f}) m")
+
+                # Publish the distance
+                distance_msg = Float32()
+                distance_msg.data = distance
+                self.distance_pub.publish(distance_msg)
+
+            except ValueError as ve:
+                rospy.logerr(f"Distance calculation error: {ve}")
+
         except Exception as e:
-            rospy.logerr(f"Callback error: {e}")
-            print(f"Callback error: {e}")
+            rospy.logerr(f"Error in yolo_callback: {e}")
             print(traceback.format_exc())
 
 
 def main():
     try:
-        print("Starting main function...")
         node = TorpedoMapDistanceNode()
         rospy.spin()
     except rospy.ROSInterruptException:
-        print("ROS Interrupt Exception")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        print(traceback.format_exc())
+        pass
 
 
 if __name__ == '__main__':
