@@ -15,7 +15,7 @@ sys.path.append('/home/frk/catkin_ws/src/auv-software/auv_common_lib/python')
 from ultralytics_ros.msg import YoloResult
 from std_msgs.msg import Float32
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
-from prop_transform_publisher import TorpedoMap, name_to_id_map
+from prop_transform_publisher import TorpedoMap, name_to_id_map, GateBlueArrow
 
 
 class CustomCameraCalibration:
@@ -55,15 +55,13 @@ class CustomCameraCalibration:
             else:
                 print(f"ROS camera calibration empty. Using {self.camera_type} fallback.")
                 self.calibration = type('CalibrationData', (), {
-                    'K': self.camera_calibrations[self.camera_type]['K'],
-                    'D': self.camera_calibrations[self.camera_type]['D']
+                    'K': self.camera_calibrations[self.camera_type]['K']
                 })()
         except Exception as e:
             print(f"Error fetching camera calibration: {e}")
             print(f"Using {self.camera_type} fallback calibration")
             self.calibration = type('CalibrationData', (), {
-                'K': self.camera_calibrations[self.camera_type]['K'],
-                'D': self.camera_calibrations[self.camera_type]['D']
+                'K': self.camera_calibrations[self.camera_type]['K']
             })()
         
         # Validate calibration
@@ -74,7 +72,6 @@ class CustomCameraCalibration:
         print("Camera Calibration Details:")
         print(f"Camera Type: {self.camera_type}")
         print(f"Camera Matrix (K): {self.calibration.K}")
-        print(f"Distortion Coefficients: {self.calibration.D}")
         
         # Validate focal lengths
         fx = self.calibration.K[0]  # Focal length x
@@ -200,6 +197,7 @@ class TorpedoMapDistanceNode:
         try:
             # Check if there are any detections
             if not msg.detections.detections:
+                print("No detections found.")
                 return
 
             # Find torpedo map detection
@@ -273,15 +271,132 @@ class TorpedoMapDistanceNode:
         except Exception as e:
             rospy.logerr(f"Error in yolo_callback: {e}")
             print(traceback.format_exc())
+### END OF FIRST NODE 
+class GateDistanceNode:
+    def __init__(self):
+        try:
+            print("Starting GATEARROW Distance Node initialization...")
+            #rospy.init_node('gate_blue_arrow_distance_node', disable_signals=True)
+            
+            # Camera namespace for usb_cam
+            camera_namespace = 'usb_cam'
+            
+            print(f"Initializing with camera namespace: {camera_namespace}")
+            
+            # Use custom camera calibration with fallback mechanism
+            self.camera_calibration = CustomCameraCalibration(camera_namespace)
+            
+            # Initialize torpedo map prop
+            self.gate_blue_arrow_prop = GateBlueArrow()
+            
+            # Publisher for torpedo map distance
+            self.distance_pub = rospy.Publisher('/gate_bluearrow/distance', Float32, queue_size=10)
+            
+            # Subscriber to YOLO results
+            self.yolo_sub = rospy.Subscriber('/yolo_result', YoloResult, self.yolo_callback)
+            
+            print("Subscriber created. Waiting for messages...")
+            
+            # Add a timer to check if node is alive
+            self.alive_timer = rospy.Timer(rospy.Duration(5), self.check_alive)
+            
+            print("Node initialization complete.")
+            rospy.loginfo("Gate Distance initialized successfully")
+        
+        except Exception as e:
+            print(f"Initialization error: {e}")
+            print(traceback.format_exc())
+            rospy.logerr(f"Node initialization failed: {e}")
+    
+    def check_alive(self, event):
+        print("GATENode is still running. Waiting for YOLO results...")
+    
+    def yolo_callback(self, msg):
+        try:
+            # Check if there are any detections
+            if not msg.detections.detections:
+                print("No detections found.")
+                return
+
+            # Find torpedo map detection
+            gate_blue_arrow_id = name_to_id_map.get('gate_blue_arrow', 3)  # Fallback to 12 if not found
+            gate_blue_arrow_detection = None
+
+            for detection in msg.detections.detections:
+                if detection.results[0].id == gate_blue_arrow_id:
+                    gate_blue_arrow_detection = detection
+                    break
+
+            if not gate_blue_arrow_detection:
+                return
+
+            # Get bounding box details
+            bbox_center_x = gate_blue_arrow_detection.bbox.center.x
+            bbox_center_y = gate_blue_arrow_detection.bbox.center.y
+            measured_height = gate_blue_arrow_detection.bbox.size_y
+            measured_width = gate_blue_arrow_detection.bbox.size_x
+
+            # Check for valid measurements
+            if measured_height == 0 or measured_width == 0:
+                rospy.logerr("Invalid measurement: height or width is zero")
+                return
+
+            try:
+                # Calculate distance using height and width
+                distance_from_height = self.camera_calibration.distance_from_height(
+                    self.gate_blue_arrow_prop.real_height, measured_height
+                )
+                distance_from_width = self.camera_calibration.distance_from_width(
+                    self.gate_blue_arrow_prop.real_width, measured_width
+                )
+
+                # Average the distances
+                distance = (distance_from_height + distance_from_width) / 2.0
+
+                # Calculate angles and offsets
+                offset_x, offset_y, x, y, z = self.camera_calibration.calculate_offset_and_distance(
+                    (bbox_center_x, bbox_center_y), distance
+                )
+
+                # Print detailed information
+                print("\n--- Gate_Blue_Arrow Distance Calculation ---")
+                print(f"Bounding Box Center: ({bbox_center_x}, {bbox_center_y})")
+                print(f"Real Height: {self.gate_blue_arrow_prop.real_height} m")
+                print(f"Real Width: {self.gate_blue_arrow_prop.real_width} m")
+                print(f"Measured Height: {measured_height} pixels")
+                print(f"Measured Width: {measured_width} pixels")
+                print(f"Distance from Height: {distance_from_height:.2f} m")
+                print(f"Distance from Width: {distance_from_width:.2f} m")
+                print(f"Estimated Distance: {distance:.2f} m")
+                
+                # Angle calculations
+                angle_x, angle_y = self.camera_calibration.calculate_angles((bbox_center_x, bbox_center_y))
+                print(f"Angle X: {math.degrees(angle_x):.2f}°")
+                print(f"Angle Y: {math.degrees(angle_y):.2f}°")
+                
+                print(f"Offset X: {offset_x:.2f} m")
+                print(f"Offset Y: {offset_y:.2f} m")
+                print(f"3D Coordinates (x, y, z): ({x:.2f}, {y:.2f}, {z:.2f}) m")
+
+                # Publish the distance
+                distance_msg = Float32()
+                distance_msg.data = distance
+                self.distance_pub.publish(distance_msg)
+
+            except ValueError as ve:
+                rospy.logerr(f"Distance calculation error: {ve}")
+
+        except Exception as e:
+            rospy.logerr(f"Error in yolo_callback: {e}")
+            print(traceback.format_exc())
 
 
-def main():
-    try:
-        node = TorpedoMapDistanceNode()
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        pass
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        node = TorpedoMapDistanceNode()
+        node2 = GateDistanceNode()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
