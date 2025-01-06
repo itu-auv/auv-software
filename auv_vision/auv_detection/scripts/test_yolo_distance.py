@@ -8,12 +8,6 @@ import traceback
 import time
 import numpy as np
 import math
-
-from ultralytics_ros.msg import YoloResult
-from std_msgs.msg import Float32
-from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
-from auv_control.auv_control.scripts.prop_transform_publisher import TorpedoMap, name_to_id_map
-
 # Add the path to the auv_control package
 sys.path.append('/home/frk/catkin_ws/src/auv-software/auv_control/auv_control/scripts')
 sys.path.append('/home/frk/catkin_ws/src/auv-software/auv_common_lib/python')
@@ -170,7 +164,7 @@ class TorpedoMapDistanceNode:
             rospy.init_node('torpedo_map_distance_node', disable_signals=True)
             
             # Camera namespace for usb_cam
-            camera_namespace = '/taluy/cameras/cam_front'
+            camera_namespace = 'usb_cam'
             
             print(f"Initializing with camera namespace: {camera_namespace}")
             
