@@ -1,13 +1,12 @@
 # Goal
 nav_msgs/Path path
-string target_frame
-float64 angle_offset
-bool keep_orientation
 
 ---
 # Result
 bool success
+float32 execution_time  # Time taken to execute the action in seconds
+
 ---
 # Feedback
-float64 distance_to_goal
-
+float32 distance_to_goal
+float32 progress
