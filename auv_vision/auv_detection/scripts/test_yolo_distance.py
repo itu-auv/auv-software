@@ -8,6 +8,8 @@ import traceback
 import time
 import numpy as np
 import math
+import cv2
+from cv_bridge import CvBridge, CvBridgeError
 # Add the path to the auv_control package
 sys.path.append('/home/frk/catkin_ws/src/auv-software/auv_control/auv_control/scripts')
 sys.path.append('/home/frk/catkin_ws/src/auv-software/auv_common_lib/python')
@@ -16,6 +18,7 @@ from ultralytics_ros.msg import YoloResult
 from std_msgs.msg import Float32
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from prop_transform_publisher import TorpedoMap, name_to_id_map, GateBlueArrow
+from sensor_msgs.msg import Image
 
 
 class CustomCameraCalibration:
@@ -177,6 +180,17 @@ class TorpedoMapDistanceNode:
             # Subscriber to YOLO results
             self.yolo_sub = rospy.Subscriber('/yolo_result', YoloResult, self.yolo_callback)
             
+            # Subscriber to usb_cam image
+            self.image_sub = rospy.Subscriber('/usb_cam/image_raw', Image, self.image_callback)
+            
+            # Publisher for edge image
+            self.edge_image_pub = rospy.Publisher('/torpedo_map/edge_image', Image, queue_size=10)
+            
+            # CV Bridge
+            self.bridge = CvBridge()
+            self.cv_image = None  # Initialize cv_image
+            self.image_received = False  # Flag to check if image is received
+            
             print("Subscriber created. Waiting for messages...")
             
             # Add a timer to check if node is alive
@@ -192,6 +206,23 @@ class TorpedoMapDistanceNode:
     
     def check_alive(self, event):
         print("Node is still running. Waiting for YOLO results...")
+    
+    def image_callback(self, msg):
+        try:
+            # Convert ROS image to OpenCV image
+            self.cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            self.image_received = True  # Set flag to true when image is received
+        except CvBridgeError as e:
+            rospy.logerr(f"CV Bridge error: {e}")
+    
+    def canny_edge_detection(self, image):
+        # Convert image to grayscale
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        
+        # Apply Canny edge detection
+        edges = cv2.Canny(gray, 50, 150)
+        
+        return edges
     
     def yolo_callback(self, msg):
         try:
@@ -222,7 +253,27 @@ class TorpedoMapDistanceNode:
             if measured_height == 0 or measured_width == 0:
                 rospy.logerr("Invalid measurement: height or width is zero")
                 return
-
+            
+            # Edge detection
+            if self.image_received and self.cv_image is not None:
+                edges = self.canny_edge_detection(self.cv_image)
+            else:
+                rospy.logerr("No valid image received for edge detection.")
+                return
+            
+            # Publish edge image for rqt_image
+            try:
+                edge_image_msg = self.bridge.cv2_to_imgmsg(edges, "mono8")
+                self.edge_image_pub.publish(edge_image_msg)
+            except CvBridgeError as e:
+                rospy.logerr(f"CV Bridge error: {e}")
+            
+            # Orientation check
+            if measured_height/measured_width < 0.7:
+                print("TORPEDO MAP NOT TRUE ORIENTED")
+            if measured_height/measured_width > 1.3:
+                print("TORPEDO MAP NOT TRUE ORIENTED")
+            
             try:
                 # Calculate distance using height and width
                 distance_from_height = self.camera_calibration.distance_from_height(
