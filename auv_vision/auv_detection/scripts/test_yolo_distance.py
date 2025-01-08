@@ -223,36 +223,40 @@ class TorpedoMapDistanceNode:
         else:
             gray = image
         
-        # Apply Gaussian blur to reduce noise and internal details
-        blurred = cv2.GaussianBlur(gray, (5,5), 0)
+        # Apply stronger Gaussian blur to reduce noise and gaps
+        blurred = cv2.GaussianBlur(gray, (7,7), 0)
         
-        # Apply Canny edge detection with higher thresholds
-        edges = cv2.Canny(blurred, 100, 200)
+        # Apply Canny edge detection with lower thresholds to detect more edges
+        edges = cv2.Canny(blurred, 30, 150)
+        
+        # Apply dilation to connect nearby edges
+        kernel = np.ones((3,3), np.uint8)
+        edges = cv2.dilate(edges, kernel, iterations=1)
         
         return edges
     
     def get_bbox_edges(self, image, bbox):
-        # Extract bbox coordinates
+        # Get bbox coordinates
         x = int(bbox.center.x - bbox.size_x/2)
         y = int(bbox.center.y - bbox.size_y/2)
         w = int(bbox.size_x)
         h = int(bbox.size_y)
         
-        # Ensure coordinates are within image bounds
-        x = max(0, x)
-        y = max(0, y)
-        w = min(w, image.shape[1] - x)
-        h = min(h, image.shape[0] - y)
+        # Expand bbox by 20 pixels in each direction
+        expanded_x = max(0, x - 10)  # Don't go below 0
+        expanded_y = max(0, y - 10)
+        expanded_w = min(w + 20, image.shape[1] - expanded_x)  # Don't exceed image width
+        expanded_h = min(h + 20, image.shape[0] - expanded_y)  # Don't exceed image height
         
-        # Convert to grayscale first
+        # Convert to grayscale if needed
         if len(image.shape) == 3:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         else:
             gray = image
         
-        # Create a mask for the ROI
+        # Create mask for expanded ROI
         mask = np.zeros(gray.shape[:2], dtype=np.uint8)
-        mask[y:y+h, x:x+w] = 255
+        mask[expanded_y:expanded_y+expanded_h, expanded_x:expanded_x+expanded_w] = 255
         
         # Extract ROI using mask
         roi = cv2.bitwise_and(gray, gray, mask=mask)
@@ -260,31 +264,60 @@ class TorpedoMapDistanceNode:
         # Apply edge detection only to ROI
         edges = self.canny_edge_detection(roi)
         
-        # Find contours only in the ROI
-        contours, _ = cv2.findContours(edges[y:y+h, x:x+w], cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Find contours in the expanded ROI
+        contours, _ = cv2.findContours(edges[expanded_y:expanded_y+expanded_h, expanded_x:expanded_x+expanded_w], 
+                                     cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         if not contours:
             return None, None
+            
+        # Create visualization image (convert from grayscale to BGR)
+        edge_viz = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
         
-        # Get the largest contour
-        largest_contour = max(contours, key=cv2.contourArea)
+        # Draw expanded bbox in yellow
+        cv2.rectangle(edge_viz, (expanded_x, expanded_y), 
+                     (expanded_x+expanded_w, expanded_y+expanded_h), (0, 255, 255), 1)
         
-        # Get the extreme points (these are in ROI coordinates)
+        # Draw all contours in blue
+        for cnt in contours:
+            # Adjust contour coordinates to original image space
+            cnt_adjusted = cnt.copy()
+            cnt_adjusted[:,:,0] = cnt[:,:,0] + expanded_x
+            cnt_adjusted[:,:,1] = cnt[:,:,1] + expanded_y
+            cv2.drawContours(edge_viz, [cnt_adjusted], -1, (255, 0, 0), 2)  # Blue color
+        
+        # Calculate scores for each contour based on area and perimeter
+        contour_scores = []
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            perimeter = cv2.arcLength(cnt, True)
+            # Favor contours with larger area and perimeter
+            score = area * perimeter
+            contour_scores.append((score, cnt))
+        
+        # Get the contour with highest score
+        largest_contour = max(contour_scores, key=lambda x: x[0])[1]
+        
+        # Draw the largest contour in red
+        largest_cnt_adjusted = largest_contour.copy()
+        largest_cnt_adjusted[:,:,0] = largest_contour[:,:,0] + expanded_x
+        largest_cnt_adjusted[:,:,1] = largest_contour[:,:,1] + expanded_y
+        cv2.drawContours(edge_viz, [largest_cnt_adjusted], -1, (0, 0, 255), 3)  # Red color
+        
+        # Draw the original bounding box in green
+        cv2.rectangle(edge_viz, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        
+        # Get the extreme points (these are in expanded ROI coordinates)
         leftmost = tuple(largest_contour[largest_contour[:,:,0].argmin()][0])
         rightmost = tuple(largest_contour[largest_contour[:,:,0].argmax()][0])
         topmost = tuple(largest_contour[largest_contour[:,:,1].argmin()][0])
         bottommost = tuple(largest_contour[largest_contour[:,:,1].argmax()][0])
         
-        # Adjust points to global image coordinates
-        leftmost = (leftmost[0] + x, leftmost[1] + y)
-        rightmost = (rightmost[0] + x, rightmost[1] + y)
-        topmost = (topmost[0] + x, topmost[1] + y)
-        bottommost = (bottommost[0] + x, bottommost[1] + y)
-        
-        # Create visualization image (convert from grayscale to BGR)
-        edge_viz = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
-        # Draw the bounding box
-        cv2.rectangle(edge_viz, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        # Adjust points to original image coordinates
+        leftmost = (leftmost[0] + expanded_x, leftmost[1] + expanded_y)
+        rightmost = (rightmost[0] + expanded_x, rightmost[1] + expanded_y)
+        topmost = (topmost[0] + expanded_x, topmost[1] + expanded_y)
+        bottommost = (bottommost[0] + expanded_x, bottommost[1] + expanded_y)
         
         return edge_viz, (leftmost, rightmost, topmost, bottommost)
 
