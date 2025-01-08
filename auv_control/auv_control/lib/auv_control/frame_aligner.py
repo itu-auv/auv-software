@@ -6,6 +6,7 @@ from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
 import angles
 import tf2_ros
+from typing import Tuple, Optional
 
 class FrameAligner:
     def __init__(self, max_linear_velocity=0.8, max_angular_velocity=0.9, 
@@ -26,7 +27,7 @@ class FrameAligner:
         self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.8)
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity", 0.9)
 
-    def enable_alignment(self):
+    def enable_alignment(self) -> None:
         self.enable_pub.publish(Bool(data=True))
         
     def get_error(self,
@@ -36,7 +37,7 @@ class FrameAligner:
                   angle_offset: float,
                   keep_orientation: bool,
                   time: rospy.Time = rospy.Time(0)
-    ):
+    ) -> Tuple[Optional[Tuple[float, float, float]], Optional[float]]:
         try:
             # Get the current transform
             transform = tf_buffer.lookup_transform(
@@ -70,10 +71,10 @@ class FrameAligner:
             rospy.logwarn(f"Transform lookup failed: {e}")
             return None, None
 
-    def constrain(self, value, max_value):
+    def constrain(self, value: float, max_value: float) -> float:
         return max(min(value, max_value), -max_value)
     
-    def compute_cmd_vel(self, trans_error, yaw_error):
+    def compute_cmd_vel(self, trans_error: Tuple[float, float, float], yaw_error: float) -> Twist:
         twist = Twist()
         linear_kp = self.linear_kp
         # Set linear velocities based on translation differences
@@ -85,8 +86,12 @@ class FrameAligner:
 
         return twist
 
-    def step(self):
-        """Execute a single step of frame alignment.
+    def step(self) -> bool:
+        """
+        Execute a single step of frame alignment.
+
+        Returns:
+            bool: True if alignment step was successful, False if transform lookup failed
         """
         trans_error, yaw_error = self.get_error(
             self.tf_buffer,
