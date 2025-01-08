@@ -275,8 +275,8 @@ class TorpedoMapDistanceNode:
         edge_viz = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
         
         # Draw expanded bbox in yellow
-        cv2.rectangle(edge_viz, (expanded_x, expanded_y), 
-                     (expanded_x+expanded_w, expanded_y+expanded_h), (0, 255, 255), 1)
+        #cv2.rectangle(edge_viz, (expanded_x, expanded_y), 
+                     #(expanded_x+expanded_w, expanded_y+expanded_h), (0, 255, 255), 1)
         
         # Draw all contours in blue
         for cnt in contours:
@@ -305,7 +305,7 @@ class TorpedoMapDistanceNode:
         cv2.drawContours(edge_viz, [largest_cnt_adjusted], -1, (0, 0, 255), 3)  # Red color
         
         # Draw the original bounding box in green
-        cv2.rectangle(edge_viz, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        #cv2.rectangle(edge_viz, (x, y), (x+w, y+h), (0, 255, 0), 2)
         
         # Get the extreme points (these are in expanded ROI coordinates)
         leftmost = tuple(largest_contour[largest_contour[:,:,0].argmin()][0])
