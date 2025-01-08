@@ -44,8 +44,8 @@ class FollowPathActionServer:
 
     def do_path_following(self, path):
         """
-        Execute path following behavior.
-        Returns True if path following succeeds (path is successfully tracked), False otherwise.
+        Returns true if the path was successfully followed to completion,
+        false if interrupted (preempted, shutdown, or error occurred).
         """
         try:
             while not rospy.is_shutdown():
@@ -87,7 +87,6 @@ class FollowPathActionServer:
                     path
                 ):
                     rospy.logdebug("Path following is complete")
-                    self.frame_aligner.active = False  # Stop frame aligner
                     return True
                 
                 feedback = FollowPathFeedback()          
@@ -97,7 +96,7 @@ class FollowPathActionServer:
                 feedback.progress = progress
                 self.server.publish_feedback(feedback)
                 
-                self.control_rate.sleep()
+                self.control_rate.sleep() # Sleep to maintain control rate. control rate
                 
             return False # If exited the loop, success is False
             
