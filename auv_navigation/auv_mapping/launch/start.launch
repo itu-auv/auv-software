@@ -21,7 +21,4 @@
       <param name="world_frame" value="odom" />
     </node>
   </group>
-  <!--
-  <node pkg="auv_control" type="bin_transform_publisher.py" name="bin_transform_publisher" />
-  </include> -->
 </launch>
