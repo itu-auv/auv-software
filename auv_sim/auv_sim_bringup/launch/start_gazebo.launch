@@ -25,13 +25,13 @@
     />
 
     <!-- Initial robot position and orientation -->
-    <arg name="x" default="0.0" />
-    <arg name="y" default="0.0" />
+    <arg name="x" default="-0.8" />
+    <arg name="y" default="-3.4" />
     <arg name="z" default="-1.5" if="$(eval arg('world') == 'pool')" />
     <arg name="z" default="-87.0" if="$(eval arg('world') == 'seabed')" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="-1.8" />
+    <arg name="yaw" value="-1.57" />
 
     <!-- Start world launch -->
     <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch">
