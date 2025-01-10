@@ -30,10 +30,10 @@ class DvlToOdom:
 
         # Subscribers and Publishers
         self.dvl_velocity_subscriber = message_filters.Subscriber(
-            "sensors/dvl/velocity_raw", Twist, tcp_no_delay=True
+            "sensors/dvl/velocity_raw", Twist, tcp_nodelay=True
         )
         self.is_valid_subscriber = message_filters.Subscriber(
-            "sensors/dvl/is_valid", Bool, tcp_no_delay=True
+            "sensors/dvl/is_valid", Bool, tcp_nodelay=True
         )
         self.cmd_vel_subscriber = rospy.Subscriber(
             "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
