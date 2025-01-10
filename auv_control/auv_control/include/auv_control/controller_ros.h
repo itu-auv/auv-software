@@ -12,8 +12,8 @@
 #include "auv_common_lib/ros/subscriber_with_timeout.h"
 #include "auv_controllers/controller_base.h"
 #include "auv_controllers/multidof_pid_controller.h"
-#include "geometry_msgs/Wrench.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
+#include "geometry_msgs/Wrench.h"
 #include "nav_msgs/Odometry.h"
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
@@ -81,9 +81,9 @@ class ControllerROS {
         nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
     cmd_pose_sub_ =
         nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
-    accel_sub_ = 
+    accel_sub_ =
         nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this);
-        
+
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
         []() { ROS_WARN_STREAM("control enable message timeouted"); },
@@ -197,15 +197,18 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
-  void accel_callback(const geometry_msgs::AccelWithCovarianceStamped::ConstPtr& msg) {
+  void accel_callback(
+      const geometry_msgs::AccelWithCovarianceStamped::ConstPtr& msg) {
     d_state_(6) = msg->accel.accel.linear.x;
     d_state_(7) = msg->accel.accel.linear.y;
     d_state_(8) = msg->accel.accel.linear.z;
     d_state_.tail(3) = Eigen::Vector3d::Zero();
   }
 
-  void reconfigure_callback(auv_control::ControllerConfig& config, uint32_t level) {
-    auto controller = dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+  void reconfigure_callback(auv_control::ControllerConfig& config,
+                            uint32_t level) {
+    auto controller =
+        dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
 
     kp_ << config.kp_0, config.kp_1, config.kp_2, config.kp_3, config.kp_4,
         config.kp_5, config.kp_6, config.kp_7, config.kp_8, config.kp_9,
@@ -348,8 +351,6 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;                   // Parameters to be dynamically reconfigured
   std::string config_file_;  // Path to the config file
-
-  std::string position_control_default_frame_;  
 };
 
 }  // namespace control

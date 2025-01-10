@@ -7,6 +7,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   auv_common_lib
   pluginlib
+  angles
+  tf2
 )
 
 find_package(Eigen3 REQUIRED)
@@ -14,7 +16,7 @@ find_package(Eigen3 REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES auv_controllers
-#  CATKIN_DEPENDS roscpp
+  CATKIN_DEPENDS roscpp auv_common_lib pluginlib angles tf2
 #  DEPENDS system_lib
 )
 
@@ -45,13 +47,13 @@ install(DIRECTORY include/${PROJECT_NAME}/
 ## Testing ##
 #############
 
-catkin_add_gtest(${PROJECT_NAME}-test 
+catkin_add_gtest(${PROJECT_NAME}-test
   test/test_multidof_pid_controller/test_multidof_pid_controller.cpp
   test/main.cpp
 )
 
 if(TARGET ${PROJECT_NAME}-test)
-target_link_libraries(${PROJECT_NAME}-test 
+target_link_libraries(${PROJECT_NAME}-test
   ${PROJECT_NAME}
   ${catkin_LIBRARIES}
 )

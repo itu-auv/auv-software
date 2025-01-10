@@ -4,17 +4,13 @@
   <arg name="control_rate" default="10" />
 
   <group ns="$(arg namespace)">
-    <node pkg="auv_mapping" type="object_map_tf_server.py" name="object_map_tf_server">
+    <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
       <param name="rate" value="$(arg control_rate)" />
       <param name="static_frame" value="odom" />
 
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
   </group>
-  
-  <node pkg="auv_control" type="prop_transform_publisher.py" name="prop_transform_publisher" output="screen" />
 
-  <!--
-  <node pkg="auv_control" type="bin_transform_publisher.py" name="bin_transform_publisher" />
-  </include> -->
+  <node pkg="auv_control" type="prop_transform_publisher.py" name="prop_transform_publisher" output="screen" />
 </launch>

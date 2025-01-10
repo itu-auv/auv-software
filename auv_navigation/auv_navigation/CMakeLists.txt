@@ -3,6 +3,7 @@ project(auv_navigation)
 
 find_package(catkin REQUIRED COMPONENTS
   auv_mapping
+  auv_localization
 )
 
 catkin_package()

@@ -1,3 +1,4 @@
+---
 name: main docker images
 
 on:
@@ -7,8 +8,8 @@ on:
         description: 'Type of image to build [main, base]'
         required: true
         type: string
-  
-concurrency: 
+
+concurrency:
   group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' && github.event.pull_request.number) || github.ref }}
   cancel-in-progress: true
 
@@ -21,7 +22,7 @@ env:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    
+
     strategy:
       fail-fast: false
       matrix:
@@ -47,7 +48,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
         with:
           platforms: ${{ matrix.platform }}
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -83,7 +84,9 @@ jobs:
           context: .
           file: ${{ steps.set_build_config.outputs.dockerfile }}
           platforms: ${{ matrix.platform }}
-          push: ${{ github.event_name == 'push' && matrix.host == 'desktop' }}
+          # push: ${{ github.event_name == 'push' && matrix.host == 'desktop' }}
+          # TODO: Temporarily allow push for emulated ARM tags, since self hosted is disabled
+          push: ${{ github.event_name == 'push' }}
           build-args: |
             BASE_IMAGE=${{ steps.set_build_config.outputs.base_image_tag }}
           cache-from: type=gha
@@ -96,7 +99,6 @@ jobs:
 
   # build-and-push-arm64:
   #   runs-on: self-hosted
-    
   #   strategy:
   #     matrix:
   #       host: [tegra]
@@ -113,7 +115,6 @@ jobs:
   #       uses: docker/setup-qemu-action@v3
   #       with:
   #         platforms: ${{ matrix.platform }}
-      
   #     - name: Set up Docker Buildx
   #       uses: docker/setup-buildx-action@v3.3.0
   #       with:

@@ -1,3 +1,4 @@
+---
 local_costmap:
   global_frame: odom
   robot_base_frame: taluy/base_link
@@ -11,4 +12,4 @@ local_costmap:
   width: 10
   height: 10
   resolution: 0.01
-  track_unknown_space: false 
+  track_unknown_space: false

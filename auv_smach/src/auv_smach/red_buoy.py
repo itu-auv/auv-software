@@ -44,14 +44,17 @@ class RotateAroundCenterState(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
-        self.linear_velocity = 0.8 # rospy.get_param("/smach/max_linear_velocity")
-        self.angular_velocity = 0.8 # rospy.get_param("/smach/max_angular_velocity")
+        self.linear_velocity = 0.8  # rospy.get_param("/smach/max_linear_velocity")
+        self.angular_velocity = 0.8  # rospy.get_param("/smach/max_angular_velocity")
 
     def execute(self, userdata):
         try:
             # Lookup the initial transform from center_frame to base_frame
             center_to_base_transform = self.tf_buffer.lookup_transform(
-                self.center_frame, self.base_frame, rospy.Time(0), rospy.Duration(100000.0)
+                self.center_frame,
+                self.base_frame,
+                rospy.Time(0),
+                rospy.Duration(100000.0),
             )
 
             # Calculate the initial angle from the center to the base
@@ -135,7 +138,10 @@ class SetRedBuoyRotationStartFrame(smach.State):
         try:
             # Lookup the transform from center_frame to base_frame
             center_to_base_transform = self.tf_buffer.lookup_transform(
-                self.center_frame, self.base_frame, rospy.Time(0), rospy.Duration(10000.0)
+                self.center_frame,
+                self.base_frame,
+                rospy.Time(0),
+                rospy.Duration(10000.0),
             )
 
             # Calculate the position from the center to the base
@@ -229,7 +235,10 @@ class SetFrameLookingAtState(smach.State):
         try:
             # Lookup the transform from base_frame to look_at_frame
             base_to_look_at_transform = self.tf_buffer.lookup_transform(
-                self.base_frame, self.look_at_frame, rospy.Time(0), rospy.Duration(10000.0)
+                self.base_frame,
+                self.look_at_frame,
+                rospy.Time(0),
+                rospy.Duration(10000.0),
             )
 
             # Calculate the direction vector from base_frame to look_at_frame
