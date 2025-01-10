@@ -351,6 +351,8 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;                   // Parameters to be dynamically reconfigured
   std::string config_file_;  // Path to the config file
+
+  std::string position_control_default_frame_;
 };
 
 }  // namespace control
