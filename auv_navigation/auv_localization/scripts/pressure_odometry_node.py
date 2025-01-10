@@ -44,7 +44,9 @@ class PressureToOdom:
         rospy.loginfo(
             f"{pressure_odometry_colored} : depth covariance: {self.depth_calibration_covariance}"
         )
-        self.depth_subscriber = rospy.Subscriber("depth", Float32, self.depth_callback, tcp_nodelay=True)
+        self.depth_subscriber = rospy.Subscriber(
+            "depth", Float32, self.depth_callback, tcp_nodelay=True
+        )
 
     def depth_callback(self, depth_msg):
         # Fill the odometry message with depth data as the z component of the linear position
