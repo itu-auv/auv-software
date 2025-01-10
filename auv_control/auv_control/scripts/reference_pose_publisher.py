@@ -2,7 +2,7 @@
 
 import rospy
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Pose, Twist
+from geometry_msgs.msg import PoseStamped, Twist
 from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from auv_common_lib.control.enable_state import ControlEnableHandler
@@ -20,7 +20,7 @@ class ReferencePosePublisherNode:
         self.cmd_vel_sub = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
 
         # Initialize publisher
-        self.cmd_pose_pub = rospy.Publisher("cmd_pose", Pose, queue_size=10)
+        self.cmd_pose_pub = rospy.Publisher("cmd_pose", PoseStamped, queue_size=10)
 
         self.control_enable_handler = ControlEnableHandler(1.0)
 
@@ -70,10 +70,10 @@ class ReferencePosePublisherNode:
         cmd_pose_stamped.pose.position.z = self.target_depth
         cmd_pose_stamped.header.frame_id = self.target_frame_id
         quaternion = quaternion_from_euler(0.0, 0.0, self.target_heading)
-        cmd_pose_stamped.orientation.x = quaternion[0]
-        cmd_pose_stamped.orientation.y = quaternion[1]
-        cmd_pose_stamped.orientation.z = quaternion[2]
-        cmd_pose.stamped.orientation.w = quaternion[3]
+        cmd_pose_stamped.pose.orientation.x = quaternion[0]
+        cmd_pose_stamped.pose.orientation.y = quaternion[1]
+        cmd_pose_stamped.pose.orientation.z = quaternion[2]
+        cmd_pose_stamped.pose.orientation.w = quaternion[3]
 
         self.cmd_pose_pub.publish(cmd_pose_stamped)
 
