@@ -1,71 +1,94 @@
 #!/usr/bin/env python3
 
 import rospy
-from std_msgs.msg import Bool, Float32
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import Pose, Twist
 from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
+from auv_common_lib.control.enable_state import ControlEnableHandler
 
 
-
-class DepthControllerNode:
+class ReferencePosePublisherNode:
     def __init__(self):
-        rospy.init_node("depth_controller_node")
-
         # Initialize subscribers
         self.odometry_sub = rospy.Subscriber(
-            "/taluy/odometry", Odometry, self.odometry_callback
+            "odometry", Odometry, self.odometry_callback
         )
         self.set_depth_service = rospy.Service(
-            "/taluy/set_depth", SetDepth, self.target_depth_handler
+            "set_depth", SetDepth, self.target_depth_handler
         )
+        self.cmd_vel_sub = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
 
         # Initialize publisher
-        self.cmd_pose_pub = rospy.Publisher(
-            "/taluy/cmd_pose", PoseStamped, queue_size=10)
+        self.cmd_pose_pub = rospy.Publisher("cmd_pose", Pose, queue_size=10)
+
+        self.control_enable_handler = ControlEnableHandler(1.0)
 
         # Initialize internal state
         self.target_depth = 0.0
-        self.current_depth = 0.0
-        self.target_frame_id = ""  
+        self.target_heading = 0.0
+        self.last_cmd_time = rospy.Time.now()
+        self.target_frame_id = ""
 
         # Parameters
         self.update_rate = rospy.get_param("~update_rate", 10)
-        self.tau = rospy.get_param("~tau", 2.0)
-        self.dt = 1.0 / self.update_rate
-        self.alpha = self.dt / (self.tau + self.dt)
-        # Set up a timer to call the control_loop method at a rate defined by update_rate
-        rospy.Timer(rospy.Duration(1.0 / self.update_rate), self.control_loop)
+        self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
-    
-        self.target_frame_id = req.frame_id  # If the target frame_id is not given, simply empty the frame_id.
-        # We get the target frame_id as empty string from the service request if not given anything. 
         self.target_depth = req.target_depth
-        
-        return SetDepthResponse(success=True, message="Depth set successfully")
-
+        self.target_frame_id = req.frame_id
+        return SetDepthResponse(
+            success=True, message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}"
+        )
 
     def odometry_callback(self, msg):
-        self.current_depth = msg.pose.pose.position.z
-        rospy.logdebug(f"Current depth updated: {self.current_depth}")
-        
-    def control_loop(self, event):
-        # Create and publish the cmd_pose message        
+        if self.control_enable_handler.is_enabled():
+            return
+
+        quaterion = [
+            msg.pose.pose.orientation.x,
+            msg.pose.pose.orientation.y,
+            msg.pose.pose.orientation.z,
+            msg.pose.pose.orientation.w,
+        ]
+        _, _, self.target_heading = euler_from_quaternion(quaterion)
+
+    def cmd_vel_callback(self, msg):
+        if not self.control_enable_handler.is_enabled():
+            return
+
+        dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
+        dt = min(dt, self.command_timeout)
+
+        self.target_heading += msg.angular.z * dt
+        self.last_cmd_time = rospy.Time.now()
+
+    def control_loop(self):
+        # Create and publish the cmd_pose message
         cmd_pose_stamped = PoseStamped()
-        cmd_pose_stamped.header.frame_id = self.target_frame_id
+
         cmd_pose_stamped.pose.position.z = self.target_depth
-        cmd_pose_stamped.pose.orientation.w = 1.0
+        cmd_pose_stamped.header.frame_id = self.target_frame_id
+        quaternion = quaternion_from_euler(0.0, 0.0, self.target_heading)
+        cmd_pose_stamped.orientation.x = quaternion[0]
+        cmd_pose_stamped.orientation.y = quaternion[1]
+        cmd_pose_stamped.orientation.z = quaternion[2]
+        cmd_pose.stamped.orientation.w = quaternion[3]
+
         self.cmd_pose_pub.publish(cmd_pose_stamped)
-        rospy.logdebug(f"Published cmd_pose with target depth: {self.target_depth} and frame_id: {self.target_frame_id} to /taluy/cmd_pose")
 
     def run(self):
-        rospy.spin()
+        rate = rospy.Rate(self.update_rate)
+
+        while not rospy.is_shutdown():
+            self.control_loop()
+            rate.sleep()
 
 
 if __name__ == "__main__":
     try:
-        depth_controller_node = DepthControllerNode()
-        depth_controller_node.run()
+        rospy.init_node("reference_pose_publisher_node")
+        reference_pose_publisher_node = ReferencePosePublisherNode()
+        reference_pose_publisher_node.run()
     except rospy.ROSInterruptException:
         pass
