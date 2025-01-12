@@ -102,7 +102,7 @@ class PointCloudProcessor:
             transform.transform.translation.x = centroid[0]
             transform.transform.translation.y = centroid[1]
             transform.transform.translation.z = centroid[2]
-            
+            #TODO MAKE SURFACE ESTIMATION AND USE THAT FOR ORİENATION.
             # Use identity rotation
             q = tf_trans.quaternion_from_euler(0, 0, 0)
             transform.transform.rotation.x = q[0]
