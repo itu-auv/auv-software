@@ -18,19 +18,6 @@
         <falloff>0</falloff>
       </spot>
     </light>
-    <light name='user_directional_light_0' type='directional'>
-      <pose>-1.32605 5.40027 1 0 -0 0</pose>
-      <diffuse>0.5 0.5 0.5 1</diffuse>
-      <specular>0.1 0.1 0.1 1</specular>
-      <direction>0.1 0.1 -0.9</direction>
-      <attenuation>
-        <range>20</range>
-        <constant>0.5</constant>
-        <linear>0.01</linear>
-        <quadratic>0.001</quadratic>
-      </attenuation>
-      <cast_shadows>1</cast_shadows>
-    </light>
     <light name='user_point_light_0' type='point'>
       <pose>-0.778656 -4.51022 1 0 -0 0</pose>
       <diffuse>0.5 0.5 0.5 1</diffuse>
@@ -120,10 +107,10 @@
         </link>
       </model>
       <model name='robosub_buoy'>
-        <pose>-2.05488 -12.0195 -1.90257 0 -0 0</pose>
+        <pose>-2.05488 -12.0195 -1.50 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='robosub_buoy'>
-          <pose>-2.05488 -12.0195 -1.90257 0 -0 0</pose>
+          <pose>-2.05488 -12.0195 -1.50 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -171,9 +158,6 @@
       </model>
       <light name='sun'>
         <pose>0 0 10 0 -0 0</pose>
-      </light>
-      <light name='user_directional_light_0'>
-        <pose>-1.32605 5.40027 1 0 -0 0</pose>
       </light>
       <light name='user_point_light_0'>
         <pose>-0.778656 -4.18064 0.826777 0 -0 0</pose>
