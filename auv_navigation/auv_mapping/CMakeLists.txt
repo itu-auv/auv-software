@@ -22,6 +22,11 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
+catkin_install_python(PROGRAMS
+  scripts/prop_transform_publisher.py
+  scripts/gate_trajectory_publisher.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 add_executable(object_map_tf_server_node
   src/object_map_tf_server_node.cpp
