@@ -1,3 +1,4 @@
+---
 name: industrial_ci
 
 on:
@@ -23,9 +24,10 @@ jobs:
           directory=$(mktemp -d)
           echo build_directory=$directory >> $GITHUB_ENV
       - uses: ros-industrial/industrial_ci@master
-        env: 
+        env:
           ROS_DISTRO: noetic
           UPSTREAM_WORKSPACE: third_party.repos
+          TARGET_WORKSPACE: ". -auv_sim"
           ADDITIONAL_DEBS: lld
           BASEDIR: ${{ steps.make_temp_build_dir.outputs.build_directory }}
           AFTER_SETUP_UPSTREAM_WORKSPACE: mv $BASEDIR/upstream_ws/third_party $BASEDIR/upstream_ws/src/; vcs pull $BASEDIR/upstream_ws/src

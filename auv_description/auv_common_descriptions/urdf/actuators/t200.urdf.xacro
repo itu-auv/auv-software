@@ -1,73 +1,58 @@
 <?xml version="1.0"?>
-
-<robot name="t200_thruster" xmlns:xacro="http://ros.org/wiki/xacro">
-
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="t200_thruster">
   <xacro:macro name="t200_thruster" params="name parent position:='0 0 0' orientation:='0 0 0'">
     <link name="${name}_link">
       <visual>
-        <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}" />
+        <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae"
-            scale="1 1 1" />
+          <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae" scale="1 1 1"/>
         </geometry>
       </visual>
       <collision name="${name}_collision">
-        <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}" />
+        <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae"
-            scale="1 1 1" />
+          <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae" scale="1 1 1"/>
         </geometry>
       </collision>
       <inertial>
-        <mass value="0.5" />
-        <inertia ixx="0.008545" ixy="0.0" ixz="0.0" iyy="0.008545" iyz="0.0" izz="0.0144" />
+        <mass value="0.001"/>
+        <inertia ixx="0.0000001" ixy="0.0" ixz="0.0" iyy="0.0000001" iyz="0.0" izz="0.0000001"/>
       </inertial>
     </link>
-
     <link name="${name}_propeller_link">
       <visual>
-        <origin xyz="0 0 0" rpy="0 ${pi/2} 0" />
+        <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae"
-            scale="1.0 1.0 1.0" />
+          <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae" scale="1.0 1.0 1.0"/>
         </geometry>
       </visual>
       <collision name="${name}_propeller_collision">
-        <origin xyz="0 0 0" rpy="0 ${pi/2} 0" />
+        <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae"
-            scale="1 1 1" />
+          <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae" scale="1 1 1"/>
         </geometry>
       </collision>
       <inertial>
-        <mass value="0.5" />
-        <inertia ixx="0.008545" ixy="0.0" ixz="0.0" iyy="0.008545" iyz="0.0" izz="0.0144" />
+        <mass value="0.001"/>
+        <inertia ixx="0.0000001" ixy="0.0" ixz="0.0" iyy="0.0000001" iyz="0.0" izz="0.0000001"/>
       </inertial>
     </link>
-
     <joint name="${name}_chasis_joint" type="fixed">
-      <parent link="${parent}" />
-      <child link="${name}_link" />
-      <origin xyz="${position}" rpy="${orientation}" />
-      <axis rpy="0 0 0" xyz="0 0 1" />
+      <parent link="${parent}"/>
+      <child link="${name}_link"/>
+      <origin xyz="${position}" rpy="${orientation}"/>
+      <axis rpy="0 0 0" xyz="0 0 1"/>
     </joint>
-
     <joint name="${name}_propeller_joint" type="continuous">
-      <axis rpy="0 0 0" xyz="0 0 1" />
-      <parent link="${name}_link" />
-      <child link="${name}_propeller_link" />
-      <origin xyz="0 0 0" rpy="0 0 0" />
-      <limit effort="100" velocity="100" />
-      <dynamics friction="0.05" damping="0.05" />
+      <axis rpy="0 0 0" xyz="0 0 1"/>
+      <parent link="${name}_link"/>
+      <child link="${name}_propeller_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <!-- TODO: This breaks the Gazebo Sim -->
+      <!-- <dynamics friction="0.05" damping="0.05" /> -->
+      <!-- TODO: This does not break, but the 100 velocity limit must be evaluated, why limit
+      anyway? -->
+      <!-- <limit effort="100" velocity="100" /> -->
     </joint>
-
-    <gazebo reference="${name}_propeller_link">
-      <material>Gazebo/Orange</material>
-    </gazebo>
-
-    <gazebo reference="${name}_link">
-      <material>Gazebo/Orange</material>
-    </gazebo>
-
   </xacro:macro>
 </robot>

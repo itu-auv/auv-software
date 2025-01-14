@@ -1,0 +1,20 @@
+---
+buttons:
+  launch_torpedo1: 4
+  launch_torpedo2: 2
+  drop_ball: 0
+  z_control: 1
+
+axes:
+  x_axis:
+    index: 1
+    gain: 0.4
+  y_axis:
+    index: 0
+    gain: 0.4
+  z_axis:
+    index: 1
+    gain: 0.4
+  yaw_axis:
+    index: 2
+    gain: 0.5

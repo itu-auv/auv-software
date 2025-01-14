@@ -1,3 +1,4 @@
+---
 global_costmap:
   global_frame: odom
   robot_base_frame: taluy/base_link
@@ -11,5 +12,5 @@ global_costmap:
   resolution: 0.1
 
   static_map: false
-  rolling_window: true 
+  rolling_window: true
   track_unknown_space: false

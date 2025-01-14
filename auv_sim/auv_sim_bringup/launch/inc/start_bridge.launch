@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="control_rate" default="20" />
+  <arg name="use_gui" default="false" />
+
+  <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
+
+  <group ns="$(arg namespace)">
+    <node name="auv_sim_bridge" pkg="auv_sim_bridge" type="simulation_mock_node" output="screen">
+      <rosparam command="load" file="$(find auv_localization)/config/imu_calibration_data.yaml"
+        ns="imu" />
+
+      <!-- outputs -->
+      <remap from="depth" to="sensors/external_pressure_sensor/depth" />
+      <remap from="power" to="mainboard/power_sensor/power" />
+      <remap from="altitude" to="sensors/dvl/altitude" />
+      <remap from="velocity_raw" to="sensors/dvl/velocity_raw" />
+      <remap from="is_valid" to="sensors/dvl/is_valid" />
+      <remap from="imu_drifted" to="sensors/imu/data" />
+
+      <!-- inputs -->
+      <remap from="drive_pulse" to="board/drive_pulse" />
+      <remap from="pressure" to="sim/pressure" />
+      <remap from="dvl" to="sim/dvl" />
+      <remap from="imu_raw" to="sim/imu" />
+
+      <!-- params -->
+      <param name="rate" value="$(arg control_rate)" />
+    </node>
+  </group>
+
+  <include file="$(find auv_bringup)/launch/start_navigation.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="use_gui" value="$(arg use_gui)" />
+    <arg name="start_state_publisher" value="false" />
+    <arg name="config_file" value="$(find auv_sim_bridge)/config/control_config.yaml"/>
+  </include>
+
+</launch>
