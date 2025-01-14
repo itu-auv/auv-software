@@ -3,6 +3,7 @@
 #include <auv_msgs/SetObjectTransform.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <ros/ros.h>
+#include <std_srvs/Trigger.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
@@ -34,6 +35,10 @@ class ObjectMapTFServerROS {
     service_ = nh_.advertiseService(
         "set_object_transform", &ObjectMapTFServerROS::set_transform_handler,
         this);
+
+    clear_transforms_service_ = nh_.advertiseService(
+        "clear_object_transforms",
+        &ObjectMapTFServerROS::clear_transforms_handler, this);
 
     ROS_INFO("ObjectMapTFServerROS initialized. Static frame: %s",
              static_frame_.c_str());
@@ -110,6 +115,22 @@ class ObjectMapTFServerROS {
     return true;
   }
 
+  bool clear_transforms_handler(std_srvs::Trigger::Request &req,
+                                std_srvs::Trigger::Response &res) {
+    size_t size_before;
+    {
+      auto lock = std::scoped_lock(mutex_);
+      size_before = transforms_.size();
+      transforms_.clear();
+    }
+
+    ROS_INFO("Cleared all stored transforms (previously stored: %zu)",
+             size_before);
+    res.success = true;
+    res.message = "Cleared all stored transforms";
+    return true;
+  }
+
   void publishTransforms() {
     auto rate = ros::Rate{rate_};
     while (ros::ok()) {
@@ -150,6 +171,7 @@ class ObjectMapTFServerROS {
   //
   std::mutex mutex_;
   ros::ServiceServer service_;
+  ros::ServiceServer clear_transforms_service_;
 };
 
 }  // namespace auv_mapping
