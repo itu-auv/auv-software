@@ -12,12 +12,14 @@ class ReferencePosePublisherNode:
     def __init__(self):
         # Initialize subscribers
         self.odometry_sub = rospy.Subscriber(
-            "odometry", Odometry, self.odometry_callback
+            "odometry", Odometry, self.odometry_callback, tcp_nodelay=True
         )
         self.set_depth_service = rospy.Service(
             "set_depth", SetDepth, self.target_depth_handler
         )
-        self.cmd_vel_sub = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
+        self.cmd_vel_sub = rospy.Subscriber(
+            "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
+        )
 
         # Initialize publisher
         self.cmd_pose_pub = rospy.Publisher("cmd_pose", Pose, queue_size=10)
