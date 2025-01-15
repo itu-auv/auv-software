@@ -3,7 +3,7 @@ import numpy as np
 import open3d as o3d
 import copy
 
-def create_flat_surface():
+def create_flat_surface(theta_x=20, theta_y=30, theta_z=0):
     # Create a flat rectangular surface
     x = np.linspace(-1, 1, 30)
     y = np.linspace(-1, 1, 30)
@@ -20,8 +20,9 @@ def create_flat_surface():
     points[:, 2] = Z.flatten()
     
     # Rotation angles in radians
-    theta_x = np.radians(20)  # 20 derece x etrafında
-    theta_y = np.radians(30)  # 30 derece y etrafında
+    theta_x = np.radians(theta_x)
+    theta_y = np.radians(theta_y)
+    theta_z = np.radians(theta_z)
     
     # Rotation matrices
     Rx = np.array([[1, 0, 0],
@@ -32,8 +33,12 @@ def create_flat_surface():
                    [0, 1, 0],
                    [-np.sin(theta_y), 0, np.cos(theta_y)]])
     
+    Rz = np.array([[np.cos(theta_z), -np.sin(theta_z), 0],
+                   [np.sin(theta_z), np.cos(theta_z), 0],
+                   [0, 0, 1]])
+    
     # Combined rotation matrix
-    R = Ry @ Rx
+    R = Rz @ Ry @ Rx
     
     # Apply rotations
     points = points @ R.T
@@ -74,8 +79,14 @@ def calculate_euler_angles(normals):
     return roll_deg, pitch_deg, yaw_deg, mean_normal
 
 def main():
-    print("Creating flat surface point cloud...")
-    xyz, rotation_matrix = create_flat_surface()
+    # Get rotation angles from user
+    print("Enter rotation angles in degrees:")
+    theta_x = float(input("X rotation angle: "))
+    theta_y = float(input("Y rotation angle: "))
+    theta_z = float(input("Z rotation angle: "))
+    
+    print("\nCreating flat surface point cloud...")
+    xyz, input_rotation_matrix = create_flat_surface(theta_x, theta_y, theta_z)
     
     # Convert to Open3D format
     pcd = o3d.geometry.PointCloud()
@@ -90,11 +101,24 @@ def main():
     # Calculate Euler angles
     normals_np = np.asarray(pcd.normals)
     roll, pitch, yaw, mean_normal = calculate_euler_angles(normals_np)
-    print("\nSurface Orientation:")
+    
+    # Calculate rotation matrix from estimated angles
+    estimated_R = o3d.geometry.get_rotation_matrix_from_xyz([np.radians(roll), np.radians(pitch), np.radians(yaw)])
+    
+    print("\nInput Angles:")
+    print(f"X rotation: {theta_x:.2f}°")
+    print(f"Y rotation: {theta_y:.2f}°")
+    print(f"Z rotation: {theta_z:.2f}°")
+    print("\nInput Rotation Matrix:")
+    print(np.array2string(input_rotation_matrix, precision=3, suppress_small=True))
+    
+    print("\nEstimated Surface Orientation:")
     print(f"Mean Normal Vector: [{mean_normal[0]:.3f}, {mean_normal[1]:.3f}, {mean_normal[2]:.3f}]")
-    print(f"Roll  (x-rotation): {roll:.2f} degrees")
-    print(f"Pitch (y-rotation): {pitch:.2f} degrees")
-    print(f"Yaw   (z-rotation): {yaw:.2f} degrees")
+    print(f"Roll  (x-rotation): {roll:.2f}°")
+    print(f"Pitch (y-rotation): {pitch:.2f}°")
+    print(f"Yaw   (z-rotation): {yaw:.2f}°")
+    print("\nEstimated Rotation Matrix:")
+    print(np.array2string(estimated_R, precision=3, suppress_small=True))
     
     # Create world coordinate frame
     world_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
@@ -109,18 +133,17 @@ def main():
     # Calculate surface center
     center = np.mean(xyz, axis=0)
     
-    # Transform surface frame
-    # First rotate
-    R = o3d.geometry.get_rotation_matrix_from_xyz([np.radians(20), np.radians(30), 0])
+    # Transform surface frame using input angles
+    R = o3d.geometry.get_rotation_matrix_from_xyz([np.radians(theta_x), np.radians(theta_y), np.radians(theta_z)])
     surface_frame.rotate(R, center=[0, 0, 0])
-    # Then translate to surface center
     surface_frame.translate(center)
     
     # Paint the point cloud
     pcd.paint_uniform_color([0.7, 0.7, 0.7])  # Light gray color
     
-    # Single visualization with normal vectors
-    print("\nVisualizing point cloud with normal vectors...")
+    # Visualize point cloud with normal vectors and coordinate frames
+    print("\nVisualizing point cloud with normal vectors and coordinate frames...")
+    print("Red axis: X, Green axis: Y, Blue axis: Z")
     o3d.visualization.draw_geometries([pcd, world_frame, surface_frame],
                                     zoom=0.5,
                                     front=[0.4257, -0.2125, -0.8795],
