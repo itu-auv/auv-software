@@ -1,10 +1,11 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
+  <arg name="namespace" default="taluy" />
   <arg name="rate" default="20" />
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
   <arg name="command_timeout" default="0.1" />
+  <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch"
     if="$(arg start_state_publisher)">
@@ -15,7 +16,7 @@
   <group ns="$(arg namespace)">
     <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
       <param name="rate" value="$(arg rate)" />
-      <param name="config_file" value="$(find auv_control)/config/default.yaml" />
+      <param name="config_file" value="$(arg config_file)" />
 
       <remap from="odometry" to="odometry" />
       <remap from="cmd_vel" to="cmd_vel" />
@@ -24,14 +25,14 @@
       <remap from="enable" to="enable" />
 
       <remap from="wrench" to="wrench" />
-      <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
+      <rosparam file="$(arg config_file)" command="load" ns="" />
     </node>
 
     <node pkg="auv_control" type="thruster_manager_node" name="thruster_manager_node"
       output="screen">
       <param name="rate" value="$(arg rate)" />
       <remap from="power" to="mainboard/power_sensor/power" />
-      <rosparam file="$(find auv_control)/config/default.yaml" command="load" ns="" />
+      <rosparam file="$(arg config_file)" command="load" ns="" />
     </node>
 
     <node pkg="auv_control" type="reference_pose_publisher.py" name="reference_pose_publisher_node"
