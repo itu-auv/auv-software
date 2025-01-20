@@ -7,7 +7,7 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 from sklearn.cluster import DBSCAN
 from tf2_ros import TransformBroadcaster
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, Point
 from visualization_msgs.msg import Marker, MarkerArray
 import tf.transformations as tf_trans
 
@@ -18,6 +18,7 @@ class PointCloudProcessor:
         # Initialize subscribers and publishers
         self.pc_sub = rospy.Subscriber('/camera/depth/color/points', PointCloud2, self.pointcloud_callback)
         self.marker_pub = rospy.Publisher('/object_markers', MarkerArray, queue_size=10)
+        self.plane_marker_pub = rospy.Publisher('/plane_markers', MarkerArray, queue_size=10)
         
         # Initialize transform broadcaster
         self.tf_broadcaster = TransformBroadcaster()
@@ -40,53 +41,70 @@ class PointCloudProcessor:
         mask = distances < self.max_distance
         return points[mask]
 
-    def calculate_cluster_normals(self, cluster_points):
-        """Calculate normals for cluster points using Open3D"""
+    def calculate_surface_frame(self, cluster_points):
+        """Calculate surface frame aligned with the fitted rectangle's edges"""
         # Convert numpy array to Open3D point cloud
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(cluster_points)
         
-        # Estimate normals
-        pcd.estimate_normals(
-            search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
-        )
+        # Use RANSAC to fit a plane
+        plane_model, inliers = pcd.segment_plane(distance_threshold=0.01,
+                                               ransac_n=3,
+                                               num_iterations=1000)
         
-        # Orient normals consistently
-        pcd.orient_normals_consistent_tangent_plane(k=15)
-        
-        # Get the average normal vector
-        normals = np.asarray(pcd.normals)
-        mean_normal = np.mean(normals, axis=0)
-        mean_normal = mean_normal / np.linalg.norm(mean_normal)
-        
-        # Ensure normal points "up" (positive z)
-        if mean_normal[2] < 0:
-            mean_normal = -mean_normal
+        if len(inliers) < 3:
+            rospy.logwarn("Not enough inliers for plane fitting")
+            return None, None
             
-        return mean_normal
+        # Get points that belong to the plane
+        inlier_cloud = pcd.select_by_index(inliers)
+        points_array = np.asarray(inlier_cloud.points)
+        
+        # Calculate plane center
+        center = np.mean(points_array, axis=0)
+        
+        # Get normal from plane model (this will be our Z axis)
+        a, b, c, d = plane_model
+        normal = np.array([a, b, c])
+        normal = normal / np.linalg.norm(normal)  # Normalize
+        
+        # Ensure normal points "up"
+        if normal[2] < 0:
+            normal = -normal
+            
+        # Find X axis: Use a vector that's not parallel to normal
+        # If normal is more vertical, use [1,0,0], otherwise use [0,1,0]
+        if abs(normal[2]) > 0.707:  # cos(45°) ≈ 0.707
+            temp_vector = np.array([1.0, 0.0, 0.0])
+        else:
+            temp_vector = np.array([0.0, 1.0, 0.0])
+            
+        # X axis is perpendicular to both normal and temp_vector
+        x_axis = np.cross(normal, temp_vector)
+        x_axis = x_axis / np.linalg.norm(x_axis)
+        
+        # Y axis is cross product of Z (normal) and X
+        y_axis = np.cross(normal, x_axis)
+        y_axis = y_axis / np.linalg.norm(y_axis)
+        
+        # Create rotation matrix from these axes
+        rotation_matrix = np.column_stack((x_axis, y_axis, normal))
+        
+        rospy.loginfo(f"Frame calculated. Normal: {normal}, X: {x_axis}, Y: {y_axis}")
+        return center, rotation_matrix
 
-    def calculate_euler_angles(self, normal):
+    def calculate_euler_angles(self, rotation_matrix):
         """
-        Calculate Euler angles from surface normal relative to z-axis basis vector
+        Calculate Euler angles from rotation matrix
         Returns: roll, pitch, yaw in degrees
         """
-        # Normalize the normal vector
-        normal = normal / np.linalg.norm(normal)
-        
-        # Calculate angles
-        # Pitch (rotation around y-axis)
-        pitch = np.arctan2(normal[0], normal[2])
-        
-        # Roll (rotation around x-axis)
-        roll = -np.arctan2(normal[1], normal[2])
-        
-        # Yaw (rotation around z-axis)
-        yaw = np.arctan2(normal[1], normal[0])
+        # Convert rotation matrix to euler angles
+        euler_angles = tf_trans.euler_from_matrix(rotation_matrix)
         
         # Convert to degrees
-        roll_deg = np.degrees(roll)
-        pitch_deg = np.degrees(pitch)
-        yaw_deg = np.degrees(yaw)
+        roll_deg = np.degrees(euler_angles[0])
+        pitch_deg = np.degrees(euler_angles[1])
+        yaw_deg = np.degrees(euler_angles[2])
         
         return roll_deg, pitch_deg, yaw_deg
 
@@ -98,6 +116,56 @@ class PointCloudProcessor:
         yaw = np.radians(yaw)
         
         return tf_trans.quaternion_from_euler(roll, pitch, yaw)
+
+    def calculate_plane_corners(self, cluster_points):
+        """Calculate plane corners and normal using RANSAC"""
+        try:
+            # Convert numpy array to Open3D point cloud
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(cluster_points)
+            
+            # Use RANSAC to fit a plane
+            plane_model, inliers = pcd.segment_plane(distance_threshold=0.01,
+                                                   ransac_n=3,
+                                                   num_iterations=1000)
+            
+            if len(inliers) < 3:
+                rospy.logwarn("Not enough inliers for plane fitting")
+                return None, None, None
+                
+            # Get points that belong to the plane
+            inlier_cloud = pcd.select_by_index(inliers)
+            points_array = np.asarray(inlier_cloud.points)
+            
+            # Calculate plane center and size
+            center = np.mean(points_array, axis=0)
+            min_bound = np.min(points_array, axis=0)
+            max_bound = np.max(points_array, axis=0)
+            size = max_bound - min_bound
+            
+            # Create corners (1 meter x 1 meter plane centered at center point)
+            plane_size = 0.5  # half size in meters
+            corners = []
+            corners.append(center + np.array([-plane_size, -plane_size, 0]))
+            corners.append(center + np.array([plane_size, -plane_size, 0]))
+            corners.append(center + np.array([plane_size, plane_size, 0]))
+            corners.append(center + np.array([-plane_size, plane_size, 0]))
+            
+            # Calculate normal from plane model
+            a, b, c, d = plane_model
+            normal = np.array([a, b, c])
+            normal = normal / np.linalg.norm(normal)
+            
+            # Ensure normal points "up"
+            if normal[2] < 0:
+                normal = -normal
+            
+            rospy.loginfo(f"Plane fitted successfully. Center: {center}, Normal: {normal}")
+            return corners, normal, center
+            
+        except Exception as e:
+            rospy.logerr(f"Error in plane fitting: {str(e)}")
+            return None, None, None
 
     def pointcloud_callback(self, msg):
         rospy.loginfo("Received pointcloud message")
@@ -139,6 +207,7 @@ class PointCloudProcessor:
         
         # Create marker array message
         marker_array = MarkerArray()
+        plane_markers = MarkerArray()
         
         # Process each cluster
         unique_labels = set(labels)
@@ -161,66 +230,109 @@ class PointCloudProcessor:
             if np.all(cluster_size < 0.02):  # 2cm minimum size
                 continue
 
-            # Calculate cluster normal and orientation
-            normal = self.calculate_cluster_normals(cluster_points)
-            roll, pitch, yaw = self.calculate_euler_angles(normal)
-            quaternion = self.euler_to_quaternion(roll, pitch, yaw)
+            # Calculate surface frame
+            surface_result = self.calculate_surface_frame(cluster_points)
+            if surface_result[0] is not None:
+                center, rotation_matrix = surface_result
+                
+                # Calculate Euler angles from rotation matrix
+                roll, pitch, yaw = self.calculate_euler_angles(rotation_matrix)
+                quaternion = self.euler_to_quaternion(roll, pitch, yaw)
 
-            # Create transform message
-            transform = TransformStamped()
-            transform.header.stamp = rospy.Time.now()
-            transform.header.frame_id = msg.header.frame_id
-            transform.child_frame_id = f"object_{label}"
-            
-            # Set translation (centroid position)
-            transform.transform.translation.x = centroid[0]
-            transform.transform.translation.y = centroid[1]
-            transform.transform.translation.z = centroid[2]
-            
-            # Set rotation (quaternion)
-            transform.transform.rotation.x = quaternion[0]
-            transform.transform.rotation.y = quaternion[1]
-            transform.transform.rotation.z = quaternion[2]
-            transform.transform.rotation.w = quaternion[3]
-            
-            # Broadcast transform
-            self.tf_broadcaster.sendTransform(transform)
+                # Calculate plane corners and normal
+                plane_result = self.calculate_plane_corners(cluster_points)
+                if plane_result[0] is not None:
+                    corners, plane_normal, center = plane_result
+                    
+                    # Create plane marker
+                    plane_marker = Marker()
+                    plane_marker.header.frame_id = msg.header.frame_id
+                    plane_marker.header.stamp = rospy.Time.now()
+                    plane_marker.ns = "planes"
+                    plane_marker.id = label
+                    plane_marker.type = Marker.TRIANGLE_LIST
+                    plane_marker.action = Marker.ADD
+                    
+                    # Create two triangles from the corners to form a rectangle
+                    triangle_indices = [0, 1, 2, 0, 2, 3]  # Triangle vertices order
+                    for i in triangle_indices:
+                        p = Point()
+                        p.x = float(corners[i][0])
+                        p.y = float(corners[i][1])
+                        p.z = float(corners[i][2])
+                        plane_marker.points.append(p)
+                    
+                    # Set marker color (semi-transparent blue)
+                    plane_marker.color.r = 0.0
+                    plane_marker.color.g = 0.0
+                    plane_marker.color.b = 1.0
+                    plane_marker.color.a = 0.5
+                    
+                    # Set marker scale (actual size)
+                    plane_marker.scale.x = 1.0
+                    plane_marker.scale.y = 1.0
+                    plane_marker.scale.z = 1.0
+                    
+                    # Add plane marker to array
+                    plane_markers.markers.append(plane_marker)
+                    rospy.loginfo(f"Added plane marker for cluster {label} with {len(plane_marker.points)} points")
 
-            # Create marker for visualization
-            marker = Marker()
-            marker.header.frame_id = msg.header.frame_id
-            marker.header.stamp = rospy.Time.now()
-            marker.ns = "objects"
-            marker.id = label
-            marker.type = Marker.CUBE
-            marker.action = Marker.ADD
-            
-            # Set marker position (centroid)
-            marker.pose.position.x = centroid[0]
-            marker.pose.position.y = centroid[1]
-            marker.pose.position.z = centroid[2]
-            
-            # Set marker orientation (quaternion)
-            marker.pose.orientation.x = quaternion[0]
-            marker.pose.orientation.y = quaternion[1]
-            marker.pose.orientation.z = quaternion[2]
-            marker.pose.orientation.w = quaternion[3]
-            
-            # Set marker scale (cluster size)
-            marker.scale.x = max(cluster_size[0], 0.05)  # Minimum size of 5cm
-            marker.scale.y = max(cluster_size[1], 0.05)
-            marker.scale.z = max(cluster_size[2], 0.05)
-            
-            # Set marker color
-            marker.color.r = 0.0
-            marker.color.g = 1.0
-            marker.color.b = 0.0
-            marker.color.a = 0.5
-            
-            marker_array.markers.append(marker)
-            
+                # Create transform message
+                transform = TransformStamped()
+                transform.header.stamp = rospy.Time.now()
+                transform.header.frame_id = msg.header.frame_id
+                transform.child_frame_id = f"object_{label}"
+                
+                # Set translation (centroid position)
+                transform.transform.translation.x = centroid[0]
+                transform.transform.translation.y = centroid[1]
+                transform.transform.translation.z = centroid[2]
+                
+                # Set rotation (quaternion)
+                transform.transform.rotation.x = quaternion[0]
+                transform.transform.rotation.y = quaternion[1]
+                transform.transform.rotation.z = quaternion[2]
+                transform.transform.rotation.w = quaternion[3]
+                
+                # Broadcast transform
+                self.tf_broadcaster.sendTransform(transform)
+
+                # Create marker for visualization
+                marker = Marker()
+                marker.header.frame_id = msg.header.frame_id
+                marker.header.stamp = rospy.Time.now()
+                marker.ns = "objects"
+                marker.id = label
+                marker.type = Marker.CUBE
+                marker.action = Marker.ADD
+                
+                # Set marker position (centroid)
+                marker.pose.position.x = centroid[0]
+                marker.pose.position.y = centroid[1]
+                marker.pose.position.z = centroid[2]
+                
+                # Set marker orientation (quaternion)
+                marker.pose.orientation.x = quaternion[0]
+                marker.pose.orientation.y = quaternion[1]
+                marker.pose.orientation.z = quaternion[2]
+                marker.pose.orientation.w = quaternion[3]
+                
+                # Set marker scale (cluster size)
+                marker.scale.x = max(cluster_size[0], 0.05)  # Minimum size of 5cm
+                marker.scale.y = max(cluster_size[1], 0.05)
+                marker.scale.z = max(cluster_size[2], 0.05)
+                
+                # Set marker color
+                marker.color.r = 0.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
+                marker.color.a = 0.5
+                
+                marker_array.markers.append(marker)
+                
         # Publish marker array
         self.marker_pub.publish(marker_array)
+        self.plane_marker_pub.publish(plane_markers)
 
 if __name__ == '__main__':
     try:
