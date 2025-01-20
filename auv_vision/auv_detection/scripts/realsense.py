@@ -5,11 +5,11 @@ import rospy
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
-
+print("depth image")
 class DepthImageProcessor:
     def __init__(self):
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber("/camera/depth/image_rect_raw", Image, self.image_callback)
+        self.image_sub = rospy.Subscriber("/camera/depth/color/points", Image, self.image_callback)
     
     def image_callback(self, msg):
         # Image mesajını OpenCV formatına dönüştürme
