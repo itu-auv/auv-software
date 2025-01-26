@@ -33,8 +33,12 @@ class ThrusterManagerROS {
       thruster_wrench_pubs_[i] = nh_.advertise<geometry_msgs::WrenchStamped>(
           "thrusters/thruster_" + std::to_string(i) + "/wrench", 1);
     }
+
+    const auto transport_hints = ros::TransportHints().tcpNoDelay(true);
+
     wrench_sub_ =
-        nh_.subscribe("wrench", 1, &ThrusterManagerROS::wrench_callback, this);
+        nh_.subscribe("wrench", 1, &ThrusterManagerROS::wrench_callback, this,
+                      transport_hints);
 
     power_sub_ =
         nh_.subscribe("power", 1, &ThrusterManagerROS::power_callback, this);
