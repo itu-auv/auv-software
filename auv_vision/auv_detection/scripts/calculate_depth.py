@@ -9,6 +9,7 @@ class DepthTo3D:
     def __init__(self):
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("/camera/depth/image_rect_raw", Image, self.image_callback)
+        self.sample_points = []  # Store grid points
     
     def visualize_depth(self, depth_image):
         # Normalize the depth image for visualization
@@ -20,21 +21,21 @@ class DepthTo3D:
         # Add text showing depth values at grid points
         height, width = depth_image.shape
         
-        # Create a grid of points (5x5 grid)
-        rows, cols = 5, 5
-        row_step = height // (rows + 1)
-        col_step = width // (cols + 1)
-        
-        sample_points = []
-        for i in range(1, rows + 1):
-            for j in range(1, cols + 1):
-                sample_points.append((j * col_step, i * row_step))
+        # Create a grid of points (5x5 grid) only if not already created
+        if not self.sample_points:
+            rows, cols = 5, 5
+            row_step = height // (rows + 1)
+            col_step = width // (cols + 1)
+            
+            for i in range(1, rows + 1):
+                for j in range(1, cols + 1):
+                    self.sample_points.append((j * col_step, i * row_step))
         
         # Create a copy for drawing
         vis_image = depth_colormap.copy()
         
         # Add depth values at sample points
-        for pt in sample_points:
+        for pt in self.sample_points:
             depth_val = depth_image[pt[1], pt[0]]
             if depth_val > 0:  # Only show valid depth values
                 cv2.circle(vis_image, pt, 2, (255, 255, 255), -1)
