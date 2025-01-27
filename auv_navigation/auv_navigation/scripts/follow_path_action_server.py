@@ -6,7 +6,7 @@ from auv_msgs.msg import FollowPathAction, FollowPathFeedback, FollowPathResult
 import tf2_ros
 
 from auv_navigation import path_utils
-from auv_control.frame_aligner import FrameAligner
+
 
 class FollowPathActionServer:
     def __init__(self):
@@ -20,18 +20,6 @@ class FollowPathActionServer:
         self.dynamic_target_frame = rospy.get_param('~dynamic_target_frame', "dynamic_target")
         self.control_rate = rospy.Rate(rospy.get_param('~control_rate', 20))
 
-        # Get frame aligner parameters and initialize FrameAligner
-        max_linear_velocity = rospy.get_param('~max_linear_velocity', 0.8)
-        max_angular_velocity = rospy.get_param('~max_angular_velocity', 0.9)
-        linear_kp = rospy.get_param('~linear_kp', 0.55)
-        angular_kp = rospy.get_param('~angular_kp', 0.45)
-        
-        self.frame_aligner = FrameAligner(
-            max_linear_velocity=max_linear_velocity,
-            max_angular_velocity=max_angular_velocity,
-            linear_kp=linear_kp,
-            angular_kp=angular_kp
-        )
         self.path_pub = rospy.Publisher('target_path', Path, queue_size=1)
         self.server = actionlib.SimpleActionServer(
             'follow_path',
@@ -66,18 +54,11 @@ class FollowPathActionServer:
                     rospy.logwarn("Failed to calculate dynamic target. Retrying...")
                     self.control_rate.sleep()
                     continue
-                    
+                
+                # Publish dynamic target frame    
                 path_utils.broadcast_dynamic_target_frame(self.tf_broadcaster, self.tf_buffer, self.source_frame, dynamic_target_pose)
                 
-                self.frame_aligner.enable_alignment()
-                # Set frame aligner parameters and start alignment
-                self.frame_aligner.source_frame = self.source_frame
-                self.frame_aligner.target_frame = self.dynamic_target_frame
-                self.frame_aligner.angle_offset = 0.0
-                self.frame_aligner.keep_orientation = False
-                
-                # perform one step of alignment loop
-                self.frame_aligner.step() 
+                # (AlignFrameController requested in smach to follow dynamic target)
                 
                 # Check if we've completed the path
                 if path_utils.is_path_completed(
