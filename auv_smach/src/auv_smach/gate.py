@@ -77,7 +77,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "NAVIGATE_TO_GATE_EXIT",
                 NavigateToFrameState(
-                    "taluy/base_link", "taluy/gate_exit", n_turns=-1
+                    "taluy/base_link", "gate_exit", n_turns=-1
                 ),
                 transitions={
                     "succeeded": "succeeded",
