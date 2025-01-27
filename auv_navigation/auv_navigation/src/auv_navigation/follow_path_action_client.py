@@ -4,18 +4,16 @@ import rospy
 import actionlib
 import tf2_ros
 from auv_msgs.msg import FollowPathAction, FollowPathGoal
-from auv_navigation import path_planners
+from auv_navigation import path_utils
 
 class FollowPathActionClient:
-    def __init__(self, server_wait_timeout=10.0):
+    def __init__(self):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.client = actionlib.SimpleActionClient("follow_path", FollowPathAction)
+        self.client = actionlib.SimpleActionClient("taluy/follow_path", FollowPathAction)
         
         rospy.loginfo("[Action Client] Waiting for 'follow_path' action server...")
-        server_found = self.client.wait_for_server(timeout=rospy.Duration(server_wait_timeout))
-        if not server_found:
-            raise rospy.ROSException("Action server not available within timeout")
+        self.client.wait_for_server()
         rospy.loginfo("[Action Client] Action server is up!")
 
     def execute_path(self, path, timeout=30.0):
@@ -53,13 +51,14 @@ class FollowPathActionClient:
             rospy.logerr("[Action Client] Error executing path: %s", str(e))
             return False
 
-    def navigate_to_frame(self, source_frame, target_frame, timeout=30.0):
+    def navigate_to_frame(self, source_frame, target_frame, timeout=30.0, path_creation_timeout=100.0):
         """
         Navigate from source_frame to target_frame.
         Args:
             source_frame: Starting frame
             target_frame: Goal frame
             timeout: How long to wait for result in seconds
+            path_creation_timeout: How long to try creating the path in seconds
         Returns:
             bool: True if navigation succeeds
         """
@@ -67,23 +66,33 @@ class FollowPathActionClient:
             rospy.loginfo("[Action Client] Creating path from %s to %s...", 
                          source_frame, target_frame)
             
-            path = path_planners.create_path_from_frame(
-                tf_buffer=self.tf_buffer,
-                source_frame=source_frame,
-                target_frame=target_frame
-            )
+            start_time = rospy.Time.now()
+            path = None
+            
+            while (rospy.Time.now() - start_time).to_sec() < path_creation_timeout:
+                try:
+                    path = path_utils.straight_path_to_frame(
+                        tf_buffer=self.tf_buffer,
+                        source_frame=source_frame,
+                        target_frame=target_frame
+                    )
+                    if path is not None:
+                        break
+                    rospy.logwarn("[Action Client] Failed to create path, retrying... Time elapsed: %.1f seconds", 
+                                 (rospy.Time.now() - start_time).to_sec())
+                    rospy.sleep(1.0)  # Wait 1 second before retrying
+                except (tf2_ros.LookupException, 
+                        tf2_ros.ConnectivityException, 
+                        tf2_ros.ExtrapolationException) as e:
+                    rospy.logwarn("[Action Client] TF error while creating path: %s. Retrying...", str(e))
+                    rospy.sleep(1.0)  # Wait 1 second before retrying
             
             if path is None:
-                rospy.logerr("[Action Client] Failed to create path")
+                rospy.logerr("[Action Client] Failed to create path after %.1f seconds", path_creation_timeout)
                 return False
                 
             return self.execute_path(path, timeout=timeout)
             
-        except (tf2_ros.LookupException, 
-                tf2_ros.ConnectivityException, 
-                tf2_ros.ExtrapolationException) as e:
-            rospy.logerr("[Action Client] TF error: %s", str(e))
-            return False
         except Exception as e:
             rospy.logerr("[Action Client] Error in navigate_to_frame: %s", str(e))
             return False
@@ -91,15 +100,3 @@ class FollowPathActionClient:
     def cancel_current_goal(self):
         """Cancel any ongoing navigation."""
         self.client.cancel_all_goals()
-
-if __name__ == '__main__':
-    rospy.init_node('follow_path_action_client')
-    try:
-        client = FollowPathActionClient()
-        success = client.navigate_to_frame("base_link", "target_frame")
-        if success:
-            rospy.loginfo("Navigation succeeded")
-        else:
-            rospy.loginfo("Navigation failed")
-    except rospy.ROSException as e:
-        rospy.logerr("Failed to initialize client: %s", str(e))

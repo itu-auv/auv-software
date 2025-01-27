@@ -19,7 +19,7 @@ import numpy as np
 import tf.transformations as transformations
 import tf2_geometry_msgs
 from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
-import auv_navigation.scripts.follow_path_action_client as follow_path_client
+import auv_navigation.follow_path_action_client as follow_path_client
 
 from tf.transformations import (
     quaternion_matrix,
