@@ -3,6 +3,9 @@
   <arg name="namespace" default="turquoise" />
   <arg name="control_rate" default="10" />
 
+  <node pkg="auv_mapping" type="prop_transform_publisher.py" name="prop_transform_publisher"
+    output="screen" />
+
   <group ns="$(arg namespace)">
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
       <param name="rate" value="$(arg control_rate)" />
@@ -10,8 +13,6 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <node pkg="auv_mapping" type="prop_transform_publisher.py" name="prop_transform_publisher"
-      output="screen" />
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
       <param name="gate_frame1" value="gate_blue_arrow_link" />
       <param name="gate_frame2" value="gate_red_arrow_link" />
