@@ -1,0 +1,26 @@
+<launch>
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <!-- Disable RGB and depth streams -->
+        <arg name="enable_color" value="false"/>
+        <arg name="enable_depth" value="false"/>
+        
+        <!-- Enable infrared streams -->
+        <arg name="enable_infra" value="true"/>
+        <arg name="enable_infra1" value="true"/>
+        <arg name="enable_infra2" value="true"/>
+        
+        <!-- Configure stereo module -->
+        <arg name="infra_width" value="848"/>
+        <arg name="infra_height" value="480"/>
+        <arg name="infra_fps" value="30"/>
+        
+        <!-- Stereo module settings -->
+        <arg name="stereo_module/exposure/1" value="7500"/>
+        <arg name="stereo_module/gain/1" value="16"/>
+        <arg name="stereo_module/exposure/2" value="7500"/>
+        <arg name="stereo_module/gain/2" value="16"/>
+        
+        <!-- Enable stereo module -->
+        <arg name="initial_reset" value="true"/>
+    </include>
+</launch>

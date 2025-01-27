@@ -53,7 +53,6 @@ class PointCloudProcessor:
                                                num_iterations=1000)
         
         if len(inliers) < 3:
-            rospy.logwarn("Not enough inliers for plane fitting")
             return None, None
             
         # Get points that belong to the plane
@@ -90,7 +89,6 @@ class PointCloudProcessor:
         # Create rotation matrix from these axes
         rotation_matrix = np.column_stack((x_axis, y_axis, normal))
         
-        rospy.loginfo(f"Frame calculated. Normal: {normal}, X: {x_axis}, Y: {y_axis}")
         return center, rotation_matrix
 
     def calculate_euler_angles(self, rotation_matrix):
@@ -130,7 +128,6 @@ class PointCloudProcessor:
                                                    num_iterations=1000)
             
             if len(inliers) < 3:
-                rospy.logwarn("Not enough inliers for plane fitting")
                 return None, None, None
                 
             # Get points that belong to the plane
@@ -160,7 +157,6 @@ class PointCloudProcessor:
             if normal[2] < 0:
                 normal = -normal
             
-            rospy.loginfo(f"Plane fitted successfully. Center: {center}, Normal: {normal}")
             return corners, normal, center
             
         except Exception as e:
@@ -220,6 +216,7 @@ class PointCloudProcessor:
             
             # Calculate cluster centroid
             centroid = np.mean(cluster_points, axis=0)
+            euclidean_distance = np.sqrt(centroid[0]**2 + centroid[1]**2 + centroid[2]**2)
             
             # Calculate cluster size
             cluster_min = np.min(cluster_points, axis=0)
@@ -230,6 +227,10 @@ class PointCloudProcessor:
             if np.all(cluster_size < 0.02):  # 2cm minimum size
                 continue
 
+            # Calculate Euclidean distance from camera to centroid
+            euclidean_distance = np.linalg.norm(centroid)
+            rospy.loginfo(f"Cluster {label} - Number of points: {len(cluster_points)}, Distance from camera: {euclidean_distance:.3f} meters")
+            
             # Calculate surface frame
             surface_result = self.calculate_surface_frame(cluster_points)
             if surface_result[0] is not None:
@@ -275,7 +276,6 @@ class PointCloudProcessor:
                     
                     # Add plane marker to array
                     plane_markers.markers.append(plane_marker)
-                    rospy.loginfo(f"Added plane marker for cluster {label} with {len(plane_marker.points)} points")
 
                 # Create transform message
                 transform = TransformStamped()

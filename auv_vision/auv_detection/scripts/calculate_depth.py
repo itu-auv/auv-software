@@ -37,12 +37,18 @@ class DepthTo3D:
         # Add depth values at sample points
         for pt in self.sample_points:
             depth_val = depth_image[pt[1], pt[0]]
-            if depth_val > 0:  # Only show valid depth values
-                cv2.circle(vis_image, pt, 2, (255, 255, 255), -1)
+            # Always show the point
+            cv2.circle(vis_image, pt, 2, (255, 255, 255), -1)
+            
+            # Show depth value
+            if depth_val > 0:
                 text = f"{depth_val:.0f}"
-                # Adjust text position and size for better readability
-                cv2.putText(vis_image, text, (pt[0]-20, pt[1]-5), 
-                          cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+            else:
+                text = "N/A"  # Show N/A for invalid depth values
+            
+            # Always show the text
+            cv2.putText(vis_image, text, (pt[0]-20, pt[1]-5), 
+                      cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
         
         # Add colorbar
         colorbar_width = 30
