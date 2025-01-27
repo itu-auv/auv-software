@@ -51,17 +51,8 @@ class FollowPathActionClient:
             rospy.logerr("[Action Client] Error executing path: %s", str(e))
             return False
 
-    def navigate_to_frame(self, source_frame, target_frame, timeout=30.0, path_creation_timeout=100.0):
-        """
-        Navigate from source_frame to target_frame.
-        Args:
-            source_frame: Starting frame
-            target_frame: Goal frame
-            timeout: How long to wait for result in seconds
-            path_creation_timeout: How long to try creating the path in seconds
-        Returns:
-            bool: True if navigation succeeds
-        """
+    def navigate_to_frame(self, source_frame, target_frame, n_turns=0, timeout=30.0, path_creation_timeout=100.0):
+
         try:
             rospy.loginfo("[Action Client] Creating path from %s to %s...", 
                          source_frame, target_frame)

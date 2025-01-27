@@ -12,12 +12,13 @@ import angles
 
 ZERO_DISTANCE_TOLERANCE: float = 1e-6  # Minimum distance to consider a path segment non-zero
 
-def create_path_from_frame(tf_buffer: tf2_ros.Buffer, 
+def straight_path_to_frame(tf_buffer: tf2_ros.Buffer, 
                           source_frame: str, 
                           target_frame: str, 
                           angle_offset: float = 0.0, 
                           keep_orientation: bool = False, 
-                          num_samples: int = 50) -> Optional[Path]:
+                          num_samples: int = 50,
+                          n_turns: int = 0) -> Optional[Path]:
     try:
         source_transform = tf_buffer.lookup_transform(
             "odom", 
@@ -53,6 +54,12 @@ def create_path_from_frame(tf_buffer: tf2_ros.Buffer,
         offset_quaternion = tf.transformations.quaternion_from_euler(0, 0, angle_offset)
         final_quaternion = tf.transformations.quaternion_multiply(offset_quaternion, target_quaternion)
         
+        # Calculate angular difference including n_turns
+        source_euler = tf.transformations.euler_from_quaternion(source_quaternion)
+        target_euler = tf.transformations.euler_from_quaternion(final_quaternion)
+        angular_diff = (target_euler[2] - source_euler[2]) + (2 * np.pi * n_turns)
+        interpolated_euler = [0, 0, 0]
+        
         for t in t_vals:
             pose = PoseStamped()
             pose.header = path.header
@@ -65,7 +72,10 @@ def create_path_from_frame(tf_buffer: tf2_ros.Buffer,
             if keep_orientation:
                 interp_quaternion = source_quaternion
             else:
-                interp_quaternion = tf.transformations.quaternion_slerp(source_quaternion, final_quaternion, t)
+                interpolated_euler[2] = source_euler[2] + t * angular_diff
+                interp_quaternion = tf.transformations.quaternion_from_euler(
+                    source_euler[0], source_euler[1], interpolated_euler[2]
+                )
             
             pose.pose.orientation.x = interp_quaternion[0]
             pose.pose.orientation.y = interp_quaternion[1]
@@ -79,6 +89,7 @@ def create_path_from_frame(tf_buffer: tf2_ros.Buffer,
     except Exception as e:
         rospy.logerr(f"Error in create_straight_path: {e}")
         return None
+
 
 def get_current_pose(tf_buffer: tf2_ros.Buffer, source_frame: str) -> Optional[PoseStamped]:
     try:
@@ -214,7 +225,8 @@ def is_path_completed(position_threshold: float, angle_threshold: float, current
     dx = last_pose.position.x - current_pose.pose.position.x
     dy = last_pose.position.y - current_pose.pose.position.y
     dz = last_pose.position.z - current_pose.pose.position.z
-    total_pos_error = np.linalg.norm([dx, dy, dz])
+    #total_pos_error = np.linalg.norm([dx, dy, dz])
+    total_pos_error = np.linalg.norm([dx, dy])
     
     _, _, current_yaw = tf.transformations.euler_from_quaternion([
         current_pose.pose.orientation.x,

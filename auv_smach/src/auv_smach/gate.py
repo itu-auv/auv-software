@@ -55,7 +55,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="gate_target"
+                    source_frame="taluy/base_link", target_frame="dynamic_target"
                 ),
                 transitions={
                     "succeeded": "NAVIGATE_TO_GATE_START",
@@ -66,7 +66,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "NAVIGATE_TO_GATE_START",
                 NavigateToFrameState(
-                    "taluy/base_link", "gate_enterance", "gate_target"
+                    "taluy/base_link", "gate_enterance"
                 ),
                 transitions={
                     "succeeded": "NAVIGATE_TO_GATE_EXIT",
@@ -77,7 +77,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "NAVIGATE_TO_GATE_EXIT",
                 NavigateToFrameState(
-                    "gate_enterance", "gate_exit", "gate_target", n_turns=-1
+                    "taluy/base_link", "taluy/gate_exit", n_turns=-1
                 ),
                 transitions={
                     "succeeded": "succeeded",
