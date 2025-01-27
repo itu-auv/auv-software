@@ -78,6 +78,15 @@ class NavigateThroughGateState(smach.State):
                     source_frame="taluy/base_link", target_frame="gate_target"
                 ),
                 transitions={
+                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                TransformServiceEnableState(req=False),
+                transitions={
                     "succeeded": "NAVIGATE_TO_GATE_START",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -101,16 +110,6 @@ class NavigateThroughGateState(smach.State):
                 ),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
-                TransformServiceEnableState(req=False),
-                transitions={
-                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
