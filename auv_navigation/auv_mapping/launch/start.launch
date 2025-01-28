@@ -9,6 +9,7 @@
       <param name="static_frame" value="odom" />
 
       <remap from="set_object_transform" to="map/set_object_transform" />
+      <remap from="clear_object_transforms" to="map/clear_object_transforms" />
     </node>
   </group>
 
