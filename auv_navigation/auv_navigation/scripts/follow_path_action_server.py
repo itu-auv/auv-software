@@ -18,7 +18,7 @@ class FollowPathActionServer:
         self.alignment_yaw_tolerance = rospy.get_param('~alignment_yaw_tolerance', 0.1)
         self.source_frame = rospy.get_param('~source_frame', "taluy/base_link")
         self.dynamic_target_frame = rospy.get_param('~dynamic_target_frame', "dynamic_target")
-        self.control_rate = rospy.Rate(rospy.get_param('~control_rate', 20))
+        self.loop_rate = rospy.Rate(rospy.get_param('~loop_rate', 20))
 
         self.path_pub = rospy.Publisher('target_path', Path, queue_size=1)
         self.server = actionlib.SimpleActionServer(
@@ -32,8 +32,9 @@ class FollowPathActionServer:
 
     def do_path_following(self, path):
         """
+        Iterates the dynamic_target along the path.
         Returns true if the path was successfully followed to completion,
-        false if interrupted (preempted, shutdown, or error occurred).
+        false if interrupted (preempted, shutdown, or some error occurred).
         """
         try:
             while not rospy.is_shutdown():
@@ -46,13 +47,13 @@ class FollowPathActionServer:
                 current_pose = path_utils.get_current_pose(self.tf_buffer, self.source_frame)
                 if current_pose is None:
                     rospy.logwarn("Failed to get current pose. Retrying...")
-                    self.control_rate.sleep()
+                    self.loop_rate.sleep()
                     continue
                 
                 dynamic_target_pose = path_utils.calculate_dynamic_target(path, current_pose, self.dynamic_target_lookahead_distance)
                 if dynamic_target_pose is None:
                     rospy.logwarn("Failed to calculate dynamic target. Retrying...")
-                    self.control_rate.sleep()
+                    self.loop_rate.sleep()
                     continue
                 
                 # Publish dynamic target frame    
@@ -77,7 +78,7 @@ class FollowPathActionServer:
                 feedback.progress = progress
                 self.server.publish_feedback(feedback)
                 
-                self.control_rate.sleep() # Sleep to maintain control rate. control rate
+                self.loop_rate.sleep() # Sleep to maintain loop rate
                 
             return False # If exited the loop, success is False
             
