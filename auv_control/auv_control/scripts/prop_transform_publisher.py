@@ -22,6 +22,7 @@ import tf2_geometry_msgs
 import time
 import copy
 import threading
+from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 
 
 class Scene:
@@ -310,6 +311,10 @@ class ObjectPositionEstimator:
             "/taluy/map/set_object_transform", SetObjectTransform
         )
         self.set_object_transform_service.wait_for_service()
+
+        self.clear_transforms_service = rospy.Service(
+            "/taluy/clear_prop_transforms", Trigger, self.handle_clear_transforms
+        )
 
         # Subscriptions
         yolo_result_subscriber = message_filters.Subscriber("/yolo_result", YoloResult)
@@ -798,6 +803,10 @@ class ObjectPositionEstimator:
         # transform_message.transform.rotation.y = 0.0
         # transform_message.transform.rotation.z = 0.0
         # transform_message.transform.rotation.w = 1.0
+
+    def handle_clear_transforms(self, req: TriggerRequest):
+        self.scene = Scene()
+        return TriggerResponse(success=True, message="Prop transforms cleared")
 
     def run(self):
         self.rate = rospy.Rate(30.0)

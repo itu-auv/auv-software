@@ -1,6 +1,10 @@
 import smach
 
-from auv_smach.common import CancelAlignControllerState, ClearObjectTransformsState
+from auv_smach.common import (
+    CancelAlignControllerState,
+    ClearObjectTransformsState,
+    ClearPropTransformsState,
+)
 
 
 class DeinitializeState(smach.State):
@@ -26,6 +30,15 @@ class DeinitializeState(smach.State):
             smach.StateMachine.add(
                 "CLEAR_OBJECT_TRANSFORMS",
                 ClearObjectTransformsState(),
+                transitions={
+                    "succeeded": "CLEAR_PROP_TRANSFORMS",
+                    "preempted": "CLEAR_PROP_TRANSFORMS",
+                    "aborted": "CLEAR_PROP_TRANSFORMS",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_PROP_TRANSFORMS",
+                ClearPropTransformsState(),
                 transitions={
                     "succeeded": "aborted",
                     "preempted": "preempted",

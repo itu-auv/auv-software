@@ -260,3 +260,13 @@ class ClearObjectTransformsState(smach_ros.ServiceState):
             Trigger,
             request=TriggerRequest(),
         )
+
+
+class ClearPropTransformsState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "/taluy/clear_prop_transforms",
+            Trigger,
+            request=TriggerRequest(),
+        )
