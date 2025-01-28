@@ -77,23 +77,23 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "NAVIGATE_TO_GATE_EXIT",
                 NavigateToFrameState(
-                    "taluy/base_link", "gate_exit", n_turns=-1
+                    "taluy/base_link", "gate_exit", n_turns=1
                 ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # smach.StateMachine.add(
-            #     "CANCEL_ALIGN_CONTROLLER",
-            #     CancelAlignControllerState(),
-            #     transitions={
-            #         "succeeded": "succeeded",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
 
     def execute(self, userdata):
         # Execute the state machine
