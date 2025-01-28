@@ -16,12 +16,11 @@ class FollowPathActionClient:
         self.client.wait_for_server()
         rospy.loginfo("[Action Client] Action server is up!")
 
-    def execute_path(self, path, timeout=30.0):
+    def execute_path(self, path):
         """
         Send a given path to the follow_path action server.
         Args:
             path: Path message to execute
-            timeout: How long to wait for result in seconds
         Returns:
             bool: True if execution completes successfully
         """
@@ -32,7 +31,7 @@ class FollowPathActionClient:
             self.client.send_goal(goal)
 
             rospy.loginfo("[Action Client] Waiting for result...")
-            finished = self.client.wait_for_result(timeout=rospy.Duration(timeout))
+            finished = self.client.wait_for_result()
 
             if not finished:
                 rospy.logwarn("[Action Client] Action did not finish before timeout")
@@ -51,7 +50,7 @@ class FollowPathActionClient:
             rospy.logerr("[Action Client] Error executing path: %s", str(e))
             return False
 
-    def navigate_to_frame(self, source_frame, target_frame, n_turns=0, timeout=30.0, path_creation_timeout=100.0):
+    def navigate_to_frame(self, source_frame, target_frame, n_turns=0, path_creation_timeout=10.0):
 
         try:
             rospy.loginfo("[Action Client] Creating path from %s to %s...", 
@@ -65,9 +64,12 @@ class FollowPathActionClient:
                     path = path_utils.straight_path_to_frame(
                         tf_buffer=self.tf_buffer,
                         source_frame=source_frame,
-                        target_frame=target_frame
+                        target_frame=target_frame,
+                        n_turns=n_turns
                     )
                     if path is not None:
+                        # Print yaw angles for all waypoints
+                        path_utils.print_path_yaws(path) # !Delete, for debugging
                         break
                     rospy.logwarn("[Action Client] Failed to create path, retrying... Time elapsed: %.1f seconds", 
                                  (rospy.Time.now() - start_time).to_sec())
@@ -81,8 +83,8 @@ class FollowPathActionClient:
             if path is None:
                 rospy.logerr("[Action Client] Failed to create path after %.1f seconds", path_creation_timeout)
                 return False
-                
-            return self.execute_path(path, timeout=timeout)
+            
+            return self.execute_path(path)
             
         except Exception as e:
             rospy.logerr("[Action Client] Error in navigate_to_frame: %s", str(e))

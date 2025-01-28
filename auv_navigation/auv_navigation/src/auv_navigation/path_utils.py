@@ -248,3 +248,25 @@ def is_path_completed(position_threshold: float, angle_threshold: float, current
     
     return (total_pos_error <= position_threshold and 
             abs(yaw_error) <= angle_threshold)
+
+def print_path_yaws(path: Path) -> None: # !Delete  debugging              
+    """
+    Print yaw angles for all waypoints in the path.
+    Args:
+        path: Path message containing the waypoints
+    """
+    if not path or not path.poses:
+        rospy.logwarn("Path is empty or None")
+        return
+    
+    rospy.loginfo("Yaw angles for waypoints (in degrees):")
+    for i, pose in enumerate(path.poses):
+        quaternion = [
+            pose.pose.orientation.x,
+            pose.pose.orientation.y,
+            pose.pose.orientation.z,
+            pose.pose.orientation.w
+        ]
+        euler = tf.transformations.euler_from_quaternion(quaternion)
+        yaw_deg = np.degrees(euler[2])
+        rospy.loginfo(f"Waypoint {i}: {yaw_deg:.2f}°")

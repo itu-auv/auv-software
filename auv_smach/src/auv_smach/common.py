@@ -143,12 +143,11 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
 
 
 class NavigateToFrameState(smach.State):
-    def __init__(self, source_frame, target_frame, n_turns=0, timeout=30.0):
+    def __init__(self, source_frame, target_frame, n_turns=0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.source_frame = source_frame
         self.target_frame = target_frame
         self.n_turns = n_turns
-        self.timeout = timeout
         self._client = None
 
     def execute(self, userdata):
@@ -164,7 +163,7 @@ class NavigateToFrameState(smach.State):
             success = self._client.navigate_to_frame(
                 self.source_frame, 
                 self.target_frame,
-                timeout=self.timeout
+                n_turns=self.n_turns,
             )
             
             if success:
