@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/sensors/xsens_mti_g710.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/sensors/bar30.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/sensors/logitech_c920_camera.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/sensors/sonar.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/sensors/wayfinder_dvl.urdf.xacro"/>
+</robot>

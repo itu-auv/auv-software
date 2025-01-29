@@ -75,14 +75,19 @@ class ControllerROS {
     dr_srv_.updateConfig(initial_config);  // Apply the initial configuration
     dr_srv_.setCallback(f);
 
+    const auto transport_hints = ros::TransportHints().tcpNoDelay(true);
+
     odometry_sub_ =
-        nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
-    cmd_vel_sub_ =
-        nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
+        nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this,
+                      transport_hints);
+    cmd_vel_sub_ = nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback,
+                                 this, transport_hints);
     cmd_pose_sub_ =
-        nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
+        nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this,
+                      transport_hints);
     accel_sub_ =
-        nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this);
+        nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this,
+                      transport_hints);
 
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
