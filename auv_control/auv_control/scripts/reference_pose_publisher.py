@@ -25,7 +25,7 @@ class ReferencePosePublisherNode:
         self.control_enable_handler = ControlEnableHandler(1.0)
 
         # Initialize internal state
-        self.target_depth = 0.0
+        self.target_depth = -0.4
         self.target_heading = 0.0
         self.last_cmd_time = rospy.Time.now()
         self.target_frame_id = ""
@@ -61,6 +61,7 @@ class ReferencePosePublisherNode:
         dt = min(dt, self.command_timeout)
 
         self.target_heading += msg.angular.z * dt
+        self.target_depth += msg.linear.z * dt
         self.last_cmd_time = rospy.Time.now()
 
     def control_loop(self):
