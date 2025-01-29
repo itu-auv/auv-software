@@ -95,6 +95,11 @@ class JoystickNode:
                 self.joy_data.buttons[self.buttons["drop_ball"]]
             )
 
+    def get_axis_value(self, indices):
+        if isinstance(indices, list):
+            return sum(self.joy_data.axes[i] for i in indices)
+        return self.joy_data.axes[indices]
+
     def run(self):
         while not rospy.is_shutdown():
             twist = Twist()
@@ -105,22 +110,22 @@ class JoystickNode:
                     if self.joy_data.buttons[self.buttons["z_control"]]:
                         twist.linear.x = 0.0
                         twist.linear.z = (
-                            self.joy_data.axes[self.axes["z_axis"]["index"]]
+                            self.get_axis_value(self.axes["z_axis"]["index"])
                             * self.axes["z_axis"]["gain"]
                         )
                     else:
                         twist.linear.x = (
-                            self.joy_data.axes[self.axes["x_axis"]["index"]]
+                            self.get_axis_value(self.axes["x_axis"]["index"])
                             * self.axes["x_axis"]["gain"]
                         )
                         twist.linear.z = 0.0
 
                     twist.linear.y = (
-                        self.joy_data.axes[self.axes["y_axis"]["index"]]
+                        self.get_axis_value(self.axes["y_axis"]["index"])
                         * self.axes["y_axis"]["gain"]
                     )
                     twist.angular.z = (
-                        self.joy_data.axes[self.axes["yaw_axis"]["index"]]
+                        self.get_axis_value(self.axes["yaw_axis"]["index"])
                         * self.axes["yaw_axis"]["gain"]
                     )
                 else:
@@ -138,3 +143,4 @@ if __name__ == "__main__":
         joystick_node.run()
     except rospy.ROSInterruptException:
         pass
+
