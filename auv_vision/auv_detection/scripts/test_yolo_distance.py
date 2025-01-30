@@ -164,7 +164,7 @@ class TorpedoMapDistanceNode:
             rospy.init_node('torpedo_map_distance_node', disable_signals=True)
             
             # Camera namespace for usb_cam
-            camera_namespace = 'usb_cam'
+            camera_namespace = 'taluy/cameras/cam_front'
             
             print(f"Initializing with camera namespace: {camera_namespace}")
             
@@ -181,10 +181,7 @@ class TorpedoMapDistanceNode:
             self.yolo_sub = rospy.Subscriber('/yolo_result', YoloResult, self.yolo_callback)
             
             # Subscriber to usb_cam image
-            self.image_sub = rospy.Subscriber('/usb_cam/image_raw', Image, self.image_callback)
-            
-            # Publisher for edge image
-            self.edge_image_pub = rospy.Publisher('/torpedo_map/edge_image', Image, queue_size=10)
+            self.image_sub = rospy.Subscriber('/taluy/cameras/cam_front/image_raw', Image, self.image_callback)
             
             # CV Bridge
             self.bridge = CvBridge()
@@ -215,142 +212,9 @@ class TorpedoMapDistanceNode:
         except CvBridgeError as e:
             rospy.logerr(f"CV Bridge error: {e}")
     
-    def canny_edge_detection(self, image):
-        # Check if image is already grayscale
-        if len(image.shape) == 3:
-            # Convert image to grayscale only if it's BGR
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        else:
-            gray = image
-        
-        # Apply stronger Gaussian blur to reduce noise and gaps
-        blurred = cv2.GaussianBlur(gray, (7,7), 0)
-        
-        # Apply Canny edge detection with lower thresholds to detect more edges
-        edges = cv2.Canny(blurred, 30, 150)
-        
-        # Apply dilation to connect nearby edges
-        kernel = np.ones((3,3), np.uint8)
-        edges = cv2.dilate(edges, kernel, iterations=1)
-        
-        return edges
-    
-    def get_bbox_edges(self, image, bbox):
-        # Get bbox coordinates
-        x = int(bbox.center.x - bbox.size_x/2)
-        y = int(bbox.center.y - bbox.size_y/2)
-        w = int(bbox.size_x)
-        h = int(bbox.size_y)
-        
-        # Expand bbox by 20 pixels in each direction
-        expanded_x = max(0, x - 10)  # Don't go below 0
-        expanded_y = max(0, y - 10)
-        expanded_w = min(w + 20, image.shape[1] - expanded_x)  # Don't exceed image width
-        expanded_h = min(h + 20, image.shape[0] - expanded_y)  # Don't exceed image height
-        
-        # Convert to grayscale if needed
-        if len(image.shape) == 3:
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        else:
-            gray = image
-        
-        # Create mask for expanded ROI
-        mask = np.zeros(gray.shape[:2], dtype=np.uint8)
-        mask[expanded_y:expanded_y+expanded_h, expanded_x:expanded_x+expanded_w] = 255
-        
-        # Extract ROI using mask
-        roi = cv2.bitwise_and(gray, gray, mask=mask)
-        
-        # Apply edge detection only to ROI
-        edges = self.canny_edge_detection(roi)
-        
-        # Find contours in the expanded ROI
-        contours, _ = cv2.findContours(edges[expanded_y:expanded_y+expanded_h, expanded_x:expanded_x+expanded_w], 
-                                     cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        if not contours:
-            return None, None
-            
-        # Create visualization image (convert from grayscale to BGR)
-        edge_viz = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
-        
-        # Draw expanded bbox in yellow
-        #cv2.rectangle(edge_viz, (expanded_x, expanded_y), 
-                     #(expanded_x+expanded_w, expanded_y+expanded_h), (0, 255, 255), 1)
-        
-        # Draw all contours in blue
-        for cnt in contours:
-            # Adjust contour coordinates to original image space
-            cnt_adjusted = cnt.copy()
-            cnt_adjusted[:,:,0] = cnt[:,:,0] + expanded_x
-            cnt_adjusted[:,:,1] = cnt[:,:,1] + expanded_y
-            cv2.drawContours(edge_viz, [cnt_adjusted], -1, (255, 0, 0), 2)  # Blue color
-        
-        # Calculate scores for each contour based on area and perimeter
-        contour_scores = []
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            perimeter = cv2.arcLength(cnt, True)
-            # Favor contours with larger area and perimeter
-            score = area * perimeter
-            contour_scores.append((score, cnt))
-        
-        # Get the contour with highest score
-        largest_contour = max(contour_scores, key=lambda x: x[0])[1]
-        
-        # Draw the largest contour in red
-        largest_cnt_adjusted = largest_contour.copy()
-        largest_cnt_adjusted[:,:,0] = largest_contour[:,:,0] + expanded_x
-        largest_cnt_adjusted[:,:,1] = largest_contour[:,:,1] + expanded_y
-        cv2.drawContours(edge_viz, [largest_cnt_adjusted], -1, (0, 0, 255), 3)  # Red color
-        
-        # Draw the original bounding box in green
-        #cv2.rectangle(edge_viz, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        
-        # Get the extreme points (these are in expanded ROI coordinates)
-        leftmost = tuple(largest_contour[largest_contour[:,:,0].argmin()][0])
-        rightmost = tuple(largest_contour[largest_contour[:,:,0].argmax()][0])
-        topmost = tuple(largest_contour[largest_contour[:,:,1].argmin()][0])
-        bottommost = tuple(largest_contour[largest_contour[:,:,1].argmax()][0])
-        
-        # Adjust points to original image coordinates
-        leftmost = (leftmost[0] + expanded_x, leftmost[1] + expanded_y)
-        rightmost = (rightmost[0] + expanded_x, rightmost[1] + expanded_y)
-        topmost = (topmost[0] + expanded_x, topmost[1] + expanded_y)
-        bottommost = (bottommost[0] + expanded_x, bottommost[1] + expanded_y)
-        
-        return edge_viz, (leftmost, rightmost, topmost, bottommost)
-
-    def calculate_orientation(self, extreme_points):
-        leftmost, rightmost, topmost, bottommost = extreme_points
-        
-        # Calculate angle using arctan2
-        dx = rightmost[0] - leftmost[0]
-        dy = rightmost[1] - leftmost[1]
-        angle_rad = math.atan2(dy, dx)
-        
-        # Convert to degrees
-        angle_deg = math.degrees(angle_rad)
-        
-        return angle_deg
-
-    def process_extreme_points(self, edges, extreme_points):
-        if edges is not None and extreme_points is not None:
-            # edges is already in BGR format from get_bbox_edges
-            edge_viz = edges.copy()
-            for point in extreme_points:
-                cv2.circle(edge_viz, point, 5, (0, 0, 255), -1)
-            
-            # Calculate and add orientation text
-            orientation = self.calculate_orientation(extreme_points)
-            cv2.putText(edge_viz, f"Orientation: {orientation:.2f} deg", 
-                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            
-            return edge_viz, orientation
-        return None, None
-
     def yolo_callback(self, msg):
         try:
+            print(f"Received YOLO message with {len(msg.detections.detections)} detections.")
             # Check if there are any detections
             if not msg.detections.detections:
                 print("No detections found.")
@@ -361,7 +225,9 @@ class TorpedoMapDistanceNode:
             torpedo_map_detection = None
 
             for detection in msg.detections.detections:
+                print(f"Detection ID: {detection.results[0].id}")
                 if detection.results[0].id == torpedo_map_id:
+                    print("Torpedo map detection found.")
                     torpedo_map_detection = detection
                     break
 
@@ -378,40 +244,6 @@ class TorpedoMapDistanceNode:
             if measured_height == 0 or measured_width == 0:
                 rospy.logerr("Invalid measurement: height or width is zero")
                 return
-            
-            # Edge detection
-            if self.image_received and self.cv_image is not None:
-                edges = self.canny_edge_detection(self.cv_image)
-                
-                # Get edges and extreme points within bbox
-                bbox_edges, extreme_points = self.get_bbox_edges(self.cv_image, torpedo_map_detection.bbox)
-                
-                # Process extreme points and get orientation if available
-                if bbox_edges is not None and extreme_points is not None:
-                    edge_viz, orientation = self.process_extreme_points(bbox_edges, extreme_points)
-                    if edge_viz is not None:
-                        try:
-                            edge_image_msg = self.bridge.cv2_to_imgmsg(edge_viz, "bgr8")
-                            self.edge_image_pub.publish(edge_image_msg)
-                            print(f"\nCalculated Orientation: {orientation:.2f} degrees")
-                        except CvBridgeError as e:
-                            rospy.logerr(f"CV Bridge error: {e}")
-                else:
-                    # Publish original edge detection if extreme points failed
-                    try:
-                        edge_image_msg = self.bridge.cv2_to_imgmsg(edges, "mono8")
-                        self.edge_image_pub.publish(edge_image_msg)
-                    except CvBridgeError as e:
-                        rospy.logerr(f"CV Bridge error: {e}")
-            else:
-                rospy.logerr("No valid image received for edge detection.")
-                return
-            
-            # Orientation check
-            if measured_height/measured_width < 0.7:
-                print("TORPEDO MAP NOT TRUE ORIENTED")
-            if measured_height/measured_width > 1.3:
-                print("TORPEDO MAP NOT TRUE ORIENTED")
             
             try:
                 # Calculate distance using height and width
@@ -462,7 +294,7 @@ class TorpedoMapDistanceNode:
             rospy.logerr(f"Error in yolo_callback: {e}")
             print(traceback.format_exc())
 ### END OF FIRST NODE 
-"""
+
 class GateDistanceNode:
     def __init__(self):
         try:
@@ -470,7 +302,7 @@ class GateDistanceNode:
             #rospy.init_node('gate_blue_arrow_distance_node', disable_signals=True)
             
             # Camera namespace for usb_cam
-            camera_namespace = 'usb_cam'
+            camera_namespace = 'taluty/cameras/cam_front'
             
             print(f"Initializing with camera namespace: {camera_namespace}")
             
@@ -504,6 +336,7 @@ class GateDistanceNode:
     
     def yolo_callback(self, msg):
         try:
+            print(f"Received YOLO message with {len(msg.detections.detections)} detections.")
             # Check if there are any detections
             if not msg.detections.detections:
                 print("No detections found.")
@@ -511,10 +344,13 @@ class GateDistanceNode:
 
             # Find torpedo map detection
             gate_blue_arrow_id = name_to_id_map.get('gate_blue_arrow', 3)  # Fallback to 12 if not found
+            print(f"Searching for gate blue arrow with ID: {gate_blue_arrow_id}")
             gate_blue_arrow_detection = None
 
             for detection in msg.detections.detections:
+                print(f"Detection ID: {detection.results[0].id}")
                 if detection.results[0].id == gate_blue_arrow_id:
+                    print("Gate blue arrow detection found.")
                     gate_blue_arrow_detection = detection
                     break
 
@@ -580,14 +416,13 @@ class GateDistanceNode:
         except Exception as e:
             rospy.logerr(f"Error in yolo_callback: {e}")
             print(traceback.format_exc())
-"""
 
 
 
 if __name__ == '__main__':
     try:
         node = TorpedoMapDistanceNode()
-        #node2 = GateDistanceNode()
+        node2 = GateDistanceNode()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
