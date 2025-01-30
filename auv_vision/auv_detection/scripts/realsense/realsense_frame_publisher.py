@@ -164,7 +164,9 @@ class PointCloudProcessor:
             return None, None, None
 
     def pointcloud_callback(self, msg):
-        rospy.loginfo("Received pointcloud message")
+        rospy.loginfo("\n" + "="*50 + "\nStarting new frame processing")
+        rospy.loginfo(f"Initial points in frame: {len(msg.data):,}")
+        
         # Convert PointCloud2 to numpy array
         points = []
         for i, p in enumerate(pc2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True)):
@@ -177,18 +179,18 @@ class PointCloudProcessor:
             return
             
         points = np.array(points)
-        rospy.loginfo(f"Processing {len(points)} points")
+        rospy.loginfo(f"Processing {len(points):,} points")
         
         # Filter distant points
         points = self.filter_points(points)
-        rospy.loginfo(f"After filtering: {len(points)} points remaining")
+        rospy.loginfo(f"Points after distance filtering: {len(points):,}")
         
         if len(points) < self.min_samples:
-            rospy.logwarn(f"Not enough points after filtering: {len(points)} < {self.min_samples}")
+            rospy.logwarn(f"❌ Insufficient points after filtering: {len(points)} < {self.min_samples}")
             return
         
         # Apply DBSCAN clustering
-        rospy.loginfo("Starting DBSCAN clustering...")
+        rospy.loginfo("\n🔍 Starting DBSCAN clustering...")
         # eps: İki noktanın aynı kümede olması için aralarındaki max mesafe
         # min_samples: Bir küme oluşturmak için gereken min nokta sayısı
         clustering = DBSCAN(
@@ -199,7 +201,7 @@ class PointCloudProcessor:
         
         labels = clustering.labels_
         n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-        rospy.loginfo(f"Found {n_clusters} clusters")
+        rospy.loginfo(f"\n🎯 Detected clusters: {n_clusters}")
         
         # Create marker array message
         marker_array = MarkerArray()
@@ -229,7 +231,10 @@ class PointCloudProcessor:
 
             # Calculate Euclidean distance from camera to centroid
             euclidean_distance = np.linalg.norm(centroid)
-            rospy.loginfo(f"Cluster {label} - Number of points: {len(cluster_points)}, Distance from camera: {euclidean_distance:.3f} meters")
+            rospy.loginfo(f"\n📊 Cluster {label} Analysis:" + 
+                         f"\n    • Points in cluster: {len(cluster_points):,}" +
+                         f"\n    • Distance: {euclidean_distance:.3f} meters" +
+                         f"\n    • Position (xyz): ({centroid[0]:.3f}, {centroid[1]:.3f}, {centroid[2]:.3f})")
             
             # Calculate surface frame
             surface_result = self.calculate_surface_frame(cluster_points)
