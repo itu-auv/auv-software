@@ -164,7 +164,7 @@ class TorpedoMapDistanceNode:
             rospy.init_node('torpedo_map_distance_node', disable_signals=True)
             
             # Camera namespace for usb_cam
-            camera_namespace = 'usb_cam'
+            camera_namespace = 'taluy/cameras/cam_front'
             
             print(f"Initializing with camera namespace: {camera_namespace}")
             
@@ -181,7 +181,7 @@ class TorpedoMapDistanceNode:
             self.yolo_sub = rospy.Subscriber('/yolo_result', YoloResult, self.yolo_callback)
             
             # Subscriber to usb_cam image
-            self.image_sub = rospy.Subscriber('/usb_cam/image_raw', Image, self.image_callback)
+            self.image_sub = rospy.Subscriber('/taluty/cameras/cam_front/image_raw', Image, self.image_callback)
             
             # Publisher for edge image
             self.edge_image_pub = rospy.Publisher('/torpedo_map/edge_image', Image, queue_size=10)
@@ -470,7 +470,7 @@ class GateDistanceNode:
             #rospy.init_node('gate_blue_arrow_distance_node', disable_signals=True)
             
             # Camera namespace for usb_cam
-            camera_namespace = 'usb_cam'
+            camera_namespace = 'taluty/cameras/cam_front'
             
             print(f"Initializing with camera namespace: {camera_namespace}")
             
