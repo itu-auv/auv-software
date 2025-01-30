@@ -302,7 +302,7 @@ class GateDistanceNode:
             #rospy.init_node('gate_blue_arrow_distance_node', disable_signals=True)
             
             # Camera namespace for usb_cam
-            camera_namespace = 'taluty/cameras/cam_front'
+            camera_namespace = 'taluy/cameras/cam_front'
             
             print(f"Initializing with camera namespace: {camera_namespace}")
             
