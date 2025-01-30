@@ -41,7 +41,7 @@ class StereoProcessor:
         
         # Set a nominal baseline (distance between cameras)
         # This should be adjusted based on your actual camera setup
-        self.T = np.array([3.0, 0.0, 0.0])  # 3m baseline along X-axis
+        self.T = np.array([0.12, 0.0, 0.0])  # 12cm baseline along X-axis
 
         # Initialize image size from the calibration data
         self.image_size = (640, 480)  # width, height
@@ -85,16 +85,16 @@ class StereoProcessor:
             )
 
     def compute_disparity(self, img_left, img_right):
-        # Increase numDisparities and adjust other parameters
-        window_size = 5
+        # Adjust stereo matching parameters for better results
+        window_size = 3  # Reduced window size for better detail
         stereo = cv.StereoSGBM_create(
             minDisparity=0,
-            numDisparities=16*6,  # 96 disparities (must be multiple of 16)
+            numDisparities=128,  # Increased number of disparities
             blockSize=window_size,
-            P1=8 * 3 * window_size ** 2,  # Adjust based on blockSize
+            P1=8 * 3 * window_size ** 2,
             P2=32 * 3 * window_size ** 2,
             disp12MaxDiff=1,
-            uniquenessRatio=15,
+            uniquenessRatio=10,  # Reduced for more matches
             speckleWindowSize=100,
             speckleRange=2,
             preFilterCap=63,
@@ -105,7 +105,7 @@ class StereoProcessor:
         
         # Filter out noise and invalid disparities
         disparity = np.abs(disparity)
-        disparity[disparity == 0] = 0.1  # Avoid division by zero in reprojection
+        disparity[disparity < 1.0] = 1.0  # Avoid division by zero in reprojection
         
         return disparity
 
@@ -131,8 +131,27 @@ class StereoProcessor:
         # Apply colormap
         depth_colormap = cv.applyColorMap(depth_normalized, cv.COLORMAP_JET)
         
-        # Add legend
-        height, width = depth_colormap.shape[:2]
+        # Create a grid of points (5x5 grid)
+        height, width = depth.shape
+        rows, cols = 5, 5
+        row_step = height // (rows + 1)
+        col_step = width // (cols + 1)
+        
+        sample_points = []
+        for i in range(1, rows + 1):
+            for j in range(1, cols + 1):
+                sample_points.append((j * col_step, i * row_step))
+        
+        # Add depth values at sample points
+        for pt in sample_points:
+            depth_val = valid_depth[pt[1], pt[0]]
+            if depth_val > min_depth:  # Only show valid depth values
+                cv.circle(depth_colormap, pt, 2, (255, 255, 255), -1)
+                text = f"{depth_val:.2f}m"
+                cv.putText(depth_colormap, text, (pt[0]-20, pt[1]-5), 
+                          cv.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
+        
+        # Add legend/colorbar
         legend_width = 30
         legend = np.zeros((height, legend_width, 3), dtype=np.uint8)
         for i in range(height):

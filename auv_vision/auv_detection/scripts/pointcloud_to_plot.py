@@ -15,11 +15,11 @@ import numpy as np
 class PointCloudVisualizer:
     def __init__(self):
         rospy.init_node('pointcloud_visualizer')
-        
+        print("Initializing pointcloud visualizer")
         # Initialize subscriber with queue_size=1 to drop old messages
-        self.pc_sub = rospy.Subscriber('/taluy/camera/depth/points', PointCloud2, 
+        self.pc_sub = rospy.Subscriber('/stereo/pcd', PointCloud2, 
                                      self.pointcloud_callback, queue_size=1)
-        
+        print("Subscribed to /stereo/pcd")
         # Filtering parameters
         self.max_distance = 15.0
         self.min_distance = 0.2
@@ -74,9 +74,14 @@ class PointCloudVisualizer:
             return
             
         try:
-            # Convert PointCloud2 to numpy array (only x,y,z fields)
-            points = np.array(list(pc2.read_points(msg, skip_nans=True, 
-                                                 field_names=("x", "y", "z"))))
+            # Convert PointCloud2 message to a list of points
+            points = list(pc2.read_points(msg, skip_nans=True, field_names=("x", "y", "z")))
+            if not points:
+                rospy.logwarn("Received empty point cloud or all points are invalid.")
+                return
+
+            # Further processing of valid points
+            points = np.array(points)
             
             # Filter points
             filtered_points = self.filter_points(points)
