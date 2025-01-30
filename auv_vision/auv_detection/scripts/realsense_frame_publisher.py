@@ -16,7 +16,7 @@ class PointCloudProcessor:
         rospy.init_node('pointcloud_processor')
         
         # Initialize subscribers and publishers
-        self.pc_sub = rospy.Subscriber('/taluy/camera/depth/points', PointCloud2, self.pointcloud_callback)
+        self.pc_sub = rospy.Subscriber('taluy/camera/depth/points', PointCloud2, self.pointcloud_callback)
         self.marker_pub = rospy.Publisher('/object_markers', MarkerArray, queue_size=10)
         self.plane_marker_pub = rospy.Publisher('/plane_markers', MarkerArray, queue_size=10)
         
@@ -24,37 +24,22 @@ class PointCloudProcessor:
         self.tf_broadcaster = TransformBroadcaster()
         
         # Filtering parameters
-        self.max_distance = 15.0  # Maximum distance in meters to consider points
-        self.min_distance = 0.5  # Minimum distance to filter out very close points
-        self.height_threshold = 0.0  # Points below camera height
-        self.forward_threshold = 0.3  # Minimum forward distance (z-axis)
+        self.max_distance = 5.0  # Maximum distance in meters to consider points
         
         # DBSCAN clustering parameters
-        self.eps = 0.1  # Reduced for more precise clustering
-        self.min_samples = 10  # Reduced to detect smaller objects
-        self.max_samples = 2500  # Maximum points per cluster
-        self.downsample_factor = 4  # Keep more points for better detection
+        self.eps = 0.1  # Increased from 0.05 to 0.1
+        self.min_samples = 50  # Increased from 30 to 50
+        self.downsample_factor = 4  # Only process every Nth point
         
         rospy.loginfo("PointCloud processor initialized")
 
     def filter_points(self, points):
-        """Filter points based on distance and position from camera"""
+        """Filter points based on distance from camera"""
         # Calculate distances from origin (camera)
         distances = np.linalg.norm(points, axis=1)
-        
-        # Distance filter (not too close, not too far)
-        distance_mask = (distances > self.min_distance) & (distances < self.max_distance)
-        
-        # Height filter (ignore points too low - pool floor)
-        height_mask = points[:, 1] > self.height_threshold
-        
-        # Forward filter (only points in front of camera)
-        forward_mask = points[:, 2] > self.forward_threshold
-        
-        # Combine all filters
-        combined_mask = distance_mask & height_mask & forward_mask
-        
-        return points[combined_mask]
+        # Create mask for points within max_distance
+        mask = distances < self.max_distance
+        return points[mask]
 
     def calculate_surface_frame(self, cluster_points):
         """Calculate surface frame aligned with the fitted rectangle's edges"""
@@ -68,7 +53,6 @@ class PointCloudProcessor:
                                                num_iterations=1000)
         
         if len(inliers) < 3:
-            rospy.logwarn("Not enough inliers for plane fitting")
             return None, None
             
         # Get points that belong to the plane
@@ -105,7 +89,6 @@ class PointCloudProcessor:
         # Create rotation matrix from these axes
         rotation_matrix = np.column_stack((x_axis, y_axis, normal))
         
-        #rospy.loginfo(f"Frame calculated. Normal: {normal}, X: {x_axis}, Y: {y_axis}")
         return center, rotation_matrix
 
     def calculate_euler_angles(self, rotation_matrix):
@@ -145,7 +128,6 @@ class PointCloudProcessor:
                                                    num_iterations=1000)
             
             if len(inliers) < 3:
-                rospy.logwarn("Not enough inliers for plane fitting")
                 return None, None, None
                 
             # Get points that belong to the plane
@@ -175,7 +157,6 @@ class PointCloudProcessor:
             if normal[2] < 0:
                 normal = -normal
             
-            #rospy.loginfo(f"Plane fitted successfully. Center: {center}, Normal: {normal}")
             return corners, normal, center
             
         except Exception as e:
@@ -183,124 +164,180 @@ class PointCloudProcessor:
             return None, None, None
 
     def pointcloud_callback(self, msg):
-        """Process incoming pointcloud messages"""
-        try:
-            # Convert PointCloud2 to numpy array
-            points = np.array(list(pc2.read_points(msg, skip_nans=True, field_names=("x", "y", "z"))))
+        rospy.loginfo("\n" + "="*50 + "\nStarting new frame processing")
+        rospy.loginfo(f"Initial points in frame: {len(msg.data):,}")
+        
+        # Convert PointCloud2 to numpy array
+        points = []
+        for i, p in enumerate(pc2.read_points(msg, field_names=("x", "y", "z"), skip_nans=True)):
+            # Downsample by only taking every Nth point
+            if i % self.downsample_factor == 0:
+                points.append([p[0], p[1], p[2]])
+        
+        if not points:
+            rospy.logwarn("No points received in message")
+            return
             
-            # Log initial point count
-            rospy.loginfo(f"Processing {len(points)} points")
-            
-            # Filter points
-            filtered_points = self.filter_points(points)
-            rospy.loginfo(f"After filtering: {len(filtered_points)} points remaining")
-            
-            if len(filtered_points) < self.min_samples:
-                rospy.logwarn("Not enough points after filtering")
-                return
+        points = np.array(points)
+        rospy.loginfo(f"Processing {len(points):,} points")
+        
+        # Filter distant points
+        points = self.filter_points(points)
+        rospy.loginfo(f"Points after distance filtering: {len(points):,}")
+        
+        if len(points) < self.min_samples:
+            rospy.logwarn(f"❌ Insufficient points after filtering: {len(points)} < {self.min_samples}")
+            return
+        
+        # Apply DBSCAN clustering
+        rospy.loginfo("\n🔍 Starting DBSCAN clustering...")
+        # eps: İki noktanın aynı kümede olması için aralarındaki max mesafe
+        # min_samples: Bir küme oluşturmak için gereken min nokta sayısı
+        clustering = DBSCAN(
+            eps=self.eps,  
+            min_samples=self.min_samples,
+            algorithm='ball_tree'  # Daha hızlı clustering için ball_tree algoritması
+        ).fit(points)
+        
+        labels = clustering.labels_
+        n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
+        rospy.loginfo(f"\n🎯 Detected clusters: {n_clusters}")
+        
+        # Create marker array message
+        marker_array = MarkerArray()
+        plane_markers = MarkerArray()
+        
+        # Process each cluster
+        unique_labels = set(labels)
+        for label in unique_labels:
+            if label == -1:  # Skip noise points
+                continue
                 
-            # Downsample points for faster processing
-            downsampled_points = filtered_points[::self.downsample_factor]
+            # Get points in current cluster
+            cluster_points = points[labels == label]
             
-            # Perform DBSCAN clustering
-            rospy.loginfo("Starting DBSCAN clustering...")
-            db = DBSCAN(eps=self.eps, min_samples=self.min_samples).fit(downsampled_points)
+            # Calculate cluster centroid
+            centroid = np.mean(cluster_points, axis=0)
+            euclidean_distance = np.sqrt(centroid[0]**2 + centroid[1]**2 + centroid[2]**2)
             
-            # Get cluster labels
-            labels = db.labels_
-            unique_labels = np.unique(labels[labels != -1])
-            rospy.loginfo(f"Found {len(unique_labels)} clusters")
+            # Calculate cluster size
+            cluster_min = np.min(cluster_points, axis=0)
+            cluster_max = np.max(cluster_points, axis=0)
+            cluster_size = cluster_max - cluster_min
             
-            # Log number of points in each cluster using downsampled points
-            for label in unique_labels:
-                cluster_mask = labels == label
-                cluster_points = downsampled_points[cluster_mask]
-                rospy.loginfo(f"Cluster {label} has {len(cluster_points)} points")
-            
-            # Process each cluster
-            marker_array = MarkerArray()
-            plane_marker_array = MarkerArray()
-            
-            for cluster_id, label in enumerate(unique_labels):
-                # Get points in this cluster
-                cluster_mask = labels == label
-                cluster_points = downsampled_points[cluster_mask]
-                
-                # Skip if cluster is too large
-                if len(cluster_points) > self.max_samples:
-                    rospy.loginfo(f"Skipping cluster {cluster_id} with {len(cluster_points)} points (exceeds max_samples)")
-                    continue
-                
-                # Calculate surface frame
-                center, rotation_matrix = self.calculate_surface_frame(cluster_points)
-                
-                if center is not None and rotation_matrix is not None:
-                    # Calculate Euler angles
-                    roll, pitch, yaw = self.calculate_euler_angles(rotation_matrix)
-                    
-                    # Convert to quaternion
-                    q = self.euler_to_quaternion(roll, pitch, yaw)
-                    
-                    # Broadcast transform
-                    transform = TransformStamped()
-                    transform.header.stamp = rospy.Time.now()
-                    transform.header.frame_id = msg.header.frame_id
-                    transform.child_frame_id = f"surface_frame_{cluster_id}"
-                    
-                    transform.transform.translation.x = center[0]
-                    transform.transform.translation.y = center[1]
-                    transform.transform.translation.z = center[2]
-                    
-                    transform.transform.rotation.x = q[0]
-                    transform.transform.rotation.y = q[1]
-                    transform.transform.rotation.z = q[2]
-                    transform.transform.rotation.w = q[3]
-                    
-                    self.tf_broadcaster.sendTransform(transform)
-                    
-                    # Calculate and publish plane corners
-                    corners, normal, center = self.calculate_plane_corners(cluster_points)
-                    if corners is not None:
-                        plane_marker = self.create_plane_marker(corners, cluster_id, msg.header.frame_id)
-                        plane_marker_array.markers.append(plane_marker)
-            
-            # Publish markers
-            if len(plane_marker_array.markers) > 0:
-                self.plane_marker_pub.publish(plane_marker_array)
-            
-        except Exception as e:
-            rospy.logerr(f"Error processing pointcloud: {str(e)}")
+            # Skip very small clusters (likely noise)
+            if np.all(cluster_size < 0.02):  # 2cm minimum size
+                continue
 
-    def create_plane_marker(self, corners, cluster_id, frame_id):
-        plane_marker = Marker()
-        plane_marker.header.frame_id = frame_id
-        plane_marker.header.stamp = rospy.Time.now()
-        plane_marker.ns = "planes"
-        plane_marker.id = cluster_id
-        plane_marker.type = Marker.TRIANGLE_LIST
-        plane_marker.action = Marker.ADD
-        
-        # Create two triangles from the corners to form a rectangle
-        triangle_indices = [0, 1, 2, 0, 2, 3]  # Triangle vertices order
-        for i in triangle_indices:
-            p = Point()
-            p.x = float(corners[i][0])
-            p.y = float(corners[i][1])
-            p.z = float(corners[i][2])
-            plane_marker.points.append(p)
-        
-        # Set marker color (semi-transparent blue)
-        plane_marker.color.r = 0.0
-        plane_marker.color.g = 0.0
-        plane_marker.color.b = 1.0
-        plane_marker.color.a = 0.5
-        
-        # Set marker scale (actual size)
-        plane_marker.scale.x = 10.0
-        plane_marker.scale.y = 10.0
-        plane_marker.scale.z = 10.0
-        
-        return plane_marker
+            # Calculate Euclidean distance from camera to centroid
+            euclidean_distance = np.linalg.norm(centroid)
+            rospy.loginfo(f"\n📊 Cluster {label} Analysis:" + 
+                         f"\n    • Points in cluster: {len(cluster_points):,}" +
+                         f"\n    • Distance: {euclidean_distance:.3f} meters" +
+                         f"\n    • Position (xyz): ({centroid[0]:.3f}, {centroid[1]:.3f}, {centroid[2]:.3f})")
+            
+            # Calculate surface frame
+            surface_result = self.calculate_surface_frame(cluster_points)
+            if surface_result[0] is not None:
+                center, rotation_matrix = surface_result
+                
+                # Calculate Euler angles from rotation matrix
+                roll, pitch, yaw = self.calculate_euler_angles(rotation_matrix)
+                quaternion = self.euler_to_quaternion(roll, pitch, yaw)
+
+                # Calculate plane corners and normal
+                plane_result = self.calculate_plane_corners(cluster_points)
+                if plane_result[0] is not None:
+                    corners, plane_normal, center = plane_result
+                    
+                    # Create plane marker
+                    plane_marker = Marker()
+                    plane_marker.header.frame_id = msg.header.frame_id
+                    plane_marker.header.stamp = rospy.Time.now()
+                    plane_marker.ns = "planes"
+                    plane_marker.id = label
+                    plane_marker.type = Marker.TRIANGLE_LIST
+                    plane_marker.action = Marker.ADD
+                    
+                    # Create two triangles from the corners to form a rectangle
+                    triangle_indices = [0, 1, 2, 0, 2, 3]  # Triangle vertices order
+                    for i in triangle_indices:
+                        p = Point()
+                        p.x = float(corners[i][0])
+                        p.y = float(corners[i][1])
+                        p.z = float(corners[i][2])
+                        plane_marker.points.append(p)
+                    
+                    # Set marker color (semi-transparent blue)
+                    plane_marker.color.r = 0.0
+                    plane_marker.color.g = 0.0
+                    plane_marker.color.b = 1.0
+                    plane_marker.color.a = 0.5
+                    
+                    # Set marker scale (actual size)
+                    plane_marker.scale.x = 1.0
+                    plane_marker.scale.y = 1.0
+                    plane_marker.scale.z = 1.0
+                    
+                    # Add plane marker to array
+                    plane_markers.markers.append(plane_marker)
+
+                # Create transform message
+                transform = TransformStamped()
+                transform.header.stamp = rospy.Time.now()
+                transform.header.frame_id = msg.header.frame_id
+                transform.child_frame_id = f"object_{label}"
+                
+                # Set translation (centroid position)
+                transform.transform.translation.x = centroid[0]
+                transform.transform.translation.y = centroid[1]
+                transform.transform.translation.z = centroid[2]
+                
+                # Set rotation (quaternion)
+                transform.transform.rotation.x = quaternion[0]
+                transform.transform.rotation.y = quaternion[1]
+                transform.transform.rotation.z = quaternion[2]
+                transform.transform.rotation.w = quaternion[3]
+                
+                # Broadcast transform
+                self.tf_broadcaster.sendTransform(transform)
+
+                # Create marker for visualization
+                marker = Marker()
+                marker.header.frame_id = msg.header.frame_id
+                marker.header.stamp = rospy.Time.now()
+                marker.ns = "objects"
+                marker.id = label
+                marker.type = Marker.CUBE
+                marker.action = Marker.ADD
+                
+                # Set marker position (centroid)
+                marker.pose.position.x = centroid[0]
+                marker.pose.position.y = centroid[1]
+                marker.pose.position.z = centroid[2]
+                
+                # Set marker orientation (quaternion)
+                marker.pose.orientation.x = quaternion[0]
+                marker.pose.orientation.y = quaternion[1]
+                marker.pose.orientation.z = quaternion[2]
+                marker.pose.orientation.w = quaternion[3]
+                
+                # Set marker scale (cluster size)
+                marker.scale.x = max(cluster_size[0], 0.05)  # Minimum size of 5cm
+                marker.scale.y = max(cluster_size[1], 0.05)
+                marker.scale.z = max(cluster_size[2], 0.05)
+                
+                # Set marker color
+                marker.color.r = 0.0
+                marker.color.g = 1.0
+                marker.color.b = 0.0
+                marker.color.a = 0.5
+                
+                marker_array.markers.append(marker)
+                
+        # Publish marker array
+        self.marker_pub.publish(marker_array)
+        self.plane_marker_pub.publish(plane_markers)
 
 if __name__ == '__main__':
     try:
