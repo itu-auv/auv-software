@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <node pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" output="screen">
+        <remap from="left/image_raw" to="/taluy/cameras/cam_front2/image_raw"/>
+        <remap from="right/image_raw" to="/taluy/cameras/cam_front/image_raw"/>
+        <remap from="left/camera_info" to="/taluy/cameras/cam_front2/camera_info"/>
+        <remap from="right/camera_info" to="/taluy/cameras/cam_front/camera_info"/>
+        <param name="approximate_sync" value="true"/>
+        <param name="queue_size" value="10"/>
+    </node>
+</launch>
