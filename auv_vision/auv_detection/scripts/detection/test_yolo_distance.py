@@ -27,12 +27,12 @@ class CustomCameraCalibration:
         self.camera_calibrations = {
             'cam_front': {
                 'K': [
-                    432.803545,  # fx
+                    602.090661,  # fx
                     0.0,         # skew
-                    306.698087,  # cx
+                    300.333850,  # cx
                     0.0,         # 0
-                    567.001237,  # fy
-                    221.133655,  # cy
+                    594.250620,  # fy
+                    222.590416,  # cy
                     0.0, 0.0, 1.0  # Last row of camera matrix
                 ]
             }
@@ -140,7 +140,7 @@ class CustomCameraCalibration:
             distance (float): Estimated distance to the object
         
         Returns:
-            tuple: (offset_x, offset_y, x, y, z)
+            tuple: (offset_x, offset_y, x, y, z)c
         """
         # Calculate angles
         angle_x, angle_y = self.calculate_angles(pixel_coordinates)
@@ -462,7 +462,7 @@ class TorpedoMapDistanceNode:
             rospy.logerr(f"Error in yolo_callback: {e}")
             print(traceback.format_exc())
 ### END OF FIRST NODE 
-"""
+
 class GateDistanceNode:
     def __init__(self):
         try:
@@ -580,14 +580,14 @@ class GateDistanceNode:
         except Exception as e:
             rospy.logerr(f"Error in yolo_callback: {e}")
             print(traceback.format_exc())
-"""
+
 
 
 
 if __name__ == '__main__':
     try:
         node = TorpedoMapDistanceNode()
-        #node2 = GateDistanceNode()
+        node2 = GateDistanceNode()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
