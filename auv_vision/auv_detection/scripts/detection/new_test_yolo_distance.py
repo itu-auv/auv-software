@@ -214,7 +214,7 @@ class TorpedoMapDistanceNode:
     
     def yolo_callback(self, msg):
         try:
-            print(f"Received YOLO message with {len(msg.detections.detections)} detections.")
+            #print(f"Received YOLO message with {len(msg.detections.detections)} detections.")
             # Check if there are any detections
             if not msg.detections.detections:
                 print("No detections found.")
