@@ -16,9 +16,9 @@
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
 #include "std_msgs/Bool.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
 namespace auv {
 namespace control {
@@ -39,8 +39,11 @@ class ControllerROS {
       auv::common::ros::SubscriberWithTimeout<std_msgs::Bool>;
 
   ControllerROS(const ros::NodeHandle& nh)
-      : nh_{nh}, rate_{1.0}, control_enable_sub_{nh},
-        tf_buffer_{}, tf_listener_{tf_buffer_} {
+      : nh_{nh},
+        rate_{1.0},
+        control_enable_sub_{nh},
+        tf_buffer_{},
+        tf_listener_{tf_buffer_} {
     ros::NodeHandle nh_private("~");
 
     auto model = ModelParser::parse("model", nh_private);
@@ -127,21 +130,24 @@ class ControllerROS {
           controller_->control(state_, desired_state_, d_state_, dt);
 
       geometry_msgs::WrenchStamped wrench_msg;
-        if (is_control_enabled() && !is_timeouted()) {
-          wrench_msg.header.stamp = ros::Time::now();
-          wrench_msg.header.frame_id = body_frame_;
-          wrench_msg.wrench = auv::common::conversions::convert<ControllerBase::WrenchVector,geometry_msgs::Wrench>(control_output);
-          wrench_pub_.publish(wrench_msg);
-        }
+      if (is_control_enabled() && !is_timeouted()) {
+        wrench_msg.header.stamp = ros::Time::now();
+        wrench_msg.header.frame_id = body_frame_;
+        wrench_msg.wrench =
+            auv::common::conversions::convert<ControllerBase::WrenchVector,
+                                              geometry_msgs::Wrench>(
+                control_output);
+        wrench_pub_.publish(wrench_msg);
+      }
     }
   }
 
-  private:
-   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
-   tf2_ros::Buffer tf_buffer_;
-   tf2_ros::TransformListener tf_listener_;
-   std::string body_frame_;
-   double transform_timeout_;
+ private:
+  bool is_control_enabled() { return control_enable_sub_.get_message().data; }
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
+  std::string body_frame_;
+  double transform_timeout_;
 
   bool is_timeouted() const {
     return (ros::Time::now() - latest_command_time_).toSec() > 1.0;

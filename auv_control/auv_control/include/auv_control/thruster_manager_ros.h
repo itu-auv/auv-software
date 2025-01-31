@@ -7,9 +7,9 @@
 #include "auv_msgs/MotorCommand.h"
 #include "auv_msgs/Power.h"
 #include "ros/ros.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
-#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
 namespace auv {
 namespace control {
@@ -22,8 +22,10 @@ class ThrusterManagerROS {
   using ThrusterEffortVector = ThrusterAllocator::ThrusterEffortVector;
 
   ThrusterManagerROS(const ros::NodeHandle &nh)
-      : nh_{nh}, allocator_{ros::NodeHandle{"~"}}, 
-        tf_buffer_{}, tf_listener_{tf_buffer_} {
+      : nh_{nh},
+        allocator_{ros::NodeHandle{"~"}},
+        tf_buffer_{},
+        tf_listener_{tf_buffer_} {
     ROS_INFO("ThrusterManagerROS initialized");
 
     ros::NodeHandle nh_private("~");
@@ -60,27 +62,27 @@ class ThrusterManagerROS {
         rate.sleep();
         continue;
       }
-      
+
       const auto wrench_msg = latest_wrench_.value();
-      
+
       // Transform wrench if frame_id is provided
       geometry_msgs::WrenchStamped transformed_wrench = wrench_msg;
-      if (!wrench_msg.header.frame_id.empty() && 
+      if (!wrench_msg.header.frame_id.empty() &&
           wrench_msg.header.frame_id != body_frame_) {
         try {
           // Check if transform is available
-          tf_buffer_.canTransform(body_frame_, wrench_msg.header.frame_id, 
-                                  ros::Time(0), ros::Duration(transform_timeout_));
-          
+          tf_buffer_.canTransform(body_frame_, wrench_msg.header.frame_id,
+                                  ros::Time(0),
+                                  ros::Duration(transform_timeout_));
+
           // Transform the wrench
-          tf2::doTransform(wrench_msg, transformed_wrench, 
-                           tf_buffer_.lookupTransform(body_frame_, 
-                                                      wrench_msg.header.frame_id, 
-                                                      ros::Time(0)));
-        } catch (const tf2::TransformException& ex) {
-          ROS_WARN_STREAM("Could not transform wrench from " 
-                          << wrench_msg.header.frame_id 
-                          << " to " << body_frame_ 
+          tf2::doTransform(
+              wrench_msg, transformed_wrench,
+              tf_buffer_.lookupTransform(
+                  body_frame_, wrench_msg.header.frame_id, ros::Time(0)));
+        } catch (const tf2::TransformException &ex) {
+          ROS_WARN_STREAM("Could not transform wrench from "
+                          << wrench_msg.header.frame_id << " to " << body_frame_
                           << ": " << ex.what());
           ros::spinOnce();
           rate.sleep();
@@ -88,7 +90,8 @@ class ThrusterManagerROS {
         }
       }
 
-      auto thruster_efforts = allocator_.allocate(to_vector(transformed_wrench.wrench));
+      auto thruster_efforts =
+          allocator_.allocate(to_vector(transformed_wrench.wrench));
       allocator_.get_wrench_stamped_vector(thruster_efforts.value(),
                                            thruster_wrench_msgs_);
 
@@ -119,8 +122,8 @@ class ThrusterManagerROS {
  private:
   WrenchVector to_vector(const geometry_msgs::Wrench &wrench) {
     WrenchVector vector;
-    vector << wrench.force.x, wrench.force.y, wrench.force.z, 
-              wrench.torque.x, wrench.torque.y, wrench.torque.z;
+    vector << wrench.force.x, wrench.force.y, wrench.force.z, wrench.torque.x,
+        wrench.torque.y, wrench.torque.z;
     return vector;
   }
 
@@ -154,8 +157,8 @@ class ThrusterManagerROS {
 
   uint16_t calculate_drive_value(const std::vector<double> &coeffs,
                                  double wrench, double voltage) const {
-    double a = coeffs[0], b = coeffs[1], c = coeffs[2], 
-           d = coeffs[3], e = coeffs[4], f = coeffs[5];
+    double a = coeffs[0], b = coeffs[1], c = coeffs[2], d = coeffs[3],
+           e = coeffs[4], f = coeffs[5];
     double drive_value = a * wrench * wrench + b * wrench * voltage +
                          c * voltage * voltage + d * wrench + e * voltage + f;
     return static_cast<uint16_t>(drive_value);
