@@ -1,5 +1,5 @@
 # Goal
-nav_msgs/Path path
+nav_msgs/Path[] paths
 
 ---
 # Result
@@ -8,5 +8,6 @@ float32 execution_time  # Time taken to execute the action in seconds
 
 ---
 # Feedback
-float32 distance_to_goal
-float32 progress
+float32 current_path_progress
+float32 overall_progress
+float32 current_path_index

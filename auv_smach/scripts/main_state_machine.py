@@ -18,7 +18,7 @@ class MainStateMachineNode:
         self.previous_enabled = False
 
         # USER EDIT
-        gate_depth = -0.9
+        gate_depth = -1.2
         target_gate_link = "gate_blue_arrow_link"
 
         red_buoy_radius = 2.2
@@ -59,58 +59,12 @@ class MainStateMachineNode:
                 "NAVIGATE_THROUGH_GATE",
                 NavigateThroughGateState(gate_depth=gate_depth),
                 transitions={
-                    "succeeded": "NAVIGATE_AROUND_RED_BUOY",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_AROUND_RED_BUOY",
-                RotateAroundBuoyState(
-                    radius=red_buoy_radius,
-                    direction=red_buoy_direction,
-                    red_buoy_depth=red_buoy_depth,
-                ),
-                transitions={
-                    "succeeded": "NAVIGATE_TO_TORPEDO_TASK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_TO_TORPEDO_TASK",
-                TorpedoTaskState(
-                    torpedo_map_radius=torpedo_map_radius,
-                    torpedo_map_depth=torpedo_map_depth,
-                ),
-                transitions={
-                    "succeeded": "NAVIGATE_TO_BIN_TASK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_TO_BIN_TASK",
-                BinTaskState(
-                    bin_whole_depth=bin_whole_depth,
-                ),
-                transitions={
-                    "succeeded": "NAVIGATE_TO_OCTAGON_TASK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_TO_OCTAGON_TASK",
-                OctagonTaskState(
-                    octagon_depth=octagon_depth,
-                ),
-                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
 
         outcome = self.sm.execute()
 

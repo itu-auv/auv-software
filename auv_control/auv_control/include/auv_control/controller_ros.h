@@ -2,6 +2,8 @@
 
 #include <auv_control/ControllerConfig.h>  // Include your dynamic reconfigure header
 #include <dynamic_reconfigure/server.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <type_traits>
 
@@ -16,6 +18,7 @@
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
 #include "std_msgs/Bool.h"
+#include "std_msgs/Float64.h"
 
 namespace auv {
 namespace control {
@@ -38,6 +41,9 @@ class ControllerROS {
   ControllerROS(const ros::NodeHandle& nh)
       : nh_{nh}, rate_{1.0}, control_enable_sub_{nh} {
     ros::NodeHandle nh_private("~");
+
+    // default_frame as a ros parameter (default is odom)
+    depth_control_reference_frame_ = nh_private.param<std::string>("depth_control_reference_frame", "odom");
 
     auto model = ModelParser::parse("model", nh_private);
     load_parameters();
@@ -69,19 +75,14 @@ class ControllerROS {
     dr_srv_.updateConfig(initial_config);  // Apply the initial configuration
     dr_srv_.setCallback(f);
 
-    const auto transport_hints = ros::TransportHints().tcpNoDelay(true);
-
     odometry_sub_ =
-        nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this,
-                      transport_hints);
-    cmd_vel_sub_ = nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback,
-                                 this, transport_hints);
+        nh_.subscribe("odometry", 1, &ControllerROS::odometry_callback, this);
+    cmd_vel_sub_ =
+        nh_.subscribe("cmd_vel", 1, &ControllerROS::cmd_vel_callback, this);
     cmd_pose_sub_ =
-        nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this,
-                      transport_hints);
+        nh_.subscribe("cmd_pose", 1, &ControllerROS::cmd_pose_callback, this);
     accel_sub_ =
-        nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this,
-                      transport_hints);
+        nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this);
 
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
@@ -130,7 +131,7 @@ class ControllerROS {
     }
   }
 
- private:
+ private:  
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
 
   bool is_timeouted() const {
@@ -151,10 +152,52 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
-  void cmd_pose_callback(const geometry_msgs::Pose::ConstPtr& msg) {
-    desired_state_.head(6) =
-        auv::common::conversions::convert<geometry_msgs::Pose,
-                                          ControllerBase::Vector>(*msg);
+  const std::optional<std::string> get_source_frame(const std::string& source_frame) {
+    if (source_frame.empty()) { // No source provided.
+      return std::nullopt; // no transform will be needed with an empty frame (assume odom frame was meant)
+    }
+
+    if (source_frame == depth_control_reference_frame_) { // 
+      return std::nullopt; // no transform will be needed between two identical frames
+    }
+
+    // Transform is required:
+    if (source_frame[0] == '/') { // The added slash causes errors with tf
+      return source_frame.substr(1);
+    }
+    return source_frame;
+  }
+
+  void cmd_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
+    // Get frame and pose.
+    const auto source_frame = get_source_frame(msg->header.frame_id);
+    auto transformed_pose = msg->pose;
+
+    static tf2_ros::Buffer tf_buffer;
+    static tf2_ros::TransformListener tf_listener(tf_buffer);
+    geometry_msgs::TransformStamped transform_stamped;
+    
+    if (source_frame.has_value()) {
+      ROS_DEBUG("Source frame: %s, Desired frame: %s", source_frame.value().c_str(), depth_control_reference_frame_.c_str());
+      try {
+        transform_stamped = tf_buffer.lookupTransform(
+          depth_control_reference_frame_, source_frame.value(), ros::Time::now());
+
+        // only transform the z-axis component of the pose
+        geometry_msgs::Point transformed_z;
+        tf2::doTransform(msg->pose.position, transformed_z, transform_stamped);
+        transformed_pose.position.z = transformed_z.z; // override the z component
+
+      } catch (tf2::TransformException& ex) { // If unsuccessful, exit and don't update desired state
+        ROS_DEBUG("Failed to transform pose");
+        return;
+      }
+    }
+    ROS_DEBUG_STREAM("Final transformed z command pose: " << transformed_pose.position.z);
+    // update desired state
+    desired_state_.head(6) = auv::common::conversions::convert<
+        geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
+    
     latest_command_time_ = ros::Time::now();
   }
 
@@ -312,6 +355,8 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;                   // Parameters to be dynamically reconfigured
   std::string config_file_;  // Path to the config file
+
+  std::string depth_control_reference_frame_;
 };
 
 }  // namespace control

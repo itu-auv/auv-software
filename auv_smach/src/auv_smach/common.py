@@ -1,25 +1,15 @@
 import smach
 import smach_ros
 import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
+from std_srvs.srv import Trigger, TriggerRequest
 from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
     AlignFrameController,
     AlignFrameControllerRequest,
-    AlignFrameControllerResponse,
 )
-from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
-import tf2_ros
 import numpy as np
-import tf.transformations as transformations
-import tf2_geometry_msgs
-from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
-import auv_navigation.follow_path_action_client as follow_path_client
+from auv_msgs.srv import SetDepth, SetDepthRequest
+from auv_navigation import follow_path_action_client 
 
 from tf.transformations import (
     quaternion_matrix,
@@ -27,7 +17,6 @@ from tf.transformations import (
     translation_matrix,
     translation_from_matrix,
 )
-
 
 def transform_to_matrix(transform):
     trans = translation_matrix(
@@ -148,16 +137,17 @@ class NavigateToFrameState(smach.State):
         self.source_frame = source_frame
         self.target_frame = target_frame
         self.n_turns = n_turns
-        self._client = None
+        self._client = None  
+        
 
     def execute(self, userdata):
+        
+        # Lazy initialization of client
+        if self._client is None:
+            self._client = follow_path_action_client.FollowPathActionClient()
         try:
-            # Lazy initialization of client
-            if self._client is None:
-                self._client = follow_path_client.FollowPathActionClient()
-
             if self.preempt_requested():
-                self.service_preempt()
+                rospy.logwarn("[NavigateToFrameState] Preempt requested")
                 return "preempted"
             
             success = self._client.navigate_to_frame(
@@ -165,14 +155,10 @@ class NavigateToFrameState(smach.State):
                 self.target_frame,
                 n_turns=self.n_turns,
             )
-            
-            if success:
-                return "succeeded"
-            else:
-                return "aborted"
+            return "succeeded" if success else "aborted"
                 
         except Exception as e:
-            rospy.logerr("[NavigateToFrameState] Error: %s", str(e))
+            rospy.logwarn("[NavigateToFrameState] Error: %s", str(e))
             return "aborted"
         
     def request_preempt(self):

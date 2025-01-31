@@ -11,9 +11,8 @@
     <arg name="debug" default="false" />
     <arg name="world" default="pool" />
     <arg name="use_ned_frame" default="false" />
-    <arg name="imu_update_rate" default="20" />
-    <arg name="dvl_update_rate" default="20" />
-    <arg name="pressure_update_rate" default="20" />
+    <arg name="enable_logging" default="false" />
+    <arg name="logging_directory" default="$(optenv HOME)/bags" />  
 
     <!-- Run RViz -->
     <node
@@ -25,17 +24,17 @@
     />
 
     <!-- Initial robot position and orientation -->
-    <arg name="x" default="-0.8" />
-    <arg name="y" default="-3.4" />
+    <arg name="x" default="0.0" />
+    <arg name="y" default="0.0" />
     <arg name="z" default="-1.5" if="$(eval arg('world') == 'pool')" />
     <arg name="z" default="-87.0" if="$(eval arg('world') == 'seabed')" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
-    <arg name="yaw" value="-1.57" />
+    <arg name="yaw" value="-1.8" />
 
     <!-- Start world launch -->
     <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch">
-        <arg name="use_gui" value="$(arg use_gui)" />
+        <arg name="gui" value="$(arg use_gui)" />
         <arg name="debug" value="$(arg debug)" />
         <arg name="namespace" value="$(arg namespace)" />
     </include>
@@ -53,9 +52,6 @@
         <arg name="roll" value="$(arg roll)" />
         <arg name="pitch" value="$(arg pitch)" />
         <arg name="yaw" value="$(arg yaw)" />
-        <arg name="imu_update_rate" value="$(arg imu_update_rate)" />
-        <arg name="dvl_update_rate" value="$(arg dvl_update_rate)" />
-        <arg name="pressure_update_rate" value="$(arg pressure_update_rate)" />
     </include>
 
     <!-- Start bridge -->
@@ -64,6 +60,13 @@
         <arg name="control_rate" value="$(arg control_rate)" />
         <arg name="use_gui" value="$(arg use_gui)" />
     </include>
+
+    <group if="$(arg enable_logging)">
+        <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
+            <arg name="namespace" value="$(arg namespace)" />
+            <arg name="logging_directory" value="$(arg logging_directory)" />
+        </include>
+    </group>
 
 <!-- TODO (eminmeydanoglu): add start camera process here -->
 

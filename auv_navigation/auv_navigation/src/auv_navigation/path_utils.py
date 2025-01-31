@@ -7,89 +7,10 @@ from geometry_msgs.msg import PoseStamped, TransformStamped
 import tf2_ros
 import tf
 import tf2_geometry_msgs
-from typing import Optional
+from typing import Optional, List, Tuple
 import angles
 
 ZERO_DISTANCE_TOLERANCE: float = 1e-6  # Minimum distance to consider a path segment non-zero
-
-def straight_path_to_frame(tf_buffer: tf2_ros.Buffer, 
-                          source_frame: str, 
-                          target_frame: str, 
-                          angle_offset: float = 0.0, 
-                          keep_orientation: bool = False, 
-                          num_samples: int = 50,
-                          n_turns: int = 0) -> Optional[Path]:
-    try:
-        source_transform = tf_buffer.lookup_transform(
-            "odom", 
-            source_frame, 
-            rospy.Time(0),  
-            rospy.Duration(1.0)
-        )
-        target_transform = tf_buffer.lookup_transform(
-            "odom", 
-            target_frame, 
-            rospy.Time(0),  
-            rospy.Duration(1.0)
-        )
-        source_position = source_transform.transform.translation
-        target_position = target_transform.transform.translation
-        
-        source_quaternion = [source_transform.transform.rotation.x,
-                source_transform.transform.rotation.y,
-                source_transform.transform.rotation.z,
-                source_transform.transform.rotation.w]
-        target_quaternion = [target_transform.transform.rotation.x,
-                target_transform.transform.rotation.y,
-                target_transform.transform.rotation.z,
-                target_transform.transform.rotation.w]
-        
-        t_vals = np.linspace(0, 1, num_samples) 
-        
-        path = Path()
-        path.header.frame_id = "odom"
-        path.header.stamp = rospy.Time.now()
-        
-        # Apply angle offset
-        offset_quaternion = tf.transformations.quaternion_from_euler(0, 0, angle_offset)
-        final_quaternion = tf.transformations.quaternion_multiply(offset_quaternion, target_quaternion)
-        
-        # Calculate angular difference including n_turns
-        source_euler = tf.transformations.euler_from_quaternion(source_quaternion)
-        target_euler = tf.transformations.euler_from_quaternion(final_quaternion)
-        angular_diff = (target_euler[2] - source_euler[2]) + (2 * np.pi * n_turns)
-        interpolated_euler = [0, 0, 0]
-        
-        for t in t_vals:
-            pose = PoseStamped()
-            pose.header = path.header
-            
-            pose.pose.position.x = source_position.x + t * (target_position.x - source_position.x)
-            pose.pose.position.y = source_position.y + t * (target_position.y - source_position.y)
-            pose.pose.position.z = source_position.z + t * (target_position.z - source_position.z)
-            
-            # Set orientation based on keep_orientation flag
-            if keep_orientation:
-                interp_quaternion = source_quaternion
-            else:
-                interpolated_euler[2] = source_euler[2] + t * angular_diff
-                interp_quaternion = tf.transformations.quaternion_from_euler(
-                    source_euler[0], source_euler[1], interpolated_euler[2]
-                )
-            
-            pose.pose.orientation.x = interp_quaternion[0]
-            pose.pose.orientation.y = interp_quaternion[1]
-            pose.pose.orientation.z = interp_quaternion[2]
-            pose.pose.orientation.w = interp_quaternion[3]
-            
-            path.poses.append(pose)
-        
-        return path
-    
-    except Exception as e:
-        rospy.logerr(f"Error in create_straight_path: {e}")
-        return None
-
 
 def get_current_pose(tf_buffer: tf2_ros.Buffer, source_frame: str) -> Optional[PoseStamped]:
     try:
@@ -216,57 +137,73 @@ def find_closest_point_index(path: Path, current_pose: PoseStamped) -> int:
             
     return closest_index
 
-def is_path_completed(position_threshold: float, angle_threshold: float, current_pose: PoseStamped,
-                path: Path):
-    
-    # calculate error between current pose and last path pose
-    last_pose = path.poses[-1].pose
+def is_path_completed(current_pose: PoseStamped,
+                path: Path, path_end_index: int) -> bool:
+    closest_index = find_closest_point_index(path, current_pose)
+    #! delete rospy.loginfo(f"Closest index: {closest_index}, path end index: {path_end_index}")
+    return closest_index >= path_end_index
 
-    dx = last_pose.position.x - current_pose.pose.position.x
-    dy = last_pose.position.y - current_pose.pose.position.y
-    dz = last_pose.position.z - current_pose.pose.position.z
-    #total_pos_error = np.linalg.norm([dx, dy, dz])
-    total_pos_error = np.linalg.norm([dx, dy])
-    
-    _, _, current_yaw = tf.transformations.euler_from_quaternion([
-        current_pose.pose.orientation.x,
-        current_pose.pose.orientation.y,
-        current_pose.pose.orientation.z,
-        current_pose.pose.orientation.w
-    ])
-    
-    _, _, last_yaw = tf.transformations.euler_from_quaternion([
-        last_pose.orientation.x,
-        last_pose.orientation.y,
-        last_pose.orientation.z,
-        last_pose.orientation.w
-    ])
-    
-    yaw_error = angles.normalize_angle(last_yaw - current_yaw)
-    rospy.logdebug(f"Path alignment - Position error: {total_pos_error:.4f}, "
-                f"Angle error: {yaw_error:.4f}") 
-    
-    return (total_pos_error <= position_threshold and 
-            abs(yaw_error) <= angle_threshold)
-
-def print_path_yaws(path: Path) -> None: # !Delete  debugging              
+def combine_paths(paths: List[Path]) -> Tuple[Path, List[int]]:
     """
-    Print yaw angles for all waypoints in the path.
+    Combines multiple paths into a single path while keeping track of segment endpoints.
+    
     Args:
-        path: Path message containing the waypoints
+        paths: List of Path messages to combine
+        
+    Returns:
+        tuple containing:
+            - Combined Path message
+            - List of indices where each original path ends in the combined path
     """
-    if not path or not path.poses:
-        rospy.logwarn("Path is empty or None")
-        return
+    if not paths:
+        return Path(), []
+        
+    combined_path = Path()
+    combined_path.header = paths[0].header
+    path_endpoints = []
+    current_length = 0
     
-    rospy.loginfo("Yaw angles for waypoints (in degrees):")
-    for i, pose in enumerate(path.poses):
-        quaternion = [
-            pose.pose.orientation.x,
-            pose.pose.orientation.y,
-            pose.pose.orientation.z,
-            pose.pose.orientation.w
-        ]
-        euler = tf.transformations.euler_from_quaternion(quaternion)
-        yaw_deg = np.degrees(euler[2])
-        rospy.loginfo(f"Waypoint {i}: {yaw_deg:.2f}°")
+    for path in paths:
+        if not path.poses:
+            continue
+            
+        # Add all poses from current path
+        combined_path.poses.extend(path.poses)
+        
+        # Store the endpoint of this path segment
+        current_length += len(path.poses)
+        path_endpoints.append(current_length - 1)
+    
+    return combined_path, path_endpoints
+
+def check_path_progress(path: Path, current_pose: PoseStamped,
+                        current_path_index: int, path_endpoints: List[int]):
+    """
+    Args:
+        path (Path): The combined path being followed.
+        current_pose: Current pose of the robot
+        current_path_index (int): The index of the current path segment.
+        path_endpoints (List[int]): Indices marking the endpoints of individual path segments.
+
+    Returns:
+        Tuple[float, float]: (current path progress, overall progress)
+    """
+    try:
+        closest_index = find_closest_point_index(path, current_pose)
+        
+        path_start_index = 0 if current_path_index == 0 else path_endpoints[current_path_index - 1] + 1
+        path_end_index = path_endpoints[current_path_index]
+        closest_index = min(closest_index, path_end_index)
+
+        path_length = max(1, (path_end_index - path_start_index))  # Avoid division by zero
+        current_path_progress = (closest_index - path_start_index) / path_length
+        current_path_progress = max(0.0, min(1.0, current_path_progress))
+
+        # Compute overall progress
+        overall_progress = closest_index / max(1, len(path.poses)) # Avoid division by zero
+        overall_progress = max(0.0, min(1.0, overall_progress))
+
+        return current_path_progress, overall_progress
+    except Exception as e:
+        rospy.logerr(f"Error computing path progress: {e}")
+        return 0.0, 0.0
