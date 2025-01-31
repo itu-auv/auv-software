@@ -27,12 +27,12 @@ class CustomCameraCalibration:
         self.camera_calibrations = {
             'cam_front': {
                 'K': [
-                    432.803545,  # fx
+                    602.090661,  # fx
                     0.0,         # skew
-                    306.698087,  # cx
+                    300.333850,  # cx
                     0.0,         # 0
-                    567.001237,  # fy
-                    221.133655,  # cy
+                    594.250620,  # fy
+                    222.590416,  # cy
                     0.0, 0.0, 1.0  # Last row of camera matrix
                 ]
             }
