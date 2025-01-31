@@ -143,4 +143,3 @@ if __name__ == "__main__":
         joystick_node.run()
     except rospy.ROSInterruptException:
         pass
-
