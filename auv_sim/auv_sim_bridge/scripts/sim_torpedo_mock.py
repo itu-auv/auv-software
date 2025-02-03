@@ -26,11 +26,12 @@ def handle_torpedo_launch(req):
         # Get package path dynamically
         rospack = rospkg.RosPack()
         pkg_path = rospack.get_path("auv_sim_description")
-        model_path = os.path.join(
-            pkg_path, "models", "robosub_torpedo", "torpedo_one.sdf"
-        )
-        with open(model_path, "r") as f:
-            model_xml = f.read()
+
+        # Define torpedo models with fallback options
+        torpedo_models = [
+            ("torpedo_one.sdf", "torpedo"),
+            ("torpedo_two.sdf", "torpedo"),
+        ]
 
         vehicle_state = get_model_state("taluy", "world")
 
@@ -67,10 +68,6 @@ def handle_torpedo_launch(req):
         torpedo_quat = quaternion_from_euler(roll, pitch, yaw)
         pose.orientation = Quaternion(*torpedo_quat)
 
-        # Spawn torpedo model in Gazebo
-        model_name = "torpedo"
-        spawn_model(model_name, model_xml, "", pose, "world")
-
         # Initial torpedo velocity in vehicle base_link frame
         initial_velocity = [1.0, 0.0, 0.2]  # Forward movement relative to vehicle
         deceleration_rate = 0.2  # Deceleration rate (m/s²)
@@ -89,17 +86,46 @@ def handle_torpedo_launch(req):
         twist.angular.y = 0.0
         twist.angular.z = 0.0
 
-        # Set torpedo model state with velocity
-        from gazebo_msgs.msg import ModelState
+        # Try spawning torpedoes with fallback
+        for model_file, model_name in torpedo_models:
+            try:
+                model_path = os.path.join(
+                    pkg_path, "models", "robosub_torpedo", model_file
+                )
+                with open(model_path, "r") as f:
+                    model_xml = f.read()
 
-        set_model_state(
-            ModelState(
-                model_name=model_name, pose=pose, twist=twist, reference_frame="world"
-            )
+                # Try to spawn the model
+                spawn_response = spawn_model(model_name, model_xml, "", pose, "world")
+
+                if spawn_response.success:
+                    # Set torpedo model state with velocity
+                    from gazebo_msgs.msg import ModelState
+
+                    set_model_state(
+                        ModelState(
+                            model_name=model_name,
+                            pose=pose,
+                            twist=twist,
+                            reference_frame="world",
+                        )
+                    )
+                    rospy.loginfo(f"Torpedo launched successfully using {model_file}!")
+                    return TriggerResponse(
+                        success=True,
+                        message=f"Torpedo successfully launched using {model_file}.",
+                    )
+                else:
+                    rospy.logwarn(
+                        f"Failed to spawn torpedo with {model_file}, trying next model if available."
+                    )
+            except Exception as e:
+                rospy.logwarn(f"Failed to launch torpedo with {model_file}: {str(e)}")
+                continue
+
+        return TriggerResponse(
+            success=False, message="Both torpedo models failed to launch."
         )
-
-        rospy.loginfo("Torpedo launched!")
-        return TriggerResponse(success=True, message="Torpedo successfully launched.")
 
     except Exception as e:
         rospy.logerr(f"Failed to launch torpedo: {e}")
