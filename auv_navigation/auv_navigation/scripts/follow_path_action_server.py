@@ -4,7 +4,7 @@ import actionlib
 from nav_msgs.msg import Path
 from auv_msgs.msg import FollowPathAction, FollowPathFeedback, FollowPathResult, FollowPathActionGoal
 import tf2_ros
-from auv_navigation import path_utils
+from auv_navigation import follow_path_utils
 from typing import List
 
 class FollowPathActionServer:
@@ -56,25 +56,25 @@ class FollowPathActionServer:
                     return False
 
                 self.path_pub.publish(path)
-                current_pose = path_utils.get_current_pose(self.tf_buffer, self.source_frame)
+                current_pose = follow_path_utils.get_current_pose(self.tf_buffer, self.source_frame)
                 if current_pose is None:
                     rospy.logwarn("Failed to get current pose. Retrying...")
                     self.loop_rate.sleep()
                     continue
                 
-                dynamic_target_pose = path_utils.calculate_dynamic_target(path, current_pose, self.dynamic_target_lookahead_distance)
+                dynamic_target_pose = follow_path_utils.calculate_dynamic_target(path, current_pose, self.dynamic_target_lookahead_distance)
                 if dynamic_target_pose is None:
                     rospy.logwarn("Failed to calculate dynamic target. Retrying...")
                     self.loop_rate.sleep()
                     continue
                 
                 # Publish dynamic target frame    
-                path_utils.broadcast_dynamic_target_frame(self.tf_broadcaster, self.tf_buffer, self.source_frame, dynamic_target_pose)
+                follow_path_utils.broadcast_dynamic_target_frame(self.tf_broadcaster, self.tf_buffer, self.source_frame, dynamic_target_pose)
                 
                 # (AlignFrameController would be requested in smach to follow dynamic target)
                 
                 # Feedback
-                current_path_progress, overall_progress = path_utils.check_path_progress(
+                current_path_progress, overall_progress = follow_path_utils.check_path_progress(
                     path,
                     current_pose,
                     current_path_index,
@@ -88,7 +88,7 @@ class FollowPathActionServer:
                 
                 # Check if current segment is completed
                 path_end_index = path_endpoints[current_path_index]
-                if path_utils.is_path_completed(
+                if follow_path_utils.is_path_completed(
                     current_pose,
                     path,
                     path_end_index
@@ -114,7 +114,7 @@ class FollowPathActionServer:
             self.server.set_aborted(FollowPathResult(success=False, execution_time=0.0))
             return
         # Combine all paths and get endpoints
-        combined_path, path_endpoints = path_utils.combine_paths(goal.paths)
+        combined_path, path_endpoints = follow_path_utils.combine_paths(goal.paths)
         
         rospy.logdebug(f"combined path type: {type(combined_path)}")
         
