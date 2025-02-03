@@ -16,6 +16,11 @@
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
   <depend>nav_msgs</depend>
+  <depend>rospy</depend>
+  <depend>std_srvs</depend>
+  <depend>gazebo_msgs</depend>
+  <depend>tf</depend>
+  <depend>rospkg</depend>
   <export>
 
   </export>
