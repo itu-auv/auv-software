@@ -1,29 +1,20 @@
 import smach
 import smach_ros
 import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from std_srvs.srv import Empty, EmptyRequest, EmptyResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
-    AlignFrameController,
-    AlignFrameControllerRequest,
-    AlignFrameControllerResponse,
-)
+from std_srvs.srv import SetBool, SetBoolRequest
+from std_srvs.srv import Empty, EmptyRequest
+from robot_localization.srv import SetPose, SetPoseRequest
+from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
-
-from auv_smach.common import SetAlignControllerTargetState, CancelAlignControllerState
+from auv_smach.common import CancelAlignControllerState
+from typing import Optional, Literal
+from dataclasses import dataclass
 
 
 class WaitForKillswitchEnabledState(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-
         self.enabled = False
-
         self.killswitch_subscriber = rospy.Subscriber(
             "/taluy/propulsion_board/status", Bool, self.killswitch_callback
         )
@@ -36,11 +27,8 @@ class WaitForKillswitchEnabledState(smach.State):
         while not rospy.is_shutdown():
             if self.enabled:
                 return "succeeded"
-
             rate.sleep()
-
         return "aborted"
-
 
 class DVLEnableState(smach_ros.ServiceState):
     def __init__(self):
@@ -51,7 +39,6 @@ class DVLEnableState(smach_ros.ServiceState):
             request=SetBoolRequest(data=True),
         )
 
-
 class DelayState(smach.State):
     def __init__(self, delay_time):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -61,7 +48,6 @@ class DelayState(smach.State):
         rospy.sleep(self.delay_time)
         return "succeeded"
 
-
 class OdometryEnableState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
@@ -70,7 +56,6 @@ class OdometryEnableState(smach_ros.ServiceState):
             Empty,
             request=EmptyRequest(),
         )
-
 
 class ResetOdometryPoseState(smach_ros.ServiceState):
     def __init__(self):
@@ -83,7 +68,6 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
             SetPose,
             request=initial_pose_request,
         )
-
 
 class SetStartFrameState(smach_ros.ServiceState):
     def __init__(self, frame_name: str):
@@ -160,6 +144,16 @@ class InitializeState(smach.State):
                 "RESET_ODOMETRY_POSE",
                 ResetOdometryPoseState(),
                 transitions={
+                    "succeeded": "DELAY_AFTER_RESET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 1 second delay after resetting odometry pose
+            smach.StateMachine.add(
+                "DELAY_AFTER_RESET",
+                DelayState(delay_time=1.0),
+                transitions={
                     "succeeded": "SET_START_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -168,18 +162,6 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "SET_START_FRAME",
                 SetStartFrameState(frame_name="mission_start_link"),
-                transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            # TODO add enable controller
-            smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="mission_start_link"
-                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
