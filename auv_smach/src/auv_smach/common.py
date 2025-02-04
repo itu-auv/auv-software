@@ -23,7 +23,7 @@ from tf.transformations import (
 SET_DEPTH_SERVICE: str = "/taluy/set_depth"
 SET_DEPTH_DEFAULT_SLEEP_DURATION: float = 5.0
 CONTROL_ENABLE_TOPIC: str = "/taluy/enable"
-ENABLE_TOPIC_PUBLISH_RATE_HZ: float = 10
+ENABLE_TOPIC_PUBLISH_RATE_HZ: float = 20
 
 
 def transform_to_matrix(transform):
