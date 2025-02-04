@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import rospy
-from std_srvs.srv import Trigger, TriggerResponse
+import threading
+from std_srvs.srv import Trigger, TriggerResponse, TriggerRequest
 from gazebo_msgs.srv import SpawnModel, GetModelState, SetModelState
 from geometry_msgs.msg import Pose, Quaternion, Twist
 from tf.transformations import (
@@ -13,7 +14,7 @@ import rospkg
 import os
 
 
-def handle_torpedo_launch(req):
+def handle_torpedo_launch(req, torpedo_id):
     try:
         rospy.wait_for_service("/gazebo/spawn_sdf_model")
         rospy.wait_for_service("/gazebo/get_model_state")
@@ -27,15 +28,20 @@ def handle_torpedo_launch(req):
         rospack = rospkg.RosPack()
         pkg_path = rospack.get_path("auv_sim_description")
 
-        # Define torpedo models with fallback options
-        torpedo_models = [
-            ("torpedo_one.sdf", "torpedo_one"),
-            ("torpedo_two.sdf", "torpedo_two"),
-        ]
+        # Define torpedo model filenames based on ID
+        torpedo_models = {
+            1: ("torpedo_one.sdf", "torpedo_one"),
+            2: ("torpedo_two.sdf", "torpedo_two"),
+        }
+
+        if torpedo_id not in torpedo_models:
+            return TriggerResponse(
+                success=False, message=f"Invalid torpedo ID: {torpedo_id}"
+            )
+
+        model_file, model_name = torpedo_models[torpedo_id]
 
         vehicle_state = get_model_state("taluy", "world")
-
-        # Convert vehicle quaternion to roll, pitch, yaw angles
         vehicle_orientation = vehicle_state.pose.orientation
         quat = [
             vehicle_orientation.x,
@@ -45,97 +51,106 @@ def handle_torpedo_launch(req):
         ]
         roll, pitch, yaw = euler_from_quaternion(quat)
 
-        # Torpedo offset in vehicle base_link frame
-        torpedo_offset = [
-            0.30,
-            -0.14,
-            -0.05,
-        ]  # [x, y, z] position relative to base_link
+        # Torpedo offsets for different IDs
+        torpedo_offsets = {
+            1: [0.30, -0.14, -0.05],
+            2: [0.30, -0.14, -0.05],
+        }
 
-        # Get vehicle rotation matrix and convert torpedo offset to world frame
-        rot_matrix = quaternion_matrix(quat)[:3, :3]  # 3x3 transformation matrix
-        torpedo_position_world = rot_matrix.dot(
-            torpedo_offset
-        )  # Convert to world frame
+        torpedo_offset = torpedo_offsets[torpedo_id]
+        rot_matrix = quaternion_matrix(quat)[:3, :3]
+        torpedo_position_world = rot_matrix.dot(torpedo_offset)
 
-        # Torpedo initial position in world frame
         pose = Pose()
         pose.position.x = vehicle_state.pose.position.x + torpedo_position_world[0]
         pose.position.y = vehicle_state.pose.position.y + torpedo_position_world[1]
         pose.position.z = vehicle_state.pose.position.z + torpedo_position_world[2]
 
-        # Align torpedo orientation with vehicle orientation
         torpedo_quat = quaternion_from_euler(roll, pitch, yaw)
         pose.orientation = Quaternion(*torpedo_quat)
 
-        # Initial torpedo velocity in vehicle base_link frame
-        initial_velocity = [1.0, 0.0, 0.2]  # Forward movement relative to vehicle
-        deceleration_rate = 0.2  # Deceleration rate (m/s²)
-
-        # Convert velocity to world frame
+        initial_velocity = [1.0, 0.0, 0.35]  # Forward movement relative to vehicle
+        deceleration_rate = 0.2
         world_velocity = rot_matrix.dot(initial_velocity)
 
-        # Set torpedo velocity
         twist = Twist()
-        twist.linear.x = world_velocity[0] * (
-            1 - deceleration_rate
-        )  # Gradual x-axis velocity reduction
+        twist.linear.x = world_velocity[0] * (1 - deceleration_rate)
         twist.linear.y = world_velocity[1]
-        twist.linear.z = world_velocity[2]
+        twist.linear.z = 0.0
         twist.angular.x = 0.0
         twist.angular.y = 0.0
         twist.angular.z = 0.0
 
-        # Try spawning torpedoes with fallback
-        for model_file, model_name in torpedo_models:
-            try:
-                model_path = os.path.join(
-                    pkg_path, "models", "robosub_torpedo", model_file
+        try:
+            model_path = os.path.join(pkg_path, "models", "robosub_torpedo", model_file)
+            with open(model_path, "r") as f:
+                model_xml = f.read()
+
+            spawn_response = spawn_model(model_name, model_xml, "", pose, "world")
+
+            if spawn_response.success:
+                from gazebo_msgs.msg import ModelState
+
+                set_model_state(
+                    ModelState(
+                        model_name=model_name,
+                        pose=pose,
+                        twist=twist,
+                        reference_frame="world",
+                    )
                 )
-                with open(model_path, "r") as f:
-                    model_xml = f.read()
+                rospy.loginfo(f"Torpedo {torpedo_id} launched successfully!")
 
-                # Try to spawn the model
-                spawn_response = spawn_model(model_name, model_xml, "", pose, "world")
+                def update_z_velocity():
+                    try:
+                        current_state = get_model_state(model_name, "world")
+                        delayed_twist = Twist()
+                        delayed_twist.linear.x = current_state.twist.linear.x
+                        delayed_twist.linear.y = current_state.twist.linear.y
+                        delayed_twist.linear.z = world_velocity[2]
+                        delayed_twist.angular = current_state.twist.angular
 
-                if spawn_response.success:
-                    # Set torpedo model state with velocity
-                    from gazebo_msgs.msg import ModelState
-
-                    set_model_state(
-                        ModelState(
-                            model_name=model_name,
-                            pose=pose,
-                            twist=twist,
-                            reference_frame="world",
+                        set_model_state(
+                            ModelState(
+                                model_name=model_name,
+                                pose=current_state.pose,
+                                twist=delayed_twist,
+                                reference_frame="world",
+                            )
                         )
-                    )
-                    rospy.loginfo(f"Torpedo launched successfully using {model_file}!")
-                    return TriggerResponse(
-                        success=True,
-                        message=f"Torpedo successfully launched using {model_file}.",
-                    )
-                else:
-                    rospy.logwarn(
-                        f"Failed to spawn torpedo with {model_file}, trying next model if available."
-                    )
-            except Exception as e:
-                rospy.logwarn(f"Failed to launch torpedo with {model_file}: {str(e)}")
-                continue
+                        rospy.loginfo(f"Torpedo {torpedo_id} z velocity updated.")
+                    except Exception as e:
+                        rospy.logerr(
+                            f"Failed to update torpedo {torpedo_id} z velocity: {str(e)}"
+                        )
+
+                threading.Timer(0.5, update_z_velocity).start()
+                return TriggerResponse(
+                    success=True, message=f"Torpedo {torpedo_id} successfully launched."
+                )
+            else:
+                rospy.logwarn(f"Failed to spawn torpedo {torpedo_id}.")
+        except Exception as e:
+            rospy.logwarn(f"Failed to launch torpedo {torpedo_id}: {str(e)}")
 
         return TriggerResponse(
-            success=False, message="Both torpedo models failed to launch."
+            success=False, message=f"Torpedo {torpedo_id} launch failed."
         )
 
     except Exception as e:
-        rospy.logerr(f"Failed to launch torpedo: {e}")
+        rospy.logerr(f"Torpedo {torpedo_id} launch error: {e}")
         return TriggerResponse(success=False, message=str(e))
 
 
 def launch_torpedo_server():
     rospy.init_node("launch_torpedo_server")
-    rospy.Service("/taluy/actuators/torpedo/launch", Trigger, handle_torpedo_launch)
-    rospy.loginfo("Torpedo launch service is ready.")
+    for i in [1, 2]:
+        rospy.Service(
+            f"/taluy/actuators/torpedo_{i}/launch",
+            Trigger,
+            lambda req, id=i: handle_torpedo_launch(req, id),
+        )
+    rospy.loginfo("Torpedo launch services are ready.")
     rospy.spin()
 
 
