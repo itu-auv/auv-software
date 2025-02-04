@@ -29,8 +29,8 @@ def handle_torpedo_launch(req):
 
         # Define torpedo models with fallback options
         torpedo_models = [
-            ("torpedo_one.sdf", "torpedo"),
-            ("torpedo_two.sdf", "torpedo"),
+            ("torpedo_one.sdf", "torpedo_one"),
+            ("torpedo_two.sdf", "torpedo_two"),
         ]
 
         vehicle_state = get_model_state("taluy", "world")
