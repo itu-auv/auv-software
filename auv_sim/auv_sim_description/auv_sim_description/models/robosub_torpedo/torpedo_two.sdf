@@ -28,6 +28,10 @@
         </material>
         <pose>0 0 0 0 1.5708 0</pose>
       </visual>
+      <velocity_decay>
+        <linear>0.0005</linear>
+          <angular>0.0005</angular>
+        </velocity_decay>
       <collision name="torpedo_collision">
         <geometry>
           <cylinder>
