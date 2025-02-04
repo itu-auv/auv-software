@@ -8,10 +8,15 @@ from geometry_msgs.msg import PoseStamped
 from typing import Optional, List
 from auv_navigation.path_planning_utils import PathPlanningHelper
 
+DEFAULT_HEADER_FRAME: str = "odom"
+BASE_LINK_FRAME: str = "taluy/base_link"
+GATE_ENTRANCE_FRAME: str = "gate_enterance"  #TODO (somebody) fix the typo: enterance -> entrance
+GATE_EXIT_FRAME: str = "gate_exit"
+
 class PathPlanners:
     def __init__(self, tf_buffer: tf2_ros.Buffer):
         self.tf_buffer = tf_buffer
-
+        
     def straight_path_to_frame(
         self,
         source_frame: str,
@@ -61,7 +66,7 @@ class PathPlanners:
             )
 
             # Create a header for the path.
-            header = PathPlanningHelper.create_path_header("odom")
+            header = PathPlanningHelper.create_path_header(DEFAULT_HEADER_FRAME)
 
             # Generate waypoints using the provided interpolation flags.
             poses = PathPlanningHelper.generate_waypoints(
@@ -102,29 +107,27 @@ class PathPlanners:
                     # create the first segment
                     if entrance_path is None:
                         entrance_path = self.straight_path_to_frame(
-                            source_frame="taluy/base_link",
-                            target_frame="gate_enterance"
+                            source_frame=BASE_LINK_FRAME,
+                            target_frame=GATE_ENTRANCE_FRAME
                         )
                     #create the second segment
                     if exit_path is None:
                         exit_path = self.straight_path_to_frame(
-                            source_frame="gate_enterance",
-                            target_frame="gate_exit",
+                            source_frame=GATE_ENTRANCE_FRAME,
+                            target_frame=GATE_EXIT_FRAME,
                             n_turns=1
                         )
-                        
                     if entrance_path is not None and exit_path is not None:
                         return [entrance_path, exit_path]
-                    #TODO (somebody) fix the typo: enterance -> entrance
                     rospy.logwarn("[GatePathPlanner] Failed to plan paths, retrying... Time elapsed: %.1f seconds", 
                                 (rospy.Time.now() - start_time).to_sec())
-                    rospy.sleep(1.0)
+                    rospy.sleep(0.5)
                     
                 except (tf2_ros.LookupException, 
                         tf2_ros.ConnectivityException, 
                         tf2_ros.ExtrapolationException) as e:
                     rospy.logwarn("[GatePathPlanner] TF error while planning paths: %s. Retrying...", str(e))
-                    rospy.sleep(1.0)
+                    rospy.sleep(0.5)
             
             # If we get here, we timed out
             rospy.logwarn("[GatePathPlanner] Failed to plan paths after %.1f seconds", path_creation_timeout)

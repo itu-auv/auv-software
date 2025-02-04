@@ -3,13 +3,13 @@ import smach
 import rospy
 import tf2_ros
 from auv_navigation.path_planners import PathPlanners
-from auv_navigation import follow_path_action_client
 from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
     ExecutePlannedPathsState
 )
+
 
 class PlanGatePathsState(smach.State):
     """State that plans the paths for the gate task"""
@@ -27,10 +27,8 @@ class PlanGatePathsState(smach.State):
                 rospy.logwarn("[PlanGatePathsState] Preempt requested")
                 return "preempted"
             
-            path_planners = PathPlanners(self.tf_buffer)
+            path_planners = PathPlanners(self.tf_buffer) # instance of PathPlanners with tf_buffer
             paths = path_planners.path_for_gate()
-            rospy.loginfo("[PlanGatePathsState] Planned paths: %s", paths)
-            rospy.logdebug("[PlanGatePathsState] Paths: %s", paths)
             if paths is None:
                 return "aborted"
             
@@ -57,7 +55,7 @@ class NavigateThroughGateState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth),
+                SetDepthState(depth=gate_depth, sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0)),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
@@ -89,8 +87,9 @@ class NavigateThroughGateState(smach.State):
                 ExecutePlannedPathsState(),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER", # if aborted or preempted, cancel the alignment request
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
+                                                            
                 },
             )
             smach.StateMachine.add(

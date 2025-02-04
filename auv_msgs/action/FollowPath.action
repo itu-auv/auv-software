@@ -8,6 +8,6 @@ float32 execution_time  # Time taken to execute the action in seconds
 
 ---
 # Feedback
-float32 current_path_progress
+float32 current_segment_progress
 float32 overall_progress
-float32 current_path_index
+float32 current_segment_index

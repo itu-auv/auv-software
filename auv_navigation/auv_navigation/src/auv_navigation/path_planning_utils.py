@@ -7,18 +7,26 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from typing import Optional
 
+DEFAULT_FIXED_FRAME: str = "odom"
+DEFAULT_FRAME_ID: str = "odom"
+TIME_ZERO = rospy.Time(0)
+TF_LOOKUP_TIMEOUT = rospy.Duration(1.0)
+TWO_PI: float = 2 * np.pi
+
 class PathPlanningHelper:
     """Helper class containing static methods for path creation."""
 
     @staticmethod
-    def lookup_transform(tf_buffer: tf2_ros.Buffer, frame: str, fixed_frame: str = "odom"):
+    def lookup_transform(tf_buffer: tf2_ros.Buffer, frame: str, fixed_frame: str = DEFAULT_FIXED_FRAME):
         """
         Looks up the transform for the given frame and returns its position and quaternion.
 
         Returns:
             (position, quaternion)
         """
-        transform = tf_buffer.lookup_transform(fixed_frame, frame, rospy.Time(0), rospy.Duration(1.0))
+        transform = tf_buffer.lookup_transform(
+            fixed_frame, frame, TIME_ZERO, TF_LOOKUP_TIMEOUT
+        )
         position = transform.transform.translation
         quaternion = [
             transform.transform.rotation.x,
@@ -48,7 +56,7 @@ class PathPlanningHelper:
         Returns:
             angular_diff: The yaw difference (including extra turns) between target and source in radians.
         """
-        angular_diff = (target_euler[2] - source_euler[2]) + (2 * np.pi * n_turns)
+        angular_diff = (target_euler[2] - source_euler[2]) + (TWO_PI * n_turns)
         return angular_diff
 
     @staticmethod
@@ -141,12 +149,9 @@ class PathPlanningHelper:
         return poses
 
     @staticmethod
-    def create_path_header(frame_id: str = "odom"): # move up
+    def create_path_header(frame_id: str) -> rospy.Header: 
         """
-        Creates a ROS header for the Path message.
-
-        Returns:
-            A header with the specified frame and current time.
+        Creates header for the Path message.
         """
         header = rospy.Header()
         header.frame_id = frame_id
@@ -155,6 +160,9 @@ class PathPlanningHelper:
 
     @staticmethod
     def create_path_from_poses(header, poses):
+        """
+        Creates a Path message given a header and list of PoseStamped poses.
+        """
         path = Path()
         path.header = header
         path.poses = poses

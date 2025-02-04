@@ -1,14 +1,17 @@
 import smach
 import smach_ros
 import rospy
+import threading
+import numpy as np
+import tf2_ros
+import tf.transformations as transformations
+
 from std_srvs.srv import Trigger, TriggerRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
-import tf2_ros
-import numpy as np
-import tf.transformations as transformations
-from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
+from auv_msgs.srv import SetDepth, SetDepthRequest
+from auv_navigation import follow_path_action_client
 
 from tf.transformations import (
     quaternion_matrix,
@@ -16,8 +19,12 @@ from tf.transformations import (
     translation_matrix,
     translation_from_matrix,
 )
-import threading 
-from std_msgs.msg import Bool
+
+SET_DEPTH_SERVICE: str = "/taluy/set_depth"
+SET_DEPTH_DEFAULT_SLEEP_DURATION: float = 5.0
+CONTROL_ENABLE_TOPIC: str = "/taluy/enable"
+ENABLE_TOPIC_PUBLISH_RATE_HZ: float = 10
+
 
 def transform_to_matrix(transform):
     trans = translation_matrix(
@@ -64,35 +71,38 @@ def concatenate_transforms(transform1, transform2):
     combined_matrix = multiply_transforms(transform1.transform, transform2.transform)
     return matrix_to_transform(combined_matrix)
 
+# ------------------- STATES -------------------
+
 class SetDepthState(smach_ros.ServiceState):
     """
-    Calls the /taluy/set_depth service with requested depth.
-    Publishes /taluy/enable "True" at 20 Hz for the depth controller,
-    until the service response is received. Then stops publishing.
-    
+    Calls /taluy/set_depth with the requested depth.
+    continuously publishes True to /taluy/enable topic 
+    whilst the state is running.
+
     Outcomes:
-        - succeeded: service call returned success.
-        - preempted: the state was preempted.
-        - aborted: the service call failed.
+        - succeeded: The service call returned success.
+        - preempted: The state was preempted.
+        - aborted: The service call failed.
     """
-    def __init__(self, depth: float):
+    def __init__(self, depth: float, sleep_duration: float = SET_DEPTH_DEFAULT_SLEEP_DURATION):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
+        self.sleep_duration = sleep_duration
 
         # Initialize the parent ServiceState
-        smach_ros.ServiceState.__init__(
-            self,
-            "/taluy/set_depth",
+        super(SetDepthState, self).__init__(
+            SET_DEPTH_SERVICE,
             SetDepth,
             request=set_depth_request,
             outcomes=['succeeded', 'preempted', 'aborted']
         )
+        
         # use a threading.Event to signal publishing to stop
         self._stop_publishing = threading.Event()
-        self.enable_pub = rospy.Publisher('/taluy/enable', Bool, queue_size=1)
+        self.enable_pub = rospy.Publisher(CONTROL_ENABLE_TOPIC, Bool, queue_size=1)
 
     def _publish_enable_loop(self):
-        rate = rospy.Rate(20) 
+        rate = rospy.Rate(ENABLE_TOPIC_PUBLISH_RATE_HZ) 
         while not rospy.is_shutdown() and not self._stop_publishing.is_set():
             self.enable_pub.publish(Bool(True))
             rate.sleep()
@@ -100,6 +110,7 @@ class SetDepthState(smach_ros.ServiceState):
     def execute(self, userdata):
         # if there's an immediate preempt
         if self.preempt_requested():
+            rospy.logwarn("[SetDepthState] Preempt requested before execution.")
             self.service_preempt()
             return 'preempted'
 
@@ -109,19 +120,18 @@ class SetDepthState(smach_ros.ServiceState):
         pub_thread = threading.Thread(target=self._publish_enable_loop)
         pub_thread.start()
         
-        # blocks until the service finishes
-        result = super(SetDepthState, self).execute(userdata) # result of set depth request
+        # Call the service
+        result = super(SetDepthState, self).execute(userdata) 
         
-        # once service have a response, signal the publishing thread to stop
+        # Wait for the specified sleep duration
+        if self.sleep_duration > 0:
+            rospy.sleep(self.sleep_duration)
+            
+        # signal the publishing thread to stop
         self._stop_publishing.set()
         pub_thread.join()
         
-        # Evaluate and return results
-        if result == 'succeeded':
-            rospy.loginfo("server returned succeeded.") #! delete
-            return 'succeeded'
-        else:
-            return 'aborted'
+        return result
 
 class LaunchTorpedoState(smach_ros.ServiceState):
     def __init__(self, id: int):

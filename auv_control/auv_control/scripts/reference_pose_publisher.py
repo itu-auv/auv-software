@@ -26,62 +26,22 @@ class ReferencePosePublisherNode:
 
         self.control_enable_handler = ControlEnableHandler(1.0)
 
-        # Internal state
+        # Initialize internal state
         self.target_depth = -0.4
         self.target_heading = 0.0
-        self.current_depth = 0.0  # updated from odometry
         self.last_cmd_time = rospy.Time.now()
 
         # Parameters
-        self.loop_rate = rospy.Rate(rospy.get_param('~loop_rate', 10)) # rate of loop for control and alignment check
+        self.update_rate = rospy.Rate(rospy.get_param("~update_rate", 10))
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
-        self.alignment_threshold = rospy.get_param("~alignment_threshold", 0.1)
-        self.alignment_timeout = rospy.get_param("~alignment_timeout", 10.0)
-        
-    def is_aligned(self, target_depth: float) -> bool:
-        """
-        Check whether the current depth is within the allowed error range of the target.
-        """
-        error = abs(target_depth - self.current_depth)
-        rospy.loginfo("is_aligned: target_depth=%.2f, current_depth=%.2f, error=%.2f (allowed: %.2f)",
-                       target_depth, self.current_depth, error, self.alignment_threshold) #!delete
-        return error < self.alignment_threshold
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
-        """
-        Set the new target depth immediately and update the command pose.
-        Then wait for up to self.alignment_timeout for the vehicle to align with the target depth.
-        If alignment is achieved within the period, return success.
-        Otherwise, return failure.
-        """
-        # Set the target depth immediately
         self.target_depth = req.target_depth
-
-        # Define the timeout and check frequency
-        timeout_duration = self.alignment_timeout  
-        start_time = rospy.Time.now()
-
-        # Wait until either alignment is achieved or the timeout is reached
-        while (rospy.Time.now() - start_time).to_sec() < self.alignment_timeout:
-            if self.is_aligned(req.target_depth):
-                return SetDepthResponse(
-                    success=True,
-                    message=f"Target depth set to {req.target_depth:.2f} and aligned. "
-                            f"Current depth: {self.current_depth:.2f}"
-                )
-            self.loop_rate.sleep()  # sleep to maintain the loop rate
-
-        # alignment was not achieved within period
         return SetDepthResponse(
-            success=False,
-            message=f"Target depth set to {req.target_depth:.2f} but failed to align within {timeout_duration} seconds. "
-                    f"Current depth: {self.current_depth:.2f}"
+            success=True, message=f"Target depth set to {self.target_depth}"
         )
 
     def odometry_callback(self, msg):
-        # Always update current depth from odometry
-        self.current_depth = msg.pose.pose.position.z
-
         if self.control_enable_handler.is_enabled():
             return
 
@@ -104,9 +64,10 @@ class ReferencePosePublisherNode:
         self.last_cmd_time = rospy.Time.now()
 
     def control_loop(self):
-        # Create and publish the cmd_pose message with the desired depth and heading
+        # Create and publish the cmd_pose message
         cmd_pose = Pose()
-        cmd_pose.position.z = self.target_depth  # Set to the target depth
+
+        cmd_pose.position.z = self.target_depth
 
         quaternion = quaternion_from_euler(0.0, 0.0, self.target_heading)
         cmd_pose.orientation.x = quaternion[0]
@@ -119,13 +80,13 @@ class ReferencePosePublisherNode:
     def run(self):
         while not rospy.is_shutdown():
             self.control_loop()
-            self.loop_rate.sleep()
+            self.update_rate.sleep()
 
 
 if __name__ == "__main__":
     try:
         rospy.init_node("reference_pose_publisher_node")
-        node = ReferencePosePublisherNode()
-        node.run()
+        reference_pose_publisher_node = ReferencePosePublisherNode()
+        reference_pose_publisher_node.run()
     except rospy.ROSInterruptException:
         pass
