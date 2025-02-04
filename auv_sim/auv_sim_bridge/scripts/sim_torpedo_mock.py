@@ -12,6 +12,7 @@ from tf.transformations import (
 )
 import rospkg
 import os
+import time
 
 
 def handle_torpedo_launch(req, torpedo_id):
@@ -100,6 +101,7 @@ def handle_torpedo_launch(req, torpedo_id):
                     )
                 )
                 rospy.loginfo(f"Torpedo {torpedo_id} launched successfully!")
+                start_time = time.time()
 
                 def update_z_velocity():
                     try:
@@ -109,6 +111,7 @@ def handle_torpedo_launch(req, torpedo_id):
                         delayed_twist.linear.y = current_state.twist.linear.y
                         delayed_twist.linear.z = world_velocity[2]
                         delayed_twist.angular = current_state.twist.angular
+                        delayed_twist.angular.x = -3.0
 
                         set_model_state(
                             ModelState(
@@ -119,12 +122,14 @@ def handle_torpedo_launch(req, torpedo_id):
                             )
                         )
                         rospy.loginfo(f"Torpedo {torpedo_id} z velocity updated.")
+                        if time.time() - start_time < 2.0:
+                            threading.Timer(0.1, update_z_velocity).start()
                     except Exception as e:
                         rospy.logerr(
                             f"Failed to update torpedo {torpedo_id} z velocity: {str(e)}"
                         )
 
-                threading.Timer(0.5, update_z_velocity).start()
+                threading.Timer(0.6, update_z_velocity).start()
                 return TriggerResponse(
                     success=True, message=f"Torpedo {torpedo_id} successfully launched."
                 )
