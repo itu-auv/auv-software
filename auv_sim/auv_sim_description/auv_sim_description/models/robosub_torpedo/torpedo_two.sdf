@@ -30,8 +30,8 @@
       </visual>
       <velocity_decay>
         <linear>0.0005</linear>
-          <angular>0.0005</angular>
-        </velocity_decay>
+        <angular>0.05</angular>
+      </velocity_decay>
       <collision name="torpedo_collision">
         <geometry>
           <cylinder>
