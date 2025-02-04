@@ -25,8 +25,7 @@ class FollowPathActionServer:
             '~dynamic_target_lookahead_distance', 1.0
             )
         self.source_frame: str = rospy.get_param('~source_frame', "taluy/base_link")
-        self.loop_rate_value: float = rospy.get_param('~loop_rate', 20)
-        self.loop_rate = rospy.Rate(self.loop_rate_value)
+        self.loop_rate = rospy.Rate(rospy.get_param('~loop_rate', 20))
         
         self.path_pub = rospy.Publisher('target_path', Path, queue_size=1)
         
