@@ -8,11 +8,9 @@ class FollowPathActionClient:
     def __init__(self):
         self.client = actionlib.SimpleActionClient("taluy/follow_path", FollowPathAction)
         
-        rospy.logdebug("[follow_path client] Waiting for action server...")
-        if not self.client.wait_for_server(rospy.Duration(10)):
-            rospy.logerr("[follow_path client] Action server not available after waiting")
-            raise rospy.ROSException("Action server not available")
-        rospy.logdebug("[follow_path client] Action server is up!")
+        rospy.logdebug("[follow_path client] waiting for action server...")
+        self.client.wait_for_server()
+        rospy.logdebug("[follow_path client] action server is up!")
 
     def execute_paths(self, paths: List[Path]) -> bool:
         """
