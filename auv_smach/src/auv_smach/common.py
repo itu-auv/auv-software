@@ -114,15 +114,14 @@ class SetDepthState(smach_ros.ServiceState):
             self.service_preempt()
             return 'preempted'
 
+        # Call the service
+        result = super(SetDepthState, self).execute(userdata) 
+
         # Clear the stop flag
         self._stop_publishing.clear()
         # start publishing in the background thread
         pub_thread = threading.Thread(target=self._publish_enable_loop)
         pub_thread.start()
-        
-        # Call the service
-        result = super(SetDepthState, self).execute(userdata) 
-        
         # Wait for the specified sleep duration
         if self.sleep_duration > 0:
             rospy.sleep(self.sleep_duration)
