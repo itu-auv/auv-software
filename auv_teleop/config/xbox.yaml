@@ -1,9 +1,14 @@
 ---
 buttons:
-  launch_torpedo1: 4
-  launch_torpedo2: 5
+  launch_torpedo1: 2
+  launch_torpedo2: 1
   drop_ball: 3
-  z_control: 0
+  +z_axis:
+    index: 5
+    gain: 0.4
+  -z_axis:
+    index: 4
+    gain: 0.4
 
 axes:
   x_axis:
@@ -11,9 +16,6 @@ axes:
     gain: 0.4
   y_axis:
     index: [0, 6]
-    gain: 0.4
-  z_axis:
-    index: [1, 7]
     gain: 0.4
   yaw_axis:
     index: [3]
