@@ -1,24 +1,17 @@
 import smach
 import smach_ros
 import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
-    AlignFrameController,
-    AlignFrameControllerRequest,
-    AlignFrameControllerResponse,
-)
+import threading
+import numpy as np
+import tf2_ros
+import tf.transformations as transformations
+
+from std_srvs.srv import Trigger, TriggerRequest
+from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
-import tf2_ros
-import numpy as np
-import tf.transformations as transformations
-import tf2_geometry_msgs
-from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
+from auv_msgs.srv import SetDepth, SetDepthRequest
+from auv_navigation import follow_path_action_client
 
 from tf.transformations import (
     quaternion_matrix,
@@ -73,6 +66,7 @@ def concatenate_transforms(transform1, transform2):
     combined_matrix = multiply_transforms(transform1.transform, transform2.transform)
     return matrix_to_transform(combined_matrix)
 
+# ------------------- STATES -------------------
 
 class SetDepthState(smach_ros.ServiceState):
     def __init__(self, depth: float, sleep_duration=0.0):
