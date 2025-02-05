@@ -103,13 +103,12 @@ class NavigateThroughGateState(smach.State):
             )
 
     def execute(self, userdata):
-        rospy.logdebug("[NavigateThroughGateState] Executing state machine")
-        try:
-            outcome = self.state_machine.execute()
-            if outcome not in ["succeeded", "preempted", "aborted"]:
-                rospy.logerr("[NavigateThroughGateState] Invalid outcome returned: %s", outcome)
-                return "aborted"
-            return outcome
-        except Exception as e:
-            rospy.logerr("[NavigateThroughGateState] Error: %s", str(e))
-            return "aborted"
+        rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
+        
+        # Execute the state machine
+        outcome = self.state_machine.execute()
+
+        if outcome is None: # ctrl + c
+            return "preempted"
+        # Return the outcome of the state machine
+        return outcome
