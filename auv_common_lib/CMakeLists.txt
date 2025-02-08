@@ -18,7 +18,7 @@ catkin_python_setup()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES auv_common_lib
-  CATKIN_DEPENDS roscpp
+  CATKIN_DEPENDS roscpp geometry_msgs nav_msgs
 #  DEPENDS system_lib
 )
 

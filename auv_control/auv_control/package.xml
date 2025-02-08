@@ -15,4 +15,8 @@
   <depend>nav_msgs</depend>
   <depend>rosfmt</depend>
   <depend>auv_msgs</depend>
+  <depend>tf2_ros</depend>
+  <depend>dynamic_reconfigure</depend>
+  <depend>rospy</depend>
+  <exec_depend>auv_description</exec_depend>
 </package>

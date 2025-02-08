@@ -15,7 +15,9 @@ find_package(catkin REQUIRED
   auv_msgs
 )
 
-catkin_package()
+catkin_package(
+  CATKIN_DEPENDS auv_msgs geometry_msgs roscpp
+)
 
 include_directories(
   include

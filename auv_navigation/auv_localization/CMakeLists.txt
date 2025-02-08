@@ -1,13 +1,10 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_localization)
 
-
 find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
-  sensor_msgs
   rospy
   message_generation
-  auv_common_lib
+  std_msgs
 )
 
 add_service_files(
@@ -20,15 +17,10 @@ generate_messages(
 )
 
 catkin_package(
-  # INCLUDE_DIRS include
-  # LIBRARIES acado_dynamics
-  #  CATKIN_DEPENDS message_generation message_runtime roscpp
-  #  DEPENDS system_lib
   CATKIN_DEPENDS message_runtime std_msgs
 )
 
 include_directories(
-# include
   ${catkin_INCLUDE_DIRS}
 )
 

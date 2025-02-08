@@ -7,11 +7,11 @@
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
-  <depend>taluy_description</depend>
-  <depend>uuv_sensor_ros_plugins</depend>
-  <depend>uuv_gazebo_ros_plugins</depend>
-  <depend>gazebo_ros</depend>
-  <depend>auv_common_sim_descriptions</depend>
+  <exec_depend>taluy_description</exec_depend>
+  <exec_depend>uuv_sensor_ros_plugins</exec_depend>
+  <exec_depend>uuv_gazebo_ros_plugins</exec_depend>
+  <exec_depend>gazebo_ros</exec_depend>
+  <exec_depend>auv_common_sim_descriptions</exec_depend>
   <export>
     <gazebo_ros gazebo_model_path="${prefix}/meshes"/>
     <gazebo_ros gazebo_model_path="${prefix}/urdf"/>

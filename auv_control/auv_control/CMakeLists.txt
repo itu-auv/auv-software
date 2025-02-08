@@ -29,7 +29,7 @@ find_package(Eigen3 REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
-  CATKIN_DEPENDS geometry_msgs
+  CATKIN_DEPENDS geometry_msgs auv_msgs nav_msgs roscpp dynamic_reconfigure
 #  LIBRARIES auv_control
   # CATKIN_DEPENDS auv_controllers auv_common_lib
 #  DEPENDS system_lib
@@ -39,12 +39,13 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
-  ${CMAKE_BINARY_DIR}/devel/include  # Ensure this is included
+  # ${CMAKE_BINARY_DIR}/devel/include
 )
 
 catkin_install_python(PROGRAMS
   scripts/reference_pose_publisher.py
   scripts/battery_monitor_node.py
+  scripts/align_frame_controller.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

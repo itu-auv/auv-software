@@ -30,7 +30,7 @@ add_service_files(
   SetObjectTransform.srv
 )
 
-## Generate added messages and services with any dependencies listed here
+# # Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
   std_msgs
@@ -41,7 +41,7 @@ generate_messages(
 
 ## Declare catkin package
 catkin_package(
-  CATKIN_DEPENDS message_runtime actionlib_msgs actionlib geometry_msgs std_msgs nav_msgs
+  CATKIN_DEPENDS message_generation message_runtime actionlib_msgs actionlib geometry_msgs std_msgs nav_msgs
 )
 
 include_directories(
