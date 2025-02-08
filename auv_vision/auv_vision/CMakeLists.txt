@@ -5,11 +5,4 @@ find_package(catkin REQUIRED COMPONENTS
   auv_detection
 )
 
-catkin_package(
-  CATKIN_DEPENDS
-)
-
-include_directories(
-  # include
-  ${catkin_INCLUDE_DIRS}
-)
+catkin_package()
