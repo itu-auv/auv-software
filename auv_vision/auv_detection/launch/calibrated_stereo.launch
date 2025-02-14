@@ -1,0 +1,27 @@
+<launch>
+    <!-- Load custom calibration parameters -->
+    <rosparam command="load" file="$(find auv_detection)/config/custom_calibration.yaml"/>
+    
+    <!-- Artık bu remaplere ihtiyacımız yok, çünkü orijinal topicler realsense'den gelecek -->
+    <!-- <remap from="/camera/infra1/camera_info" to="/camera/infra1/camera_info_original"/>
+    <remap from="/camera/infra2/camera_info" to="/camera/infra2/camera_info_original"/> -->
+
+    <node pkg="stereo_image_proc" type="stereo_image_proc" name="stereo_image_proc" output="screen">
+        <!-- Update image topics to match available topics -->
+        <remap from="left/image_raw" to="/left/image_rect"/>
+        <remap from="right/image_raw" to="/right/image_rect"/>
+        <!-- Use our custom calibration topics -->
+        <remap from="left/camera_info" to="/camera/infra1/camera_info_custom"/>
+        <remap from="right/camera_info" to="/camera/infra2/camera_info_custom"/>
+        
+        <!-- Link to the loaded parameters -->
+        <param name="left/name" value="camera_infra1" />
+        <param name="right/name" value="camera_infra2" />
+        <param name="approximate_sync" value="true"/>
+        <param name="queue_size" value="10"/>
+    </node>
+
+    <!-- Custom camera_info publisher -->
+    <node pkg="auv_detection" type="camera_info_publisher.py" name="camera_info_publisher" output="screen"/>
+</launch>
+

@@ -1,0 +1,44 @@
+# custom_calibration.yaml
+camera_infra1:
+  camera_name: "left"
+  image_width: 640
+  image_height: 480
+  camera_matrix:
+    rows: 3
+    cols: 3
+    data: [488.765980, 0.000000, 325.906175, 0.000000, 490.937203, 229.050831, 0.000000, 0.000000, 1.000000]
+  distortion_model: "plumb_bob"
+  distortion_coefficients:
+    rows: 1
+    cols: 5
+    data: [0.355010, 0.147821, -0.014062, 0.004194, 0.000000]
+  rectification_matrix:
+    rows: 3
+    cols: 3
+    data: [0.999456, -0.000384, -0.032977, 0.000336, 0.999999, -0.001464, 0.032977, 0.001452, 0.999455]
+  projection_matrix:
+    rows: 3
+    cols: 4
+    data: [607.903108, 0.000000, 344.745466, 0.000000, 0.000000, 607.903108, 228.646080, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]
+
+camera_infra2:
+  camera_name: "right"
+  image_width: 640
+  image_height: 480
+  camera_matrix:
+    rows: 3
+    cols: 3
+    data: [491.991370, 0.000000, 327.499552, 0.000000, 493.405005, 230.366484, 0.000000, 0.000000, 1.000000]
+  distortion_model: "plumb_bob"
+  distortion_coefficients:
+    rows: 1
+    cols: 5
+    data: [0.318054, 0.281511, -0.012139, 0.003966, 0.000000]
+  rectification_matrix:
+    rows: 3
+    cols: 3
+    data: [0.999641, -0.000628, -0.026774, 0.000667, 0.999999, 0.001450, 0.026773, -0.001467, 0.999640]
+  projection_matrix:
+    rows: 3
+    cols: 4
+    data: [607.903108, 0.000000, 344.745466, -29.594726, 0.000000, 607.903108, 228.646080, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000]
