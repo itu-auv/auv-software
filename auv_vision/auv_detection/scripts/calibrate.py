@@ -50,7 +50,7 @@ def main():
     # RealSense pipeline'ını başlatıyoruz.
     pipeline = rs.pipeline()
     config = rs.config()
-    
+    time.sleep(10)
     # Derinlik ve renk akışlarını etkinleştiriyoruz.
     config.enable_stream(rs.stream.depth)
     config.enable_stream(rs.stream.color)
