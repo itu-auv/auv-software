@@ -116,9 +116,46 @@ class ControllerROS {
         continue;
       }
 
+      // If control is disabled, publish zero wrench
+      if (!is_control_enabled()) {
+        wrench_pub_.publish(geometry_msgs::Wrench{});
+        continue;
+      }
+
+      // If control is enabled but both commands are stale, freeze //! do what?
+      if (is_pose_timeouted() && is_vel_timeouted()) {
+        //wrench_pub_.publish(geometry_msgs::Wrench{});
+        continue;
+      }
+
+      // copies of the gains for masking 
+      Eigen::Matrix<double, 12, 1> kp_mask = kp_;
+      Eigen::Matrix<double, 12, 1> ki_mask = ki_;
+      Eigen::Matrix<double, 12, 1> kd_mask = kd_;
+
+      if (is_pose_timeouted()) {
+        kp_mask.head(6).setZero();
+        ki_mask.head(6).setZero();
+        kd_mask.head(6).setZero();
+      }
+      if (is_vel_timeouted()) {
+        kp_mask.tail(6).setZero();
+        ki_mask.tail(6).setZero();
+        kd_mask.tail(6).setZero();
+      }
+
+      // update controller with new masked gains 
+      auto pid_controller = dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+      if (pid_controller) {
+        pid_controller->set_kp(kp_mask);
+        pid_controller->set_ki(ki_mask);
+        pid_controller->set_kd(kd_mask);
+      }
+
+      dt = 1.0 / rate_.expectedCycleTime().toSec(); //?
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
-
+      
       const auto wrench_msg =
           (is_control_enabled() && !is_timeouted())
               ? auv::common::conversions::convert<ControllerBase::WrenchVector,
@@ -133,8 +170,13 @@ class ControllerROS {
  private:
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
 
-  bool is_timeouted() const {
-    return (ros::Time::now() - latest_command_time_).toSec() > 1.0;
+  // check if cmd_pose message is too old
+  bool is_pose_timeouted() const {
+    return (ros::Time::now() - latest_cmd_pose_time_).toSec() > 1.0;
+  }
+  // check if cmd_vel message is too old
+  bool is_vel_timeouted() const {
+    return (ros::Time::now() - latest_cmd_vel_time_).toSec() > 1.0;
   }
 
   void odometry_callback(const nav_msgs::Odometry::ConstPtr& msg) {
@@ -148,14 +190,14 @@ class ControllerROS {
     desired_state_.tail(6) =
         auv::common::conversions::convert<geometry_msgs::Twist,
                                           ControllerBase::Vector>(*msg);
-    latest_command_time_ = ros::Time::now();
+    latest_cmd_vel_time_ = ros::Time::now();
   }
 
   void cmd_pose_callback(const geometry_msgs::Pose::ConstPtr& msg) {
     desired_state_.head(6) =
         auv::common::conversions::convert<geometry_msgs::Pose,
                                           ControllerBase::Vector>(*msg);
-    latest_command_time_ = ros::Time::now();
+    latest_cmd_pose_time_ = ros::Time::now();
   }
 
   void accel_callback(
@@ -297,7 +339,8 @@ class ControllerROS {
 
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;
-  ros::Time latest_command_time_{ros::Time(0)};
+  ros::Time latest_cmd_pose_time_{ros::Time(0)};
+  ros::Time latest_cmd_vel_time_{ros::Time(0)};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
   ControllerBase::StateVector desired_state_{
