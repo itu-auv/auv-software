@@ -63,7 +63,6 @@ def main():
     run_self_calibration(device)
     
     # Sonrasında yeni kalibrasyon değerlerini okuyup gösteriyoruz.
-    read_calibration_table(device)
     
     # Pipeline'ı durduruyoruz.
     pipeline.stop()
