@@ -2,6 +2,7 @@
 #include <array>
 
 #include "auv_canbus_bridge/modules/module_base.hpp"
+#include "auv_canbus_msgs/Power.h"
 #include "auv_msgs/Power.h"
 #include "ros/ros.h"
 
@@ -36,23 +37,14 @@ class PowerReportModule : public ModuleBase {
       return;
     }
 
-    struct PowerReport {
-      float voltage;
-      float current;
-    };
-
-    union {
-      PowerReport report;
-      std::array<uint8_t, 8> data;
-    } u;
-
-    std::copy(data.begin(), data.end(), u.data.begin());
+    auto report = auv_canbus_msgs::Power{};
+    std::copy(data.begin(), data.end(), reinterpret_cast<uint8_t *>(&report));
 
     auto power_msg = auv_msgs::Power{};
 
-    power_msg.voltage = u.report.voltage;
-    power_msg.current = u.report.current;
-    power_msg.power = std::abs(u.report.voltage * u.report.current);
+    power_msg.voltage = report.voltage;
+    power_msg.current = report.current;
+    power_msg.power = std::abs(report.voltage * report.current);
 
     power_report_publisher_.publish(power_msg);
   };
