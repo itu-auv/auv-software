@@ -45,27 +45,29 @@ def read_calibration_table(device):
                 
         except Exception as e:
             print(f"Bu sensör için bazı veriler okunamıyor: {e}")
-
 def main():
-    # RealSense pipeline'ını başlatıyoruz.
     pipeline = rs.pipeline()
     config = rs.config()
-    time.sleep(10)
-    # Derinlik ve renk akışlarını etkinleştiriyoruz.
-    config.enable_stream(rs.stream.depth)
-    config.enable_stream(rs.stream.color)
     
-    # Pipeline'ı başlatıp cihazı elde ediyoruz.
-    profile = pipeline.start(config)
-    device = profile.get_device()
-
-    # On-chip kalibrasyonu çalıştırıyoruz (yeni değerler çipe yazılıyor).
-    run_self_calibration(device)
+    # Configure streams explicitly
+    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+    #config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
     
-    # Sonrasında yeni kalibrasyon değerlerini okuyup gösteriyoruz.
-    
-    # Pipeline'ı durduruyoruz.
-    pipeline.stop()
-
+    try:
+        # Start pipeline FIRST
+        profile = pipeline.start(config)
+        device = profile.get_device()
+        
+        # Warm-up AFTER starting
+        print("Warming up sensors...")
+        time.sleep(10)  # Let hardware stabilize
+        
+        # Run calibration
+        run_self_calibration(device)
+        
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        pipeline.stop()  # Cleanup even on failure
 if __name__ == "__main__":
     main()
