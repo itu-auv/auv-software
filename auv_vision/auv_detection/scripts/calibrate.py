@@ -5,38 +5,46 @@ import time
 
 def run_self_calibration(device):
     # Auto-calibration API'sini alıyoruz.
-    auto_calib = device.as_auto_calibrated_device()
+    auto_calib = rs.auto_calibrated_device(device)
     
-    # On-chip kalibrasyonu başlatıyoruz. Bu işlem başarılı olursa,
-    # cihazın çipine yeni kalibrasyon değerleri yazılır.
-    auto_calib.run_on_chip_calibration()
+    # On-chip kalibrasyonu başlatıyoruz
+    try:
+        print("Kalibrasyon başlatılıyor...")
+        print("Lütfen kamerayı düz bir yüzeye doğrultun ve sabit tutun.")
+        result, health = auto_calib.run_on_chip_calibration("{}", 15000)  # 15 saniye timeout
+        
+        # Kalibrasyon metriklerini yazdırıyoruz
+        print("\nKalibrasyon Metrikleri:")
+        print(f"Kalibrasyon durumu: {'Başarılı' if result else 'Başarısız'}")
+        print(f"Pyguide değeri: {health[0]:.3f}")
+        print(f"RMSE değeri: {health[1]:.3f}")
+        
+    except Exception as e:
+        print(f"Kalibrasyon sırasında hata oluştu: {e}")
     
-    # Kalibrasyon işleminin tamamlanması için bekleyelim.
     time.sleep(5)
-    
-    # Kalibrasyon sağlığını kontrol ediyoruz.
-    health_check = auto_calib.get_calibration_health()
-    if health_check == rs.auto_calibrated_device.calibration_health.ok:
-        print("Kalibrasyon başarılı! Yeni değerler çipe yazıldı.")
-    else:
-        print("Kalibrasyon başarısız!")
 
 def read_calibration_table(device):
     # Cihazdaki sensörlerden kalibrasyon verilerini okuyup ekrana basalım.
     sensors = device.query_sensors()
     for sensor in sensors:
         try:
-            # calibration_table değeri sensöre özel yeni kalibrasyon verilerini içerir.
-            calibration_data = sensor.get_option(rs.option.calibration_table)
             sensor_name = sensor.get_info(rs.camera_info.name)
             print(f"\nSensör: {sensor_name}")
-            print("Yeni Kalibrasyon Verileri:")
-            print(calibration_data)
+            print("Kalibrasyon Bilgileri:")
+            print(f"Seri No: {sensor.get_info(rs.camera_info.serial_number)}")
+            print(f"Firmware Versiyonu: {sensor.get_info(rs.camera_info.firmware_version)}")
+            
+            # Derinlik sensörü için özel bilgiler
+            if "Stereo Module" in sensor_name:
+                try:
+                    depth_scale = sensor.get_depth_scale()
+                    print(f"Derinlik Ölçeği: {depth_scale} metre/birim")
+                except Exception as e:
+                    print(f"Derinlik ölçeği alınamadı: {e}")
+                
         except Exception as e:
-            sensor_name = sensor.get_info(rs.camera_info.name)
-            print(f"\nSensör: {sensor_name}")
-            print("Bu sensör için kalibrasyon verisi okunamıyor.")
-            print("Hata:", e)
+            print(f"Bu sensör için bazı veriler okunamıyor: {e}")
 
 def main():
     # RealSense pipeline'ını başlatıyoruz.
