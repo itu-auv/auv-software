@@ -39,20 +39,22 @@ class LaunchTorpedoModule : public ModuleBase {
   bool launch_torpedo_1_handler(std_srvs::Trigger::Request &req,
                                 std_srvs::Trigger::Response &res) {
     res.success = send_hss_pulse(kLaunchTorpedo1ExtendedId);
-    res.message = "Torpedo 1 launched";
+    res.message =
+        res.success ? "Torpedo 1 launched" : "Failed to launch torpedo 1";
     return true;
   }
 
   bool launch_torpedo_2_handler(std_srvs::Trigger::Request &req,
                                 std_srvs::Trigger::Response &res) {
     res.success = send_hss_pulse(kLaunchTorpedo2ExtendedId);
-    res.message = "Torpedo 2 launched";
+    res.message =
+        res.success ? "Torpedo 2 launched" : "Failed to launch torpedo 2";
     return true;
   }
 
   virtual void on_received_message(auv_hardware::canbus::Identifier id,
-                                   const std::vector<uint8_t> &data) override {
-    //
+                                   const std::vector<uint8_t> &data) override{
+      //
   };
 
  protected:
