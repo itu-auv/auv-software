@@ -15,6 +15,7 @@ add_message_files(
   DistanceMeasurement.msg
   Power.msg
   QuadDrivePulse.msg
+  LatchedServo.msg
 )
 
 # add_service_files(
