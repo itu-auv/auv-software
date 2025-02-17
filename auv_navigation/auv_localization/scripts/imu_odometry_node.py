@@ -27,7 +27,7 @@ class ImuToOdom:
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
-        self.odom_msg.header.frame_id = "odom"
+        self.odom_msg.header.frame_id = "map"
         self.odom_msg.child_frame_id = "taluy/base_link"
 
         # Initialize covariances with zeros
