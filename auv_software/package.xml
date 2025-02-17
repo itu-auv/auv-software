@@ -7,12 +7,12 @@
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
-  <depend>auv_description</depend>
-  <depend>auv_bringup</depend>
-  <depend>auv_control</depend>
-  <depend>auv_navigation</depend>
-  <depend>auv_localization</depend>
-  <depend>auv_vision</depend>
+  <exec_depend>auv_description</exec_depend>
+  <exec_depend>auv_bringup</exec_depend>
+  <exec_depend>auv_control</exec_depend>
+  <exec_depend>auv_navigation</exec_depend>
+  <exec_depend>auv_localization</exec_depend>
+  <exec_depend>auv_vision</exec_depend>
   <export>
 
   </export>

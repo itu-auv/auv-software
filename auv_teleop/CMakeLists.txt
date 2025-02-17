@@ -12,7 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
   # INCLUDE_DIRS include
   # LIBRARIES acado_dynamics
-  #  CATKIN_DEPENDS message_generation message_runtime roscpp
+  CATKIN_DEPENDS geometry_msgs sensor_msgs
   #  DEPENDS system_lib
 )
 
