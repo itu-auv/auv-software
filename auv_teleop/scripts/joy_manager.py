@@ -95,32 +95,61 @@ class JoystickNode:
                 self.joy_data.buttons[self.buttons["drop_ball"]]
             )
 
+    def get_axis_value(self, indices):
+        if isinstance(indices, list):
+            return sum(self.joy_data.axes[i] for i in indices)
+        return self.joy_data.axes[indices]
+
+    def get_z_axis_value(self):
+        # Check if using Xbox controller configuration (with +/- z buttons)
+        if "z_axis_pos" in self.buttons and "z_axis_neg" in self.buttons:
+            pos_value = (
+                self.joy_data.buttons[self.buttons["z_axis_pos"]["index"]]
+                * self.buttons["z_axis_pos"]["gain"]
+            )
+            neg_value = (
+                self.joy_data.buttons[self.buttons["z_axis_neg"]["index"]]
+                * self.buttons["z_axis_neg"]["gain"]
+            )
+            return pos_value - neg_value
+        # Check if using Joy controller configuration (with z_control button)
+        elif (
+            "z_control" in self.buttons
+            and self.joy_data.buttons[self.buttons["z_control"]]
+        ):
+            return (
+                self.get_axis_value(self.axes["z_axis"]["index"])
+                * self.axes["z_axis"]["gain"]
+            )
+        return 0.0
+
     def run(self):
         while not rospy.is_shutdown():
             twist = Twist()
 
             with self.lock:
                 if self.joy_data:
-                    # Use axes with gain
-                    if self.joy_data.buttons[self.buttons["z_control"]]:
+                    # Get z-axis value based on controller type
+                    twist.linear.z = self.get_z_axis_value()
+
+                    # Set x-axis value
+                    if (
+                        "z_control" in self.buttons
+                        and self.joy_data.buttons[self.buttons["z_control"]]
+                    ):
                         twist.linear.x = 0.0
-                        twist.linear.z = (
-                            self.joy_data.axes[self.axes["z_axis"]["index"]]
-                            * self.axes["z_axis"]["gain"]
-                        )
                     else:
                         twist.linear.x = (
-                            self.joy_data.axes[self.axes["x_axis"]["index"]]
+                            self.get_axis_value(self.axes["x_axis"]["index"])
                             * self.axes["x_axis"]["gain"]
                         )
-                        twist.linear.z = 0.0
 
                     twist.linear.y = (
-                        self.joy_data.axes[self.axes["y_axis"]["index"]]
+                        self.get_axis_value(self.axes["y_axis"]["index"])
                         * self.axes["y_axis"]["gain"]
                     )
                     twist.angular.z = (
-                        self.joy_data.axes[self.axes["yaw_axis"]["index"]]
+                        self.get_axis_value(self.axes["yaw_axis"]["index"])
                         * self.axes["yaw_axis"]["gain"]
                     )
                 else:
