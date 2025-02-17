@@ -57,7 +57,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_GATE_DEPTH",
                 SetDepthState(depth=gate_depth, sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0)),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
+                    "succeeded": "PLAN_GATE_PATHS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -66,7 +66,7 @@ class NavigateThroughGateState(smach.State):
                 "PLAN_GATE_PATHS",
                 PlanGatePathsState(self.tf_buffer),
                 transitions={
-                    "succeeded": "EXECUTE_GATE_PATHS",
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -77,7 +77,7 @@ class NavigateThroughGateState(smach.State):
                     source_frame="taluy/base_link", target_frame="dynamic_target"
                 ),
                 transitions={
-                    "succeeded": "PLAN_GATE_PATHS",
+                    "succeeded": "EXECUTE_GATE_PATHS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
