@@ -102,14 +102,14 @@ class JoystickNode:
 
     def get_z_axis_value(self):
         # Check if using Xbox controller configuration (with +/- z buttons)
-        if "+z_axis" in self.buttons and "-z_axis" in self.buttons:
+        if "z_axis_pos" in self.buttons and "z_axis_neg" in self.buttons:
             pos_value = (
-                self.joy_data.buttons[self.buttons["+z_axis"]["index"]]
-                * self.buttons["+z_axis"]["gain"]
+                self.joy_data.buttons[self.buttons["z_axis_pos"]["index"]]
+                * self.buttons["z_axis_pos"]["gain"]
             )
             neg_value = (
-                self.joy_data.buttons[self.buttons["-z_axis"]["index"]]
-                * self.buttons["-z_axis"]["gain"]
+                self.joy_data.buttons[self.buttons["z_axis_neg"]["index"]]
+                * self.buttons["z_axis_neg"]["gain"]
             )
             return pos_value - neg_value
         # Check if using Joy controller configuration (with z_control button)
