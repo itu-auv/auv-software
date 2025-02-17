@@ -1,0 +1,12 @@
+# Goal
+nav_msgs/Path path
+
+---
+# Result
+bool success
+float32 execution_time  # Time taken to execute the action in seconds
+
+---
+# Feedback
+float32 distance_to_goal
+float32 progress
