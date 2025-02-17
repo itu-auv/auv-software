@@ -5,30 +5,37 @@ import tf2_ros
 import geometry_msgs.msg
 import math
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import SetBool, SetBoolResponse
 import tf
 import sys
 
 
 class TransformServiceNode:
     def __init__(self):
+        self.enable = False
         rospy.init_node("create_gate_frames_node")
-
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.set_object_transform_service = rospy.ServiceProxy(
-            "/taluy/map/set_object_transform", SetObjectTransform
+            "map/set_object_transform", SetObjectTransform
         )
         self.set_object_transform_service.wait_for_service()
 
-        self.frame1 = "gate_blue_arrow_link"
-        self.frame2 = "gate_red_arrow_link"
-        self.new_frame_away = "gate_exit"
-        self.new_frame_closer = "gate_enterance"
-        self.world_frame = "odom"
+        self.frame1 = rospy.get_param("~gate_frame1", "gate_blue_arrow_link")
+        self.frame2 = rospy.get_param("~gate_frame2", "gate_red_arrow_link")
+        self.new_frame_away = rospy.get_param("~gate_exit_frame", "gate_exit")
+        self.new_frame_closer = rospy.get_param(
+            "~gate_enterance_frame", "gate_enterance"
+        )
+        self.selected_frame = rospy.get_param(
+            "~gate_selected_frame", "gate_blue_arrow_link"
+        )
+        self.world_frame = rospy.get_param("~world_frame", "odom")
 
-        self.selected_frame = "gate_blue_arrow_link"
+        self.set_enable_service = rospy.Service(
+            "set_transform_gate_trajectory", SetBool, self.handle_enable_service
+        )
 
     def create_new_frames(self):
         try:
@@ -148,10 +155,17 @@ class TransformServiceNode:
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
 
+    def handle_enable_service(self, req):
+        self.enable = req.data
+        message = f"Gate trajectory transform publish is set to: {self.enable}"
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
     def spin(self):
         rate = rospy.Rate(2.0)
         while not rospy.is_shutdown():
-            self.create_new_frames()
+            if self.enable:
+                self.create_new_frames()
             rate.sleep()
 
 
