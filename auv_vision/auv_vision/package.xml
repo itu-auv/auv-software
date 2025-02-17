@@ -6,8 +6,12 @@
   <maintainer email="mimarlarf@gmail.com">Faruk Mimarlar</maintainer>
   <author email="mimarlarf@gmail.com">Faruk Mimarlar</author>
   <license>BSD-3-Clause</license>
-  <buildtool_depend>catkin</buildtool_depend>
+  <buildtool_depend>catkin</buildtool_depend>x"
   <depend>auv_detection</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>tf</depend>
   <export>
   </export>
 </package>
