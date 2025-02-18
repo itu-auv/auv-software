@@ -1,5 +1,5 @@
 <sdf version="1.6">
-  <model name="torpedo_one">
+  <model name="torpedo">
     <link name="torpedo_body">
       <inertial>
         <mass>0.5</mass>
