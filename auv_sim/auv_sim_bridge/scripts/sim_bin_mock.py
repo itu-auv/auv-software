@@ -32,7 +32,6 @@ def handle_drop_ball(req):
             with open(model_path, "r") as f:
                 model_xml = f.read()
 
-            # Try to spawn the model
             spawn_response = spawn_model(ball_name, model_xml, "", pose, "world")
             if spawn_response.success:
                 rospy.loginfo(f"{ball_file} dropped successfully!")
