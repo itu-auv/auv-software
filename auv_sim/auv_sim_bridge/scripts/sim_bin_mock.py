@@ -19,7 +19,7 @@ def handle_drop_ball(req):
         rospack = rospkg.RosPack()
         pkg_path = rospack.get_path("auv_sim_description")
 
-        ball_models = [("ball_one.sdf", "sphere_one"), ("ball_two.sdf", "sphere_two")]
+        ball_models = [("ball.sdf", "sphere_one"), ("ball.sdf", "sphere_two")]
 
         vehicle_state = get_model_state("taluy", "world")
         pose = Pose()
@@ -55,7 +55,7 @@ def handle_drop_ball(req):
 
 def drop_ball_server():
     rospy.init_node("drop_ball_server")
-    rospy.Service("/taluy/actuators/ball_dropper/drop", Trigger, handle_drop_ball)
+    rospy.Service("actuators/ball_dropper/drop", Trigger, handle_drop_ball)
     rospy.loginfo("Drop ball service is ready.")
     rospy.spin()
 
