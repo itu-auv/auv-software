@@ -15,7 +15,6 @@ from tf.transformations import (
     quaternion_matrix,
 )
 
-# Constants for torpedo configurations
 TORPEDO_MODELS = {
     1: ("torpedo.sdf", "torpedo_one"),
     2: ("torpedo.sdf", "torpedo_two"),
@@ -133,26 +132,21 @@ def update_torpedo_z_velocity(model_name, torpedo_id, world_velocity):
 def handle_torpedo_launch(req, torpedo_id):
     """Main function to handle torpedo launch."""
     try:
-        # Wait for necessary services
         rospy.wait_for_service("/gazebo/spawn_sdf_model")
         rospy.wait_for_service("/gazebo/get_model_state")
         rospy.wait_for_service("/gazebo/set_model_state")
 
-        # Get model details and vehicle state
         model_file, model_name = get_torpedo_model_details(torpedo_id)
         quat, roll, pitch, yaw, vehicle_state = get_vehicle_orientation_and_position()
 
-        # Calculate torpedo pose and twist
         pose, rot_matrix = calculate_torpedo_pose(
             vehicle_state, quat, roll, pitch, yaw, torpedo_id
         )
         twist, world_velocity = calculate_torpedo_twist(rot_matrix)
 
-        # Spawn torpedo model
         spawn_response = spawn_torpedo_model(model_name, pose, torpedo_id)
 
         if spawn_response.success:
-            # Set torpedo model state
             set_model_state = rospy.ServiceProxy(
                 "/gazebo/set_model_state", SetModelState
             )
@@ -166,7 +160,6 @@ def handle_torpedo_launch(req, torpedo_id):
             )
             rospy.loginfo(f"Torpedo {torpedo_id} launched successfully!")
 
-            # Start Z velocity update thread
             update_torpedo_z_velocity(model_name, torpedo_id, world_velocity)
 
             return TriggerResponse(
