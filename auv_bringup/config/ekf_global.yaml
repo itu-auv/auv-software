@@ -39,7 +39,7 @@ odom0_differential: false
 odom0_relative: false
 
 odom1: /taluy/localization/odom_pressure
-odom1_config: [false, false, false,
+odom1_config: [false, false, true,
                false, false, false,
                false, false, false,
                false, false, false,
