@@ -29,7 +29,7 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 // POSSIBILITY OF SUCH DAMAGE.
 
-#include <auv_cam/auv_camera_ros.h>
+#include <auv_hardware_bridge/auv_camera_ros.h>
 
 #include <boost/array.hpp>
 #include <boost/range/algorithm.hpp>
