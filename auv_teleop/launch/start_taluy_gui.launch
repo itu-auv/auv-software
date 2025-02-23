@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Start the PyQt5 GUI for Taluy -->
+    <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen"/>
+</launch>
