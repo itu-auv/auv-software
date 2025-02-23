@@ -10,11 +10,11 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QLabel,
     QGroupBox,
-    QFormLayout,
     QTabWidget,
     QTextEdit,
     QDoubleSpinBox,
     QGridLayout,
+    QCheckBox,
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 
@@ -73,18 +73,14 @@ class AUVControlGUI(QWidget):
 
         # Services Group
         self.services_group = QGroupBox("Services")
-        services_layout = (
-            QVBoxLayout()
-        )  # QVBoxLayout kullanarak dikey boşluk ekleyeceğiz
+        services_layout = QVBoxLayout()
 
         # Depth DoubleSpinBox
         self.depth_spinbox = QDoubleSpinBox()
-        self.depth_spinbox.setRange(
-            0.0, 3.0
-        )  # Set the range of the spinbox (0.0 to 3.0)
-        self.depth_spinbox.setSingleStep(0.1)  # Set the step size to 0.1
-        self.depth_spinbox.setValue(1.0)  # Set the default value to 1.0
-        self.depth_spinbox.setDecimals(1)  # Show only one decimal place
+        self.depth_spinbox.setRange(-3.0, 0.0)
+        self.depth_spinbox.setSingleStep(0.1)
+        self.depth_spinbox.setValue(-1.0)
+        self.depth_spinbox.setDecimals(1)
 
         self.depth_button = QPushButton("Set Depth")
         self.depth_button.clicked.connect(self.set_depth)
@@ -96,13 +92,13 @@ class AUVControlGUI(QWidget):
         depth_row.addWidget(self.depth_button)
 
         services_layout.addLayout(depth_row)
-        services_layout.addSpacing(20)  # Boşluk ekle
+        services_layout.addSpacing(20)
 
         # Localization Button
         self.localization_button = QPushButton("Start Localization")
         self.localization_button.clicked.connect(self.start_localization)
         services_layout.addWidget(self.localization_button)
-        services_layout.addSpacing(20)  # Boşluk ekle
+        services_layout.addSpacing(20)
 
         # DVL Button
         self.dvl_button = QPushButton("Enable DVL")
@@ -114,18 +110,35 @@ class AUVControlGUI(QWidget):
 
         # Launch Group
         self.launch_group = QGroupBox("Launch")
-        launch_layout = QVBoxLayout()  # QVBoxLayout kullanarak dikey boşluk ekleyeceğiz
+        launch_layout = QVBoxLayout()
 
-        # Teleop Button
+        # Teleop Button with Checkbox and Stop Button
+        teleop_layout = QHBoxLayout()
         self.teleop_button = QPushButton("Start Teleop")
         self.teleop_button.clicked.connect(self.start_teleop)
-        launch_layout.addWidget(self.teleop_button)
-        launch_layout.addSpacing(20)  # Boşluk ekle
+        teleop_layout.addWidget(self.teleop_button)
 
-        # Detection Button
+        self.xbox_checkbox = QCheckBox("Xbox")
+        teleop_layout.addWidget(self.xbox_checkbox)
+
+        self.stop_teleop_button = QPushButton("Stop Teleop")
+        self.stop_teleop_button.clicked.connect(self.stop_teleop)
+        teleop_layout.addWidget(self.stop_teleop_button)
+
+        launch_layout.addLayout(teleop_layout)
+        launch_layout.addSpacing(20)
+
+        # Detection Button with Stop Button
+        detection_layout = QHBoxLayout()
         self.detection_button = QPushButton("Start Detection")
         self.detection_button.clicked.connect(self.start_detection)
-        launch_layout.addWidget(self.detection_button)
+        detection_layout.addWidget(self.detection_button)
+
+        self.stop_detection_button = QPushButton("Stop Detection")
+        self.stop_detection_button.clicked.connect(self.stop_detection)
+        detection_layout.addWidget(self.stop_detection_button)
+
+        launch_layout.addLayout(detection_layout)
 
         self.launch_group.setLayout(launch_layout)
         self.tab_launch.setLayout(launch_layout)
@@ -151,7 +164,7 @@ class AUVControlGUI(QWidget):
         echo_buttons_layout.addWidget(self.stop_bar30_button)
 
         dry_test_layout.addLayout(echo_buttons_layout)
-        dry_test_layout.addSpacing(20)  # Boşluk ekle
+        dry_test_layout.addSpacing(20)
 
         self.rqt_image_view_button = QPushButton("Open rqt_image_view")
         self.rqt_image_view_button.clicked.connect(self.start_rqt_image_view)
@@ -160,7 +173,7 @@ class AUVControlGUI(QWidget):
         # Output log display
         self.output_display = QTextEdit()
         self.output_display.setReadOnly(True)
-        self.output_display.setMinimumHeight(300)  # Dikeyde büyütme
+        self.output_display.setMinimumHeight(300)
         dry_test_layout.addWidget(self.output_display)
 
         self.dry_test_group.setLayout(dry_test_layout)
@@ -236,8 +249,11 @@ class AUVControlGUI(QWidget):
 
         self.setLayout(layout)
 
+        # Dictionary to store subprocesses
+        self.processes = {}
+
     def set_depth(self):
-        depth = self.depth_spinbox.value()  # Get the value directly as a float
+        depth = self.depth_spinbox.value()
         command = f'rosservice call /taluy/set_depth "target_depth: {depth}"'
         print(f"Executing: {command}")
         subprocess.Popen(command, shell=True)
@@ -253,14 +269,50 @@ class AUVControlGUI(QWidget):
         subprocess.Popen(command, shell=True)
 
     def start_teleop(self):
-        command = "roslaunch auv_teleop start_teleop.launch"
+        if self.xbox_checkbox.isChecked():
+            command = "roslaunch auv_teleop start_teleop.launch controller:=xbox"
+        else:
+            command = "roslaunch auv_teleop start_teleop.launch"
         print(f"Executing: {command}")
-        subprocess.Popen(command, shell=True)
+        self.processes["teleop"] = subprocess.Popen(command, shell=True)
+
+    def stop_teleop(self):
+        if "teleop" in self.processes:
+            self.processes["teleop"].terminate()
+            self.processes["teleop"].wait()
+            del self.processes["teleop"]
+            self.output_display.append("Teleop Stopped")
+
+        # Kill /taluy/joy_node and /taluy/joystick_node
+        kill_joy_node = "rosnode kill /taluy/joy_node"
+        kill_joystick_node = "rosnode kill /taluy/joystick_node"
+        subprocess.Popen(kill_joy_node, shell=True)
+        subprocess.Popen(kill_joystick_node, shell=True)
+        self.output_display.append("Killed /taluy/joy_node and /taluy/joystick_node")
+
+        # Reset cmd_vel topic
+        reset_command = '''rostopic pub /taluy/cmd_vel geometry_msgs/Twist -1 "linear:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        angular:
+          x: 0.0
+          y: 0.0
+          z: 0.0"'''
+        subprocess.Popen(reset_command, shell=True)
+        self.output_display.append("cmd_vel topic reset to zero")
 
     def start_detection(self):
         command = "roslaunch auv_detection tracker.launch"
         print(f"Executing: {command}")
-        subprocess.Popen(command, shell=True)
+        self.processes["detection"] = subprocess.Popen(command, shell=True)
+
+    def stop_detection(self):
+        if "detection" in self.processes:
+            self.processes["detection"].terminate()
+            self.processes["detection"].wait()
+            del self.processes["detection"]
+            self.output_display.append("Detection Stopped")
 
     def echo_imu(self):
         if hasattr(self, "imu_thread"):
