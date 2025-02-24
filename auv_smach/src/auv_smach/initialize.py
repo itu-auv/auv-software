@@ -135,11 +135,12 @@ class InitializeState(smach.State):
                 "ODOMETRY_ENABLE",
                 OdometryEnableState(),
                 transitions={
-                    "succeeded": "RESET_ODOMETRY_POSE",
+                    "succeeded": "SET_START_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            """
             smach.StateMachine.add(
                 "RESET_ODOMETRY_POSE",
                 ResetOdometryPoseState(),
@@ -158,7 +159,7 @@ class InitializeState(smach.State):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )
+            )"""
             smach.StateMachine.add(
                 "SET_START_FRAME",
                 SetStartFrameState(frame_name="mission_start_link"),

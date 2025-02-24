@@ -9,6 +9,7 @@ from std_srvs.srv import Trigger, TriggerResponse
 import tf
 import sys
 
+GATE_DEPTH = -1.7
 
 class TransformServiceNode:
     def __init__(self):
@@ -92,15 +93,15 @@ class TransformServiceNode:
                 entrance_x, entrance_y, entrance_z = (
                     new_x_closer,
                     new_y_closer,
-                    selected_z,
+                    GATE_DEPTH,
                 )
                 entrance_quat = quat_closer
-                exit_x, exit_y, exit_z = new_x_away, new_y_away, selected_z
+                exit_x, exit_y, exit_z = new_x_away, new_y_away, GATE_DEPTH
                 exit_quat = quat_away
             else:
-                entrance_x, entrance_y, entrance_z = new_x_away, new_y_away, selected_z
+                entrance_x, entrance_y, entrance_z = new_x_away, new_y_away, GATE_DEPTH
                 entrance_quat = quat_away
-                exit_x, exit_y, exit_z = new_x_closer, new_y_closer, selected_z
+                exit_x, exit_y, exit_z = new_x_closer, new_y_closer, GATE_DEPTH
                 exit_quat = quat_closer
 
             # Create TransformStamped messages for entrance and exit
