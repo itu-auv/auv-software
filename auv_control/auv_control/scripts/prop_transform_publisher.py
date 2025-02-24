@@ -309,13 +309,22 @@ class ObjectPositionEstimator:
         self.set_object_transform_service = rospy.ServiceProxy(
             "/taluy/map/set_object_transform", SetObjectTransform
         )
-        self.set_object_transform_service.wait_for_service()
-
+        rospy.loginfo("Waiting for set_object_transform service...")
+        rospy.wait_for_service('/taluy/map/set_object_transform')
+        rospy.loginfo("set_object_transform service is ready.")
+        # Initialize altitude storage
+        self.latest_altitude = None
+        
         # Subscriptions
-        yolo_result_subscriber = message_filters.Subscriber("/yolo_result", YoloResult)
-        altitude_subscriber = message_filters.Subscriber(
-            "/taluy/sensors/dvl/altitude", Float32
-        )
+        rospy.loginfo("Setting up subscriber for /yolo_result")
+        rospy.Subscriber("/yolo_result", YoloResult, self.callback)
+        rospy.loginfo("Setting up subscriber for /taluy/sensors/dvl/altitude")
+        rospy.Subscriber("/taluy/sensors/dvl/altitude", Float32, self.altitude_callback)
+        
+        #yolo_result_subscriber = message_filters.Subscriber("/yolo_result", YoloResult)
+        #altitude_subscriber = message_filters.Subscriber(
+        #    "/taluy/sensors/dvl/altitude", Float32
+        #)
         front_sonar_range_subscriber = message_filters.Subscriber(
             "/taluy/sensors/sonar_front/range", Range
         )
@@ -324,15 +333,20 @@ class ObjectPositionEstimator:
         # self.dvl_callback = rospy.Subscriber("/taluy/sensors/dvl/altitude", Float32, self.dvl_callback)
         # self.latest_altitude = None
 
-        ts = message_filters.ApproximateTimeSynchronizer(
+        """ts = message_filters.ApproximateTimeSynchronizer(
             [yolo_result_subscriber, altitude_subscriber],
             10,
-            0.5,
+            slop=2.0,
             allow_headerless=True,
-        )
-        ts.registerCallback(self.callback)
+        )"""
+        #ts.registerCallback(self.callback)
         rospy.loginfo("Object position estimator node initialized")
 
+    def altitude_callback(self, msg: Float32):
+        rospy.loginfo("Entering altitude callback function")
+        self.latest_altitude = msg.data
+        rospy.loginfo(f"Updated altitude: {self.latest_altitude}")
+        
     def scene_transform_publisher_callback(self, event):
         # first update scene objects
         self.scene.update_objects()
@@ -429,34 +443,59 @@ class ObjectPositionEstimator:
             return False
         return True
 
-    def callback(self, detection_msg: YoloResult, altitude_msg: Float32):
-        print("Received messages")
-        for detection in detection_msg.detections.detections:
-            if len(detection.results) == 0:
-                continue
+    def callback(self, detection_msg: YoloResult):
+        rospy.loginfo("Entering callback function")
 
-            altitude = altitude_msg.data
+        current_time = rospy.Time.now().to_sec()
+        if hasattr(detection_msg, 'header'):
+            detection_time = detection_msg.header.stamp.to_sec()
+            time_diff = current_time - detection_time
+            rospy.loginfo(f"Time difference: {time_diff}")
+            rospy.loginfo("Callback triggered at: %.6f", current_time)
+            rospy.loginfo("Detection message timestamp: %.6f", detection_time)
+            rospy.loginfo("Time difference (current - detection): %.6f sec", time_diff)
+        else:
+            rospy.loginfo("Detection message has no header. Current time: %.6f", current_time)
+        for detection in detection_msg.detections.detections:
+            rospy.loginfo(f"Detection ID: {detection.results[0].id}")
+            if len(detection.results) == 0:
+                rospy.loginfo("No results in detection, skipping")
+                continue
+            rospy.loginfo("Detections found in message")
+
+            if self.latest_altitude is not None:
+                altitude = self.latest_altitude
+                rospy.loginfo(f"Altitude: {altitude}")
+            else:
+                rospy.logwarn("Altitude data not available yet!")
+                continue
 
             detection_id = detection.results[0].id
 
             if detection_id in self.id_tf_map["taluy/cameras/cam_front"]:
+                rospy.loginfo("Detection ID in id_tf_map")
                 detection_name = self.id_tf_map["taluy/cameras/cam_front"][detection_id]
 
                 if detection_id == 9:
+                    rospy.loginfo("Processing altitude projection")
                     self.process_altitude_projection(detection, altitude)
                     continue
 
                 if detection_name in self.props:
+                    rospy.loginfo(f"Detection name {detection_name} in props")
                     prop = self.props[detection_name]
                     measured_height = detection.bbox.size_y
                     measured_width = detection.bbox.size_x
                     if self.check_if_detection_is_inside_image(detection) == False:
+                        rospy.loginfo("Detection outside image, skipping")
                         continue
+                    rospy.loginfo("Attempting distance estimation")
                     distance = prop.estimate_distance(
                         measured_height,
                         measured_width,
                         self.camera_calibrations["taluy/cameras/cam_front"],
                     )
+                    rospy.loginfo(f"Estimated distance: {distance}")
                     if distance is not None:
                         detection_distance = Float32()
                         detection_distance.data = distance
@@ -466,6 +505,11 @@ class ObjectPositionEstimator:
                         self.process_front_estimated_camera(
                             detection, distance, suffix="average"
                         )
+                else:
+                    rospy.loginfo(f"Detection name {detection_name} not in props")
+            else:
+                rospy.loginfo("Detection ID not in id_tf_map")
+        rospy.loginfo("Exiting callback function")
 
             # if detection_id in self.id_tf_map["taluy/cameras/cam_front"]:
 
