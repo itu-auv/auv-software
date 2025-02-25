@@ -4,7 +4,7 @@
 #include <dynamic_reconfigure/server.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_listener.h>
-
+#include "tf2_ros/buffer.h"
 #include <type_traits>
 
 #include "auv_common_lib/ros/conversions.h"
@@ -39,7 +39,11 @@ class ControllerROS {
       auv::common::ros::SubscriberWithTimeout<std_msgs::Bool>;
 
   ControllerROS(const ros::NodeHandle& nh)
-      : nh_{nh}, rate_{1.0}, control_enable_sub_{nh} {
+      : nh_{nh},
+        rate_{1.0},
+        control_enable_sub_{nh},
+        tf_buffer_{},
+        tf_listener_{tf_buffer_} {
     ros::NodeHandle nh_private("~");
 
     // default_frame as a ros parameter (default is odom)
@@ -52,6 +56,9 @@ class ControllerROS {
 
     const auto rate = nh_private.param("rate", 10.0);
     rate_ = ros::Rate{rate};
+
+    nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
+    nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
 
     ROS_INFO_STREAM("kp: \n" << kp_.transpose());
     ROS_INFO_STREAM("ki: \n" << ki_.transpose());
@@ -95,7 +102,7 @@ class ControllerROS {
         ros::Duration{1.0});
     control_enable_sub_.set_default_message(std_msgs::Bool{});
 
-    wrench_pub_ = nh_.advertise<geometry_msgs::Wrench>("wrench", 1);
+    wrench_pub_ = nh_.advertise<geometry_msgs::WrenchStamped>("wrench", 1);
   }
 
   bool load_controller(const std::string& controller_name) {
@@ -125,19 +132,25 @@ class ControllerROS {
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
-      const auto wrench_msg =
-          (is_control_enabled() && !is_timeouted())
-              ? auv::common::conversions::convert<ControllerBase::WrenchVector,
-                                                  geometry_msgs::Wrench>(
-                    control_output)
-              : geometry_msgs::Wrench{};
-
-      wrench_pub_.publish(wrench_msg);
+      geometry_msgs::WrenchStamped wrench_msg;
+      if (is_control_enabled() && !is_timeouted()) {
+        wrench_msg.header.stamp = ros::Time::now();
+        wrench_msg.header.frame_id = body_frame_;
+        wrench_msg.wrench =
+            auv::common::conversions::convert<ControllerBase::WrenchVector,
+                                              geometry_msgs::Wrench>(
+                control_output);
+        wrench_pub_.publish(wrench_msg);
+      }
     }
   }
 
  private:  
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
+  std::string body_frame_;
+  double transform_timeout_;
 
   bool is_timeouted() const {
     return (ros::Time::now() - latest_command_time_).toSec() > 1.0;
