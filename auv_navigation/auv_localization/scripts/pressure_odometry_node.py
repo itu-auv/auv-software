@@ -26,6 +26,12 @@ class PressureToOdom:
             "localization/odom_pressure", Odometry, queue_size=10
         )
 
+        # Initialize the last logged state
+        self.last_logged_state = None
+
+        # Timer for logging every 3 seconds
+        self.last_log_time = rospy.Time.now()
+
         # Initialize the odometry message
         self.odom_msg = Odometry()
         self.odom_msg.header.frame_id = "odom"
@@ -94,6 +100,29 @@ class PressureToOdom:
                     + dy * math.sin(roll) * math.cos(pitch)
                 )
 
+                # Log information based on the value of rotated_z
+
+                if rotated_z > -0.06 and self.last_logged_state != "lower_than_6":
+                    message = "height difference between base_link and pressure sensor is lower than 6"
+                    rospy.loginfo(
+                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
+                    )
+                    self.last_logged_state = "lower_than_6"
+                elif rotated_z > -0.07 and self.last_logged_state != "lower_than_7":
+                    message = "height difference between base_link and pressure sensor is lower than 7"
+                    rospy.loginfo(
+                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
+                    )
+                    self.last_logged_state = "lower_than_7"
+                elif rotated_z < -0.08 and self.last_logged_state != "higher_than_8":
+                    message = "height difference between base_link and pressure sensor is higher than 8"
+                    rospy.loginfo(
+                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
+                    )
+                    self.last_logged_state = "higher_than_8"
+                elif -0.07 <= rotated_z <= -0.08:
+                    self.last_logged_state = None
+
                 return rotated_z
         except Exception as e:
             rospy.logerr(f"Error in get_base_to_pressure_height: {e}")
@@ -104,8 +133,18 @@ class PressureToOdom:
         self.odom_msg.header.stamp = rospy.Time.now()
 
         calibrated_depth = depth_msg.data + self.depth_calibration_offset
+        base_to_pressure_height = self.get_base_to_pressure_height()
+        base_depth = calibrated_depth + base_to_pressure_height
 
-        base_depth = calibrated_depth + self.get_base_to_pressure_height()
+        # Log information every 3 seconds
+        current_time = rospy.Time.now()
+        if (current_time - self.last_log_time).to_sec() >= 3.0:
+            rospy.loginfo(f"depth_msg_data: {depth_msg.data}")
+            rospy.loginfo(f"depth_calibration_offset: {self.depth_calibration_offset}")
+            rospy.loginfo(f"calibrated_depth: {calibrated_depth}")
+            rospy.loginfo(f"base_to_pressure_height: {base_to_pressure_height}")
+            rospy.loginfo(f"base_depth: {base_depth}")
+            self.last_log_time = current_time
 
         # Set the z component in pose position to the depth value
         self.odom_msg.pose.pose.position.z = base_depth
