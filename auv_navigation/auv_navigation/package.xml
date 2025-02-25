@@ -15,7 +15,6 @@
   <depend>geometry_msgs</depend>
   <depend>tf2_ros</depend>
   <depend>auv_msgs</depend>
-  
   <export>
 
   </export>
