@@ -140,6 +140,44 @@ class AUVControlGUI(QWidget):
 
         launch_layout.addLayout(detection_layout)
 
+        # SMACH State Machine Section
+        smach_group = QGroupBox("SMACH State Machine")
+        smach_layout = QVBoxLayout()
+
+        # SMACH Control Row
+        smach_control_layout = QHBoxLayout()
+        self.smach_launch_btn = QPushButton("Launch SMACH")
+        self.smach_launch_btn.clicked.connect(self.launch_smach)
+        self.test_mode_check = QCheckBox("Test Mode")
+        self.smach_stop_btn = QPushButton("Stop SMACH")
+        self.smach_stop_btn.clicked.connect(self.stop_smach)
+
+        smach_control_layout.addWidget(self.smach_launch_btn)
+        smach_control_layout.addWidget(self.test_mode_check)
+        smach_control_layout.addWidget(self.smach_stop_btn)
+        smach_layout.addLayout(smach_control_layout)
+
+        # State Checkboxes
+        self.state_checks = {}
+        state_check_layout = QHBoxLayout()
+        for state in ["init", "gate", "torpedo", "bin", "octagon"]:
+            cb = QCheckBox(state)
+            cb.setEnabled(False)
+            cb.stateChanged.connect(lambda val, s=state: self.update_states(val, s))
+            self.state_checks[state] = cb
+            state_check_layout.addWidget(cb)
+        smach_layout.addLayout(state_check_layout)
+
+        smach_group.setLayout(smach_layout)
+        launch_layout.addWidget(smach_group)
+
+        self.launch_group.setLayout(launch_layout)
+        self.tab_launch.setLayout(launch_layout)
+
+        # Initialize state tracking
+        self.test_states_order = []
+        self.test_mode_check.stateChanged.connect(self.toggle_test_mode)
+
         self.launch_group.setLayout(launch_layout)
         self.tab_launch.setLayout(launch_layout)
 
@@ -251,6 +289,35 @@ class AUVControlGUI(QWidget):
 
         # Dictionary to store subprocesses
         self.processes = {}
+
+    def toggle_test_mode(self, state):
+        enable = state == Qt.Checked
+        for cb in self.state_checks.values():
+            cb.setEnabled(enable)
+        if not enable:
+            self.test_states_order.clear()
+            for cb in self.state_checks.values():
+                cb.setChecked(False)
+
+    def update_states(self, checked, state):
+        if checked:
+            if state not in self.test_states_order:
+                self.test_states_order.append(state)
+        else:
+            if state in self.test_states_order:
+                self.test_states_order.remove(state)
+
+    def launch_smach(self):
+        cmd = "roslaunch auv_smach start.launch"
+        if self.test_mode_check.isChecked():
+            states = ",".join(self.test_states_order)
+            cmd += f" test_mode:=true test_states:={states}"
+        subprocess.Popen(cmd, shell=True)
+        self.output_display.append(f"Launched SMACH: {cmd}")
+
+    def stop_smach(self):
+        subprocess.Popen("rosnode kill /taluy/main_state_machine", shell=True)
+        self.output_display.append("Stopped SMACH state machine")
 
     def set_depth(self):
         depth = self.depth_spinbox.value()
