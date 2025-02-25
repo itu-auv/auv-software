@@ -66,7 +66,9 @@ def concatenate_transforms(transform1, transform2):
     combined_matrix = multiply_transforms(transform1.transform, transform2.transform)
     return matrix_to_transform(combined_matrix)
 
+
 # ------------------- STATES -------------------
+
 
 class SetDepthState(smach_ros.ServiceState):
     def __init__(self, depth: float, sleep_duration=0.0):
@@ -244,19 +246,23 @@ class NavigateToFrameState(smach.State):
         ) as e:
             rospy.logwarn(f"TF lookup exception: {e}")
             return "aborted"
-            
+
+
 class ExecutePlannedPathsState(smach.State):
     """
     Uses the follow path action client to follow a set of planned paths.
     """
+
     def __init__(self):
-            smach.State.__init__(
-                self,
-                outcomes=["succeeded", "preempted", "aborted"],
-                input_keys=["planned_paths"] # expects the input value under the name "planned_paths"
-            )
-            self._client = None
-    
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            input_keys=[
+                "planned_paths"
+            ],  # expects the input value under the name "planned_paths"
+        )
+        self._client = None
+
     def execute(self, userdata) -> str:
         """
         Args:
@@ -266,9 +272,11 @@ class ExecutePlannedPathsState(smach.State):
             str: "succeeded" if execution was successful, otherwise "aborted" or "preempted".
         """
         if self._client is None:
-            rospy.logdebug("[ExecutePlannedPathsState] Initializing the FollowPathActionClient")
+            rospy.logdebug(
+                "[ExecutePlannedPathsState] Initializing the FollowPathActionClient"
+            )
             self._client = follow_path_action_client.FollowPathActionClient()
-        
+
         # Check for preemption before proceeding
         if self.preempt_requested():
             rospy.logwarn("[ExecutePlannedPathsState] Preempt requested")
@@ -277,12 +285,16 @@ class ExecutePlannedPathsState(smach.State):
             planned_paths = userdata.planned_paths
             success = self._client.execute_paths(planned_paths)
             if success:
-                rospy.logdebug("[ExecutePlannedPathsState] Planned paths executed successfully")
+                rospy.logdebug(
+                    "[ExecutePlannedPathsState] Planned paths executed successfully"
+                )
                 return "succeeded"
             else:
-                rospy.logwarn("[ExecutePlannedPathsState] Execution of planned paths failed")
+                rospy.logwarn(
+                    "[ExecutePlannedPathsState] Execution of planned paths failed"
+                )
                 return "aborted"
-            
+
         except Exception as e:
             rospy.logerr("[ExecutePlannedPathsState] Exception occurred: %s", str(e))
             return "aborted"
