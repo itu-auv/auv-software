@@ -40,7 +40,8 @@ class ReferencePosePublisherNode:
         self.target_depth = req.target_depth
         self.target_frame_id = req.frame_id
         return SetDepthResponse(
-            success=True, message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}"
+            success=True,
+            message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
         )
 
     def odometry_callback(self, msg):
