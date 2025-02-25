@@ -7,6 +7,9 @@
 #include "auv_msgs/MotorCommand.h"
 #include "auv_msgs/Power.h"
 #include "ros/ros.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
+#include "tf2_ros/buffer.h"
+#include "tf2_ros/transform_listener.h"
 
 namespace auv {
 namespace control {
@@ -19,7 +22,10 @@ class ThrusterManagerROS {
   using ThrusterEffortVector = ThrusterAllocator::ThrusterEffortVector;
 
   ThrusterManagerROS(const ros::NodeHandle &nh)
-      : nh_{nh}, allocator_{ros::NodeHandle{"~"}} {
+      : nh_{nh},
+        allocator_{ros::NodeHandle{"~"}},
+        tf_buffer_{},
+        tf_listener_{tf_buffer_} {
     ROS_INFO("ThrusterManagerROS initialized");
 
     ros::NodeHandle nh_private("~");
@@ -28,6 +34,8 @@ class ThrusterManagerROS {
     nh_private.getParam("mapping", mapping_);
     nh_private.getParam("max_thrust", max_wrench_);
     nh_private.getParam("min_thrust", min_wrench_);
+    nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
+    nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
 
     for (size_t i = 0; i < kThrusterCount; ++i) {
       thruster_wrench_pubs_[i] = nh_.advertise<geometry_msgs::WrenchStamped>(
@@ -54,8 +62,36 @@ class ThrusterManagerROS {
         rate.sleep();
         continue;
       }
+
       const auto wrench_msg = latest_wrench_.value();
-      auto thruster_efforts = allocator_.allocate(to_vector(wrench_msg));
+
+      // Transform wrench if frame_id is provided
+      geometry_msgs::WrenchStamped transformed_wrench = wrench_msg;
+      if (!wrench_msg.header.frame_id.empty() &&
+          wrench_msg.header.frame_id != body_frame_) {
+        try {
+          // Check if transform is available
+          tf_buffer_.canTransform(body_frame_, wrench_msg.header.frame_id,
+                                  ros::Time(0),
+                                  ros::Duration(transform_timeout_));
+
+          // Transform the wrench
+          tf2::doTransform(
+              wrench_msg, transformed_wrench,
+              tf_buffer_.lookupTransform(
+                  body_frame_, wrench_msg.header.frame_id, ros::Time(0)));
+        } catch (const tf2::TransformException &ex) {
+          ROS_WARN_STREAM("Could not transform wrench from "
+                          << wrench_msg.header.frame_id << " to " << body_frame_
+                          << ": " << ex.what());
+          ros::spinOnce();
+          rate.sleep();
+          continue;
+        }
+      }
+
+      auto thruster_efforts =
+          allocator_.allocate(to_vector(transformed_wrench.wrench));
       allocator_.get_wrench_stamped_vector(thruster_efforts.value(),
                                            thruster_wrench_msgs_);
 
@@ -95,7 +131,7 @@ class ThrusterManagerROS {
     return (ros::Time::now() - latest_wrench_time_).toSec() > 1.0;
   }
 
-  void wrench_callback(const geometry_msgs::Wrench &msg) {
+  void wrench_callback(const geometry_msgs::WrenchStamped &msg) {
     latest_wrench_ = msg;
     latest_wrench_time_ = ros::Time::now();
   }
@@ -130,7 +166,7 @@ class ThrusterManagerROS {
 
   ros::NodeHandle nh_;
   ThrusterAllocator allocator_;
-  std::optional<geometry_msgs::Wrench> latest_wrench_;
+  std::optional<geometry_msgs::WrenchStamped> latest_wrench_;
   std::optional<auv_msgs::Power> latest_power_;
   ros::Time latest_wrench_time_{ros::Time(0)};
   std::array<ros::Publisher, kThrusterCount> thruster_wrench_pubs_;
@@ -139,6 +175,12 @@ class ThrusterManagerROS {
   ros::Subscriber wrench_sub_;
   ros::Subscriber power_sub_;
   ros::Publisher drive_pub_;
+
+  // TF related members
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
+  std::string body_frame_;
+  double transform_timeout_;
 
   std::vector<double> coeffs_ccw_;
   std::vector<double> coeffs_cw_;
