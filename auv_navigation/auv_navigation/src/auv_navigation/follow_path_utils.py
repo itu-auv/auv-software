@@ -8,12 +8,13 @@ import tf2_ros
 import tf2_geometry_msgs
 from typing import Optional, List, Tuple
 
-ZERO_DISTANCE_TOLERANCE: float = 1e-6  # Minimum distance to consider a path segment non-zero
+ZERO_DISTANCE_TOLERANCE: float = (
+    1e-6  # Minimum distance to consider a path segment non-zero
+)
 DYNAMIC_TARGET_FRAME: str = "dynamic_target"
 ODOM_FRAME: str = "odom"
 TIME_ZERO: rospy.Time = rospy.Time(0)
 TF_LOOKUP_TIMEOUT: rospy.Duration = rospy.Duration(1.0)
-
 
 
 def get_current_pose(
@@ -21,10 +22,7 @@ def get_current_pose(
 ) -> Optional[PoseStamped]:
     try:
         transform = tf_buffer.lookup_transform(
-            ODOM_FRAME,
-            source_frame,
-            TIME_ZERO,
-            TF_LOOKUP_TIMEOUT
+            ODOM_FRAME, source_frame, TIME_ZERO, TF_LOOKUP_TIMEOUT
         )
         pose = PoseStamped()
         pose.header.frame_id = ODOM_FRAME
@@ -32,7 +30,11 @@ def get_current_pose(
         pose.pose.position = transform.transform.translation
         pose.pose.orientation = transform.transform.rotation
         return pose
-    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+    except (
+        tf2_ros.LookupException,
+        tf2_ros.ConnectivityException,
+        tf2_ros.ExtrapolationException,
+    ) as e:
         rospy.logerr(f"Failed to get current pose: {e}")
         return None
 
@@ -57,13 +59,13 @@ def calculate_dynamic_target(
     while remaining_distance > 0 and current_index < len(path.poses) - 1:
         segment_start = path.poses[current_index].pose
         segment_end = path.poses[current_index + 1].pose
-        
+
         # Compute Euclidean distance between segment_start and segment_end.
         dx = segment_end.position.x - segment_start.position.x
         dy = segment_end.position.y - segment_start.position.y
         dz = segment_end.position.z - segment_start.position.z
         segment_distance = np.linalg.norm(np.array([dx, dy, dz]))
-        
+
         # Skip zero-length segments
         if segment_distance < ZERO_DISTANCE_TOLERANCE:
             current_index += 1
@@ -88,20 +90,19 @@ def calculate_dynamic_target(
     return path.poses[-1]
 
 
-def broadcast_dynamic_target_frame(tf_broadcaster: tf2_ros.TransformBroadcaster,
-                                tf_buffer: tf2_ros.Buffer,
-                                source_frame: str,
-                                dynamic_target_pose: PoseStamped) -> None:
+def broadcast_dynamic_target_frame(
+    tf_broadcaster: tf2_ros.TransformBroadcaster,
+    tf_buffer: tf2_ros.Buffer,
+    source_frame: str,
+    dynamic_target_pose: PoseStamped,
+) -> None:
     try:
         odom_to_source = tf_buffer.lookup_transform(
-            source_frame, 
-            ODOM_FRAME,
-            TIME_ZERO,
-            TF_LOOKUP_TIMEOUT
+            source_frame, ODOM_FRAME, TIME_ZERO, TF_LOOKUP_TIMEOUT
         )
         dynamic_target_in_source = tf2_geometry_msgs.do_transform_pose(
             dynamic_target_pose, odom_to_source
-            )
+        )
 
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
@@ -142,18 +143,21 @@ def find_closest_point_index(path: Path, current_pose: PoseStamped) -> int:
 
     return closest_index
 
-def is_segment_completed(current_pose: PoseStamped,
-                path: Path, segment_end_index: int) -> bool:
+
+def is_segment_completed(
+    current_pose: PoseStamped, path: Path, segment_end_index: int
+) -> bool:
     closest_index = find_closest_point_index(path, current_pose)
     return closest_index >= segment_end_index
+
 
 def combine_segments(paths: List[Path]) -> Tuple[Path, List[int]]:
     """
     Combines multiple path segments into a single path while keeping track of segment endpoints.
-    
+
     Args:
         paths: List of Path messages to combine
-        
+
     Returns:
         tuple containing:
             - Combined Path message
@@ -178,8 +182,13 @@ def combine_segments(paths: List[Path]) -> Tuple[Path, List[int]]:
 
     return combined_path, segment_endpoints
 
-def check_segment_progress(path: Path, current_pose: PoseStamped,
-                        current_segment_index: int, segment_endpoints: List[int]):
+
+def check_segment_progress(
+    path: Path,
+    current_pose: PoseStamped,
+    current_segment_index: int,
+    segment_endpoints: List[int],
+):
     """
     Args:
         path (Path): The combined path being followed.
@@ -192,17 +201,25 @@ def check_segment_progress(path: Path, current_pose: PoseStamped,
     """
     try:
         closest_index = find_closest_point_index(path, current_pose)
-        
-        path_start_index = 0 if current_segment_index == 0 else segment_endpoints[current_segment_index - 1] + 1
+
+        path_start_index = (
+            0
+            if current_segment_index == 0
+            else segment_endpoints[current_segment_index - 1] + 1
+        )
         segment_end_index = segment_endpoints[current_segment_index]
         closest_index = min(closest_index, segment_end_index)
 
-        path_length = max(1, (segment_end_index - path_start_index))  # Avoid division by zero
+        path_length = max(
+            1, (segment_end_index - path_start_index)
+        )  # Avoid division by zero
         current_path_progress = (closest_index - path_start_index) / path_length
         current_path_progress = max(0.0, min(1.0, current_path_progress))
 
         # Compute overall progress
-        overall_progress = closest_index / max(1, len(path.poses)) # Avoid division by zero
+        overall_progress = closest_index / max(
+            1, len(path.poses)
+        )  # Avoid division by zero
         overall_progress = max(0.0, min(1.0, overall_progress))
 
         return current_path_progress, overall_progress
