@@ -53,7 +53,7 @@ class AUVControlGUI(QWidget):
         super().__init__()
 
         self.setWindowTitle("Taluy AUV Control Panel")
-        self.setGeometry(100, 100, 600, 800)
+        self.setGeometry(100, 100, 100, 100)
 
         layout = QVBoxLayout()
 
@@ -104,6 +104,24 @@ class AUVControlGUI(QWidget):
         self.dvl_button = QPushButton("Enable DVL")
         self.dvl_button.clicked.connect(self.enable_dvl)
         services_layout.addWidget(self.dvl_button)
+        services_layout.addSpacing(20)
+
+        # Drop Ball Button
+        self.drop_ball_button = QPushButton("Drop Ball")
+        self.drop_ball_button.clicked.connect(self.drop_ball)
+        services_layout.addWidget(self.drop_ball_button)
+        services_layout.addSpacing(20)
+
+        # Torpedo 1 Button
+        self.torpedo_1_button = QPushButton("Launch Torpedo 1")
+        self.torpedo_1_button.clicked.connect(self.launch_torpedo_1)
+        services_layout.addWidget(self.torpedo_1_button)
+        services_layout.addSpacing(20)
+
+        # Torpedo 2 Button
+        self.torpedo_2_button = QPushButton("Launch Torpedo 2")
+        self.torpedo_2_button.clicked.connect(self.launch_torpedo_2)
+        services_layout.addWidget(self.torpedo_2_button)
 
         self.services_group.setLayout(services_layout)
         self.tab_services.setLayout(services_layout)
@@ -316,7 +334,7 @@ class AUVControlGUI(QWidget):
         self.output_display.append(f"Launched SMACH: {cmd}")
 
     def stop_smach(self):
-        subprocess.Popen("rosnode kill /taluy/main_state_machine", shell=True)
+        subprocess.Popen("rosnode kill /main_state_machine", shell=True)
         self.output_display.append("Stopped SMACH state machine")
 
     def set_depth(self):
@@ -332,6 +350,21 @@ class AUVControlGUI(QWidget):
 
     def enable_dvl(self):
         command = 'rosservice call /taluy/sensors/dvl/enable "data: true"'
+        print(f"Executing: {command}")
+        subprocess.Popen(command, shell=True)
+
+    def drop_ball(self):
+        command = "rosservice call /taluy/actuators/ball_dropper/drop"
+        print(f"Executing: {command}")
+        subprocess.Popen(command, shell=True)
+
+    def launch_torpedo_1(self):
+        command = "rosservice call /taluy/actuators/torpedo_1/launch"
+        print(f"Executing: {command}")
+        subprocess.Popen(command, shell=True)
+
+    def launch_torpedo_2(self):
+        command = "rosservice call /taluy/actuators/torpedo_2/launch"
         print(f"Executing: {command}")
         subprocess.Popen(command, shell=True)
 
