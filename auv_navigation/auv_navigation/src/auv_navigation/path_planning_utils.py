@@ -13,11 +13,14 @@ TIME_ZERO = rospy.Time(0)
 TF_LOOKUP_TIMEOUT = rospy.Duration(1.0)
 TWO_PI: float = 2 * np.pi
 
+
 class PathPlanningHelper:
     """Helper class containing static methods for path creation."""
 
     @staticmethod
-    def lookup_transform(tf_buffer: tf2_ros.Buffer, frame: str, fixed_frame: str = DEFAULT_FIXED_FRAME):
+    def lookup_transform(
+        tf_buffer: tf2_ros.Buffer, frame: str, fixed_frame: str = DEFAULT_FIXED_FRAME
+    ):
         """
         Looks up the transform for the given frame and returns its position and quaternion.
 
@@ -60,7 +63,13 @@ class PathPlanningHelper:
         return angular_diff
 
     @staticmethod
-    def interpolate_position(source_pos, target_pos, t: float, interpolate_xy: bool = True, interpolate_z: bool = True):
+    def interpolate_position(
+        source_pos,
+        target_pos,
+        t: float,
+        interpolate_xy: bool = True,
+        interpolate_z: bool = True,
+    ):
         """
         Linearly interpolates between two positions given a factor t [0,1]
 
@@ -90,7 +99,9 @@ class PathPlanningHelper:
         return interp_pos
 
     @staticmethod
-    def interpolate_orientation(source_euler, angular_diff: float, t: float, interpolate_yaw: bool = True):
+    def interpolate_orientation(
+        source_euler, angular_diff: float, t: float, interpolate_yaw: bool = True
+    ):
         """
         Interpolates the yaw component between the source and target orientations based on the flag.
 
@@ -114,9 +125,17 @@ class PathPlanningHelper:
         return tf.transformations.quaternion_from_euler(roll, pitch, new_yaw)
 
     @staticmethod
-    def generate_waypoints(header, source_position, target_position, source_euler,
-                           angular_diff: float, num_waypoints: int,
-                           interpolate_xy: bool, interpolate_z: bool, interpolate_yaw: bool):
+    def generate_waypoints(
+        header,
+        source_position,
+        target_position,
+        source_euler,
+        angular_diff: float,
+        num_waypoints: int,
+        interpolate_xy: bool,
+        interpolate_z: bool,
+        interpolate_yaw: bool,
+    ):
         """
         Generates a list of PoseStamped waypoints interpolated between the source and target.
 
@@ -149,7 +168,7 @@ class PathPlanningHelper:
         return poses
 
     @staticmethod
-    def create_path_header(frame_id: str) -> rospy.Header: 
+    def create_path_header(frame_id: str) -> rospy.Header:
         """
         Creates header for the Path message.
         """
@@ -167,8 +186,3 @@ class PathPlanningHelper:
         path.header = header
         path.poses = poses
         return path
-    
-
-
-    
-

@@ -10,13 +10,16 @@ from auv_navigation.path_planning_utils import PathPlanningHelper
 
 DEFAULT_HEADER_FRAME: str = "odom"
 BASE_LINK_FRAME: str = "taluy/base_link"
-GATE_ENTRANCE_FRAME: str = "gate_enterance"  #TODO (somebody) fix the typo: enterance -> entrance
+GATE_ENTRANCE_FRAME: str = (
+    "gate_enterance"  # TODO (somebody) fix the typo: enterance -> entrance
+)
 GATE_EXIT_FRAME: str = "gate_exit"
+
 
 class PathPlanners:
     def __init__(self, tf_buffer: tf2_ros.Buffer):
         self.tf_buffer = tf_buffer
-        
+
     def straight_path_to_frame(
         self,
         source_frame: str,
@@ -54,12 +57,16 @@ class PathPlanners:
             )
 
             # Apply angle_offset to the target quaternion.
-            final_target_quat = PathPlanningHelper.apply_angle_offset(target_quaternion, angle_offset)
+            final_target_quat = PathPlanningHelper.apply_angle_offset(
+                target_quaternion, angle_offset
+            )
 
             # Get euler of source and target.
             source_euler = tf.transformations.euler_from_quaternion(source_quaternion)
-            final_target_euler = tf.transformations.euler_from_quaternion(final_target_quat)
-            
+            final_target_euler = tf.transformations.euler_from_quaternion(
+                final_target_quat
+            )
+
             # Compute the angular difference (yaw only).
             angular_diff = PathPlanningHelper.compute_angular_difference(
                 source_euler, final_target_euler, n_turns
@@ -88,7 +95,8 @@ class PathPlanners:
             rospy.logerr(f"Error in straight_path_to_frame: {e}")
             return None
 
-    def path_for_gate(self, path_creation_timeout: float = 10.0
+    def path_for_gate(
+        self, path_creation_timeout: float = 10.0
     ) -> Optional[List[Path]]:
         """
         Plans paths for the gate task, which includes the two paths:
@@ -101,38 +109,48 @@ class PathPlanners:
             # Plan path to gate entrance
             entrance_path = None
             exit_path = None
-            
+
             while (rospy.Time.now() - start_time).to_sec() < path_creation_timeout:
                 try:
                     # create the first segment
                     if entrance_path is None:
                         entrance_path = self.straight_path_to_frame(
                             source_frame=BASE_LINK_FRAME,
-                            target_frame=GATE_ENTRANCE_FRAME
+                            target_frame=GATE_ENTRANCE_FRAME,
                         )
-                    #create the second segment
+                    # create the second segment
                     if exit_path is None:
                         exit_path = self.straight_path_to_frame(
                             source_frame=GATE_ENTRANCE_FRAME,
                             target_frame=GATE_EXIT_FRAME,
-                            n_turns=1
+                            n_turns=1,
                         )
                     if entrance_path is not None and exit_path is not None:
                         return [entrance_path, exit_path]
-                    rospy.logwarn("[GatePathPlanner] Failed to plan paths, retrying... Time elapsed: %.1f seconds", 
-                                (rospy.Time.now() - start_time).to_sec())
+                    rospy.logwarn(
+                        "[GatePathPlanner] Failed to plan paths, retrying... Time elapsed: %.1f seconds",
+                        (rospy.Time.now() - start_time).to_sec(),
+                    )
                     rospy.sleep(0.5)
-                    
-                except (tf2_ros.LookupException, 
-                        tf2_ros.ConnectivityException, 
-                        tf2_ros.ExtrapolationException) as e:
-                    rospy.logwarn("[GatePathPlanner] TF error while planning paths: %s. Retrying...", str(e))
+
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
+                ) as e:
+                    rospy.logwarn(
+                        "[GatePathPlanner] TF error while planning paths: %s. Retrying...",
+                        str(e),
+                    )
                     rospy.sleep(0.5)
-            
+
             # If we get here, we timed out
-            rospy.logwarn("[GatePathPlanner] Failed to plan paths after %.1f seconds", path_creation_timeout)
+            rospy.logwarn(
+                "[GatePathPlanner] Failed to plan paths after %.1f seconds",
+                path_creation_timeout,
+            )
             return None
-            
+
         except Exception as e:
             rospy.logwarn("[GatePathPlanner] Error in gate path planning: %s", str(e))
             return None
