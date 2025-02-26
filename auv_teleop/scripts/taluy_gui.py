@@ -63,11 +63,13 @@ class AUVControlGUI(QWidget):
         self.tab_launch = QWidget()
         self.tab_dry_test = QWidget()
         self.tab_vehicle_control = QWidget()
+        self.tab_simulation = QWidget()
 
         self.tab_widget.addTab(self.tab_services, "Services")
         self.tab_widget.addTab(self.tab_launch, "Launch")
         self.tab_widget.addTab(self.tab_dry_test, "Dry Test")
         self.tab_widget.addTab(self.tab_vehicle_control, "Vehicle Control")
+        self.tab_widget.addTab(self.tab_simulation, "Simulation")
 
         layout.addWidget(self.tab_widget)
 
@@ -146,6 +148,12 @@ class AUVControlGUI(QWidget):
         launch_layout.addLayout(teleop_layout)
         launch_layout.addSpacing(20)
 
+        self.launch_group.setLayout(launch_layout)
+        self.tab_launch.setLayout(launch_layout)
+
+        # Simulation Tab
+        simulation_layout = QVBoxLayout()
+
         # Detection Button with Stop Button
         detection_layout = QHBoxLayout()
         self.detection_button = QPushButton("Start Detection")
@@ -156,7 +164,8 @@ class AUVControlGUI(QWidget):
         self.stop_detection_button.clicked.connect(self.stop_detection)
         detection_layout.addWidget(self.stop_detection_button)
 
-        launch_layout.addLayout(detection_layout)
+        simulation_layout.addLayout(detection_layout)
+        simulation_layout.addSpacing(20)
 
         # SMACH State Machine Section
         smach_group = QGroupBox("SMACH State Machine")
@@ -187,17 +196,13 @@ class AUVControlGUI(QWidget):
         smach_layout.addLayout(state_check_layout)
 
         smach_group.setLayout(smach_layout)
-        launch_layout.addWidget(smach_group)
+        simulation_layout.addWidget(smach_group)
 
-        self.launch_group.setLayout(launch_layout)
-        self.tab_launch.setLayout(launch_layout)
+        self.tab_simulation.setLayout(simulation_layout)
 
         # Initialize state tracking
         self.test_states_order = []
         self.test_mode_check.stateChanged.connect(self.toggle_test_mode)
-
-        self.launch_group.setLayout(launch_layout)
-        self.tab_launch.setLayout(launch_layout)
 
         # Dry Test Group
         self.dry_test_group = QGroupBox("Dry Test")
@@ -239,7 +244,7 @@ class AUVControlGUI(QWidget):
         self.vehicle_control_group = QGroupBox("Vehicle Control")
         vehicle_control_layout = QGridLayout()
 
-        # Buton boyutlarını kare yapma
+        # Button sizes
         button_size = 70
 
         # Forward Button
@@ -383,14 +388,12 @@ class AUVControlGUI(QWidget):
             del self.processes["teleop"]
             self.output_display.append("Teleop Stopped")
 
-        # Kill /taluy/joy_node and /taluy/joystick_node
         kill_joy_node = "rosnode kill /taluy/joy_node"
         kill_joystick_node = "rosnode kill /taluy/joystick_node"
         subprocess.Popen(kill_joy_node, shell=True)
         subprocess.Popen(kill_joystick_node, shell=True)
         self.output_display.append("Killed /taluy/joy_node and /taluy/joystick_node")
 
-        # Reset cmd_vel topic
         reset_command = '''rostopic pub /taluy/cmd_vel geometry_msgs/Twist -1 "linear:
           x: 0.0
           y: 0.0
