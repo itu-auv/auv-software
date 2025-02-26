@@ -106,23 +106,33 @@ class AUVControlGUI(QWidget):
         self.dvl_button = QPushButton("Enable DVL")
         self.dvl_button.clicked.connect(self.enable_dvl)
         services_layout.addWidget(self.dvl_button)
-        services_layout.addSpacing(20)
+        services_layout.addSpacing(5)
+
+        # Missions Toggle Button
+        self.missions_button = QCheckBox("Missions")
+        self.missions_button.setCheckable(True)
+        self.missions_button.toggled.connect(self.toggle_missions_buttons)
+        services_layout.addWidget(self.missions_button)
+        services_layout.addSpacing(5)
 
         # Drop Ball Button
         self.drop_ball_button = QPushButton("Drop Ball")
         self.drop_ball_button.clicked.connect(self.drop_ball)
+        self.drop_ball_button.setEnabled(False)  # Initially disabled
         services_layout.addWidget(self.drop_ball_button)
         services_layout.addSpacing(20)
 
         # Torpedo 1 Button
         self.torpedo_1_button = QPushButton("Launch Torpedo 1")
         self.torpedo_1_button.clicked.connect(self.launch_torpedo_1)
+        self.torpedo_1_button.setEnabled(False)  # Initially disabled
         services_layout.addWidget(self.torpedo_1_button)
         services_layout.addSpacing(20)
 
         # Torpedo 2 Button
         self.torpedo_2_button = QPushButton("Launch Torpedo 2")
         self.torpedo_2_button.clicked.connect(self.launch_torpedo_2)
+        self.torpedo_2_button.setEnabled(False)  # Initially disabled
         services_layout.addWidget(self.torpedo_2_button)
 
         self.services_group.setLayout(services_layout)
@@ -312,6 +322,13 @@ class AUVControlGUI(QWidget):
 
         # Dictionary to store subprocesses
         self.processes = {}
+
+    def toggle_missions_buttons(self, checked):
+        self.drop_ball_button.setEnabled(checked)
+        self.torpedo_1_button.setEnabled(checked)
+        self.torpedo_2_button.setEnabled(checked)
+        status = "enabled" if checked else "disabled"
+        self.output_display.append(f"Missions buttons {status}")
 
     def toggle_test_mode(self, state):
         enable = state == Qt.Checked
