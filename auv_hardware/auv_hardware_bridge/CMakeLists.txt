@@ -13,6 +13,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 
 catkin_package(
   INCLUDE_DIRS include
+  CATKIN_DEPENDS roscpp
 )
 
 include_directories(
