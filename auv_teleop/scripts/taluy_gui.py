@@ -178,7 +178,7 @@ class AUVControlGUI(QWidget):
         simulation_layout.addSpacing(20)
 
         # SMACH State Machine Section
-        smach_group = QGroupBox("SMACH State Machine")
+        smach_group = QGroupBox("State Machine")
         smach_layout = QVBoxLayout()
 
         # SMACH Control Row
@@ -428,11 +428,8 @@ class AUVControlGUI(QWidget):
         self.processes["detection"] = subprocess.Popen(command, shell=True)
 
     def stop_detection(self):
-        if "detection" in self.processes:
-            self.processes["detection"].terminate()
-            self.processes["detection"].wait()
-            del self.processes["detection"]
-            self.output_display.append("Detection Stopped")
+        subprocess.Popen("rosnode kill /tracker_node", shell=True)
+        self.output_display.append("Stopped detection tracker")
 
     def echo_imu(self):
         if hasattr(self, "imu_thread"):
