@@ -60,13 +60,11 @@ class AUVControlGUI(QWidget):
         # Tab Widget to organize the interface into different sections
         self.tab_widget = QTabWidget()
         self.tab_services = QWidget()
-        self.tab_launch = QWidget()
         self.tab_dry_test = QWidget()
         self.tab_vehicle_control = QWidget()
         self.tab_simulation = QWidget()
 
         self.tab_widget.addTab(self.tab_services, "Services")
-        self.tab_widget.addTab(self.tab_launch, "Launch")
         self.tab_widget.addTab(self.tab_dry_test, "Dry Test")
         self.tab_widget.addTab(self.tab_vehicle_control, "Vehicle Control")
         self.tab_widget.addTab(self.tab_simulation, "Simulation")
@@ -137,29 +135,6 @@ class AUVControlGUI(QWidget):
 
         self.services_group.setLayout(services_layout)
         self.tab_services.setLayout(services_layout)
-
-        # Launch Group
-        self.launch_group = QGroupBox("Launch")
-        launch_layout = QVBoxLayout()
-
-        # Teleop Button with Checkbox and Stop Button
-        teleop_layout = QHBoxLayout()
-        self.teleop_button = QPushButton("Start Teleop")
-        self.teleop_button.clicked.connect(self.start_teleop)
-        teleop_layout.addWidget(self.teleop_button)
-
-        self.xbox_checkbox = QCheckBox("Xbox")
-        teleop_layout.addWidget(self.xbox_checkbox)
-
-        self.stop_teleop_button = QPushButton("Stop Teleop")
-        self.stop_teleop_button.clicked.connect(self.stop_teleop)
-        teleop_layout.addWidget(self.stop_teleop_button)
-
-        launch_layout.addLayout(teleop_layout)
-        launch_layout.addSpacing(20)
-
-        self.launch_group.setLayout(launch_layout)
-        self.tab_launch.setLayout(launch_layout)
 
         # Simulation Tab
         simulation_layout = QVBoxLayout()
@@ -254,6 +229,23 @@ class AUVControlGUI(QWidget):
         self.vehicle_control_group = QGroupBox("Vehicle Control")
         vehicle_control_layout = QGridLayout()
 
+        # Teleop Button with Checkbox and Stop Button
+        teleop_layout = QHBoxLayout()
+        self.teleop_button = QPushButton("Start Teleop")
+        self.teleop_button.clicked.connect(self.start_teleop)
+        teleop_layout.addWidget(self.teleop_button)
+
+        self.xbox_checkbox = QCheckBox("Xbox")
+        teleop_layout.addWidget(self.xbox_checkbox)
+
+        self.stop_teleop_button = QPushButton("Stop Teleop")
+        self.stop_teleop_button.clicked.connect(self.stop_teleop)
+        teleop_layout.addWidget(self.stop_teleop_button)
+
+        vehicle_control_layout.addLayout(
+            teleop_layout, 0, 0, 1, 7
+        )  # Adjust the position as needed
+
         # Button sizes
         button_size = 70
 
@@ -262,21 +254,21 @@ class AUVControlGUI(QWidget):
         self.forward_button.setFixedSize(button_size, button_size)
         self.forward_button.pressed.connect(lambda: self.send_cmd_vel("forward", 0.5))
         self.forward_button.released.connect(lambda: self.send_cmd_vel("forward", 0.0))
-        vehicle_control_layout.addWidget(self.forward_button, 0, 1)
+        vehicle_control_layout.addWidget(self.forward_button, 1, 1)
 
         # Left Button
         self.left_button = QPushButton("LEFT")
         self.left_button.setFixedSize(button_size, button_size)
         self.left_button.pressed.connect(lambda: self.send_cmd_vel("left", 0.5))
         self.left_button.released.connect(lambda: self.send_cmd_vel("left", 0.0))
-        vehicle_control_layout.addWidget(self.left_button, 1, 0)
+        vehicle_control_layout.addWidget(self.left_button, 2, 0)
 
         # Right Button
         self.right_button = QPushButton("RIGHT")
         self.right_button.setFixedSize(button_size, button_size)
         self.right_button.pressed.connect(lambda: self.send_cmd_vel("right", 0.5))
         self.right_button.released.connect(lambda: self.send_cmd_vel("right", 0.0))
-        vehicle_control_layout.addWidget(self.right_button, 1, 2)
+        vehicle_control_layout.addWidget(self.right_button, 2, 2)
 
         # Backward Button
         self.backward_button = QPushButton("BACKWARD")
@@ -285,35 +277,35 @@ class AUVControlGUI(QWidget):
         self.backward_button.released.connect(
             lambda: self.send_cmd_vel("backward", 0.0)
         )
-        vehicle_control_layout.addWidget(self.backward_button, 2, 1)
+        vehicle_control_layout.addWidget(self.backward_button, 3, 1)
 
         # Up Button
         self.up_button = QPushButton("UP")
         self.up_button.setFixedSize(button_size, button_size)
         self.up_button.pressed.connect(lambda: self.send_cmd_vel("pos_z", 0.4))
         self.up_button.released.connect(lambda: self.send_cmd_vel("pos_z", 0.0))
-        vehicle_control_layout.addWidget(self.up_button, 0, 5)
+        vehicle_control_layout.addWidget(self.up_button, 1, 5)
 
         # Down Button
         self.down_button = QPushButton("DOWN")
         self.down_button.setFixedSize(button_size, button_size)
         self.down_button.pressed.connect(lambda: self.send_cmd_vel("neg_z", 0.4))
         self.down_button.released.connect(lambda: self.send_cmd_vel("neg_z", 0.0))
-        vehicle_control_layout.addWidget(self.down_button, 2, 5)
+        vehicle_control_layout.addWidget(self.down_button, 3, 5)
 
         # Pos Yaw Button
         self.pos_yaw_button = QPushButton("YAW+")
         self.pos_yaw_button.setFixedSize(button_size, button_size)
         self.pos_yaw_button.pressed.connect(lambda: self.send_cmd_vel("pos_yaw", 0.3))
         self.pos_yaw_button.released.connect(lambda: self.send_cmd_vel("pos_yaw", 0.0))
-        vehicle_control_layout.addWidget(self.pos_yaw_button, 1, 4)
+        vehicle_control_layout.addWidget(self.pos_yaw_button, 2, 4)
 
         # Neg Yaw Button
         self.neg_yaw_button = QPushButton("YAW-")
         self.neg_yaw_button.setFixedSize(button_size, button_size)
         self.neg_yaw_button.pressed.connect(lambda: self.send_cmd_vel("neg_yaw", 0.3))
         self.neg_yaw_button.released.connect(lambda: self.send_cmd_vel("neg_yaw", 0.0))
-        vehicle_control_layout.addWidget(self.neg_yaw_button, 1, 6)
+        vehicle_control_layout.addWidget(self.neg_yaw_button, 2, 6)
 
         self.vehicle_control_group.setLayout(vehicle_control_layout)
         self.tab_vehicle_control.setLayout(vehicle_control_layout)
