@@ -106,24 +106,18 @@ class FollowPathActionServer:
 
         if not goal.path or not goal.path.poses:
             rospy.logerr("Received invalid path")
-            self.server.set_aborted(FollowPathResult(success=False, execution_time=0.0))
+            self.server.set_aborted(FollowPathResult(success=False))
             return
 
-        start_time = rospy.Time.now()
         success = self.do_path_following(path=goal.path)
-        execution_time = (rospy.Time.now() - start_time).to_sec()
 
-        result = FollowPathResult(success=success, execution_time=execution_time)
+        result = FollowPathResult(success=success)
 
         if success:
-            rospy.logdebug(
-                f"Path following succeeded. Execution time: {execution_time:.2f} seconds"
-            )
+            rospy.logdebug(f"Path following succeeded.")
             self.server.set_succeeded(result)
         else:
-            rospy.logdebug(
-                f"Path following did not succeed. Execution time: {execution_time:.2f} seconds"
-            )
+            rospy.logdebug(f"Path following did not succeed.")
             if not self.server.is_preempt_requested():
                 self.server.set_aborted(result)
 

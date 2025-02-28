@@ -1,7 +1,0 @@
-string target_frame
-float64 angle_offset
-bool keep_orientation
-bool do_planning
----
-bool success
-string message

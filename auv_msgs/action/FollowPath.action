@@ -4,7 +4,6 @@ nav_msgs/Path path
 ---
 # Result
 bool success
-float32 execution_time  # Time taken to execute the action in seconds
 
 ---
 # Feedback
