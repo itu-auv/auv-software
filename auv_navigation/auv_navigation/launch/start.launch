@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+
+  <group ns="$(arg namespace)">
+    <node
+      pkg="auv_navigation"
+      type="follow_path_action_server.py"
+      name="follow_path_action_server"
+      output="screen">
+    </node>
+  </group>
+</launch>

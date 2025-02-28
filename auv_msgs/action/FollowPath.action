@@ -1,0 +1,11 @@
+# Goal
+nav_msgs/Path path
+
+---
+# Result
+bool success
+
+---
+# Feedback
+float32 distance_to_goal
+float32 progress
