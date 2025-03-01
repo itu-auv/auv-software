@@ -59,4 +59,8 @@
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="logging_directory" value="$(arg logging_directory)" />
   </include>
+
+  <include file="$(find auv_vision)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
 </launch>
