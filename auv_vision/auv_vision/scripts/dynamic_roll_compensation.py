@@ -14,12 +14,15 @@ class DynamicRollCompensationNode:
         self.bridge = CvBridge()
         self.roll_angle_deg = 0.0
         
+        # Subscribe to the IMU data
         self.imu_subscriber = rospy.Subscriber(
             "sensors/imu/data", Imu, self.imu_callback, tcp_nodelay=True
         )
         
-        self.image_sub = rospy.Subscriber("/cameras/cam_front/image_rect_color/compressed", Image, self.image_callback)
+        # Subscribe to the raw camera image topic
+        self.image_sub = rospy.Subscriber("cameras/cam_front/image_raw", Image, self.image_callback)
         
+        # Publisher for the corrected (or unmodified) image
         self.image_pub = rospy.Publisher("cameras/cam_front/image_corrected", Image, queue_size=10)
         
         rospy.loginfo("Dynamic roll compensation node started.")
@@ -45,6 +48,7 @@ class DynamicRollCompensationNode:
     def image_callback(self, img_msg):
         """
         Callback to process the incoming camera image using the dynamic roll angle.
+        If the absolute roll angle is greater than 30 degrees, the image is published without correction.
         """
         try:
             # Convert the ROS image message to an OpenCV image (assumed "bgr8")
@@ -53,6 +57,13 @@ class DynamicRollCompensationNode:
             rospy.logerr("CvBridge error: %s", e)
             return
 
+        # Check if the roll angle exceeds 30 degrees
+        if abs(self.roll_angle_deg) > 30:
+            rospy.logwarn("Roll angle (%.2f) exceeds 30 degrees. Publishing unmodified image.", self.roll_angle_deg)
+            # Publish the original image message without modification
+            self.image_pub.publish(img_msg)
+            return
+        
         # Get image dimensions and compute the center of the image
         (h, w) = cv_image.shape[:2]
         center = (w // 2, h // 2)
@@ -71,7 +82,7 @@ class DynamicRollCompensationNode:
             rospy.logerr("CvBridge error: %s", e)
             return
 
-        # Retain the original header (if needed)
+        # Retain the original header
         corrected_img_msg.header = img_msg.header
 
         # Publish the roll-compensated image
