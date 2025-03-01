@@ -70,7 +70,7 @@ class DynamicRollCompensationNode:
         
         # Compute the rotation matrix for the current roll compensation angle.
         # A positive angle rotates the image counter-clockwise.
-        M = cv2.getRotationMatrix2D(center, self.roll_angle_deg, 1.0)
+        M = cv2.getRotationMatrix2D(center, -self.roll_angle_deg, 1.0)
         
         # Rotate the image using the computed matrix
         rotated_image = cv2.warpAffine(cv_image, M, (w, h))
