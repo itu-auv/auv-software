@@ -12,5 +12,7 @@
     </node>
   </group>
 
-  <node pkg="auv_control" type="prop_transform_publisher.py" name="prop_transform_publisher" output="screen" />
+  <node pkg="auv_control" type="camera_detection_node.py" name="camera_detection_node" output="screen" />
+  <node pkg="auv_control" type="mapping_node.py" name="mapping_node" output="screen" />
+
 </launch>
