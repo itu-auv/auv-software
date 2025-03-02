@@ -8,9 +8,12 @@ from PyQt5.QtWidgets import (
     QTextEdit,
     QHBoxLayout,
     QGridLayout,
+    QSpacerItem,
+    QSizePolicy,
 )
 from command_thread import CommandThread
 import subprocess
+import rospy
 
 
 class DryTestTab(QWidget):
@@ -50,12 +53,26 @@ class DryTestTab(QWidget):
         self.output = QTextEdit()
         self.output.setReadOnly(True)
 
-        # Image View
+        # Buttons
+        button_layout = QVBoxLayout()
+        self.dry_test_btn = QPushButton("Automatic Dry Test")
+        self.dry_test_btn.setStyleSheet("background-color: green; color: white;")
+
         self.rqt_btn = QPushButton("Open rqt_image_view")
+        self.rqt_btn.setStyleSheet("background-color: lightblue; color: black;")
+
+        button_layout.addWidget(self.dry_test_btn)
+        button_layout.addSpacing(10)
+        button_layout.addWidget(self.rqt_btn)
 
         layout.addWidget(sensor_group, 0, 0)
-        layout.addWidget(self.rqt_btn, 1, 0)
+        layout.addLayout(button_layout, 1, 0)
         layout.addWidget(self.output, 2, 0)
+
+        # Clear Button below output
+        self.clear_btn = QPushButton("Clear")
+        layout.addWidget(self.clear_btn, 3, 0)
+
         self.setLayout(layout)
 
         # Connections
@@ -64,6 +81,8 @@ class DryTestTab(QWidget):
         self.bar30_start_btn.clicked.connect(self.start_bar30)
         self.bar30_stop_btn.clicked.connect(self.stop_bar30)
         self.rqt_btn.clicked.connect(self.open_rqt)
+        self.dry_test_btn.clicked.connect(self.run_dry_test)
+        self.clear_btn.clicked.connect(self.clear_output)
 
     def start_imu(self):
         self.imu_thread = CommandThread("rostopic echo /taluy/sensors/imu/data")
@@ -87,3 +106,28 @@ class DryTestTab(QWidget):
 
     def open_rqt(self):
         subprocess.Popen("rqt_image_view", shell=True)
+
+    def run_dry_test(self):
+        topics = {
+            "/taluy/cameras/cam_bottom/image_raw": "Bottom Camera",
+            "/taluy/cameras/cam_front/image_raw": "Front Camera",
+            "/taluy/sensors/imu/data": "IMU",
+            "/taluy/sensors/external_pressure_sensor/depth": "Bar30",
+        }
+
+        active_topics = rospy.get_published_topics()
+        active_topics = [t[0] for t in active_topics]
+
+        failed_topics = [
+            name for topic, name in topics.items() if topic not in active_topics
+        ]
+
+        if not failed_topics:
+            self.output.append("Dry test is successful!")
+        else:
+            self.output.append(
+                "Dry test failed! Issues detected in:\n" + "\n".join(failed_topics)
+            )
+
+    def clear_output(self):
+        self.output.clear()
