@@ -170,14 +170,10 @@ class MappingNode:
 
     def scene_transform_publisher_callback(self, event):
         objects = self.scene.get_objects()
-        
-        if not objects:
-            return
-
-        current_time = rospy.Time.now()
 
         for obj_id, obj_list in objects.items():
             if obj_id not in id_to_name_map:
+                rospy.logwarn(f"Object ID {obj_id} not found in id_to_name_map")
                 continue
 
             obj_name = id_to_name_map[obj_id]
@@ -187,49 +183,57 @@ class MappingNode:
             min_distance = float('inf')
             
             for obj in obj_list:
-                # Get the filtered position of the object
-                x, y, z = obj.filtered_x, obj.filtered_y, obj.filtered_z
+                point = PointStamped()
+                point.header.frame_id = "odom"
+                point.point.x = obj.filtered_x
+                point.point.y = obj.filtered_y
+                point.point.z = obj.filtered_z
                 
-                # Calculate distance to base_link (assuming base_link is at origin)
-                distance = math.sqrt(x*x + y*y + z*z)
+                try:
+                    transform = self.tf_buffer.lookup_transform(
+                        "taluy/base_link/front_camera_optical_link", "odom", rospy.Time(0), rospy.Duration(1.0)
+                    )
+                    point_base = tf2_geometry_msgs.do_transform_point(point, transform)
+                    
+                    distance = math.sqrt(
+                        point_base.point.x**2 + 
+                        point_base.point.y**2 + 
+                        point_base.point.z**2
+                    )
+                    
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_object = obj
+                        
+                except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                    rospy.logerr(f"Error looking up transform: {e}")
+                    continue
+            
+            # Publish transforms for all objects
+            for obj in obj_list:
+                transform = TransformStamped()
+                transform.header.stamp = rospy.Time.now()
+                transform.header.frame_id = "odom"
                 
-                if distance < min_distance:
-                    min_distance = distance
-                    closest_object = obj
-            
-            if closest_object is None:
-                continue
+                # Set child frame ID based on whether it's the closest object
+                if obj == closest_object:
+                    transform.child_frame_id = f"{obj_name}_link"
+                else:
+                    transform.child_frame_id = f"{obj_name}_{obj_list.index(obj)}_link"
                 
-            # Create and fill transform message
-            transform = TransformStamped()
-            
-            # Set time stamp
-            transform.header.stamp = current_time
-            
-            # Set frames
-            transform.header.frame_id = "odom"
-            
-            # If there are multiple objects of the same type, append a number
-            if len(obj_list) > 1:
-                # Find the index of this object in the list
-                obj_index = obj_list.index(closest_object) + 1
-                transform.child_frame_id = f"{obj_name}_{obj_index}_link"
-            else:
-                transform.child_frame_id = f"{obj_name}_link"
-            
-            # Set translation
-            transform.transform.translation.x = closest_object.filtered_x
-            transform.transform.translation.y = closest_object.filtered_y
-            transform.transform.translation.z = closest_object.filtered_z
-            
-            # Set rotation (identity quaternion as we don't track orientation)
-            transform.transform.rotation.x = 0.0
-            transform.transform.rotation.y = 0.0
-            transform.transform.rotation.z = 0.0
-            transform.transform.rotation.w = 1.0
-            
-            # Broadcast transform
-            self.broadcaster.sendTransform(transform)
+                # Set translation
+                transform.transform.translation.x = obj.filtered_x
+                transform.transform.translation.y = obj.filtered_y
+                transform.transform.translation.z = obj.filtered_z
+                
+                # Set rotation (identity quaternion)
+                transform.transform.rotation.w = 1.0
+                transform.transform.rotation.x = 0.0
+                transform.transform.rotation.y = 0.0
+                transform.transform.rotation.z = 0.0
+                
+                # Broadcast transform
+                self.broadcaster.sendTransform(transform)
 
         # Update filtered positions
         self.scene.update_objects()
