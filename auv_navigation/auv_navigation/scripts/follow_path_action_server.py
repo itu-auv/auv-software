@@ -139,7 +139,7 @@ class FollowPathActionServer:
             self.server.set_aborted(FollowPathResult(success=False, execution_time=0.0))
             return
 
-        success = self.do_path_following(path=goal.path)
+        success = self.do_path_following(combined_path, segment_endpoints)
 
         result = FollowPathResult(success=success)
 
