@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
 )
+from PyQt5.QtCore import Qt
 import subprocess
 
 
@@ -43,7 +44,7 @@ class SimulationTab(QWidget):
 
         # State Checkboxes
         state_row = QHBoxLayout()
-        self.states = ["init", "gate", "torpedo", "bin", "octagon"]
+        self.states = ["init", "gate", "buoy", "torpedo", "bin", "octagon"]
         self.state_checks = {state: QCheckBox(state) for state in self.states}
         for cb in self.state_checks.values():
             state_row.addWidget(cb)
@@ -69,6 +70,17 @@ class SimulationTab(QWidget):
         self.smach_stop.clicked.connect(
             lambda: subprocess.Popen("rosnode kill /main_state_machine", shell=True)
         )
+        self.test_check.stateChanged.connect(self.toggle_state_checks)
+
+        # Initial state
+        self.toggle_state_checks(Qt.Unchecked)
+
+    def toggle_state_checks(self, state):
+        enabled = state == Qt.Checked
+        for cb in self.state_checks.values():
+            cb.setEnabled(enabled)
+            if not enabled:
+                cb.setChecked(False)
 
     def start_smach(self):
         cmd = "roslaunch auv_smach start.launch"
@@ -77,4 +89,5 @@ class SimulationTab(QWidget):
                 [s for s, cb in self.state_checks.items() if cb.isChecked()]
             )
             cmd += f" test_mode:=true test_states:={states}"
+        print(f"Executing: {cmd}")
         subprocess.Popen(cmd, shell=True)
