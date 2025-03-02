@@ -37,7 +37,6 @@ find_package(OpenCV ${_opencv_version} REQUIRED
 
 catkin_package(
   INCLUDE_DIRS include
-#  LIBRARIES auv_cam
 #  CATKIN_DEPENDS cv_bridge roscpp
   DEPENDS OpenCV
 )
