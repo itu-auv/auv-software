@@ -11,7 +11,7 @@ from auv_msgs.msg import (
     FollowPathResult,
     FollowPathActionGoal,
 )
-from auv_navigation import follow_path_utils
+from auv_navigation import path_utils
 
 
 class FollowPathActionServer:
@@ -66,7 +66,7 @@ class FollowPathActionServer:
                 self.path_pub.publish(path)
 
                 # get current pose
-                current_pose = follow_path_utils.get_current_pose(
+                current_pose = path_utils.get_current_pose(
                     self.tf_buffer, self.source_frame
                 )
                 if current_pose is None:
@@ -74,7 +74,7 @@ class FollowPathActionServer:
                     self.loop_rate.sleep()
                     continue
 
-                dynamic_target_pose = follow_path_utils.calculate_dynamic_target(
+                dynamic_target_pose = path_utils.calculate_dynamic_target(
                     path, current_pose, self.dynamic_target_lookahead_distance
                 )
                 if dynamic_target_pose is None:
@@ -83,7 +83,7 @@ class FollowPathActionServer:
                     continue
 
                 # Broadcast the dynamic target frame so that controllers can use it
-                follow_path_utils.broadcast_dynamic_target_frame(
+                path_utils.broadcast_dynamic_target_frame(
                     self.tf_broadcaster,
                     self.tf_buffer,
                     self.source_frame,
@@ -92,7 +92,7 @@ class FollowPathActionServer:
 
                 # Check progress along the current segment and overall path
                 current_segment_progress, overall_progress = (
-                    follow_path_utils.check_segment_progress(
+                    path_utils.check_segment_progress(
                         path, current_pose, current_segment_index, segment_endpoints
                     )
                 )
@@ -104,7 +104,7 @@ class FollowPathActionServer:
 
                 # Check if current segment is completed
                 segment_end_index = segment_endpoints[current_segment_index]
-                if follow_path_utils.is_segment_completed(
+                if path_utils.is_segment_completed(
                     current_pose, path, segment_end_index
                 ):
                     if current_segment_index < num_segments - 1:
@@ -123,22 +123,21 @@ class FollowPathActionServer:
     def execute(self, goal: FollowPathActionGoal) -> None:
         rospy.logdebug("FollowPathActionServer: Received a new path following goal.")
 
-        if not goal.paths:
-            rospy.logerr("Received empty paths list")
-            self.server.set_aborted(FollowPathResult(success=False, execution_time=0.0))
+        # Check if the goal contains valid paths
+        # 1. Abort if paths list is empty
+        # 2. Abort if all paths are empty
+        if not goal.paths or all(not p.poses for p in goal.paths):
+            rospy.logerr("Received empty paths list or paths with no poses")
+            self.server.set_aborted(FollowPathResult(success=False))
             return
+        
         # Combine all paths and get endpoints
-        combined_path, segment_endpoints = follow_path_utils.combine_segments(
+        combined_path, segment_endpoints = path_utils.combine_segments(
             goal.paths
         )
-
-        if not combined_path.poses:
-            rospy.logwarn("Combined path has no poses")
-            self.server.set_aborted(FollowPathResult(success=False, execution_time=0.0))
-            return
-
+        
+        # Perform path following
         success = self.do_path_following(combined_path, segment_endpoints)
-
         result = FollowPathResult(success=success)
 
         if success:
