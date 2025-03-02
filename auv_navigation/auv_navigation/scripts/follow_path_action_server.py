@@ -139,10 +139,9 @@ class FollowPathActionServer:
             self.server.set_aborted(FollowPathResult(success=False, execution_time=0.0))
             return
 
-        start_time = rospy.Time.now()
-        success = self.do_path_following(combined_path, segment_endpoints)
-        execution_time = (rospy.Time.now() - start_time).to_sec()
-        result = FollowPathResult(success=success, execution_time=execution_time)
+        success = self.do_path_following(path=goal.path)
+
+        result = FollowPathResult(success=success)
 
         if success:
             rospy.logdebug(f"Path following succeeded.")
