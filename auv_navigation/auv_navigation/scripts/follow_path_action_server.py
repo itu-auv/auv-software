@@ -132,8 +132,6 @@ class FollowPathActionServer:
             goal.paths
         )
 
-        rospy.logdebug(f"combined path type: {type(combined_path)}")
-
         if not combined_path.poses:
             rospy.logwarn("Combined path has no poses")
             self.server.set_aborted(FollowPathResult(success=False, execution_time=0.0))
