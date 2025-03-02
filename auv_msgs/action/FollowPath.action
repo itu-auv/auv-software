@@ -9,4 +9,4 @@ bool success
 # Feedback
 float32 current_segment_progress
 float32 overall_progress
-float32 current_segment_index
+uint8 current_segment_index
