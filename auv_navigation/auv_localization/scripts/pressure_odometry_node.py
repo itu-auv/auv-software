@@ -10,7 +10,7 @@ import auv_common_lib.transform.transformer
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
 import math
 from geometry_msgs.msg import Quaternion
-from tf.transformations import euler_from_quaternion
+import tf.transformations
 
 
 class PressureToOdom:
@@ -88,42 +88,39 @@ class PressureToOdom:
                     orientation.z,
                     orientation.w,
                 ]
-                roll, pitch, _ = euler_from_quaternion(quaternion)
 
-                # Calculate the rotated z-component
-                dx = translation[0, 0]
-                dy = translation[0, 1]
-                dz = translation[0, 2]
-                rotated_z = (
-                    dz * math.cos(roll) * math.cos(pitch)
-                    - dx * math.sin(pitch)
-                    + dy * math.sin(roll) * math.cos(pitch)
-                )
+                # Convert quaternion to 3x3 rotation matrix
+                rotation_matrix = tf.transformations.quaternion_matrix(quaternion)[
+                    :3, :3
+                ]
+
+                # Translation vektörünü numpy array'e çevir (1x3 -> 3x1 vektör)
+                sensor_offset = np.array(
+                    translation[0]
+                )  # Tüm bileşenleri tek seferde al
+
+                # Rotate the translation vector using the rotation matrix
+                rotated_vector = rotation_matrix.dot(sensor_offset)
 
                 # Log information based on the value of rotated_z
+                if rotated_vector[2] > -0.06:
+                    message = f"height difference between base_link and pressure sensor is lower than 6: {rotated_vector[2]}"
+                    rospy.loginfo(
+                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
+                    )
+                elif rotated_vector[2] > -0.07:
+                    message = f"height difference between base_link and pressure sensor is lower than 7: {rotated_vector[2]}"
+                    rospy.loginfo(
+                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
+                    )
+                elif rotated_vector[2] > -0.08:
+                    message = f"height difference between base_link and pressure sensor is lower than 8: {rotated_vector[2]}"
+                    rospy.loginfo(
+                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
+                    )
 
-                if rotated_z > -0.06 and self.last_logged_state != "lower_than_6":
-                    message = "height difference between base_link and pressure sensor is lower than 6"
-                    rospy.loginfo(
-                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
-                    )
-                    self.last_logged_state = "lower_than_6"
-                elif rotated_z > -0.07 and self.last_logged_state != "lower_than_7":
-                    message = "height difference between base_link and pressure sensor is lower than 7"
-                    rospy.loginfo(
-                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
-                    )
-                    self.last_logged_state = "lower_than_7"
-                elif rotated_z < -0.08 and self.last_logged_state != "higher_than_8":
-                    message = "height difference between base_link and pressure sensor is higher than 8"
-                    rospy.loginfo(
-                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
-                    )
-                    self.last_logged_state = "higher_than_8"
-                elif -0.07 <= rotated_z <= -0.08:
-                    self.last_logged_state = None
+                return rotated_vector[2]
 
-                return rotated_z
         except Exception as e:
             rospy.logerr(f"Error in get_base_to_pressure_height: {e}")
             return 0.0
