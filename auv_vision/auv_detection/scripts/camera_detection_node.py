@@ -163,9 +163,27 @@ class CameraDetectionNode:
 
         # Subscribe to YOLO detections
         rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
+    def check_if_detection_is_inside_image(
+        self, detection, image_width: int = 640, image_height: int = 480
+    ) -> bool:
+        center = detection.bbox.center
+        half_size_x = detection.bbox.size_x * 0.5
+        half_size_y = detection.bbox.size_y * 0.5
+        deadzone = 5  # pixels
+        if (
+            center.x + half_size_x >= image_width - deadzone
+            or center.x - half_size_x <= deadzone
+        ):
+            return False
+        if (
+            center.y + half_size_y >= image_height - deadzone
+            or center.y - half_size_y <= deadzone
+        ):
+            return False
+        return True
 
     def detection_callback(self, detection_msg: YoloResult):
-        camera_ns = "taluy/cameras/cam_front"  # Şimdilik sadece front camera
+        camera_ns = "taluy/cameras/cam_front"  
         if camera_ns not in self.camera_calibrations:
             rospy.logwarn(f"Unknown camera namespace: {camera_ns}")
             return
@@ -186,7 +204,8 @@ class CameraDetectionNode:
                 continue
 
             prop = self.props[prop_name]
-            
+            if self.check_if_detection_is_inside_image(detection) == False:
+                continue
             # Calculate distance using object dimensions
             distance = prop.estimate_distance(
                 detection.bbox.size_y,
