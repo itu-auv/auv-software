@@ -4,13 +4,19 @@ import actionlib
 from auv_msgs.msg import FollowPathAction, FollowPathGoal
 from typing import List
 from nav_msgs.msg import Path
+
+
 class FollowPathActionClient:
     def __init__(self):
-        self.client = actionlib.SimpleActionClient("taluy/follow_path", FollowPathAction)
-        
+        self.client = actionlib.SimpleActionClient(
+            "taluy/follow_path", FollowPathAction
+        )
+
         rospy.logdebug("[follow_path client] Waiting for action server...")
         if not self.client.wait_for_server(rospy.Duration(10)):
-            rospy.logerr("[follow_path client] Action server not available after waiting")
+            rospy.logerr(
+                "[follow_path client] Action server not available after waiting"
+            )
             raise rospy.ROSException("Action server not available")
         rospy.logdebug("[follow_path client] Action server is up!")
 
@@ -24,7 +30,7 @@ class FollowPathActionClient:
         """
         try:
             goal = FollowPathGoal()
-            #goal.paths = [path for path in paths] #! necessary??
+            # goal.paths = [path for path in paths] #! necessary??
             goal.paths = paths
             rospy.logdebug("[follow_path client] sending paths goal...")
             self.client.send_goal(goal)
@@ -32,9 +38,12 @@ class FollowPathActionClient:
             rospy.logdebug("[follow_path client] Waiting for result...")
             self.client.wait_for_result()
             result = self.client.get_result()
-            
+
             if result and result.success:
-                rospy.logdebug("[follow_path client] Task succeeded: execution time: %.2f seconds", result.execution_time)
+                rospy.logdebug(
+                    "[follow_path client] Task succeeded: execution time: %.2f seconds",
+                    result.execution_time,
+                )
                 return True
             else:
                 rospy.logwarn("[follow_path client] Task failed")

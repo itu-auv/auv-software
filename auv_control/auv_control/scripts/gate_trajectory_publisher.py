@@ -11,6 +11,7 @@ import sys
 
 GATE_DEPTH = -1.7
 
+
 class TransformServiceNode:
     def __init__(self):
         rospy.init_node("create_gate_frames_node")

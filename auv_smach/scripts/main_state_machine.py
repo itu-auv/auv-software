@@ -65,7 +65,6 @@ class MainStateMachineNode:
                 },
             )
 
-
         outcome = self.sm.execute()
 
         # rospy.Timer(rospy.Duration(0.1), self.start)

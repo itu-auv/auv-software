@@ -30,6 +30,7 @@ class WaitForKillswitchEnabledState(smach.State):
             rate.sleep()
         return "aborted"
 
+
 class DVLEnableState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
@@ -38,6 +39,7 @@ class DVLEnableState(smach_ros.ServiceState):
             SetBool,
             request=SetBoolRequest(data=True),
         )
+
 
 class DelayState(smach.State):
     def __init__(self, delay_time):
@@ -48,6 +50,7 @@ class DelayState(smach.State):
         rospy.sleep(self.delay_time)
         return "succeeded"
 
+
 class OdometryEnableState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
@@ -56,6 +59,7 @@ class OdometryEnableState(smach_ros.ServiceState):
             Empty,
             request=EmptyRequest(),
         )
+
 
 class ResetOdometryPoseState(smach_ros.ServiceState):
     def __init__(self):
@@ -68,6 +72,7 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
             SetPose,
             request=initial_pose_request,
         )
+
 
 class SetStartFrameState(smach_ros.ServiceState):
     def __init__(self, frame_name: str):

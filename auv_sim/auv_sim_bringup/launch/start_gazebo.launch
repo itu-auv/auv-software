@@ -12,7 +12,7 @@
     <arg name="world" default="pool" />
     <arg name="use_ned_frame" default="false" />
     <arg name="enable_logging" default="false" />
-    <arg name="logging_directory" default="$(optenv HOME)/bags" />  
+    <arg name="logging_directory" default="$(optenv HOME)/bags" />
 
     <!-- Run RViz -->
     <node

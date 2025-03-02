@@ -71,12 +71,14 @@ def concatenate_transforms(transform1, transform2):
     combined_matrix = multiply_transforms(transform1.transform, transform2.transform)
     return matrix_to_transform(combined_matrix)
 
+
 # ------------------- STATES -------------------
+
 
 class SetDepthState(smach_ros.ServiceState):
     """
     Calls /taluy/set_depth with the requested depth.
-    continuously publishes True to /taluy/enable topic 
+    continuously publishes True to /taluy/enable topic
     whilst the state is running.
 
     Outcomes:
@@ -84,7 +86,10 @@ class SetDepthState(smach_ros.ServiceState):
         - preempted: The state was preempted.
         - aborted: The service call failed.
     """
-    def __init__(self, depth: float, sleep_duration: float = SET_DEPTH_DEFAULT_SLEEP_DURATION):
+
+    def __init__(
+        self, depth: float, sleep_duration: float = SET_DEPTH_DEFAULT_SLEEP_DURATION
+    ):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
         self.sleep_duration = sleep_duration
@@ -94,28 +99,28 @@ class SetDepthState(smach_ros.ServiceState):
             SET_DEPTH_SERVICE,
             SetDepth,
             request=set_depth_request,
-            outcomes=['succeeded', 'preempted', 'aborted']
+            outcomes=["succeeded", "preempted", "aborted"],
         )
-        
+
         # use a threading.Event to signal publishing to stop
         self._stop_publishing = threading.Event()
         self.enable_pub = rospy.Publisher(CONTROL_ENABLE_TOPIC, Bool, queue_size=1)
 
     def _publish_enable_loop(self):
-        rate = rospy.Rate(ENABLE_TOPIC_PUBLISH_RATE_HZ) 
+        rate = rospy.Rate(ENABLE_TOPIC_PUBLISH_RATE_HZ)
         while not rospy.is_shutdown() and not self._stop_publishing.is_set():
             self.enable_pub.publish(Bool(True))
             rate.sleep()
-    
+
     def execute(self, userdata):
         # if there's an immediate preempt
         if self.preempt_requested():
             rospy.logwarn("[SetDepthState] Preempt requested before execution.")
             self.service_preempt()
-            return 'preempted'
+            return "preempted"
 
         # Call the service
-        result = super(SetDepthState, self).execute(userdata) 
+        result = super(SetDepthState, self).execute(userdata)
 
         # Clear the stop flag
         self._stop_publishing.clear()
@@ -125,12 +130,13 @@ class SetDepthState(smach_ros.ServiceState):
         # Wait for the specified sleep duration
         if self.sleep_duration > 0:
             rospy.sleep(self.sleep_duration)
-            
+
         # signal the publishing thread to stop
         self._stop_publishing.set()
         pub_thread.join()
-        
+
         return result
+
 
 class LaunchTorpedoState(smach_ros.ServiceState):
     def __init__(self, id: int):
@@ -286,19 +292,23 @@ class NavigateToFrameState(smach.State):
         ) as e:
             rospy.logwarn(f"TF lookup exception: {e}")
             return "aborted"
-            
+
+
 class ExecutePlannedPathsState(smach.State):
     """
     Uses the follow path action client to follow a set of planned paths.
     """
+
     def __init__(self):
-            smach.State.__init__(
-                self,
-                outcomes=["succeeded", "preempted", "aborted"],
-                input_keys=["planned_paths"] # expects the input value under the name "planned_paths"
-            )
-            self._client = None
-    
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            input_keys=[
+                "planned_paths"
+            ],  # expects the input value under the name "planned_paths"
+        )
+        self._client = None
+
     def execute(self, userdata) -> str:
         """
         Args:
@@ -308,9 +318,11 @@ class ExecutePlannedPathsState(smach.State):
             str: "succeeded" if execution was successful, otherwise "aborted" or "preempted".
         """
         if self._client is None:
-            rospy.logdebug("[ExecutePlannedPathsState] Initializing the FollowPathActionClient")
+            rospy.logdebug(
+                "[ExecutePlannedPathsState] Initializing the FollowPathActionClient"
+            )
             self._client = follow_path_action_client.FollowPathActionClient()
-        
+
         # Check for preemption before proceeding
         if self.preempt_requested():
             rospy.logwarn("[ExecutePlannedPathsState] Preempt requested")
@@ -319,12 +331,16 @@ class ExecutePlannedPathsState(smach.State):
             planned_paths = userdata.planned_paths
             success = self._client.execute_paths(planned_paths)
             if success:
-                rospy.logdebug("[ExecutePlannedPathsState] Planned paths executed successfully")
+                rospy.logdebug(
+                    "[ExecutePlannedPathsState] Planned paths executed successfully"
+                )
                 return "succeeded"
             else:
-                rospy.logwarn("[ExecutePlannedPathsState] Execution of planned paths failed")
+                rospy.logwarn(
+                    "[ExecutePlannedPathsState] Execution of planned paths failed"
+                )
                 return "aborted"
-            
+
         except Exception as e:
             rospy.logerr("[ExecutePlannedPathsState] Exception occurred: %s", str(e))
             return "aborted"
