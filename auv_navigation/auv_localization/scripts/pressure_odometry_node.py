@@ -10,7 +10,7 @@ import auv_common_lib.transform.transformer
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
 import math
 from geometry_msgs.msg import Quaternion
-from tf.transformations import euler_from_quaternion
+import tf.transformations
 
 
 class PressureToOdom:
@@ -72,7 +72,7 @@ class PressureToOdom:
                 ]  # Assuming translation is a list or array with [x, y, z]
 
             else:
-                # Convert quaternion to Euler angles
+
                 orientation = self.imu_data.orientation
                 quaternion = [
                     orientation.x,
@@ -80,19 +80,19 @@ class PressureToOdom:
                     orientation.z,
                     orientation.w,
                 ]
-                roll, pitch, _ = euler_from_quaternion(quaternion)
 
-                # Calculate the rotated z-component
-                dx = translation[0, 0]
-                dy = translation[0, 1]
-                dz = translation[0, 2]
-                rotated_z = (
-                    dz * math.cos(roll) * math.cos(pitch)
-                    - dx * math.sin(pitch)
-                    + dy * math.sin(roll) * math.cos(pitch)
-                )
+                # Convert quaternion to 3x3 rotation matrix
+                rotation_matrix = tf.transformations.quaternion_matrix(quaternion)[
+                    :3, :3
+                ]
 
-                return rotated_z
+                sensor_offset = np.array(translation[0])
+
+                # Rotate the translation vector using the rotation matrix
+                rotated_vector = rotation_matrix.dot(sensor_offset)
+
+                return rotated_vector[2]
+
         except Exception as e:
             rospy.logerr(f"Error in get_base_to_pressure_height: {e}")
             return 0.0
