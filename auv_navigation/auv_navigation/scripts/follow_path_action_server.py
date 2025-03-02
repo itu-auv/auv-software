@@ -124,9 +124,9 @@ class FollowPathActionServer:
         rospy.logdebug("FollowPathActionServer: Received a new path following goal.")
 
         # Check if the goal contains valid paths
-        # 1. Abort if paths list is empty
+        # 1. Abort if paths list is empty or none
         # 2. Abort if all paths are empty
-        if not goal.paths or all(not p.poses for p in goal.paths):
+        if goal.paths is None or not goal.paths or all(not p.poses for p in goal.paths):
             rospy.logerr("Received empty paths list or paths with no poses")
             self.server.set_aborted(FollowPathResult(success=False))
             return
