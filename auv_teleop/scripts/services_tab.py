@@ -36,19 +36,28 @@ class ServicesTab(QWidget):
         depth_layout.addWidget(self.set_depth_btn)
         depth_group.setLayout(depth_layout)
 
+        # Button sizes
+        button_size_one = 160
+        button_size_two = 75
+
         # Services
         service_group = QGroupBox("Services")
-        service_layout = QVBoxLayout()
+        service_layout = QHBoxLayout()
         self.localization_btn = QPushButton("Start Localization")
+        self.localization_btn.setFixedSize(button_size_one, button_size_two)
         self.dvl_btn = QPushButton("Enable DVL")
-        service_layout.addWidget(self.localization_btn)
-        service_layout.addWidget(self.dvl_btn)
+        self.dvl_btn.setFixedSize(button_size_one, button_size_two)
+        # Add the localization button and stretch to create space
+        service_layout.addWidget(self.localization_btn, 0, Qt.AlignLeft)
+        service_layout.addStretch(1)
+        # Add the DVL button
+        service_layout.addWidget(self.dvl_btn, 0, Qt.AlignLeft)
         service_group.setLayout(service_layout)
 
         # Missions
         mission_group = QGroupBox("Missions")
-        mission_layout = QVBoxLayout()
-        self.mission_toggle = QCheckBox("Enable Missions")
+        mission_layout = QHBoxLayout()
+        self.mission_toggle = QCheckBox("Enable")
         self.drop_ball_btn = QPushButton("Drop Ball")
         self.torpedo1_btn = QPushButton("Fire Torpedo 1")
         self.torpedo2_btn = QPushButton("Fire Torpedo 2")

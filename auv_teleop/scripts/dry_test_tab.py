@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QTextEdit,
     QHBoxLayout,
+    QGridLayout,
 )
 from command_thread import CommandThread
 import subprocess
@@ -20,10 +21,11 @@ class DryTestTab(QWidget):
         self.bar30_thread = None
 
     def init_ui(self):
-        layout = QVBoxLayout()
+        layout = QGridLayout()
 
         # Sensor Monitoring
         sensor_group = QGroupBox("Sensor Monitoring")
+        sensor_group.setMinimumSize(300, 150)
         sensor_layout = QVBoxLayout()
 
         # IMU
@@ -51,9 +53,9 @@ class DryTestTab(QWidget):
         # Image View
         self.rqt_btn = QPushButton("Open rqt_image_view")
 
-        layout.addWidget(sensor_group)
-        layout.addWidget(self.rqt_btn)
-        layout.addWidget(self.output)
+        layout.addWidget(sensor_group, 0, 0)
+        layout.addWidget(self.rqt_btn, 1, 0)
+        layout.addWidget(self.output, 2, 0)
         self.setLayout(layout)
 
         # Connections

@@ -24,7 +24,7 @@ class VehicleControlTab(QWidget):
         teleop_group = QGroupBox("Teleoperation")
         teleop_layout = QHBoxLayout()
         self.teleop_start = QPushButton("Start Teleop")
-        self.xbox_check = QCheckBox("Xbox Controller")
+        self.xbox_check = QCheckBox("Xbox")
         self.teleop_stop = QPushButton("Stop Teleop")
         teleop_layout.addWidget(self.teleop_start)
         teleop_layout.addWidget(self.xbox_check)
@@ -36,25 +36,25 @@ class VehicleControlTab(QWidget):
         control_layout = QGridLayout()
 
         # Button sizes
-        button_size = 70
+        button_size = 60
 
         # Movement Buttons
-        self.forward_btn = QPushButton("Forward")
+        self.forward_btn = QPushButton("^")
         self.forward_btn.setFixedSize(button_size, button_size)
         self.forward_btn.pressed.connect(lambda: self.send_cmd_vel("forward", 0.5))
         self.forward_btn.released.connect(lambda: self.send_cmd_vel("forward", 0.0))
 
-        self.left_btn = QPushButton("Left")
+        self.left_btn = QPushButton("<")
         self.left_btn.setFixedSize(button_size, button_size)
         self.left_btn.pressed.connect(lambda: self.send_cmd_vel("left", 0.5))
         self.left_btn.released.connect(lambda: self.send_cmd_vel("left", 0.0))
 
-        self.right_btn = QPushButton("Right")
+        self.right_btn = QPushButton(">")
         self.right_btn.setFixedSize(button_size, button_size)
         self.right_btn.pressed.connect(lambda: self.send_cmd_vel("right", 0.5))
         self.right_btn.released.connect(lambda: self.send_cmd_vel("right", 0.0))
 
-        self.backward_btn = QPushButton("Backward")
+        self.backward_btn = QPushButton("v")
         self.backward_btn.setFixedSize(button_size, button_size)
         self.backward_btn.pressed.connect(lambda: self.send_cmd_vel("backward", 0.5))
         self.backward_btn.released.connect(lambda: self.send_cmd_vel("backward", 0.0))
@@ -69,12 +69,12 @@ class VehicleControlTab(QWidget):
         self.down_btn.pressed.connect(lambda: self.send_cmd_vel("neg_z", 0.4))
         self.down_btn.released.connect(lambda: self.send_cmd_vel("neg_z", 0.0))
 
-        self.yaw_left_btn = QPushButton("Yaw Left")
+        self.yaw_left_btn = QPushButton("Left")
         self.yaw_left_btn.setFixedSize(button_size, button_size)
         self.yaw_left_btn.pressed.connect(lambda: self.send_cmd_vel("pos_yaw", 0.3))
         self.yaw_left_btn.released.connect(lambda: self.send_cmd_vel("pos_yaw", 0.0))
 
-        self.yaw_right_btn = QPushButton("Yaw Right")
+        self.yaw_right_btn = QPushButton("Right")
         self.yaw_right_btn.setFixedSize(button_size, button_size)
         self.yaw_right_btn.pressed.connect(lambda: self.send_cmd_vel("neg_yaw", 0.3))
         self.yaw_right_btn.released.connect(lambda: self.send_cmd_vel("neg_yaw", 0.0))
