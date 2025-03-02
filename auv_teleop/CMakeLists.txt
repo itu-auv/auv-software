@@ -7,7 +7,10 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   joy
   rospy
+  Qt5
 )
+
+find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
 catkin_package(
   # INCLUDE_DIRS include
@@ -23,6 +26,12 @@ include_directories(
 
 catkin_install_python(PROGRAMS
   scripts/joy_manager.py
+  scripts/command_thread.py
+  scripts/dry_test_tab.py
+  scripts/services_tab.py
+  scripts/taluy_gui.py
+  scripts/vehicle_control_tab.py
+  scripts/simulation_tab.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
