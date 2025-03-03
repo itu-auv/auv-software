@@ -1,35 +1,46 @@
 from .initialize import *
 import smach
-import smach_ros
 import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
-    AlignFrameController,
-    AlignFrameControllerRequest,
-    AlignFrameControllerResponse,
-)
-from std_msgs.msg import Bool
-from geometry_msgs.msg import TransformStamped
 import tf2_ros
-import numpy as np
-import tf.transformations as transformations
-
+from auv_navigation.path_planners import PathPlanners
 from auv_smach.common import (
-    NavigateToFrameState,
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
+    ExecutePlannedPathsState,
 )
 
-from geometry_msgs.msg import Twist
-from std_msgs.msg import Bool
 
-from auv_smach.initialize import DelayState
+class PlanGatePathsState(smach.State):
+    """State that plans the paths for the gate task"""
+
+    def __init__(self, tf_buffer):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["planned_paths"],
+        )
+        self.tf_buffer = tf_buffer
+
+    def execute(self, userdata) -> str:
+        try:
+            if self.preempt_requested():
+                rospy.logwarn("[PlanGatePathsState] Preempt requested")
+                return "preempted"
+
+            path_planners = PathPlanners(
+                self.tf_buffer
+            )  # instance of PathPlanners with tf_buffer
+            paths = path_planners.path_for_gate()
+            if paths is None:
+                return "aborted"
+
+            userdata.planned_paths = paths
+            return "succeeded"
+
+        except Exception as e:
+            rospy.logerr("[PlanGatePathsState] Error: %s", str(e))
+            return "aborted"
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
@@ -45,6 +56,9 @@ class TransformServiceEnableState(smach_ros.ServiceState):
 class NavigateThroughGateState(smach.State):
     def __init__(self, gate_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
@@ -65,7 +79,10 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=gate_depth,
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
+                ),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
@@ -75,39 +92,35 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="gate_target"
+                    source_frame="taluy/base_link", target_frame="dynamic_target"
                 ),
                 transitions={
-                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                    "succeeded": "PLAN_GATE_PATHS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
-                TransformServiceEnableState(req=False),
+                "PLAN_GATE_PATHS",
+                PlanGatePathsState(self.tf_buffer),
                 transitions={
-                    "succeeded": "NAVIGATE_TO_GATE_START",
+                    "succeeded": "EXECUTE_GATE_PATHS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "NAVIGATE_TO_GATE_START",
-                NavigateToFrameState(
-                    "taluy/base_link", "gate_enterance", "gate_target"
-                ),
+                "EXECUTE_GATE_PATHS",
+                ExecutePlannedPathsState(),
                 transitions={
-                    "succeeded": "NAVIGATE_TO_GATE_EXIT",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
                 },
             )
             smach.StateMachine.add(
-                "NAVIGATE_TO_GATE_EXIT",
-                NavigateToFrameState(
-                    "gate_enterance", "gate_exit", "gate_target", n_turns=-1
-                ),
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -115,21 +128,13 @@ class NavigateThroughGateState(smach.State):
                 },
             )
 
-            # smach.StateMachine.add(
-            #     "CANCEL_ALIGN_CONTROLLER",
-            #     CancelAlignControllerState(),
-            #     transitions={
-            #         "succeeded": "succeeded",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-
     def execute(self, userdata):
+        rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
+
         # Execute the state machine
         outcome = self.state_machine.execute()
 
-        if outcome is None:
+        if outcome is None:  # ctrl + c
             return "preempted"
-
+        # Return the outcome of the state machine
         return outcome
