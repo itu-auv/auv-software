@@ -14,13 +14,14 @@ from auv_smach.common import (
 class PlanGatePathsState(smach.State):
     """State that plans the paths for the gate task"""
 
-    def __init__(self, tf_buffer):
+    def __init__(self, tf_buffer, gate_return):
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
             output_keys=["planned_paths"],
         )
         self.tf_buffer = tf_buffer
+        self.gate_return = gate_return
 
     def execute(self, userdata) -> str:
         try:
@@ -31,7 +32,10 @@ class PlanGatePathsState(smach.State):
             path_planners = PathPlanners(
                 self.tf_buffer
             )  # instance of PathPlanners with tf_buffer
-            paths = path_planners.path_for_gate()
+            if self.gate_return:
+                paths = path_planners.path_for_gate_return()
+            else:
+                paths = path_planners.path_for_gate()
             if paths is None:
                 return "aborted"
 
@@ -54,9 +58,10 @@ class TransformServiceEnableState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float):
+    def __init__(self, gate_depth: float, gate_return: bool):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        self.gate_return = gate_return
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
@@ -102,7 +107,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "PLAN_GATE_PATHS",
-                PlanGatePathsState(self.tf_buffer),
+                PlanGatePathsState(self.tf_buffer, gate_return),
                 transitions={
                     "succeeded": "EXECUTE_GATE_PATHS",
                     "preempted": "preempted",
@@ -122,12 +127,20 @@ class NavigateThroughGateState(smach.State):
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
+                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                TransformServiceEnableState(req=False),
+                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
     def execute(self, userdata):
         rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
 
@@ -138,3 +151,4 @@ class NavigateThroughGateState(smach.State):
             return "preempted"
         # Return the outcome of the state machine
         return outcome
+

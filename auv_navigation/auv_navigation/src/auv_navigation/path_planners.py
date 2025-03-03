@@ -154,3 +154,63 @@ class PathPlanners:
         except Exception as e:
             rospy.logwarn("[GatePathPlanner] Error in gate path planning: %s", str(e))
             return None
+        
+    def path_for_gate_return(
+        self, path_creation_timeout: float = 10.0
+    ) -> Optional[List[Path]]:
+        """
+        Plans paths for the gate task, which includes the two paths:
+        2. path to gate entrance
+        2. Gate entrance to gate exit (with 1 360 degrees turn)
+        """
+        try:
+            rospy.logdebug("[GatePathPlanner] Planning paths for gate task...")
+            start_time = rospy.Time.now()
+            # Plan path to gate entrance
+            entrance_path = None
+            exit_path = None
+
+            while (rospy.Time.now() - start_time).to_sec() < path_creation_timeout:
+                try:
+                    # create the first segment
+                    if entrance_path is None:
+                        entrance_path = self.straight_path_to_frame(
+                            source_frame=BASE_LINK_FRAME,
+                            target_frame=GATE_EXIT_FRAME,
+                        )
+                    # create the second segment
+                    if exit_path is None:
+                        exit_path = self.straight_path_to_frame(
+                            source_frame=GATE_EXIT_FRAME,
+                            target_frame=GATE_ENTRANCE_FRAME,
+                            n_turns=1,
+                        )
+                    if entrance_path is not None and exit_path is not None:
+                        return [entrance_path, exit_path]
+                    rospy.logwarn(
+                        "[GatePathPlanner] Failed to plan paths, retrying... Time elapsed: %.1f seconds",
+                        (rospy.Time.now() - start_time).to_sec(),
+                    )
+                    rospy.sleep(0.5)
+
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
+                ) as e:
+                    rospy.logwarn(
+                        "[GatePathPlanner] TF error while planning paths: %s. Retrying...",
+                        str(e),
+                    )
+                    rospy.sleep(0.5)
+
+            # If we get here, we timed out
+            rospy.logwarn(
+                "[GatePathPlanner] Failed to plan paths after %.1f seconds",
+                path_creation_timeout,
+            )
+            return None        
+
+        except Exception as e:
+            rospy.logwarn("[GatePathPlanner] Error in gate path planning: %s", str(e))
+            return None

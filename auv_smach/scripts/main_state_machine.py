@@ -71,7 +71,10 @@ class MainStateMachineNode:
             "INITIALIZE": (InitializeState, {}),
             "NAVIGATE_THROUGH_GATE": (
                 NavigateThroughGateState,
-                {"gate_depth": self.gate_depth},
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_return": False
+                },
             ),
             "NAVIGATE_AROUND_RED_BUOY": (
                 RotateAroundBuoyState,
@@ -81,6 +84,13 @@ class MainStateMachineNode:
                     "red_buoy_depth": self.red_buoy_depth,
                 },
             ),
+            "NAVIGATE_THROUGH_GATE": (
+                NavigateThroughGateState,
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_return": True
+                },
+            ),           
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,
                 {
