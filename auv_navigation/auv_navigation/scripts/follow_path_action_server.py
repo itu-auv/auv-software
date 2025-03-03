@@ -130,12 +130,10 @@ class FollowPathActionServer:
             rospy.logerr("Received empty paths list or paths with no poses")
             self.server.set_aborted(FollowPathResult(success=False))
             return
-        
+
         # Combine all paths and get endpoints
-        combined_path, segment_endpoints = path_utils.combine_segments(
-            goal.paths
-        )
-        
+        combined_path, segment_endpoints = path_utils.combine_segments(goal.paths)
+
         # Perform path following
         success = self.do_path_following(combined_path, segment_endpoints)
         result = FollowPathResult(success=success)
