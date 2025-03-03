@@ -1,51 +1,71 @@
 #!/usr/bin/env python3
 import rospy
 import actionlib
-from nav_msgs.msg import Path
-from auv_msgs.msg import FollowPathAction, FollowPathFeedback, FollowPathResult
 import tf2_ros
+from typing import List, Optional
 
+from nav_msgs.msg import Path
+from auv_msgs.msg import (
+    FollowPathAction,
+    FollowPathFeedback,
+    FollowPathResult,
+    FollowPathActionGoal,
+)
 from auv_navigation import path_utils
 
 
 class FollowPathActionServer:
-    def __init__(self):
+    def __init__(self) -> None:
+        # tf2 objects
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
-        self.dynamic_target_lookahead_distance = rospy.get_param(
+
+        # load parameters
+        self.dynamic_target_lookahead_distance: float = rospy.get_param(
             "~dynamic_target_lookahead_distance", 1.0
         )
-        self.alignment_distance_tolerance = rospy.get_param(
-            "~alignment_distance_tolerance", 0.1
-        )
-        self.alignment_yaw_tolerance = rospy.get_param("~alignment_yaw_tolerance", 0.1)
-        self.source_frame = rospy.get_param("~source_frame", "taluy/base_link")
-        self.dynamic_target_frame = rospy.get_param(
-            "~dynamic_target_frame", "dynamic_target"
-        )
+        self.source_frame: str = rospy.get_param("~source_frame", "taluy/base_link")
         self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 20))
 
         self.path_pub = rospy.Publisher("target_path", Path, queue_size=1)
+
         self.server = actionlib.SimpleActionServer(
             "follow_path", FollowPathAction, self.execute, auto_start=False
         )
         self.server.start()
+        rospy.logdebug("[follow_path server] Action server started")
 
-    def do_path_following(self, path):
+    def do_path_following(self, path: Path, segment_endpoints: List[int]) -> bool:
         """
-        Iterates the dynamic_target along the path.
-        Returns true if the path was successfully followed to completion,
-        false if interrupted (preempted, shutdown, or some error occurred).
+        Performs dynamic target following while tracking path progress and segment completion.
+            The function continuously:
+            - computes the dynamic target ahead of the vehicle.
+            - tracks whether each segment of the path (that is, the individual paths before they were combined)
+            has been completed.
+            - tracks the overall path completion.
+
+        Args:
+            path (Path): The combined path to be followed.
+            segment_endpoints (List[int]): Indices marking the endpoints of individual path segments.
+
+        Returns:
+            bool: True if the entire path is completed successfully, False if interrupted or failed.
         """
         try:
+            num_segments = len(segment_endpoints)
+            current_segment_index = 0
+
             while not rospy.is_shutdown():
                 if self.server.is_preempt_requested():
                     self.server.set_preempted()
                     rospy.logdebug("Path following preempted")
                     return False
 
+                # Publish the target path for visualization
                 self.path_pub.publish(path)
+
+                # get current pose
                 current_pose = path_utils.get_current_pose(
                     self.tf_buffer, self.source_frame
                 )
@@ -62,7 +82,7 @@ class FollowPathActionServer:
                     self.loop_rate.sleep()
                     continue
 
-                # Publish dynamic target frame
+                # Broadcast the dynamic target frame so that controllers can use it
                 path_utils.broadcast_dynamic_target_frame(
                     self.tf_broadcaster,
                     self.tf_buffer,
@@ -70,47 +90,52 @@ class FollowPathActionServer:
                     dynamic_target_pose,
                 )
 
-                # (AlignFrameController requested in smach to follow dynamic target)
-
-                # Check if we've completed the path
-                if path_utils.is_path_completed(
-                    self.alignment_distance_tolerance,
-                    self.alignment_yaw_tolerance,
-                    current_pose,
-                    path,
-                ):
-                    rospy.logdebug("Path following is complete")
-                    return True
-
-                feedback = FollowPathFeedback()
-                # Calculate progress based on closest point in path
-                closest_idx = path_utils.find_closest_point_index(path, current_pose)
-                progress = (
-                    float(closest_idx) / (len(path.poses) - 1)
-                    if len(path.poses) > 1
-                    else 1.0
+                # Check progress along the current segment and overall path
+                current_segment_progress, overall_progress = (
+                    path_utils.check_segment_progress(
+                        path, current_pose, current_segment_index, segment_endpoints
+                    )
                 )
-                feedback.progress = progress
+                feedback = FollowPathFeedback()
+                feedback.current_segment_progress = current_segment_progress
+                feedback.overall_progress = overall_progress
+                feedback.current_segment_index = current_segment_index
                 self.server.publish_feedback(feedback)
 
-                self.loop_rate.sleep()  # Sleep to maintain loop rate
+                # Check if current segment is completed
+                segment_end_index = segment_endpoints[current_segment_index]
+                if path_utils.is_segment_completed(
+                    current_pose, path, segment_end_index
+                ):
+                    if current_segment_index < num_segments - 1:
+                        current_segment_index += 1
+                    else:  # was on the last path and it's completed
+                        rospy.logdebug("All paths completed")
+                        return True
+                self.loop_rate.sleep()
 
-            return False  # If exited the loop, success is False
+            return False
 
         except Exception as e:
             rospy.logerr(f"Error during path following: {e}")
             return False
 
-    def execute(self, goal):
+    def execute(self, goal: FollowPathActionGoal) -> None:
         rospy.logdebug("FollowPathActionServer: Received a new path following goal.")
 
-        if not goal.path or not goal.path.poses:
-            rospy.logerr("Received invalid path")
+        # Check if the goal contains valid paths
+        # 1. Abort if paths list is empty or none
+        # 2. Abort if all paths are empty
+        if goal.paths is None or not goal.paths or all(not p.poses for p in goal.paths):
+            rospy.logerr("Received empty paths list or paths with no poses")
             self.server.set_aborted(FollowPathResult(success=False))
             return
 
-        success = self.do_path_following(path=goal.path)
+        # Combine all paths and get endpoints
+        combined_path, segment_endpoints = path_utils.combine_segments(goal.paths)
 
+        # Perform path following
+        success = self.do_path_following(combined_path, segment_endpoints)
         result = FollowPathResult(success=success)
 
         if success:
