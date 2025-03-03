@@ -186,4 +186,3 @@ angular:
   z: 0.0"'''
 
         subprocess.Popen(command, shell=True)
-        
