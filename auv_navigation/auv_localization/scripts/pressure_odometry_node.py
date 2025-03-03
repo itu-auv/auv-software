@@ -103,18 +103,8 @@ class PressureToOdom:
                 rotated_vector = rotation_matrix.dot(sensor_offset)
 
                 # Log information based on the value of rotated_z
-                if rotated_vector[2] > -0.06:
-                    message = f"height difference between base_link and pressure sensor is lower than 6: {rotated_vector[2]}"
-                    rospy.loginfo(
-                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
-                    )
-                elif rotated_vector[2] > -0.07:
-                    message = f"height difference between base_link and pressure sensor is lower than 7: {rotated_vector[2]}"
-                    rospy.loginfo(
-                        TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
-                    )
-                elif rotated_vector[2] > -0.08:
-                    message = f"height difference between base_link and pressure sensor is lower than 8: {rotated_vector[2]}"
+                if rotated_vector[2] > -0.08:
+                    message = f"height difference between base_link and pressure sensor is: {rotated_vector[2]}"
                     rospy.loginfo(
                         TerminalColors.color_text(message, TerminalColors.PASTEL_BLUE)
                     )
