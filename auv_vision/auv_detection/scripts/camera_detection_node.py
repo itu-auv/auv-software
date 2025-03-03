@@ -221,7 +221,6 @@ class CameraDetectionNode:
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
 
-            # Calculate the offset using the same logic as prop_transform
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
 
