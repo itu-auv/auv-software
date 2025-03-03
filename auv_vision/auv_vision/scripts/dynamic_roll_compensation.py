@@ -16,14 +16,14 @@ class DynamicRollCompensationNode:
         
         # Subscribe to the IMU data
         self.imu_subscriber = rospy.Subscriber(
-            "sensors/imu/data", Imu, self.imu_callback, tcp_nodelay=True
+            "imu/data", Imu, self.imu_callback, tcp_nodelay=True
         )
         
         # Subscribe to the raw camera image topic
-        self.image_sub = rospy.Subscriber("cameras/cam_front/image_raw", Image, self.image_callback)
+        self.image_sub = rospy.Subscriber("camera/image_raw", Image, self.image_callback)
         
         # Publisher for the corrected (or unmodified) image
-        self.image_pub = rospy.Publisher("cameras/cam_front/image_corrected", Image, queue_size=10)
+        self.image_pub = rospy.Publisher("camera/image_corrected", Image, queue_size=10)
         
         rospy.loginfo("Dynamic roll compensation node started.")
 

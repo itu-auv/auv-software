@@ -7,9 +7,9 @@
       type="dynamic_roll_compensation.py"
       name="dynamic_roll_compensation_node"
       output="screen">
-      <remap from="sensors/imu/data" to="sensors/imu/data" />
-      <remap from="cameras/cam_front/image_raw" to="cameras/cam_front/image_raw" />
-      <remap from="cameras/cam_front/image_corrected" to="cameras/cam_front/image_corrected" />
+      <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="camera/image_raw" to="cameras/cam_front/image_raw" />
+      <remap from="camera/image_corrected" to="cameras/cam_front/image_corrected" />
     </node>
   </group>
 </launch>
