@@ -92,12 +92,12 @@ class MappingNode:
     def __init__(self):
         rospy.loginfo("Initializing mapping node")
         rospy.init_node("mapping_node", anonymous=True)
-        
+
         self.scene = Scene()
-        
+
         # Initialize TransformBroadcaster
         self.broadcaster = tf2_ros.TransformBroadcaster()
-        
+
         # Initialize tf2 buffer and listener
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -115,7 +115,9 @@ class MappingNode:
         for obj_id in id_to_name_map:
             topic = f"/detection/{obj_id}/point"
             # Using regular ROS subscriber instead of message_filters
-            sub = rospy.Subscriber(topic, PointStamped, self.points_callback, callback_args=obj_id)
+            sub = rospy.Subscriber(
+                topic, PointStamped, self.points_callback, callback_args=obj_id
+            )
             self.point_subscribers[obj_id] = sub
 
         # Timer for publishing transforms
@@ -132,7 +134,7 @@ class MappingNode:
                 "odom",
                 point_msg.header.frame_id,
                 rospy.Time(0),  # get the latest transform
-                rospy.Duration(1.0)
+                rospy.Duration(1.0),
             )
             point_odom = tf2_geometry_msgs.do_transform_point(point_msg, transform)
             return point_odom
@@ -144,9 +146,11 @@ class MappingNode:
             rospy.logwarn(f"Transform failed: {str(e)}")
 
     def points_callback(self, point_msg, detection_id):
-        
+
         if point_msg is None:
-            rospy.logwarn(f"Received None point message for detection ID: {detection_id}")
+            rospy.logwarn(
+                f"Received None point message for detection ID: {detection_id}"
+            )
             return
 
         # Transform point to odom frame
@@ -154,17 +158,13 @@ class MappingNode:
         if point_odom is None:
             rospy.logwarn(f"Failed to transform point for detection ID {detection_id}")
             return
-        
 
         # Add object to scene
         self.scene.add_object_to_location(
-            detection_id,
-            point_odom.point.x,
-            point_odom.point.y,
-            point_odom.point.z
+            detection_id, point_odom.point.x, point_odom.point.y, point_odom.point.z
         )
         rospy.loginfo(f"Detection ID: {detection_id}")
-        
+
         # Immediately publish transforms after adding a new object
 
     def scene_transform_publisher_callback(self, event):
@@ -178,35 +178,42 @@ class MappingNode:
                 continue
 
             obj_name = id_to_name_map[obj_id]
-            
+
             # Find the closest object to taluy/base_link
             closest_object = None
-            min_distance = float('inf')
-            
+            min_distance = float("inf")
+
             for obj in obj_list:
                 point = PointStamped()
                 point.header.frame_id = "odom"
                 point.point.x = obj.filtered_x
                 point.point.y = obj.filtered_y
                 point.point.z = obj.filtered_z
-                
+
                 try:
                     transform = self.tf_buffer.lookup_transform(
-                        "taluy/base_link/front_camera_optical_link", "odom", rospy.Time(0), rospy.Duration(1.0)
+                        "taluy/base_link/front_camera_optical_link",
+                        "odom",
+                        rospy.Time(0),
+                        rospy.Duration(1.0),
                     )
                     point_base = tf2_geometry_msgs.do_transform_point(point, transform)
-                    
+
                     distance = math.sqrt(
-                        point_base.point.x**2 + 
-                        point_base.point.y**2 + 
-                        point_base.point.z**2
+                        point_base.point.x**2
+                        + point_base.point.y**2
+                        + point_base.point.z**2
                     )
-                    
+
                     if distance < min_distance:
                         min_distance = distance
                         closest_object = obj
-                        
-                except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
+                ) as e:
                     rospy.logerr(f"Error looking up transform: {e}")
                     continue
             current_time = rospy.Time.now()
@@ -215,24 +222,24 @@ class MappingNode:
                 transform = TransformStamped()
                 transform.header.stamp = current_time
                 transform.header.frame_id = "odom"
-                
+
                 # Set child frame ID based on whether it's the closest object
                 if obj == closest_object:
                     transform.child_frame_id = f"{obj_name}_link"
                 else:
                     transform.child_frame_id = f"{obj_name}_{obj_list.index(obj)}_link"
-                
+
                 # Set translation
                 transform.transform.translation.x = obj.filtered_x
                 transform.transform.translation.y = obj.filtered_y
                 transform.transform.translation.z = obj.filtered_z
-                
+
                 # Set rotation (identity quaternion)
                 transform.transform.rotation.w = 1.0
                 transform.transform.rotation.x = 0.0
                 transform.transform.rotation.y = 0.0
                 transform.transform.rotation.z = 0.0
-                
+
                 # Broadcast transform
                 self.broadcaster.sendTransform(transform)
 
