@@ -9,18 +9,23 @@ from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge, CvBridgeError
 from tf.transformations import euler_from_quaternion
 
+
 class DynamicRollCompensationNode:
     def __init__(self):
-        
-        rospy.init_node('dynamic_roll_compensation', anonymous=True)
+
+        rospy.init_node("dynamic_roll_compensation", anonymous=True)
         rospy.loginfo("Dynamic roll compensation node started.")
-        
+
         self.bridge = CvBridge()
         self.roll_angle_deg = 0.0
 
-        self.odom_subscriber = rospy.Subscriber("odometry", Odometry, self.odom_callback, tcp_nodelay=True)
-        
-        self.image_sub = rospy.Subscriber("camera/image_raw", Image, self.image_callback)
+        self.odom_subscriber = rospy.Subscriber(
+            "odometry", Odometry, self.odom_callback, tcp_nodelay=True
+        )
+
+        self.image_sub = rospy.Subscriber(
+            "camera/image_raw", Image, self.image_callback
+        )
         self.image_pub = rospy.Publisher("camera/image_corrected", Image, queue_size=10)
 
     def odom_callback(self, odom_msg):
@@ -29,11 +34,11 @@ class DynamicRollCompensationNode:
             odom_msg.pose.pose.orientation.x,
             odom_msg.pose.pose.orientation.y,
             odom_msg.pose.pose.orientation.z,
-            odom_msg.pose.pose.orientation.w
+            odom_msg.pose.pose.orientation.w,
         ]
         # Convert quaternion to Euler angles (roll, pitch, yaw)
         roll, pitch, yaw = euler_from_quaternion(q)
-        
+
         # Compute correction angle (in radians) as the shortest angular distance from roll to 0.
         correction_rad = angles.shortest_angular_distance(roll, 0.0)
         self.roll_angle_deg = math.degrees(correction_rad)
@@ -52,11 +57,11 @@ class DynamicRollCompensationNode:
         (h, w) = cv_image.shape[:2]
         center = (w // 2, h // 2)
         rospy.logdebug("Image dimensions: width=%d, height=%d, center=%s", w, h, center)
-        
+
         # Compute the rotation matrix using the computed correction angle
         M = cv2.getRotationMatrix2D(center, self.roll_angle_deg, 1.0)
         rospy.logdebug("Computed rotation matrix: %s", M)
-        
+
         # Rotate the image using the computed matrix
         rotated_image = cv2.warpAffine(cv_image, M, (w, h))
         rospy.logdebug("Applied cv2.warpAffine to rotate the image.")
@@ -74,7 +79,11 @@ class DynamicRollCompensationNode:
 
         # Publish the roll-corrected image
         self.image_pub.publish(corrected_img_msg)
-        rospy.logdebug("Published corrected image with roll compensation (%.2f degrees).", self.roll_angle_deg)
+        rospy.logdebug(
+            "Published corrected image with roll compensation (%.2f degrees).",
+            self.roll_angle_deg,
+        )
+
 
 def main():
     try:
@@ -83,5 +92,6 @@ def main():
     except rospy.ROSInterruptException:
         rospy.loginfo("Dynamic roll compensation node terminated.")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
