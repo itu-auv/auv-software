@@ -169,6 +169,8 @@ class MappingNode:
         self.scene_transform_publisher_callback(None)
 
     def scene_transform_publisher_callback(self, event):
+        self.scene.update_objects()
+
         objects = self.scene.get_objects()
 
         for obj_id, obj_list in objects.items():
@@ -236,7 +238,6 @@ class MappingNode:
                 self.broadcaster.sendTransform(transform)
 
         # Update filtered positions
-        self.scene.update_objects()
 
     def run(self):
         rospy.spin()
