@@ -166,7 +166,6 @@ class MappingNode:
         rospy.loginfo(f"Detection ID: {detection_id}")
         
         # Immediately publish transforms after adding a new object
-        self.scene_transform_publisher_callback(None)
 
     def scene_transform_publisher_callback(self, event):
         self.scene.update_objects()
@@ -210,11 +209,11 @@ class MappingNode:
                 except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
                     rospy.logerr(f"Error looking up transform: {e}")
                     continue
-            
+            current_time = rospy.Time.now()
             # Publish transforms for all objects
             for obj in obj_list:
                 transform = TransformStamped()
-                transform.header.stamp = rospy.Time.now()
+                transform.header.stamp = current_time
                 transform.header.frame_id = "odom"
                 
                 # Set child frame ID based on whether it's the closest object
