@@ -79,25 +79,31 @@ class GateRedArrow(Prop):
     def __init__(self):
         super().__init__(4, "gate_red_arrow", 0.3048, 0.3048)
 
+
 class GateBlueArrow(Prop):
     def __init__(self):
         super().__init__(3, "gate_blue_arrow", 0.3048, 0.3048)
+
 
 class GateMiddlePart(Prop):
     def __init__(self):
         super().__init__(5, "gate_middle_part", 0.6096, None)
 
+
 class BuoyRed(Prop):
     def __init__(self):
         super().__init__(8, "red_buoy", 0.292, 0.203)
+
 
 class TorpedoMap(Prop):
     def __init__(self):
         super().__init__(12, "torpedo_map", 0.6096, 0.6096)
 
+
 class BinWhole(Prop):
     def __init__(self):
         super().__init__(9, "bin_whole", None, None)
+
 
 class Octagon(Prop):
     def __init__(self):
@@ -136,11 +142,7 @@ class CameraDetectionNode:
                 12: "torpedo_map",
                 14: "octagon",
             },
-            "taluy/cameras/cam_bottom": {
-                9: "bin/whole",
-                10: "bin/red",
-                11: "bin/blue"
-            },
+            "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
         }
 
         # Initialize tf2 buffer and listener for transformations
@@ -152,17 +154,22 @@ class CameraDetectionNode:
         for camera in self.id_tf_map:
             for obj_id in self.id_tf_map[camera]:
                 topic = f"/detection/{obj_id}/point"
-                self.detection_pubs[obj_id] = rospy.Publisher(topic, PointStamped, queue_size=10)
+                self.detection_pubs[obj_id] = rospy.Publisher(
+                    topic, PointStamped, queue_size=10
+                )
 
         # Publishers for detected object lines
         self.detection_line_pubs = {}
         for camera in self.id_tf_map:
             for obj_id in self.id_tf_map[camera]:
                 topic = f"/detection/{obj_id}/line"
-                self.detection_line_pubs[obj_id] = rospy.Publisher(topic, PoseArray, queue_size=10)
+                self.detection_line_pubs[obj_id] = rospy.Publisher(
+                    topic, PoseArray, queue_size=10
+                )
 
         # Subscribe to YOLO detections
         rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
+
     def check_if_detection_is_inside_image(
         self, detection, image_width: int = 640, image_height: int = 480
     ) -> bool:
@@ -183,7 +190,7 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult):
-        camera_ns = "taluy/cameras/cam_front"  
+        camera_ns = "taluy/cameras/cam_front"
         if camera_ns not in self.camera_calibrations:
             rospy.logwarn(f"Unknown camera namespace: {camera_ns}")
             return
@@ -210,7 +217,7 @@ class CameraDetectionNode:
             distance = prop.estimate_distance(
                 detection.bbox.size_y,
                 detection.bbox.size_x,
-                self.camera_calibrations[camera_ns]
+                self.camera_calibrations[camera_ns],
             )
 
             if distance is None:
