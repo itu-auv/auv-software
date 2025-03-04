@@ -7,18 +7,20 @@
     <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" />
 
     <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
-      <remap from="sensors/imu/data" to="sensors/imu/data" />
-      <remap from="localization/odom_imu" to="localization/odom_imu" />
+      <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="odom_imu" to="localization/odom_imu" />
       <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
       output="screen">
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
-      <remap from="localization/odom_pressure" to="localization/odom_pressure" />
+      <remap from="odom_pressure" to="localization/odom_pressure" />
     </node>
     <node pkg="auv_localization" type="dvl_odometry_node.py" name="dvl_to_odom_node" output="screen">
       <remap from="sensors/dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
-      <remap from="localization/odom_dvl" to="localization/odom_dvl" />
+      <remap from="odom_dvl" to="localization/odom_dvl" />
+      <remap from="dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
+      <remap from="dvl/is_valid" to="sensors/dvl/is_valid" />
       <remap from="cmd_vel" to="cmd_vel" />
       <param name="cmdvel_tau" value="0.2" />
     </node>
