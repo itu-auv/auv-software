@@ -55,7 +55,7 @@ class PressureToOdom:
         self.depth_subscriber = rospy.Subscriber(
             "depth", Float32, self.depth_callback, tcp_nodelay=True
         )
-        
+
         self.base_to_pressure_translation = None
         rate = rospy.Rate(1.0)
 
@@ -79,9 +79,7 @@ class PressureToOdom:
 
             if self.imu_data is None:
                 rospy.logwarn("No IMU data received yet. Using default orientation.")
-                return self.base_to_pressure_translation[
-                    0, 2
-                ]  
+                return self.base_to_pressure_translation[0, 2]
 
             else:
                 orientation = self.imu_data.orientation
