@@ -27,13 +27,13 @@ class ReferencePosePublisherNode:
         self.control_enable_handler = ControlEnableHandler(1.0)
 
         # Initialize internal state
-        self.target_depth = 0.0
+        self.target_depth = -0.4
         self.target_heading = 0.0
         self.last_cmd_time = rospy.Time.now()
         self.target_frame_id = ""
 
         # Parameters
-        self.update_rate = rospy.get_param("~update_rate", 10)
+        self.update_rate = rospy.Rate(rospy.get_param("~update_rate", 10))
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
@@ -48,13 +48,13 @@ class ReferencePosePublisherNode:
         if self.control_enable_handler.is_enabled():
             return
 
-        quaterion = [
+        quaternion = [
             msg.pose.pose.orientation.x,
             msg.pose.pose.orientation.y,
             msg.pose.pose.orientation.z,
             msg.pose.pose.orientation.w,
         ]
-        _, _, self.target_heading = euler_from_quaternion(quaterion)
+        _, _, self.target_heading = euler_from_quaternion(quaternion)
 
     def cmd_vel_callback(self, msg):
         if not self.control_enable_handler.is_enabled():
@@ -62,7 +62,7 @@ class ReferencePosePublisherNode:
 
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
         dt = min(dt, self.command_timeout)
-
+        self.target_depth += msg.linear.z * dt
         self.target_heading += msg.angular.z * dt
         self.last_cmd_time = rospy.Time.now()
 
@@ -81,11 +81,9 @@ class ReferencePosePublisherNode:
         self.cmd_pose_pub.publish(cmd_pose_stamped)
 
     def run(self):
-        rate = rospy.Rate(self.update_rate)
-
         while not rospy.is_shutdown():
             self.control_loop()
-            rate.sleep()
+            self.update_rate.sleep()
 
 
 if __name__ == "__main__":
