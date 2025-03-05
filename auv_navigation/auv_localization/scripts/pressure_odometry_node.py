@@ -74,11 +74,13 @@ class PressureToOdom:
     def get_base_to_pressure_height(self):
         try:
             if self.base_to_pressure_translation is None:
-                rospy.logerr_throttle(10,"Transform not available.")
+                rospy.logerr_throttle(10, "Transform not available.")
                 return 0.0
 
             if self.imu_data is None:
-                rospy.logwarn_throttle(10,"No IMU data received yet. Using default orientation.")
+                rospy.logwarn_throttle(
+                    10, "No IMU data received yet. Using default orientation."
+                )
                 return self.base_to_pressure_translation[0, 2]
 
             else:
@@ -103,7 +105,7 @@ class PressureToOdom:
                 return rotated_vector[2]
 
         except Exception as e:
-            rospy.logerr_throttle(10,f"Error in get_base_to_pressure_height: {e}")
+            rospy.logerr_throttle(10, f"Error in get_base_to_pressure_height: {e}")
             return 0.0
 
     def depth_callback(self, depth_msg):
