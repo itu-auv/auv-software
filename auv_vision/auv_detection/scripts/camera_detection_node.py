@@ -167,8 +167,99 @@ class CameraDetectionNode:
                     topic, PoseArray, queue_size=10
                 )
 
-        # Subscribe to YOLO detections
+        # Subscribe to YOLO detections and altitude
+        self.altitude = None
+        rospy.Subscriber("/taluy/sensors/dvl/altitude", Range, self.altitude_callback)
         rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
+
+    def altitude_callback(self, msg: Range):
+        self.altitude = msg.range
+
+    def calculate_intersection_with_ground(self, point1_odom, point2_odom):
+        # Calculate t where the z component is zero (ground plane)
+        if point2_odom.point.z != point1_odom.point.z:
+            t = -point1_odom.point.z / (point2_odom.point.z - point1_odom.point.z)
+
+            # Check if t is within the segment range [0, 1]
+            if 0 <= t <= 1:
+                # Calculate intersection point
+                x = point1_odom.point.x + t * (point2_odom.point.x - point1_odom.point.x)
+                y = point1_odom.point.y + t * (point2_odom.point.y - point1_odom.point.y)
+                z = 0  # ground plane
+                return x, y, z
+            else:
+                rospy.logwarn("No intersection with ground plane within the segment.")
+                return None
+        else:
+            rospy.logwarn("The line segment is parallel to the ground plane.")
+            return None
+
+    def process_altitude_projection(self, detection, camera_ns: str):
+        if self.altitude is None:
+            rospy.logwarn("No altitude data available")
+            return
+
+        detection_id = detection.results[0].id
+        if detection_id != 9:  # Sadece bin_whole için altitude projection yapılacak
+            return
+
+        bbox_bottom_x = detection.bbox.center.x
+        bbox_bottom_y = detection.bbox.center.y + detection.bbox.size_y * 0.5
+
+        angles = self.camera_calibrations[camera_ns].calculate_angles(
+            (bbox_bottom_x, bbox_bottom_y)
+        )
+
+        distance = 500.0  # Uzun bir mesafe kullanıyoruz
+
+        offset_x = math.tan(angles[0]) * distance * 1.0
+        offset_y = math.tan(angles[1]) * distance * 1.0
+
+        # optical_camera_frame'de tanımlı iki nokta
+        point1 = PointStamped()
+        point1.header.frame_id = self.camera_frames[camera_ns]
+        point1.point.x = 0
+        point1.point.y = 0
+        point1.point.z = 0
+
+        point2 = PointStamped()
+        point2.header.frame_id = self.camera_frames[camera_ns]
+        point2.point.x = offset_x
+        point2.point.y = offset_y
+        point2.point.z = distance
+
+        try:
+            # optical_camera_frame'den odom frame'ine transform
+            transform = self.tf_buffer.lookup_transform(
+                "odom",
+                self.camera_frames[camera_ns],
+                rospy.Time(0),
+                rospy.Duration(1.0),
+            )
+            point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
+            point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
+
+            # DVL yüksekliğini ve kamera offset'ini ekle
+            point1_odom.point.z += self.altitude + 0.18
+            point2_odom.point.z += self.altitude + 0.18
+
+            # Zemin ile kesişim noktasını bul
+            intersection = self.calculate_intersection_with_ground(point1_odom, point2_odom)
+            if intersection:
+                x, y, z = intersection
+                point_msg = PointStamped()
+                point_msg.header.frame_id = "odom"
+                point_msg.header.stamp = rospy.Time.now()
+                point_msg.point.x = x
+                point_msg.point.y = y
+                point_msg.point.z = z
+
+                if detection_id in self.detection_pubs:
+                    self.detection_pubs[detection_id].publish(point_msg)
+
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, 
+                tf2_ros.ExtrapolationException) as e:
+            rospy.logerr(f"Transform error: {e}")
 
     def check_if_detection_is_inside_image(
         self, detection, image_width: int = 640, image_height: int = 480
@@ -190,7 +281,16 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult):
+        # Gelen mesajın hangi kameradan olduğunu kontrol et
+        camera_ns = detection_msg.header.frame_id
+
+        # Şimdilik sadece ön kamera işlenecek, alt kamera için return
+        if camera_ns == "taluy/cameras/cam_bottom":
+            return
+        
+        # Varsayılan olarak ön kamerayı kullan
         camera_ns = "taluy/cameras/cam_front"
+        
         if camera_ns not in self.camera_calibrations:
             rospy.logwarn(f"Unknown camera namespace: {camera_ns}")
             return
@@ -206,6 +306,11 @@ class CameraDetectionNode:
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
 
+            # Eğer detection bin_whole ise (id=9), altitude projection kullan
+            if detection_id == 9:
+                self.process_altitude_projection(detection, camera_ns)
+                continue
+
             prop_name = self.id_tf_map[camera_ns][detection_id]
             if prop_name not in self.props:
                 continue
@@ -213,6 +318,7 @@ class CameraDetectionNode:
             prop = self.props[prop_name]
             if self.check_if_detection_is_inside_image(detection) == False:
                 continue
+
             # Calculate distance using object dimensions
             distance = prop.estimate_distance(
                 detection.bbox.size_y,
