@@ -172,9 +172,6 @@ class TransformServiceNode:
         Look up the current transforms, compute entrance and exit transforms, and send them.
         """
         try:
-            # TODO: Shouldn't have the need to check for the transform of a frame that is fixed in world.
-            #      Maybe introduce an event-based trigger,for example, only recompute if the frames move significantly.
-
             transform_gate_link_1 = self.tf_buffer.lookup_transform(
                 self.odom_frame, self.gate_frame_1, rospy.Time(0), rospy.Duration(1)
             )
