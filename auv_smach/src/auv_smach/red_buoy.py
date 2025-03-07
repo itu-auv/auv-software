@@ -18,7 +18,7 @@ from geometry_msgs.msg import TransformStamped, PointStamped
 import tf2_ros
 import numpy as np
 import tf.transformations as transformations
-
+import tf2_geometry_msgs
 from auv_smach.common import (
     NavigateToFrameState,
     SetAlignControllerTargetState,
