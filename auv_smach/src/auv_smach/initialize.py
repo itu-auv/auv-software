@@ -3,7 +3,7 @@ import smach_ros
 import rospy
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from std_srvs.srv import Empty, EmptyRequest, EmptyResponse
+from std_srvs.srv import Empty, EmptyRequest, EmptyResponse, SetBool, SetBoolRequest
 from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
 from auv_msgs.srv import (
     SetObjectTransform,
@@ -18,6 +18,14 @@ from std_msgs.msg import Bool
 from auv_smach.common import SetAlignControllerTargetState, CancelAlignControllerState
 
 
+class ResetObjectMapState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "/taluy/map/reset_map",
+            SetBool,
+            request=SetBoolRequest(data=True)
+        )
 class WaitForKillswitchEnabledState(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -159,6 +167,24 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "RESET_ODOMETRY_POSE",
                 ResetOdometryPoseState(),
+                transitions={
+                    "succeeded": "DELAY_AFTER_RESET_ODOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_AFTER_RESET_ODOM",
+                DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "RESET_OBJECT_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                }
+            )
+            smach.StateMachine.add(
+                "RESET_OBJECT_MAP",
+                ResetObjectMapState(),
                 transitions={
                     "succeeded": "SET_START_FRAME",
                     "preempted": "preempted",

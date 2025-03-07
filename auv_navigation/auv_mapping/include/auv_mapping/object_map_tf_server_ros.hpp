@@ -1,5 +1,6 @@
 #pragma once
 
+#include <std_srvs/SetBool.h>
 #include <auv_msgs/SetObjectTransform.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <ros/ros.h>
@@ -34,6 +35,9 @@ class ObjectMapTFServerROS {
     service_ = nh_.advertiseService(
         "set_object_transform", &ObjectMapTFServerROS::set_transform_handler,
         this);
+
+    reset_service_ = nh_.advertiseService(
+        "reset_map", &ObjectMapTFServerROS::reset_map_handler, this);
 
     ROS_INFO("ObjectMapTFServerROS initialized. Static frame: %s",
              static_frame_.c_str());
@@ -150,6 +154,24 @@ class ObjectMapTFServerROS {
   //
   std::mutex mutex_;
   ros::ServiceServer service_;
+    ros::ServiceServer reset_service_;
+
+  bool reset_map_handler(std_srvs::SetBool::Request &req,
+                         std_srvs::SetBool::Response &res) {
+    if (req.data) {
+      {
+        auto lock = std::scoped_lock(mutex_);
+        transforms_.clear();
+      }
+      ROS_INFO("ObjectMapTFServerROS map reset.");
+      res.success = true;
+      res.message = "Map reset successful.";
+    } else {
+      res.success = true;
+      res.message = "Map reset not requested (false).";
+    }
+    return true;
+  }
 };
 
 }  // namespace auv_mapping
