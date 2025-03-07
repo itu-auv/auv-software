@@ -241,13 +241,7 @@ class MappingNode:
                 transform.transform.rotation.z = 0.0
 
                 # Broadcast transform
-                # self.broadcaster.sendTransform(transform) # Commented out to use service
-                req = SetObjectTransformRequest()
-                req.transform = transform
-                resp = self.set_object_transform_service.call(req)
-                if not resp.success:
-                    rospy.logerr(f"Failed to set transform for {transform.child_frame_id}: {resp.message}")
-
+                self.broadcaster.sendTransform(transform) # Commented out to use service
         # Update filtered positions
 
     def run(self):
