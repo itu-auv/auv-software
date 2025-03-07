@@ -241,7 +241,7 @@ class MappingNode:
                 transform.transform.rotation.z = 0.0
 
                 # Broadcast transform
-                self.broadcaster.sendTransform(transform) # Commented out to use service
+                self.broadcaster.sendTransform(transform)
         # Update filtered positions
 
     def run(self):

@@ -23,9 +23,10 @@ class ResetObjectMapState(smach_ros.ServiceState):
         smach_ros.ServiceState.__init__(
             self,
             "/taluy/map/reset_map",
-            SetBool,
-            request=SetBoolRequest(data=True)
+            Trigger,
+            request=TriggerRequest()
         )
+
 class WaitForKillswitchEnabledState(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -174,7 +175,7 @@ class InitializeState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "DELAY_AFTER_RESET_ODOM",
+                "DELAY_AFTER_RESET_ODOM_ALL",
                 DelayState(delay_time=1.0),
                 transitions={
                     "succeeded": "RESET_OBJECT_MAP",
@@ -183,7 +184,7 @@ class InitializeState(smach.State):
                 }
             )
             smach.StateMachine.add(
-                "RESET_OBJECT_MAP",
+                "RESET_OBJECT_MAP_ALL",
                 ResetObjectMapState(),
                 transitions={
                     "succeeded": "SET_START_FRAME",

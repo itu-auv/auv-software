@@ -1,9 +1,9 @@
 #pragma once
 
-#include <std_srvs/SetBool.h>
 #include <auv_msgs/SetObjectTransform.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <ros/ros.h>
+#include <std_srvs/Trigger.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
@@ -154,22 +154,17 @@ class ObjectMapTFServerROS {
   //
   std::mutex mutex_;
   ros::ServiceServer service_;
-    ros::ServiceServer reset_service_;
+  ros::ServiceServer reset_service_;
 
-  bool reset_map_handler(std_srvs::SetBool::Request &req,
-                         std_srvs::SetBool::Response &res) {
-    if (req.data) {
-      {
-        auto lock = std::scoped_lock(mutex_);
-        transforms_.clear();
-      }
-      ROS_INFO("ObjectMapTFServerROS map reset.");
-      res.success = true;
-      res.message = "Map reset successful.";
-    } else {
-      res.success = true;
-      res.message = "Map reset not requested (false).";
-    }
+  bool reset_transforms_handler(const std_srvs::Trigger::Request &req,
+                                std_srvs::Trigger::Response &res) {
+    auto lock = std::scoped_lock(mutex_);
+    transforms_.clear();
+
+    ROS_INFO("ObjectMapTFServerROS resetting transforms on map.");
+    res.success = true;
+    res.message = "Resetting transforms.";
+
     return true;
   }
 };
