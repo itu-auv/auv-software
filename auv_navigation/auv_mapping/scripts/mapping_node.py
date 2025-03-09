@@ -13,7 +13,7 @@ import tf2_ros
 import tf2_geometry_msgs
 import copy
 import threading
-from std_srvs.srv import SetBool, SetBoolResponse
+from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 
 
 class Scene:
@@ -125,6 +125,21 @@ class MappingNode:
         self.set_enable_service = rospy.Service(
             "set_mapping_enable", SetBool, self.handle_enable_mapping
         )
+
+        self.reset_map_service = rospy.Service(
+            "reset_map", Trigger, self.handle_reset_map
+        )
+    def handle_reset_map(self, req):
+        with self.scene.lock:
+            self.scene.objects = {}
+        message = f"All objects reseted."
+        rospy.loginfo(message)
+        return TriggerResponse(success=True, message=message)
+    def handle_enable_mapping(self, req):
+        self.enable_mapping = req.data
+        message = f"Mapping node enable durumu: {self.enable_mapping}"
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
 
     def transform_point_to_odom(self, point_msg: PointStamped) -> PointStamped:
         try:
@@ -246,11 +261,7 @@ class MappingNode:
                 # Broadcast transform
                 self.broadcaster.sendTransform(transform)
         # Update filtered positions
-    def handle_enable_mapping(self, req):
-        self.enable_mapping = req.data
-        message = f"Mapping node enable : {self.enable_mapping}"
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
+
 
     def run(self):
         rospy.spin()
