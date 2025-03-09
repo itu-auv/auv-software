@@ -13,6 +13,7 @@ import tf2_ros
 import tf2_geometry_msgs
 import copy
 import threading
+from std_srvs.srv import SetBool, SetBoolResponse
 
 
 class Scene:
@@ -120,6 +121,11 @@ class MappingNode:
 
         rospy.loginfo("Mapping node initialized")
 
+        self.enable_mapping = True
+        self.set_enable_service = rospy.Service(
+            "set_mapping_enable", SetBool, self.handle_enable_mapping
+        )
+
     def transform_point_to_odom(self, point_msg: PointStamped) -> PointStamped:
         try:
             # Try to get the latest transform available
@@ -139,6 +145,8 @@ class MappingNode:
             rospy.logwarn(f"Transform failed: {str(e)}")
 
     def points_callback(self, point_msg, detection_id):
+        if not self.enable_mapping:
+            return
 
         if point_msg is None:
             rospy.logwarn(
@@ -161,6 +169,8 @@ class MappingNode:
         # Immediately publish transforms after adding a new object
 
     def scene_transform_publisher_callback(self, event):
+        if not self.enable_mapping:
+            return
         self.scene.update_objects()
 
         objects = self.scene.get_objects()
@@ -236,6 +246,11 @@ class MappingNode:
                 # Broadcast transform
                 self.broadcaster.sendTransform(transform)
         # Update filtered positions
+    def handle_enable_mapping(self, req):
+        self.enable_mapping = req.data
+        message = f"Mapping node enable : {self.enable_mapping}"
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
 
     def run(self):
         rospy.spin()
