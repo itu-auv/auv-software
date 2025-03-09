@@ -13,6 +13,7 @@ find_package(catkin REQUIRED
   tf2_ros
   geometry_msgs
   auv_msgs
+  std_srvs
 )
 
 catkin_package()

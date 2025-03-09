@@ -37,7 +37,7 @@ class ObjectMapTFServerROS {
         this);
 
     reset_service_ = nh_.advertiseService(
-        "reset_map", &ObjectMapTFServerROS::reset_map_handler, this);
+        "reset_map", &ObjectMapTFServerROS::reset_transforms_handler, this);
 
     ROS_INFO("ObjectMapTFServerROS initialized. Static frame: %s",
              static_frame_.c_str());
@@ -156,7 +156,7 @@ class ObjectMapTFServerROS {
   ros::ServiceServer service_;
   ros::ServiceServer reset_service_;
 
-  bool reset_transforms_handler(const std_srvs::Trigger::Request &req,
+  bool reset_transforms_handler(std_srvs::Trigger::Request &req,
                                 std_srvs::Trigger::Response &res) {
     auto lock = std::scoped_lock(mutex_);
     transforms_.clear();
