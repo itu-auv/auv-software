@@ -18,9 +18,7 @@ class PressureToOdom:
         self.depth_calibration_covariance = rospy.get_param(
             "sensors/external_pressure_sensor/depth_covariance", 0.00005
         )
-        self.odom_publisher = rospy.Publisher(
-            "localization/odom_pressure", Odometry, queue_size=10
-        )
+        self.odom_publisher = rospy.Publisher("odom_pressure", Odometry, queue_size=10)
 
         # Initialize the odometry message
         self.odom_msg = Odometry()

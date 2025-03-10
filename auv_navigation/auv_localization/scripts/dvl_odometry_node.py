@@ -30,10 +30,10 @@ class DvlToOdom:
 
         # Subscribers and Publishers
         self.dvl_velocity_subscriber = message_filters.Subscriber(
-            "sensors/dvl/velocity_raw", Twist, tcp_nodelay=True
+            "dvl/velocity_raw", Twist, tcp_nodelay=True
         )
         self.is_valid_subscriber = message_filters.Subscriber(
-            "sensors/dvl/is_valid", Bool, tcp_nodelay=True
+            "dvl/is_valid", Bool, tcp_nodelay=True
         )
         self.cmd_vel_subscriber = rospy.Subscriber(
             "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
@@ -47,9 +47,7 @@ class DvlToOdom:
         )
         self.sync.registerCallback(self.dvl_callback)
 
-        self.odom_publisher = rospy.Publisher(
-            "localization/odom_dvl", Odometry, queue_size=10
-        )
+        self.odom_publisher = rospy.Publisher("odom_dvl", Odometry, queue_size=10)
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
