@@ -16,7 +16,7 @@ class WaitForKillswitchEnabledState(smach.State):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.enabled = False
         self.killswitch_subscriber = rospy.Subscriber(
-            "/taluy/propulsion_board/status", Bool, self.killswitch_callback
+            "propulsion_board/status", Bool, self.killswitch_callback
         )
 
     def killswitch_callback(self, msg):
@@ -35,7 +35,7 @@ class DVLEnableState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/sensors/dvl/enable",
+            "dvl/enable",
             SetBool,
             request=SetBoolRequest(data=True),
         )
@@ -55,7 +55,7 @@ class OdometryEnableState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/auv_localization_node/enable",
+            "localization_enable",
             Empty,
             request=EmptyRequest(),
         )
@@ -68,7 +68,7 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
 
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/set_pose",
+            "set_pose",
             SetPose,
             request=initial_pose_request,
         )
@@ -83,7 +83,7 @@ class SetStartFrameState(smach_ros.ServiceState):
 
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/map/set_object_transform",
+            "set_object_transform",
             SetObjectTransform,
             request=transform_request,
         )
