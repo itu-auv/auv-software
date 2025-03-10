@@ -160,7 +160,6 @@ class CameraDetectionNode:
                 )
 
         # Publishers for detected object lines
-        
 
         # Subscribe to YOLO detections and altitude
         self.altitude = None
@@ -178,8 +177,12 @@ class CameraDetectionNode:
             # Check if t is within the segment range [0, 1]
             if 0 <= t <= 1:
                 # Calculate intersection point
-                x = point1_odom.point.x + t * (point2_odom.point.x - point1_odom.point.x)
-                y = point1_odom.point.y + t * (point2_odom.point.y - point1_odom.point.y)
+                x = point1_odom.point.x + t * (
+                    point2_odom.point.x - point1_odom.point.x
+                )
+                y = point1_odom.point.y + t * (
+                    point2_odom.point.y - point1_odom.point.y
+                )
                 z = 0  # ground plane
                 return x, y, z
             else:
@@ -195,7 +198,7 @@ class CameraDetectionNode:
             return
 
         detection_id = detection.results[0].id
-        if detection_id != 9: 
+        if detection_id != 9:
             return
 
         bbox_bottom_x = detection.bbox.center.x
@@ -205,7 +208,7 @@ class CameraDetectionNode:
             (bbox_bottom_x, bbox_bottom_y)
         )
 
-        distance = 500.0 
+        distance = 500.0
 
         offset_x = math.tan(angles[0]) * distance * 1.0
         offset_y = math.tan(angles[1]) * distance * 1.0
@@ -237,7 +240,9 @@ class CameraDetectionNode:
             point2_odom.point.z += self.altitude + 0.18
 
             # Zemin ile kesişim noktasını bul
-            intersection = self.calculate_intersection_with_ground(point1_odom, point2_odom)
+            intersection = self.calculate_intersection_with_ground(
+                point1_odom, point2_odom
+            )
             if intersection:
                 x, y, z = intersection
                 point_msg = PointStamped()
@@ -250,8 +255,11 @@ class CameraDetectionNode:
                 if detection_id in self.detection_pubs:
                     self.detection_pubs[detection_id].publish(point_msg)
 
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, 
-                tf2_ros.ExtrapolationException) as e:
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
             rospy.logerr(f"Transform error: {e}")
 
     def check_if_detection_is_inside_image(
@@ -275,7 +283,6 @@ class CameraDetectionNode:
 
     def detection_callback(self, detection_msg: YoloResult):
         camera_ns = "taluy/cameras/cam_front"
-
 
         calibration = self.camera_calibrations[camera_ns]
         camera_frame = self.camera_frames[camera_ns]
