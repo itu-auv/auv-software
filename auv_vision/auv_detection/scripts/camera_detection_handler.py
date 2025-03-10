@@ -5,6 +5,7 @@ import math
 from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Pose
 from ultralytics_ros.msg import YoloResult
 from sensor_msgs.msg import Range
+from std_msgs.msg import Float32
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
@@ -159,21 +160,15 @@ class CameraDetectionNode:
                 )
 
         # Publishers for detected object lines
-        self.detection_line_pubs = {}
-        for camera in self.id_tf_map:
-            for obj_id in self.id_tf_map[camera]:
-                topic = f"/detection/{obj_id}/line"
-                self.detection_line_pubs[obj_id] = rospy.Publisher(
-                    topic, PoseArray, queue_size=10
-                )
+        
 
         # Subscribe to YOLO detections and altitude
         self.altitude = None
-        rospy.Subscriber("/taluy/sensors/dvl/altitude", Range, self.altitude_callback)
+        rospy.Subscriber("/taluy/sensors/dvl/altitude", Float32, self.altitude_callback)
         rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
 
-    def altitude_callback(self, msg: Range):
-        self.altitude = msg.range
+    def altitude_callback(self, msg: Float32):
+        self.altitude = msg.data
 
     def calculate_intersection_with_ground(self, point1_odom, point2_odom):
         # Calculate t where the z component is zero (ground plane)
@@ -238,7 +233,6 @@ class CameraDetectionNode:
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
 
-            # DVL yüksekliğini ve kamera offset'ini ekle
             point1_odom.point.z += self.altitude + 0.18
             point2_odom.point.z += self.altitude + 0.18
 
@@ -280,11 +274,8 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult):
-        camera_ns = detection_msg.header.frame_id
+        camera_ns = "taluy/cameras/cam_front"
 
-        if camera_ns not in self.camera_calibrations:
-            rospy.logwarn(f"Unknown camera namespace: {camera_ns}")
-            return
 
         calibration = self.camera_calibrations[camera_ns]
         camera_frame = self.camera_frames[camera_ns]
