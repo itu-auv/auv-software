@@ -13,9 +13,14 @@ find_package(catkin REQUIRED
   tf2_ros
   geometry_msgs
   auv_msgs
+  rospy
+  sensor_msgs
+  std_msgs
 )
 
-catkin_package()
+catkin_package(
+  CATKIN_DEPENDS roscpp tf2 tf2_ros geometry_msgs auv_msgs rospy sensor_msgs std_msgs
+)
 
 include_directories(
   include
@@ -25,6 +30,7 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/prop_transform_publisher.py
   scripts/gate_trajectory_publisher.py
+  scripts/sonar_to_scan_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
