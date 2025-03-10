@@ -200,7 +200,7 @@ class CameraDetectionNode:
             return
 
         detection_id = detection.results[0].id
-        if detection_id != 9:  # Sadece bin_whole için altitude projection yapılacak
+        if detection_id != 9: 
             return
 
         bbox_bottom_x = detection.bbox.center.x
@@ -210,7 +210,7 @@ class CameraDetectionNode:
             (bbox_bottom_x, bbox_bottom_y)
         )
 
-        distance = 500.0  # Uzun bir mesafe kullanıyoruz
+        distance = 500.0 
 
         offset_x = math.tan(angles[0]) * distance * 1.0
         offset_y = math.tan(angles[1]) * distance * 1.0
@@ -229,7 +229,6 @@ class CameraDetectionNode:
         point2.point.z = distance
 
         try:
-            # optical_camera_frame'den odom frame'ine transform
             transform = self.tf_buffer.lookup_transform(
                 "odom",
                 self.camera_frames[camera_ns],
@@ -281,16 +280,8 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult):
-        # Gelen mesajın hangi kameradan olduğunu kontrol et
         camera_ns = detection_msg.header.frame_id
 
-        # Şimdilik sadece ön kamera işlenecek, alt kamera için return
-        if camera_ns == "taluy/cameras/cam_bottom":
-            return
-        
-        # Varsayılan olarak ön kamerayı kullan
-        camera_ns = "taluy/cameras/cam_front"
-        
         if camera_ns not in self.camera_calibrations:
             rospy.logwarn(f"Unknown camera namespace: {camera_ns}")
             return
