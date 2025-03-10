@@ -3,6 +3,7 @@
 #include <auv_msgs/SetObjectTransform.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <ros/ros.h>
+#include <std_srvs/Trigger.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
@@ -34,6 +35,9 @@ class ObjectMapTFServerROS {
     service_ = nh_.advertiseService(
         "set_object_transform", &ObjectMapTFServerROS::set_transform_handler,
         this);
+
+    reset_service_ = nh_.advertiseService(
+        "reset_object_map", &ObjectMapTFServerROS::reset_transforms_handler, this);
 
     ROS_INFO("ObjectMapTFServerROS initialized. Static frame: %s",
              static_frame_.c_str());
@@ -150,6 +154,19 @@ class ObjectMapTFServerROS {
   //
   std::mutex mutex_;
   ros::ServiceServer service_;
+  ros::ServiceServer reset_service_;
+
+  bool reset_transforms_handler(std_srvs::Trigger::Request &req,
+                                std_srvs::Trigger::Response &res) {
+    auto lock = std::scoped_lock(mutex_);
+    transforms_.clear();
+
+    ROS_INFO("ObjectMapTFServerROS resetting transforms on map.");
+    res.success = true;
+    res.message = "Resetting transforms.";
+
+    return true;
+  }
 };
 
 }  // namespace auv_mapping
