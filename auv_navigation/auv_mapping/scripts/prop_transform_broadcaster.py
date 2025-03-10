@@ -8,7 +8,6 @@ from geometry_msgs.msg import (
     TransformStamped,
     PointStamped,
 )
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 import tf2_ros
 import tf2_geometry_msgs
 import copy
@@ -101,14 +100,6 @@ class MappingNode:
         # Initialize tf2 buffer and listener
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-
-        # Services
-        rospy.loginfo("Waiting for set_object_transform service...")
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "/taluy/map/set_object_transform", SetObjectTransform
-        )
-        self.set_object_transform_service.wait_for_service()
-        print("set_object_transform service ready")
 
         # Create subscribers for each detection ID
         self.point_subscribers = {}
