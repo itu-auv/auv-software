@@ -49,7 +49,7 @@ class PressureToOdom:
 
         self.imu_data = None
         self.imu_subscriber = rospy.Subscriber(
-            "sensors/imu/data", Imu, self.imu_callback, tcp_nodelay=True
+            "imu/data", Imu, self.imu_callback, tcp_nodelay=True
         )
 
         self.depth_subscriber = rospy.Subscriber(
