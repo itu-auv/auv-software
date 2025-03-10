@@ -26,7 +26,6 @@ class FollowPathActionClient:
         """
         try:
             goal = FollowPathGoal()
-            # goal.paths = [path for path in paths] #! necessary??
             goal.paths = paths
             rospy.logdebug("[follow_path client] sending paths goal...")
             self.client.send_goal(goal)
