@@ -27,4 +27,9 @@
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
   </include>
+
+  <include file="$(find auv_navigation)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
 </launch>

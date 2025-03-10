@@ -1,31 +1,22 @@
 import smach
 import smach_ros
 import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from std_srvs.srv import Empty, EmptyRequest, EmptyResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
-    AlignFrameController,
-    AlignFrameControllerRequest,
-    AlignFrameControllerResponse,
-)
+from std_srvs.srv import SetBool, SetBoolRequest
+from std_srvs.srv import Empty, EmptyRequest
+from robot_localization.srv import SetPose, SetPoseRequest
+from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
-
-from auv_smach.common import SetAlignControllerTargetState, CancelAlignControllerState
+from auv_smach.common import CancelAlignControllerState
+from typing import Optional, Literal
+from dataclasses import dataclass
 
 
 class WaitForKillswitchEnabledState(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-
         self.enabled = False
-
         self.killswitch_subscriber = rospy.Subscriber(
-            "/taluy/propulsion_board/status", Bool, self.killswitch_callback
+            "propulsion_board/status", Bool, self.killswitch_callback
         )
 
     def killswitch_callback(self, msg):
@@ -36,9 +27,7 @@ class WaitForKillswitchEnabledState(smach.State):
         while not rospy.is_shutdown():
             if self.enabled:
                 return "succeeded"
-
             rate.sleep()
-
         return "aborted"
 
 
@@ -46,7 +35,7 @@ class DVLEnableState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/sensors/dvl/enable",
+            "dvl/enable",
             SetBool,
             request=SetBoolRequest(data=True),
         )
@@ -66,7 +55,7 @@ class OdometryEnableState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/auv_localization_node/enable",
+            "localization_enable",
             Empty,
             request=EmptyRequest(),
         )
@@ -79,7 +68,7 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
 
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/set_pose",
+            "set_pose",
             SetPose,
             request=initial_pose_request,
         )
@@ -94,7 +83,7 @@ class SetStartFrameState(smach_ros.ServiceState):
 
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/map/set_object_transform",
+            "set_object_transform",
             SetObjectTransform,
             request=transform_request,
         )
@@ -160,6 +149,16 @@ class InitializeState(smach.State):
                 "RESET_ODOMETRY_POSE",
                 ResetOdometryPoseState(),
                 transitions={
+                    "succeeded": "DELAY_AFTER_RESET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 1 second delay after resetting odometry pose
+            smach.StateMachine.add(
+                "DELAY_AFTER_RESET",
+                DelayState(delay_time=1.0),
+                transitions={
                     "succeeded": "SET_START_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -168,18 +167,6 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "SET_START_FRAME",
                 SetStartFrameState(frame_name="mission_start_link"),
-                transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            # TODO add enable controller
-            smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="mission_start_link"
-                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

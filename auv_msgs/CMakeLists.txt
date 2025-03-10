@@ -5,10 +5,18 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   message_generation
   nav_msgs
+  actionlib_msgs
+  actionlib
+  std_msgs
 )
 
+## Declare action files
+add_action_files(
+  DIRECTORY action
+  FILES
+  FollowPath.action
+)
 
-## Generate messages in the 'msg' folder
 add_message_files(
   FILES
   MotorCommand.msg
@@ -27,16 +35,15 @@ generate_messages(
   DEPENDENCIES
   std_msgs
   geometry_msgs
+  actionlib_msgs
+  nav_msgs
 )
 
+## Declare catkin package
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES auv_msgs
-  CATKIN_DEPENDS actionlib_msgs
-#  DEPENDS system_lib
+  CATKIN_DEPENDS message_runtime actionlib_msgs actionlib geometry_msgs std_msgs nav_msgs
 )
 
 include_directories(
-# include
   ${catkin_INCLUDE_DIRS}
 )

@@ -2,6 +2,8 @@
 
 #include <auv_control/ControllerConfig.h>  // Include your dynamic reconfigure header
 #include <dynamic_reconfigure/server.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <type_traits>
 
@@ -16,6 +18,8 @@
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
 #include "std_msgs/Bool.h"
+#include "std_msgs/Float64.h"
+#include "tf2_ros/buffer.h"
 
 namespace auv {
 namespace control {
@@ -36,8 +40,16 @@ class ControllerROS {
       auv::common::ros::SubscriberWithTimeout<std_msgs::Bool>;
 
   ControllerROS(const ros::NodeHandle& nh)
-      : nh_{nh}, rate_{1.0}, control_enable_sub_{nh} {
+      : nh_{nh},
+        rate_{1.0},
+        control_enable_sub_{nh},
+        tf_buffer_{},
+        tf_listener_{tf_buffer_} {
     ros::NodeHandle nh_private("~");
+
+    // default_frame as a ros parameter (default is odom)
+    depth_control_reference_frame_ =
+        nh_private.param<std::string>("depth_control_reference_frame", "odom");
 
     auto model = ModelParser::parse("model", nh_private);
     load_parameters();
@@ -46,6 +58,9 @@ class ControllerROS {
 
     const auto rate = nh_private.param("rate", 10.0);
     rate_ = ros::Rate{rate};
+
+    nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
+    nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
 
     ROS_INFO_STREAM("kp: \n" << kp_.transpose());
     ROS_INFO_STREAM("ki: \n" << ki_.transpose());
@@ -89,7 +104,7 @@ class ControllerROS {
         ros::Duration{1.0});
     control_enable_sub_.set_default_message(std_msgs::Bool{});
 
-    wrench_pub_ = nh_.advertise<geometry_msgs::Wrench>("wrench", 1);
+    wrench_pub_ = nh_.advertise<geometry_msgs::WrenchStamped>("wrench", 1);
   }
 
   bool load_controller(const std::string& controller_name) {
@@ -119,19 +134,25 @@ class ControllerROS {
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
-      const auto wrench_msg =
-          (is_control_enabled() && !is_timeouted())
-              ? auv::common::conversions::convert<ControllerBase::WrenchVector,
-                                                  geometry_msgs::Wrench>(
-                    control_output)
-              : geometry_msgs::Wrench{};
-
-      wrench_pub_.publish(wrench_msg);
+      geometry_msgs::WrenchStamped wrench_msg;
+      if (is_control_enabled() && !is_timeouted()) {
+        wrench_msg.header.stamp = ros::Time::now();
+        wrench_msg.header.frame_id = body_frame_;
+        wrench_msg.wrench =
+            auv::common::conversions::convert<ControllerBase::WrenchVector,
+                                              geometry_msgs::Wrench>(
+                control_output);
+        wrench_pub_.publish(wrench_msg);
+      }
     }
   }
 
  private:
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
+  std::string body_frame_;
+  double transform_timeout_;
 
   bool is_timeouted() const {
     return (ros::Time::now() - latest_command_time_).toSec() > 1.0;
@@ -151,10 +172,61 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
-  void cmd_pose_callback(const geometry_msgs::Pose::ConstPtr& msg) {
-    desired_state_.head(6) =
-        auv::common::conversions::convert<geometry_msgs::Pose,
-                                          ControllerBase::Vector>(*msg);
+  const std::optional<std::string> get_source_frame(
+      const std::string& source_frame) {
+    if (source_frame.empty()) {  // No source provided.
+      return std::nullopt;  // no transform will be needed with an empty frame
+                            // (assume odom frame was meant)
+    }
+
+    if (source_frame == depth_control_reference_frame_) {  //
+      return std::nullopt;  // no transform will be needed between two identical
+                            // frames
+    }
+
+    // Transform is required:
+    if (source_frame[0] == '/') {  // The added slash causes errors with tf
+      return source_frame.substr(1);
+    }
+    return source_frame;
+  }
+
+  void cmd_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
+    // Get frame and pose.
+    const auto source_frame = get_source_frame(msg->header.frame_id);
+    auto transformed_pose = msg->pose;
+
+    static tf2_ros::Buffer tf_buffer;
+    static tf2_ros::TransformListener tf_listener(tf_buffer);
+    geometry_msgs::TransformStamped transform_stamped;
+
+    if (source_frame.has_value()) {
+      ROS_DEBUG("Source frame: %s, Desired frame: %s",
+                source_frame.value().c_str(),
+                depth_control_reference_frame_.c_str());
+      try {
+        transform_stamped =
+            tf_buffer.lookupTransform(depth_control_reference_frame_,
+                                      source_frame.value(), ros::Time::now());
+
+        // only transform the z-axis component of the pose
+        geometry_msgs::Point transformed_z;
+        tf2::doTransform(msg->pose.position, transformed_z, transform_stamped);
+        transformed_pose.position.z =
+            transformed_z.z;  // override the z component
+
+      } catch (tf2::TransformException& ex) {  // If unsuccessful, exit and
+                                               // don't update desired state
+        ROS_DEBUG("Failed to transform pose");
+        return;
+      }
+    }
+    ROS_DEBUG_STREAM(
+        "Final transformed z command pose: " << transformed_pose.position.z);
+    // update desired state
+    desired_state_.head(6) = auv::common::conversions::convert<
+        geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
+
     latest_command_time_ = ros::Time::now();
   }
 
@@ -312,6 +384,8 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;                   // Parameters to be dynamically reconfigured
   std::string config_file_;  // Path to the config file
+
+  std::string depth_control_reference_frame_;
 };
 
 }  // namespace control
