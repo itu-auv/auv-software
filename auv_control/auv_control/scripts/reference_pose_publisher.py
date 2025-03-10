@@ -32,7 +32,7 @@ class ReferencePosePublisherNode:
         self.last_cmd_time = rospy.Time.now()
 
         # Parameters
-        self.update_rate = rospy.Rate(rospy.get_param("~update_rate", 10))
+        self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
@@ -78,9 +78,11 @@ class ReferencePosePublisherNode:
         self.cmd_pose_pub.publish(cmd_pose)
 
     def run(self):
+        rate = rospy.Rate(self.update_rate)
+
         while not rospy.is_shutdown():
             self.control_loop()
-            self.update_rate.sleep()
+            rate.sleep()
 
 
 if __name__ == "__main__":
