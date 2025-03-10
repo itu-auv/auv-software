@@ -12,7 +12,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 catkin_install_python(PROGRAMS
-  scripts/camera_detection_node.py
+  scripts/camera_detection_handler.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 install(DIRECTORY
