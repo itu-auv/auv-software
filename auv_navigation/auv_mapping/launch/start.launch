@@ -3,10 +3,10 @@
   <arg name="namespace" default="turquoise" />
   <arg name="control_rate" default="10" />
 
-  <node pkg="auv_mapping" type="mapping_node.py" name="mapping_node"
+  <node pkg="auv_mapping" type="prop_transform_broadcaster.py" name="prop_transfrom_broadcaster"
     output="screen" />
 
-  <node pkg="auv_detection" type="camera_detection_node.py" name="camera_detection_node"
+  <node pkg="auv_detection" type="camera_detection_handler.py" name="camera_detection_handler"
     output="screen" />
 
   <group ns="$(arg namespace)">

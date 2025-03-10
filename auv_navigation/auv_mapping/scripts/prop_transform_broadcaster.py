@@ -91,7 +91,7 @@ id_to_name_map = {
 class MappingNode:
     def __init__(self):
         rospy.loginfo("Initializing mapping node")
-        rospy.init_node("mapping_node", anonymous=True)
+        rospy.init_node("prop_transfrom_broadcaster", anonymous=True)
 
         self.scene = Scene()
 
