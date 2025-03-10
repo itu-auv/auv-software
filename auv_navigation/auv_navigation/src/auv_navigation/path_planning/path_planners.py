@@ -6,13 +6,11 @@ import numpy as np
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from typing import Optional, List
-from auv_navigation.path_planning_utils import PathPlanningHelper
+from path_planning_helpers import PathPlanningHelper
 
 DEFAULT_HEADER_FRAME: str = "odom"
 BASE_LINK_FRAME: str = "taluy/base_link"
-GATE_ENTRANCE_FRAME: str = (
-    "gate_enterance"  # TODO (somebody) fix the typo: enterance -> entrance
-)
+GATE_ENTRANCE_FRAME: str = "gate_entrance"
 GATE_EXIT_FRAME: str = "gate_exit"
 
 
@@ -96,11 +94,11 @@ class PathPlanners:
             return None
 
     def path_for_gate(
-        self, path_creation_timeout: float = 10.0
+        self, path_creation_timeout: float = 20.0
     ) -> Optional[List[Path]]:
         """
         Plans paths for the gate task, which includes the two paths:
-        2. path to gate entrance
+        1. path to gate entrance
         2. Gate entrance to gate exit (with 1 360 degrees turn)
         """
         try:

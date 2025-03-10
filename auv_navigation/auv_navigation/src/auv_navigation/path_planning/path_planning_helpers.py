@@ -3,15 +3,19 @@ import rospy
 import tf2_ros
 import tf
 import numpy as np
-from nav_msgs.msg import Path
-from geometry_msgs.msg import PoseStamped
-from typing import Optional
 
-DEFAULT_FIXED_FRAME: str = "odom"
-DEFAULT_FRAME_ID: str = "odom"
-TIME_ZERO = rospy.Time(0)
-TF_LOOKUP_TIMEOUT = rospy.Duration(1.0)
-TWO_PI: float = 2 * np.pi
+# ROS message imports
+from nav_msgs.msg import Path
+from geometry_msgs.msg import (
+    PoseStamped,
+    Point,
+    Quaternion,
+    Vector3,
+)
+from std_msgs.msg import Header
+from typing import Tuple, List
+
+TWO_PI = 2 * np.pi
 
 
 class PathPlanningHelper:
@@ -19,16 +23,13 @@ class PathPlanningHelper:
 
     @staticmethod
     def lookup_transform(
-        tf_buffer: tf2_ros.Buffer, frame: str, fixed_frame: str = DEFAULT_FIXED_FRAME
-    ):
+        tf_buffer: tf2_ros.Buffer, frame: str, fixed_frame: str = "odom"
+    ) -> Tuple[Vector3, List[float]]:
         """
         Looks up the transform for the given frame and returns its position and quaternion.
-
-        Returns:
-            (position, quaternion)
         """
         transform = tf_buffer.lookup_transform(
-            fixed_frame, frame, TIME_ZERO, TF_LOOKUP_TIMEOUT
+            fixed_frame, frame, rospy.Time(0), rospy.Duration(1.0)
         )
         position = transform.transform.translation
         quaternion = [
@@ -40,36 +41,43 @@ class PathPlanningHelper:
         return position, quaternion
 
     @staticmethod
-    def apply_angle_offset(quaternion, angle_offset: float):
+    def apply_angle_offset(quaternion: List[float], angle_offset: float) -> List[float]:
         """
         Applies an angle offset (in radians) to the given quaternion.
 
         Returns:
-            The resulting quaternion after applying the offset.
+            List[float]: The resulting 4-element quaternion after applying the offset.
         """
         offset_quat = tf.transformations.quaternion_from_euler(0, 0, angle_offset)
         return tf.transformations.quaternion_multiply(offset_quat, quaternion)
 
     @staticmethod
-    def compute_angular_difference(source_euler, target_euler, n_turns: int):
+    def compute_angular_difference(
+        source_euler: List[float], target_euler: List[float], n_turns: int
+    ) -> float:
         """
         Computes the yaw angular difference between the source and target orientations,
         adding extra full 360° turns if requested.
 
+        Args:
+            source_euler (List[float]): [roll, pitch, yaw] of the source.
+            target_euler (List[float]): [roll, pitch, yaw] of the target.
+            n_turns (int): Number of extra full 360° rotations to add to the difference.
+
         Returns:
-            angular_diff: The yaw difference (including extra turns) between target and source in radians.
+            float: The yaw difference (including extra turns) in radians.
         """
         angular_diff = (target_euler[2] - source_euler[2]) + (TWO_PI * n_turns)
         return angular_diff
 
     @staticmethod
     def interpolate_position(
-        source_pos,
-        target_pos,
+        source_pos: Point,
+        target_pos: Point,
         t: float,
         interpolate_xy: bool = True,
         interpolate_z: bool = True,
-    ):
+    ) -> Point:
         """
         Linearly interpolates between two positions given a factor t [0,1]
 
@@ -100,8 +108,11 @@ class PathPlanningHelper:
 
     @staticmethod
     def interpolate_orientation(
-        source_euler, angular_diff: float, t: float, interpolate_yaw: bool = True
-    ):
+        source_euler: List[float],
+        angular_diff: float,
+        t: float,
+        interpolate_yaw: bool = True,
+    ) -> List[float]:
         """
         Interpolates the yaw component between the source and target orientations based on the flag.
 
@@ -126,21 +137,32 @@ class PathPlanningHelper:
 
     @staticmethod
     def generate_waypoints(
-        header,
-        source_position,
-        target_position,
-        source_euler,
+        header: Header,
+        source_position: Point,
+        target_position: Point,
+        source_euler: List[float],
         angular_diff: float,
         num_waypoints: int,
         interpolate_xy: bool,
         interpolate_z: bool,
         interpolate_yaw: bool,
-    ):
+    ) -> List[PoseStamped]:
         """
-        Generates a list of PoseStamped waypoints interpolated between the source and target.
+        Generates a list of PoseStamped waypoints interpolated between the source and target positions/orientations.
+
+        Args:
+            header (Header): The ROS Header to attach to each PoseStamped.
+            source_position (Point): Starting position (x,y,z).
+            target_position (Point): Target position (x,y,z).
+            source_euler (List[float]): [roll, pitch, yaw] of the source orientation.
+            angular_diff (float): The yaw difference (with possible extra turns).
+            num_waypoints (int): Number of waypoints to generate.
+            interpolate_xy (bool): If True, interpolate x and y.
+            interpolate_z (bool): If True, interpolate z.
+            interpolate_yaw (bool): If True, interpolate yaw.
 
         Returns:
-            A list of PoseStamped messages.
+            List[PoseStamped]: A list of interpolated PoseStamped messages.
         """
         poses = []
         for t in np.linspace(0, 1, num_waypoints):
