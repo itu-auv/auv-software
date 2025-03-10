@@ -13,6 +13,7 @@ import tf2_geometry_msgs
 import copy
 import threading
 
+from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 
 class Scene:
     def __init__(self):
@@ -118,6 +119,26 @@ class MappingNode:
 
         rospy.loginfo("Mapping node initialized")
 
+        self.enable_broadcaster = True
+        self.set_broadcast = rospy.Service(
+            "set_broadcast", SetBool, self.enable_broadcast_handler
+        )
+
+        self.reset_map_service = rospy.Service(
+            "reset_map", Trigger, self.handle_reset_map
+        )
+    def handle_reset_map(self, req):
+        with self.scene.lock:
+            self.scene.objects = {}
+        message = f"All objects reseted."
+        rospy.loginfo(message)
+        return TriggerResponse(success=True, message=message)
+    def enable_broadcast_handler(self, req):
+        self.enable_broadcaster = req.data
+        message = f"Mapping node enable : {self.enable_broadcaster}"
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
     def transform_point_to_odom(self, point_msg: PointStamped) -> PointStamped:
         try:
             # Try to get the latest transform available
@@ -137,7 +158,8 @@ class MappingNode:
             rospy.logwarn(f"Transform failed: {str(e)}")
 
     def points_callback(self, point_msg, detection_id):
-
+        if not self.enable_broadcaster:
+            return
         if point_msg is None:
             rospy.logwarn(
                 f"Received None point message for detection ID: {detection_id}"
@@ -159,6 +181,9 @@ class MappingNode:
         # Immediately publish transforms after adding a new object
 
     def scene_transform_publisher_callback(self, event):
+        if not self.enable_broadcaster:
+            return
+        # Update objects
         self.scene.update_objects()
 
         objects = self.scene.get_objects()
