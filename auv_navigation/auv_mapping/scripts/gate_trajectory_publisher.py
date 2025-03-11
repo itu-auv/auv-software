@@ -167,7 +167,7 @@ class TransformServiceNode:
 
     def create_trajectory_frames(self) -> None:
         """
-        Look up the current transforms, compute entrance and exit transforms, and send them.
+        Look up the current transforms, compute entrance and exit transforms, and broadcast them
         """
         try:
             transform_gate_link_1 = self.tf_buffer.lookup_transform(
