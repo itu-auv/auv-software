@@ -11,7 +11,6 @@ from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
 from auv_msgs.srv import SetDepth, SetDepthRequest
-from auv_navigation import follow_path_action_client
 
 from tf.transformations import (
     quaternion_matrix,
