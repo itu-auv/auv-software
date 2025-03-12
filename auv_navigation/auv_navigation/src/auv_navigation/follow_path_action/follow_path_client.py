@@ -8,9 +8,10 @@ from nav_msgs.msg import Path
 
 class FollowPathActionClient:
     def __init__(self):
-        self.client = actionlib.SimpleActionClient(
-            "taluy/follow_path", FollowPathAction
+        action_server = rospy.get_param(
+            "~follow_path_action_server", "taluy/follow_path"
         )
+        self.client = actionlib.SimpleActionClient(action_server, FollowPathAction)
 
         rospy.logdebug("[follow_path client] waiting for action server...")
         self.client.wait_for_server()
