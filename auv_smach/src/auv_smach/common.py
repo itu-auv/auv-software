@@ -20,11 +20,6 @@ from tf.transformations import (
     translation_from_matrix,
 )
 
-SET_DEPTH_SERVICE: str = "/taluy/set_depth"
-SET_DEPTH_DEFAULT_SLEEP_DURATION: float = 5.0
-CONTROL_ENABLE_TOPIC: str = "/taluy/enable"
-ENABLE_TOPIC_PUBLISH_RATE_HZ: float = 20
-
 
 def transform_to_matrix(transform):
     trans = translation_matrix(
@@ -87,27 +82,25 @@ class SetDepthState(smach_ros.ServiceState):
         - aborted: The service call failed.
     """
 
-    def __init__(
-        self, depth: float, sleep_duration: float = SET_DEPTH_DEFAULT_SLEEP_DURATION
-    ):
+    def __init__(self, depth: float, sleep_duration: float = 5.0):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
         self.sleep_duration = sleep_duration
 
-        # Initialize the parent ServiceState
         super(SetDepthState, self).__init__(
-            SET_DEPTH_SERVICE,
+            "set_depth",
             SetDepth,
             request=set_depth_request,
             outcomes=["succeeded", "preempted", "aborted"],
         )
 
-        # use a threading.Event to signal publishing to stop
         self._stop_publishing = threading.Event()
-        self.enable_pub = rospy.Publisher(CONTROL_ENABLE_TOPIC, Bool, queue_size=1)
+
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
     def _publish_enable_loop(self):
-        rate = rospy.Rate(ENABLE_TOPIC_PUBLISH_RATE_HZ)
+        publish_rate = rospy.get_param("~enable_rate", 20)
+        rate = rospy.Rate(publish_rate)
         while not rospy.is_shutdown() and not self._stop_publishing.is_set():
             self.enable_pub.publish(Bool(True))
             rate.sleep()
@@ -142,7 +135,7 @@ class LaunchTorpedoState(smach_ros.ServiceState):
     def __init__(self, id: int):
         smach_ros.ServiceState.__init__(
             self,
-            f"/taluy/actuators/torpedo_{id}/launch",
+            f"torpedo_{id}/launch",
             Trigger,
             request=TriggerRequest(),
         )
@@ -152,7 +145,7 @@ class DropBallState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/actuators/ball_dropper/drop",
+            "ball_dropper/drop",
             Trigger,
             request=TriggerRequest(),
         )
@@ -162,7 +155,7 @@ class CancelAlignControllerState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/control/align_frame/cancel",
+            "align_frame/cancel",
             Trigger,
             request=TriggerRequest(),
         )
@@ -177,7 +170,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
 
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/control/align_frame/start",
+            "align_frame/start",
             AlignFrameController,
             request=align_request,
         )

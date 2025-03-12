@@ -27,7 +27,7 @@ class ReferencePosePublisherNode:
         self.control_enable_handler = ControlEnableHandler(1.0)
 
         # Initialize internal state
-        self.target_depth = 0.0
+        self.target_depth = -0.4
         self.target_heading = 0.0
         self.last_cmd_time = rospy.Time.now()
         self.target_frame_id = ""
@@ -48,13 +48,13 @@ class ReferencePosePublisherNode:
         if self.control_enable_handler.is_enabled():
             return
 
-        quaterion = [
+        quaternion = [
             msg.pose.pose.orientation.x,
             msg.pose.pose.orientation.y,
             msg.pose.pose.orientation.z,
             msg.pose.pose.orientation.w,
         ]
-        _, _, self.target_heading = euler_from_quaternion(quaterion)
+        _, _, self.target_heading = euler_from_quaternion(quaternion)
 
     def cmd_vel_callback(self, msg):
         if not self.control_enable_handler.is_enabled():
@@ -62,7 +62,7 @@ class ReferencePosePublisherNode:
 
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
         dt = min(dt, self.command_timeout)
-
+        self.target_depth += msg.linear.z * dt
         self.target_heading += msg.angular.z * dt
         self.last_cmd_time = rospy.Time.now()
 
