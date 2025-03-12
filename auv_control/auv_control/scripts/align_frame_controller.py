@@ -36,14 +36,14 @@ class FrameAligner:
         )
 
         self.killswitch_sub = rospy.Subscriber(
-            "/taluy/propulsion_board/status",
+            "propulsion_board/status",
             Bool,
             self.killswitch_callback,
         )
 
         # Service for setting frames and starting alignment
         rospy.Service(
-            "frame_alignment_controller",
+            "align_frame/start",
             AlignFrameController,
             self.handle_align_request,
         )
@@ -140,7 +140,7 @@ class FrameAligner:
         # Set linear velocities based on translation differences
         twist.linear.x = self.constrain(trans[0] * kp, self.max_linear_velocity)
         twist.linear.y = self.constrain(trans[1] * kp, self.max_linear_velocity)
-
+        # twist.linear.z = self.constrain(trans[2] * kp, self.max_linear_velocity)
         # Convert quaternion to Euler angles and set angular velocity
         _, _, yaw = euler_from_quaternion(rot)
         twist.angular.z = self.constrain(yaw * angle_kp, self.max_angular_velocity)

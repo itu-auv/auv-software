@@ -63,7 +63,7 @@ class MainStateMachineNode:
             "red_buoy"
         ]
         # Subscribe to propulsion status
-        rospy.Subscriber("/taluy/propulsion_board/status", Bool, self.enabled_callback)
+        rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
 
     def execute_state_machine(self):
         # Map state names to their corresponding classes and parameters

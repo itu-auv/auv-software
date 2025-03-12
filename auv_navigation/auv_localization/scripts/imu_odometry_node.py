@@ -19,11 +19,9 @@ class ImuToOdom:
         )
         # Subscribers and Publishers
         self.imu_subscriber = rospy.Subscriber(
-            "sensors/imu/data", Imu, self.imu_callback, tcp_nodelay=True
+            "imu/data", Imu, self.imu_callback, tcp_nodelay=True
         )
-        self.odom_publisher = rospy.Publisher(
-            "localization/odom_imu", Odometry, queue_size=10
-        )
+        self.odom_publisher = rospy.Publisher("odom_imu", Odometry, queue_size=10)
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
