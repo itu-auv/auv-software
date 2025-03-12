@@ -31,7 +31,7 @@
 
 #include <ros/ros.h>
 
-#include "auv_cam/auv_camera_ros.h"
+#include "auv_hardware_bridge/auv_camera_ros.h"
 
 int main(int argc, char* argv[]) {
   ros::init(argc, argv, "auv_gst_cam_node");
