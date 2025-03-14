@@ -79,7 +79,11 @@ class ObjectMapTFServerROS {
 
     {
       auto lock = std::scoped_lock(mutex_);
-      filters_[target_frame].clear();
+      auto it = filters_.find(object_frame);
+      if (it != filters_.end()) {
+        filters_[target_frame].clear();
+      }
+
       filters_[target_frame].push_back(
           std::make_unique<ObjectPositionFilter>(*static_transform, 0.1));
     }
