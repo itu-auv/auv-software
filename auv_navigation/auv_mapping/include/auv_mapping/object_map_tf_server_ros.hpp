@@ -123,43 +123,46 @@ class ObjectMapTFServerROS {
   void dynamic_transform_callback(
       const geometry_msgs::TransformStamped::ConstPtr &msg) {
     std::scoped_lock lock(mutex_);
-    const std::string base_frame = msg->child_frame_id;
-    const double THRESHOLD_SQUARED = 1.0 * 1.0;  // squared threshold (1.0 m)
+    const auto object_frame = msg->child_frame_id;
 
-    auto it = filters_.find(base_frame);
+    static constexpr auto kDistanceThreshold = 4.0;
+    static constexpr auto kDistanceThresholdSquared =
+        std::pow(kDistanceThreshold, 2);
+
+    auto it = filters_.find(object_frame);
     if (it == filters_.end()) {
-      filters_[base_frame] = std::make_unique<ObjectPositionFilter>(*msg, 0.1);
-      ROS_INFO_STREAM("Created new filter for " << base_frame);
-    } else {
-      geometry_msgs::TransformStamped current =
-          it->second->getFilteredTransform();
-      const auto d_position = std::array<double, 3>{
-          current.transform.translation.x - msg->transform.translation.x,
-          current.transform.translation.y - msg->transform.translation.y,
-          current.transform.translation.z - msg->transform.translation.z};
-      const auto distSq = std::inner_product(
-          d_position.begin(), d_position.end(), d_position.begin(), 0.0);
-
-      if (distSq < THRESHOLD_SQUARED) {
-        // Update filter with new measurement.
-        it->second->update(*msg, 0.1);
-        ROS_INFO_STREAM("Updated filter for " << base_frame);
-        return;
-      }
-
-      // Create new filter if distance squared is too large.
-      int suffix = 0;
-      std::string new_frame;
-      do {
-        new_frame = base_frame + "_" + std::to_string(suffix++);
-      } while (filters_.find(new_frame) != filters_.end());
-      geometry_msgs::TransformStamped new_msg = *msg;
-      new_msg.child_frame_id = new_frame;
-      filters_[new_frame] =
-          std::make_unique<ObjectPositionFilter>(new_msg, 0.1);
-      ROS_INFO_STREAM("Created new filter for "
-                      << new_frame << " due to distance squared: " << distSq);
+      filters_[object_frame] =
+          std::make_unique<ObjectPositionFilter>(*msg, 0.1);
+      ROS_INFO_STREAM("Created new filter for " << object_frame);
+      return;
     }
+
+    const auto current = it->second->getFilteredTransform();
+    const auto d_position = std::array<double, 3>{
+        current.transform.translation.x - msg->transform.translation.x,
+        current.transform.translation.y - msg->transform.translation.y,
+        current.transform.translation.z - msg->transform.translation.z};
+    const auto distance_squared = std::inner_product(
+        d_position.begin(), d_position.end(), d_position.begin(), 0.0);
+
+    if (distance_squared < kDistanceThresholdSquared) {
+      // Update filter with new measurement.
+      it->second->update(*msg, 0.1);
+      ROS_INFO_STREAM("Updated filter for " << object_frame);
+      return;
+    }
+
+    // Create new filter if distance squared is too large.
+    int suffix = 0;
+    std::string new_frame;
+    do {
+      new_frame = object_frame + "_" + std::to_string(suffix++);
+    } while (filters_.find(new_frame) != filters_.end());
+    auto new_msg = *msg;
+    new_msg.child_frame_id = new_frame;
+    filters_[new_frame] = std::make_unique<ObjectPositionFilter>(new_msg, 0.1);
+    ROS_INFO_STREAM("Created new filter for "
+                    << new_frame << " due to distance squared: " << distSq);
   }
 
   void publishTransforms() {
