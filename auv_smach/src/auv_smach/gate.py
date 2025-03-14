@@ -2,7 +2,7 @@ from .initialize import *
 import smach
 import rospy
 import tf2_ros
-from auv_navigation.path_planners import PathPlanners
+from auv_navigation.path_planning.path_planners import PathPlanners
 from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
