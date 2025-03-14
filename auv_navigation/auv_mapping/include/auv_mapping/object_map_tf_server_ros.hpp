@@ -3,6 +3,7 @@
 #include <auv_msgs/SetObjectTransform.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <ros/ros.h>
+#include <std_srvs/Empty.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
@@ -40,12 +41,24 @@ class ObjectMapTFServerROS {
         "set_object_transform", &ObjectMapTFServerROS::set_transform_handler,
         this);
 
+    clear_service_ =
+        nh_.advertiseService("clear_object_transforms",
+                             &ObjectMapTFServerROS::clear_map_handler, this);
+
     dynamic_sub_ =
         nh_.subscribe("object_transform_updates", 10,
                       &ObjectMapTFServerROS::dynamic_transform_callback, this);
 
     ROS_INFO("ObjectMapTFServerROS initialized. Static frame: %s",
              static_frame_.c_str());
+  }
+
+  bool clear_map_handler(std_srvs::Empty::Request &req,
+                         std_srvs::Empty::Response &res) {
+    std::scoped_lock lock(mutex_);
+    filters_.clear();
+    ROS_INFO("Cleared all object transforms and filters.");
+    return true;
   }
 
   bool set_transform_handler(auv_msgs::SetObjectTransform::Request &req,
@@ -205,6 +218,7 @@ class ObjectMapTFServerROS {
   //
   std::mutex mutex_;
   ros::ServiceServer service_;
+  ros::ServiceServer clear_service_;
   ros::Subscriber dynamic_sub_;
 };
 
