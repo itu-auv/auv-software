@@ -40,10 +40,10 @@ class TransformServiceNode:
     def create_new_frames(self):
         try:
             trans1 = self.tf_buffer.lookup_transform(
-                self.world_frame, self.frame1, rospy.Time(0), rospy.Duration(1)
+                self.world_frame, self.frame1, rospy.Time.now(), rospy.Duration(1)
             )
             trans2 = self.tf_buffer.lookup_transform(
-                self.world_frame, self.frame2, rospy.Time(0), rospy.Duration(1)
+                self.world_frame, self.frame2, rospy.Time.now(), rospy.Duration(1)
             )
 
             x1, y1, z1 = (
