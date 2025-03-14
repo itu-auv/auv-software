@@ -8,15 +8,19 @@
 #include <tf2_ros/transform_listener.h>
 
 #include <cmath>
+#include <memory>
 #include <mutex>
+#include <numeric>
 #include <optional>
 #include <string>
 #include <unordered_map>
 
+#include "auv_mapping/object_position_filter.hpp"
+
 namespace auv_mapping {
 class ObjectMapTFServerROS {
-  using TransformMap =
-      std::unordered_map<std::string, geometry_msgs::TransformStamped>;
+  using FilterMap =
+      std::unordered_map<std::string, std::unique_ptr<ObjectPositionFilter>>;
 
  public:
   ObjectMapTFServerROS(const ros::NodeHandle &nh)
@@ -25,7 +29,6 @@ class ObjectMapTFServerROS {
         tf_listener_{tf_buffer_},
         rate_{10.0},
         static_frame_{""},
-        transforms_{},
         tf_broadcaster_{} {
     auto node_handler_private = ros::NodeHandle{"~"};
 
@@ -33,7 +36,6 @@ class ObjectMapTFServerROS {
                                             "odom");
     node_handler_private.param<double>("rate", rate_, 10.0);
 
-    // Service to "lock in" or reset an object's transform.
     service_ = nh_.advertiseService(
         "set_object_transform", &ObjectMapTFServerROS::set_transform_handler,
         this);
@@ -107,7 +109,8 @@ class ObjectMapTFServerROS {
 
     {
       auto lock = std::scoped_lock(mutex_);
-      transforms_[target_frame] = static_transform;
+      filters_[target_frame] =
+          std::make_unique<ObjectPositionFilter>(static_transform, 0.1);
     }
 
     ROS_INFO_STREAM("Stored static transform from " << static_frame_ << " to "
@@ -120,48 +123,42 @@ class ObjectMapTFServerROS {
   void dynamic_transform_callback(
       const geometry_msgs::TransformStamped::ConstPtr &msg) {
     std::scoped_lock lock(mutex_);
-    std::string base_frame = msg->child_frame_id;
-    auto it = transforms_.find(base_frame);
-    if (it == transforms_.end()) {
-      transforms_[base_frame] = *msg;
-      ROS_INFO_STREAM("Added new dynamic transform for " << base_frame);
-    } else {
-      const auto &current_transform = it->second;
-      double dx = current_transform.transform.translation.x -
-                  msg->transform.translation.x;
-      double dy = current_transform.transform.translation.y -
-                  msg->transform.translation.y;
-      double dz = current_transform.transform.translation.z -
-                  msg->transform.translation.z;
-      double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+    const std::string base_frame = msg->child_frame_id;
+    const double THRESHOLD_SQUARED = 1.0 * 1.0;  // squared threshold (1.0 m)
 
-      const double DIST_THRESHOLD = 1.0;
-      if (distance < DIST_THRESHOLD) {
-        double alpha = 0.2;
-        transforms_[base_frame].transform.translation.x =
-            alpha * msg->transform.translation.x +
-            (1 - alpha) * current_transform.transform.translation.x;
-        transforms_[base_frame].transform.translation.y =
-            alpha * msg->transform.translation.y +
-            (1 - alpha) * current_transform.transform.translation.y;
-        transforms_[base_frame].transform.translation.z =
-            alpha * msg->transform.translation.z +
-            (1 - alpha) * current_transform.transform.translation.z;
-        transforms_[base_frame].transform.rotation = msg->transform.rotation;
-        ROS_INFO_STREAM("Updated dynamic transform for " << base_frame);
-      } else {
-        int suffix = 0;
-        std::string new_frame;
-        do {
-          new_frame = base_frame + "_" + std::to_string(suffix++);
-        } while (transforms_.find(new_frame) != transforms_.end());
-        geometry_msgs::TransformStamped new_transform = *msg;
-        new_transform.child_frame_id = new_frame;
-        transforms_[new_frame] = new_transform;
-        ROS_INFO_STREAM("Created new dynamic transform for "
-                        << new_frame << " due to large distance (" << distance
-                        << ")");
+    auto it = filters_.find(base_frame);
+    if (it == filters_.end()) {
+      filters_[base_frame] = std::make_unique<ObjectPositionFilter>(*msg, 0.1);
+      ROS_INFO_STREAM("Created new filter for " << base_frame);
+    } else {
+      geometry_msgs::TransformStamped current =
+          it->second->getFilteredTransform();
+      const auto d_position = std::array<double, 3>{
+          current.transform.translation.x - msg->transform.translation.x,
+          current.transform.translation.y - msg->transform.translation.y,
+          current.transform.translation.z - msg->transform.translation.z};
+      const auto distSq = std::inner_product(
+          d_position.begin(), d_position.end(), d_position.begin(), 0.0);
+
+      if (distSq < THRESHOLD_SQUARED) {
+        // Update filter with new measurement.
+        it->second->update(*msg, 0.1);
+        ROS_INFO_STREAM("Updated filter for " << base_frame);
+        return;
       }
+
+      // Create new filter if distance squared is too large.
+      int suffix = 0;
+      std::string new_frame;
+      do {
+        new_frame = base_frame + "_" + std::to_string(suffix++);
+      } while (filters_.find(new_frame) != filters_.end());
+      geometry_msgs::TransformStamped new_msg = *msg;
+      new_msg.child_frame_id = new_frame;
+      filters_[new_frame] =
+          std::make_unique<ObjectPositionFilter>(new_msg, 0.1);
+      ROS_INFO_STREAM("Created new filter for "
+                      << new_frame << " due to distance squared: " << distSq);
     }
   }
 
@@ -171,10 +168,10 @@ class ObjectMapTFServerROS {
       {
         auto lock = std::scoped_lock(mutex_);
 
-        for (const auto &entry : transforms_) {
-          auto transform = entry.second;
-          transform.header.stamp = ros::Time::now();
-          tf_broadcaster_.sendTransform(transform);
+        for (auto &entry : filters_) {
+          auto tf_msg = entry.second->getFilteredTransform();
+          tf_msg.header.stamp = ros::Time::now();
+          tf_broadcaster_.sendTransform(tf_msg);
         }
       }
       rate.sleep();
@@ -200,7 +197,7 @@ class ObjectMapTFServerROS {
   tf2_ros::TransformListener tf_listener_;
   double rate_;
   std::string static_frame_;
-  TransformMap transforms_;
+  FilterMap filters_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   //
   std::mutex mutex_;
