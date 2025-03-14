@@ -18,6 +18,7 @@ from geometry_msgs.msg import TransformStamped, PointStamped
 import tf2_ros
 import numpy as np
 import tf.transformations as transformations
+import tf2_geometry_msgs
 
 from auv_smach.common import (
     NavigateToFrameState,
@@ -131,7 +132,7 @@ class SetRedBuoyRotationStartFrame(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
         self.set_object_transform_service = rospy.ServiceProxy(
-            "/taluy/map/set_object_transform", SetObjectTransform
+            "set_object_transform", SetObjectTransform
         )
 
     def execute(self, userdata):
@@ -193,7 +194,7 @@ class SetRedBuoyRotationStartFrame(smach.State):
 
             rospy.loginfo(f"Transform from odom to {self.target_frame}: {t}")
 
-            # Call the /taluy/map/set_object_transform service
+            # Call the set_object_transform service
             req = SetObjectTransformRequest()
             req.transform = t
             res = self.set_object_transform_service(req)
@@ -228,7 +229,7 @@ class SetFrameLookingAtState(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
         self.set_object_transform_service = rospy.ServiceProxy(
-            "/taluy/map/set_object_transform", SetObjectTransform
+            "set_object_transform", SetObjectTransform
         )
 
     def execute(self, userdata):
@@ -270,7 +271,7 @@ class SetFrameLookingAtState(smach.State):
                 f"Transform from {self.base_frame} to {self.target_frame}: {t}"
             )
 
-            # Call the /taluy/map/set_object_transform service
+            # Call the set_object_transform service
             req = SetObjectTransformRequest()
             req.transform = t
             res = self.set_object_transform_service(req)

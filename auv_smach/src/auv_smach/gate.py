@@ -47,7 +47,7 @@ class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/set_transform_gate_trajectory",
+            "set_transform_gate_trajectory",
             SetBool,
             request=SetBoolRequest(data=req),
         )
