@@ -6,17 +6,18 @@ import numpy as np
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from typing import Optional, List
-from path_planning_helpers import PathPlanningHelper
-
-DEFAULT_HEADER_FRAME: str = "odom"
-BASE_LINK_FRAME: str = "taluy/base_link"
-GATE_ENTRANCE_FRAME: str = "gate_entrance"
-GATE_EXIT_FRAME: str = "gate_exit"
+from .path_planning_helpers import PathPlanningHelper
 
 
 class PathPlanners:
     def __init__(self, tf_buffer: tf2_ros.Buffer):
         self.tf_buffer = tf_buffer
+        self.base_link_frame: str = rospy.get_param("~base_link", "taluy/base_link")
+        self.header_frame: str = rospy.get_param("~header_frame", "odom")
+        self.gate_entrance_frame: str = rospy.get_param(
+            "~gate_entrance_frame", "gate_entrance"
+        )
+        self.gate_exit_frame: str = rospy.get_param("~gate_exit_frame", "gate_exit")
 
     def straight_path_to_frame(
         self,
@@ -71,7 +72,7 @@ class PathPlanners:
             )
 
             # Create a header for the path.
-            header = PathPlanningHelper.create_path_header(DEFAULT_HEADER_FRAME)
+            header = PathPlanningHelper.create_path_header(self.header_frame)
 
             # Generate waypoints using the provided interpolation flags.
             poses = PathPlanningHelper.generate_waypoints(
@@ -113,14 +114,14 @@ class PathPlanners:
                     # create the first segment
                     if entrance_path is None:
                         entrance_path = self.straight_path_to_frame(
-                            source_frame=BASE_LINK_FRAME,
-                            target_frame=GATE_ENTRANCE_FRAME,
+                            source_frame=self.base_link_frame,
+                            target_frame=self.gate_entrance_frame,
                         )
                     # create the second segment
                     if exit_path is None:
                         exit_path = self.straight_path_to_frame(
-                            source_frame=GATE_ENTRANCE_FRAME,
-                            target_frame=GATE_EXIT_FRAME,
+                            source_frame=self.gate_entrance_frame,
+                            target_frame=self.gate_exit_frame,
                             n_turns=1,
                         )
                     if entrance_path is not None and exit_path is not None:
