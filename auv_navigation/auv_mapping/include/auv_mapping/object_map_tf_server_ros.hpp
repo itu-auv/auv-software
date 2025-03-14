@@ -7,8 +7,10 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
 
+#include <cmath>
 #include <mutex>
 #include <optional>
+#include <string>
 #include <unordered_map>
 
 namespace auv_mapping {
@@ -31,9 +33,14 @@ class ObjectMapTFServerROS {
                                             "odom");
     node_handler_private.param<double>("rate", rate_, 10.0);
 
+    // Service to "lock in" or reset an object's transform.
     service_ = nh_.advertiseService(
         "set_object_transform", &ObjectMapTFServerROS::set_transform_handler,
         this);
+
+    dynamic_sub_ =
+        nh_.subscribe("object_transform_updates", 10,
+                      &ObjectMapTFServerROS::dynamic_transform_callback, this);
 
     ROS_INFO("ObjectMapTFServerROS initialized. Static frame: %s",
              static_frame_.c_str());
@@ -47,9 +54,9 @@ class ObjectMapTFServerROS {
         get_transform(static_frame_, parent_frame, ros::Duration(4.0));
 
     if (!static_to_parent_transform.has_value()) {
-      ROS_ERROR("Error occurred while looking up transform:(ozanhakantunca)");
+      ROS_ERROR("Error occurred while looking up transform");
       res.success = false;
-      res.message = "Failed to capture transform TODO (ozanhakantunca)";
+      res.message = "Failed to capture transform";
       return false;
     }
 
@@ -110,6 +117,54 @@ class ObjectMapTFServerROS {
     return true;
   }
 
+  void dynamic_transform_callback(
+      const geometry_msgs::TransformStamped::ConstPtr &msg) {
+    std::scoped_lock lock(mutex_);
+    std::string base_frame = msg->child_frame_id;
+    auto it = transforms_.find(base_frame);
+    if (it == transforms_.end()) {
+      transforms_[base_frame] = *msg;
+      ROS_INFO_STREAM("Added new dynamic transform for " << base_frame);
+    } else {
+      const auto &current_transform = it->second;
+      double dx = current_transform.transform.translation.x -
+                  msg->transform.translation.x;
+      double dy = current_transform.transform.translation.y -
+                  msg->transform.translation.y;
+      double dz = current_transform.transform.translation.z -
+                  msg->transform.translation.z;
+      double distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+
+      const double DIST_THRESHOLD = 1.0;
+      if (distance < DIST_THRESHOLD) {
+        double alpha = 0.2;
+        transforms_[base_frame].transform.translation.x =
+            alpha * msg->transform.translation.x +
+            (1 - alpha) * current_transform.transform.translation.x;
+        transforms_[base_frame].transform.translation.y =
+            alpha * msg->transform.translation.y +
+            (1 - alpha) * current_transform.transform.translation.y;
+        transforms_[base_frame].transform.translation.z =
+            alpha * msg->transform.translation.z +
+            (1 - alpha) * current_transform.transform.translation.z;
+        transforms_[base_frame].transform.rotation = msg->transform.rotation;
+        ROS_INFO_STREAM("Updated dynamic transform for " << base_frame);
+      } else {
+        int suffix = 0;
+        std::string new_frame;
+        do {
+          new_frame = base_frame + "_" + std::to_string(suffix++);
+        } while (transforms_.find(new_frame) != transforms_.end());
+        geometry_msgs::TransformStamped new_transform = *msg;
+        new_transform.child_frame_id = new_frame;
+        transforms_[new_frame] = new_transform;
+        ROS_INFO_STREAM("Created new dynamic transform for "
+                        << new_frame << " due to large distance (" << distance
+                        << ")");
+      }
+    }
+  }
+
   void publishTransforms() {
     auto rate = ros::Rate{rate_};
     while (ros::ok()) {
@@ -150,6 +205,7 @@ class ObjectMapTFServerROS {
   //
   std::mutex mutex_;
   ros::ServiceServer service_;
+  ros::Subscriber dynamic_sub_;
 };
 
 }  // namespace auv_mapping
