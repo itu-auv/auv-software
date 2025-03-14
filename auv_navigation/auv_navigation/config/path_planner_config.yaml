@@ -1,0 +1,4 @@
+---
+header_frame: "odom" # The default frame in which the path is defined
+gate_entrance_frame: "gate_entrance"
+gate_exit_frame: "gate_exit"
