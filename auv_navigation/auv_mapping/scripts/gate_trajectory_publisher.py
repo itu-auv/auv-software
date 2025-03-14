@@ -80,8 +80,6 @@ class TransformServiceNode:
             The other shifted position is assigned as the exit.
         """
 
-        # If the distance between the two gate links is smaller than this value,
-        # they are considered too close or overlapping, and trajectory computation is aborted.
         MIN_GATE_SEPARATION_THRESHOLD = 0.15
 
         dx = other_gate_link_translation[0] - selected_gate_link_translation[0]
@@ -169,7 +167,7 @@ class TransformServiceNode:
 
     def create_trajectory_frames(self) -> None:
         """
-        Look up the current transforms, compute entrance and exit transforms, and send them.
+        Look up the current transforms, compute entrance and exit transforms, and broadcast them
         """
         try:
             transform_gate_link_1 = self.tf_buffer.lookup_transform(
