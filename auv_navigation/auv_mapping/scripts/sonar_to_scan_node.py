@@ -20,11 +20,15 @@ class PoolBoundaryDetector:
         
         # Parametreler
         self.max_point_cloud_size = rospy.get_param('~max_point_cloud_size', 5000)
-        self.sonar_frame = rospy.get_param('~sonar_frame', 'taluy/base_link/sonar_front_link')
-        self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.min_valid_range = rospy.get_param('~min_valid_range', 0.3)
         self.max_valid_range = rospy.get_param('~max_valid_range', 100.0)
         self.min_distance_between_points = rospy.get_param('~min_distance_between_points', 0.05)
+        self.odom_frame = rospy.get_param('~odom_frame', 'odom')
+        
+        # Sonar frameleri
+        self.sonar_front_frame = rospy.get_param('~sonar_front_frame', 'taluy/base_link/sonar_front_link')
+        self.sonar_right_frame = rospy.get_param('~sonar_right_frame', 'taluy/base_link/sonar_right_link')
+        self.sonar_left_frame = rospy.get_param('~sonar_left_frame', 'taluy/base_link/sonar_left_link')
         
         # Havuz duvarları için parametreler
         self.z_tolerance = rospy.get_param('~z_tolerance', 0.05)  # Aynı z seviyesinde kabul etmek için tolerans
@@ -51,6 +55,7 @@ class PoolBoundaryDetector:
         self.point_cloud_data = []
         self.wall_lines = []
         self.reference_z = None  # Referans z değeri (ilk ölçüm ile belirlenecek)
+        self.point_count_since_last_detection = 0  # Son sınır tespitinden sonra eklenen nokta sayısı
 
         # ROS arayüzleri
         self.pc_publisher = rospy.Publisher('/sonar/point_cloud', PointCloud2, queue_size=10)
@@ -60,8 +65,10 @@ class PoolBoundaryDetector:
         self.start_service = rospy.Service('/sonar/start_mapping', SetBool, self.handle_start_service)
         self.clear_service = rospy.Service('/sonar/clear_points', SetBool, self.handle_clear_service)
         
-        # Sonar subscriber'ı başlangıçta aktif değil
-        self.sonar_subscriber = None
+        # Sonar subscriber'ları başlangıçta aktif değil
+        self.sonar_front_subscriber = None
+        self.sonar_right_subscriber = None
+        self.sonar_left_subscriber = None
 
     def handle_start_service(self, req):
         """Servisi başlatma veya durdurma"""
@@ -69,21 +76,41 @@ class PoolBoundaryDetector:
             if req.data:  # Başlat
                 if not self.services_active:
                     self.services_active = True
-                    self.sonar_subscriber = rospy.Subscriber(
+                    # Ön sonar abone ol
+                    self.sonar_front_subscriber = rospy.Subscriber(
                         '/taluy/sensors/sonar_front/data', 
                         Range, 
-                        self.sonar_callback
+                        self.sonar_front_callback
                     )
-                    rospy.loginfo("Pool boundary detection started")
+                    # Sağ sonar abone ol
+                    self.sonar_right_subscriber = rospy.Subscriber(
+                        '/taluy/sensors/sonar_right/data', 
+                        Range, 
+                        self.sonar_right_callback
+                    )
+                    # Sol sonar abone ol
+                    self.sonar_left_subscriber = rospy.Subscriber(
+                        '/taluy/sensors/sonar_left/data', 
+                        Range, 
+                        self.sonar_left_callback
+                    )
+                    rospy.loginfo("Pool boundary detection started with all three sonars")
                     return SetBoolResponse(success=True, message="Service started")
                 else:
                     return SetBoolResponse(success=False, message="Service is already running")
             else:  # Durdur
                 if self.services_active:
                     self.services_active = False
-                    if self.sonar_subscriber:
-                        self.sonar_subscriber.unregister()
-                        self.sonar_subscriber = None
+                    # Tüm abonelikleri kapat
+                    if self.sonar_front_subscriber:
+                        self.sonar_front_subscriber.unregister()
+                        self.sonar_front_subscriber = None
+                    if self.sonar_right_subscriber:
+                        self.sonar_right_subscriber.unregister()
+                        self.sonar_right_subscriber = None
+                    if self.sonar_left_subscriber:
+                        self.sonar_left_subscriber.unregister()
+                        self.sonar_left_subscriber = None
                     rospy.loginfo("Pool boundary detection stopped")
                     return SetBoolResponse(success=True, message="Service stopped")
                 else:
@@ -96,6 +123,7 @@ class PoolBoundaryDetector:
                 self.point_cloud_data = []
                 self.wall_lines = []
                 self.reference_z = None
+                self.point_count_since_last_detection = 0
                 rospy.loginfo("Point cloud data cleared")
                 self.publish_point_cloud()
                 self.publish_boundaries()
@@ -141,6 +169,76 @@ class PoolBoundaryDetector:
             if distance < self.min_distance_between_points:
                 return True  # Çok yakın
         return False  # Yeterince uzak
+
+    def process_sonar_reading(self, msg, sonar_frame):
+        """Sonar okumasını işle ve point cloud'a ekle"""
+        if not self.services_active:
+            return
+            
+        # Ölçüm geçerlilik kontrolü
+        if not (self.min_valid_range < msg.range < self.max_valid_range):
+            return
+
+        # Base_link frame'inde nokta oluştur
+        sensor_point = PointStamped()
+        sensor_point.header.stamp = msg.header.stamp
+        sensor_point.header.frame_id = sonar_frame
+        sensor_point.point.x = msg.range  # Sonar ölçümü base_link x ekseninde
+        sensor_point.point.y = 0.0
+        sensor_point.point.z = 0.0
+
+        # Odom frame'ine dönüşüm
+        odom_point = self.transform_point_to_odom(sensor_point)
+        if not odom_point:
+            return
+        
+        # Çok yakın nokta kontrolü
+        if self.is_point_too_close(odom_point.point):
+            return  # Çok yakın, ekleme
+
+        # İlk nokta ise, referans z değerini kaydet
+        if self.reference_z is None:
+            self.reference_z = odom_point.point.z
+            rospy.loginfo(f"Reference Z set to: {self.reference_z}")
+
+        # Maksimum nokta sayısı kontrolü
+        if len(self.point_cloud_data) >= self.max_point_cloud_size:
+            # En eski noktayı çıkar
+            self.point_cloud_data.pop(0)
+
+        # PointCloud verisine ekle
+        self.point_cloud_data.append([
+            odom_point.point.x,
+            odom_point.point.y,
+            odom_point.point.z
+        ])
+        
+        # Yeni nokta eklendi, sayacı artır
+        self.point_count_since_last_detection += 1
+
+        # Belirli bir sayıda nokta eklendikten sonra sınır tespiti yap
+        if self.point_count_since_last_detection >= 15:
+            self.detect_pool_boundaries()
+            self.point_count_since_last_detection = 0  # Sayacı sıfırla
+            
+            # PointCloud ve duvar sınırlarını yayınla
+            self.publish_point_cloud()
+            self.publish_boundaries()
+
+    def sonar_front_callback(self, msg):
+        """Ön sonar callback'i"""
+        with self.lock:
+            self.process_sonar_reading(msg, self.sonar_front_frame)
+
+    def sonar_right_callback(self, msg):
+        """Sağ sonar callback'i"""
+        with self.lock:
+            self.process_sonar_reading(msg, self.sonar_right_frame)
+
+    def sonar_left_callback(self, msg):
+        """Sol sonar callback'i"""
+        with self.lock:
+            self.process_sonar_reading(msg, self.sonar_left_frame)
 
     def detect_pool_boundaries(self):
         """Havuz sınırlarını tespit et"""
@@ -256,57 +354,6 @@ class PoolBoundaryDetector:
             # Çizgiyi duvar olarak ekle
             self.wall_lines.append(line_start + line_end)  # [x1, y1, x2, y2]
 
-    def sonar_callback(self, msg):
-        with self.lock:
-            if not self.services_active:
-                return
-                
-            # Ölçüm geçerlilik kontrolü
-            if not (self.min_valid_range < msg.range < self.max_valid_range):
-                return
-
-            # Base_link frame'inde nokta oluştur
-            sensor_point = PointStamped()
-            sensor_point.header.stamp = msg.header.stamp
-            sensor_point.header.frame_id = self.sonar_frame
-            sensor_point.point.x = msg.range  # Sonar ölçümü base_link x ekseninde
-            sensor_point.point.y = 0.0
-            sensor_point.point.z = 0.0
-
-            # Odom frame'ine dönüşüm
-            odom_point = self.transform_point_to_odom(sensor_point)
-            if not odom_point:
-                return
-            
-            # Çok yakın nokta kontrolü
-            if self.is_point_too_close(odom_point.point):
-                return  # Çok yakın, ekleme
-
-            # İlk nokta ise, referans z değerini kaydet
-            if self.reference_z is None:
-                self.reference_z = odom_point.point.z
-                rospy.loginfo(f"Reference Z set to: {self.reference_z}")
-
-            # Maksimum nokta sayısı kontrolü
-            if len(self.point_cloud_data) >= self.max_point_cloud_size:
-                # En eski noktayı çıkar
-                self.point_cloud_data.pop(0)
-
-            # PointCloud verisine ekle
-            self.point_cloud_data.append([
-                odom_point.point.x,
-                odom_point.point.y,
-                odom_point.point.z
-            ])
-
-            # Periyodik olarak sınır tespiti yap
-            if len(self.point_cloud_data) % 15 == 0:
-                self.detect_pool_boundaries()
-                
-                # PointCloud ve duvar sınırlarını yayınla
-                self.publish_point_cloud()
-                self.publish_boundaries()
-
     def publish_point_cloud(self):
         """Tüm noktaları içeren point cloud'u yayınla"""
         header = Header()
@@ -354,7 +401,7 @@ class PoolBoundaryDetector:
         self.boundary_publisher.publish(marker_array)
 
     def run(self):
-        rospy.loginfo("Pool Boundary Detector node initialized. Use services to start/stop.")
+        rospy.loginfo("Pool Boundary Detector node initialized with three sonars. Use services to start/stop.")
         rospy.spin()
 
 if __name__ == '__main__':
