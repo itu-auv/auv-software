@@ -32,6 +32,7 @@ jobs:
           BASEDIR: ${{ steps.make_temp_build_dir.outputs.build_directory }}
           AFTER_SETUP_UPSTREAM_WORKSPACE: mv $BASEDIR/upstream_ws/third_party $BASEDIR/upstream_ws/src/; vcs pull $BASEDIR/upstream_ws/src
           DOCKER_IMAGE: ${{ inputs.docker_image_tag }}
+          CATKIN_LINT: pedantic
           TARGET_CMAKE_ARGS: >
             -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld
             -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld
