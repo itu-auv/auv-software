@@ -7,12 +7,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 
-find_package(catkin REQUIRED
+find_package(catkin REQUIRED COMPONENTS
+  auv_msgs
+  geometry_msgs
   roscpp
   tf2
   tf2_ros
-  geometry_msgs
-  auv_msgs
 )
 
 catkin_package(

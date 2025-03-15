@@ -2,7 +2,7 @@
 <package format="2">
   <name>auv_localization</name>
   <version>0.1.0</version>
-  <description>The auv_localization package</description>
+  <description>Localization package</description>
   <author email="batuhanozer52@gmail.com">Batuhan Ozer</author>
   <maintainer email="batuhanozer52@gmail.com">Batuhan Ozer</maintainer>
   <license>BSD-3-Clause</license>
