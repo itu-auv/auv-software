@@ -1,5 +1,5 @@
-#ifndef _AUV_SIM_BRIDGE_SIMULATION_MOCK_H_
-#define _AUV_SIM_BRIDGE_SIMULATION_MOCK_H_
+#ifndef AUV_SIM_BRIDGE__SIMULATION_MOCK_ROS_H_
+#define AUV_SIM_BRIDGE__SIMULATION_MOCK_ROS_H_
 #include <Eigen/Dense>
 #include <boost/array.hpp>
 
@@ -283,4 +283,4 @@ class SimulationMockROS {
 
 };  // namespace auv_sim_bridge
 
-#endif
+#endif  // AUV_SIM_BRIDGE__SIMULATION_MOCK_ROS_H_

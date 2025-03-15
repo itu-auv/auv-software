@@ -21,7 +21,17 @@
   <xacro:include filename="$(find uuv_sensor_ros_plugins)/urdf/pose_3d_snippets.xacro"/>
   <xacro:default_joint_state_publisher namespace="$(arg namespace)" update_rate="$(arg control_rate)"/>
   <!-- ground truth odometry -->
-  <xacro:pose_3d_macro namespace="$(arg namespace)" parent_link="$(arg namespace)/base_link" topic="odometry_gt" update_rate="$(arg control_rate)" noise_sigma="0.0" noise_amplitude="0.0" suffix="default" reference_frame="odom" publish_ned_odom="false">
+  <xacro:pose_3d_macro
+    namespace="$(arg namespace)"
+    parent_link="$(arg namespace)/base_link"
+    topic="odometry_gt"
+    update_rate="$(arg control_rate)"
+    noise_sigma="0.0"
+    noise_amplitude="0.0"
+    suffix="default"
+    reference_frame="odom"
+    publish_ned_odom="false"
+  >
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:pose_3d_macro>
 </robot>

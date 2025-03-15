@@ -9,6 +9,5 @@
   <buildtool_depend>catkin</buildtool_depend>
   <!--<depend>ultralytics_ros</depend>-->
   <!--<depend>image_view</depend>-->
-  <export>
-  </export>
+  <export/>
 </package>
