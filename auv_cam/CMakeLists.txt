@@ -10,8 +10,8 @@ set(CMAKE_CXX_STANDARD 17)
 # # is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
-  roscpp
   image_transport
+  roscpp
 )
 
 find_package(OpenCV 4 QUIET COMPONENTS opencv_core opencv_imgproc opencv_imgcodecs opencv_videoio CONFIG)
@@ -22,7 +22,6 @@ if(NOT OpenCV_FOUND)
 endif()
 
 catkin_package(
-  INCLUDE_DIRS include
   CATKIN_DEPENDS roscpp
   DEPENDS OpenCV
 )
