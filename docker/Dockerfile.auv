@@ -20,7 +20,7 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/* && \
   if [ "$HOST" = "tegra" ]; then \
     cd src && \
-    git clone https://github.com/ros-perception/vision_opencv.git && \
+    git clone -b noetic --single-branch https://github.com/ros-perception/vision_opencv.git && \
     cd ..; \
   fi
 
