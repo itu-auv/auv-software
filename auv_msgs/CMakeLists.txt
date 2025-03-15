@@ -2,11 +2,11 @@ cmake_minimum_required(VERSION 3.10.2)
 project(auv_msgs)
 
 find_package(catkin REQUIRED COMPONENTS
+  actionlib
+  actionlib_msgs
   geometry_msgs
   message_generation
   nav_msgs
-  actionlib_msgs
-  actionlib
   std_msgs
 )
 
@@ -33,15 +33,22 @@ add_service_files(
 # # Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  std_msgs
-  geometry_msgs
   actionlib_msgs
+  geometry_msgs
   nav_msgs
+  std_msgs
 )
 
 ## Declare catkin package
 catkin_package(
-  CATKIN_DEPENDS message_generation message_runtime actionlib_msgs actionlib geometry_msgs std_msgs nav_msgs
+  CATKIN_DEPENDS 
+  actionlib 
+  actionlib_msgs 
+  geometry_msgs 
+  message_generation 
+  message_runtime 
+  nav_msgs
+  std_msgs 
 )
 
 include_directories(
