@@ -8,8 +8,8 @@ COPY . ./src/auv_software
 # Install dependencies
 RUN apt-get update && \
   vcs import src/ < src/auv_software/third_party.repos && \
+  touch ./src/auv_software/auv_sim/CATKIN_IGNORE && \
   if [ "$HOST" = "tegra" ]; then \
-    touch ./src/auv_software/auv_sim/CATKIN_IGNORE; \
     rosdep install --from-paths src --ignore-src -r \
     --skip-keys=libopencv-dev \
     --skip-keys=cv_bridge \
