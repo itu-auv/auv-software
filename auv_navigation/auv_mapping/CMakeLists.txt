@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_mapping)
 
+set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options(-std=c++17)
@@ -61,6 +63,7 @@ target_link_libraries(object_position_filter
 )
 
 add_executable(object_map_tf_server_node
+  src/object_map_tf_server_ros.cpp
   src/object_map_tf_server_node.cpp
 )
 
