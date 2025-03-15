@@ -1,17 +1,27 @@
 ARG BASE_IMAGE=ghcr.io/itu-auv/auv-software-jetson-base:latest
-
 FROM ${BASE_IMAGE}
+
+ARG HOST
 
 COPY . ./src/auv_software
 
 # Install dependencies
 RUN apt-get update && \
   vcs import src/ < src/auv_software/third_party.repos && \
-  rosdep install --from-paths src --ignore-src -r \
+  if [ "$HOST" = "tegra" ]; then \
+    rosdep install --from-paths src --ignore-src -r \
     --skip-keys=libopencv-dev \
     --skip-keys=cv_bridge \
-     -y && \
-  rm -rf /var/lib/apt/lists/*
+    -y; \
+  else \
+    rosdep install --from-paths src --ignore-src -r -y; \
+  fi && \
+  rm -rf /var/lib/apt/lists/* && \
+  if [ "$HOST" = "tegra" ]; then \
+    cd src && \
+    git clone https://github.com/ros-perception/vision_opencv.git && \
+    cd .. && \
+  fi
 
 # Build the workspace
 RUN . /opt/ros/noetic/setup.sh && \
