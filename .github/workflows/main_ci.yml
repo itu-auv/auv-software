@@ -12,27 +12,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  formatting:
-    uses: ./.github/workflows/formatting.yml
+  # formatting:
+  #   uses: ./.github/workflows/formatting.yml
 
-  build-and-push-base-docker:
-    uses: ./.github/workflows/build_and_push_images.yml
-    with:
-      image_type: base
+  # build-and-push-base-docker:
+  #   uses: ./.github/workflows/build_and_push_images.yml
+  #   with:
+  #     image_type: base
 
-  native-ci:
-    strategy:
-      fail-fast: false
-      matrix:
-        # host: [ubuntu-20.04, self-hosted]
-        host: [ubuntu-20.04]
-    uses: ./.github/workflows/industrial_ci.yml
-    with:
-      runner: ${{ matrix.host }}
-      docker_image_tag: ghcr.io/itu-auv/auv-software-base:latest
+  # native-ci:
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       # host: [ubuntu-20.04, self-hosted]
+  #       host: [ubuntu-20.04]
+  #   uses: ./.github/workflows/industrial_ci.yml
+  #   with:
+  #     runner: ${{ matrix.host }}
+  #     docker_image_tag: ghcr.io/itu-auv/auv-software-base:latest
 
   build-and-push-main-docker:
-    needs: [native-ci, build-and-push-base-docker]
+    # needs: [native-ci, build-and-push-base-docker]
     uses: ./.github/workflows/build_and_push_images.yml
     with:
       image_type: main
