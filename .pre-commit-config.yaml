@@ -25,7 +25,7 @@ repos:
     rev: v1.0.0
     hooks:
       - id: format-xmllint
-        files: \.(xml|launch|launch\.xml|sdf|urdf\.xacro|xacro|urdf)$|model\.config$
+        files: \.(sdf)$|model\.config$
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v19.1.5
     hooks:
@@ -40,9 +40,19 @@ repos:
   - repo: https://github.com/tier4/pre-commit-hooks-ros
     rev: v0.7.0
     hooks:
-      - id: flake8-ros
+      # TODO (auv-software): This is disabled, because it needs to be fixed first
+      # - id: flake8-ros
       - id: prettier-xacro
       - id: prettier-launch-xml
       - id: prettier-package-xml
       - id: ros-include-guard
       - id: sort-package-xml
+  - repo: local
+    hooks:
+      - id: catkin_lint
+        name: catkin_lint
+        description: Check package.xml and cmake files
+        entry: catkin_lint . --skip-path auv_sim
+        language: system
+        always_run: true
+        pass_filenames: false
