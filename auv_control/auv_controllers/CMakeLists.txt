@@ -4,10 +4,10 @@ project(auv_controllers)
 add_compile_options(-std=c++17)
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp
+  angles
   auv_common_lib
   pluginlib
-  angles
+  roscpp
   tf2
 )
 
@@ -15,8 +15,13 @@ find_package(Eigen3 REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES auv_controllers
-  CATKIN_DEPENDS roscpp auv_common_lib pluginlib angles tf2
+  LIBRARIES ${PROJECT_NAME}
+  CATKIN_DEPENDS 
+    angles 
+    auv_common_lib 
+    pluginlib 
+    roscpp 
+    tf2
 )
 
 include_directories(

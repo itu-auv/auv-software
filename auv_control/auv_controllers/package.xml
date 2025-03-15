@@ -2,7 +2,7 @@
 <package format="2">
   <name>auv_controllers</name>
   <version>0.1.0</version>
-  <description>The auv_controllers package</description>
+  <description>Contains controllers for the main control pipeline</description>
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
   <license>BSD-3-Clause</license>
