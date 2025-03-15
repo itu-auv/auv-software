@@ -18,10 +18,10 @@ catkin_python_setup()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS 
-    geometry_msgs 
+  CATKIN_DEPENDS
+    geometry_msgs
     nav_msgs
-    roscpp 
+    roscpp
 )
 
 include_directories(

@@ -41,14 +41,14 @@ generate_messages(
 
 ## Declare catkin package
 catkin_package(
-  CATKIN_DEPENDS 
-  actionlib 
-  actionlib_msgs 
-  geometry_msgs 
-  message_generation 
-  message_runtime 
+  CATKIN_DEPENDS
+  actionlib
+  actionlib_msgs
+  geometry_msgs
+  message_generation
+  message_runtime
   nav_msgs
-  std_msgs 
+  std_msgs
 )
 
 include_directories(

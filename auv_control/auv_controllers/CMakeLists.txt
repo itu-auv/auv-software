@@ -16,11 +16,11 @@ find_package(Eigen3 REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES ${PROJECT_NAME}
-  CATKIN_DEPENDS 
-    angles 
-    auv_common_lib 
-    pluginlib 
-    roscpp 
+  CATKIN_DEPENDS
+    angles
+    auv_common_lib
+    pluginlib
+    roscpp
     tf2
 )
 
