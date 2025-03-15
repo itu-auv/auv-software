@@ -1,7 +1,7 @@
 ARG BASE_IMAGE=ghcr.io/itu-auv/auv-software-jetson-base:latest
 FROM ${BASE_IMAGE}
 
-ARG HOST
+ARG HOST=desktop
 
 COPY . ./src/auv_software
 
@@ -20,7 +20,7 @@ RUN apt-get update && \
   if [ "$HOST" = "tegra" ]; then \
     cd src && \
     git clone https://github.com/ros-perception/vision_opencv.git && \
-    cd .. && \
+    cd ..; \
   fi
 
 # Build the workspace
