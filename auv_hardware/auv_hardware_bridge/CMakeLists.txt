@@ -5,8 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 add_compile_options(-std=c++17)
 
 find_package(catkin REQUIRED COMPONENTS
-  rosserial_python
   roscpp
+  rosserial_python
 )
 
 find_package(Boost REQUIRED COMPONENTS system)
@@ -22,8 +22,8 @@ include_directories(
 )
 
 add_executable(serial_to_ros_bridge_node
-  src/serial_to_ros_bridge_node.cpp
   src/serial_to_ros_bridge.cpp
+  src/serial_to_ros_bridge_node.cpp
 )
 
 add_dependencies(serial_to_ros_bridge_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
