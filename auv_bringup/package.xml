@@ -2,7 +2,7 @@
 <package format="2">
   <name>auv_bringup</name>
   <version>0.1.0</version>
-  <description>The auv_bringup package</description>
+  <description>Bringup package</description>
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <license>BSD-3-Clause</license>
@@ -13,6 +13,7 @@
   <exec_depend>auv_control</exec_depend>
   <exec_depend>auv_control</exec_depend>
   <exec_depend>auv_localization</exec_depend>
+  <exec_depend>auv_navigation</exec_depend>
   <exec_depend>auv_control</exec_depend>
   <exec_depend>auv_mapping</exec_depend>
   <exec_depend>move_base</exec_depend>
