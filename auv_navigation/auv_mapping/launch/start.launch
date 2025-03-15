@@ -2,6 +2,7 @@
 <launch>
   <arg name="namespace" default="turquoise" />
   <arg name="control_rate" default="10" />
+  <arg name="static_frame" default="odom" />
 
   <node pkg="auv_mapping" type="prop_transform_publisher.py" name="prop_transform_publisher"
     output="screen" />
@@ -9,8 +10,12 @@
   <group ns="$(arg namespace)">
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
       <param name="rate" value="$(arg control_rate)" />
-      <param name="static_frame" value="odom" />
+      <param name="static_frame" value="$(arg static_frame)" />
+      <param name="distance_threshold" value="4.0" />
+
       <remap from="set_object_transform" to="map/set_object_transform" />
+      <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+      <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
@@ -19,7 +24,7 @@
       <param name="gate_exit_frame" value="gate_exit" />
       <param name="gate_enterance_frame" value="gate_enterance" />
       <param name="gate_selected_frame" value="gate_blue_arrow_link" />
-      <param name="world_frame" value="odom" />
+      <param name="world_frame" value="$(arg static_frame)" />
     </node>
   </group>
 </launch>

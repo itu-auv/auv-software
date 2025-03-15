@@ -5,6 +5,7 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include <memory>
 #include <opencv2/core/core.hpp>
 #include <opencv2/video/tracking.hpp>
 #include <string>
@@ -18,6 +19,8 @@ namespace auv_mapping {
  */
 class ObjectPositionFilter {
  public:
+  using Ptr = std::unique_ptr<ObjectPositionFilter>;
+
   /**
    * @brief Construct a new Object Filter object.
    * @param initial_transform The initial transform message.
