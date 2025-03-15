@@ -10,9 +10,10 @@
   <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"
     unless="$(arg use_gui)" />
 
-  <!-- TODO: remove the joint_state_publisher_gui after debugging to reduce dependencies -->
-  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui"
-    type="joint_state_publisher_gui" if="$(arg use_gui)" />
+  <!-- FIXME: Commented out to prevent catkin_lint from failing -->
+  <!-- this package has heavy UI library dependencies -->
+  <!-- <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui"
+    type="joint_state_publisher_gui" if="$(arg use_gui)" /> -->
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find taluy_description)/rviz/default.rviz"
     if="$(arg use_gui)" />

@@ -2,7 +2,7 @@
 <package format="2">
   <name>taluy_description</name>
   <version>0.1.0</version>
-  <description>The taluy_description package</description>
+  <description>Contains robot descriptions of taluy</description>
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
   <license>BSD-3-Clause</license>
