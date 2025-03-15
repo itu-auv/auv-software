@@ -7,16 +7,16 @@
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
-  <depend>roscpp</depend>
   <depend>auv_common_lib</depend>
-  <depend>geometry_msgs</depend>
   <depend>auv_controllers</depend>
-  <depend>pluginlib</depend>
-  <depend>nav_msgs</depend>
-  <depend>rosfmt</depend>
   <depend>auv_msgs</depend>
-  <depend>tf2_ros</depend>
   <depend>dynamic_reconfigure</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>pluginlib</depend>
+  <depend>roscpp</depend>
+  <depend>rosfmt</depend>
   <depend>rospy</depend>
+  <depend>tf2_ros</depend>
   <exec_depend>auv_description</exec_depend>
 </package>

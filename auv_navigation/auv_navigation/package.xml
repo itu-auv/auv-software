@@ -7,14 +7,12 @@
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
-  <exec_depend>auv_mapping</exec_depend>
-  <exec_depend>auv_localization</exec_depend>
-  <exec_depend>nav_msgs</exec_depend>
-  <exec_depend>auv_msgs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
   <exec_depend>actionlib</exec_depend>
+  <exec_depend>auv_localization</exec_depend>
+  <exec_depend>auv_mapping</exec_depend>
+  <exec_depend>auv_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
   <exec_depend>rospy</exec_depend>
-  <export>
-
-  </export>
+  <exec_depend>tf2_ros</exec_depend>
+  <export/>
 </package>
