@@ -12,7 +12,8 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
 from auv_msgs.srv import SetDepth, SetDepthRequest
 
-import auv_navigation
+from auv_navigation.follow_path_action import follow_path_client
+
 from tf.transformations import (
     quaternion_matrix,
     quaternion_from_matrix,
@@ -314,9 +315,7 @@ class ExecutePlannedPathsState(smach.State):
             rospy.logdebug(
                 "[ExecutePlannedPathsState] Initializing the FollowPathActionClient"
             )
-            self._client = (
-                auv_navigation.follow_path_action.follow_path_client.FollowPathActionClient()
-            )
+            self._client = follow_path_client.FollowPathActionClient()
 
         # Check for preemption before proceeding
         if self.preempt_requested():
