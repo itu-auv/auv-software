@@ -16,8 +16,10 @@
         </geometry>
       </collision>
       <inertial>
-        <mass value="0.001"/> <!-- Adjusted mass for more realistic simulation -->
-        <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/> <!-- Adjusted inertia -->
+        <mass value="0.001"/>
+        <!-- Adjusted mass for more realistic simulation -->
+        <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/>
+        <!-- Adjusted inertia -->
       </inertial>
     </link>
     <link name="${name}_lower_link">
@@ -34,8 +36,10 @@
         </geometry>
       </collision>
       <inertial>
-        <mass value="0.001"/> <!-- Adjusted mass for more realistic simulation -->
-        <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/> <!-- Adjusted inertia -->
+        <mass value="0.001"/>
+        <!-- Adjusted mass for more realistic simulation -->
+        <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/>
+        <!-- Adjusted inertia -->
       </inertial>
     </link>
     <joint name="${name}_chasis_joint" type="fixed">
