@@ -18,6 +18,9 @@ class PathPlanners:
             "~gate_entrance_frame", "gate_entrance"
         )
         self.gate_exit_frame: str = rospy.get_param("~gate_exit_frame", "gate_exit")
+        self.path_creation_timeout: float = rospy.get_param(
+            "~path_creation_timeout", 20.0
+        )
 
     def straight_path_to_frame(
         self,
@@ -94,9 +97,7 @@ class PathPlanners:
             rospy.logerr(f"Error in straight_path_to_frame: {e}")
             return None
 
-    def path_for_gate(
-        self, path_creation_timeout: float = 20.0
-    ) -> Optional[List[Path]]:
+    def path_for_gate(self) -> Optional[List[Path]]:
         """
         Plans paths for the gate task, which includes the two paths:
         1. path to gate entrance
@@ -109,7 +110,7 @@ class PathPlanners:
             entrance_path = None
             exit_path = None
 
-            while (rospy.Time.now() - start_time).to_sec() < path_creation_timeout:
+            while (rospy.Time.now() - start_time).to_sec() < self.path_creation_timeout:
                 try:
                     # create the first segment
                     if entrance_path is None:
@@ -146,7 +147,7 @@ class PathPlanners:
             # If we get here, we timed out
             rospy.logwarn(
                 "[GatePathPlanner] Failed to plan paths after %.1f seconds",
-                path_creation_timeout,
+                self.path_creation_timeout,
             )
             return None
 
