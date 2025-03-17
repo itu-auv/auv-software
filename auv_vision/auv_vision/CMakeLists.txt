@@ -5,18 +5,26 @@ find_package(catkin REQUIRED COMPONENTS
   auv_detection
   rospy
   cv_bridge
-
+  sensor_msgs
+  tf
 )
 
 catkin_package(
   CATKIN_DEPENDS
-)
-
-catkin_install_python(PROGRAMS scripts/dynamic_roll_compensation.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+    auv_detection
+    rospy
+    cv_bridge
+    sensor_msgs
+    tf
 )
 
 include_directories(
-  # include
   ${catkin_INCLUDE_DIRS}
+)
+
+catkin_install_python(
+  PROGRAMS
+    scripts/dynamic_roll_compensation.py
+  DESTINATION
+    ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
