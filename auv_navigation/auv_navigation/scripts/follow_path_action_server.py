@@ -11,7 +11,7 @@ from auv_msgs.msg import (
     FollowPathResult,
     FollowPathActionGoal,
 )
-from auv_navigation import follow_path_utils
+from auv_navigation import follow_path_helpers
 
 
 class FollowPathActionServer:
@@ -66,7 +66,7 @@ class FollowPathActionServer:
                 self.path_pub.publish(path)
 
                 # get current pose of robot
-                robot_pose = follow_path_utils.get_robot_pose(
+                robot_pose = follow_path_helpers.get_robot_pose(
                     self.tf_buffer, self.source_frame
                 )
                 if robot_pose is None:
@@ -74,7 +74,7 @@ class FollowPathActionServer:
                     self.loop_rate.sleep()
                     continue
 
-                dynamic_target_pose = follow_path_utils.calculate_dynamic_target(
+                dynamic_target_pose = follow_path_helpers.calculate_dynamic_target(
                     path, robot_pose, self.dynamic_target_lookahead_distance
                 )
                 if dynamic_target_pose is None:
@@ -83,7 +83,7 @@ class FollowPathActionServer:
                     continue
 
                 # Broadcast the dynamic target frame so that controllers can use it
-                follow_path_utils.broadcast_dynamic_target_frame(
+                follow_path_helpers.broadcast_dynamic_target_frame(
                     self.tf_broadcaster,
                     self.tf_buffer,
                     self.source_frame,
@@ -92,7 +92,7 @@ class FollowPathActionServer:
 
                 # Check progress along the current segment and overall path
                 current_segment_progress, overall_progress = (
-                    follow_path_utils.check_segment_progress(
+                    follow_path_helpers.check_segment_progress(
                         path, robot_pose, current_segment_index, segment_endpoints
                     )
                 )
@@ -104,7 +104,7 @@ class FollowPathActionServer:
 
                 # Check if current segment is completed
                 segment_end_index = segment_endpoints[current_segment_index]
-                if follow_path_utils.is_segment_completed(
+                if follow_path_helpers.is_segment_completed(
                     robot_pose, path, segment_end_index
                 ):
                     if current_segment_index < num_segments - 1:
@@ -132,7 +132,7 @@ class FollowPathActionServer:
             return
 
         # Combine all paths and get endpoints
-        combined_path, segment_endpoints = follow_path_utils.combine_segments(
+        combined_path, segment_endpoints = follow_path_helpers.combine_segments(
             goal.paths
         )
 
