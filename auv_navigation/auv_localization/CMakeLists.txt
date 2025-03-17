@@ -1,34 +1,27 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_localization)
 
-
 find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
-  sensor_msgs
-  rospy
   message_generation
-  auv_common_lib
+  rospy
+  std_msgs
 )
 
 add_service_files(
   FILES
   CalibrateIMU.srv
 )
+
 generate_messages(
   DEPENDENCIES
   std_msgs
 )
 
 catkin_package(
-  # INCLUDE_DIRS include
-  # LIBRARIES acado_dynamics
-  #  CATKIN_DEPENDS message_generation message_runtime roscpp
-  #  DEPENDS system_lib
   CATKIN_DEPENDS message_runtime std_msgs
 )
 
 include_directories(
-# include
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -40,7 +33,7 @@ catkin_install_python(PROGRAMS
 )
 
 install(DIRECTORY
-  launch
   config
+  launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

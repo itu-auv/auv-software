@@ -87,14 +87,10 @@
       <axis rpy="0 0 0" xyz="0 0 1"/>
       <limit lower="0.0" upper="0.0" effort="0.0" velocity="0.0"/>
     </joint>
-    <xacro:dvl_single_sonar namespace="${namespace}" name="${name}" index="0" update_rate="${update_rate}">
-    </xacro:dvl_single_sonar>
-    <xacro:dvl_single_sonar namespace="${namespace}" name="${name}" index="1" update_rate="${update_rate}">
-    </xacro:dvl_single_sonar>
-    <xacro:dvl_single_sonar namespace="${namespace}" name="${name}" index="2" update_rate="${update_rate}">
-    </xacro:dvl_single_sonar>
-    <xacro:dvl_single_sonar namespace="${namespace}" name="${name}" index="3" update_rate="${update_rate}">
-    </xacro:dvl_single_sonar>
+    <xacro:dvl_single_sonar namespace="${namespace}" name="${name}" index="0" update_rate="${update_rate}"/>
+    <xacro:dvl_single_sonar namespace="${namespace}" name="${name}" index="1" update_rate="${update_rate}"/>
+    <xacro:dvl_single_sonar namespace="${namespace}" name="${name}" index="2" update_rate="${update_rate}"/>
+    <xacro:dvl_single_sonar namespace="${namespace}" name="${name}" index="3" update_rate="${update_rate}"/>
     <gazebo>
       <plugin filename="libuuv_gazebo_ros_dvl_plugin.so" name="libuuv_gazebo_dvl_plugin">
         <robot_namespace>${namespace}</robot_namespace>

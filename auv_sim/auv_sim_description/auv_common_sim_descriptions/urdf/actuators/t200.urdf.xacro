@@ -12,9 +12,7 @@
           <timeConstant>0.04</timeConstant>
         </dynamics>
         <conversion>
-          <type>
-            LinearInterp
-          </type>
+          <type>LinearInterp</type>
           <inputValues>
             0 1099 1100 1104 1108 1112 1116 1120 1124 1128 1132 1136 1140 1144 1148 1152 1156 1160
             1164 1168 1172 1176 1180 1184 1188 1192 1196 1200 1204 1208 1212 1216 1220 1224 1228

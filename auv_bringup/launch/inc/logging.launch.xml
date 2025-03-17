@@ -8,6 +8,12 @@
   <arg name="exclude_pattern" default="/.*image_[^/]*$|/.*theora$|/(?!.*image_raw/compressed$).*compressed$|/.*compressedDepth$"/>
   <arg name="topics" default=""/>
   <group ns="$(arg namespace)">
-    <node name="auv_logger" pkg="rosbag" type="record" output="screen" args=" --output-prefix=$(arg logging_directory)/$(arg prefix) -e $(arg include_pattern) -x $(arg exclude_pattern) $(arg topics)"/>
+    <node
+      name="auv_logger"
+      pkg="rosbag"
+      type="record"
+      output="screen"
+      args=" --output-prefix=$(arg logging_directory)/$(arg prefix) -e $(arg include_pattern) -x $(arg exclude_pattern) $(arg topics)"
+    />
   </group>
 </launch>
