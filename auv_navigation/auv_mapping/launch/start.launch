@@ -4,7 +4,7 @@
   <arg name="control_rate" default="10" />
   <arg name="static_frame" default="odom" />
 
-  <node pkg="auv_mapping" type="prop_transform_publisher.py" name="prop_transform_publisher"
+  <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator"
     output="screen" />
 
   <group ns="$(arg namespace)">
