@@ -203,7 +203,6 @@ class TransformServiceNode:
         )
         exit_transform = self.build_transform_message(self.exit_frame, exit_pose)
 
-        # Send transforms using the service
         self.send_transform(entrance_transform)
         self.send_transform(exit_transform)
 
