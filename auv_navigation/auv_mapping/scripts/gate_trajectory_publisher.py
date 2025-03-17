@@ -40,8 +40,9 @@ class TransformServiceNode:
         # Offset distance for the inward trajectory frame. The value is subtracted from the gate frame.
         self.offset_inward = rospy.get_param("~offset_inward", 1.7)
 
-        # TODO: This shouldn't be hardcoded.
-        self.selected_gate_frame = self.gate_frame_1
+        self.target_gate_frame = rospy.get_param(
+            "~target_gate_frame", "gate_blue_arrow_link"
+        )
 
     def assign_selected_gate_translations(
         self,
@@ -49,15 +50,15 @@ class TransformServiceNode:
         gate_link_2_translation: Tuple[float, float, float],
     ) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """
-        Determines selected_gate_link and other_gate_link based on self.selected_gate_frame.
+        Determines selected_gate_link and other_gate_link based on self.target_gate_frame.
 
         Returns:
             tuple: (selected_gate_link_translation, other_gate_link_translation)
         """
-        if self.selected_gate_frame == self.gate_frame_1:
+        if self.target_gate_frame == self.gate_frame_1:
             selected_gate_link_translation = gate_link_1_translation
             other_gate_link_translation = gate_link_2_translation
-        elif self.selected_gate_frame == self.gate_frame_2:
+        elif self.target_gate_frame == self.gate_frame_2:
             selected_gate_link_translation = gate_link_2_translation
             other_gate_link_translation = gate_link_1_translation
         else:
