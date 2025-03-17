@@ -6,9 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options(-std=c++17)
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp
   geometry_msgs
   nav_msgs
+  roscpp
 )
 
 find_package(Eigen3 REQUIRED)
@@ -17,9 +17,11 @@ catkin_python_setup()
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES auv_common_lib
-  CATKIN_DEPENDS roscpp
-#  DEPENDS system_lib
+  LIBRARIES ${PROJECT_NAME}
+  CATKIN_DEPENDS
+    geometry_msgs
+    nav_msgs
+    roscpp
 )
 
 include_directories(
@@ -29,8 +31,8 @@ include_directories(
 )
 
 add_library(${PROJECT_NAME}
-  src/ros/rosparam_matrix.cpp
   src/ros/conversions.cpp
+  src/ros/rosparam_matrix.cpp
 )
 
 add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})

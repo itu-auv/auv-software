@@ -7,16 +7,20 @@
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
-  <depend>gazebo_ros</depend>
-  <depend>uuv_assistants</depend>
-  <depend>auv_sim_bridge</depend>
-  <depend>auv_sim_description</depend>
-  <depend>auv_control</depend>
-  <depend>uuv_descriptions</depend>
-  <depend>robot_state_publisher</depend>
-  <depend>tf2_ros</depend>
-  <depend>uuv_gazebo_worlds</depend>
-  <export>
-
-  </export>
+  <exec_depend>auv_bringup</exec_depend>
+  <exec_depend>auv_control</exec_depend>
+  <exec_depend>auv_localization</exec_depend>
+  <exec_depend>auv_sim_bridge</exec_depend>
+  <exec_depend>auv_sim_description</exec_depend>
+  <exec_depend>gazebo_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz</exec_depend>
+  <exec_depend>taluy_description</exec_depend>
+  <exec_depend>taluy_sim_description</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>uuv_assistants</exec_depend>
+  <exec_depend>uuv_descriptions</exec_depend>
+  <exec_depend>uuv_gazebo_worlds</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <export/>
 </package>

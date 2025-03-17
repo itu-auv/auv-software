@@ -4,10 +4,10 @@ project(auv_controllers)
 add_compile_options(-std=c++17)
 
 find_package(catkin REQUIRED COMPONENTS
-  roscpp
+  angles
   auv_common_lib
   pluginlib
-  angles
+  roscpp
   tf2
 )
 
@@ -15,9 +15,13 @@ find_package(Eigen3 REQUIRED)
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES auv_controllers
-  CATKIN_DEPENDS roscpp auv_common_lib pluginlib angles tf2
-#  DEPENDS system_lib
+  LIBRARIES ${PROJECT_NAME}
+  CATKIN_DEPENDS
+    angles
+    auv_common_lib
+    pluginlib
+    roscpp
+    tf2
 )
 
 include_directories(
@@ -43,20 +47,26 @@ install(DIRECTORY include/${PROJECT_NAME}/
   PATTERN ".svn" EXCLUDE
 )
 
-#############
-## Testing ##
-#############
-
-catkin_add_gtest(${PROJECT_NAME}-test
-  test/test_multidof_pid_controller/test_multidof_pid_controller.cpp
-  test/main.cpp
+install(FILES
+  controller_plugins.xml
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
-if(TARGET ${PROJECT_NAME}-test)
-target_link_libraries(${PROJECT_NAME}-test
-  ${PROJECT_NAME}
-  ${catkin_LIBRARIES}
-)
+# ############
+# # Testing ##
+# ############
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(${PROJECT_NAME}-test
+    test/test_multidof_pid_controller/test_multidof_pid_controller.cpp
+    test/main.cpp
+  )
+
+  if(TARGET ${PROJECT_NAME}-test)
+    target_link_libraries(${PROJECT_NAME}-test
+      ${PROJECT_NAME}
+      ${catkin_LIBRARIES}
+    )
+  endif()
+
+  catkin_add_nosetests(test)
 endif()
-
-catkin_add_nosetests(test)

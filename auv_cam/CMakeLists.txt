@@ -1,39 +1,38 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.10.2)
 project(auv_cam)
 
 add_compile_options()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 set(CMAKE_CXX_STANDARD 17)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
+# # Find catkin macros and libraries
+# # if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
+# # is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   cv_bridge
-  roscpp
   image_transport
+  roscpp
 )
 
-set(_opencv_version 4)
-find_package(OpenCV 4 QUIET)
+find_package(OpenCV 4 QUIET COMPONENTS
+  opencv_core
+  opencv_imgproc
+  opencv_imgcodecs
+  opencv_videoio
+  CONFIG)
+
 if(NOT OpenCV_FOUND)
   message(STATUS "Did not find OpenCV 4, trying OpenCV 3")
-  set(_opencv_version 3)
-endif()
-
-find_package(OpenCV ${_opencv_version} REQUIRED
-  COMPONENTS
+  find_package(OpenCV 3 REQUIRED COMPONENTS
     opencv_core
     opencv_imgproc
     opencv_imgcodecs
     opencv_videoio
-  CONFIG
-)
+    CONFIG)
+endif()
 
 catkin_package(
-  INCLUDE_DIRS include
-#  LIBRARIES auv_cam
-#  CATKIN_DEPENDS cv_bridge roscpp
+  CATKIN_DEPENDS roscpp
   DEPENDS OpenCV
 )
 
@@ -56,18 +55,18 @@ target_link_libraries(auv_gst_cam_node
 )
 
 install(TARGETS auv_camera_ros
-        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-        RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-        )
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
 
 install(TARGETS auv_gst_cam_node
-        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-        )
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 install(DIRECTORY
-        launch
-        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+  launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
 install(DIRECTORY include/${PROJECT_NAME}/
