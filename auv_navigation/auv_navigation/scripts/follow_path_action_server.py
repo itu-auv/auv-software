@@ -65,17 +65,17 @@ class FollowPathActionServer:
                 # Publish the target path for visualization
                 self.path_pub.publish(path)
 
-                # get current pose
-                current_pose = path_utils.get_current_pose(
+                # get current pose of robot
+                robot_pose = path_utils.get_robot_pose(
                     self.tf_buffer, self.source_frame
                 )
-                if current_pose is None:
+                if robot_pose is None:
                     rospy.logwarn("Failed to get current pose. Retrying...")
                     self.loop_rate.sleep()
                     continue
 
                 dynamic_target_pose = path_utils.calculate_dynamic_target(
-                    path, current_pose, self.dynamic_target_lookahead_distance
+                    path, robot_pose, self.dynamic_target_lookahead_distance
                 )
                 if dynamic_target_pose is None:
                     rospy.logwarn("Failed to calculate dynamic target. Retrying...")
@@ -93,7 +93,7 @@ class FollowPathActionServer:
                 # Check progress along the current segment and overall path
                 current_segment_progress, overall_progress = (
                     path_utils.check_segment_progress(
-                        path, current_pose, current_segment_index, segment_endpoints
+                        path, robot_pose, current_segment_index, segment_endpoints
                     )
                 )
                 feedback = FollowPathFeedback()
@@ -104,9 +104,7 @@ class FollowPathActionServer:
 
                 # Check if current segment is completed
                 segment_end_index = segment_endpoints[current_segment_index]
-                if path_utils.is_segment_completed(
-                    current_pose, path, segment_end_index
-                ):
+                if path_utils.is_segment_completed(robot_pose, path, segment_end_index):
                     if current_segment_index < num_segments - 1:
                         current_segment_index += 1
                     else:  # was on the last path and it's completed
