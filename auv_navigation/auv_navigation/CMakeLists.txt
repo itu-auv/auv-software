@@ -6,7 +6,6 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib
   nav_msgs
   tf2_ros
-  tf_conversions
 )
 
 catkin_package()

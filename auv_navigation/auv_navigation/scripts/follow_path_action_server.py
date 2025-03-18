@@ -5,7 +5,7 @@ import tf2_ros
 import math
 from typing import List, Optional
 from geometry_msgs.msg import PoseStamped
-import tf_conversions
+import tf.transformations
 from nav_msgs.msg import Path
 from auv_msgs.msg import (
     FollowPathAction,
@@ -93,11 +93,11 @@ class FollowPathActionServer:
 
                 # Calculate yaw difference between robot and candidate dynamic target yaw
                 robot_orientation = robot_pose.pose.orientation
-                _, _, robot_yaw = tf_conversions.euler_from_quaternion(
+                _, _, robot_yaw = tf.transformations.euler_from_quaternion(
                     robot_orientation
                 )
                 candidate_orientation = candidate_dynamic_target.pose.orientation
-                _, _, candidate_yaw = tf_conversions.euler_from_quaternion(
+                _, _, candidate_yaw = tf.transformations.euler_from_quaternion(
                     candidate_orientation
                 )
 
