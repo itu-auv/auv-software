@@ -11,7 +11,7 @@ from auv_msgs.msg import (
     FollowPathResult,
     FollowPathActionGoal,
 )
-from auv_navigation import follow_path_helpers
+from auv_navigation.follow_path_action import follow_path_helpers
 
 
 class FollowPathActionServer:
