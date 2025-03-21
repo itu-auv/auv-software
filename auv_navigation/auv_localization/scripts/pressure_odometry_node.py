@@ -90,9 +90,7 @@ class PressureToOdom:
         ]
 
         # Convert quaternion to 3x3 rotation matrix
-        rotation_matrix = tf.transformations.quaternion_matrix(quaternion)[
-            :3, :3
-        ]
+        rotation_matrix = tf.transformations.quaternion_matrix(quaternion)[:3, :3]
 
         sensor_offset = np.array(self.base_to_pressure_translation[0])
 
