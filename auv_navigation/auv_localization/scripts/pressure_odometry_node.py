@@ -16,6 +16,7 @@ import tf.transformations
 class PressureToOdom:
     def __init__(self):
         rospy.init_node("pressure_to_odom_node", anonymous=True)
+
         self.depth_calibration_offset = rospy.get_param(
             "sensors/external_pressure_sensor/depth_offset", 0.0
         )
@@ -72,41 +73,33 @@ class PressureToOdom:
         self.imu_data = imu_msg
 
     def get_base_to_pressure_height(self):
-        try:
-            if self.base_to_pressure_translation is None:
-                rospy.logerr_throttle(10, "Transform not available.")
-                return 0.0
+        assert self.base_to_pressure_translation is not None
 
-            if self.imu_data is None:
-                rospy.logwarn_throttle(
-                    10, "No IMU data received yet. Using default orientation."
-                )
-                return self.base_to_pressure_translation[0, 2]
+        if self.imu_data is None:
+            rospy.logwarn_throttle(
+                10, "No IMU data received yet. Using default orientation."
+            )
+            return self.base_to_pressure_translation[0, 2]
 
-            else:
-                orientation = self.imu_data.orientation
-                quaternion = [
-                    orientation.x,
-                    orientation.y,
-                    orientation.z,
-                    orientation.w,
-                ]
+        orientation = self.imu_data.orientation
+        quaternion = [
+            orientation.x,
+            orientation.y,
+            orientation.z,
+            orientation.w,
+        ]
 
-                # Convert quaternion to 3x3 rotation matrix
-                rotation_matrix = tf.transformations.quaternion_matrix(quaternion)[
-                    :3, :3
-                ]
+        # Convert quaternion to 3x3 rotation matrix
+        rotation_matrix = tf.transformations.quaternion_matrix(quaternion)[
+            :3, :3
+        ]
 
-                sensor_offset = np.array(self.base_to_pressure_translation[0])
+        sensor_offset = np.array(self.base_to_pressure_translation[0])
 
-                # Rotate the translation vector using the rotation matrix
-                rotated_vector = rotation_matrix.dot(sensor_offset)
+        # Rotate the translation vector using the rotation matrix
+        rotated_vector = rotation_matrix.dot(sensor_offset)
 
-                return rotated_vector[2]
-
-        except Exception as e:
-            rospy.logerr_throttle(10, f"Error in get_base_to_pressure_height: {e}")
-            return 0.0
+        return rotated_vector[2]
 
     def depth_callback(self, depth_msg):
         # Fill the odometry message with depth data as the z component of the linear position
