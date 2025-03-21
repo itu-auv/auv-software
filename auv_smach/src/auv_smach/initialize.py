@@ -6,7 +6,7 @@ from std_srvs.srv import Empty, EmptyRequest
 from robot_localization.srv import SetPose, SetPoseRequest
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
-from auv_smach.common import CancelAlignControllerState
+from auv_smach.common import CancelAlignControllerState, ClearObjectMapState
 from typing import Optional, Literal
 from dataclasses import dataclass
 
@@ -72,6 +72,7 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
             SetPose,
             request=initial_pose_request,
         )
+
 
 
 class SetStartFrameState(smach_ros.ServiceState):
@@ -158,6 +159,15 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "DELAY_AFTER_RESET",
                 DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "CLEAR_OBJECT_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_OBJECT_MAP",
+                ClearObjectMapState(),
                 transitions={
                     "succeeded": "SET_START_FRAME",
                     "preempted": "preempted",
