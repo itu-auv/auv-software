@@ -126,22 +126,22 @@ class CameraDetectionNode:
         }
 
         self.props = {
-            "red_buoy": BuoyRed(),
-            "gate_red_arrow": GateRedArrow(),
-            "gate_blue_arrow": GateBlueArrow(),
-            "gate_middle_part": GateMiddlePart(),
-            "torpedo_map": TorpedoMap(),
-            "octagon": Octagon(),
+            "red_buoy_link": BuoyRed(),
+            "gate_red_arrow_link": GateRedArrow(),
+            "gate_blue_arrow_link": GateBlueArrow(),
+            "gate_middle_part_link": GateMiddlePart(),
+            "torpedo_map_link": TorpedoMap(),
+            "octagon_link": Octagon(),
         }
 
         self.id_tf_map = {
             "taluy/cameras/cam_front": {
-                8: "red_buoy",
-                4: "gate_red_arrow",
-                3: "gate_blue_arrow",
-                5: "gate_middle_part",
-                12: "torpedo_map",
-                14: "octagon",
+                8: "red_buoy_link",
+                4: "gate_red_arrow_link",
+                3: "gate_blue_arrow_link",
+                5: "gate_middle_part_link",
+                12: "torpedo_map_link",
+                14: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
         }
@@ -329,15 +329,6 @@ class CameraDetectionNode:
 
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
-
-            # Create point message
-            point_msg = PointStamped()
-            point_msg.header.frame_id = camera_frame
-            point_msg.header.stamp = rospy.Time.now()
-            point_msg.point.x = offset_x
-            point_msg.point.y = offset_y
-            point_msg.point.z = distance
-
             # # Publish point message
             # if detection_id in self.detection_pubs:
             #     self.detection_pubs[detection_id].publish(point_msg)
