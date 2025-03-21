@@ -6,7 +6,11 @@
 
   <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator"
     output="screen" />
+  <node pkg="auv_detection" type="camera_detection_handler.py" name="camera_detection_handler"
+    output="screen" />
 
+  <node pkg="auv_mapping" type="prop_transform_broadcaster.py" name="prop_transform_broadcaster"
+    output="screen" />
   <group ns="$(arg namespace)">
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
       <param name="rate" value="$(arg control_rate)" />
