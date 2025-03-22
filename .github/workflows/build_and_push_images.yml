@@ -89,6 +89,7 @@ jobs:
           push: ${{ github.event_name == 'push' }}
           build-args: |
             BASE_IMAGE=${{ steps.set_build_config.outputs.base_image_tag }}
+            HOST=${{ matrix.host }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: false

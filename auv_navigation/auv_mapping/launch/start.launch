@@ -17,8 +17,11 @@
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
       <rosparam command="load" file="$(find auv_mapping)/config/gate_trajectory_publisher_params.yaml" />
       <param name="target_gate_frame" value="$(arg target_gate_frame)" />
+<<<<<<< HEAD
       <remap from="set_transform_gate_trajectory" to="set_transform_gate_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
+=======
+>>>>>>> ee85568a1fe880537fa2645902aa691c81bad57f
     </node>
   </group>
 </launch>

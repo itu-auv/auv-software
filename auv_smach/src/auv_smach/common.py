@@ -1,24 +1,16 @@
 import smach
 import smach_ros
 import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
-    AlignFrameController,
-    AlignFrameControllerRequest,
-    AlignFrameControllerResponse,
-)
+import threading
+import numpy as np
+import tf2_ros
+import tf.transformations as transformations
+
+from std_srvs.srv import Trigger, TriggerRequest
+from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
-import tf2_ros
-import numpy as np
-import tf.transformations as transformations
-import tf2_geometry_msgs
-from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
+from auv_msgs.srv import SetDepth, SetDepthRequest
 
 from tf.transformations import (
     quaternion_matrix,
@@ -74,33 +66,75 @@ def concatenate_transforms(transform1, transform2):
     return matrix_to_transform(combined_matrix)
 
 
+# ------------------- STATES -------------------
+
+
 class SetDepthState(smach_ros.ServiceState):
-    def __init__(self, depth: float, sleep_duration=0.0):
+    """
+    Calls /taluy/set_depth with the requested depth.
+    continuously publishes True to /taluy/enable topic
+    whilst the state is running.
+
+    Outcomes:
+        - succeeded: The service call returned success.
+        - preempted: The state was preempted.
+        - aborted: The service call failed.
+    """
+
+    def __init__(self, depth: float, sleep_duration: float = 5.0):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
         self.sleep_duration = sleep_duration
 
-        smach_ros.ServiceState.__init__(
-            self,
-            "/taluy/set_depth",
+        super(SetDepthState, self).__init__(
+            "set_depth",
             SetDepth,
             request=set_depth_request,
+            outcomes=["succeeded", "preempted", "aborted"],
         )
 
-    def execute(self, ud):
-        return_data = super().execute(ud)
+        self._stop_publishing = threading.Event()
 
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
+
+    def _publish_enable_loop(self):
+        publish_rate = rospy.get_param("~enable_rate", 20)
+        rate = rospy.Rate(publish_rate)
+        while not rospy.is_shutdown() and not self._stop_publishing.is_set():
+            self.enable_pub.publish(Bool(True))
+            rate.sleep()
+
+    def execute(self, userdata):
+        # if there's an immediate preempt
+        if self.preempt_requested():
+            rospy.logwarn("[SetDepthState] Preempt requested before execution.")
+            self.service_preempt()
+            return "preempted"
+
+        # Call the service
+        result = super(SetDepthState, self).execute(userdata)
+
+        # Clear the stop flag
+        self._stop_publishing.clear()
+        # start publishing in the background thread
+        pub_thread = threading.Thread(target=self._publish_enable_loop)
+        pub_thread.start()
+        # Wait for the specified sleep duration
         if self.sleep_duration > 0:
             rospy.sleep(self.sleep_duration)
 
-        return return_data
+        # signal the publishing thread to stop
+        self._stop_publishing.set()
+        pub_thread.join()
+
+        return result
 
 
 class LaunchTorpedoState(smach_ros.ServiceState):
     def __init__(self, id: int):
         smach_ros.ServiceState.__init__(
             self,
-            f"/taluy/actuators/torpedo_{id}/launch",
+            f"torpedo_{id}/launch",
             Trigger,
             request=TriggerRequest(),
         )
@@ -110,7 +144,7 @@ class DropBallState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/actuators/ball_dropper/drop",
+            "ball_dropper/drop",
             Trigger,
             request=TriggerRequest(),
         )
@@ -120,7 +154,7 @@ class CancelAlignControllerState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/control/align_frame/cancel",
+            "align_frame/cancel",
             Trigger,
             request=TriggerRequest(),
         )
@@ -135,7 +169,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
 
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/control/align_frame/start",
+            "align_frame/start",
             AlignFrameController,
             request=align_request,
         )

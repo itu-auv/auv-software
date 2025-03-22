@@ -5,93 +5,16 @@ import rospy
 from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, TransformStamped
 import tf2_ros
-import tf
 import tf2_geometry_msgs
-from typing import Optional
-import angles
+from typing import Optional, List, Tuple
 
 ZERO_DISTANCE_TOLERANCE: float = (
     1e-6  # Minimum distance to consider a path segment non-zero
 )
-
-
-def create_path_from_frame(
-    tf_buffer: tf2_ros.Buffer,
-    source_frame: str,
-    target_frame: str,
-    angle_offset: float = 0.0,
-    keep_orientation: bool = False,
-    num_samples: int = 50,
-) -> Optional[Path]:
-    try:
-        source_transform = tf_buffer.lookup_transform(
-            "odom", source_frame, rospy.Time(0), rospy.Duration(1.0)
-        )
-        target_transform = tf_buffer.lookup_transform(
-            "odom", target_frame, rospy.Time(0), rospy.Duration(1.0)
-        )
-        source_position = source_transform.transform.translation
-        target_position = target_transform.transform.translation
-
-        source_quaternion = [
-            source_transform.transform.rotation.x,
-            source_transform.transform.rotation.y,
-            source_transform.transform.rotation.z,
-            source_transform.transform.rotation.w,
-        ]
-        target_quaternion = [
-            target_transform.transform.rotation.x,
-            target_transform.transform.rotation.y,
-            target_transform.transform.rotation.z,
-            target_transform.transform.rotation.w,
-        ]
-
-        t_vals = np.linspace(0, 1, num_samples)
-
-        path = Path()
-        path.header.frame_id = "odom"
-        path.header.stamp = rospy.Time.now()
-
-        # Apply angle offset
-        offset_quaternion = tf.transformations.quaternion_from_euler(0, 0, angle_offset)
-        final_quaternion = tf.transformations.quaternion_multiply(
-            offset_quaternion, target_quaternion
-        )
-
-        for t in t_vals:
-            pose = PoseStamped()
-            pose.header = path.header
-
-            pose.pose.position.x = source_position.x + t * (
-                target_position.x - source_position.x
-            )
-            pose.pose.position.y = source_position.y + t * (
-                target_position.y - source_position.y
-            )
-            pose.pose.position.z = source_position.z + t * (
-                target_position.z - source_position.z
-            )
-
-            # Set orientation based on keep_orientation flag
-            if keep_orientation:
-                interp_quaternion = source_quaternion
-            else:
-                interp_quaternion = tf.transformations.quaternion_slerp(
-                    source_quaternion, final_quaternion, t
-                )
-
-            pose.pose.orientation.x = interp_quaternion[0]
-            pose.pose.orientation.y = interp_quaternion[1]
-            pose.pose.orientation.z = interp_quaternion[2]
-            pose.pose.orientation.w = interp_quaternion[3]
-
-            path.poses.append(pose)
-
-        return path
-
-    except Exception as e:
-        rospy.logerr(f"Error in create_straight_path: {e}")
-        return None
+DYNAMIC_TARGET_FRAME: str = "dynamic_target"
+ODOM_FRAME: str = "odom"
+TIME_ZERO: rospy.Time = rospy.Time(0)
+TF_LOOKUP_TIMEOUT: rospy.Duration = rospy.Duration(1.0)
 
 
 def get_current_pose(
@@ -99,10 +22,10 @@ def get_current_pose(
 ) -> Optional[PoseStamped]:
     try:
         transform = tf_buffer.lookup_transform(
-            "odom", source_frame, rospy.Time(0), rospy.Duration(1.0)
+            ODOM_FRAME, source_frame, TIME_ZERO, TF_LOOKUP_TIMEOUT
         )
         pose = PoseStamped()
-        pose.header.frame_id = "odom"
+        pose.header.frame_id = ODOM_FRAME
         pose.header.stamp = transform.header.stamp
         pose.pose.position = transform.transform.translation
         pose.pose.orientation = transform.transform.rotation
@@ -137,15 +60,11 @@ def calculate_dynamic_target(
         segment_start = path.poses[current_index].pose
         segment_end = path.poses[current_index + 1].pose
 
-        segment_distance = np.linalg.norm(
-            np.array(
-                [
-                    segment_end.position.x - segment_start.position.x,
-                    segment_end.position.y - segment_start.position.y,
-                    segment_end.position.z - segment_start.position.z,
-                ]
-            )
-        )
+        # Compute Euclidean distance between segment_start and segment_end.
+        dx = segment_end.position.x - segment_start.position.x
+        dy = segment_end.position.y - segment_start.position.y
+        dz = segment_end.position.z - segment_start.position.z
+        segment_distance = np.linalg.norm(np.array([dx, dy, dz]))
 
         # Skip zero-length segments
         if segment_distance < ZERO_DISTANCE_TOLERANCE:
@@ -154,26 +73,14 @@ def calculate_dynamic_target(
 
         # If we can place target on this segment
         if remaining_distance <= segment_distance:
-            # interpolation of position
+            ratio = remaining_distance / segment_distance
             dynamic_target_pose = PoseStamped()
             dynamic_target_pose.header = path.header
-            ratio = remaining_distance / segment_distance
-            dynamic_target_pose.pose.position.x = segment_start.position.x + ratio * (
-                segment_end.position.x - segment_start.position.x
-            )
-            dynamic_target_pose.pose.position.y = segment_start.position.y + ratio * (
-                segment_end.position.y - segment_start.position.y
-            )
-            dynamic_target_pose.pose.position.z = segment_start.position.z + ratio * (
-                segment_end.position.z - segment_start.position.z
-            )
-
-            # Use end segment orientation as dynamic target orientation (precise enough)
-            dynamic_target_pose.pose.orientation.x = segment_end.orientation.x
-            dynamic_target_pose.pose.orientation.y = segment_end.orientation.y
-            dynamic_target_pose.pose.orientation.z = segment_end.orientation.z
-            dynamic_target_pose.pose.orientation.w = segment_end.orientation.w
-
+            dynamic_target_pose.pose.position.x = segment_start.position.x + ratio * dx
+            dynamic_target_pose.pose.position.y = segment_start.position.y + ratio * dy
+            dynamic_target_pose.pose.position.z = segment_start.position.z + ratio * dz
+            # Use the orientation of the segment end.
+            dynamic_target_pose.pose.orientation = segment_end.orientation
             return dynamic_target_pose
 
         remaining_distance -= segment_distance  # Move to next segment
@@ -191,7 +98,7 @@ def broadcast_dynamic_target_frame(
 ) -> None:
     try:
         odom_to_source = tf_buffer.lookup_transform(
-            source_frame, "odom", rospy.Time(0), rospy.Duration(1.0)
+            source_frame, ODOM_FRAME, TIME_ZERO, TF_LOOKUP_TIMEOUT
         )
         dynamic_target_in_source = tf2_geometry_msgs.do_transform_pose(
             dynamic_target_pose, odom_to_source
@@ -200,7 +107,7 @@ def broadcast_dynamic_target_frame(
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
         t.header.frame_id = source_frame
-        t.child_frame_id = "dynamic_target"
+        t.child_frame_id = DYNAMIC_TARGET_FRAME
         t.transform.translation.x = dynamic_target_in_source.pose.position.x
         t.transform.translation.y = dynamic_target_in_source.pose.position.y
         t.transform.translation.z = dynamic_target_in_source.pose.position.z
@@ -237,43 +144,85 @@ def find_closest_point_index(path: Path, current_pose: PoseStamped) -> int:
     return closest_index
 
 
-def is_path_completed(
-    position_threshold: float,
-    angle_threshold: float,
-    current_pose: PoseStamped,
+def is_segment_completed(
+    current_pose: PoseStamped, path: Path, segment_end_index: int
+) -> bool:
+    closest_index = find_closest_point_index(path, current_pose)
+    return closest_index >= segment_end_index
+
+
+def combine_segments(paths: List[Path]) -> Tuple[Path, List[int]]:
+    """
+    Combines multiple path segments into a single path while keeping track of segment endpoints.
+
+    Args:
+        paths: List of Path messages to combine
+
+    Returns:
+        tuple containing:
+            - Combined Path message
+            - List of indices where each original path ends in the combined path
+    """
+    combined_path = Path()
+    segment_endpoints: List[int] = []
+
+    if not paths:
+        return combined_path, segment_endpoints
+
+    combined_path.header = paths[0].header
+    current_length = 0
+
+    for p in paths:
+        if not p.poses:
+            continue
+
+        combined_path.poses.extend(p.poses)
+        current_length += len(p.poses)
+        segment_endpoints.append(current_length - 1)
+
+    return combined_path, segment_endpoints
+
+
+def check_segment_progress(
     path: Path,
+    current_pose: PoseStamped,
+    current_segment_index: int,
+    segment_endpoints: List[int],
 ):
+    """
+    Args:
+        path (Path): The combined path being followed.
+        current_pose: Current pose of the robot
+        current_segment_index (int): The index of the current path segment.
+        segment_endpoints (List[int]): Indices marking the endpoints of individual path segments.
 
-    # calculate error between current pose and last path pose
-    last_pose = path.poses[-1].pose
+    Returns:
+        Tuple[float, float]: (current path progress, overall progress)
+    """
+    try:
+        closest_index = find_closest_point_index(path, current_pose)
 
-    dx = last_pose.position.x - current_pose.pose.position.x
-    dy = last_pose.position.y - current_pose.pose.position.y
-    dz = last_pose.position.z - current_pose.pose.position.z
-    total_pos_error = np.linalg.norm([dx, dy, dz])
+        path_start_index = (
+            0
+            if current_segment_index == 0
+            else segment_endpoints[current_segment_index - 1] + 1
+        )
+        segment_end_index = segment_endpoints[current_segment_index]
+        closest_index = min(closest_index, segment_end_index)
 
-    _, _, current_yaw = tf.transformations.euler_from_quaternion(
-        [
-            current_pose.pose.orientation.x,
-            current_pose.pose.orientation.y,
-            current_pose.pose.orientation.z,
-            current_pose.pose.orientation.w,
-        ]
-    )
+        path_length = max(
+            1, (segment_end_index - path_start_index)
+        )  # Avoid division by zero
+        current_path_progress = (closest_index - path_start_index) / path_length
+        current_path_progress = max(0.0, min(1.0, current_path_progress))
 
-    _, _, last_yaw = tf.transformations.euler_from_quaternion(
-        [
-            last_pose.orientation.x,
-            last_pose.orientation.y,
-            last_pose.orientation.z,
-            last_pose.orientation.w,
-        ]
-    )
+        # Compute overall progress
+        overall_progress = closest_index / max(
+            1, len(path.poses)
+        )  # Avoid division by zero
+        overall_progress = max(0.0, min(1.0, overall_progress))
 
-    yaw_error = angles.normalize_angle(last_yaw - current_yaw)
-    rospy.logdebug(
-        f"Path alignment - Position error: {total_pos_error:.4f}, "
-        f"Angle error: {yaw_error:.4f}"
-    )
-
-    return total_pos_error <= position_threshold and abs(yaw_error) <= angle_threshold
+        return current_path_progress, overall_progress
+    except Exception as e:
+        rospy.logerr(f"Error computing path progress: {e}")
+        return 0.0, 0.0

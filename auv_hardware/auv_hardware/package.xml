@@ -2,13 +2,11 @@
 <package format="2">
   <name>auv_hardware</name>
   <version>0.1.0</version>
-  <description>Metapackage for hardware interfacing</description>
+  <description>Hardware interfacing meta-package</description>
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
   <depend>auv_hardware_bridge</depend>
-  <export>
-
-  </export>
+  <export/>
 </package>

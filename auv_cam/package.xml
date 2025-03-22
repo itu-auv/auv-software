@@ -2,7 +2,7 @@
 <package format="2">
   <name>auv_cam</name>
   <version>0.1.0</version>
-  <description>The auv_cam package</description>
+  <description>Gstreamer camera interface package</description>
   <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
   <license>BSD-3-Clause</license>
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
