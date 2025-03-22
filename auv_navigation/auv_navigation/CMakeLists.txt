@@ -8,7 +8,9 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_ros
 )
 
-catkin_package()
+catkin_package(
+  CATKIN_DEPENDS rospy actionlib nav_msgs tf2_ros
+)
 
 catkin_python_setup()
 
