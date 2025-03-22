@@ -2,14 +2,23 @@
 
 import sys
 import os
-from PyQt5.QtWidgets import (QApplication, QWidget, QHBoxLayout, QVBoxLayout,
-                           QLabel, QPushButton, QMainWindow, QSizePolicy)
+from PyQt5.QtWidgets import (
+    QApplication,
+    QWidget,
+    QHBoxLayout,
+    QVBoxLayout,
+    QLabel,
+    QPushButton,
+    QMainWindow,
+    QSizePolicy,
+)
 from PyQt5.QtGui import QPixmap, QFont
 from PyQt5.QtCore import Qt, QSize
 from dry_test_tab import DryTestTab
 from services_tab import ServicesTab
 from vehicle_control_tab import VehicleControlTab
 from simulation_tab import SimulationTab
+
 
 class MainControlPanel(QWidget):
     def __init__(self, include_simulation=True):
@@ -42,6 +51,7 @@ class MainControlPanel(QWidget):
         # Set the main layout
         self.setLayout(main_layout)
 
+
 class StartScreen(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -64,7 +74,9 @@ class StartScreen(QMainWindow):
         title_label = QLabel("ITU AUV Control Panel")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setFont(QFont("Arial", 30, QFont.Bold))
-        title_label.setStyleSheet("color: white; background-color: black; padding: 15px;")
+        title_label.setStyleSheet(
+            "color: white; background-color: black; padding: 15px;"
+        )
         title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         # Button layout - centered horizontally
@@ -76,7 +88,8 @@ class StartScreen(QMainWindow):
         pool_button = QPushButton("Pool")
         pool_button.setFont(QFont("Arial", 14))
         pool_button.setMinimumSize(150, 40)
-        pool_button.setStyleSheet("""
+        pool_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: rgba(240, 240, 240, 220);
                 color: black;
@@ -87,14 +100,16 @@ class StartScreen(QMainWindow):
             QPushButton:hover {
                 background-color: rgba(220, 220, 220, 240);
             }
-        """)
+        """
+        )
         pool_button.clicked.connect(self.open_pool_mode)
 
         # Simulation button
         simulation_button = QPushButton("Simulation")
         simulation_button.setFont(QFont("Arial", 14))
         simulation_button.setMinimumSize(150, 40)
-        simulation_button.setStyleSheet("""
+        simulation_button.setStyleSheet(
+            """
             QPushButton {
                 background-color: rgba(240, 240, 240, 220);
                 color: black;
@@ -105,7 +120,8 @@ class StartScreen(QMainWindow):
             QPushButton:hover {
                 background-color: rgba(220, 220, 220, 240);
             }
-        """)
+        """
+        )
         simulation_button.clicked.connect(self.open_simulation_mode)
 
         # Add buttons to button layout
@@ -114,7 +130,9 @@ class StartScreen(QMainWindow):
 
         # Image container at the bottom
         image_container = QWidget()
-        image_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)  # Minimum height for image
+        image_container.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Minimum
+        )  # Minimum height for image
         image_layout = QVBoxLayout(image_container)
         image_layout.setContentsMargins(0, 0, 0, 0)
         image_layout.setSpacing(0)
@@ -122,13 +140,15 @@ class StartScreen(QMainWindow):
         # Create image label
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
-        image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)  # Minimum height
-        
+        image_label.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Minimum
+        )  # Minimum height
+
         # Get the path to the image
         script_dir = os.path.dirname(os.path.abspath(__file__))
         package_dir = os.path.dirname(script_dir)
         image_path = os.path.join(package_dir, "images", "auv_atolye.jpg")
-        
+
         try:
             # Load the image
             pixmap = QPixmap(image_path)
@@ -141,7 +161,7 @@ class StartScreen(QMainWindow):
                 print(f"Failed to load image: {image_path}")
         except Exception as e:
             print(f"Error loading image: {e}")
-            
+
         image_layout.addWidget(image_label)
 
         # Add widgets to main layout
@@ -158,6 +178,7 @@ class StartScreen(QMainWindow):
         self.hide()
         self.simulation_window = MainControlPanel(include_simulation=True)
         self.simulation_window.show()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
