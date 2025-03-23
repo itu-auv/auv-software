@@ -288,7 +288,7 @@ class ClearObjectMapState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self,
-            "/taluy/map/clear_object_transforms",
+            "clear_object_transforms",
             Trigger,
             request=TriggerRequest(),
         )
