@@ -2,7 +2,16 @@
 
 import rospy
 import math
-from geometry_msgs.msg import PointStamped, PoseArray, PoseStamped, Pose, TransformStamped, Transform, Vector3, Quaternion
+from geometry_msgs.msg import (
+    PointStamped,
+    PoseArray,
+    PoseStamped,
+    Pose,
+    TransformStamped,
+    Transform,
+    Vector3,
+    Quaternion,
+)
 from ultralytics_ros.msg import YoloResult
 from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
@@ -235,7 +244,9 @@ class CameraDetectionNode:
                 transform_stamped_msg = TransformStamped()
                 transform_stamped_msg.header.stamp = rospy.Time.now()
                 transform_stamped_msg.header.frame_id = "odom"
-                transform_stamped_msg.child_frame_id = self.id_tf_map[camera_ns][detection_id]
+                transform_stamped_msg.child_frame_id = self.id_tf_map[camera_ns][
+                    detection_id
+                ]
 
                 transform_stamped_msg.transform.translation = Vector3(x, y, z)
                 transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
@@ -314,11 +325,12 @@ class CameraDetectionNode:
             transform_stamped_msg.header.frame_id = camera_frame
             transform_stamped_msg.child_frame_id = prop_name
 
-            transform_stamped_msg.transform.translation = Vector3(offset_x, offset_y, distance)
+            transform_stamped_msg.transform.translation = Vector3(
+                offset_x, offset_y, distance
+            )
             transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
 
             self.object_transform_pub.publish(transform_stamped_msg)
-
 
     def run(self):
         rospy.spin()
