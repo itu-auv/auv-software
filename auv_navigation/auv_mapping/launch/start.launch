@@ -1,13 +1,15 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
+  <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
   <arg name="static_frame" default="odom" />
 
-  <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator"
-    output="screen" />
 
   <group ns="$(arg namespace)">
+    <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
+      <remap from="object_transform_updates" to="map/object_transform_updates" />
+    </node>
+
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
       <param name="rate" value="$(arg control_rate)" />
       <param name="static_frame" value="$(arg static_frame)" />
