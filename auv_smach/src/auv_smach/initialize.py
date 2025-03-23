@@ -74,7 +74,6 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
         )
 
 
-
 class SetStartFrameState(smach_ros.ServiceState):
     def __init__(self, frame_name: str):
         transform_request = SetObjectTransformRequest()
