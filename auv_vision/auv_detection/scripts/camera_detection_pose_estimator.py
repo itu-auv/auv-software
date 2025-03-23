@@ -150,11 +150,6 @@ class CameraDetectionNode:
             },
             "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
         }
-
-
-        # Publishers for detected object coordinates
-        # Publisher for detected object transforms
-
         # Subscribe to YOLO detections and altitude
         self.altitude = None
         rospy.Subscriber("dvl/altitude", Float32, self.altitude_callback)
@@ -206,7 +201,6 @@ class CameraDetectionNode:
         offset_x = math.tan(angles[0]) * distance * 1.0
         offset_y = math.tan(angles[1]) * distance * 1.0
 
-        # optical_camera_frame'de tanımlı iki nokta
         point1 = PointStamped()
         point1.header.frame_id = self.camera_frames[camera_ns]
         point1.point.x = 0
@@ -238,16 +232,6 @@ class CameraDetectionNode:
             )
             if intersection:
                 x, y, z = intersection
-                point_msg = PointStamped()
-                point_msg.header.frame_id = "odom"
-                point_msg.header.stamp = rospy.Time.now()
-                point_msg.point.x = x
-                point_msg.point.y = y
-                point_msg.point.z = z
-
-                # if detection_id in self.detection_pubs:
-                #     self.detection_pubs[detection_id].publish(point_msg)
-
                 transform_stamped_msg = TransformStamped()
                 transform_stamped_msg.header.stamp = rospy.Time.now()
                 transform_stamped_msg.header.frame_id = "odom"
@@ -296,7 +280,6 @@ class CameraDetectionNode:
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
 
-            # Eğer detection bin_whole ise (id=9), altitude projection kullan
             if detection_id == 9:
                 self.process_altitude_projection(detection, camera_ns)
                 continue
@@ -326,9 +309,6 @@ class CameraDetectionNode:
 
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
-            # # Publish point message
-            # if detection_id in self.detection_pubs:
-            #     self.detection_pubs[detection_id].publish(point_msg)
             transform_stamped_msg = TransformStamped()
             transform_stamped_msg.header.stamp = rospy.Time.now()
             transform_stamped_msg.header.frame_id = camera_frame
