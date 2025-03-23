@@ -118,18 +118,18 @@ class CameraDetectionNode:
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
         )
-
+        # Initialize tf2 buffer and listener for transformations
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.camera_calibrations = {
-            "taluy/cameras/cam_front": CameraCalibration("taluy/cameras/cam_front"),
-            "taluy/cameras/cam_bottom": CameraCalibration("taluy/cameras/cam_bottom"),
+            "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
+            "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
-
+        rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
         self.camera_frames = {
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
         }
-        rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
-
         self.props = {
             "red_buoy_link": BuoyRed(),
             "gate_red_arrow_link": GateRedArrow(),
@@ -151,16 +151,13 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
         }
 
-        # Initialize tf2 buffer and listener for transformations
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # Publishers for detected object coordinates
         # Publisher for detected object transforms
 
         # Subscribe to YOLO detections and altitude
         self.altitude = None
-        #rospy.Subscriber("dvl/altitude", Float32, self.altitude_callback)
+        rospy.Subscriber("dvl/altitude", Float32, self.altitude_callback)
 
     def altitude_callback(self, msg: Float32):
         self.altitude = msg.data
@@ -288,7 +285,6 @@ class CameraDetectionNode:
 
     def detection_callback(self, detection_msg: YoloResult):
         camera_ns = "taluy/cameras/cam_front"
-
         calibration = self.camera_calibrations[camera_ns]
         camera_frame = self.camera_frames[camera_ns]
 
