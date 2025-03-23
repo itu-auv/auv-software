@@ -113,8 +113,12 @@ class Octagon(Prop):
 
 class CameraDetectionNode:
     def __init__(self):
-        rospy.init_node("camera_detection_node", anonymous=True)
+        rospy.init_node("camera_detection_pose_estimator", anonymous=True)
         rospy.loginfo("Camera detection node started")
+        self.object_transform_pub = rospy.Publisher(
+            "object_transform_updates", TransformStamped, queue_size=10
+        )
+
         self.camera_calibrations = {
             "taluy/cameras/cam_front": CameraCalibration("taluy/cameras/cam_front"),
             "taluy/cameras/cam_bottom": CameraCalibration("taluy/cameras/cam_bottom"),
@@ -124,6 +128,7 @@ class CameraDetectionNode:
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
         }
+        rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
 
         self.props = {
             "red_buoy_link": BuoyRed(),
@@ -152,14 +157,10 @@ class CameraDetectionNode:
 
         # Publishers for detected object coordinates
         # Publisher for detected object transforms
-        self.object_transform_pub = rospy.Publisher(
-            "/taluy/map/object_transform_updates", TransformStamped, queue_size=10
-        )
 
         # Subscribe to YOLO detections and altitude
         self.altitude = None
-        rospy.Subscriber("/taluy/sensors/dvl/altitude", Float32, self.altitude_callback)
-        rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
+        #rospy.Subscriber("dvl/altitude", Float32, self.altitude_callback)
 
     def altitude_callback(self, msg: Float32):
         self.altitude = msg.data
