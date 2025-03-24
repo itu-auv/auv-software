@@ -19,7 +19,7 @@ class TransformServiceNode:
 
         # this service is used to broadcast transforms
         self.set_object_transform_service = rospy.ServiceProxy(
-            "map/set_object_transform", SetObjectTransform
+            "set_object_transform", SetObjectTransform
         )
         # wait indefinitely for the service to be available
         self.set_object_transform_service.wait_for_service()
