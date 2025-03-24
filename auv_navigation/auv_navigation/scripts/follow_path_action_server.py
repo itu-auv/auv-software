@@ -6,6 +6,7 @@ import math
 from typing import List, Optional
 from geometry_msgs.msg import PoseStamped
 import tf.transformations
+import angles
 from nav_msgs.msg import Path
 from auv_msgs.msg import (
     FollowPathAction,
@@ -89,33 +90,14 @@ class FollowPathActionServer:
                     continue
 
                 # Check if the yaw of the dynamic target is within the threshold
-                # If not, freeze the dynamic target till is.
-
-                # Calculate yaw difference between robot and candidate dynamic target yaw
-                robot_orientation = robot_pose.pose.orientation
-                _, _, robot_yaw = tf.transformations.euler_from_quaternion(
-                    robot_orientation
+                # If not, freeze the dynamic target till is. #!better name
+                dynamic_target = follow_path_helpers.choose_dynamic_target(
+                    candidate_dynamic_target,
+                    robot_pose,
+                    self.dynamic_target_yaw_threshold,
+                    self.last_dynamic_target,
                 )
-                candidate_orientation = candidate_dynamic_target.pose.orientation
-                _, _, candidate_yaw = tf.transformations.euler_from_quaternion(
-                    candidate_orientation
-                )
-
-                yaw_diff = abs(tf2_ros.wrap_to_pi(candidate_yaw - robot_yaw))
-
-                if (
-                    yaw_diff > self.dynamic_target_yaw_threshold
-                    and self.last_dynamic_target is not None
-                ):  # only freeze if we have a last dynamic target
-                    dynamic_target = self.last_dynamic_target
-                    rospy.logdebug(
-                        "Yaw diff {:.2f} rad exceeds threshold {:.2f} rad. Freezing dynamic target.".format(
-                            yaw_diff, self.dynamic_target_yaw_threshold
-                        )
-                    )
-                else:
-                    dynamic_target = candidate_dynamic_target
-                    self.last_dynamic_target = candidate_dynamic_target
+                self.last_dynamic_target = dynamic_target
 
                 # Broadcast the dynamic target frame so that controllers can use it
                 follow_path_helpers.broadcast_dynamic_target_frame(
