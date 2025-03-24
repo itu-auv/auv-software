@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_navigation)
 
-find_package(catkin REQUIRED COMPONENTS)
+find_package(catkin REQUIRED COMPONENTS
+  rospy
+  actionlib
+  nav_msgs
+  tf2_ros
+)
 
 catkin_package()
 
