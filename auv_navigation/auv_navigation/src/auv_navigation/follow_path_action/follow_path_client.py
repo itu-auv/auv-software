@@ -35,12 +35,11 @@ class FollowPathActionClient:
 
             if result and result.success:
                 rospy.logdebug(
-                    "[follow_path client] Task succeeded: execution time: %.2f seconds",
-                    result.execution_time,
+                    "[follow_path client] Task succeeded",
                 )
                 return True
             else:
-                rospy.logwarn("[follow_path client] Task failed")
+                rospy.logwarn("[follow_path client] Follow path task failed")
                 return False
 
         except Exception as e:
