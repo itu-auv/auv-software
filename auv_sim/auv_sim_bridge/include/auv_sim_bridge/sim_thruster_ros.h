@@ -1,3 +1,5 @@
+#pragma once
+
 #include "auv_msgs/MotorCommand.h"
 #include "ros/ros.h"
 #include "uuv_gazebo_ros_plugins_msgs/FloatStamped.h"

@@ -7,6 +7,8 @@ from geometry_msgs.msg import PoseStamped, TransformStamped
 import tf2_ros
 import tf2_geometry_msgs
 from typing import Optional, List, Tuple
+import angles
+import tf.transformations
 
 ZERO_DISTANCE_TOLERANCE: float = (
     1e-6  # Minimum distance to consider a path segment non-zero
@@ -17,7 +19,7 @@ TIME_ZERO: rospy.Time = rospy.Time(0)
 TF_LOOKUP_TIMEOUT: rospy.Duration = rospy.Duration(1.0)
 
 
-def get_current_pose(
+def get_robot_pose(
     tf_buffer: tf2_ros.Buffer, source_frame: str
 ) -> Optional[PoseStamped]:
     try:
@@ -39,8 +41,33 @@ def get_current_pose(
         return None
 
 
+def transform_pose(
+    tf_buffer: tf2_ros.Buffer,
+    pose_in: PoseStamped,
+    target_frame: str,
+) -> PoseStamped:
+
+    try:
+        transform = tf_buffer.lookup_transform(
+            target_frame, pose_in.header.frame_id, rospy.Time(0), rospy.Duration(1.0)
+        )
+        pose_out = tf2_geometry_msgs.do_transform_pose(pose_in, transform)
+        pose_out.header.frame_id = target_frame
+        return pose_out
+    except (
+        tf2_ros.LookupException,
+        tf2_ros.ConnectivityException,
+        tf2_ros.ExtrapolationException,
+    ) as e:
+        rospy.logerr(f"Failed to transform pose: {e}")
+        return None
+
+
 def calculate_dynamic_target(
-    path: Path, robot_pose: PoseStamped, dynamic_target_lookahead_distance: float
+    path: Path,
+    robot_pose: PoseStamped,
+    dynamic_target_lookahead_distance: float,
+    tf_buffer: tf2_ros.Buffer,
 ) -> Optional[PoseStamped]:
 
     if not path.poses or dynamic_target_lookahead_distance <= 0:
@@ -50,11 +77,12 @@ def calculate_dynamic_target(
 
     # If closest to last point, return it
     if closest_index >= len(path.poses) - 1:
-        return path.poses[-1]
-
-    # Walk along path segments until we've consumed dynamic_target_lookahead_distance
-    remaining_distance = dynamic_target_lookahead_distance
-    current_index = closest_index
+        dynamic_target_pose = path.poses[-1]
+    else:
+        # Walk along path segments until we've consumed dynamic_target_lookahead_distance
+        remaining_distance = dynamic_target_lookahead_distance
+        current_index = closest_index
+        dynamic_target_pose = None
 
     while remaining_distance > 0 and current_index < len(path.poses) - 1:
         segment_start = path.poses[current_index].pose
@@ -81,13 +109,60 @@ def calculate_dynamic_target(
             dynamic_target_pose.pose.position.z = segment_start.position.z + ratio * dz
             # Use the orientation of the segment end.
             dynamic_target_pose.pose.orientation = segment_end.orientation
-            return dynamic_target_pose
+            break
 
         remaining_distance -= segment_distance  # Move to next segment
         current_index += 1
 
-    # If we've consumed all segments, return last pose
-    return path.poses[-1]
+    # If we walked past the last segment, use the final pose
+    if dynamic_target_pose is None:
+        dynamic_target_pose = path.poses[-1]
+
+    # Transform the dynamic target pose to robot's frame
+    dynamic_target_in_robot_frame = transform_pose(
+        tf_buffer, dynamic_target_pose, ODOM_FRAME
+    )
+    return dynamic_target_in_robot_frame
+
+
+def choose_dynamic_target(
+    candidate_dynamic_target: PoseStamped,
+    robot_pose: PoseStamped,
+    dynamic_target_yaw_threshold: float,
+    last_dynamic_target: Optional[PoseStamped],
+) -> Tuple[PoseStamped, Optional[PoseStamped]]:
+    """
+    Determine the dynamic target to use based on yaw difference.
+    1. If yaw_diff <= threshold, update and return the candidate.
+    2. If yaw_diff > threshold:
+        a. If there is a last dynamic target, return it (freeze).
+        b. If not, use the candidate as the first dynamic target and freeze.
+    """
+    _, _, candidate_yaw = tf.transformations.euler_from_quaternion(
+        (
+            candidate_dynamic_target.pose.orientation.x,
+            candidate_dynamic_target.pose.orientation.y,
+            candidate_dynamic_target.pose.orientation.z,
+            candidate_dynamic_target.pose.orientation.w,
+        )
+    )
+
+    yaw_diff = candidate_yaw
+
+    if yaw_diff > dynamic_target_yaw_threshold and last_dynamic_target is not None:
+        rospy.loginfo(
+            "Freezing dynamic target. Candidate yaw diff: {:.2f} rad.".format(yaw_diff)
+        )
+        return last_dynamic_target
+    msg = (
+        "Using candidate dynamic target."
+        if yaw_diff <= dynamic_target_yaw_threshold
+        else "First candidate is freezable. Using it as dynamic target."
+    )
+    rospy.loginfo("{} Yaw diff: {:.2f} rad.".format(msg, yaw_diff))
+    # if yaw_diff < threshold, update and return the candidate
+    # if yaw_diff >= threshold but last_dynamic_target is None, use candidate as first dynamic target
+    return candidate_dynamic_target
 
 
 def broadcast_dynamic_target_frame(
@@ -96,34 +171,21 @@ def broadcast_dynamic_target_frame(
     source_frame: str,
     dynamic_target_pose: PoseStamped,
 ) -> None:
-    try:
-        odom_to_source = tf_buffer.lookup_transform(
-            source_frame, ODOM_FRAME, TIME_ZERO, TF_LOOKUP_TIMEOUT
-        )
-        dynamic_target_in_source = tf2_geometry_msgs.do_transform_pose(
-            dynamic_target_pose, odom_to_source
-        )
+    t = TransformStamped()
+    t.header.stamp = rospy.Time.now()
+    t.header.frame_id = source_frame
+    t.child_frame_id = DYNAMIC_TARGET_FRAME
 
-        t = TransformStamped()
-        t.header.stamp = rospy.Time.now()
-        t.header.frame_id = source_frame
-        t.child_frame_id = DYNAMIC_TARGET_FRAME
-        t.transform.translation.x = dynamic_target_in_source.pose.position.x
-        t.transform.translation.y = dynamic_target_in_source.pose.position.y
-        t.transform.translation.z = dynamic_target_in_source.pose.position.z
-        t.transform.rotation = dynamic_target_in_source.pose.orientation
+    t.transform.translation.x = dynamic_target_pose.pose.position.x
+    t.transform.translation.y = dynamic_target_pose.pose.position.y
+    t.transform.translation.z = dynamic_target_pose.pose.position.z
+    t.transform.rotation = dynamic_target_pose.pose.orientation
 
-        tf_broadcaster.sendTransform(t)
-
-    except (
-        tf2_ros.LookupException,
-        tf2_ros.ConnectivityException,
-        tf2_ros.ExtrapolationException,
-    ) as e:
-        rospy.logerr(f"Failed to broadcast dynamic target frame: {e}")
+    # Broadcast this transform
+    tf_broadcaster.sendTransform(t)
 
 
-def find_closest_point_index(path: Path, current_pose: PoseStamped) -> int:
+def find_closest_point_index(path: Path, robot_pose: PoseStamped) -> int:
     min_dist = float("inf")
     closest_index = 0
 
@@ -131,9 +193,9 @@ def find_closest_point_index(path: Path, current_pose: PoseStamped) -> int:
         dist = np.linalg.norm(
             np.array(
                 [
-                    pose.pose.position.x - current_pose.pose.position.x,
-                    pose.pose.position.y - current_pose.pose.position.y,
-                    pose.pose.position.z - current_pose.pose.position.z,
+                    pose.pose.position.x - robot_pose.pose.position.x,
+                    pose.pose.position.y - robot_pose.pose.position.y,
+                    pose.pose.position.z - robot_pose.pose.position.z,
                 ]
             )
         )
@@ -145,9 +207,9 @@ def find_closest_point_index(path: Path, current_pose: PoseStamped) -> int:
 
 
 def is_segment_completed(
-    current_pose: PoseStamped, path: Path, segment_end_index: int
+    robot_pose: PoseStamped, path: Path, segment_end_index: int
 ) -> bool:
-    closest_index = find_closest_point_index(path, current_pose)
+    closest_index = find_closest_point_index(path, robot_pose)
     return closest_index >= segment_end_index
 
 
@@ -185,14 +247,14 @@ def combine_segments(paths: List[Path]) -> Tuple[Path, List[int]]:
 
 def check_segment_progress(
     path: Path,
-    current_pose: PoseStamped,
+    robot_pose: PoseStamped,
     current_segment_index: int,
     segment_endpoints: List[int],
 ):
     """
     Args:
         path (Path): The combined path being followed.
-        current_pose: Current pose of the robot
+        robot_pose: Current pose of the robot
         current_segment_index (int): The index of the current path segment.
         segment_endpoints (List[int]): Indices marking the endpoints of individual path segments.
 
@@ -200,7 +262,7 @@ def check_segment_progress(
         Tuple[float, float]: (current path progress, overall progress)
     """
     try:
-        closest_index = find_closest_point_index(path, current_pose)
+        closest_index = find_closest_point_index(path, robot_pose)
 
         path_start_index = (
             0

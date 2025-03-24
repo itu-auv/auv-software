@@ -2,33 +2,13 @@ cmake_minimum_required(VERSION 3.10.2)
 project(auv_navigation)
 
 find_package(catkin REQUIRED COMPONENTS
-  auv_localization
-  auv_mapping
   rospy
   actionlib
   nav_msgs
-  geometry_msgs
   tf2_ros
-  auv_msgs
 )
 
-catkin_package(
-  CATKIN_DEPENDS
-    auv_localization
-    auv_mapping
-    rospy
-    actionlib
-    nav_msgs
-    geometry_msgs
-    tf2_ros
-    auv_msgs
-)
-
-include_directories(
-# include
-  include
-  ${catkin_INCLUDE_DIRS}
-)
+catkin_package()
 
 catkin_python_setup()
 

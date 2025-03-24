@@ -2,8 +2,11 @@
 import rospy
 import actionlib
 import tf2_ros
+import math
 from typing import List, Optional
-
+from geometry_msgs.msg import PoseStamped
+import tf.transformations
+import angles
 from nav_msgs.msg import Path
 from auv_msgs.msg import (
     FollowPathAction,
@@ -11,7 +14,7 @@ from auv_msgs.msg import (
     FollowPathResult,
     FollowPathActionGoal,
 )
-from auv_navigation import path_utils
+from auv_navigation.follow_path_action import follow_path_helpers
 
 
 class FollowPathActionServer:
@@ -27,6 +30,10 @@ class FollowPathActionServer:
         )
         self.source_frame: str = rospy.get_param("~source_frame", "taluy/base_link")
         self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 20))
+        self.dynamic_target_yaw_threshold: float = rospy.get_param(
+            "~dynamic_target_yaw_threshold", math.pi / 6
+        )
+        self.last_dynamic_target: PoseStamped = None
 
         self.path_pub = rospy.Publisher("target_path", Path, queue_size=1)
 
@@ -65,35 +72,45 @@ class FollowPathActionServer:
                 # Publish the target path for visualization
                 self.path_pub.publish(path)
 
-                # get current pose
-                current_pose = path_utils.get_current_pose(
+                # get current pose of robot
+                robot_pose = follow_path_helpers.get_robot_pose(
                     self.tf_buffer, self.source_frame
                 )
-                if current_pose is None:
+                if robot_pose is None:
                     rospy.logwarn("Failed to get current pose. Retrying...")
                     self.loop_rate.sleep()
                     continue
 
-                dynamic_target_pose = path_utils.calculate_dynamic_target(
-                    path, current_pose, self.dynamic_target_lookahead_distance
+                candidate_dynamic_target = follow_path_helpers.calculate_dynamic_target(
+                    path, robot_pose, self.dynamic_target_lookahead_distance
                 )
-                if dynamic_target_pose is None:
+                if candidate_dynamic_target is None:
                     rospy.logwarn("Failed to calculate dynamic target. Retrying...")
                     self.loop_rate.sleep()
                     continue
 
+                # Check if the yaw of the dynamic target is within the threshold
+                # If not, freeze the dynamic target till is. #!better name
+                dynamic_target = follow_path_helpers.choose_dynamic_target(
+                    candidate_dynamic_target,
+                    robot_pose,
+                    self.dynamic_target_yaw_threshold,
+                    self.last_dynamic_target,
+                )
+                self.last_dynamic_target = dynamic_target
+
                 # Broadcast the dynamic target frame so that controllers can use it
-                path_utils.broadcast_dynamic_target_frame(
+                follow_path_helpers.broadcast_dynamic_target_frame(
                     self.tf_broadcaster,
                     self.tf_buffer,
                     self.source_frame,
-                    dynamic_target_pose,
+                    dynamic_target,
                 )
 
                 # Check progress along the current segment and overall path
                 current_segment_progress, overall_progress = (
-                    path_utils.check_segment_progress(
-                        path, current_pose, current_segment_index, segment_endpoints
+                    follow_path_helpers.check_segment_progress(
+                        path, robot_pose, current_segment_index, segment_endpoints
                     )
                 )
                 feedback = FollowPathFeedback()
@@ -104,8 +121,8 @@ class FollowPathActionServer:
 
                 # Check if current segment is completed
                 segment_end_index = segment_endpoints[current_segment_index]
-                if path_utils.is_segment_completed(
-                    current_pose, path, segment_end_index
+                if follow_path_helpers.is_segment_completed(
+                    robot_pose, path, segment_end_index
                 ):
                     if current_segment_index < num_segments - 1:
                         current_segment_index += 1
@@ -132,7 +149,9 @@ class FollowPathActionServer:
             return
 
         # Combine all paths and get endpoints
-        combined_path, segment_endpoints = path_utils.combine_segments(goal.paths)
+        combined_path, segment_endpoints = follow_path_helpers.combine_segments(
+            goal.paths
+        )
 
         # Perform path following
         success = self.do_path_following(combined_path, segment_endpoints)
