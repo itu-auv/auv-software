@@ -24,18 +24,36 @@ class MainControlPanel(QWidget):
     def __init__(self, include_simulation=True):
         super().__init__()
         self.setWindowTitle("Taluy Control Panel")
-        self.setGeometry(100, 100, 1000, 500)
-        self.setMinimumHeight(200)  # Allow vertical shrinking to a minimum
+
+        # Ekran boyutlarını al
+        screen = QApplication.primaryScreen()
+        screen_width = screen.size().width()
+        screen_height = screen.size().height()
+        min_width = 400  # Pool modu için minimum genişlik
+
+        if include_simulation:
+            # Simulation modu: Ekranın tam genişliğinde ve en üste yapışık
+            sim_height = 300  # Minimum dikey uzunluk
+            x_pos = 0  # Sol kenardan başla
+            y_pos = 0  # Üst kenara yapışık
+            self.setGeometry(x_pos, y_pos, screen_width, sim_height)
+        else:
+            # Pool modu: Ekranın en solunda, ekran yüksekliği ile aynı
+            self.setGeometry(0, 0, min_width, screen_height)
 
         # Main layout (vertical)
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)  # No margins
         main_layout.setSpacing(0)  # No spacing between elements
 
-        # Horizontal layout for tabs
-        tabs_layout = QHBoxLayout()
+        if include_simulation:
+            # Horizontal layout for simulation mode
+            tabs_layout = QHBoxLayout()
+        else:
+            # Vertical layout for pool mode
+            tabs_layout = QVBoxLayout()
 
-        # Add tabs side by side
+        # Add tabs
         tabs_layout.addWidget(ServicesTab())
         tabs_layout.addWidget(DryTestTab())
         tabs_layout.addWidget(VehicleControlTab())
@@ -56,7 +74,16 @@ class StartScreen(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AUV GUI")
-        self.setGeometry(100, 100, 1080, 500)
+
+        # Ekran boyutlarını al ve pencereyi ortala
+        screen = QApplication.primaryScreen()
+        screen_width = screen.size().width()
+        screen_height = screen.size().height()
+        window_width = 1080
+        window_height = 500
+        x_pos = (screen_width - window_width) // 2  # Yatayda ortala
+        y_pos = (screen_height - window_height) // 2  # Dikeyde ortala
+        self.setGeometry(x_pos, y_pos, window_width, window_height)
 
         # Create central widget
         central_widget = QWidget()
@@ -147,7 +174,7 @@ class StartScreen(QMainWindow):
         # Get the path to the image
         script_dir = os.path.dirname(os.path.abspath(__file__))
         package_dir = os.path.dirname(script_dir)
-        image_path = os.path.join(package_dir, "images", "auv_atolye.jpg")
+        image_path = os.path.join(package_dir, "images", "itu_auv_workshop.jpg")
 
         try:
             # Load the image
