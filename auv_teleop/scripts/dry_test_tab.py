@@ -67,7 +67,7 @@ class DryTestTab(QWidget):
 
         sensor_layout.addWidget(self.imu_start_btn, 0, 0)
         sensor_layout.addWidget(self.imu_stop_btn, 0, 1)
-        sensor_layout.addWidget(self.bar30_start_btn, 1 ,0)
+        sensor_layout.addWidget(self.bar30_start_btn, 1, 0)
         sensor_layout.addWidget(self.bar30_stop_btn, 1, 1)
         sensor_group.setLayout(sensor_layout)
 
