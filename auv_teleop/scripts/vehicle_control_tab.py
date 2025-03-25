@@ -14,12 +14,13 @@ from std_msgs.msg import Bool
 import threading
 import time
 
+
 class VehicleControlTab(QWidget):
     def __init__(self):
         super().__init__()
-        self.cmd_vel_pub = rospy.Publisher('/taluy/cmd_vel', Twist, queue_size=10)
-        self.enable_pub = rospy.Publisher('/taluy/enable', Bool, queue_size=10)
-        
+        self.cmd_vel_pub = rospy.Publisher("/taluy/cmd_vel", Twist, queue_size=10)
+        self.enable_pub = rospy.Publisher("/taluy/enable", Bool, queue_size=10)
+
         self.init_ui()
         self.publishing = False
         self.current_twist = Twist()
@@ -69,7 +70,9 @@ class VehicleControlTab(QWidget):
 
         self.backward_btn = QPushButton("v")
         self.backward_btn.setFixedSize(button_size, button_size)
-        self.backward_btn.pressed.connect(lambda: self.start_publishing("backward", 0.4))
+        self.backward_btn.pressed.connect(
+            lambda: self.start_publishing("backward", 0.4)
+        )
         self.backward_btn.released.connect(self.stop_publishing)
 
         self.up_btn = QPushButton("Up")
@@ -89,7 +92,9 @@ class VehicleControlTab(QWidget):
 
         self.yaw_right_btn = QPushButton("Right")
         self.yaw_right_btn.setFixedSize(button_size, button_size)
-        self.yaw_right_btn.pressed.connect(lambda: self.start_publishing("neg_yaw", 0.3))
+        self.yaw_right_btn.pressed.connect(
+            lambda: self.start_publishing("neg_yaw", 0.3)
+        )
         self.yaw_right_btn.released.connect(self.stop_publishing)
 
         control_layout.addWidget(self.forward_btn, 0, 1)
@@ -124,7 +129,7 @@ class VehicleControlTab(QWidget):
         subprocess.Popen("rosnode kill /taluy/joystick_node", shell=True)
 
     def publish_velocity(self):
-        rate = rospy.Rate(20)  
+        rate = rospy.Rate(20)
         while self.publishing and not rospy.is_shutdown():
             self.cmd_vel_pub.publish(self.current_twist)
             rate.sleep()
@@ -132,7 +137,7 @@ class VehicleControlTab(QWidget):
     def start_publishing(self, direction, speed):
         self.publishing = True
         self.current_twist = Twist()
-        
+
         if direction == "forward":
             self.current_twist.linear.x = speed
         elif direction == "backward":
@@ -150,7 +155,7 @@ class VehicleControlTab(QWidget):
         elif direction == "neg_yaw":
             self.current_twist.angular.z = -speed
 
-        if not hasattr(self, 'publish_thread') or not self.publish_thread.is_alive():
+        if not hasattr(self, "publish_thread") or not self.publish_thread.is_alive():
             self.publish_thread = threading.Thread(target=self.publish_velocity)
             self.publish_thread.start()
 
@@ -160,7 +165,7 @@ class VehicleControlTab(QWidget):
         self.cmd_vel_pub.publish(self.current_twist)
 
     def publish_enable(self):
-        rate = rospy.Rate(20)  
+        rate = rospy.Rate(20)
         while self.enable_publishing and not rospy.is_shutdown():
             self.enable_pub.publish(True)
             rate.sleep()

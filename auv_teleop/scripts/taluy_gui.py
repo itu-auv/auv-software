@@ -2,7 +2,7 @@
 
 import sys
 import os
-import rospy  
+import rospy
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -28,13 +28,13 @@ class MainControlPanel(QWidget):
 
         screen = QApplication.primaryScreen()
         screen_height = screen.size().height()
-        min_width = 400  
+        min_width = 400
 
         self.setGeometry(0, 0, min_width, screen_height)
 
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(0, 0, 0, 0)  
-        main_layout.setSpacing(0)  
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
         tabs_layout = QVBoxLayout()
 
@@ -48,7 +48,7 @@ class MainControlPanel(QWidget):
             tabs_layout.addWidget(VehicleControlTab())
 
         main_layout.addLayout(tabs_layout)
-        main_layout.addStretch(0)  
+        main_layout.addStretch(0)
 
         self.setLayout(main_layout)
 
@@ -63,8 +63,8 @@ class StartScreen(QMainWindow):
         screen_height = screen.size().height()
         window_width = 1080
         window_height = 500
-        x_pos = (screen_width - window_width) // 2  
-        y_pos = (screen_height - window_height) // 2  
+        x_pos = (screen_width - window_width) // 2
+        y_pos = (screen_height - window_height) // 2
         self.setGeometry(x_pos, y_pos, window_width, window_height)
 
         central_widget = QWidget()
@@ -73,8 +73,8 @@ class StartScreen(QMainWindow):
         central_widget.setStyleSheet("background-color: black;")
 
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)  
-        main_layout.setSpacing(5)  
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(5)
 
         title_label = QLabel("ITU AUV Control Panel")
         title_label.setAlignment(Qt.AlignCenter)
@@ -86,7 +86,7 @@ class StartScreen(QMainWindow):
 
         button_layout = QHBoxLayout()
         button_layout.setAlignment(Qt.AlignCenter)
-        button_layout.setSpacing(50)  
+        button_layout.setSpacing(50)
 
         pool_button = QPushButton("Pool")
         pool_button.setFont(QFont("Arial", 14))
@@ -130,18 +130,14 @@ class StartScreen(QMainWindow):
         button_layout.addWidget(simulation_button)
 
         image_container = QWidget()
-        image_container.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Minimum
-        )
+        image_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         image_layout = QVBoxLayout(image_container)
         image_layout.setContentsMargins(0, 0, 0, 0)
         image_layout.setSpacing(0)
 
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
-        image_label.setSizePolicy(
-            QSizePolicy.Expanding, QSizePolicy.Minimum
-        )  
+        image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
 
         script_dir = os.path.dirname(os.path.abspath(__file__))
         package_dir = os.path.dirname(script_dir)
@@ -162,7 +158,7 @@ class StartScreen(QMainWindow):
 
         main_layout.addWidget(title_label)
         main_layout.addLayout(button_layout)
-        main_layout.addWidget(image_container)  
+        main_layout.addWidget(image_container)
 
     def open_pool_mode(self):
         self.hide()
@@ -176,7 +172,7 @@ class StartScreen(QMainWindow):
 
 
 if __name__ == "__main__":
-    rospy.init_node("taluy_gui_node", anonymous=True)  
+    rospy.init_node("taluy_gui_node", anonymous=True)
     app = QApplication(sys.argv)
     window = StartScreen()
     window.show()

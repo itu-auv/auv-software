@@ -13,6 +13,7 @@ import subprocess
 import rospy
 from std_msgs.msg import Bool
 
+
 class SimulationTab(QWidget):
     def __init__(self):
         super().__init__()
@@ -72,7 +73,9 @@ class SimulationTab(QWidget):
         layout.addWidget(propulsion_group)
         self.setLayout(layout)
 
-        self.propulsion_pub = rospy.Publisher('/taluy/propulsion_board/status', Bool, queue_size=10)
+        self.propulsion_pub = rospy.Publisher(
+            "/taluy/propulsion_board/status", Bool, queue_size=10
+        )
 
         self.rqt_btn.clicked.connect(self.open_rqt)
         self.detect_start.clicked.connect(
@@ -89,7 +92,7 @@ class SimulationTab(QWidget):
         )
         self.test_check.stateChanged.connect(self.toggle_state_checks)
         self.propulsion_btn.clicked.connect(self.publish_propulsion_board)
-        
+
         # Initial state
         self.toggle_state_checks(Qt.Unchecked)
 
@@ -109,7 +112,7 @@ class SimulationTab(QWidget):
             cmd += f" test_mode:=true test_states:={states}"
         print(f"Executing: {cmd}")
         subprocess.Popen(cmd, shell=True)
-    
+
     def open_rqt(self):
         subprocess.Popen("rqt -s rqt_image_view", shell=True)
 
