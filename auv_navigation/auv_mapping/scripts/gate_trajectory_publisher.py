@@ -49,9 +49,6 @@ class TransformServiceNode:
     ) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """
         Determines selected_gate_link and other_gate_link based on self.target_gate_frame.
-
-        Returns:
-            tuple: (selected_gate_link_translation, other_gate_link_translation)
         """
         if self.target_gate_frame == self.gate_frame_1:
             selected_gate_link_translation = gate_link_1_translation
@@ -69,14 +66,13 @@ class TransformServiceNode:
         other_gate_link_translation: Tuple[float, float, float],
     ) -> Tuple[Pose, Pose]:
         """
-        Compute entrance and exit transforms based on the positions of the selected_gate_link and other_gate_link
+        Compute entrance and exit transforms relative to the selected gate frame.
 
         1. Define a perpendicular unit vector to the line between the two gate links.
-        2. Calculate the two shifted positions:
-            - One created by adding the respective offset in the perpendicular line (shifted_position_add).
-            - One created by subtracting the respective offset in the perpendicular line (shifted_position_subtract).
-        3. Determine which shifted position is closer to the world origin, and assign it as the entrance.
-            The other shifted position is assigned as the exit.
+        2. Calculate the two shifted positions relative to selected_gate_link_translation:
+            - shifted_position_add: offset in the positive perpendicular direction (entrance).
+            - shifted_position_subtract: offset in the negative perpendicular direction (exit).
+        3. Adjust the z-value to be 0.5m below the selected gate frame's z-value.
         """
 
         MIN_GATE_SEPARATION_THRESHOLD = 0.15
@@ -91,32 +87,30 @@ class TransformServiceNode:
             )
 
         # Perpendicular unit vector to the line connecting selected_gate_link and other_gate_link frames.
-        # For D = (dx, dy), a perpendicular vector is N = (-dy, dx).
         unit_perpendicular_x = -dy / length
         unit_perpendicular_y = dx / length
 
-        # Calculate new positions by applying the perpendicular offsets.
+        # Calculate new positions relative to selected_gate_link_translation
         shifted_position_add: Tuple[float, float, float] = (
-            selected_gate_link_translation[0] + unit_perpendicular_x * self.offset_add,
-            selected_gate_link_translation[1] + unit_perpendicular_y * self.offset_add,
-            selected_gate_link_translation[2],
+            unit_perpendicular_x * self.offset_add,  # Positive offset (entrance)
+            unit_perpendicular_y * self.offset_add,
+            selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected gate
         )
 
         shifted_position_subtract: Tuple[float, float, float] = (
-            selected_gate_link_translation[0]
-            - unit_perpendicular_x * self.offset_subtract,
-            selected_gate_link_translation[1]
-            - unit_perpendicular_y * self.offset_subtract,
-            selected_gate_link_translation[2],
+            -unit_perpendicular_x * self.offset_subtract,  # Negative offset (exit)
+            -unit_perpendicular_y * self.offset_subtract,
+            selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected gate
         )
-        # Calculate orientations so that the frames both look at the selected gate link.
+
+        # Calculate orientations so that the frames look toward the selected gate link (0,0,0 in local frame)
         angle_add = math.atan2(
-            selected_gate_link_translation[1] - shifted_position_add[1],
-            selected_gate_link_translation[0] - shifted_position_add[0],
+            -shifted_position_add[1],  # Look toward (0,0,0)
+            -shifted_position_add[0],
         )
         angle_subtract = math.atan2(
-            selected_gate_link_translation[1] - shifted_position_subtract[1],
-            selected_gate_link_translation[0] - shifted_position_subtract[0],
+            -shifted_position_subtract[1],  # Look toward (0,0,0)
+            -shifted_position_subtract[0],
         )
         shifted_quat_add = tf_conversions.transformations.quaternion_from_euler(
             0, 0, angle_add
@@ -125,33 +119,16 @@ class TransformServiceNode:
             0, 0, angle_subtract
         )
 
-        # Determine which computed position is closer to the world origin.
-        distance_to_shifted_add = math.sqrt(
-            shifted_position_add[0] ** 2 + shifted_position_add[1] ** 2
-        )
-        distance_to_shifted_subtract = math.sqrt(
-            shifted_position_subtract[0] ** 2 + shifted_position_subtract[1] ** 2
+        # Assign entrance and exit based on direction relative to the gate
+        # Here, we assume shifted_position_add (positive offset) is entrance,
+        # and shifted_position_subtract (negative offset) is exit
+        exit_position, exit_quat = shifted_position_add, shifted_quat_add
+        entrance_position, entrance_quat = (
+            shifted_position_subtract,
+            shifted_quat_subtract,
         )
 
-        # Whichever is closer to odom is the entrance
-        # The other is the exit
-        if distance_to_shifted_add < distance_to_shifted_subtract:
-            entrance_position, entrance_quat = (
-                shifted_position_add,
-                shifted_quat_add,
-            )
-            exit_position, exit_quat = (
-                shifted_position_subtract,
-                shifted_quat_subtract,
-            )
-        else:
-            entrance_position, entrance_quat = (
-                shifted_position_subtract,
-                shifted_quat_subtract,
-            )
-            exit_position, exit_quat = (shifted_position_add, shifted_quat_add)
-
-        # Finally, create the entrance and exit poses
+        # Create the entrance and exit poses
         entrance_pose = Pose()
         entrance_pose.position = Point(*entrance_position)
         entrance_pose.orientation = Quaternion(*entrance_quat)
@@ -164,7 +141,7 @@ class TransformServiceNode:
 
     def create_trajectory_frames(self) -> None:
         """
-        Look up the current transforms, compute entrance and exit transforms, and broadcast them
+        Look up the current transforms, compute entrance and exit transforms, and broadcast them relative to target_gate_frame
         """
         try:
             transform_gate_link_1 = self.tf_buffer.lookup_transform(
@@ -181,7 +158,7 @@ class TransformServiceNode:
             rospy.logwarn(f"TF lookup failed: {e}")
             return
 
-        # Extract the translations
+        # Extract the translations (still in odom frame)
         gate_link_1_translation = self.get_translation(transform_gate_link_1)
         gate_link_2_translation = self.get_translation(transform_gate_link_2)
 
@@ -192,12 +169,12 @@ class TransformServiceNode:
             )
         )
 
-        # Compute the entrance and exit frames from selected and other gate link translations
+        # Compute the entrance and exit frames relative to selected gate frame
         entrance_pose, exit_pose = self.compute_entrance_and_exit(
             selected_gate_link_translation, other_gate_link_translation
         )
 
-        # Create TransformStamped messages for entrance and exit
+        # Create TransformStamped messages for entrance and exit relative to target_gate_frame
         entrance_transform = self.build_transform_message(
             self.entrance_frame, entrance_pose
         )
@@ -221,10 +198,9 @@ class TransformServiceNode:
         child_frame_id: str,
         pose: Pose,
     ) -> TransformStamped:
-
         t = geometry_msgs.msg.TransformStamped()
         t.header.stamp = rospy.Time.now()
-        t.header.frame_id = self.odom_frame
+        t.header.frame_id = self.target_gate_frame
         t.child_frame_id = child_frame_id
         t.transform.translation = pose.position
         t.transform.rotation = pose.orientation
