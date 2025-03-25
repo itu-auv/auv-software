@@ -8,12 +8,39 @@ from PyQt5.QtWidgets import (
     QTextEdit,
     QHBoxLayout,
     QGridLayout,
-    QSpacerItem,
-    QSizePolicy,
 )
-from command_thread import CommandThread
+from PyQt5.QtCore import QThread, pyqtSignal
 import subprocess
 import rospy
+
+
+class CommandThread(QThread):
+    output_signal = pyqtSignal(str)
+
+    def __init__(self, command):
+        super().__init__()
+        self.command = command
+        self._is_running = True
+
+    def run(self):
+        process = subprocess.Popen(
+            self.command,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        while self._is_running:
+            output = process.stdout.readline()
+            if output == "" and process.poll() is not None:
+                break
+            if output:
+                self.output_signal.emit(output.strip())
+        process.stdout.close()
+        process.wait()
+
+    def stop(self):
+        self._is_running = False
 
 
 class DryTestTab(QWidget):
@@ -26,19 +53,16 @@ class DryTestTab(QWidget):
     def init_ui(self):
         layout = QGridLayout()
 
-        # Sensor Monitoring
         sensor_group = QGroupBox("Sensor Monitoring")
         sensor_group.setMinimumSize(300, 150)
         sensor_layout = QVBoxLayout()
 
-        # IMU
         imu_layout = QHBoxLayout()
         self.imu_start_btn = QPushButton("Start IMU Echo")
         self.imu_stop_btn = QPushButton("Stop IMU Echo")
         imu_layout.addWidget(self.imu_start_btn)
         imu_layout.addWidget(self.imu_stop_btn)
 
-        # Bar30
         bar30_layout = QHBoxLayout()
         self.bar30_start_btn = QPushButton("Start Bar30 Echo")
         self.bar30_stop_btn = QPushButton("Stop Bar30 Echo")
@@ -49,11 +73,9 @@ class DryTestTab(QWidget):
         sensor_layout.addLayout(bar30_layout)
         sensor_group.setLayout(sensor_layout)
 
-        # Output
         self.output = QTextEdit()
         self.output.setReadOnly(True)
 
-        # Buttons
         button_layout = QVBoxLayout()
         self.dry_test_btn = QPushButton("Automatic Dry Test")
         self.dry_test_btn.setStyleSheet("background-color: green; color: white;")
@@ -69,13 +91,11 @@ class DryTestTab(QWidget):
         layout.addLayout(button_layout, 1, 0)
         layout.addWidget(self.output, 2, 0)
 
-        # Clear Button below output
         self.clear_btn = QPushButton("Clear")
         layout.addWidget(self.clear_btn, 3, 0)
 
         self.setLayout(layout)
 
-        # Connections
         self.imu_start_btn.clicked.connect(self.start_imu)
         self.imu_stop_btn.clicked.connect(self.stop_imu)
         self.bar30_start_btn.clicked.connect(self.start_bar30)
@@ -105,7 +125,7 @@ class DryTestTab(QWidget):
             self.bar30_thread.stop()
 
     def open_rqt(self):
-        subprocess.Popen("rqt_image_view", shell=True)
+        subprocess.Popen("rqt -s rqt_image_view", shell=True)
 
     def run_dry_test(self):
         topics = {
