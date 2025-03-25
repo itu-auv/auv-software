@@ -27,33 +27,25 @@ class MainControlPanel(QWidget):
         self.setWindowTitle("Taluy Control Panel")
 
         screen = QApplication.primaryScreen()
-        screen_width = screen.size().width()
         screen_height = screen.size().height()
         min_width = 400  
 
-        if include_simulation:
-            sim_height = 300  
-            x_pos = 0  
-            y_pos = 0  
-            self.setGeometry(x_pos, y_pos, screen_width, sim_height)
-        else:
-            self.setGeometry(0, 0, min_width, screen_height)
+        self.setGeometry(0, 0, min_width, screen_height)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)  
         main_layout.setSpacing(0)  
 
-        if include_simulation:
-            tabs_layout = QHBoxLayout()
-        else:
-            tabs_layout = QVBoxLayout()
-
-        tabs_layout.addWidget(ServicesTab())
-        tabs_layout.addWidget(DryTestTab())
-        tabs_layout.addWidget(VehicleControlTab())
+        tabs_layout = QVBoxLayout()
 
         if include_simulation:
+            tabs_layout.addWidget(ServicesTab())
+            tabs_layout.addWidget(VehicleControlTab())
             tabs_layout.addWidget(SimulationTab())
+        else:
+            tabs_layout.addWidget(ServicesTab())
+            tabs_layout.addWidget(DryTestTab())
+            tabs_layout.addWidget(VehicleControlTab())
 
         main_layout.addLayout(tabs_layout)
         main_layout.addStretch(0)  
@@ -168,7 +160,6 @@ class StartScreen(QMainWindow):
 
         image_layout.addWidget(image_label)
 
-        # Add widgets to main layout
         main_layout.addWidget(title_label)
         main_layout.addLayout(button_layout)
         main_layout.addWidget(image_container)  
