@@ -30,7 +30,9 @@ class SimulationTab(QWidget):
         detect_group = QGroupBox("Object Detection")
         detect_layout = QHBoxLayout()
         self.detect_start = QPushButton("Start Detection")
+        self.detect_start.setStyleSheet("background-color: lightgreen; color: black;")
         self.detect_stop = QPushButton("Stop Detection")
+        self.detect_stop.setStyleSheet("background-color: lightsalmon; color: black;")
         detect_layout.addWidget(self.detect_start)
         detect_layout.addWidget(self.detect_stop)
         detect_group.setLayout(detect_layout)
@@ -40,8 +42,10 @@ class SimulationTab(QWidget):
 
         control_row = QHBoxLayout()
         self.smach_start = QPushButton("Launch SMACH")
+        self.smach_start.setStyleSheet("background-color: lightgreen; color: black;")
         self.test_check = QCheckBox("Test Mode")
         self.smach_stop = QPushButton("Stop SMACH")
+        self.smach_stop.setStyleSheet("background-color: lightsalmon; color: black;")
         control_row.addWidget(self.smach_start)
         control_row.addWidget(self.test_check)
         control_row.addWidget(self.smach_stop)
@@ -59,6 +63,7 @@ class SimulationTab(QWidget):
         propulsion_group = QGroupBox("Propulsion Board")
         propulsion_layout = QHBoxLayout()
         self.propulsion_btn = QPushButton("Publish propulsion_board")
+        self.propulsion_btn.setStyleSheet("background-color: lightgreen; color: black;")
         propulsion_layout.addWidget(self.propulsion_btn)
         propulsion_group.setLayout(propulsion_layout)
 
