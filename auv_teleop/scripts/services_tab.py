@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
+import rospy
 from PyQt5.QtWidgets import (
+    QApplication,
+    QMainWindow,
     QWidget,
     QVBoxLayout,
     QGroupBox,
@@ -9,14 +12,112 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QCheckBox,
     QLabel,
+    QMessageBox
 )
 from PyQt5.QtCore import Qt
-import subprocess
+from std_msgs.msg import Bool
+from std_srvs.srv import Empty, EmptyRequest, Trigger, TriggerRequest
+from auv_msgs.srv import SetDepth, SetDepthRequest
+
+
+class ROSServiceCaller:
+    def set_depth(self, target_depth):
+        try:
+            rospy.wait_for_service('/taluy/set_depth', timeout=1)
+            set_depth_service = rospy.ServiceProxy('/taluy/set_depth', SetDepth)
+            request = SetDepthRequest()
+            request.target_depth = target_depth
+            response = set_depth_service(request)
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
+    def start_localization(self):
+        try:
+            rospy.wait_for_service('/taluy/auv_localization_node/enable', timeout=1)
+            localization_service = rospy.ServiceProxy('/taluy/auv_localization_node/enable', Empty)
+            localization_service(EmptyRequest())
+            return True
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
+    def enable_dvl(self):
+        try:
+            rospy.wait_for_service('/taluy/sensors/dvl/enable', timeout=1)
+            dvl_service = rospy.ServiceProxy('/taluy/sensors/dvl/enable', Bool)
+            response = dvl_service(data=True)
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
+    def drop_ball(self):
+        try:
+            rospy.wait_for_service('/taluy/actuators/ball_dropper/drop', timeout=1)
+            ball_dropper_service = rospy.ServiceProxy('/taluy/actuators/ball_dropper/drop', Trigger)
+            response = ball_dropper_service(TriggerRequest())
+            if response.success:
+                print("Ball dropped successfully")
+            else:
+                print(f"Failed to drop ball: {response.message}")
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
+    def launch_torpedo_1(self):
+        try:
+            rospy.wait_for_service('/taluy/actuators/torpedo_1/launch', timeout=1)
+            torpedo_1_service = rospy.ServiceProxy('/taluy/actuators/torpedo_1/launch', Trigger)
+            response = torpedo_1_service(TriggerRequest())
+            if response.success:
+                print("Torpedo 1 launched successfully")
+            else:
+                print(f"Failed to launch torpedo 1: {response.message}")
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
+    def launch_torpedo_2(self):
+        try:
+            rospy.wait_for_service('/taluy/actuators/torpedo_2/launch', timeout=1)
+            torpedo_2_service = rospy.ServiceProxy('/taluy/actuators/torpedo_2/launch', Trigger)
+            response = torpedo_2_service(TriggerRequest())
+            if response.success:
+                print("Torpedo 2 launched successfully")
+            else:
+                print(f"Failed to launch torpedo 2: {response.message}")
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
 
 
 class ServicesTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.ros_service_caller = ROSServiceCaller()
         self.init_ui()
 
     def init_ui(self):
@@ -47,10 +148,8 @@ class ServicesTab(QWidget):
         self.localization_btn.setFixedSize(button_size_one, button_size_two)
         self.dvl_btn = QPushButton("Enable DVL")
         self.dvl_btn.setFixedSize(button_size_one, button_size_two)
-        # Add the localization button and stretch to create space
         service_layout.addWidget(self.localization_btn, 0, Qt.AlignLeft)
         service_layout.addStretch(1)
-        # Add the DVL button
         service_layout.addWidget(self.dvl_btn, 0, Qt.AlignLeft)
         service_group.setLayout(service_layout)
 
@@ -86,9 +185,11 @@ class ServicesTab(QWidget):
 
     def set_depth(self):
         depth = self.depth_spin.value()
-        command = f'rosservice call /taluy/set_depth "target_depth: {depth}"'
-        print(f"Executing: {command}")
-        subprocess.Popen(command, shell=True)
+        result = self.ros_service_caller.set_depth(depth)
+        if result:
+            print(f"Setting depth to: {depth}")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to set depth.")
 
     def toggle_missions(self, state):
         enable = state == Qt.Checked
@@ -97,26 +198,30 @@ class ServicesTab(QWidget):
         self.torpedo2_btn.setEnabled(enable)
 
     def start_localization(self):
-        command = 'rosservice call /taluy/auv_localization_node/enable "{}"'
-        print(f"Executing: {command}")
-        subprocess.Popen(command, shell=True)
+        result = self.ros_service_caller.start_localization()
+        if result:
+            print("Starting localization")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to start localization.")
 
     def enable_dvl(self):
-        command = 'rosservice call /taluy/sensors/dvl/enable "data: true"'
-        print(f"Executing: {command}")
-        subprocess.Popen(command, shell=True)
+        result = self.ros_service_caller.enable_dvl()
+        if result:
+            print("Enabling DVL")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to enable DVL.")
 
     def drop_ball(self):
-        command = "rosservice call /taluy/actuators/ball_dropper/drop"
-        print(f"Executing: {command}")
-        subprocess.Popen(command, shell=True)
+        result = self.ros_service_caller.drop_ball()
+        if not result:
+            QMessageBox.warning(self, "Error", "Failed to drop ball.")
 
     def launch_torpedo_1(self):
-        command = "rosservice call /taluy/actuators/torpedo_1/launch"
-        print(f"Executing: {command}")
-        subprocess.Popen(command, shell=True)
+        result = self.ros_service_caller.launch_torpedo_1()
+        if not result:
+            QMessageBox.warning(self, "Error", "Failed to launch torpedo 1.")
 
     def launch_torpedo_2(self):
-        command = "rosservice call /taluy/actuators/torpedo_2/launch"
-        print(f"Executing: {command}")
-        subprocess.Popen(command, shell=True)
+        result = self.ros_service_caller.launch_torpedo_2()
+        if not result:
+            QMessageBox.warning(self, "Error", "Failed to launch torpedo 2.")
