@@ -2,6 +2,7 @@
 
 import sys
 import os
+import rospy  
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -25,48 +26,38 @@ class MainControlPanel(QWidget):
         super().__init__()
         self.setWindowTitle("Taluy Control Panel")
 
-        # Ekran boyutlarını al
         screen = QApplication.primaryScreen()
         screen_width = screen.size().width()
         screen_height = screen.size().height()
-        min_width = 400  # Pool modu için minimum genişlik
+        min_width = 400  
 
         if include_simulation:
-            # Simulation modu: Ekranın tam genişliğinde ve en üste yapışık
-            sim_height = 300  # Minimum dikey uzunluk
-            x_pos = 0  # Sol kenardan başla
-            y_pos = 0  # Üst kenara yapışık
+            sim_height = 300  
+            x_pos = 0  
+            y_pos = 0  
             self.setGeometry(x_pos, y_pos, screen_width, sim_height)
         else:
-            # Pool modu: Ekranın en solunda, ekran yüksekliği ile aynı
             self.setGeometry(0, 0, min_width, screen_height)
 
-        # Main layout (vertical)
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(0, 0, 0, 0)  # No margins
-        main_layout.setSpacing(0)  # No spacing between elements
+        main_layout.setContentsMargins(0, 0, 0, 0)  
+        main_layout.setSpacing(0)  
 
         if include_simulation:
-            # Horizontal layout for simulation mode
             tabs_layout = QHBoxLayout()
         else:
-            # Vertical layout for pool mode
             tabs_layout = QVBoxLayout()
 
-        # Add tabs
         tabs_layout.addWidget(ServicesTab())
         tabs_layout.addWidget(DryTestTab())
         tabs_layout.addWidget(VehicleControlTab())
 
-        # Add simulation tab conditionally
         if include_simulation:
             tabs_layout.addWidget(SimulationTab())
 
-        # Add tabs layout to main layout
         main_layout.addLayout(tabs_layout)
-        main_layout.addStretch(0)  # Prevent excessive expansion
+        main_layout.addStretch(0)  
 
-        # Set the main layout
         self.setLayout(main_layout)
 
 
@@ -75,29 +66,24 @@ class StartScreen(QMainWindow):
         super().__init__()
         self.setWindowTitle("AUV GUI")
 
-        # Ekran boyutlarını al ve pencereyi ortala
         screen = QApplication.primaryScreen()
         screen_width = screen.size().width()
         screen_height = screen.size().height()
         window_width = 1080
         window_height = 500
-        x_pos = (screen_width - window_width) // 2  # Yatayda ortala
-        y_pos = (screen_height - window_height) // 2  # Dikeyde ortala
+        x_pos = (screen_width - window_width) // 2  
+        y_pos = (screen_height - window_height) // 2  
         self.setGeometry(x_pos, y_pos, window_width, window_height)
 
-        # Create central widget
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Set black background for the entire window
         central_widget.setStyleSheet("background-color: black;")
 
-        # Main layout
         main_layout = QVBoxLayout(central_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
-        main_layout.setSpacing(5)  # Small spacing between elements
+        main_layout.setContentsMargins(0, 0, 0, 0)  
+        main_layout.setSpacing(5)  
 
-        # Title label at the top
         title_label = QLabel("ITU AUV Control Panel")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setFont(QFont("Arial", 30, QFont.Bold))
@@ -106,12 +92,10 @@ class StartScreen(QMainWindow):
         )
         title_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
-        # Button layout - centered horizontally
         button_layout = QHBoxLayout()
         button_layout.setAlignment(Qt.AlignCenter)
-        button_layout.setSpacing(50)  # Horizontal spacing between buttons
+        button_layout.setSpacing(50)  
 
-        # Pool button
         pool_button = QPushButton("Pool")
         pool_button.setFont(QFont("Arial", 14))
         pool_button.setMinimumSize(150, 40)
@@ -131,7 +115,6 @@ class StartScreen(QMainWindow):
         )
         pool_button.clicked.connect(self.open_pool_mode)
 
-        # Simulation button
         simulation_button = QPushButton("Simulation")
         simulation_button.setFont(QFont("Arial", 14))
         simulation_button.setMinimumSize(150, 40)
@@ -151,36 +134,30 @@ class StartScreen(QMainWindow):
         )
         simulation_button.clicked.connect(self.open_simulation_mode)
 
-        # Add buttons to button layout
         button_layout.addWidget(pool_button)
         button_layout.addWidget(simulation_button)
 
-        # Image container at the bottom
         image_container = QWidget()
         image_container.setSizePolicy(
             QSizePolicy.Expanding, QSizePolicy.Minimum
-        )  # Minimum height for image
+        )
         image_layout = QVBoxLayout(image_container)
         image_layout.setContentsMargins(0, 0, 0, 0)
         image_layout.setSpacing(0)
 
-        # Create image label
         image_label = QLabel()
         image_label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
         image_label.setSizePolicy(
             QSizePolicy.Expanding, QSizePolicy.Minimum
-        )  # Minimum height
+        )  
 
-        # Get the path to the image
         script_dir = os.path.dirname(os.path.abspath(__file__))
         package_dir = os.path.dirname(script_dir)
         image_path = os.path.join(package_dir, "images", "itu_auv_workshop.jpg")
 
         try:
-            # Load the image
             pixmap = QPixmap(image_path)
             if not pixmap.isNull():
-                # Scale image to fit width while maintaining aspect ratio
                 scaled_pixmap = pixmap.scaledToWidth(1080, Qt.SmoothTransformation)
                 image_label.setPixmap(scaled_pixmap)
                 image_label.setScaledContents(False)
@@ -194,7 +171,7 @@ class StartScreen(QMainWindow):
         # Add widgets to main layout
         main_layout.addWidget(title_label)
         main_layout.addLayout(button_layout)
-        main_layout.addWidget(image_container)  # Image directly below buttons
+        main_layout.addWidget(image_container)  
 
     def open_pool_mode(self):
         self.hide()
@@ -208,6 +185,7 @@ class StartScreen(QMainWindow):
 
 
 if __name__ == "__main__":
+    rospy.init_node("taluy_gui_node", anonymous=True)  
     app = QApplication(sys.argv)
     window = StartScreen()
     window.show()
