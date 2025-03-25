@@ -10,7 +10,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 import subprocess
-
+import rospy
+from std_msgs.msg import Bool
 
 class SimulationTab(QWidget):
     def __init__(self):
@@ -20,7 +21,12 @@ class SimulationTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
 
-        # Detection Section
+        rqt_layout = QHBoxLayout()
+        self.rqt_btn = QPushButton("Open rqt_image_view")
+        self.rqt_btn.setStyleSheet("background-color: lightblue; color: black;")
+        rqt_layout.addWidget(self.rqt_btn)
+        layout.addLayout(rqt_layout)
+
         detect_group = QGroupBox("Object Detection")
         detect_layout = QHBoxLayout()
         self.detect_start = QPushButton("Start Detection")
@@ -29,11 +35,9 @@ class SimulationTab(QWidget):
         detect_layout.addWidget(self.detect_stop)
         detect_group.setLayout(detect_layout)
 
-        # SMACH Section
         smach_group = QGroupBox("State Machine")
         smach_layout = QVBoxLayout()
 
-        # Control Row
         control_row = QHBoxLayout()
         self.smach_start = QPushButton("Launch SMACH")
         self.test_check = QCheckBox("Test Mode")
@@ -42,7 +46,6 @@ class SimulationTab(QWidget):
         control_row.addWidget(self.test_check)
         control_row.addWidget(self.smach_stop)
 
-        # State Checkboxes
         state_row = QHBoxLayout()
         self.states = ["init", "gate", "buoy", "torpedo", "bin", "octagon"]
         self.state_checks = {state: QCheckBox(state) for state in self.states}
@@ -53,11 +56,20 @@ class SimulationTab(QWidget):
         smach_layout.addLayout(state_row)
         smach_group.setLayout(smach_layout)
 
+        propulsion_group = QGroupBox("Propulsion Board")
+        propulsion_layout = QHBoxLayout()
+        self.propulsion_btn = QPushButton("Publish propulsion_board")
+        propulsion_layout.addWidget(self.propulsion_btn)
+        propulsion_group.setLayout(propulsion_layout)
+
         layout.addWidget(detect_group)
         layout.addWidget(smach_group)
+        layout.addWidget(propulsion_group)
         self.setLayout(layout)
 
-        # Connections
+        self.propulsion_pub = rospy.Publisher('/taluy/propulsion_board/status', Bool, queue_size=10)
+
+        self.rqt_btn.clicked.connect(self.open_rqt)
         self.detect_start.clicked.connect(
             lambda: subprocess.Popen(
                 "roslaunch auv_detection tracker.launch", shell=True
@@ -71,7 +83,8 @@ class SimulationTab(QWidget):
             lambda: subprocess.Popen("rosnode kill /main_state_machine", shell=True)
         )
         self.test_check.stateChanged.connect(self.toggle_state_checks)
-
+        self.propulsion_btn.clicked.connect(self.publish_propulsion_board)
+        
         # Initial state
         self.toggle_state_checks(Qt.Unchecked)
 
@@ -91,3 +104,11 @@ class SimulationTab(QWidget):
             cmd += f" test_mode:=true test_states:={states}"
         print(f"Executing: {cmd}")
         subprocess.Popen(cmd, shell=True)
+    
+    def open_rqt(self):
+        subprocess.Popen("rqt -s rqt_image_view", shell=True)
+
+    def publish_propulsion_board(self):
+        msg = Bool()
+        msg.data = True
+        self.propulsion_pub.publish(msg)
