@@ -54,23 +54,21 @@ class DryTestTab(QWidget):
         layout = QGridLayout()
 
         sensor_group = QGroupBox("Sensor Monitoring")
-        sensor_group.setMinimumSize(300, 150)
-        sensor_layout = QVBoxLayout()
+        sensor_layout = QGridLayout()
 
-        imu_layout = QHBoxLayout()
         self.imu_start_btn = QPushButton("Start IMU Echo")
+        self.imu_start_btn.setStyleSheet("background-color: #C1FFC1; color: black;")
         self.imu_stop_btn = QPushButton("Stop IMU Echo")
-        imu_layout.addWidget(self.imu_start_btn)
-        imu_layout.addWidget(self.imu_stop_btn)
-
-        bar30_layout = QHBoxLayout()
+        self.imu_stop_btn.setStyleSheet("background-color: #FFDAB9; color: black;")
         self.bar30_start_btn = QPushButton("Start Bar30 Echo")
+        self.bar30_start_btn.setStyleSheet("background-color:  #C1FFC1; color: black;")
         self.bar30_stop_btn = QPushButton("Stop Bar30 Echo")
-        bar30_layout.addWidget(self.bar30_start_btn)
-        bar30_layout.addWidget(self.bar30_stop_btn)
+        self.bar30_stop_btn.setStyleSheet("background-color: #FFDAB9; color: black;")
 
-        sensor_layout.addLayout(imu_layout)
-        sensor_layout.addLayout(bar30_layout)
+        sensor_layout.addWidget(self.imu_start_btn, 0, 0)
+        sensor_layout.addWidget(self.imu_stop_btn, 0, 1)
+        sensor_layout.addWidget(self.bar30_start_btn, 1 ,0)
+        sensor_layout.addWidget(self.bar30_stop_btn, 1, 1)
         sensor_group.setLayout(sensor_layout)
 
         self.output = QTextEdit()
