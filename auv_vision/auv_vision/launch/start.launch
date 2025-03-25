@@ -1,6 +1,5 @@
 <launch>
   <arg name="namespace" default="taluy" />
-  <arg name="device" default="cuda:0"/>
 
   <group ns="$(arg namespace)">
     <node
@@ -12,12 +11,5 @@
       <remap from="camera/image_raw" to="cameras/cam_front/image_raw" />
       <remap from="camera/image_corrected" to="cameras/cam_front/image_corrected" />
     </node>
-
-    <include file="$(find auv_detection)/launch/tracker.launch">
-      <arg name="input_topic" value="cameras/cam_front/image_corrected" />
-      <arg name="result_topic" default="/yolo_result"/>
-      <arg name="yolo_model" value="rbp3s_best.pt" />
-      <arg name="device" value="$(arg device)"/>
-    </include>
   </group>
 </launch>
