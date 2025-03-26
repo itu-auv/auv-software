@@ -74,7 +74,7 @@ class SimulationTab(QWidget):
         self.setLayout(layout)
 
         self.propulsion_pub = rospy.Publisher(
-            "/taluy/propulsion_board/status", Bool, queue_size=10
+            "propulsion_board/status", Bool, queue_size=10
         )
 
         self.rqt_btn.clicked.connect(self.open_rqt)
