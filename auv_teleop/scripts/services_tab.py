@@ -23,8 +23,8 @@ from auv_msgs.srv import SetDepth, SetDepthRequest
 class ROSServiceCaller:
     def set_depth(self, target_depth):
         try:
-            rospy.wait_for_service("/taluy/set_depth", timeout=1)
-            set_depth_service = rospy.ServiceProxy("/taluy/set_depth", SetDepth)
+            rospy.wait_for_service("set_depth", timeout=1)
+            set_depth_service = rospy.ServiceProxy("set_depth", SetDepth)
             request = SetDepthRequest()
             request.target_depth = target_depth
             response = set_depth_service(request)
@@ -38,9 +38,9 @@ class ROSServiceCaller:
 
     def start_localization(self):
         try:
-            rospy.wait_for_service("/taluy/auv_localization_node/enable", timeout=1)
+            rospy.wait_for_service("localization_enable", timeout=1)
             localization_service = rospy.ServiceProxy(
-                "/taluy/auv_localization_node/enable", Empty
+                "localization_enable", Empty
             )
             localization_service(EmptyRequest())
             return True
@@ -53,8 +53,8 @@ class ROSServiceCaller:
 
     def enable_dvl(self):
         try:
-            rospy.wait_for_service("/taluy/sensors/dvl/enable", timeout=1)
-            dvl_service = rospy.ServiceProxy("/taluy/sensors/dvl/enable", Bool)
+            rospy.wait_for_service("dvl/enable", timeout=1)
+            dvl_service = rospy.ServiceProxy("dvl/enable", Bool)
             response = dvl_service(data=True)
             return response.success
         except rospy.ServiceException as e:
@@ -66,9 +66,9 @@ class ROSServiceCaller:
 
     def drop_ball(self):
         try:
-            rospy.wait_for_service("/taluy/actuators/ball_dropper/drop", timeout=1)
+            rospy.wait_for_service("ball_dropper/drop", timeout=1)
             ball_dropper_service = rospy.ServiceProxy(
-                "/taluy/actuators/ball_dropper/drop", Trigger
+                "ball_dropper/drop", Trigger
             )
             response = ball_dropper_service(TriggerRequest())
             if response.success:
@@ -85,9 +85,9 @@ class ROSServiceCaller:
 
     def launch_torpedo_1(self):
         try:
-            rospy.wait_for_service("/taluy/actuators/torpedo_1/launch", timeout=1)
+            rospy.wait_for_service("torpedo_1/launch", timeout=1)
             torpedo_1_service = rospy.ServiceProxy(
-                "/taluy/actuators/torpedo_1/launch", Trigger
+                "torpedo_1/launch", Trigger
             )
             response = torpedo_1_service(TriggerRequest())
             if response.success:
@@ -104,9 +104,9 @@ class ROSServiceCaller:
 
     def launch_torpedo_2(self):
         try:
-            rospy.wait_for_service("/taluy/actuators/torpedo_2/launch", timeout=1)
+            rospy.wait_for_service("torpedo_2/launch", timeout=1)
             torpedo_2_service = rospy.ServiceProxy(
-                "/taluy/actuators/torpedo_2/launch", Trigger
+                "torpedo_2/launch", Trigger
             )
             response = torpedo_2_service(TriggerRequest())
             if response.success:
