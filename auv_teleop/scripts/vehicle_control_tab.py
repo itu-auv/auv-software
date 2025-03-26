@@ -18,8 +18,8 @@ import time
 class VehicleControlTab(QWidget):
     def __init__(self):
         super().__init__()
-        self.cmd_vel_pub = rospy.Publisher("/taluy/cmd_vel", Twist, queue_size=10)
-        self.enable_pub = rospy.Publisher("/taluy/enable", Bool, queue_size=10)
+        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
 
         self.init_ui()
         self.publishing = False

@@ -1,5 +1,20 @@
 <?xml version="1.0"?>
 <launch>
-    <!-- Start the PyQt5 GUI for Taluy -->
-    <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen"/>
+  <arg name="namespace" default="taluy" />
+
+  <group ns="$(arg namespace)">
+
+    <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen">
+        <remap from="set_depth" to="set_depth"/>
+        <remap from="localization_enable" to="auv_localization_node/enable"/>
+        <remap from="dvl_enable" to="sensors/dvl/enable"/>
+        <remap from="ball_dropper/drop" to="actuators/ball_dropper/drop"/>
+        <remap from="torpedo_1/launch" to="actuators/torpedo_1/launch"/>
+        <remap from="torpedo_2/launch" to="actuators/torpedo_2/launch"/>
+        <remap from="cmd_vel" to="cmd_vel"/>
+        <remap from="enable" to="enable"/>
+        <remap from="propulsion_board/status" to="propulsion_board/status"/>
+    </node>
+
+  </group>
 </launch>
