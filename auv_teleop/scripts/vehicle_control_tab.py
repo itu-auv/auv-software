@@ -2,182 +2,158 @@
 
 from PyQt5.QtWidgets import (
     QWidget,
-    QGridLayout,
+    QVBoxLayout,
     QGroupBox,
     QPushButton,
     QCheckBox,
+    QHBoxLayout,
 )
+from PyQt5.QtCore import Qt
 import subprocess
 import rospy
-from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
-import threading
-import time
 
 
-class VehicleControlTab(QWidget):
+class SimulationTab(QWidget):
     def __init__(self):
         super().__init__()
-        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
-        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
-
+        self.detect_process = None  # Detection sürecini saklamak için
+        self.smach_process = None  # SMACH sürecini saklamak için
         self.init_ui()
-        self.publishing = False
-        self.current_twist = Twist()
-        self.enable_thread = None
-        self.enable_publishing = False
 
     def init_ui(self):
-        layout = QGridLayout()
+        layout = QVBoxLayout()
 
-        teleop_group = QGroupBox("Teleoperation")
-        teleop_layout = QGridLayout()
-        self.teleop_start = QPushButton("Start Teleop")
-        self.teleop_start.setStyleSheet("background-color: #C1FFC1; color: black;")
-        self.start_enable = QPushButton("Start Enable")
-        self.start_enable.setStyleSheet("background-color: #C1FFC1; color: black;")
-        self.stop_enable = QPushButton("Stop Enable")
-        self.stop_enable.setStyleSheet("background-color: #FFDAB9; color: black;")
-        self.xbox_check = QCheckBox("Xbox")
-        self.teleop_stop = QPushButton("Stop Teleop")
-        self.teleop_stop.setStyleSheet("background-color: #FFDAB9; color: black;")
-        teleop_layout.addWidget(self.teleop_start, 0, 0)
-        teleop_layout.addWidget(self.start_enable, 1, 0)
-        teleop_layout.addWidget(self.stop_enable, 1, 2)
-        teleop_layout.addWidget(self.xbox_check, 0, 1)
-        teleop_layout.addWidget(self.teleop_stop, 0, 2)
-        teleop_group.setLayout(teleop_layout)
+        rqt_layout = QHBoxLayout()
+        self.rqt_btn = QPushButton("Open rqt_image_view")
+        self.rqt_btn.setStyleSheet("background-color: lightblue; color: black;")
+        rqt_layout.addWidget(self.rqt_btn)
+        layout.addLayout(rqt_layout)
 
-        control_group = QGroupBox("Manual Control")
-        control_layout = QGridLayout()
+        detect_group = QGroupBox("Object Detection")
+        detect_layout = QHBoxLayout()
+        self.detect_start = QPushButton("Start Detection")
+        self.detect_start.setStyleSheet("background-color: lightgreen; color: black;")
+        self.detect_stop = QPushButton("Stop Detection")
+        self.detect_stop.setStyleSheet("background-color: lightsalmon; color: black;")
+        detect_layout.addWidget(self.detect_start)
+        detect_layout.addWidget(self.detect_stop)
+        detect_group.setLayout(detect_layout)
 
-        button_size = 60
+        smach_group = QGroupBox("State Machine")
+        smach_layout = QVBoxLayout()
 
-        self.forward_btn = QPushButton("^")
-        self.forward_btn.setFixedSize(button_size, button_size)
-        self.forward_btn.pressed.connect(lambda: self.start_publishing("forward", 0.4))
-        self.forward_btn.released.connect(self.stop_publishing)
+        control_row = QHBoxLayout()
+        self.smach_start = QPushButton("Launch SMACH")
+        self.smach_start.setStyleSheet("background-color: lightgreen; color: black;")
+        self.test_check = QCheckBox("Test Mode")
+        self.smach_stop = QPushButton("Stop SMACH")
+        self.smach_stop.setStyleSheet("background-color: lightsalmon; color: black;")
+        control_row.addWidget(self.smach_start)
+        control_row.addWidget(self.test_check)
+        control_row.addWidget(self.smach_stop)
 
-        self.left_btn = QPushButton("<")
-        self.left_btn.setFixedSize(button_size, button_size)
-        self.left_btn.pressed.connect(lambda: self.start_publishing("left", 0.4))
-        self.left_btn.released.connect(self.stop_publishing)
+        state_row = QHBoxLayout()
+        self.states = ["init", "gate", "buoy", "torpedo", "bin", "octagon"]
+        self.state_checks = {state: QCheckBox(state) for state in self.states}
+        for cb in self.state_checks.values():
+            state_row.addWidget(cb)
 
-        self.right_btn = QPushButton(">")
-        self.right_btn.setFixedSize(button_size, button_size)
-        self.right_btn.pressed.connect(lambda: self.start_publishing("right", 0.4))
-        self.right_btn.released.connect(self.stop_publishing)
+        smach_layout.addLayout(control_row)
+        smach_layout.addLayout(state_row)
+        smach_group.setLayout(smach_layout)
 
-        self.backward_btn = QPushButton("v")
-        self.backward_btn.setFixedSize(button_size, button_size)
-        self.backward_btn.pressed.connect(
-            lambda: self.start_publishing("backward", 0.4)
-        )
-        self.backward_btn.released.connect(self.stop_publishing)
+        propulsion_group = QGroupBox("Propulsion Board")
+        propulsion_layout = QHBoxLayout()
+        self.propulsion_btn = QPushButton("Publish propulsion_board")
+        self.propulsion_btn.setStyleSheet("background-color: lightgreen; color: black;")
+        propulsion_layout.addWidget(self.propulsion_btn)
+        propulsion_group.setLayout(propulsion_layout)
 
-        self.up_btn = QPushButton("Up")
-        self.up_btn.setFixedSize(button_size, button_size)
-        self.up_btn.pressed.connect(lambda: self.start_publishing("pos_z", 0.4))
-        self.up_btn.released.connect(self.stop_publishing)
-
-        self.down_btn = QPushButton("Down")
-        self.down_btn.setFixedSize(button_size, button_size)
-        self.down_btn.pressed.connect(lambda: self.start_publishing("neg_z", 0.4))
-        self.down_btn.released.connect(self.stop_publishing)
-
-        self.yaw_left_btn = QPushButton("Left")
-        self.yaw_left_btn.setFixedSize(button_size, button_size)
-        self.yaw_left_btn.pressed.connect(lambda: self.start_publishing("pos_yaw", 0.3))
-        self.yaw_left_btn.released.connect(self.stop_publishing)
-
-        self.yaw_right_btn = QPushButton("Right")
-        self.yaw_right_btn.setFixedSize(button_size, button_size)
-        self.yaw_right_btn.pressed.connect(
-            lambda: self.start_publishing("neg_yaw", 0.3)
-        )
-        self.yaw_right_btn.released.connect(self.stop_publishing)
-
-        control_layout.addWidget(self.forward_btn, 0, 1)
-        control_layout.addWidget(self.left_btn, 1, 0)
-        control_layout.addWidget(self.right_btn, 1, 2)
-        control_layout.addWidget(self.backward_btn, 2, 1)
-        control_layout.addWidget(self.up_btn, 0, 4)
-        control_layout.addWidget(self.down_btn, 2, 4)
-        control_layout.addWidget(self.yaw_left_btn, 1, 3)
-        control_layout.addWidget(self.yaw_right_btn, 1, 5)
-
-        control_group.setLayout(control_layout)
-
-        layout.addWidget(teleop_group, 0, 0, 1, 2)
-        layout.addWidget(control_group, 1, 0, 1, 2)
+        layout.addWidget(detect_group)
+        layout.addWidget(smach_group)
+        layout.addWidget(propulsion_group)
         self.setLayout(layout)
 
-        self.teleop_start.clicked.connect(self.start_teleop)
-        self.teleop_stop.clicked.connect(self.stop_teleop)
-        self.start_enable.clicked.connect(self.start_enable_publishing)
-        self.stop_enable.clicked.connect(self.stop_enable_publishing)
+        self.propulsion_pub = rospy.Publisher(
+            "propulsion_board/status", Bool, queue_size=10
+        )
 
-    def start_teleop(self):
-        cmd = "roslaunch auv_teleop start_teleop.launch"
-        if self.xbox_check.isChecked():
-            cmd = "roslaunch auv_teleop start_teleop.launch controller:=xbox"
-        print(f"Executing: {cmd}")
-        subprocess.Popen(cmd, shell=True)
+        self.rqt_btn.clicked.connect(self.open_rqt)
+        self.detect_start.clicked.connect(self.start_detection)
+        self.detect_stop.clicked.connect(self.stop_detection)
+        self.smach_start.clicked.connect(self.start_smach)
+        self.smach_stop.clicked.connect(self.stop_smach)
+        self.test_check.stateChanged.connect(self.toggle_state_checks)
+        self.propulsion_btn.clicked.connect(self.publish_propulsion_board)
 
-    def stop_teleop(self):
-        subprocess.Popen("rosnode kill /taluy/joy_node", shell=True)
-        subprocess.Popen("rosnode kill /taluy/joystick_node", shell=True)
+        # Initial state
+        self.toggle_state_checks(Qt.Unchecked)
 
-    def publish_velocity(self):
-        rate = rospy.Rate(20)
-        while self.publishing and not rospy.is_shutdown():
-            self.cmd_vel_pub.publish(self.current_twist)
-            rate.sleep()
+    def toggle_state_checks(self, state):
+        enabled = state == Qt.Checked
+        for cb in self.state_checks.values():
+            cb.setEnabled(enabled)
+            if not enabled:
+                cb.setChecked(False)
 
-    def start_publishing(self, direction, speed):
-        self.publishing = True
-        self.current_twist = Twist()
+    def start_detection(self):
+        cmd = ["roslaunch", "auv_detection", "tracker.launch"]
+        print(f"Executing: {' '.join(cmd)}")
+        self.detect_process = subprocess.Popen(cmd)  # Detection sürecini başlat ve sakla
 
-        if direction == "forward":
-            self.current_twist.linear.x = speed
-        elif direction == "backward":
-            self.current_twist.linear.x = -speed
-        elif direction == "left":
-            self.current_twist.linear.y = speed
-        elif direction == "right":
-            self.current_twist.linear.y = -speed
-        elif direction == "pos_z":
-            self.current_twist.linear.z = speed
-        elif direction == "neg_z":
-            self.current_twist.linear.z = -speed
-        elif direction == "pos_yaw":
-            self.current_twist.angular.z = speed
-        elif direction == "neg_yaw":
-            self.current_twist.angular.z = -speed
+    def stop_detection(self):
+        if self.detect_process is not None:
+            print("Terminating detection process...")
+            self.detect_process.terminate()  # Önce nazikçe sonlandırmayı dene
+            try:
+                self.detect_process.wait(timeout=2)  # 2 saniye bekle
+            except subprocess.TimeoutExpired:
+                print("Detection process did not terminate, killing it...")
+                self.detect_process.kill()  # Eğer sonlanmazsa zorla öldür
+            self.detect_process = None  # Süreci sıfırla
+        else:
+            print("No detection process to stop.")
 
-        if not hasattr(self, "publish_thread") or not self.publish_thread.is_alive():
-            self.publish_thread = threading.Thread(target=self.publish_velocity)
-            self.publish_thread.start()
+    def start_smach(self):
+        cmd = ["roslaunch", "auv_smach", "start.launch"]
+        if self.test_check.isChecked():
+            states = ",".join(
+                [s for s, cb in self.state_checks.items() if cb.isChecked()]
+            )
+            cmd.append(f"test_mode:=true")
+            cmd.append(f"test_states:={states}")
+        print(f"Executing: {' '.join(cmd)}")
+        self.smach_process = subprocess.Popen(cmd)  # SMACH sürecini başlat ve sakla
 
-    def stop_publishing(self):
-        self.publishing = False
-        self.current_twist = Twist()
-        self.cmd_vel_pub.publish(self.current_twist)
+    def stop_smach(self):
+        if self.smach_process is not None:
+            print("Terminating SMACH process...")
+            self.smach_process.terminate()  # Önce nazikçe sonlandırmayı dene
+            try:
+                self.smach_process.wait(timeout=2)  # 2 saniye bekle
+            except subprocess.TimeoutExpired:
+                print("SMACH process did not terminate, killing it...")
+                self.smach_process.kill()  # Eğer sonlanmazsa zorla öldür
+            self.smach_process = None  # Süreci sıfırla
+        else:
+            print("No SMACH process to stop.")
 
-    def publish_enable(self):
-        rate = rospy.Rate(20)
-        while self.enable_publishing and not rospy.is_shutdown():
-            self.enable_pub.publish(True)
-            rate.sleep()
+    def open_rqt(self):
+        subprocess.Popen(["rqt", "-s", "rqt_image_view"])
 
-    def start_enable_publishing(self):
-        if not self.enable_publishing:
-            self.enable_publishing = True
-            self.enable_thread = threading.Thread(target=self.publish_enable)
-            self.enable_thread.start()
+    def publish_propulsion_board(self):
+        msg = Bool()
+        msg.data = True
+        self.propulsion_pub.publish(msg)
 
-    def stop_enable_publishing(self):
-        self.enable_publishing = False
-        if self.enable_thread and self.enable_thread.is_alive():
-            self.enable_thread.join()
-        self.enable_pub.publish(False)
+
+if __name__ == "__main__":
+    import sys
+    from PyQt5.QtWidgets import QApplication
+
+    app = QApplication(sys.argv)
+    rospy.init_node("simulation_tab", anonymous=True)
+    window = SimulationTab()
+    window.show()
+    sys.exit(app.exec_())
