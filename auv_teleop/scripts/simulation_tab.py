@@ -106,7 +106,7 @@ class SimulationTab(QWidget):
             print("Terminating detection process...")
             self.detect_process.terminate()  
             try:
-                self.detect_process.wait(timeout=2) 
+                self.detect_process.wait(timeout=2)  
             except subprocess.TimeoutExpired:
                 print("Detection process did not terminate, killing it...")
                 self.detect_process.kill()  
@@ -123,7 +123,7 @@ class SimulationTab(QWidget):
             cmd.append(f"test_mode:=true")
             cmd.append(f"test_states:={states}")
         print(f"Executing: {' '.join(cmd)}")
-        self.smach_process = subprocess.Popen(cmd) 
+        self.smach_process = subprocess.Popen(cmd)  
 
     def stop_smach(self):
         if self.smach_process is not None:
