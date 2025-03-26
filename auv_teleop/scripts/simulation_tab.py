@@ -17,6 +17,8 @@ from std_msgs.msg import Bool
 class SimulationTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.detect_process = None  
+        self.smach_process = None  
         self.init_ui()
 
     def init_ui(self):
@@ -78,22 +80,13 @@ class SimulationTab(QWidget):
         )
 
         self.rqt_btn.clicked.connect(self.open_rqt)
-        self.detect_start.clicked.connect(
-            lambda: subprocess.Popen(
-                "roslaunch auv_detection tracker.launch", shell=True
-            )
-        )
-        self.detect_stop.clicked.connect(
-            lambda: subprocess.Popen("rosnode kill /tracker_node", shell=True)
-        )
+        self.detect_start.clicked.connect(self.start_detection)
+        self.detect_stop.clicked.connect(self.stop_detection)
         self.smach_start.clicked.connect(self.start_smach)
-        self.smach_stop.clicked.connect(
-            lambda: subprocess.Popen("rosnode kill /main_state_machine", shell=True)
-        )
+        self.smach_stop.clicked.connect(self.stop_smach)
         self.test_check.stateChanged.connect(self.toggle_state_checks)
         self.propulsion_btn.clicked.connect(self.publish_propulsion_board)
 
-        # Initial state
         self.toggle_state_checks(Qt.Unchecked)
 
     def toggle_state_checks(self, state):
@@ -103,18 +96,50 @@ class SimulationTab(QWidget):
             if not enabled:
                 cb.setChecked(False)
 
+    def start_detection(self):
+        cmd = ["roslaunch", "auv_detection", "tracker.launch"]
+        print(f"Executing: {' '.join(cmd)}")
+        self.detect_process = subprocess.Popen(cmd)  
+
+    def stop_detection(self):
+        if self.detect_process is not None:
+            print("Terminating detection process...")
+            self.detect_process.terminate()  
+            try:
+                self.detect_process.wait(timeout=2) 
+            except subprocess.TimeoutExpired:
+                print("Detection process did not terminate, killing it...")
+                self.detect_process.kill()  
+            self.detect_process = None  
+        else:
+            print("No detection process to stop.")
+
     def start_smach(self):
-        cmd = "roslaunch auv_smach start.launch"
+        cmd = ["roslaunch", "auv_smach", "start.launch"]
         if self.test_check.isChecked():
             states = ",".join(
                 [s for s, cb in self.state_checks.items() if cb.isChecked()]
             )
-            cmd += f" test_mode:=true test_states:={states}"
-        print(f"Executing: {cmd}")
-        subprocess.Popen(cmd, shell=True)
+            cmd.append(f"test_mode:=true")
+            cmd.append(f"test_states:={states}")
+        print(f"Executing: {' '.join(cmd)}")
+        self.smach_process = subprocess.Popen(cmd) 
+
+    def stop_smach(self):
+        if self.smach_process is not None:
+            print("Terminating SMACH process...")
+            self.smach_process.terminate()  
+            try:
+                self.smach_process.wait(timeout=2)  
+            except subprocess.TimeoutExpired:
+                print("SMACH process did not terminate, killing it...")
+                self.smach_process.kill()  
+            self.smach_process = None  
+        else:
+            print("No SMACH process to stop.")
 
     def open_rqt(self):
-        subprocess.Popen("rqt -s rqt_image_view", shell=True)
+        subprocess.Popen(["rqt", "-s", "rqt_image_view"])
 
     def publish_propulsion_board(self):
         msg = Bool()

@@ -2,19 +2,15 @@
 <launch>
   <arg name="namespace" default="taluy" />
 
-  <group ns="$(arg namespace)">
-
     <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen">
-        <remap from="set_depth" to="set_depth"/>
-        <remap from="localization_enable" to="auv_localization_node/enable"/>
-        <remap from="dvl_enable" to="sensors/dvl/enable"/>
-        <remap from="ball_dropper/drop" to="actuators/ball_dropper/drop"/>
-        <remap from="torpedo_1/launch" to="actuators/torpedo_1/launch"/>
-        <remap from="torpedo_2/launch" to="actuators/torpedo_2/launch"/>
-        <remap from="cmd_vel" to="cmd_vel"/>
-        <remap from="enable" to="enable"/>
-        <remap from="propulsion_board/status" to="propulsion_board/status"/>
+        <remap from="set_depth" to="$(arg namespace)/set_depth"/>
+        <remap from="localization_enable" to="$(arg namespace)/auv_localization_node/enable"/>
+        <remap from="dvl_enable" to="$(arg namespace)/sensors/dvl/enable"/>
+        <remap from="ball_dropper/drop" to="$(arg namespace)/actuators/ball_dropper/drop"/>
+        <remap from="torpedo_1/launch" to="$(arg namespace)/actuators/torpedo_1/launch"/>
+        <remap from="torpedo_2/launch" to="$(arg namespace)/actuators/torpedo_2/launch"/>
+        <remap from="cmd_vel" to="$(arg namespace)/cmd_vel"/>
+        <remap from="enable" to="$(arg namespace)/enable"/>
+        <remap from="propulsion_board/status" to="$(arg namespace)/propulsion_board/status"/>
     </node>
-
-  </group>
 </launch>
