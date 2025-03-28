@@ -2,8 +2,6 @@
 
 import rospy
 from PyQt5.QtWidgets import (
-    QApplication,
-    QMainWindow,
     QWidget,
     QVBoxLayout,
     QGroupBox,
@@ -39,9 +37,7 @@ class ROSServiceCaller:
     def start_localization(self):
         try:
             rospy.wait_for_service("localization_enable", timeout=1)
-            localization_service = rospy.ServiceProxy(
-                "localization_enable", Empty
-            )
+            localization_service = rospy.ServiceProxy("localization_enable", Empty)
             localization_service(EmptyRequest())
             return True
         except rospy.ServiceException as e:
@@ -67,9 +63,7 @@ class ROSServiceCaller:
     def drop_ball(self):
         try:
             rospy.wait_for_service("ball_dropper/drop", timeout=1)
-            ball_dropper_service = rospy.ServiceProxy(
-                "ball_dropper/drop", Trigger
-            )
+            ball_dropper_service = rospy.ServiceProxy("ball_dropper/drop", Trigger)
             response = ball_dropper_service(TriggerRequest())
             if response.success:
                 print("Ball dropped successfully")
@@ -86,9 +80,7 @@ class ROSServiceCaller:
     def launch_torpedo_1(self):
         try:
             rospy.wait_for_service("torpedo_1/launch", timeout=1)
-            torpedo_1_service = rospy.ServiceProxy(
-                "torpedo_1/launch", Trigger
-            )
+            torpedo_1_service = rospy.ServiceProxy("torpedo_1/launch", Trigger)
             response = torpedo_1_service(TriggerRequest())
             if response.success:
                 print("Torpedo 1 launched successfully")
@@ -105,9 +97,7 @@ class ROSServiceCaller:
     def launch_torpedo_2(self):
         try:
             rospy.wait_for_service("torpedo_2/launch", timeout=1)
-            torpedo_2_service = rospy.ServiceProxy(
-                "torpedo_2/launch", Trigger
-            )
+            torpedo_2_service = rospy.ServiceProxy("torpedo_2/launch", Trigger)
             response = torpedo_2_service(TriggerRequest())
             if response.success:
                 print("Torpedo 2 launched successfully")

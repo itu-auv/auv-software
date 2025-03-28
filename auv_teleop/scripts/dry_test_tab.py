@@ -6,7 +6,6 @@ from PyQt5.QtWidgets import (
     QGroupBox,
     QPushButton,
     QTextEdit,
-    QHBoxLayout,
     QGridLayout,
 )
 from PyQt5.QtCore import QThread, pyqtSignal
@@ -57,13 +56,9 @@ class DryTestTab(QWidget):
         sensor_layout = QGridLayout()
 
         self.imu_start_btn = QPushButton("Start IMU Echo")
-        self.imu_start_btn.setStyleSheet("background-color: #C1FFC1; color: black;")
         self.imu_stop_btn = QPushButton("Stop IMU Echo")
-        self.imu_stop_btn.setStyleSheet("background-color: #FFDAB9; color: black;")
         self.bar30_start_btn = QPushButton("Start Bar30 Echo")
-        self.bar30_start_btn.setStyleSheet("background-color:  #C1FFC1; color: black;")
         self.bar30_stop_btn = QPushButton("Stop Bar30 Echo")
-        self.bar30_stop_btn.setStyleSheet("background-color: #FFDAB9; color: black;")
 
         sensor_layout.addWidget(self.imu_start_btn, 0, 0)
         sensor_layout.addWidget(self.imu_stop_btn, 0, 1)

@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
     QSizePolicy,
 )
 from PyQt5.QtGui import QPixmap, QFont
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt
 from dry_test_tab import DryTestTab
 from services_tab import ServicesTab
 from vehicle_control_tab import VehicleControlTab

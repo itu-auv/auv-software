@@ -26,7 +26,7 @@ class VehicleControlTab(QWidget):
         self.current_twist = Twist()
         self.enable_thread = None
         self.enable_publishing = False
-        self.launch_process = None  
+        self.launch_process = None
 
     def init_ui(self):
         layout = QGridLayout()
@@ -34,14 +34,10 @@ class VehicleControlTab(QWidget):
         teleop_group = QGroupBox("Teleoperation")
         teleop_layout = QGridLayout()
         self.teleop_start = QPushButton("Start Teleop")
-        self.teleop_start.setStyleSheet("background-color: #C1FFC1; color: black;")
         self.start_enable = QPushButton("Start Enable")
-        self.start_enable.setStyleSheet("background-color: #C1FFC1; color: black;")
         self.stop_enable = QPushButton("Stop Enable")
-        self.stop_enable.setStyleSheet("background-color: #FFDAB9; color: black;")
         self.xbox_check = QCheckBox("Xbox")
         self.teleop_stop = QPushButton("Stop Teleop")
-        self.teleop_stop.setStyleSheet("background-color: #FFDAB9; color: black;")
         teleop_layout.addWidget(self.teleop_start, 0, 0)
         teleop_layout.addWidget(self.start_enable, 1, 0)
         teleop_layout.addWidget(self.stop_enable, 1, 2)
@@ -123,18 +119,18 @@ class VehicleControlTab(QWidget):
         if self.xbox_check.isChecked():
             cmd.append("controller:=xbox")
         print(f"Executing: {' '.join(cmd)}")
-        self.launch_process = subprocess.Popen(cmd)  
+        self.launch_process = subprocess.Popen(cmd)
 
     def stop_teleop(self):
         if self.launch_process is not None:
             print("Terminating teleop process...")
-            self.launch_process.terminate()  
+            self.launch_process.terminate()
             try:
-                self.launch_process.wait(timeout=2) 
+                self.launch_process.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 print("Process did not terminate, killing it...")
-                self.launch_process.kill()  
-            self.launch_process = None  
+                self.launch_process.kill()
+            self.launch_process = None
         else:
             print("No teleop process to stop.")
 
