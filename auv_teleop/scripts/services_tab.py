@@ -14,7 +14,14 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt
 from std_msgs.msg import Bool
-from std_srvs.srv import Empty, EmptyRequest, Trigger, TriggerRequest
+from std_srvs.srv import (
+    Empty,
+    EmptyRequest,
+    Trigger,
+    TriggerRequest,
+    SetBool,
+    SetBoolRequest,
+)
 from auv_msgs.srv import SetDepth, SetDepthRequest
 
 
@@ -50,7 +57,9 @@ class ROSServiceCaller:
     def enable_dvl(self):
         try:
             rospy.wait_for_service("dvl/enable", timeout=1)
-            dvl_service = rospy.ServiceProxy("dvl/enable", Bool)
+            dvl_service = rospy.ServiceProxy("dvl/enable", SetBool)
+            request = SetBoolRequest()
+            request.data = True
             response = dvl_service(data=True)
             return response.success
         except rospy.ServiceException as e:
