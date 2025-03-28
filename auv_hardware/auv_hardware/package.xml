@@ -7,7 +7,7 @@
   <author email="senceryazici@gmail.com">Sencer Yazici</author>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
-  <depend>auv_hardware_bridge</depend>
   <depend>auv_cam</depend>
+  <depend>auv_hardware_bridge</depend>
   <export/>
 </package>
