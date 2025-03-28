@@ -17,7 +17,7 @@ TIME_ZERO: rospy.Time = rospy.Time(0)
 TF_LOOKUP_TIMEOUT: rospy.Duration = rospy.Duration(1.0)
 
 
-def get_current_pose(
+def get_robot_pose(
     tf_buffer: tf2_ros.Buffer, source_frame: str
 ) -> Optional[PoseStamped]:
     try:
@@ -123,7 +123,7 @@ def broadcast_dynamic_target_frame(
         rospy.logerr(f"Failed to broadcast dynamic target frame: {e}")
 
 
-def find_closest_point_index(path: Path, current_pose: PoseStamped) -> int:
+def find_closest_point_index(path: Path, robot_pose: PoseStamped) -> int:
     min_dist = float("inf")
     closest_index = 0
 
@@ -131,9 +131,9 @@ def find_closest_point_index(path: Path, current_pose: PoseStamped) -> int:
         dist = np.linalg.norm(
             np.array(
                 [
-                    pose.pose.position.x - current_pose.pose.position.x,
-                    pose.pose.position.y - current_pose.pose.position.y,
-                    pose.pose.position.z - current_pose.pose.position.z,
+                    pose.pose.position.x - robot_pose.pose.position.x,
+                    pose.pose.position.y - robot_pose.pose.position.y,
+                    pose.pose.position.z - robot_pose.pose.position.z,
                 ]
             )
         )
@@ -145,9 +145,9 @@ def find_closest_point_index(path: Path, current_pose: PoseStamped) -> int:
 
 
 def is_segment_completed(
-    current_pose: PoseStamped, path: Path, segment_end_index: int
+    robot_pose: PoseStamped, path: Path, segment_end_index: int
 ) -> bool:
-    closest_index = find_closest_point_index(path, current_pose)
+    closest_index = find_closest_point_index(path, robot_pose)
     return closest_index >= segment_end_index
 
 
@@ -185,14 +185,14 @@ def combine_segments(paths: List[Path]) -> Tuple[Path, List[int]]:
 
 def check_segment_progress(
     path: Path,
-    current_pose: PoseStamped,
+    robot_pose: PoseStamped,
     current_segment_index: int,
     segment_endpoints: List[int],
 ):
     """
     Args:
         path (Path): The combined path being followed.
-        current_pose: Current pose of the robot
+        robot_pose: Current pose of the robot
         current_segment_index (int): The index of the current path segment.
         segment_endpoints (List[int]): Indices marking the endpoints of individual path segments.
 
@@ -200,7 +200,7 @@ def check_segment_progress(
         Tuple[float, float]: (current path progress, overall progress)
     """
     try:
-        closest_index = find_closest_point_index(path, current_pose)
+        closest_index = find_closest_point_index(path, robot_pose)
 
         path_start_index = (
             0
