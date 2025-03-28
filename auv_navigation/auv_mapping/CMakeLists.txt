@@ -13,15 +13,21 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf2
   tf2_ros
+  nav_msgs
 )
 
+# Find GTSAM
+find_package(GTSAM REQUIRED)
+
 catkin_package(
-  CATKIN_DEPENDS auv_msgs geometry_msgs roscpp
+  CATKIN_DEPENDS auv_msgs geometry_msgs roscpp nav_msgs
+  # DEPENDS gtsam # Removed based on catkin_lint feedback
 )
 
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${GTSAM_INCLUDE_DIRS}
 )
 
 catkin_install_python(PROGRAMS
@@ -40,7 +46,16 @@ target_link_libraries(object_map_tf_server_node
   ${catkin_LIBRARIES}
 )
 
-install(TARGETS object_map_tf_server_node
+add_executable(gtsam_slam_node
+  src/gtsam_slam_node.cpp
+)
+
+target_link_libraries(gtsam_slam_node
+  ${catkin_LIBRARIES}
+  ${GTSAM_LIBRARIES}
+)
+
+install(TARGETS object_map_tf_server_node gtsam_slam_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
