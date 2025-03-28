@@ -56,10 +56,20 @@
     <arg name="config_file" value="$(find auv_control)/config/default.yaml" />
   </include>
 
+  <!-- launch vision -->
+    <include file="$(find auv_vision)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- launch logging -->
   <group if="$(arg enable_logging)">
       <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
           <arg name="namespace" value="$(arg namespace)" />
           <arg name="logging_directory" value="$(arg logging_directory)" />
       </include>
   </group>
+
+  <include file="$(find auv_vision)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
 </launch>
