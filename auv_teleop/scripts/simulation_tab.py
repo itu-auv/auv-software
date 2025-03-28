@@ -17,8 +17,8 @@ from std_msgs.msg import Bool
 class SimulationTab(QWidget):
     def __init__(self):
         super().__init__()
-        self.detect_process = None  
-        self.smach_process = None  
+        self.detect_process = None
+        self.smach_process = None
         self.init_ui()
 
     def init_ui(self):
@@ -33,9 +33,7 @@ class SimulationTab(QWidget):
         detect_group = QGroupBox("Object Detection")
         detect_layout = QHBoxLayout()
         self.detect_start = QPushButton("Start Detection")
-        self.detect_start.setStyleSheet("background-color: lightgreen; color: black;")
         self.detect_stop = QPushButton("Stop Detection")
-        self.detect_stop.setStyleSheet("background-color: lightsalmon; color: black;")
         detect_layout.addWidget(self.detect_start)
         detect_layout.addWidget(self.detect_stop)
         detect_group.setLayout(detect_layout)
@@ -45,10 +43,8 @@ class SimulationTab(QWidget):
 
         control_row = QHBoxLayout()
         self.smach_start = QPushButton("Launch SMACH")
-        self.smach_start.setStyleSheet("background-color: lightgreen; color: black;")
         self.test_check = QCheckBox("Test Mode")
         self.smach_stop = QPushButton("Stop SMACH")
-        self.smach_stop.setStyleSheet("background-color: lightsalmon; color: black;")
         control_row.addWidget(self.smach_start)
         control_row.addWidget(self.test_check)
         control_row.addWidget(self.smach_stop)
@@ -66,7 +62,6 @@ class SimulationTab(QWidget):
         propulsion_group = QGroupBox("Propulsion Board")
         propulsion_layout = QHBoxLayout()
         self.propulsion_btn = QPushButton("Publish propulsion_board")
-        self.propulsion_btn.setStyleSheet("background-color: lightgreen; color: black;")
         propulsion_layout.addWidget(self.propulsion_btn)
         propulsion_group.setLayout(propulsion_layout)
 
@@ -99,18 +94,18 @@ class SimulationTab(QWidget):
     def start_detection(self):
         cmd = ["roslaunch", "auv_detection", "tracker.launch"]
         print(f"Executing: {' '.join(cmd)}")
-        self.detect_process = subprocess.Popen(cmd)  
+        self.detect_process = subprocess.Popen(cmd)
 
     def stop_detection(self):
         if self.detect_process is not None:
             print("Terminating detection process...")
-            self.detect_process.terminate()  
+            self.detect_process.terminate()
             try:
-                self.detect_process.wait(timeout=2)  
+                self.detect_process.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 print("Detection process did not terminate, killing it...")
-                self.detect_process.kill()  
-            self.detect_process = None  
+                self.detect_process.kill()
+            self.detect_process = None
         else:
             print("No detection process to stop.")
 
@@ -123,18 +118,18 @@ class SimulationTab(QWidget):
             cmd.append(f"test_mode:=true")
             cmd.append(f"test_states:={states}")
         print(f"Executing: {' '.join(cmd)}")
-        self.smach_process = subprocess.Popen(cmd)  
+        self.smach_process = subprocess.Popen(cmd)
 
     def stop_smach(self):
         if self.smach_process is not None:
             print("Terminating SMACH process...")
-            self.smach_process.terminate()  
+            self.smach_process.terminate()
             try:
-                self.smach_process.wait(timeout=2)  
+                self.smach_process.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 print("SMACH process did not terminate, killing it...")
-                self.smach_process.kill()  
-            self.smach_process = None  
+                self.smach_process.kill()
+            self.smach_process = None
         else:
             print("No SMACH process to stop.")
 
