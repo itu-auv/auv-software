@@ -1,57 +1,68 @@
 #!/usr/bin/env python3
+import rospy
 import cv2
 import numpy as np
-from PIL import Image
-from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 import torch
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
+from PIL import Image as PILImage
+from transformers import AutoImageProcessor, AutoModelForDepthEstimation
 
-def show_depth_map_opencv(image_path):
-    # 1. Görüntüyü yükle ve kontrol et
-    image_cv = cv2.imread(image_path)
-    if image_cv is None:
-        print(f"Hata: {image_path} dosyası bulunamadı veya okunamıyor!")
-        return
-    
-    # 2. Modeli yükle
-    model_name = "LiheYoung/depth-anything-small-hf"
-    image_processor = AutoImageProcessor.from_pretrained(model_name)
-    model = AutoModelForDepthEstimation.from_pretrained(model_name, torch_dtype=torch.float32)
+class DepthEstimatorNode:
+    def __init__(self):
+        rospy.init_node('depth_estimator_node', anonymous=True)
 
-    # 3. Görüntüyü işleme için hazırla
-    image_pil = Image.fromarray(cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB))
-    
-    # 4. Derinlik tahmini yap
-    inputs = image_processor(images=image_pil, return_tensors="pt")
-    with torch.no_grad():
-        outputs = model(**inputs)
-        depth = outputs.predicted_depth.squeeze().cpu().numpy()
-    
-    # 5. Depth map'i orijinal görüntü boyutuna yeniden boyutlandır
-    depth_resized = cv2.resize(depth, (image_cv.shape[1], image_cv.shape[0]), interpolation=cv2.INTER_CUBIC)
-    
-    # 6. Normalizasyon ve renklendirme
-    depth_normalized = cv2.normalize(depth_resized, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
-    depth_colored = cv2.applyColorMap(depth_normalized, cv2.COLORMAP_JET)
-    
-    # 7. Boyut kontrolü ve kesme işlemi
-    min_height = min(image_cv.shape[0], depth_colored.shape[0])
-    min_width = min(image_cv.shape[1], depth_colored.shape[1])
-    
-    image_cv = image_cv[:min_height, :min_width]
-    depth_colored = depth_colored[:min_height, :min_width]
-    
-    # 8. Görüntüleri yan yana birleştir
-    combined = np.hstack((image_cv, depth_colored))
-    
-    # 9. Görselleştirme
-    cv2.imshow("Original (Left) vs Depth Map (Right)", combined)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    
-    # 10. Çıktıyı kaydet
-    cv2.imwrite("depth_output.jpg", depth_colored)
-    print("Depth map kaydedildi: depth_output.jpg")
+        # ROS Image subscriber
+        self.image_sub = rospy.Subscriber("/usb_cam/image_raw", Image, self.image_callback)
+
+        # Depth map publisher
+        self.depth_pub = rospy.Publisher("/camera/depth_map", Image, queue_size=1)
+
+        # CV Bridge
+        self.bridge = CvBridge()
+
+        # Depth Model
+        model_name = "LiheYoung/depth-anything-small-hf"
+        self.image_processor = AutoImageProcessor.from_pretrained(model_name)
+        self.model = AutoModelForDepthEstimation.from_pretrained(model_name, torch_dtype=torch.float32)
+
+        rospy.loginfo("Depth Estimator Node Başlatıldı...")
+
+    def image_callback(self, msg):
+        try:
+            # ROS Image mesajını OpenCV formatına çevir
+            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+
+            # OpenCV görüntüsünü PIL formata çevir
+            image_pil = PILImage.fromarray(cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB))
+
+            # Derinlik tahmini yap
+            inputs = self.image_processor(images=image_pil, return_tensors="pt")
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                depth = outputs.predicted_depth.squeeze().cpu().numpy()
+
+            # Depth map'i orijinal görüntü boyutuna getir
+            depth_resized = cv2.resize(depth, (cv_image.shape[1], cv_image.shape[0]), interpolation=cv2.INTER_CUBIC)
+
+            # Depth map normalizasyon & renklendirme
+            depth_normalized = cv2.normalize(depth_resized, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+            depth_colored = cv2.applyColorMap(depth_normalized, cv2.COLORMAP_JET)
+
+            # OpenCV ile göster
+            cv2.imshow("Depth Map", depth_colored)
+            cv2.waitKey(1)
+
+            # Depth map'i ROS topic olarak yayınla
+            depth_msg = self.bridge.cv2_to_imgmsg(depth_colored, encoding="bgr8")
+            self.depth_pub.publish(depth_msg)
+
+        except CvBridgeError as e:
+            rospy.logerr(f"CV Bridge Hatası: {e}")
 
 if __name__ == "__main__":
-    input_image = "input.jpg"  # Aynı dizindeki dosya
-    show_depth_map_opencv(input_image)
+    try:
+        node = DepthEstimatorNode()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
