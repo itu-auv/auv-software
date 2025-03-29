@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+import rospy
+import cv2
+import numpy as np
+import open3d as o3d
+import struct
+
+# message_filters kaldırıldı
+from sensor_msgs.msg import Image, PointCloud2, PointField, CameraInfo
+import sensor_msgs.point_cloud2 as pc2
+from cv_bridge import CvBridge, CvBridgeError
+from std_msgs.msg import Header
+
+class DepthColorToPointCloudNode:
+    def __init__(self):
+        rospy.init_node('depth_color_to_pointcloud_node', anonymous=True)
+
+        # --- Parametreler ---
+        # Kamera iç parametreleri doğrudan atanır
+        self.fx = 525.0
+        self.fy = 525.0
+        self.cx = 320.0
+        self.cy = 240.0
+        # Derinlik ölçek faktörü (metre cinsinden derinlik varsayılır)
+        self.depth_scale = 1.0
+        # Maksimum derinlik mesafesi (metre cinsinden)
+        self.depth_trunc = 10.0
+        # PointCloud için Frame ID (Bu parametre olarak kalabilir veya sabitlenebilir)
+        self.frame_id = "taluy/base_link" # Şimdilik parametre olarak bırakıldı
+
+        rospy.loginfo(f"Kamera İç Parametreleri (Sabit): fx={self.fx}, fy={self.fy}, cx={self.cx}, cy={self.cy}")
+        rospy.loginfo(f"Derinlik Ölçeği: {self.depth_scale}, Derinlik Kesme: {self.depth_trunc}")
+        rospy.loginfo(f"Çıktı Frame ID: {self.frame_id}")
+
+        # --- Subscriber'lar (Ayrı Callback'ler) ---
+        self.latest_depth_msg = None
+        self.latest_color_msg = None
+        self.depth_sub = rospy.Subscriber(
+            "/depth_any/camera/depth/image_raw",
+            Image,
+            self.depth_callback,
+            queue_size=1 # En son mesajı işle
+        )
+        self.color_sub = rospy.Subscriber(
+            '/taluy/cameras/cam_front/image_raw',
+            Image,
+            self.color_callback,
+            queue_size=1 # En son mesajı işle
+        )
+
+        # --- Publisher ---
+        self.pc_pub = rospy.Publisher('/point_cloud', PointCloud2, queue_size=2)
+
+        # --- CV Bridge ---
+        self.bridge = CvBridge()
+
+        rospy.loginfo("Depth ve Color to PointCloud Node Başlatıldı (Ayrı Callback'ler)...")
+
+    def color_callback(self, color_msg):
+        """Sadece en son renkli görüntüyü saklar."""
+        rospy.logdebug("Renkli görüntü callback çağrıldı.")
+        self.latest_color_msg = color_msg
+
+    def depth_callback(self, depth_msg):
+        """Derinlik mesajı geldiğinde nokta bulutu oluşturmayı tetikler."""
+        rospy.loginfo("--- depth_callback çağrıldı ---") # DEBUG
+        self.latest_depth_msg = depth_msg
+
+        # Henüz renkli görüntü gelmediyse işlem yapma
+        if self.latest_color_msg is None:
+            rospy.logwarn("Henüz renkli görüntü alınmadı, nokta bulutu oluşturulamıyor.")
+            return
+
+        # En son renkli görüntüyü kullan (zaman damgası farklı olabilir)
+        color_msg = self.latest_color_msg
+
+        # Zaman damgası farkını kontrol et (isteğe bağlı)
+        time_diff = abs(depth_msg.header.stamp - color_msg.header.stamp).to_sec()
+        rospy.logdebug(f"Derinlik ve Renkli görüntü zaman damgası farkı: {time_diff:.4f} s")
+        # Belirli bir eşiği aşarsa uyarı verilebilir veya işlem atlanabilir
+        # if time_diff > 0.5: # Örneğin 0.5 saniyeden eski renkli görüntüleri kullanma
+        #     rospy.logwarn(f"Renkli görüntü çok eski ({time_diff:.2f}s), frame atlanıyor.")
+        #     return
+
+        try:
+            rospy.loginfo(f"İşlenen Derinlik Mesajı Encoding: {depth_msg.encoding}") # DEBUG
+            rospy.loginfo(f"Kullanılan Renkli Mesaj Encoding: {color_msg.encoding}") # DEBUG
+            # ROS Image mesajlarını OpenCV/NumPy dizilerine dönüştür
+            # Derinlik görüntüsü: Gelen encoding'e göre (16UC1 veya 32FC1)
+            cv_depth_image = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding="passthrough")
+            # Renkli görüntü: Open3D için RGB'ye dönüştür
+            cv_color_image = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding="rgb8")
+
+            rospy.loginfo(f"Görüntüler dönüştürüldü. Derinlik şekli: {cv_depth_image.shape if cv_depth_image is not None else 'None'}, tipi: {cv_depth_image.dtype if cv_depth_image is not None else 'None'}") # DEBUG
+            rospy.loginfo(f"Renkli görüntü şekli: {cv_color_image.shape if cv_color_image is not None else 'None'}, tipi: {cv_color_image.dtype if cv_color_image is not None else 'None'}") # DEBUG
+
+            # Derinlik görüntüsünü açıkça float32'ye dönüştür
+            cv_depth_image = cv_depth_image.astype(np.float32)
+
+            # Görüntülerin boş olmadığından emin olun
+            if cv_depth_image is None or cv_color_image is None:
+                rospy.logwarn("Boş görüntü(ler) alındı. Frame atlanıyor.")
+                return
+
+            # Derinlik görüntüsünün tek kanallı olduğundan emin olun
+            if len(cv_depth_image.shape) != 2:
+                 rospy.logwarn(f"Derinlik görüntüsü beklenmeyen şekle sahip {cv_depth_image.shape}. 2D dizi bekleniyordu. Frame atlanıyor.")
+                 return
+
+            # Renkli görüntünün 3 kanallı olduğundan emin olun
+            if len(cv_color_image.shape) != 3 or cv_color_image.shape[2] != 3:
+                 rospy.logwarn(f"Renkli görüntü beklenmeyen şekle sahip {cv_color_image.shape}. 3 kanal bekleniyordu. Frame atlanıyor.")
+                 return
+
+            # Boyutların eşleşip eşleşmediğini kontrol edin
+            if cv_depth_image.shape[0] != cv_color_image.shape[0] or cv_depth_image.shape[1] != cv_color_image.shape[1]:
+                rospy.logwarn(f"Derinlik ({cv_depth_image.shape}) ve renkli ({cv_color_image.shape}) görüntü boyutları eşleşmiyor. Frame atlanıyor.")
+                # İsteğe bağlı olarak, uygunsa bir görüntüyü diğerine uyacak şekilde yeniden boyutlandırabilirsiniz
+                # cv_color_image = cv2.resize(cv_color_image, (cv_depth_image.shape[1], cv_depth_image.shape[0]))
+                return
+
+            height, width = cv_depth_image.shape
+
+            # NumPy dizilerini Open3D Image nesnelerine dönüştür
+            # Open3D derinlik için float32 veya uint16 bekler. Gelen tipe göre kontrol et.
+            if cv_depth_image.dtype == np.float32:
+                # Eğer zaten float32 (metre) ise doğrudan kullan
+                pass
+            elif cv_depth_image.dtype == np.uint16:
+                # Eğer uint16 (mm) ise float32'ye çevir (Open3D bunu doğrudan destekler)
+                 pass # Open3D create_from_color_and_depth uint16'yı işleyebilir
+            else:
+                rospy.logwarn(f"Desteklenmeyen derinlik görüntüsü veri tipi: {cv_depth_image.dtype}. 16UC1 veya 32FC1 bekleniyor.")
+                return
+
+            o3d_depth = o3d.geometry.Image(cv_depth_image)
+            o3d_color = o3d.geometry.Image(cv_color_image)
+
+
+            # Renk ve derinlikten RGBDImage oluştur
+            # convert_rgb_to_intensity=False renk bilgisini korur
+            rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
+                o3d_color,
+                o3d_depth,
+                depth_scale=self.depth_scale, # Eğer derinlik mm ise 1000.0, metre ise 1.0
+                depth_trunc=self.depth_trunc, # Maksimum derinlik
+                convert_rgb_to_intensity=False
+            )
+
+            # Open3D PinholeCamloeraIntrinsic nesnesi oluştur
+            # Alınan görüntülerden görüntü boyutlarını kullanın
+            intrinsic = o3d.camera.PinholeCameraIntrinsic(width, height, self.fx, self.fy, self.cx, self.cy)
+
+            # RGBDImage ve iç parametrelerden PointCloud oluştur
+            pcd = o3d.geometry.PointCloud.create_from_rgbd_image(
+                rgbd_image,
+                intrinsic
+                # Kamera pozisyonu biliniyorsa isteğe bağlı olarak dış parametre matrisi sağlayabilirsiniz
+                # extrinsic = np.identity(4) # Örnek: Identity matrix
+            )
+
+            # İsteğe bağlı: Gerekirse nokta bulutunu alt örnekleme yapın
+            # pcd = pcd.voxel_down_sample(voxel_size=0.01)
+
+            # İsteğe bağlı: İstatistiksel aykırı değerleri kaldır
+            # pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
+
+            # Open3D PointCloud'u ROS PointCloud2'ye dönüştür
+            if not pcd.has_points():
+                rospy.logwarn("Oluşturulan PointCloud'da nokta yok. Yayınlama atlanıyor.")
+                return
+
+            points_np = np.asarray(pcd.points)
+            colors_np = (np.asarray(pcd.colors) * 255).astype(np.uint8) # 0-1 float'tan 0-255 uint8'e dönüştür
+
+            # Nokta ve renk sayısının eşleşip eşleşmediğini kontrol edin
+            if len(points_np) != len(colors_np):
+                 rospy.logwarn(f"Nokta sayısı ({len(points_np)}) ve renk sayısı ({len(colors_np)}) eşleşmiyor. Yayınlama atlanıyor.")
+                 return
+
+            # PointCloud2 mesaj alanlarını hazırla
+            fields = [
+                PointField('x', 0, PointField.FLOAT32, 1),
+                PointField('y', 4, PointField.FLOAT32, 1),
+                PointField('z', 8, PointField.FLOAT32, 1),
+                PointField('rgb', 12, PointField.UINT32, 1), # RGB'yi tek bir UINT32 alanına paketle
+            ]
+
+            # RGB verilerini tek bir UINT32 alanına paketle
+            # colors_np'nin Nx3 olduğundan emin olun
+            if colors_np.shape[1] != 3:
+                 rospy.logwarn(f"Renk verisi beklenmeyen şekle sahip {colors_np.shape}. Nx3 bekleniyordu. Yayınlama atlanıyor.")
+                 return
+
+            packed_colors = np.zeros(len(colors_np), dtype=np.uint32)
+            # Renkleri yinele ve paketle (bit kaydırma karmaşık dizilerden daha açık)
+            for i in range(len(colors_np)):
+                r, g, b = colors_np[i]
+                # BGR'yi little-endian formatında uint32'ye paketle (ROS standardı)
+                # RViz gibi araçlar genellikle BGR bekler
+                rgb_packed = struct.unpack('I', struct.pack('BBBB', b, g, r, 0))[0] # BGRX olarak paketle
+                packed_colors[i] = rgb_packed
+
+
+            # Noktaları ve paketlenmiş renkleri birleştir
+            # packed_colors'ı hstack için Nx1 olarak yeniden şekillendir
+            # Nokta verilerini float32 olarak cast et (create_cloud bunu bekler)
+            points_float32 = points_np.astype(np.float32)
+            packed_colors_float32 = packed_colors.astype(np.float32).reshape(-1, 1) # create_cloud float bekler
+
+            # struct.pack ile float'a dönüştürülmüş uint32 renk verisini birleştir
+            # Bu kısım biraz karmaşık, çünkü create_cloud doğrudan uint32'yi desteklemiyor gibi görünüyor.
+            # Alternatif: Veriyi byte dizisi olarak oluşturmak.
+            # Şimdilik hstack ile deneyelim, çalışmazsa byte dizisi yöntemine geçelim.
+
+            # create_cloud'un beklentisine uygun hale getirmek için noktaları ve renkleri birleştirelim
+            # Her nokta için [x, y, z, packed_color_float] formatında bir liste olmalı
+            # packed_colors'ı float'a çevirmek yerine, create_cloud'un doğrudan işleyebileceği bir yapı oluşturalım.
+            # create_cloud, alanlara göre yapılandırılmış bir liste bekler.
+            points_list = []
+            for i in range(len(points_np)):
+                x, y, z = points_np[i]
+                # packed_colors[i] zaten uint32, bunu doğrudan kullanabilir miyiz?
+                # create_cloud belgelerine göre, alan türüne uygun veri beklenir.
+                # 'rgb' alanı UINT32, bu yüzden packed_colors[i] doğrudan kullanılmalı.
+                # Ancak create_cloud'un tüm veriyi tek bir liste olarak istediğini unutmayın.
+                # Bu yüzden noktaları ve renkleri ayrı ayrı değil, birleştirilmiş olarak vermeliyiz.
+                # struct.pack ile noktaları ve rengi paketleyip create_cloud_struct kullanmak daha güvenli olabilir.
+
+                # Geçici çözüm: create_cloud ile deneyelim
+                # packed_colors'ı float'a çevirmek yerine uint32 tutalım
+                # points_list.append([x, y, z, packed_colors[i]]) # Bu format create_cloud için doğru değil
+
+                # Doğru yaklaşım: Noktaları ve renkleri ayrı ayrı hazırlayıp birleştirmek
+                # create_cloud'un beklentisi: [[x1,y1,z1,rgb1], [x2,y2,z2,rgb2], ...]
+                # rgb alanı UINT32 olduğu için, packed_colors[i] değerini doğrudan kullanmalıyız.
+                # Ancak, create_cloud tüm listeyi tek bir veri türü olarak işleyebilir.
+                # Bu nedenle, renkleri float'a çevirip hstack yapmak daha yaygın bir yöntemdir.
+                # packed_colors'ı float'a çevirelim ve deneyelim.
+                # points_list.append([points_float32[i, 0], points_float32[i, 1], points_float32[i, 2], packed_colors_float32[i, 0]]) # Hatalı satır
+                points_list.append([points_float32[i, 0], points_float32[i, 1], points_float32[i, 2], packed_colors[i]]) # Doğru: uint32 kullan
+
+
+            # PointCloud2 mesaj başlığı oluştur
+            header = Header()
+            # Nokta bulutunun zaman damgası olarak derinlik görüntüsünün zamanını kullan
+            header.stamp = depth_msg.header.stamp
+            header.frame_id = self.frame_id
+
+            # PointCloud2 mesajı oluştur
+            # points_list'i kullan
+            rospy.loginfo(f"PointCloud2 mesajı oluşturuluyor. Nokta sayısı: {len(points_list)}") # DEBUG
+            cloud_msg = pc2.create_cloud(header, fields, points_list)
+
+            rospy.loginfo("PointCloud2 mesajı yayınlanıyor...") # DEBUG
+            self.pc_pub.publish(cloud_msg)
+            rospy.loginfo("PointCloud yayınlandı.") # DEBUG
+
+        except CvBridgeError as e:
+            rospy.logerr(f"CV Bridge Hatası: {e}")
+        except Exception as e:
+            rospy.logerr(f"Görüntüleri işleme hatası: {e}")
+            import traceback
+            traceback.print_exc() # Hata ayıklama için ayrıntılı traceback yazdır
+
+if __name__ == "__main__":
+    try:
+        node = DepthColorToPointCloudNode()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
