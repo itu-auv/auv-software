@@ -26,7 +26,7 @@ class DepthAnythingNode: # Renamed class
         self.bridge = CvBridge()
 
         # Depth Model
-        model_name = "LiheYoung/depth-anything-small-hf"
+        model_name = "LiheYoung/depth-anything-base-hf"
         self.image_processor = AutoImageProcessor.from_pretrained(model_name)
         self.model = AutoModelForDepthEstimation.from_pretrained(model_name, torch_dtype=torch.float32)
 

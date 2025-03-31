@@ -4,12 +4,16 @@ import cv2
 import numpy as np
 import open3d as o3d
 import struct
+import tf2_ros
+import tf2_sensor_msgs
+from geometry_msgs.msg import TransformStamped
 
 # message_filters kaldırıldı
 from sensor_msgs.msg import Image, PointCloud2, PointField, CameraInfo
 import sensor_msgs.point_cloud2 as pc2
 from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Header
+
 
 class DepthColorToPointCloudNode:
     def __init__(self):
@@ -25,12 +29,18 @@ class DepthColorToPointCloudNode:
         self.depth_scale = 1.0
         # Maksimum derinlik mesafesi (metre cinsinden)
         self.depth_trunc = 10.0
-        # PointCloud için Frame ID (Bu parametre olarak kalabilir veya sabitlenebilir)
-        self.frame_id = "taluy/base_link" # Şimdilik parametre olarak bırakıldı
+        # PointCloud için hedef Frame ID
+        self.target_frame_id = "odom"
+        # Noktaların başlangıçta referans aldığı frame ID (derinlik kamerasının optik frame'i)
+        self.source_frame_id = "taluy/base_link" # Kullanıcı tarafından sağlandı
 
         rospy.loginfo(f"Kamera İç Parametreleri (Sabit): fx={self.fx}, fy={self.fy}, cx={self.cx}, cy={self.cy}")
         rospy.loginfo(f"Derinlik Ölçeği: {self.depth_scale}, Derinlik Kesme: {self.depth_trunc}")
-        rospy.loginfo(f"Çıktı Frame ID: {self.frame_id}")
+        rospy.loginfo(f"Kaynak Frame ID (Kamera Optik): {self.source_frame_id}, Hedef Frame ID: {self.target_frame_id}")
+
+        # --- TF2 ---
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # --- Subscriber'lar (Ayrı Callback'ler) ---
         self.latest_depth_msg = None
@@ -158,7 +168,14 @@ class DepthColorToPointCloudNode:
                 # Kamera pozisyonu biliniyorsa isteğe bağlı olarak dış parametre matrisi sağlayabilirsiniz
                 # extrinsic = np.identity(4) # Örnek: Identity matrix
             )
-
+            # Y ekseni etrafında 90 derece, ardından X ekseni etrafında 90 derece döndürme uygula
+            pcd = pcd.transform(np.array([[0, 0, 1, 0],
+                                          [1, 0, 0, 0],
+                                          [0, 1, 0, 0],
+                                          [0, 0, 0, 1]]))
+            
+            #o3d.visualization.draw_geometries([pcd]) # Nokta bulutunu görselleştir (isteğe bağlı)
+            # Nokta bulutunu Open3D formatında görselleştir
             # İsteğe bağlı: Gerekirse nokta bulutunu alt örnekleme yapın
             # pcd = pcd.voxel_down_sample(voxel_size=0.01)
 
@@ -241,20 +258,39 @@ class DepthColorToPointCloudNode:
                 points_list.append([points_float32[i, 0], points_float32[i, 1], points_float32[i, 2], packed_colors[i]]) # Doğru: uint32 kullan
 
 
-            # PointCloud2 mesaj başlığı oluştur
+            # PointCloud2 mesaj başlığı oluştur (Kaynak frame ile)
             header = Header()
-            # Nokta bulutunun zaman damgası olarak derinlik görüntüsünün zamanını kullan
             header.stamp = depth_msg.header.stamp
-            header.frame_id = self.frame_id
+            # Başlangıçta noktaların referans aldığı frame'i kullan
+            header.frame_id = self.source_frame_id
 
-            # PointCloud2 mesajı oluştur
+            # PointCloud2 mesajı oluştur (Kaynak frame'de)
             # points_list'i kullan
-            rospy.loginfo(f"PointCloud2 mesajı oluşturuluyor. Nokta sayısı: {len(points_list)}") # DEBUG
-            cloud_msg = pc2.create_cloud(header, fields, points_list)
+            rospy.loginfo(f"PointCloud2 mesajı oluşturuluyor ({self.source_frame_id}). Nokta sayısı: {len(points_list)}") # DEBUG
+            cloud_msg_source = pc2.create_cloud(header, fields, points_list)
 
-            rospy.loginfo("PointCloud2 mesajı yayınlanıyor...") # DEBUG
-            self.pc_pub.publish(cloud_msg)
-            rospy.loginfo("PointCloud yayınlandı.") # DEBUG
+            # Transformasyonu uygula
+            try:
+                # Kaynak frame'den hedef frame'e dönüşümü al
+                # En son mevcut dönüşümü almak için rospy.Time(0) kullan
+                transform = self.tf_buffer.lookup_transform(
+                    self.target_frame_id,    # Hedef frame
+                    self.source_frame_id,    # Kaynak frame
+                    rospy.Time(0),           # En son mevcut zaman damgası
+                    rospy.Duration(1.0)      # Bekleme süresi (isteğe bağlı, zaman aşımı için)
+                )
+
+                # PointCloud2 mesajını dönüştür
+                rospy.loginfo(f"PointCloud2 mesajı {self.source_frame_id} -> {self.target_frame_id} frame'ine dönüştürülüyor...") # DEBUG
+                cloud_msg_transformed = tf2_sensor_msgs.do_transform_cloud(cloud_msg_source, transform)
+
+                # Dönüştürülmüş mesajı yayınla
+                rospy.loginfo(f"Dönüştürülmüş PointCloud2 mesajı ({self.target_frame_id}) yayınlanıyor...") # DEBUG
+                self.pc_pub.publish(cloud_msg_transformed)
+                rospy.loginfo("Dönüştürülmüş PointCloud yayınlandı.") # DEBUG
+
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                rospy.logwarn(f"TF dönüşümü alınamadı ({self.source_frame_id} -> {self.target_frame_id}): {e}")
 
         except CvBridgeError as e:
             rospy.logerr(f"CV Bridge Hatası: {e}")
