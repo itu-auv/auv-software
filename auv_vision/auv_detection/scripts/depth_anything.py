@@ -3,6 +3,7 @@ import rospy
 import cv2
 import numpy as np
 import torch
+import os # Dosya sistemi işlemleri için eklendi
 # import sensor_msgs.point_cloud2 as pc2 # Removed
 from sensor_msgs.msg import Image # Modified
 from cv_bridge import CvBridge, CvBridgeError
@@ -26,7 +27,7 @@ class DepthAnythingNode: # Renamed class
         self.bridge = CvBridge()
 
         # Depth Model
-        model_name = "LiheYoung/depth-anything-base-hf"
+        model_name = "depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf"
         self.image_processor = AutoImageProcessor.from_pretrained(model_name)
         self.model = AutoModelForDepthEstimation.from_pretrained(model_name, torch_dtype=torch.float32)
 
@@ -77,6 +78,45 @@ class DepthAnythingNode: # Renamed class
             # Eğer belirli bir birime (örn. metre) ölçeklemek gerekiyorsa burada yapılabilir.
             depth_msg = self.bridge.cv2_to_imgmsg(depth_resized, encoding="32FC1")
             depth_msg.header = msg.header # Gelen mesajın header'ını kullan
+
+            # --- Görselleştirme Başlangıcı ---
+            try:
+                # Derinlik haritasını görselleştirme için normalize et (0-255, uint8)
+                # Not: depth_resized'in min/max değerleri her karede değişebilir.
+                # Daha tutarlı bir görselleştirme için sabit bir min/max veya
+                # hareketli bir ortalama kullanılabilir, ancak şimdilik basit tutalım.
+                depth_normalized = cv2.normalize(depth_resized, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
+
+                # Renk paleti uygula (örneğin JET)
+                depth_colormap = cv2.applyColorMap(depth_normalized, cv2.COLORMAP_JET)
+
+                # --- Renk Çubuğu (Lejant) Oluşturma ---
+                min_depth = np.min(depth_resized)
+                max_depth = np.max(depth_resized)
+                colorbar_height = depth_colormap.shape[0]
+                colorbar_width = 50 # Renk çubuğu genişliği
+                colorbar = np.zeros((colorbar_height, colorbar_width, 3), dtype=np.uint8)
+                for i in range(colorbar_height):
+                    # Renk çubuğunu yukarıdan aşağıya doğru doldur (max'dan min'e)
+                    normalized_val = 255 - int((i / colorbar_height) * 255)
+                    color = cv2.applyColorMap(np.array([[normalized_val]], dtype=np.uint8), cv2.COLORMAP_JET)[0][0]
+                    colorbar[i, :] = color
+
+                # Min ve Max değerlerini renk çubuğuna yaz
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                cv2.putText(colorbar, f"{max_depth:.2f}", (5, 20), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+                cv2.putText(colorbar, f"{min_depth:.2f}", (5, colorbar_height - 10), font, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
+                # --- Renk Çubuğu Sonu ---
+
+                # Derinlik haritası ve renk çubuğunu birleştir
+                combined_image = np.hstack((depth_colormap, colorbar))
+
+                # Birleştirilmiş görüntüyü göster
+                cv2.imshow("Depth Colormap with Legend", combined_image)
+                cv2.waitKey(1) # imshow'un döngü içinde çalışması için önemli
+            except Exception as vis_e:
+                rospy.logwarn_throttle(10, f"Görselleştirme hatası: {vis_e}") # Hata olursa logla ama devam et
+            # --- Görselleştirme Sonu ---
 
             # Derinlik görüntüsünü yayınla
             self.depth_pub.publish(depth_msg)

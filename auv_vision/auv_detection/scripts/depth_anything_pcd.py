@@ -169,18 +169,19 @@ class DepthColorToPointCloudNode:
                 # extrinsic = np.identity(4) # Örnek: Identity matrix
             )
             # Y ekseni etrafında 90 derece, ardından X ekseni etrafında 90 derece döndürme uygula
-            pcd = pcd.transform(np.array([[0, 0, 1, 0],
-                                          [1, 0, 0, 0],
-                                          [0, 1, 0, 0],
-                                          [0, 0, 0, 1]]))
+            pcd = pcd.transform(np.array([[1, 0, 0, 0],
+                                            [0, -1, 0, 0],
+                                            [0, 0, -1, 0],
+                                            [0, 0, 0, 1]]))
             
-            #o3d.visualization.draw_geometries([pcd]) # Nokta bulutunu görselleştir (isteğe bağlı)
+            #o3d.visualization.draw_geometries([pcd])
+             # Nokta bulutunu görselleştir (isteğe bağlı)
             # Nokta bulutunu Open3D formatında görselleştir
             # İsteğe bağlı: Gerekirse nokta bulutunu alt örnekleme yapın
-            # pcd = pcd.voxel_down_sample(voxel_size=0.01)
+            pcd = pcd.voxel_down_sample(voxel_size=0.01)
 
             # İsteğe bağlı: İstatistiksel aykırı değerleri kaldır
-            # pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
+            pcd, ind = pcd.remove_statistical_outlier(nb_neighbors=20, std_ratio=2.0)
 
             # Open3D PointCloud'u ROS PointCloud2'ye dönüştür
             if not pcd.has_points():
@@ -255,7 +256,7 @@ class DepthColorToPointCloudNode:
                 # Bu nedenle, renkleri float'a çevirip hstack yapmak daha yaygın bir yöntemdir.
                 # packed_colors'ı float'a çevirelim ve deneyelim.
                 # points_list.append([points_float32[i, 0], points_float32[i, 1], points_float32[i, 2], packed_colors_float32[i, 0]]) # Hatalı satır
-                points_list.append([points_float32[i, 0], points_float32[i, 1], points_float32[i, 2], packed_colors[i]]) # Doğru: uint32 kullan
+                points_list.append([-points_float32[i, 2], points_float32[i, 0], points_float32[i, 1], packed_colors[i]]) # Doğru: uint32 kullan
 
 
             # PointCloud2 mesaj başlığı oluştur (Kaynak frame ile)
@@ -286,7 +287,7 @@ class DepthColorToPointCloudNode:
 
                 # Dönüştürülmüş mesajı yayınla
                 rospy.loginfo(f"Dönüştürülmüş PointCloud2 mesajı ({self.target_frame_id}) yayınlanıyor...") # DEBUG
-                self.pc_pub.publish(cloud_msg_transformed)
+                self.pc_pub.publish(cloud_msg_source)
                 rospy.loginfo("Dönüştürülmüş PointCloud yayınlandı.") # DEBUG
 
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
