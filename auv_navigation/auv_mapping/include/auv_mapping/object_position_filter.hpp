@@ -41,7 +41,7 @@ class ObjectPositionFilter {
    */
   void update(const geometry_msgs::TransformStamped &measurement,
               const double dt);
-  void updateFrameId(const std::string &new_frame_id);
+  void updateFrameIndex(const std::string &new_frame_id);
   /// Get the filtered transform.
   geometry_msgs::TransformStamped getFilteredTransform() const;
 

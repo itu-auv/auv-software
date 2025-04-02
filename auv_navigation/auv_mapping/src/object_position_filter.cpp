@@ -76,7 +76,7 @@ void ObjectPositionFilter::update(
   filtered_orientation_ = slerp(filtered_orientation_, meas_q, alpha);
   filtered_orientation_.normalize();
 }
-void ObjectPositionFilter::updateFrameId(const std::string &new_frame_id) {
+void ObjectPositionFilter::updateFrameIndex(const std::string &new_frame_id) {
   child_frame_ = new_frame_id;
 }
 geometry_msgs::TransformStamped ObjectPositionFilter::getFilteredTransform()

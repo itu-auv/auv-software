@@ -181,10 +181,10 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   }
 
   // Update the frame IDs based on distance from the static frame
-  update_filter_frame_ids(object_frame);
+  update_filter_frame_index(object_frame);
 }
 
-void ObjectMapTFServerROS::update_filter_frame_ids(const std::string &object_frame) {
+void ObjectMapTFServerROS::update_filter_frame_index(const std::string &object_frame) {
   auto it = filters_.find(object_frame);
   if (it == filters_.end() || it->second.empty()) {
     return;
@@ -253,7 +253,7 @@ void ObjectMapTFServerROS::update_filter_frame_ids(const std::string &object_fra
     }
     
     // Update the filter with the new frame ID
-    filter->updateFrameId(transform.child_frame_id);
+    filter->updateFrameIndex(transform.child_frame_id);
   }
 }
 
