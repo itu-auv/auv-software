@@ -38,7 +38,7 @@ class ObjectMapTFServerROS {
 
   void dynamic_transform_callback(
       const geometry_msgs::TransformStamped::ConstPtr &msg);
-
+  void update_filter_frame_index(const std::string &object_frame);
   std::optional<geometry_msgs::TransformStamped> transform_to_static_frame(
       const geometry_msgs::TransformStamped transform);
 
