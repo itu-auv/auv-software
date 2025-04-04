@@ -10,6 +10,9 @@ from auv_localization.srv import CalibrateIMU, CalibrateIMUResponse
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
 
 
+HIGH_COVARIANCE = 1e6
+
+
 class ImuToOdom:
     def __init__(self):
         rospy.init_node("imu_to_odom_node", anonymous=True)
@@ -26,11 +29,18 @@ class ImuToOdom:
         # Initialize the odometry message
         self.odom_msg = Odometry()
         self.odom_msg.header.frame_id = "odom"
-        self.odom_msg.child_frame_id = "taluy/base_link"
+        self.odom_msg.child_frame_id = "taluy/base_link"  # TODO: NO absolute frames
 
-        # Initialize covariances with zeros
-        self.odom_msg.pose.covariance = np.zeros(36).tolist()
-        self.odom_msg.twist.covariance = np.zeros(36).tolist()
+        # Build default covariance matrices
+        self.default_pose_cov = np.zeros((6, 6))
+        self.default_pose_cov[:3, :3] = np.eye(3) * HIGH_COVARIANCE
+
+        self.default_twist_cov = np.zeros((6, 6))
+        self.default_twist_cov[:3, :3] = np.eye(3) * HIGH_COVARIANCE
+
+        # Initialize covariances with the default matrices
+        self.odom_msg.pose.covariance = self.default_pose_cov.flatten().tolist()
+        self.odom_msg.twist.covariance = self.default_twist_cov.flatten().tolist()
 
         # Variables for drift correction
         self.drift = np.zeros(3)
@@ -45,6 +55,44 @@ class ImuToOdom:
             "calibrate_imu", CalibrateIMU, self.calibrate_imu
         )
 
+    def update_pose_covariance(self, imu_orientation_covariance):
+        """
+        Update the 6x6 pose covariance matrix by inserting the 3x3 orientation
+        covariance from the IMU message.
+        """
+        pose_covariance = self.default_pose_cov.copy()
+        if len(imu_orientation_covariance) == 9:
+            imu_orientation_covariance_matrix = np.array(
+                imu_orientation_covariance
+            ).reshape(3, 3)
+            # Insert the IMU orientation covariance into the orientation block
+            pose_covariance[3:6, 3:6] = imu_orientation_covariance_matrix
+        else:
+            rospy.logwarn_throttle(
+                3,
+                f"Received invalid IMU orientation covariance size: {len(imu_orientation_covariance)}. Expected 9 elements. Using default pose covariance.",
+            )
+        return pose_covariance.flatten().tolist()
+
+    def update_twist_covariance(self, imu_angular_velocity_covariance):
+        """
+        Update the 6x6 twist covariance matrix by inserting the 3x3 angular velocity
+        covariance from the IMU message.
+        """
+        twist_cov = self.default_twist_cov.copy()
+        if len(imu_angular_velocity_covariance) == 9:
+            imu_angular_velocity_covariance_matrix = np.array(
+                imu_angular_velocity_covariance
+            ).reshape(3, 3)
+            # Insert the IMU angular velocity covariance into the angular velocity block
+            twist_cov[3:6, 3:6] = imu_angular_velocity_covariance_matrix
+        else:
+            rospy.logwarn_throttle(
+                3,
+                f"Received invalid IMU angular velocity covariance size: {len(imu_angular_velocity_covariance)}. Expected 9 elements. Using default twist covariance.",
+            )
+        return twist_cov.flatten().tolist()
+
     def imu_callback(self, imu_msg):
         if self.calibrating:
             self.calibration_data.append(
@@ -55,24 +103,25 @@ class ImuToOdom:
                 ]
             )
 
-        # Fill the odometry message with orientation and angular velocity data from the IMU
         self.odom_msg.header.stamp = rospy.Time.now()
 
-        # Orientation
-        self.odom_msg.pose.pose.orientation = imu_msg.orientation
-        # Only the first 9 elements for orientation
-        self.odom_msg.pose.covariance[:9] = list(imu_msg.orientation_covariance)
-
-        # Angular Velocity
+        # Correct angular velocity using the drift
         corrected_angular_velocity = Vector3(
             imu_msg.angular_velocity.x - self.drift[0],
             imu_msg.angular_velocity.y - self.drift[1],
             imu_msg.angular_velocity.z - self.drift[2],
         )
+
+        # Update twist and twist covariance
         self.odom_msg.twist.twist.angular = corrected_angular_velocity
-        # Angular velocity covariance in the correct position
-        self.odom_msg.twist.covariance[21:30] = list(
+        self.odom_msg.twist.covariance = self.update_twist_covariance(
             imu_msg.angular_velocity_covariance
+        )
+
+        # Update orientation and orientation covariance
+        self.odom_msg.pose.pose.orientation = imu_msg.orientation
+        self.odom_msg.pose.covariance = self.update_pose_covariance(
+            imu_msg.orientation_covariance
         )
 
         # Set the position to zero as we are not computing it here
