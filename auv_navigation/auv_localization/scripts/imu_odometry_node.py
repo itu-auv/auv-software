@@ -56,7 +56,7 @@ class ImuToOdom:
             )
 
         # Fill the odometry message with orientation and angular velocity data from the IMU
-        self.odom_msg.header.stamp = rospy.Time.now()
+        self.odom_msg.header.stamp = imu_msg.header.stamp
 
         # Orientation
         self.odom_msg.pose.pose.orientation = imu_msg.orientation
