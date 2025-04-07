@@ -14,10 +14,11 @@ from auv_msgs.srv import (
     AlignFrameControllerResponse,
 )
 from std_msgs.msg import Bool
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, PointStamped
 import tf2_ros
 import numpy as np
 import tf.transformations as transformations
+import tf2_geometry_msgs
 
 from auv_smach.common import (
     NavigateToFrameState,
@@ -26,10 +27,84 @@ from auv_smach.common import (
     SetDepthState,
 )
 
-from geometry_msgs.msg import Twist
-from std_msgs.msg import Bool
-
 from auv_smach.initialize import DelayState
+
+# ---------------------------------------------------------------------------
+# Yeni: SearchForGateState
+# Bu state, aracın (taluy/base_link) bulunduğu konumda sadece oryantasyonu güncelleyerek,
+# "gate_search" frame'ini oluşturur. Ek olarak, check_frame parametresi sayesinde,
+# eğer belirtilen frame'in (örneğin "gate_target") transform'u odom'da bulunursa, dönüş işlemi durur.
+# ---------------------------------------------------------------------------
+class SearchForGateState(smach.State):
+    def __init__(self, base_frame="taluy/base_link", target_frame="gate_search", check_frame="gate_blue_arrow_link", rotation_rate=0.2):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.base_frame = base_frame
+        self.target_frame = target_frame
+        self.check_frame = check_frame
+        self.rotation_rate = rotation_rate  # rad/s (saat yönünde dönüş için negatif açı kullanılacak)
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.set_object_transform_service = rospy.ServiceProxy("set_object_transform", SetObjectTransform)
+        self.rate = rospy.Rate(10)  # 10 Hz
+
+    def execute(self, userdata):
+        start_time = rospy.Time.now().to_sec()
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            elapsed = rospy.Time.now().to_sec() - start_time
+            # Saat yönünde dönüş için negatif açı hesaplanıyor
+            current_angle = -self.rotation_rate * elapsed
+
+            # Aracın odom içerisindeki konumunu almak
+            try:
+                odom_to_base = self.tf_buffer.lookup_transform("odom", self.base_frame, rospy.Time(0), rospy.Duration(1.0))
+            except Exception as e:
+                rospy.logwarn("TF lookup failed: {}".format(e))
+                return "aborted"
+
+            # Oluşturulacak transform; aracın konumu aynen alınırken yalnızca oryantasyon güncelleniyor
+            t = TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "odom"
+            t.child_frame_id = self.target_frame
+            t.transform.translation.x = odom_to_base.transform.translation.x
+            t.transform.translation.y = odom_to_base.transform.translation.y
+            t.transform.translation.z = odom_to_base.transform.translation.z
+
+            quaternion = transformations.quaternion_from_euler(0, 0, current_angle)
+            t.transform.rotation.x = quaternion[0]
+            t.transform.rotation.y = quaternion[1]
+            t.transform.rotation.z = quaternion[2]
+            t.transform.rotation.w = quaternion[3]
+
+            # set_object_transform servisine transform request gönderiliyor
+            req = SetObjectTransformRequest()
+            req.transform = t
+            try:
+                res = self.set_object_transform_service(req)
+            except rospy.ServiceException as e:
+                rospy.logwarn("Service call failed: {}".format(e))
+                return "aborted"
+            if not res.success:
+                rospy.logwarn("SetObjectTransform failed: {}".format(res.message))
+
+            # Eğer check_frame (örneğin gate_target) için odom'dan transform bulunabiliyorsa,
+            # gate tespit edilmiş sayılarak dönüş işlemi durdurulur.
+            try:
+                self.tf_buffer.lookup_transform("odom", self.check_frame, rospy.Time(0), rospy.Duration(0.5))
+                rospy.loginfo("Check frame '{}' found, stopping rotation.".format(self.check_frame))
+                return "succeeded"
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                pass
+
+            # Tam bir tur (2π radyan) tamamlanmışsa state başarıyla sonlanır.
+            if abs(current_angle) >= 2 * np.pi:
+                return "succeeded"
+
+            self.rate.sleep()
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
@@ -53,7 +128,19 @@ class NavigateThroughGateState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
-
+            smach.StateMachine.add(
+                "SET_GATE_SEARCH",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame="gate_search"
+                ),
+                transitions={"succeeded": "SEARCH_FOR_GATE", "preempted": "preempted", "aborted": "aborted"},
+            )
+            # Ardından aracın bulunduğu yerde, sadece oryantasyonu güncelleyerek "gate_search" frame'i oluşturuluyor.
+            smach.StateMachine.add(
+                "SEARCH_FOR_GATE",
+                SearchForGateState(base_frame="taluy/base_link", target_frame="gate_search", check_frame="gate_blue_arrow_link", rotation_rate=0.2),
+                transitions={"succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER", "preempted": "preempted", "aborted": "aborted"},
+            )
             smach.StateMachine.add(
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
@@ -114,7 +201,7 @@ class NavigateThroughGateState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
+            # CANCEL_ALIGN_CONTROLLER state'i isteğe bağlı olarak eklenebilir.
             # smach.StateMachine.add(
             #     "CANCEL_ALIGN_CONTROLLER",
             #     CancelAlignControllerState(),
