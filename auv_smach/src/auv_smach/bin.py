@@ -25,12 +25,13 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
 )
-from auv_smach.red_buoy import SetRedBuoyRotationStartFrame, SetFrameLookingAtState
+from auv_smach.red_buoy import SetRedBuoyRotationStartFrame
 
 from auv_smach.initialize import DelayState
 
 from auv_smach.common import (
     DropBallState,
+    SetFrameLookingAtState,
 )
 
 
@@ -57,10 +58,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_BIN_TRAVEL_START",
                 SetFrameLookingAtState(
-                    base_frame="taluy/base_link",
-                    look_at_frame="bin_whole_link",
-                    target_frame="bin_whole_travel_start",
-                ),
+                    base_frame="taluy/base_link", target_frame="bin_whole_travel_start", look_at_frame="bin_whole_link", rotation_rate=0.2),
                 transitions={
                     "succeeded": "SET_BIN_WHOLE_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",

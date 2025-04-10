@@ -25,12 +25,13 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
 )
-from auv_smach.red_buoy import SetRedBuoyRotationStartFrame, SetFrameLookingAtState
+from auv_smach.red_buoy import SetRedBuoyRotationStartFrame
 
 from auv_smach.initialize import DelayState
 
 from auv_smach.common import (
     LaunchTorpedoState,
+    SetFrameLookingAtState,
 )
 
 
@@ -57,10 +58,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_TORPEDO_TRAVEL_START",
                 SetFrameLookingAtState(
-                    base_frame="taluy/base_link",
-                    look_at_frame="torpedo_map_link",
-                    target_frame="torpedo_map_travel_start",
-                ),
+                    base_frame="taluy/base_link", target_frame="torpedo_map_travel_start", look_at_frame="torpedo_map_link", rotation_rate=0.2),
                 transitions={
                     "succeeded": "SET_TORPEDO_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
