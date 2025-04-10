@@ -10,8 +10,13 @@ from std_srvs.srv import Trigger, TriggerRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
-from auv_msgs.srv import SetDepth, SetDepthRequest
-
+from auv_msgs.srv import (
+    SetDepth, 
+    SetDepthRequest,     
+    SetObjectTransform,
+    SetObjectTransformRequest,
+    SetObjectTransformResponse,
+)
 from tf.transformations import (
     quaternion_matrix,
     quaternion_from_matrix,
@@ -284,3 +289,98 @@ class NavigateToFrameState(smach.State):
         ) as e:
             rospy.logwarn(f"TF lookup exception: {e}")
             return "aborted"
+
+class SetFrameLookingAtState(smach.State):
+    def __init__(self, base_frame="taluy/base_link", target_frame="gate_search", look_at_frame="gate_blue_arrow_link", rotation_rate=0.2):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.base_frame = base_frame
+        self.target_frame = target_frame
+        self.look_at_frame = look_at_frame
+        self.rotation_rate = rotation_rate 
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.set_object_transform_service = rospy.ServiceProxy("set_object_transform", SetObjectTransform)
+        self.rate = rospy.Rate(10)
+
+    def execute(self, userdata):
+        start_time = rospy.Time.now().to_sec()        
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            try:
+                base_to_check = self.tf_buffer.lookup_transform(self.base_frame, self.look_at_frame, rospy.Time(0), rospy.Duration(1))
+                
+                direction_vector = np.array([
+                    base_to_check.transform.translation.x,
+                    base_to_check.transform.translation.y
+                ])
+                
+                facing_angle = np.arctan2(direction_vector[1], direction_vector[0])
+                quaternion = transformations.quaternion_from_euler(0, 0, facing_angle)
+                
+                t = TransformStamped()
+                t.header.stamp = rospy.Time.now()
+                t.header.frame_id = self.base_frame  
+                t.child_frame_id = self.target_frame
+                t.transform.translation.x = 0.0
+                t.transform.translation.y = 0.0
+                t.transform.translation.z = 0.0
+                t.transform.rotation.x = quaternion[0]
+                t.transform.rotation.y = quaternion[1]
+                t.transform.rotation.z = quaternion[2]
+                t.transform.rotation.w = quaternion[3]
+
+                req = SetObjectTransformRequest()
+                req.transform = t
+                try:
+                    res = self.set_object_transform_service(req)
+                except rospy.ServiceException as e:
+                    rospy.logwarn("Service call failed: {}".format(e))
+                    return "aborted"
+
+                if res.success:
+                    rospy.loginfo("Check frame '{}' found. Gate_search transform updated to look at it.".format(self.look_at_frame))
+                else:
+                    rospy.logwarn("SetObjectTransform failed: {}".format(res.message))
+                return "succeeded"
+
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                elapsed = rospy.Time.now().to_sec() - start_time
+                current_angle = -self.rotation_rate * elapsed
+
+                try:
+                    odom_to_base = self.tf_buffer.lookup_transform("odom", self.base_frame, rospy.Time(0), rospy.Duration(1.0))
+                except Exception as e:
+                    rospy.logwarn("TF lookup failed for base frame '{}': {}".format(self.base_frame, e))
+                    return "aborted"
+
+                t = TransformStamped()
+                t.header.stamp = rospy.Time.now()
+                t.header.frame_id = "odom"
+                t.child_frame_id = self.target_frame
+                t.transform.translation.x = odom_to_base.transform.translation.x
+                t.transform.translation.y = odom_to_base.transform.translation.y
+                t.transform.translation.z = odom_to_base.transform.translation.z
+                quaternion = transformations.quaternion_from_euler(0, 0, current_angle)
+                t.transform.rotation.x = quaternion[0]
+                t.transform.rotation.y = quaternion[1]
+                t.transform.rotation.z = quaternion[2]
+                t.transform.rotation.w = quaternion[3]
+
+                req = SetObjectTransformRequest()
+                req.transform = t
+                try:
+                    res = self.set_object_transform_service(req)
+                except rospy.ServiceException as e:
+                    rospy.logwarn("Service call failed: {}".format(e))
+                    return "aborted"
+                if not res.success:
+                    rospy.logwarn("SetObjectTransform failed: {}".format(res.message))
+
+                if abs(current_angle) >= 2 * np.pi:
+                    rospy.loginfo("Full rotation reached. Exiting state.")
+                    return "succeeded"
+
+            self.rate.sleep()

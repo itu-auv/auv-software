@@ -25,74 +25,10 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
+    SetFrameLookingAtState,
 )
 
 from auv_smach.initialize import DelayState
-
-class SearchForGateState(smach.State):
-    def __init__(self, base_frame="taluy/base_link", target_frame="gate_search", check_frame="gate_blue_arrow_link", rotation_rate=0.2):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.base_frame = base_frame
-        self.target_frame = target_frame
-        self.check_frame = check_frame
-        self.rotation_rate = rotation_rate 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.set_object_transform_service = rospy.ServiceProxy("set_object_transform", SetObjectTransform)
-        self.rate = rospy.Rate(10)  
-
-    def execute(self, userdata):
-        start_time = rospy.Time.now().to_sec()
-        while not rospy.is_shutdown():
-            if self.preempt_requested():
-                self.service_preempt()
-                return "preempted"
-
-            elapsed = rospy.Time.now().to_sec() - start_time
-            current_angle = -self.rotation_rate * elapsed
-
-            try:
-                odom_to_base = self.tf_buffer.lookup_transform("odom", self.base_frame, rospy.Time(0), rospy.Duration(1.0))
-            except Exception as e:
-                rospy.logwarn("TF lookup failed: {}".format(e))
-                return "aborted"
-
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = "odom"
-            t.child_frame_id = self.target_frame
-            t.transform.translation.x = odom_to_base.transform.translation.x
-            t.transform.translation.y = odom_to_base.transform.translation.y
-            t.transform.translation.z = odom_to_base.transform.translation.z
-
-            quaternion = transformations.quaternion_from_euler(0, 0, current_angle)
-            t.transform.rotation.x = quaternion[0]
-            t.transform.rotation.y = quaternion[1]
-            t.transform.rotation.z = quaternion[2]
-            t.transform.rotation.w = quaternion[3]
-
-            req = SetObjectTransformRequest()
-            req.transform = t
-            try:
-                res = self.set_object_transform_service(req)
-            except rospy.ServiceException as e:
-                rospy.logwarn("Service call failed: {}".format(e))
-                return "aborted"
-            if not res.success:
-                rospy.logwarn("SetObjectTransform failed: {}".format(res.message))
-
-            try:
-                self.tf_buffer.lookup_transform("odom", self.check_frame, rospy.Time(0), rospy.Duration(0.5))
-                rospy.loginfo("Check frame '{}' found, stopping rotation.".format(self.check_frame))
-                return "succeeded"
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-                pass
-
-            if abs(current_angle) >= 2 * np.pi:
-                return "succeeded"
-
-            self.rate.sleep()
-
 
 class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
@@ -113,6 +49,15 @@ class NavigateThroughGateState(smach.State):
         )
         with self.state_machine:
             smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                transitions={
+                    "succeeded": "SET_GATE_SEARCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_GATE_SEARCH",
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link", target_frame="gate_search"
@@ -121,21 +66,17 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SEARCH_FOR_GATE",
-                SearchForGateState(base_frame="taluy/base_link", target_frame="gate_search", check_frame="gate_blue_arrow_link", rotation_rate=0.2),
-                transitions={"succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER", "preempted": "preempted", "aborted": "aborted"},
+                SetFrameLookingAtState(
+                    base_frame="taluy/base_link", target_frame="gate_search", look_at_frame="gate_blue_arrow_link", rotation_rate=0.2),
+                transitions={
+                    "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER", 
+                    "preempted": "preempted", 
+                    "aborted": "aborted"
+                },
             )
             smach.StateMachine.add(
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
-                transitions={
-                    "succeeded": "SET_GATE_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
