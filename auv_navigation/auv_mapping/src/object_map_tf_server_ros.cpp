@@ -122,7 +122,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     const geometry_msgs::TransformStamped::ConstPtr &msg) {
   auto lock = std::scoped_lock{mutex_};
 
-  // calculate actual dt
+  // Calculate actual dt
   static auto last_time = ros::Time::now();
   const auto current_time = ros::Time::now();
   const auto dt = (current_time - last_time).toSec();
@@ -137,13 +137,19 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
   auto it = filters_.find(object_frame);
   if (it == filters_.end()) {
+    // Create first filter for this object
     filters_[object_frame].push_back(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
     ROS_INFO_STREAM("Created new filter for " << object_frame);
     return;
   }
 
-  // Iterate through existing filters for this object.
+  bool filter_updated = false;
+  // Find the closest filter to update
+  std::vector<double> distances;
+  distances.reserve(it->second.size());
+
+  // Calculate distance to each existing filter
   for (auto &filter_ptr : it->second) {
     const auto current = filter_ptr->getFilteredTransform();
     const auto d_position =
@@ -155,22 +161,101 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
                                   static_transform->transform.translation.z};
     const auto distance_squared = std::inner_product(
         d_position.begin(), d_position.end(), d_position.begin(), 0.0);
+    distances.push_back(distance_squared);
+
+    // If this filter is close enough, update it
     if (distance_squared < distance_threshold_squared_) {
-      // Update filter with new measurement.
       filter_ptr->update(*static_transform, dt);
+      filter_updated = true;
       ROS_INFO_STREAM("Updated filter for " << object_frame);
-      return;
+      break;
     }
   }
 
-  // None of the existing filters matched; add a new filter.
-  auto new_measurement = *static_transform;
-  const auto suffix = filters_[object_frame].size();
-  new_measurement.child_frame_id = object_frame + "_" + std::to_string(suffix);
-  filters_[object_frame].push_back(
-      std::make_unique<ObjectPositionFilter>(new_measurement, 1.0 / rate_));
-  ROS_INFO_STREAM("Created new filter for " << object_frame << "_" << suffix
-                                            << " due to distance threshold.");
+  // If no filter was updated, create a new one
+  if (!filter_updated) {
+    filters_[object_frame].push_back(
+        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
+    ROS_INFO_STREAM("Created new filter for " << object_frame
+                                              << " due to distance threshold.");
+  }
+
+  // Update the frame IDs based on distance from the static frame
+  update_filter_frame_index(object_frame);
+}
+
+void ObjectMapTFServerROS::update_filter_frame_index(
+    const std::string &object_frame) {
+  auto it = filters_.find(object_frame);
+  if (it == filters_.end() || it->second.empty()) {
+    return;
+  }
+
+  // Calculate distances from base_link to each filter's position
+  std::vector<std::pair<size_t, double>> filter_distances;
+  filter_distances.reserve(it->second.size());
+
+  const std::string base_link_frame = "taluy/base_link";
+
+  for (size_t i = 0; i < it->second.size(); ++i) {
+    const auto &transform = it->second[i]->getFilteredTransform();
+
+    // Create a point in the static frame at the filter's position
+    geometry_msgs::PointStamped point;
+    point.header.frame_id = static_frame_;
+    point.header.stamp = ros::Time(0);
+    point.point.x = transform.transform.translation.x;
+    point.point.y = transform.transform.translation.y;
+    point.point.z = transform.transform.translation.z;
+
+    // Try to transform point to base_link frame
+    try {
+      // Look up transform from static frame to base_link
+      auto base_link_transform = tf_buffer_.lookupTransform(
+          base_link_frame, static_frame_, ros::Time(0), ros::Duration(1.0));
+
+      // Transform the point to base_link frame
+      geometry_msgs::PointStamped point_in_base_link;
+      tf2::doTransform(point, point_in_base_link, base_link_transform);
+
+      // Calculate distance from base_link origin
+      const double distance =
+          std::sqrt(std::pow(point_in_base_link.point.x, 2) +
+                    std::pow(point_in_base_link.point.y, 2) +
+                    std::pow(point_in_base_link.point.z, 2));
+
+      filter_distances.emplace_back(i, distance);
+    } catch (tf2::TransformException &ex) {
+      ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
+      // Fallback: use distance from static frame instead
+      const double distance =
+          std::sqrt(std::pow(transform.transform.translation.x, 2) +
+                    std::pow(transform.transform.translation.y, 2) +
+                    std::pow(transform.transform.translation.z, 2));
+      filter_distances.emplace_back(i, distance);
+    }
+  }
+
+  // Sort filters by distance (closest first)
+  std::sort(filter_distances.begin(), filter_distances.end(),
+            [](const auto &a, const auto &b) { return a.second < b.second; });
+
+  // Update frame IDs based on sorted distances
+  for (size_t i = 0; i < filter_distances.size(); ++i) {
+    auto &filter = it->second[filter_distances[i].first];
+    auto transform = filter->getFilteredTransform();
+
+    if (i == 0) {
+      // Closest filter gets the base name without index
+      transform.child_frame_id = object_frame;
+    } else {
+      // Other filters get indexed names (starting from 0)
+      transform.child_frame_id = object_frame + "_" + std::to_string(i - 1);
+    }
+
+    // Update the filter with the new frame ID
+    filter->updateFrameIndex(transform.child_frame_id);
+  }
 }
 
 std::optional<geometry_msgs::TransformStamped>
