@@ -55,43 +55,46 @@ class ImuToOdom:
             "calibrate_imu", CalibrateIMU, self.calibrate_imu
         )
 
-    def update_pose_covariance(self, imu_orientation_covariance):
+    def insert_covariance_block(
+        self,
+        base_covariance_6x6,
+        input_covariance_3x3_flat,
+    ):
         """
-        Update the 6x6 pose covariance matrix by inserting the 3x3 orientation
-        covariance from the IMU message.
+        Inserts a 3x3 covariance block (provided as a flat list) into a 6x6 NumPy matrix
+        and returns the resulting flattened 6x6 list.
+
+        The 3x3 block is always inserted into the bottom-right quadrant (indices 3:6, 3:6),
+        which corresponds to orientation in pose covariance or angular velocity in twist covariance.
         """
-        pose_covariance = self.default_pose_cov.copy()
-        if len(imu_orientation_covariance) == 9:
-            imu_orientation_covariance_matrix = np.array(
-                imu_orientation_covariance
-            ).reshape(3, 3)
-            # Insert the IMU orientation covariance into the orientation block
-            pose_covariance[3:6, 3:6] = imu_orientation_covariance_matrix
+        updated_covariance_6x6 = base_covariance_6x6.copy()
+
+        # Only insert the covariance block if it has 9 elements
+        if len(input_covariance_3x3_flat) == 9:
+
+            input_covariance_3x3_matrix = np.array(input_covariance_3x3_flat).reshape(
+                3, 3
+            )
+
+            # Insert the 3x3 matrix into the bottom-right quadrant (angular/orientation part)
+            updated_covariance_6x6[3:6, 3:6] = input_covariance_3x3_matrix
         else:
             rospy.logwarn_throttle(
                 3,
-                f"Received invalid IMU orientation covariance size: {len(imu_orientation_covariance)}. Expected 9 elements. Using default pose covariance.",
+                f"Received invalid IMU covariance size: {len(input_covariance_3x3_flat)}. "
+                f"Using default covariance",
             )
-        return pose_covariance.flatten().tolist()
+        return updated_covariance_6x6.flatten().tolist()
+
+    def update_pose_covariance(self, imu_orientation_covariance):
+        return self.insert_covariance_block(
+            self.default_pose_cov, imu_orientation_covariance
+        )
 
     def update_twist_covariance(self, imu_angular_velocity_covariance):
-        """
-        Update the 6x6 twist covariance matrix by inserting the 3x3 angular velocity
-        covariance from the IMU message.
-        """
-        twist_cov = self.default_twist_cov.copy()
-        if len(imu_angular_velocity_covariance) == 9:
-            imu_angular_velocity_covariance_matrix = np.array(
-                imu_angular_velocity_covariance
-            ).reshape(3, 3)
-            # Insert the IMU angular velocity covariance into the angular velocity block
-            twist_cov[3:6, 3:6] = imu_angular_velocity_covariance_matrix
-        else:
-            rospy.logwarn_throttle(
-                3,
-                f"Received invalid IMU angular velocity covariance size: {len(imu_angular_velocity_covariance)}. Expected 9 elements. Using default twist covariance.",
-            )
-        return twist_cov.flatten().tolist()
+        return self.insert_covariance_block(
+            self.default_twist_cov, imu_angular_velocity_covariance
+        )
 
     def imu_callback(self, imu_msg):
         if self.calibrating:
