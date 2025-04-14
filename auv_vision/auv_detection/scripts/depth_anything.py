@@ -27,7 +27,7 @@ class DepthAnythingNode: # Renamed class
         self.bridge = CvBridge()
 
         # Depth Model
-        model_name = "depth-anything/Depth-Anything-V2-Metric-Indoor-Base-hf"
+        model_name = "depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf"
         self.image_processor = AutoImageProcessor.from_pretrained(model_name)
         self.model = AutoModelForDepthEstimation.from_pretrained(model_name, torch_dtype=torch.float32)
         # self.publish_tf_timer = rospy.Timer(rospy.Duration(0.1), self.publish_tf) # Removed
