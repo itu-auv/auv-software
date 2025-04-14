@@ -56,21 +56,21 @@ class BinTaskState(smach.State):
             #     },
             # )
             smach.StateMachine.add(
-                "SET_BIN_TRAVEL_START",
-                SetFrameLookingAtState(
-                    base_frame="taluy/base_link", target_frame="bin_whole_travel_start", look_at_frame="bin_whole_link", rotation_rate=0.2),
-                transitions={
-                    "succeeded": "SET_BIN_WHOLE_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "SET_BIN_WHOLE_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link",
                     target_frame="bin_whole_travel_start",
                 ),
+                transitions={
+                    "succeeded": "SET_BIN_TRAVEL_START",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BIN_TRAVEL_START",
+                SetFrameLookingAtState(
+                    base_frame="taluy/base_link", target_frame="bin_whole_travel_start", look_at_frame="bin_whole_link", rotation_rate=0.2),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
                     "preempted": "preempted",

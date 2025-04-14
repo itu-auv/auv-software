@@ -50,16 +50,6 @@ class TorpedoTaskState(smach.State):
                 "SET_TORPEDO_DEPTH",
                 SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "SET_TORPEDO_TRAVEL_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_TORPEDO_TRAVEL_START",
-                SetFrameLookingAtState(
-                    base_frame="taluy/base_link", target_frame="torpedo_map_travel_start", look_at_frame="torpedo_map_link", rotation_rate=0.2),
-                transitions={
                     "succeeded": "SET_TORPEDO_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -71,6 +61,16 @@ class TorpedoTaskState(smach.State):
                     source_frame="taluy/base_link",
                     target_frame="torpedo_map_travel_start",
                 ),
+                transitions={
+                    "succeeded": "SET_TORPEDO_TRAVEL_START",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_TORPEDO_TRAVEL_START",
+                SetFrameLookingAtState(
+                    base_frame="taluy/base_link", target_frame="torpedo_map_travel_start", look_at_frame="torpedo_map_link", rotation_rate=0.2),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
                     "preempted": "preempted",
