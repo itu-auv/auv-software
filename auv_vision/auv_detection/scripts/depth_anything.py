@@ -45,7 +45,7 @@ class DepthAnythingNode: # Renamed class
             inputs = self.image_processor(images=image_pil, return_tensors="pt")
             with torch.no_grad():
                 outputs = self.model(**inputs)
-                depth = outputs.predicted_depth.squeeze().cpu().numpy()
+                depth = outputs.predicted_depth.squeeze().gpu().numpy()
 
             # Depth map'i orijinal görüntü boyutuna getir (float32)
             depth_resized = cv2.resize(depth, (cv_image.shape[1], cv_image.shape[0]), interpolation=cv2.INTER_CUBIC)
@@ -55,7 +55,7 @@ class DepthAnythingNode: # Renamed class
             # Eğer belirli bir birime (örn. metre) ölçeklemek gerekiyorsa burada yapılabilir.
             depth_msg = self.bridge.cv2_to_imgmsg(depth_resized, encoding="32FC1")
             depth_msg.header = msg.header # Gelen mesajın header'ını kullan
-
+            """"
             # --- Görselleştirme Başlangıcı ---
             try:
                 # Derinlik haritasını görselleştirme için normalize et (0-255, uint8)
@@ -94,7 +94,7 @@ class DepthAnythingNode: # Renamed class
             except Exception as vis_e:
                 rospy.logwarn_throttle(10, f"Görselleştirme hatası: {vis_e}") # Hata olursa logla ama devam et
             # --- Görselleştirme Sonu ---
-
+            """
             # Derinlik görüntüsünü yayınla
             self.depth_pub.publish(depth_msg)
             # rospy.loginfo("Derinlik görüntüsü yayınlandı.") # İsteğe bağlı log
