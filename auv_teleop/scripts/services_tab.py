@@ -86,7 +86,6 @@ class ROSServiceCaller:
             print(f"Service not available: {e}")
             return False
 
-<<<<<<< HEAD
     def launch_torpedo(self, torpedo_id):
         service_name = f"{torpedo_id}/launch"
         try:
@@ -97,34 +96,6 @@ class ROSServiceCaller:
                 print(f"{torpedo_id.capitalize()} launched successfully")
             else:
                 print(f"Failed to launch {torpedo_id}: {response.message}")
-=======
-    def launch_torpedo_1(self):
-        try:
-            rospy.wait_for_service("torpedo_1/launch", timeout=1)
-            torpedo_1_service = rospy.ServiceProxy("torpedo_1/launch", Trigger)
-            response = torpedo_1_service(TriggerRequest())
-            if response.success:
-                print("Torpedo 1 launched successfully")
-            else:
-                print(f"Failed to launch torpedo 1: {response.message}")
-            return response.success
-        except rospy.ServiceException as e:
-            print(f"Service call failed: {e}")
-            return False
-        except rospy.ROSException as e:
-            print(f"Service not available: {e}")
-            return False
-
-    def launch_torpedo_2(self):
-        try:
-            rospy.wait_for_service("torpedo_2/launch", timeout=1)
-            torpedo_2_service = rospy.ServiceProxy("torpedo_2/launch", Trigger)
-            response = torpedo_2_service(TriggerRequest())
-            if response.success:
-                print("Torpedo 2 launched successfully")
-            else:
-                print(f"Failed to launch torpedo 2: {response.message}")
->>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
             return response.success
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
@@ -200,13 +171,8 @@ class ServicesTab(QWidget):
         self.drop_ball_btn.clicked.connect(self.drop_ball)
         self.localization_btn.clicked.connect(self.start_localization)
         self.dvl_btn.clicked.connect(self.enable_dvl)
-<<<<<<< HEAD
         self.torpedo1_btn.clicked.connect(lambda: self.launch_torpedo("torpedo_1"))
         self.torpedo2_btn.clicked.connect(lambda: self.launch_torpedo("torpedo_2"))
-=======
-        self.torpedo1_btn.clicked.connect(self.launch_torpedo_1)
-        self.torpedo2_btn.clicked.connect(self.launch_torpedo_2)
->>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
 
     def set_depth(self):
         depth = self.depth_spin.value()
@@ -241,19 +207,7 @@ class ServicesTab(QWidget):
         if not result:
             QMessageBox.warning(self, "Error", "Failed to drop ball.")
 
-<<<<<<< HEAD
     def launch_torpedo(self, torpedo_id):
         result = self.ros_service_caller.launch_torpedo(torpedo_id)
         if not result:
             QMessageBox.warning(self, "Error", f"Failed to launch {torpedo_id}.")
-=======
-    def launch_torpedo_1(self):
-        result = self.ros_service_caller.launch_torpedo_1()
-        if not result:
-            QMessageBox.warning(self, "Error", "Failed to launch torpedo 1.")
-
-    def launch_torpedo_2(self):
-        result = self.ros_service_caller.launch_torpedo_2()
-        if not result:
-            QMessageBox.warning(self, "Error", "Failed to launch torpedo 2.")
->>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
