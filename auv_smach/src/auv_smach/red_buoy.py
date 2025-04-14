@@ -218,6 +218,7 @@ class SetRedBuoyRotationStartFrame(smach.State):
             rospy.logwarn(f"Service call failed: {e}")
             return "aborted"
 
+
 class RotateAroundBuoyState(smach.State):
     def __init__(self, radius, direction, red_buoy_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -248,11 +249,15 @@ class RotateAroundBuoyState(smach.State):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )            
+            )
             smach.StateMachine.add(
                 "SET_RED_BUOY_TRAVEL_START",
                 SetFrameLookingAtState(
-                    base_frame="taluy/base_link", target_frame="red_buoy_travel_start", look_at_frame="red_buoy_link", rotation_rate=0.2),                   
+                    base_frame="taluy/base_link",
+                    target_frame="red_buoy_travel_start",
+                    look_at_frame="red_buoy_link",
+                    rotation_rate=0.2,
+                ),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
                     "preempted": "preempted",

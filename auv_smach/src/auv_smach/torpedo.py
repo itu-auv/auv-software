@@ -70,7 +70,11 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_TORPEDO_TRAVEL_START",
                 SetFrameLookingAtState(
-                    base_frame="taluy/base_link", target_frame="torpedo_map_travel_start", look_at_frame="torpedo_map_link", rotation_rate=0.2),
+                    base_frame="taluy/base_link",
+                    target_frame="torpedo_map_travel_start",
+                    look_at_frame="torpedo_map_link",
+                    rotation_rate=0.2,
+                ),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
                     "preempted": "preempted",

@@ -30,6 +30,7 @@ from auv_smach.common import (
 
 from auv_smach.initialize import DelayState
 
+
 class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
@@ -62,16 +63,24 @@ class NavigateThroughGateState(smach.State):
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link", target_frame="gate_search"
                 ),
-                transitions={"succeeded": "SEARCH_FOR_GATE", "preempted": "preempted", "aborted": "aborted"},
+                transitions={
+                    "succeeded": "SEARCH_FOR_GATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
             smach.StateMachine.add(
                 "SEARCH_FOR_GATE",
                 SetFrameLookingAtState(
-                    base_frame="taluy/base_link", target_frame="gate_search", look_at_frame="gate_blue_arrow_link", rotation_rate=0.2),
+                    base_frame="taluy/base_link",
+                    target_frame="gate_search",
+                    look_at_frame="gate_blue_arrow_link",
+                    rotation_rate=0.2,
+                ),
                 transitions={
-                    "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER", 
-                    "preempted": "preempted", 
-                    "aborted": "aborted"
+                    "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
