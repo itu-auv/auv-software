@@ -45,7 +45,7 @@ class DepthAnythingNode: # Renamed class
             inputs = self.image_processor(images=image_pil, return_tensors="pt")
             with torch.no_grad():
                 outputs = self.model(**inputs)
-                depth = outputs.predicted_depth.squeeze().gpu().numpy()
+                depth = outputs.predicted_depth.squeeze().cpu().numpy()
 
             # Depth map'i orijinal görüntü boyutuna getir (float32)
             depth_resized = cv2.resize(depth, (cv_image.shape[1], cv_image.shape[0]), interpolation=cv2.INTER_CUBIC)
