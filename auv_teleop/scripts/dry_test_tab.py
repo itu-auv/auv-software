@@ -55,10 +55,17 @@ class DryTestTab(QWidget):
         sensor_group = QGroupBox("Sensor Monitoring")
         sensor_layout = QGridLayout()
 
+<<<<<<< HEAD
         self.imu_start_btn = QPushButton("Echo IMU")
         self.imu_stop_btn = QPushButton("Stop Echo IMU")
         self.bar30_start_btn = QPushButton("Echo Bar30")
         self.bar30_stop_btn = QPushButton("Stop Echo Bar30")
+=======
+        self.imu_start_btn = QPushButton("Start IMU Echo")
+        self.imu_stop_btn = QPushButton("Stop IMU Echo")
+        self.bar30_start_btn = QPushButton("Start Bar30 Echo")
+        self.bar30_stop_btn = QPushButton("Stop Bar30 Echo")
+>>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
 
         sensor_layout.addWidget(self.imu_start_btn, 0, 0)
         sensor_layout.addWidget(self.imu_stop_btn, 0, 1)
@@ -70,7 +77,11 @@ class DryTestTab(QWidget):
         self.output.setReadOnly(True)
 
         button_layout = QVBoxLayout()
+<<<<<<< HEAD
         self.dry_test_btn = QPushButton("Run Dry Test")
+=======
+        self.dry_test_btn = QPushButton("Automatic Dry Test")
+>>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
         self.dry_test_btn.setStyleSheet("background-color: green; color: white;")
 
         self.rqt_btn = QPushButton("Open rqt_image_view")

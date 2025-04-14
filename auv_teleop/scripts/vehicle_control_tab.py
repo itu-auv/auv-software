@@ -6,10 +6,13 @@ from PyQt5.QtWidgets import (
     QGroupBox,
     QPushButton,
     QCheckBox,
+<<<<<<< HEAD
     QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
     QVBoxLayout
+=======
+>>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
 )
 import subprocess
 import rospy
@@ -38,8 +41,13 @@ class VehicleControlTab(QWidget):
         teleop_group = QGroupBox("Teleoperation")
         teleop_layout = QGridLayout()
         self.teleop_start = QPushButton("Start Teleop")
+<<<<<<< HEAD
         self.start_enable = QPushButton("Enable Control")
         self.stop_enable = QPushButton("Disable Control")
+=======
+        self.start_enable = QPushButton("Start Enable")
+        self.stop_enable = QPushButton("Stop Enable")
+>>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
         self.xbox_check = QCheckBox("Xbox")
         self.teleop_stop = QPushButton("Stop Teleop")
         teleop_layout.addWidget(self.teleop_start, 0, 0)
@@ -56,6 +64,7 @@ class VehicleControlTab(QWidget):
 
         self.forward_btn = QPushButton("^")
         self.forward_btn.setFixedSize(button_size, button_size)
+<<<<<<< HEAD
         self.left_btn = QPushButton("<")
         self.left_btn.setFixedSize(button_size, button_size)
         self.right_btn = QPushButton(">")
@@ -79,6 +88,49 @@ class VehicleControlTab(QWidget):
         self.connect_publishing_button(self.down_btn, "neg_z", self.get_linear_spinbox)
         self.connect_publishing_button(self.yaw_left_btn, "pos_yaw", self.get_angular_spinbox)
         self.connect_publishing_button(self.yaw_right_btn, "neg_yaw", self.get_angular_spinbox)
+=======
+        self.forward_btn.pressed.connect(lambda: self.start_publishing("forward", 0.4))
+        self.forward_btn.released.connect(self.stop_publishing)
+
+        self.left_btn = QPushButton("<")
+        self.left_btn.setFixedSize(button_size, button_size)
+        self.left_btn.pressed.connect(lambda: self.start_publishing("left", 0.4))
+        self.left_btn.released.connect(self.stop_publishing)
+
+        self.right_btn = QPushButton(">")
+        self.right_btn.setFixedSize(button_size, button_size)
+        self.right_btn.pressed.connect(lambda: self.start_publishing("right", 0.4))
+        self.right_btn.released.connect(self.stop_publishing)
+
+        self.backward_btn = QPushButton("v")
+        self.backward_btn.setFixedSize(button_size, button_size)
+        self.backward_btn.pressed.connect(
+            lambda: self.start_publishing("backward", 0.4)
+        )
+        self.backward_btn.released.connect(self.stop_publishing)
+
+        self.up_btn = QPushButton("Up")
+        self.up_btn.setFixedSize(button_size, button_size)
+        self.up_btn.pressed.connect(lambda: self.start_publishing("pos_z", 0.4))
+        self.up_btn.released.connect(self.stop_publishing)
+
+        self.down_btn = QPushButton("Down")
+        self.down_btn.setFixedSize(button_size, button_size)
+        self.down_btn.pressed.connect(lambda: self.start_publishing("neg_z", 0.4))
+        self.down_btn.released.connect(self.stop_publishing)
+
+        self.yaw_left_btn = QPushButton("Left")
+        self.yaw_left_btn.setFixedSize(button_size, button_size)
+        self.yaw_left_btn.pressed.connect(lambda: self.start_publishing("pos_yaw", 0.3))
+        self.yaw_left_btn.released.connect(self.stop_publishing)
+
+        self.yaw_right_btn = QPushButton("Right")
+        self.yaw_right_btn.setFixedSize(button_size, button_size)
+        self.yaw_right_btn.pressed.connect(
+            lambda: self.start_publishing("neg_yaw", 0.3)
+        )
+        self.yaw_right_btn.released.connect(self.stop_publishing)
+>>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
 
         control_layout.addWidget(self.forward_btn, 0, 1)
         control_layout.addWidget(self.left_btn, 1, 0)
@@ -89,6 +141,7 @@ class VehicleControlTab(QWidget):
         control_layout.addWidget(self.yaw_left_btn, 1, 3)
         control_layout.addWidget(self.yaw_right_btn, 1, 5)
 
+<<<<<<< HEAD
         speed_layout = QHBoxLayout()
 
         linear_label = QLabel("Linear Speed:")
@@ -113,6 +166,9 @@ class VehicleControlTab(QWidget):
         control_vlayout.addSpacing(10)  
         control_vlayout.addLayout(speed_layout)
         control_group.setLayout(control_vlayout)
+=======
+        control_group.setLayout(control_layout)
+>>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
 
         layout.addWidget(teleop_group, 0, 0, 1, 2)
         layout.addWidget(control_group, 1, 0, 1, 2)
@@ -123,6 +179,7 @@ class VehicleControlTab(QWidget):
         self.start_enable.clicked.connect(self.start_enable_publishing)
         self.stop_enable.clicked.connect(self.stop_enable_publishing)
 
+<<<<<<< HEAD
     def connect_publishing_button(self, button, direction, speed_getter):
         button.pressed.connect(lambda: self.start_publishing(direction, speed_getter()))
         button.released.connect(self.stop_publishing)
@@ -133,6 +190,8 @@ class VehicleControlTab(QWidget):
     def get_angular_spinbox(self):
         return self.angular_speed_spinbox.value()
 
+=======
+>>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
     def start_teleop(self):
         cmd = ["roslaunch", "auv_teleop", "start_teleop.launch"]
         if self.xbox_check.isChecked():
@@ -163,6 +222,7 @@ class VehicleControlTab(QWidget):
         self.publishing = True
         self.current_twist = Twist()
 
+<<<<<<< HEAD
         direction_mapping = {
             "forward": lambda: setattr(self.current_twist.linear, 'x', speed),
             "backward": lambda: setattr(self.current_twist.linear, 'x', -speed),
@@ -179,6 +239,24 @@ class VehicleControlTab(QWidget):
             action()
         else:
             print(f"Unknown direction: {direction}")
+=======
+        if direction == "forward":
+            self.current_twist.linear.x = speed
+        elif direction == "backward":
+            self.current_twist.linear.x = -speed
+        elif direction == "left":
+            self.current_twist.linear.y = speed
+        elif direction == "right":
+            self.current_twist.linear.y = -speed
+        elif direction == "pos_z":
+            self.current_twist.linear.z = speed
+        elif direction == "neg_z":
+            self.current_twist.linear.z = -speed
+        elif direction == "pos_yaw":
+            self.current_twist.angular.z = speed
+        elif direction == "neg_yaw":
+            self.current_twist.angular.z = -speed
+>>>>>>> 4966b6fd284ce3b447f647db0704e4d1d3f80ff0
 
         if not hasattr(self, "publish_thread") or not self.publish_thread.is_alive():
             self.publish_thread = threading.Thread(target=self.publish_velocity)
