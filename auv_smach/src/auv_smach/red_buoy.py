@@ -233,16 +233,6 @@ class RotateAroundBuoyState(smach.State):
                 "SET_RED_BUOY_DEPTH",
                 SetDepthState(depth=red_buoy_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "SET_RED_BUOY_TRAVEL_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_RED_BUOY_TRAVEL_START",
-                SetFrameLookingAtState(
-                    base_frame="taluy/base_link", target_frame="red_buoy_travel_start", look_at_frame="red_buoy_link", rotation_rate=0.2),                   
-                transitions={
                     "succeeded": "SET_RED_BUOY_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -253,6 +243,16 @@ class RotateAroundBuoyState(smach.State):
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link", target_frame="red_buoy_travel_start"
                 ),
+                transitions={
+                    "succeeded": "SET_RED_BUOY_TRAVEL_START",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )            
+            smach.StateMachine.add(
+                "SET_RED_BUOY_TRAVEL_START",
+                SetFrameLookingAtState(
+                    base_frame="taluy/base_link", target_frame="red_buoy_travel_start", look_at_frame="red_buoy_link", rotation_rate=0.2),                   
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
                     "preempted": "preempted",
