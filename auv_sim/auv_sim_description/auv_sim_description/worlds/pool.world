@@ -97,30 +97,30 @@
       <wall_time>1734459289 293355600</wall_time>
       <iterations>62177</iterations>
       <model name='robosub_bin'>
-        <pose>5.35801 -15.9923 -1.90606 0 -0 0</pose>
+        <pose>4 -16 -1.90606 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='robosub_bin'>
-          <pose>5.35801 -15.9923 -1.90606 0 -0 0</pose>
+          <pose>4 -16 -1.90606 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_buoy'>
-        <pose>0.035871 -11.0515 -1.5 0 -0 0</pose>
+        <pose>-3 -11 -1.5 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='robosub_buoy'>
-          <pose>0.035871 -11.0515 -1.5 0 -0 0</pose>
+          <pose>-3 -11 -1.5 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_gate'>
-        <pose>-0.728443 -6.67244 -1.50 0 -0 -1.57516</pose>
+        <pose>-0.7 -6 -1.5 0 -0 -1.57516</pose>
         <scale>1 1 1</scale>
         <link name='robosub_gate'>
-          <pose>-0.728443 -6.67244 -1.50 0 -0 -1.57516</pose>
+          <pose>-0.7 -6 -1.50 0 -0 -1.57516</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -137,10 +137,10 @@
         </link>
       </model>
       <model name='robosub_torpedo'>
-        <pose>0.006323 -15.4031 -1.99636 0 -0 1.5473</pose>
+        <pose>0 -15.5 -2 0 -0 1.5473</pose>
         <scale>1 1 1</scale>
         <link name='robosub_torpedo'>
-          <pose>0.006323 -15.4031 -1.99636 0 -0 1.5473</pose>
+          <pose>0 -15.5 -2 0 -0 1.5473</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -418,6 +418,21 @@
         </sensor>
       </link>
     </model>
-
+    <!-- SLALOM PIPES -->
+    <include>
+      <uri>model://robosub_slalom</uri>
+      <name>robosub_slalom_1</name>
+      <pose>0.75 -10 -1.5 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://robosub_slalom</uri>
+      <name>robosub_slalom_2</name>
+      <pose>1.5 -11 -1.5 0 0 0</pose>
+    </include>
+    <include>
+      <uri>model://robosub_slalom</uri>
+      <name>robosub_slalom_3</name>
+      <pose>0.75 -12 -1.5 0 0 0</pose>
+    </include>
   </world>
 </sdf>
