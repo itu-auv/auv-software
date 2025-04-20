@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-#!/usr/bin/env python3
-
 import rospy
 import numpy as np
 import open3d as o3d
@@ -14,55 +12,53 @@ import tf.transformations as tf_trans
 
 class RealsensePointCloudCorrection:
     def __init__(self):
+        rospy.loginfo("Realsense Point Cloud Correction Node Initialized")
         self.depthsub = rospy.Subscriber("/taluy/camera/depth/points", PointCloud2, self.pointcloudcallback)
         self.corrected_pcd_pub = rospy.Publisher("/corrected_point_cloud", PointCloud2, queue_size=10)
         self.downsample_pub = rospy.Publisher("/downsampled_point_cloud", PointCloud2, queue_size=10)
-    def correct_refraction(self,raw_point_cloud, n, d_h, t_h, eta_water, eta_glass):
+    def correct_refraction(self, point_cloud, eta_water):
         """
-        Su altı kırılma etkilerini düzelten fonksiyon.
-
-        :param raw_point_cloud: Nx3 numpy array (hatalı 3B noktalar).
-        :param n: Arayüz normal vektörü (örneğin [0, 0, 1]).
-        :param d_h, t_h: Kalibrasyon parametreleri.
-        :param eta_water, eta_glass: Kırılma indisleri.
-        :return: Düzeltilmiş Nx3 point cloud.
+        Su altı kırılmasını düzeltmek için z ekseni derinliklerini günceller.
+        
+        :param point_cloud: Nx3 numpy array of XYZ points
+        :param n: Muhafaza düzleminin normali (örn: [0, 0, 1])
+        :param d_h: Kamera ile muhafaza arası mesafe (mm)
+        :param t_h: Muhafaza kalınlığı (mm)
+        :param eta_water: Suyun kırılma indisi
+        :param eta_glass: Camın (ya da akrilik) kırılma indisi
+        :return: corrected Nx3 point cloud
         """
-        n = np.array(n) / np.linalg.norm(n)  # Normalizasyon
         corrected_points = []
+        eta = eta_water  # Hava -> cam -> su geçişi varsayımıyla cam su arasına odaklanıyoruz
 
-        for point in raw_point_cloud:
-            # 1. Işını suda geriye doğru izle (point -> muhafaza)
-            X_w = point / np.linalg.norm(point)  # Su içindeki yön
+        for pt in point_cloud:
+            x, y, z = pt
 
-            # 2. Muhafaza-su arayüzünde kırılma (Snell yasası)
-            theta_w = np.arccos(np.dot(-X_w, n))
-            sin_theta_h = (eta_water / eta_glass) * np.sin(theta_w)
-            theta_h = np.arcsin(sin_theta_h)
+            # Nokta vektörü ile Z ekseni arasındaki açıyı hesapla
+            r = np.sqrt(x**2 + y**2 + z**2)
+            theta = np.arccos(z / r)  # Görüş konisi açısı
 
-            # 3. Muhafaza içindeki yönü hesapla
-            rotation_axis = np.cross(n, -X_w) / np.linalg.norm(np.cross(n, -X_w))
-            X_h = self.rotate_vector(-X_w, rotation_axis, theta_h - theta_w)
+            # Su altındaki ışının düzeltme açısını hesapla
+            try:
+                sin_theta_water = np.sin(theta) / eta
+                if sin_theta_water >= 1.0:
+                    continue  # Tam yansıma varsa, bu nokta hatalı olur, atla
 
-            # 4. Muhafaza-hava arayüzüne olan mesafeyi bul
-            x_o = point - (t_h / np.cos(theta_h)) * X_h  # Muhafaza çıkış noktası
+                theta_water = np.arcsin(sin_theta_water)
+                correction_factor = np.cos(theta_water)
 
-            # 5. Hava içindeki yönü hesapla
-            sin_theta_a = (eta_glass / 1.0) * np.sin(theta_h)
-            theta_a = np.arcsin(sin_theta_a)
-            X_a = self.rotate_vector(X_h, rotation_axis, theta_a - theta_h)
+                # Z düzelt
+                corrected_z = z / correction_factor
 
-            # 6. Pinhole'a olan gerçek mesafe
-            lambda_a = d_h / np.cos(theta_a)
-            real_point = x_o - lambda_a * X_a
-            corrected_points.append(real_point)
+                # Ölçeklemenin yalnızca z'ye değil, tüm vektöre uygulanması daha doğru olur
+                scale = corrected_z / z
+                corrected_point = np.array([x , y , corrected_z])
+                corrected_points.append(corrected_point)
 
-        return np.array(corrected_points)
+            except:
+                continue  # Numerik bir hata olursa, bu noktayı atla
 
-    def rotate_vector(self,v, axis, angle):
-        """ Rodrigues dönüş formülü """
-        return (v * np.cos(angle)+
-                np.cross(axis, v) * np.sin(angle) +
-                axis * np.dot(axis, v) * (1 - np.cos(angle)))
+        return np.array(corrected_points, dtype=np.float32)
 
     def downsample(self, point_cloud, voxel_size):
         """
@@ -89,11 +85,7 @@ class RealsensePointCloudCorrection:
         # 2. Kırılma düzeltmesi uygula
         corrected_points = self.correct_refraction(
             downsampled_point_cloud,  # Downsample edilmiş nokta bulutunu kullan
-            n=[0, 0, 1],          # Kamera muhafazası normali (z yönünde)
-            d_h=10.0,             # Pinhole-muhafaza mesafesi (mm)
-            t_h=5.0,              # Muhafaza kalınlığı (mm)
             eta_water=1.33,       # Suyun kırılma indisi
-            eta_glass=1.49        # Akrilik kırılma indisi
         )
         self.corrected_pcd_pub.publish(pc2.create_cloud_xyz32(msg.header, corrected_points))
 
