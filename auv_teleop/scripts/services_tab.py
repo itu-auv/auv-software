@@ -69,6 +69,23 @@ class ROSServiceCaller:
             print(f"Service not available: {e}")
             return False
 
+    def clear_objects(self):
+        try:
+            rospy.wait_for_service("clear_object_transforms", timeout=1)
+            clear_objects_service = rospy.ServiceProxy("clear_object_transforms", Trigger)
+            response = clear_objects_service(TriggerRequest())
+            if response.success:
+                print("Objects cleared successfully")
+            else:
+                print(f"Failed to clear objects: {response.message}")
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
     def drop_ball(self):
         try:
             rospy.wait_for_service("ball_dropper/drop", timeout=1)
@@ -128,20 +145,23 @@ class ServicesTab(QWidget):
         depth_layout.addWidget(self.set_depth_btn)
         depth_group.setLayout(depth_layout)
 
-        # Button sizes
-        button_size_one = 160
-        button_size_two = 75
+        button_width = 120
+        button_height = 75
 
         # Services
         service_group = QGroupBox("Services")
         service_layout = QHBoxLayout()
-        self.localization_btn = QPushButton("Start Localization")
-        self.localization_btn.setFixedSize(button_size_one, button_size_two)
-        self.dvl_btn = QPushButton("Enable DVL")
-        self.dvl_btn.setFixedSize(button_size_one, button_size_two)
+        self.localization_btn = QPushButton("Start\nLocalization")
+        self.localization_btn.setFixedSize(button_width, button_height)
+        self.dvl_btn = QPushButton("Enable\nDVL")
+        self.dvl_btn.setFixedSize(button_width, button_height)
+        self.clear_objects_btn = QPushButton("Clear\nObjects")
+        self.clear_objects_btn.setFixedSize(button_width, button_height)
         service_layout.addWidget(self.localization_btn, 0, Qt.AlignLeft)
         service_layout.addStretch(1)
         service_layout.addWidget(self.dvl_btn, 0, Qt.AlignLeft)
+        service_layout.addStretch(1)
+        service_layout.addWidget(self.clear_objects_btn, 0, Qt.AlignLeft)
         service_group.setLayout(service_layout)
 
         # Missions
@@ -171,6 +191,7 @@ class ServicesTab(QWidget):
         self.drop_ball_btn.clicked.connect(self.drop_ball)
         self.localization_btn.clicked.connect(self.start_localization)
         self.dvl_btn.clicked.connect(self.enable_dvl)
+        self.clear_objects_btn.clicked.connect(self.clear_objects)
         self.torpedo1_btn.clicked.connect(lambda: self.launch_torpedo("torpedo_1"))
         self.torpedo2_btn.clicked.connect(lambda: self.launch_torpedo("torpedo_2"))
 
@@ -201,6 +222,13 @@ class ServicesTab(QWidget):
             print("Enabling DVL")
         else:
             QMessageBox.warning(self, "Error", "Failed to enable DVL.")
+
+    def clear_objects(self):
+        result = self.ros_service_caller.clear_objects()
+        if result:
+            print("Objects cleared successfully")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to clear objects.")
 
     def drop_ball(self):
         result = self.ros_service_caller.drop_ball()

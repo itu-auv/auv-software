@@ -12,6 +12,7 @@
         <remap from="cmd_vel" to="$(arg namespace)/cmd_vel"/>
         <remap from="enable" to="$(arg namespace)/enable"/>
         <remap from="propulsion_board/status" to="$(arg namespace)/propulsion_board/status"/>
+        <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
 
         <param name="topic_imu" value="$(arg namespace)/sensors/imu/data" />
         <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />

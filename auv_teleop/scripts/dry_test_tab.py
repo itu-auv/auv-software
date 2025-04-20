@@ -147,7 +147,7 @@ class DryTestTab(QWidget):
                 full_topic = topic
                 
             if full_topic not in active_topics:
-                failed_topics.append(f"{name} ({full_topic})")
+                failed_topics.append(f"{name}")
 
         if not failed_topics:
             self.output.append("Dry test is successful!")
