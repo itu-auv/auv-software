@@ -12,5 +12,10 @@
         <remap from="cmd_vel" to="$(arg namespace)/cmd_vel"/>
         <remap from="enable" to="$(arg namespace)/enable"/>
         <remap from="propulsion_board/status" to="$(arg namespace)/propulsion_board/status"/>
+
+        <param name="topic_imu" value="$(arg namespace)/sensors/imu/data" />
+        <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />
+        <param name="topic_camera_bottom" value="$(arg namespace)/cameras/cam_bottom/image_raw" />
+        <param name="topic_camera_front" value="$(arg namespace)/cameras/cam_front/image_raw" />
     </node>
 </launch>

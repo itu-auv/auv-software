@@ -45,6 +45,12 @@ class CommandThread(QThread):
 class DryTestTab(QWidget):
     def __init__(self):
         super().__init__()
+        
+        self.topic_imu = rospy.get_param('~topic_imu', 'imu/data')
+        self.topic_pressure = rospy.get_param('~topic_pressure', 'depth')
+        self.topic_camera_bottom = rospy.get_param('~topic_camera_bottom', 'cam_bottom/image_raw')
+        self.topic_camera_front = rospy.get_param('~topic_camera_front', 'cam_front/image_raw')
+        
         self.init_ui()
         self.imu_thread = None
         self.bar30_thread = None
@@ -98,7 +104,9 @@ class DryTestTab(QWidget):
         self.clear_btn.clicked.connect(self.clear_output)
 
     def start_imu(self):
-        self.imu_thread = CommandThread("rostopic echo /taluy/sensors/imu/data")
+        cmd = f"rostopic echo {self.topic_imu}"
+        self.output.append(f"Running: {cmd}")
+        self.imu_thread = CommandThread(cmd)
         self.imu_thread.output_signal.connect(self.output.append)
         self.imu_thread.start()
 
@@ -107,9 +115,9 @@ class DryTestTab(QWidget):
             self.imu_thread.stop()
 
     def start_bar30(self):
-        self.bar30_thread = CommandThread(
-            "rostopic echo /taluy/sensors/external_pressure_sensor/depth"
-        )
+        cmd = f"rostopic echo {self.topic_pressure}"
+        self.output.append(f"Running: {cmd}")
+        self.bar30_thread = CommandThread(cmd)
         self.bar30_thread.output_signal.connect(self.output.append)
         self.bar30_thread.start()
 
@@ -122,18 +130,24 @@ class DryTestTab(QWidget):
 
     def run_dry_test(self):
         topics = {
-            "/taluy/cameras/cam_bottom/image_raw": "Bottom Camera",
-            "/taluy/cameras/cam_front/image_raw": "Front Camera",
-            "/taluy/sensors/imu/data": "IMU",
-            "/taluy/sensors/external_pressure_sensor/depth": "Bar30",
+            self.topic_camera_bottom: "Bottom Camera",
+            self.topic_camera_front: "Front Camera",
+            self.topic_imu: "IMU",
+            self.topic_pressure: "Bar30",
         }
 
         active_topics = rospy.get_published_topics()
         active_topics = [t[0] for t in active_topics]
 
-        failed_topics = [
-            name for topic, name in topics.items() if topic not in active_topics
-        ]
+        failed_topics = []
+        for topic, name in topics.items():
+            if not topic.startswith('/'):
+                full_topic = '/' + topic
+            else:
+                full_topic = topic
+                
+            if full_topic not in active_topics:
+                failed_topics.append(f"{name} ({full_topic})")
 
         if not failed_topics:
             self.output.append("Dry test is successful!")
