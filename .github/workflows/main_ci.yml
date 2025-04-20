@@ -20,16 +20,16 @@ jobs:
     with:
       image_type: base
 
-  native-ci:
-    strategy:
-      fail-fast: false
-      matrix:
-        # host: [ubuntu-20.04, self-hosted]
-        host: [ubuntu-20.04]
-    uses: ./.github/workflows/industrial_ci.yml
-    with:
-      runner: ${{ matrix.host }}
-      docker_image_tag: ghcr.io/itu-auv/auv-software-base:latest
+  # native-ci:
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       # host: [ubuntu-20.04, self-hosted]
+  #       host: [ubuntu-20.04]
+  #   uses: ./.github/workflows/industrial_ci.yml
+  #   with:
+  #     runner: ${{ matrix.host }}
+  #     docker_image_tag: ghcr.io/itu-auv/auv-software-base:latest
 
   build-and-push-main-docker:
     needs: [build-and-push-base-docker]
