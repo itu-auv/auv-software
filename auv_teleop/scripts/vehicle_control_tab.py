@@ -128,12 +128,12 @@ class VehicleControlTab(QWidget):
 
         self.teleop_start.clicked.connect(self.start_teleop)
         self.teleop_stop.clicked.connect(self.stop_teleop)
-        self.start_enable.clicked.connect(self.start_enable_publishing)
-        self.stop_enable.clicked.connect(self.stop_enable_publishing)
+        self.start_enable.clicked.connect(self.start_control_enable_publishing)
+        self.stop_enable.clicked.connect(self.stop_control_enable_publishing)
 
     def connect_publishing_button(self, button, direction, speed_getter):
-        button.pressed.connect(lambda: self.start_publishing(direction, speed_getter()))
-        button.released.connect(self.stop_publishing)
+        button.pressed.connect(lambda: self.update_manual_velocity(direction, speed_getter()))
+        button.released.connect(self.reset_manual_velocity)
 
     def get_linear_spinbox(self):
         return self.linear_speed_spinbox.value()
@@ -161,13 +161,13 @@ class VehicleControlTab(QWidget):
         else:
             print("No teleop process to stop.")
 
-    def publish_velocity(self):
+    def publish_velocity_loop(self):
         rate = rospy.Rate(20)
         while self.publishing and not rospy.is_shutdown():
             self.cmd_vel_pub.publish(self.current_twist)
             rate.sleep()
 
-    def start_publishing(self, direction, speed):
+    def update_manual_velocity(self, direction, speed):
         self.publishing = True
         self.current_twist = Twist()
 
@@ -189,27 +189,27 @@ class VehicleControlTab(QWidget):
             print(f"Unknown direction: {direction}")
 
         if not hasattr(self, "publish_thread") or not self.publish_thread.is_alive():
-            self.publish_thread = threading.Thread(target=self.publish_velocity)
+            self.publish_thread = threading.Thread(target=self.publish_velocity_loop)
             self.publish_thread.start()
 
-    def stop_publishing(self):
+    def reset_manual_velocity(self):
         self.publishing = False
         self.current_twist = Twist()
         self.cmd_vel_pub.publish(self.current_twist)
 
-    def publish_enable(self):
+    def publish_control_enable_loop(self):
         rate = rospy.Rate(20)
         while self.enable_publishing and not rospy.is_shutdown():
             self.enable_pub.publish(True)
             rate.sleep()
 
-    def start_enable_publishing(self):
+    def start_control_enable_publishing(self):
         if not self.enable_publishing:
             self.enable_publishing = True
-            self.enable_thread = threading.Thread(target=self.publish_enable)
+            self.enable_thread = threading.Thread(target=self.publish_control_enable_loop)
             self.enable_thread.start()
 
-    def stop_enable_publishing(self):
+    def stop_control_enable_publishing(self):
         self.enable_publishing = False
         if self.enable_thread and self.enable_thread.is_alive():
             self.enable_thread.join()
