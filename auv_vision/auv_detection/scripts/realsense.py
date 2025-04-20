@@ -16,48 +16,24 @@ class RealsensePointCloudCorrection:
         self.depthsub = rospy.Subscriber("/taluy/camera/depth/points", PointCloud2, self.pointcloudcallback)
         self.corrected_pcd_pub = rospy.Publisher("/corrected_point_cloud", PointCloud2, queue_size=10)
         self.downsample_pub = rospy.Publisher("/downsampled_point_cloud", PointCloud2, queue_size=10)
+        self.voxel_size = 0.01  # Voxel boyutu
     def correct_refraction(self, point_cloud, eta_water):
-        """
-        Su altı kırılmasını düzeltmek için z ekseni derinliklerini günceller.
-        
-        :param point_cloud: Nx3 numpy array of XYZ points
-        :param n: Muhafaza düzleminin normali (örn: [0, 0, 1])
-        :param d_h: Kamera ile muhafaza arası mesafe (mm)
-        :param t_h: Muhafaza kalınlığı (mm)
-        :param eta_water: Suyun kırılma indisi
-        :param eta_glass: Camın (ya da akrilik) kırılma indisi
-        :return: corrected Nx3 point cloud
-        """
         corrected_points = []
         eta = eta_water  # Hava -> cam -> su geçişi varsayımıyla cam su arasına odaklanıyoruz
-
         for pt in point_cloud:
             x, y, z = pt
 
             # Nokta vektörü ile Z ekseni arasındaki açıyı hesapla
-            r = np.sqrt(x**2 + y**2 + z**2)
-            theta = np.arccos(z / r)  # Görüş konisi açısı
-
-            # Su altındaki ışının düzeltme açısını hesapla
-            try:
-                sin_theta_water = np.sin(theta) / eta
-                if sin_theta_water >= 1.0:
-                    continue  # Tam yansıma varsa, bu nokta hatalı olur, atla
-
-                theta_water = np.arcsin(sin_theta_water)
-                correction_factor = np.cos(theta_water)
-
-                # Z düzelt
-                corrected_z = z / correction_factor
-
-                # Ölçeklemenin yalnızca z'ye değil, tüm vektöre uygulanması daha doğru olur
-                scale = corrected_z / z
-                corrected_point = np.array([x , y , corrected_z])
-                corrected_points.append(corrected_point)
-
-            except:
-                continue  # Numerik bir hata olursa, bu noktayı atla
-
+            r = np.sqrt(x**2 + z**2)
+            theta = np.arccos(z / r)
+            angle_deg=np.degrees(theta)
+            correction_factor = 0.5 * (1 - (angle_deg/55)**2) + 0.25
+            # Z düzelt
+            corrected_z = z / correction_factor
+            # Ölçeklemenin yalnızca z'ye değil, tüm vektöre uygulanması daha doğru olur
+            scale = corrected_z / z
+            corrected_point = np.array([x , y , corrected_z])
+            corrected_points.append(corrected_point)
         return np.array(corrected_points, dtype=np.float32)
 
     def downsample(self, point_cloud, voxel_size):
@@ -80,7 +56,7 @@ class RealsensePointCloudCorrection:
         raw_point_cloud_np = np.array(raw_point_cloud_list, dtype=np.float32) # Convert list to numpy array
 
         # Downsample uygula
-        downsampled_point_cloud = self.downsample(raw_point_cloud_np, 0.1)
+        downsampled_point_cloud = self.downsample(raw_point_cloud_np, self.voxel_size)  # Voxel boyutunu ayarla
         self.downsample_pub.publish(pc2.create_cloud_xyz32(msg.header, downsampled_point_cloud))
         # 2. Kırılma düzeltmesi uygula
         corrected_points = self.correct_refraction(
