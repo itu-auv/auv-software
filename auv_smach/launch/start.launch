@@ -40,6 +40,7 @@
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
 
             <!-- common.py -->
+            <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
             <remap from="torpedo_$(arg torpedo_id)/launch" to="actuators/torpedo_$(arg torpedo_id)/launch"/>
             <remap from="ball_dropper/drop" to="actuators/ball_dropper/drop"/>
             <remap from="align_frame/cancel" to="control/align_frame/cancel"/>

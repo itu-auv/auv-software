@@ -8,7 +8,7 @@ int main(int argc, char **argv) {
   auto spinner = ros::AsyncSpinner{2};
   spinner.start();
 
-  server.publishTransforms();
+  server.run();
   ros::waitForShutdown();
 
   return 0;
