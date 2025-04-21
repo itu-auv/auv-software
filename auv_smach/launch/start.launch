@@ -38,6 +38,7 @@
         <!-- Main State Machine Node -->
         <node name="main_state_machine" pkg="auv_smach" type="main_state_machine.py" output="screen">
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
+            <param name="~base_link" value="$(arg namespace)/base_link"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -64,6 +65,8 @@
             <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>
             <rosparam param="full_mission_states" subst_value="true">$(arg full_mission_states)</rosparam>
             <param name="test_states" value="$(arg test_states)"/>
+            <!-- Load path planner parameters in the node -->
+            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
         </node>
     </group>
 </launch>
