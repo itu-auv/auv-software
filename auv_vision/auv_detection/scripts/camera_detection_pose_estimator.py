@@ -320,7 +320,7 @@ class CameraDetectionNode:
             camera_to_odom_transform = self.tf_buffer.lookup_transform(
                 camera_frame,
                 "odom",
-                detection.header.stamp,
+                detection_msg.header.stamp,
                 rospy.Duration(1.0),
             )
             offset_x = math.tan(angles[0]) * distance * 1.0
