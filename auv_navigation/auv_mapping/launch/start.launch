@@ -1,25 +1,31 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
+  <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
-
-  <node pkg="auv_mapping" type="prop_transform_publisher.py" name="prop_transform_publisher"
-    output="screen" />
+  <arg name="static_frame" default="odom" />
+  <arg name="target_gate_frame" default="gate_blue_arrow_link" />
 
   <group ns="$(arg namespace)">
+    <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
+      <remap from="object_transform_updates" to="map/object_transform_updates" />
+      <remap from="dvl/altitude" to="sensors/dvl/altitude" />
+    </node>
+
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
       <param name="rate" value="$(arg control_rate)" />
-      <param name="static_frame" value="odom" />
+      <param name="static_frame" value="$(arg static_frame)" />
+      <param name="distance_threshold" value="4.0" />
+
       <remap from="set_object_transform" to="map/set_object_transform" />
+      <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+      <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
-      <param name="gate_frame1" value="gate_blue_arrow_link" />
-      <param name="gate_frame2" value="gate_red_arrow_link" />
-      <param name="gate_exit_frame" value="gate_exit" />
-      <param name="gate_enterance_frame" value="gate_enterance" />
-      <param name="gate_selected_frame" value="gate_blue_arrow_link" />
-      <param name="world_frame" value="odom" />
+      <rosparam command="load" file="$(find auv_mapping)/config/gate_trajectory_publisher_params.yaml" />
+      <param name="target_gate_frame" value="$(arg target_gate_frame)" />
+      <remap from="set_transform_gate_trajectory" to="set_transform_gate_trajectory" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
   </group>
 </launch>

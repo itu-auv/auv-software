@@ -12,6 +12,8 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
 from auv_msgs.srv import SetDepth, SetDepthRequest
 
+from auv_navigation.follow_path_action import follow_path_client
+
 from tf.transformations import (
     quaternion_matrix,
     quaternion_from_matrix,
@@ -283,4 +285,66 @@ class NavigateToFrameState(smach.State):
             tf2_ros.ExtrapolationException,
         ) as e:
             rospy.logwarn(f"TF lookup exception: {e}")
+            return "aborted"
+
+
+class ClearObjectMapState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "clear_object_transforms",
+            Trigger,
+            request=TriggerRequest(),
+        )
+
+
+class ExecutePlannedPathsState(smach.State):
+    """
+    Uses the follow path action client to follow a set of planned paths.
+    """
+
+    def __init__(self):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            input_keys=[
+                "planned_paths"
+            ],  # expects the input value under the name "planned_paths"
+        )
+        self._client = None
+
+    def execute(self, userdata) -> str:
+        """
+        Args:
+            userdata (smach.UserData): Contains `planned_paths` from the planning state.
+
+        Returns:
+            str: "succeeded" if execution was successful, otherwise "aborted" or "preempted".
+        """
+        if self._client is None:
+            rospy.logdebug(
+                "[ExecutePlannedPathsState] Initializing the FollowPathActionClient"
+            )
+            self._client = follow_path_client.FollowPathActionClient()
+
+        # Check for preemption before proceeding
+        if self.preempt_requested():
+            rospy.logwarn("[ExecutePlannedPathsState] Preempt requested")
+            return "preempted"
+        try:
+            planned_paths = userdata.planned_paths
+            success = self._client.execute_paths(planned_paths)
+            if success:
+                rospy.logdebug(
+                    "[ExecutePlannedPathsState] Planned paths executed successfully"
+                )
+                return "succeeded"
+            else:
+                rospy.logwarn(
+                    "[ExecutePlannedPathsState] Execution of planned paths failed"
+                )
+                return "aborted"
+
+        except Exception as e:
+            rospy.logerr("[ExecutePlannedPathsState] Exception occurred: %s", str(e))
             return "aborted"
