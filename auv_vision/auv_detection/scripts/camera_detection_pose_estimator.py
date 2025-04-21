@@ -317,18 +317,23 @@ class CameraDetectionNode:
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
-
+            camera_to_odom_transform = self.tf_buffer.lookup_transform(
+                camera_frame,
+                "odom",
+                detection.header.stamp,
+                rospy.Duration(1.0),
+            )
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
             transform_stamped_msg = TransformStamped()
-            transform_stamped_msg.header.stamp = rospy.Time.now()
+            transform_stamped_msg.header.stamp = detection_msg.header.stamp
             transform_stamped_msg.header.frame_id = camera_frame
             transform_stamped_msg.child_frame_id = prop_name
 
             transform_stamped_msg.transform.translation = Vector3(
                 offset_x, offset_y, distance
             )
-            transform_stamped_msg.transform.rotation = Quaternion(0, 0.707, -0.707, 0)
+            transform_stamped_msg.transform.rotation = camera_to_odom_transform.transform.rotation
             # Calculate the rotation based on odom
             self.object_transform_pub.publish(transform_stamped_msg)
 
