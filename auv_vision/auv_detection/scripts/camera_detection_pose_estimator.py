@@ -151,10 +151,15 @@ class CameraDetectionNode:
         self.id_tf_map = {
             "taluy/cameras/cam_front": {
                 8: "red_buoy_link",
-                4: "gate_red_arrow_link",
-                3: "gate_blue_arrow_link",
-                5: "gate_middle_part_link",
+                7: "path_link",
+                9: "bin_whole_link",
                 12: "torpedo_map_link",
+                13: "torpedo_hole_link",
+                1: "gate_left_link",
+                2: "gate_right_link",
+                3: "gate_blue_arrow_link",
+                4: "gate_red_arrow_link",
+                5: "gate_middle_part_link",
                 14: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
