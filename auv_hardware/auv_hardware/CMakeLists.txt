@@ -3,6 +3,7 @@ project(auv_hardware)
 
 find_package(catkin REQUIRED COMPONENTS
   auv_hardware_bridge
+  auv_cam
 )
 
 catkin_package()
