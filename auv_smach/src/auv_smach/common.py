@@ -297,6 +297,7 @@ class ClearObjectMapState(smach_ros.ServiceState):
             request=TriggerRequest(),
         )
 
+
 class ExecutePlannedPathsState(smach.State):
     """
     Uses the follow path action client to follow a set of planned paths.
@@ -347,4 +348,3 @@ class ExecutePlannedPathsState(smach.State):
         except Exception as e:
             rospy.logerr("[ExecutePlannedPathsState] Exception occurred: %s", str(e))
             return "aborted"
-
