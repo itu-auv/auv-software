@@ -338,7 +338,9 @@ class CameraDetectionNode:
             transform_stamped_msg.transform.translation = Vector3(
                 offset_x, offset_y, distance
             )
-            transform_stamped_msg.transform.rotation = camera_to_odom_transform.transform.rotation
+            transform_stamped_msg.transform.rotation = (
+                camera_to_odom_transform.transform.rotation
+            )
             # Calculate the rotation based on odom
             self.object_transform_pub.publish(transform_stamped_msg)
 
