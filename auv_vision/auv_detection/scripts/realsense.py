@@ -27,9 +27,12 @@ class RealsensePointCloudCorrection:
             r = np.sqrt(x**2 + z**2)
             theta = np.arccos(z / r)
             angle_deg=np.degrees(theta)
-            correction_factor = 0.5 * (1 - (angle_deg/55)**2) + 0.25
-            # Z düzelt
-            corrected_z = z / correction_factor
+            error_percent = -25 - 0.03 * (angle_deg**2)
+
+            # Convert percentage error to correction factor
+            # If error is -25%, then correction factor should be 1/(1 + (-25/100)) = 1/0.75 = 1.33
+            correction_factor = 1 / (1 + (error_percent/100))            # Z düzelt
+            corrected_z = z * correction_factor
             # Ölçeklemenin yalnızca z'ye değil, tüm vektöre uygulanması daha doğru olur
             scale = corrected_z / z
             corrected_point = np.array([x , y , corrected_z])
