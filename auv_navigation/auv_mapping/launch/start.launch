@@ -1,17 +1,24 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
+  <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
+  <arg name="static_frame" default="odom" />
   <arg name="target_gate_frame" default="gate_blue_arrow_link" />
 
-  <node pkg="auv_mapping" type="prop_transform_publisher.py" name="prop_transform_publisher"
-    output="screen" />
-
   <group ns="$(arg namespace)">
+    <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
+      <remap from="object_transform_updates" to="map/object_transform_updates" />
+      <remap from="dvl/altitude" to="sensors/dvl/altitude" />
+    </node>
+
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
       <param name="rate" value="$(arg control_rate)" />
-      <param name="static_frame" value="odom" />
+      <param name="static_frame" value="$(arg static_frame)" />
+      <param name="distance_threshold" value="4.0" />
+
       <remap from="set_object_transform" to="map/set_object_transform" />
+      <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+      <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">

@@ -132,7 +132,7 @@ class TransformServiceNode:
         entrance_pose = Pose()
         entrance_pose.position = Point(*entrance_position)
         entrance_pose.orientation = Quaternion(*entrance_quat)
-
+        
         exit_pose = Pose()
         exit_pose.position = Point(*exit_position)
         exit_pose.orientation = Quaternion(*exit_quat)
