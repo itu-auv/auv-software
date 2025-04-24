@@ -7,4 +7,5 @@
   <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/bar30.urdf.xacro"/>
   <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/logitech_c920_camera.urdf.xacro"/>
   <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/sonar.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/depth_camera.urdf.xacro"/>
 </robot>

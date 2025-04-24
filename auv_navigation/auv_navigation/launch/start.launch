@@ -9,5 +9,36 @@
       name="follow_path_action_server"
       output="screen">
     </node>
+
+    <!-- Move Base Flex Node -->
+    <node pkg="mbf_costmap_nav" type="mbf_costmap_nav" respawn="false" name="move_base_flex" output="screen">
+
+      <!-- Load Main MBF Parameters -->
+      <rosparam file="$(find auv_navigation)/config/move_base_flex.yaml" command="load" />
+
+      <!-- Load Costmap Common Parameters -->
+      <rosparam file="$(find auv_navigation)/config/mbf_costmap_common_params.yaml" command="load" ns="costmap_common" />
+
+      <!-- Load Global Costmap Parameters -->
+      <rosparam file="$(find auv_navigation)/config/mbf_global_costmap_params.yaml" command="load" ns="global_costmap" />
+
+      <!-- Load Local Costmap Parameters -->
+      <rosparam file="$(find auv_navigation)/config/mbf_local_costmap_params.yaml" command="load" ns="local_costmap" />
+
+      <!-- Load Local Planner (Controller) Parameters -->
+      <rosparam file="$(find auv_navigation)/config/mbf_local_planner_params.yaml" command="load" ns="DWAPlannerROS" />
+
+      <!-- Load Global Planner Parameters -->
+      <rosparam file="$(find auv_navigation)/config/mbf_global_planner_params.yaml" command="load" ns="GlobalPlanner" />
+
+      <!-- Load Recovery Behavior Parameters -->
+      <rosparam file="$(find auv_navigation)/config/mbf_recovery_params.yaml" command="load" /> <!-- Load into the node's namespace -->
+
+      <!-- Remap action topics if needed -->
+      <!-- <remap from="move_base_simple/goal" to="/move_base_simple/goal"/> -->
+      <!-- <remap from="cmd_vel" to="cmd_vel"/> --> <!-- Assuming cmd_vel is already namespaced -->
+      <!-- <remap from="odom" to="odom"/> --> <!-- Assuming odom is already namespaced -->
+
+    </node>
   </group>
 </launch>

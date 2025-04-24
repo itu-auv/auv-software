@@ -1,0 +1,101 @@
+---
+###############################################################################
+#                        Move Base Flex Main Configuration                   #
+###############################################################################
+
+# ---------------------- Core Timing Parameters -----------------------------
+controller_frequency: 10.0       # Hz ─ How often the local planner (controller) runs
+planner_frequency: 0.5           # Hz ─ How often the global planner runs
+
+# ---------------------- Recovery Settings -----------------------------------
+recovery_enabled: true
+recovery_patience: 15.0
+
+# -------------------- Oscillation Detection --------------------------------
+oscillation_timeout: 10.0        # sec ─ Time window to detect oscillatory motion
+oscillation_distance: 0.2        # m   ─ Min displacement to clear oscillation flag
+
+# ---------------------- Plugin Selection ------------------------------------
+# Global Planner (computes nav_msgs/Path on the global costmap)
+planner_plugin: "mbf_ompl_global_planner/OMPLPlanner"
+planner_max_retries: 3            # retry count if planner fails
+planner_patience: 5.0             # sec ─ max time to wait for a plan
+
+# Local Planner / Controller (follows the path, avoids local obstacles)
+controller_plugin: "teb_local_planner/TebLocalPlannerROS"
+controller_max_retries: 3
+controller_patience: 5.0
+
+# -------------------- Recovery Behavior Plugins -----------------------------
+# Invoked in order whenever the local planner fails repeatedly
+recovery_behaviors:
+  - name: clear_costmap_recovery
+    type: "clear_costmap_recovery/ClearCostmapRecovery"
+    frequency: 1.0
+  - name: rotate_recovery
+    type: "mbf_recovery/RotateRecovery"
+    frequency: 0.5      # slower spin for AUV
+
+# ------------- Costmap Parameter Namespace Hooks ---------------------------
+# These names refer to other YAML namespaces you load via your launch file
+costmap_common_params_ns: "costmap_common"
+global_costmap_params_ns: "global_costmap"
+local_costmap_params_ns: "local_costmap"
+
+
+###############################################################################
+#                      Costmap Common Parameters (costmap_common)            #
+###############################################################################
+costmap_common:
+  global_frame: "map"                            # fixed world frame
+  robot_base_frame: "taluy/base_link"            # your AUV’s body frame
+  update_frequency: 5.0           # Hz ➔ how often to refresh obstacle layers
+  publish_frequency: 2.0          # Hz ➔ how often to publish the costmap topic
+  transform_tolerance: 0.5        # sec ➔ TF lookup timeout
+  footprint: [[0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5]]
+  robot_radius: 0.5               # m   ➔ used by inflation layer
+
+###############################################################################
+#                  Global Costmap Parameters (global_costmap)                #
+###############################################################################
+global_costmap:
+  static_map: true                # use a fixed OccupancyGrid (e.g. /map)
+  rolling_window: false           # cover entire map, not just near the robot
+  resolution: 0.5                 # m/cell
+  plugins:
+    - name: static_layer
+      type: "costmap_2d::StaticLayer"
+    - name: inflation_layer
+      type: "costmap_2d::InflationLayer"
+  static_layer:
+    map_topic: "/map"
+    subscribe_to_updates: true
+    track_unknown_space: true
+  inflation_layer:
+    inflation_radius: 1.0         # m ➔ how far obstacles grow
+
+###############################################################################
+#                   Local Costmap Parameters (local_costmap)                 #
+###############################################################################
+local_costmap:
+  static_map: false               # rebuild from sensor/object data
+  rolling_window: true            # always recenter on robot
+  width: 10.0                     # m ➔ x extent of the window
+  height: 10.0                    # m ➔ y extent
+  resolution: 0.2                 # m/cell
+  plugins:
+    - name: obstacle_layer
+      type: "costmap_2d::ObstacleLayer"
+    - name: inflation_layer
+      type: "costmap_2d::InflationLayer"
+  obstacle_layer:
+    observation_sources: objects
+    objects:
+      data_type: PointCloud2
+      topic: "/dynamic_objects"
+      marking: true
+      clearing: true
+      expected_update_rate: 5.0    # Hz
+      obstacle_range: 50.0        # m
+  inflation_layer:
+    inflation_radius: 0.5        # m
