@@ -305,8 +305,8 @@ class SetFrameLookingAtState(smach.State):
         base_frame="taluy/base_link",
         target_frame="gate_search",
         look_at_frame="gate_blue_arrow_link",
-        rotation_rate=0.2,        
-        update_duration=3.0,      
+        rotation_rate=0.2,
+        update_duration=3.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.base_frame = base_frame
@@ -320,7 +320,7 @@ class SetFrameLookingAtState(smach.State):
         self.set_object_transform = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
-        self.rate = rospy.Rate(10)  
+        self.rate = rospy.Rate(10)
 
     def execute(self, userdata):
         start_time = rospy.Time.now().to_sec()
@@ -361,8 +361,12 @@ class SetFrameLookingAtState(smach.State):
                     t.transform.translation.x = 0.0
                     t.transform.translation.y = 0.0
                     t.transform.translation.z = 0.0
-                    t.transform.rotation.x, t.transform.rotation.y, \
-                        t.transform.rotation.z, t.transform.rotation.w = q
+                    (
+                        t.transform.rotation.x,
+                        t.transform.rotation.y,
+                        t.transform.rotation.z,
+                        t.transform.rotation.w,
+                    ) = q
 
                     req = SetObjectTransformRequest(transform=t)
                     try:
@@ -384,7 +388,9 @@ class SetFrameLookingAtState(smach.State):
                             rospy.Duration(0.05),
                         )
                     except Exception:
-                        rospy.logdebug("look_at_frame cannot found anymore, trying again...")
+                        rospy.logdebug(
+                            "look_at_frame cannot found anymore, trying again..."
+                        )
                         break
 
                 return "succeeded"
@@ -395,7 +401,7 @@ class SetFrameLookingAtState(smach.State):
                 tf2_ros.ExtrapolationException,
             ):
                 elapsed = rospy.Time.now().to_sec() - start_time
-                current_angle = -self.rotation_rate * elapsed 
+                current_angle = -self.rotation_rate * elapsed
 
                 try:
                     odom_to_base = self.tf_buffer.lookup_transform(
@@ -413,8 +419,12 @@ class SetFrameLookingAtState(smach.State):
                 t.transform.translation.y = odom_to_base.transform.translation.y
                 t.transform.translation.z = odom_to_base.transform.translation.z
                 q = quaternion_from_euler(0, 0, current_angle)
-                t.transform.rotation.x, t.transform.rotation.y, \
-                    t.transform.rotation.z, t.transform.rotation.w = q
+                (
+                    t.transform.rotation.x,
+                    t.transform.rotation.y,
+                    t.transform.rotation.z,
+                    t.transform.rotation.w,
+                ) = q
 
                 req = SetObjectTransformRequest(transform=t)
                 try:
@@ -426,10 +436,13 @@ class SetFrameLookingAtState(smach.State):
                     return "aborted"
 
                 if abs(current_angle) >= 2 * np.pi:
-                    rospy.loginfo("completed a full rotation, could not find look_at_frame")
+                    rospy.loginfo(
+                        "completed a full rotation, could not find look_at_frame"
+                    )
                     return "succeeded"
 
                 self.rate.sleep()
+
 
 class ClearObjectMapState(smach_ros.ServiceState):
     def __init__(self):

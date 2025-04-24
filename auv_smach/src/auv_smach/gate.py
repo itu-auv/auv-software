@@ -29,6 +29,7 @@ import numpy as np
 import tf.transformations as transformations
 import tf2_geometry_msgs
 
+
 class PlanGatePathsState(smach.State):
     """State that plans the paths for the gate task"""
 
@@ -94,7 +95,6 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-
                 "SET_GATE_SEARCH",
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link", target_frame="gate_search"
@@ -122,7 +122,6 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
-
                 transitions={
                     "succeeded": "PLAN_GATE_PATHS",
                     "preempted": "preempted",
@@ -176,7 +175,6 @@ class NavigateThroughGateState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
 
     def execute(self, userdata):
         rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
