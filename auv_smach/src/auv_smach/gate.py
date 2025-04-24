@@ -1,6 +1,15 @@
 from .initialize import *
 import smach
 import rospy
+from auv_navigation.path_planning.path_planners import PathPlanners
+
+from auv_smach.common import (
+    SetAlignControllerTargetState,
+    CancelAlignControllerState,
+    SetDepthState,
+    ExecutePlannedPathsState,
+    SetFrameLookingAtState,
+)
 
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
@@ -19,22 +28,6 @@ import tf2_ros
 import numpy as np
 import tf.transformations as transformations
 import tf2_geometry_msgs
-
-import tf2_ros
-from auv_navigation.path_planning.path_planners import PathPlanners
-
-from auv_smach.common import (
-    SetAlignControllerTargetState,
-    CancelAlignControllerState,
-    SetDepthState,
-
-    SetFrameLookingAtState,
-)
-
-from auv_smach.initialize import DelayState
-    ExecutePlannedPathsState,
-)
-
 
 class PlanGatePathsState(smach.State):
     """State that plans the paths for the gate task"""
@@ -131,15 +124,6 @@ class NavigateThroughGateState(smach.State):
                 TransformServiceEnableState(req=True),
 
                 transitions={
-                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
-                TransformServiceEnableState(req=False),
-                transitions={
                     "succeeded": "PLAN_GATE_PATHS",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -148,6 +132,15 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "PLAN_GATE_PATHS",
                 PlanGatePathsState(self.tf_buffer),
+                transitions={
+                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                TransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
