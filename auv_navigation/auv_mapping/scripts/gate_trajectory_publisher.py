@@ -103,20 +103,16 @@ class TransformServiceNode:
         )
 
         # Calculate orientations so that the frames look toward the origin (0,0,0 in local frame)
-        entrance_angle = math.atan2(
+        common_yaw = math.atan2(
             -entrance_position[1],  # Look toward (0,0,0)
             -entrance_position[0],
         )
-        exit_angle = math.atan2(
-            -exit_position[1],  # Look toward (0,0,0)
-            -exit_position[0],
+        common_quat = tf_conversions.transformations.quaternion_from_euler(
+            0, 0, common_yaw
         )
-        entrance_quaternion = tf_conversions.transformations.quaternion_from_euler(
-            0, 0, entrance_angle
-        )
-        exit_quaternion = tf_conversions.transformations.quaternion_from_euler(
-            0, 0, exit_angle
-        )
+
+        entrance_quaternion = common_quat
+        exit_quaternion = common_quat
 
         # Create the entrance and exit poses
         entrance_pose = Pose()
