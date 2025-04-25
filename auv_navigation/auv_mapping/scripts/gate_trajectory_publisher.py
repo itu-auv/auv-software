@@ -12,31 +12,30 @@ from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 class TransformServiceNode:
     def __init__(self):
-        self.enable = False
+        self.is_enabled = False
         rospy.init_node("create_gate_frames_node")
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        # this service is used to broadcast transforms
+        # Service to broadcast transforms
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
-        # wait indefinitely for the service to be available
         self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = "odom"
         self.entrance_frame = "gate_entrance"
         self.exit_frame = "gate_exit"
 
-        # gate links
+        # Gate frames
         self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_blue_arrow_link")
         self.gate_frame_2 = rospy.get_param("~gate_frame_2", "gate_red_arrow_link")
         self.set_enable_service = rospy.Service(
             "set_transform_gate_trajectory", SetBool, self.handle_enable_service
         )
 
-        self.offset_add = rospy.get_param("~offset_add", 1.0)
-        self.offset_subtract = rospy.get_param("~offset_subtract", 1.7)
+        self.entrance_offset = rospy.get_param("~offset_add", 1.0)
+        self.exit_offset = rospy.get_param("~offset_subtract", 1.7)
 
         self.target_gate_frame = rospy.get_param(
             "~target_gate_frame", "gate_blue_arrow_link"
@@ -68,10 +67,10 @@ class TransformServiceNode:
         """
         Compute entrance and exit transforms relative to the selected gate frame.
 
-        1. Define a perpendicular unit vector to the line between the two gate links.
+        1. Define a perpendicular unit vector to the line between the two gate frames.
         2. Calculate the two shifted positions relative to selected_gate_link_translation:
-            - shifted_position_add: offset in the positive perpendicular direction (entrance).
-            - shifted_position_subtract: offset in the negative perpendicular direction (exit).
+            - entrance_position: offset in the positive perpendicular direction.
+            - exit_position: offset in the negative perpendicular direction.
         3. Adjust the z-value to be 0.5m below the selected gate frame's z-value.
         """
 
@@ -90,58 +89,50 @@ class TransformServiceNode:
         unit_perpendicular_x = -dy / length
         unit_perpendicular_y = dx / length
 
-        # Calculate new positions relative to selected_gate_link_translation
-        shifted_position_add: Tuple[float, float, float] = (
-            unit_perpendicular_x * self.offset_add,  # Positive offset (entrance)
-            unit_perpendicular_y * self.offset_add,
+        # Calculate new positions relative to selected_translation
+        entrance_position = (
+            unit_perpendicular_x * self.entrance_offset,  # Positive offset for entrance
+            unit_perpendicular_y * self.entrance_offset,
             selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected gate
         )
 
-        shifted_position_subtract: Tuple[float, float, float] = (
-            -unit_perpendicular_x * self.offset_subtract,  # Negative offset (exit)
-            -unit_perpendicular_y * self.offset_subtract,
+        exit_position = (
+            -unit_perpendicular_x * self.exit_offset,  # Negative offset for exit
+            -unit_perpendicular_y * self.exit_offset,
             selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected gate
         )
 
-        # Calculate orientations so that the frames look toward the selected gate link (0,0,0 in local frame)
-        angle_add = math.atan2(
-            -shifted_position_add[1],  # Look toward (0,0,0)
-            -shifted_position_add[0],
+        # Calculate orientations so that the frames look toward the origin (0,0,0 in local frame)
+        entrance_angle = math.atan2(
+            -entrance_position[1],  # Look toward (0,0,0)
+            -entrance_position[0],
         )
-        angle_subtract = math.atan2(
-            -shifted_position_subtract[1],  # Look toward (0,0,0)
-            -shifted_position_subtract[0],
+        exit_angle = math.atan2(
+            -exit_position[1],  # Look toward (0,0,0)
+            -exit_position[0],
         )
-        shifted_quat_add = tf_conversions.transformations.quaternion_from_euler(
-            0, 0, angle_add
+        entrance_quaternion = tf_conversions.transformations.quaternion_from_euler(
+            0, 0, entrance_angle
         )
-        shifted_quat_subtract = tf_conversions.transformations.quaternion_from_euler(
-            0, 0, angle_subtract
-        )
-
-        # Assign entrance and exit based on direction relative to the gate
-        # Here, we assume shifted_position_add (positive offset) is entrance,
-        # and shifted_position_subtract (negative offset) is exit
-        exit_position, exit_quat = shifted_position_add, shifted_quat_add
-        entrance_position, entrance_quat = (
-            shifted_position_subtract,
-            shifted_quat_subtract,
+        exit_quaternion = tf_conversions.transformations.quaternion_from_euler(
+            0, 0, exit_angle
         )
 
         # Create the entrance and exit poses
         entrance_pose = Pose()
         entrance_pose.position = Point(*entrance_position)
-        entrance_pose.orientation = Quaternion(*entrance_quat)
-        
+        entrance_pose.orientation = Quaternion(*entrance_quaternion)
+
         exit_pose = Pose()
         exit_pose.position = Point(*exit_position)
-        exit_pose.orientation = Quaternion(*exit_quat)
+        exit_pose.orientation = Quaternion(*exit_quaternion)
 
         return entrance_pose, exit_pose
 
     def create_trajectory_frames(self) -> None:
         """
-        Look up the current transforms, compute entrance and exit transforms, and broadcast them relative to target_gate_frame
+        Look up the current transforms, compute entrance and exit transforms,
+        and broadcast them relative to target_gate_frame.
         """
         try:
             transform_gate_link_1 = self.tf_buffer.lookup_transform(
@@ -183,7 +174,6 @@ class TransformServiceNode:
         self.send_transform(entrance_transform)
         self.send_transform(exit_transform)
 
-    ##### ---- Transform related ---- #####
     def get_translation(
         self, transform: TransformStamped
     ) -> Tuple[float, float, float]:
@@ -198,33 +188,33 @@ class TransformServiceNode:
         child_frame_id: str,
         pose: Pose,
     ) -> TransformStamped:
-        t = geometry_msgs.msg.TransformStamped()
-        t.header.stamp = rospy.Time.now()
-        t.header.frame_id = self.target_gate_frame
-        t.child_frame_id = child_frame_id
-        t.transform.translation = pose.position
-        t.transform.rotation = pose.orientation
-        return t
+        transform = geometry_msgs.msg.TransformStamped()
+        transform.header.stamp = rospy.Time.now()
+        transform.header.frame_id = self.target_gate_frame
+        transform.child_frame_id = child_frame_id
+        transform.transform.translation = pose.position
+        transform.transform.rotation = pose.orientation
+        return transform
 
-    def send_transform(self, transform):
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        resp = self.set_object_transform_service.call(req)
-        if not resp.success:
+    def send_transform(self, transform: TransformStamped):
+        request = SetObjectTransformRequest()
+        request.transform = transform
+        response = self.set_object_transform_service.call(request)
+        if not response.success:
             rospy.logerr(
-                f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
+                f"Failed to set transform for {transform.child_frame_id}: {response.message}"
             )
 
-    def handle_enable_service(self, req):
-        self.enable = req.data
-        message = f"Gate trajectory transform publish is set to: {self.enable}"
+    def handle_enable_service(self, request: SetBool):
+        self.is_enabled = request.data
+        message = f"Gate trajectory transform publishing is set to: {self.is_enabled}"
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
     def spin(self):
         rate = rospy.Rate(2.0)
         while not rospy.is_shutdown():
-            if self.enable:
+            if self.is_enabled:
                 self.create_trajectory_frames()
             rate.sleep()
 
@@ -232,6 +222,6 @@ class TransformServiceNode:
 if __name__ == "__main__":
     try:
         node = TransformServiceNode()
-        node.spin()  # Keep the node running
+        node.spin()
     except rospy.ROSInterruptException:
         pass
