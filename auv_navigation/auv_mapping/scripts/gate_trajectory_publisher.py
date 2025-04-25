@@ -34,8 +34,9 @@ class TransformServiceNode:
             "set_transform_gate_trajectory", SetBool, self.handle_enable_service
         )
 
-        self.entrance_offset = rospy.get_param("~offset_add", 1.0)
-        self.exit_offset = rospy.get_param("~offset_subtract", 1.7)
+        self.entrance_offset = rospy.get_param("~entrance_offset", 1.0)
+        self.exit_offset = rospy.get_param("~exit_offset", 1.7)
+        self.z_offset = rospy.get_param("~z_offset", 0.5)
 
         self.target_gate_frame = rospy.get_param(
             "~target_gate_frame", "gate_blue_arrow_link"
@@ -93,13 +94,15 @@ class TransformServiceNode:
         entrance_position = (
             -unit_perpendicular_x * self.entrance_offset,
             -unit_perpendicular_y * self.entrance_offset,
-            selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected frame
+            selected_gate_link_translation[2]
+            - self.z_offset,  # 0.5m below selected frame
         )
 
         exit_position = (
             unit_perpendicular_x * self.exit_offset,
             unit_perpendicular_y * self.exit_offset,
-            selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected frame
+            selected_gate_link_translation[2]
+            - self.z_offset,  # 0.5m below selected frame
         )
 
         # Calculate orientations so that the frames look toward the origin (0,0,0 in local frame)
