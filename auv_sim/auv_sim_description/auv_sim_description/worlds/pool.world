@@ -52,7 +52,7 @@
       <elevation>0</elevation>
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
-    
+
     <!-- Manual Pool Floor -->
     <model name='pool_floor'>
       <static>1</static>
@@ -97,7 +97,7 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    
+
     <!-- Wall North (y=22) -->
     <model name='wall_north'>
       <static>1</static>
@@ -140,7 +140,7 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    
+
     <!-- Wall South (y=-28) -->
     <model name='wall_south'>
       <static>1</static>
@@ -183,7 +183,7 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    
+
     <!-- Wall West (x=-10.5) -->
     <model name='wall_west'>
       <static>1</static>
@@ -226,7 +226,7 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    
+
     <!-- Wall East (x=14.5) -->
     <model name='wall_east'>
       <static>1</static>
@@ -269,7 +269,7 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    
+
     <!-- Havuz şeritleri - Gri renkte ve uzun duvarlara dik -->
     <!-- Her 2.5 metre aralıklarla şerit modelleri -->
     <model name='lane_marker_1'>
@@ -644,164 +644,164 @@
         <enable_wind>0</enable_wind>
         <kinematic>0</kinematic>
       </link>
-    </model>  
+    </model>
 
 
-    
+
     <!-- **** 5 × GATE **** -->
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_1</name>
-      <pose>-5 0 -1.5 0 0 0.4</pose>
+      <pose>-5 6 -1.5 0 0 0.4</pose>
     </include>
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_2</name>
-      <pose>-5 -7 -1.5 0 0 0.2</pose>
+      <pose>-5 -3 -1.5 0 0 0.2</pose>
     </include>
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_3</name>
-      <pose>-5 -14.5 -1.5 0 0 -0.3</pose>
+      <pose>-5 -12 -1.5 0 0 -0.3</pose>
     </include>
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_4</name>
-      <pose>-5 -22 -1.5 0 0 0</pose>
+      <pose>-5 -21 -1.5 0 0 0</pose>
     </include>
     <include>
       <uri>model://robosub_gate</uri>
       <name>robosub_gate_5</name>
-      <pose>-5 8 -1.5 0 0 0</pose>
+      <pose>-5 15 -1.5 0 0 0</pose>
     </include>
     <include>
       <uri>model://robosub_buoy</uri>
       <name>robosub_buoy</name>
-      <pose>10 8 -1.5 0 0 0</pose>
+      <pose>10 15 -1.5 0 0 0</pose>
     </include>
     <!-- **** 4 × TORPEDO TARGET **** -->
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_1</name>
-      <pose>7 -2.25 -2 0 0 -0.2</pose>
+      <pose>7 3.75 -2 0 0 -0.2</pose>
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_2</name>
-      <pose>7 -4.5 -2 0 0 0.65</pose>
+      <pose>7 -0.5 -2 0 0 0.65</pose>
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_3</name>
-      <pose>7 -15.5 -2 0 0 -0.35</pose>
+      <pose>7 -13 -2 0 0 -0.35</pose>
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_4</name>
-      <pose>7 -23.5 -2 0 0 0.5</pose>
+      <pose>7 -22.5 -2 0 0 0.5</pose>
     </include>
     <!-- **** 4 × BIN **** -->
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_1</name>
-      <pose>7 1.5 -1.9 0 0 0</pose>
+      <pose>7 7.5 -1.9 0 0 0</pose>
     </include>
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_2</name>
-      <pose>7 -9.25 -1.9 0 0 -0.25</pose>
+      <pose>7 -5.25 -1.9 0 0 -0.25</pose>
     </include>
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_3</name>
-      <pose>7 -12 -1.9 0 0 0.35</pose>
+      <pose>7 -9.5 -1.9 0 0 0.35</pose>
     </include>
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_4</name>
-      <pose>7 -20 -1.9 0 0 0</pose>
+      <pose>7 -19 -1.9 0 0 0</pose>
     </include>
     <!-- **** 4 × OCTAGON **** -->
     <include>
       <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_1</name>
-      <pose>11 -0.5 -1.97 0 0 0</pose>
+      <pose>11 5.5 -1.97 0 0 0</pose>
     </include>
     <include>
       <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_2</name>
-      <pose>11 -7 -1.97 0 0 0.3</pose>
+      <pose>11 -3 -1.97 0 0 0.3</pose>
     </include>
     <include>
       <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_3</name>
-      <pose>11 -14 -1.97 0 0 -1.1</pose>
+      <pose>11 -11.5 -1.97 0 0 -1.1</pose>
     </include>
     <include>
       <uri>model://robosub_octagon</uri>
       <name>robosub_octagon_4</name>
-      <pose>11 -22 -1.97 0 0 -0.3</pose>
+      <pose>11 -21 -1.97 0 0 -0.3</pose>
     </include>
     <!-- SLALOM PIPES -->
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1_1</name>
-      <pose>-0.75 -0.25 -1.35 0 0 1.57</pose>
+      <pose>-0.75 5.75 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1_2</name>
-      <pose>0.75 0.5 -1.35 0 0 1.57</pose>
+      <pose>0.75 6.5 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1_3</name>
-      <pose>2.25 -0.25 -1.35 0 0 1.57</pose>
+      <pose>2.25 5.75 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_2_1</name>
-      <pose>-0.75 -7.5 -1.35 0 0 1.57</pose>
+      <pose>-0.75 -3.5 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_2_2</name>
-      <pose>0.75 -6.75 -1.35 0 0 1.57</pose>
+      <pose>0.75 -2.75 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_2_3</name>
-      <pose>2.25 -7.5 -1.35 0 0 1.57</pose>
+      <pose>2.25 -3.5 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_3_1</name>
-      <pose>-0.75 -14 -1.35 0 0 1.57</pose>
+      <pose>-0.75 -11.5 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_3_2</name>
-      <pose>0.75 -14.75 -1.35 0 0 1.57</pose>
+      <pose>0.75 -12.25 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_3_3</name>
-      <pose>2.25 -14 -1.35 0 0 1.57</pose>
+      <pose>2.25 -11.5 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_1</name>
-      <pose>-0.75 -21.5 -1.35 0 0 1.57</pose>
+      <pose>-0.75 -20.5 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_2</name>
-      <pose>0.75 -20.75 -1.35 0 0 1.57</pose>
+      <pose>0.75 -19.75 -1.35 0 0 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_4_3</name>
-      <pose>2.25 -21.5 -1.35 0 0 1.57</pose>
+      <pose>2.25 -20.5 -1.35 0 0 1.57</pose>
     </include>
     <gui fullscreen='0'>
       <camera name='user_camera'>
@@ -813,7 +813,7 @@
     <!-- Pool overhead camera model -->
     <model name="pool_camera">
       <static>true</static>
-      <pose>-13 -7 9 0 0.65 0</pose>
+      <pose>-13 -3 9 0 0.65 0</pose>
       <link name="pool_camera_link">
         <pose>0 0 0 0 0 0</pose>
         <visual name="camera_visual">
