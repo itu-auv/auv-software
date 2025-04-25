@@ -12,6 +12,8 @@
   <depend>roscpp</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
+  <depend>octomap_ros</depend>
+  <depend>octomap_msgs</depend>
   <exec_depend>auv_control</exec_depend>
   <export/>
 </package>
