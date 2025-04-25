@@ -13,4 +13,70 @@
   <xacro:bar30_sim name="${namespace}/base_link/external_pressure_sensor" update_rate="$(arg pressure_update_rate)"/>
   <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg imu_update_rate)"/>
   <xacro:wayfinder_dvl_sim name="${namespace}/base_link/dvl" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg dvl_update_rate)"/>
+  <!-- Include RealSense D435 camera -->
+  <xacro:include filename="$(find realsense2_description)/urdf/_d435.urdf.xacro" />  
+  <!-- Add RealSense camera to the front of the AUV -->
+  <xacro:sensor_d435 parent="$(arg namespace)/base_link" use_nominal_extrinsics="true" add_plug="true" use_mesh="true">
+    <origin xyz="0.3 0 0" rpy="0 0 0"/>
+  </xacro:sensor_d435>
+
+  <!-- RealSense RGB Camera Gazebo plugin -->
+  <gazebo reference="camera_link">
+    <sensor type="camera" name="camera">
+      <update_rate>30.0</update_rate>
+      <camera name="camera">
+        <horizontal_fov>1.211</horizontal_fov>
+        <image>
+          <width>1280</width>
+          <height>720</height>
+          <format>RGB8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>100</far>
+        </clip>
+      </camera>
+      <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+        <alwaysOn>true</alwaysOn>
+        <updateRate>30.0</updateRate>
+        <cameraName>camera</cameraName>
+        <imageTopicName>rgb/image_raw</imageTopicName>
+        <cameraInfoTopicName>rgb/camera_info</cameraInfoTopicName>
+        <frameName>camera_color_optical_frame</frameName>
+        <hackBaseline>0.07</hackBaseline>
+      </plugin>
+    </sensor>
+  </gazebo>
+
+  <!-- RealSense Depth Camera Gazebo plugin -->
+  <gazebo reference="camera_depth_frame">
+    <sensor type="depth" name="depth_camera">
+      <update_rate>30.0</update_rate>
+      <camera name="depth_camera">
+        <horizontal_fov>1.487</horizontal_fov>
+        <image>
+          <width>1280</width>
+          <height>720</height>
+          <format>B8G8R8</format>
+        </image>
+        <clip>
+          <near>0.1</near>
+          <far>10</far>
+        </clip>
+      </camera>
+      <plugin name="depth_camera_controller" filename="libgazebo_ros_openni_kinect.so">
+        <alwaysOn>true</alwaysOn>
+        <updateRate>30.0</updateRate>
+        <cameraName>camera</cameraName>
+        <imageTopicName>depth/image_raw</imageTopicName>
+        <cameraInfoTopicName>depth/camera_info</cameraInfoTopicName>
+        <depthImageTopicName>depth/image_raw</depthImageTopicName>
+        <depthImageCameraInfoTopicName>depth/camera_info</depthImageCameraInfoTopicName>
+        <pointCloudTopicName>depth/points</pointCloudTopicName>
+        <frameName>taluy/base_link/front_camera_optical_frame</frameName>
+        <pointCloudCutoff>0.1</pointCloudCutoff>
+        <pointCloudCutoffMax>10.0</pointCloudCutoffMax>
+      </plugin>
+    </sensor>
+  </gazebo>
 </robot>
