@@ -12,6 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf2
   tf2_ros
+  octomap_ros
+  octomap_msgs
 )
 
 find_package(OpenCV 4 QUIET COMPONENTS
