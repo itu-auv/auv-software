@@ -19,7 +19,7 @@
       </spot>
     </light>
     <light name='user_point_light_0' type='point'>
-      <pose>-6 -7.5 1 0 -0 0</pose>
+      <pose>-6 -3.5 1 0 -0 0</pose>
       <diffuse>0.5 0.5 0.5 1</diffuse>
       <specular>0.1 0.1 0.1 1</specular>
       <attenuation>
@@ -52,8 +52,6 @@
       <elevation>0</elevation>
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
-
-    <!-- Manual Pool Floor -->
     <model name='pool_floor'>
       <static>1</static>
       <pose>2 -3 0 0 0 0</pose>
@@ -97,7 +95,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <!-- Wall North (y=22) -->
     <model name='wall_north'>
       <static>1</static>
@@ -140,7 +137,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <!-- Wall South (y=-28) -->
     <model name='wall_south'>
       <static>1</static>
@@ -183,7 +179,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <!-- Wall West (x=-10.5) -->
     <model name='wall_west'>
       <static>1</static>
@@ -226,7 +221,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <!-- Wall East (x=14.5) -->
     <model name='wall_east'>
       <static>1</static>
@@ -269,9 +263,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
-    <!-- Havuz şeritleri - Gri renkte ve uzun duvarlara dik -->
-    <!-- Her 2.5 metre aralıklarla şerit modelleri -->
     <model name='lane_marker_1'>
       <static>1</static>
       <pose>2 7 -2.134 0 0 0</pose>
@@ -293,7 +284,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_2'>
       <static>1</static>
       <pose>2 4.5 -2.134 0 0 0</pose>
@@ -315,7 +305,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_3'>
       <static>1</static>
       <pose>2 2 -2.134 0 0 0</pose>
@@ -337,7 +326,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_4'>
       <static>1</static>
       <pose>2 -0.5 -2.134 0 0 0</pose>
@@ -359,7 +347,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_5'>
       <static>1</static>
       <pose>2 -3 -2.134 0 0 0</pose>
@@ -381,7 +368,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_6'>
       <static>1</static>
       <pose>2 -5.5 -2.134 0 0 0</pose>
@@ -403,7 +389,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_7'>
       <static>1</static>
       <pose>2 -8 -2.134 0 0 0</pose>
@@ -425,7 +410,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_8'>
       <static>1</static>
       <pose>2 -10.5 -2.134 0 0 0</pose>
@@ -447,7 +431,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_9'>
       <static>1</static>
       <pose>2 -13 -2.134 0 0 0</pose>
@@ -469,7 +452,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_10'>
       <static>1</static>
       <pose>2 -15.5 -2.134 0 0 0</pose>
@@ -491,7 +473,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_11'>
       <static>1</static>
       <pose>2 -18 -2.134 0 0 0</pose>
@@ -513,7 +494,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_12'>
       <static>1</static>
       <pose>2 -20.5 -2.134 0 0 0</pose>
@@ -535,7 +515,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_13'>
       <static>1</static>
       <pose>2 -23 -2.134 0 0 0</pose>
@@ -557,7 +536,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_14'>
       <static>1</static>
       <pose>2 9.5 -2.134 0 0 0</pose>
@@ -579,7 +557,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_15'>
       <static>1</static>
       <pose>2 12 -2.134 0 0 0</pose>
@@ -601,7 +578,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_16'>
       <static>1</static>
       <pose>2 14.5 -2.134 0 0 0</pose>
@@ -623,7 +599,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
     <model name='lane_marker_17'>
       <static>1</static>
       <pose>2 17 -2.134 0 0 0</pose>
@@ -645,9 +620,6 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-
-
-
     <!-- **** 5 × GATE **** -->
     <include>
       <uri>model://robosub_gate</uri>
