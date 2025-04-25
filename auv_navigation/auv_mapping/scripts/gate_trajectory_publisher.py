@@ -69,8 +69,8 @@ class TransformServiceNode:
 
         1. Define a perpendicular unit vector to the line between the two gate frames.
         2. Calculate the two shifted positions relative to selected_gate_link_translation:
-            - entrance_position: offset in the positive perpendicular direction.
-            - exit_position: offset in the negative perpendicular direction.
+            - entrance_position: offset in the negative perpendicular direction.
+            - exit_position: offset in the positive perpendicular direction.
         3. Adjust the z-value to be 0.5m below the selected gate frame's z-value.
         """
 
@@ -91,15 +91,15 @@ class TransformServiceNode:
 
         # Calculate new positions relative to selected_translation
         entrance_position = (
-            unit_perpendicular_x * self.entrance_offset,  # Positive offset for entrance
-            unit_perpendicular_y * self.entrance_offset,
-            selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected gate
+            -unit_perpendicular_x * self.entrance_offset,
+            -unit_perpendicular_y * self.entrance_offset,
+            selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected frame
         )
 
         exit_position = (
-            -unit_perpendicular_x * self.exit_offset,  # Negative offset for exit
-            -unit_perpendicular_y * self.exit_offset,
-            selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected gate
+            unit_perpendicular_x * self.exit_offset,
+            unit_perpendicular_y * self.exit_offset,
+            selected_gate_link_translation[2] - 0.5,  # z 0.5m below selected frame
         )
 
         # Calculate orientations so that the frames look toward the origin (0,0,0 in local frame)
