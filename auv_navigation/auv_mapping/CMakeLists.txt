@@ -13,6 +13,8 @@ find_package(catkin REQUIRED
   tf2_ros
   geometry_msgs
   auv_msgs
+  octomap_ros
+  octomap_msgs
 )
 
 catkin_package()

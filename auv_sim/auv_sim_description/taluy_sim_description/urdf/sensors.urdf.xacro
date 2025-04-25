@@ -76,7 +76,7 @@
         <depthImageTopicName>depth/image_raw</depthImageTopicName>
         <depthImageCameraInfoTopicName>depth/camera_info</depthImageCameraInfoTopicName>
         <pointCloudTopicName>depth/points</pointCloudTopicName>
-        <frameName>camera_depth_optical_frame</frameName>
+        <frameName>taluy/base_link/front_camera_optical_link</frameName>
         <pointCloudCutoff>0.1</pointCloudCutoff>
         <pointCloudCutoffMax>10.0</pointCloudCutoffMax>
       </plugin>

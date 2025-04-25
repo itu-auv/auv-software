@@ -12,6 +12,8 @@
   <depend>tf2_ros</depend>
   <depend>geometry_msgs</depend>
   <depend>auv_msgs</depend>
+  <depend>octomap_ros</depend>
+  <depend>octomap_msgs</depend>
   <export>
 
   </export>
