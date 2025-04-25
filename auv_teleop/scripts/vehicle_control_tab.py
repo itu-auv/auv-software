@@ -132,7 +132,9 @@ class VehicleControlTab(QWidget):
         self.stop_enable.clicked.connect(self.stop_control_enable_publishing)
 
     def connect_publishing_button(self, button, direction, speed_getter):
-        button.pressed.connect(lambda: self.update_manual_velocity(direction, speed_getter()))
+        button.pressed.connect(
+            lambda: self.update_manual_velocity(direction, speed_getter())
+        )
         button.released.connect(self.reset_manual_velocity)
 
     def get_linear_spinbox(self):
@@ -206,7 +208,9 @@ class VehicleControlTab(QWidget):
     def start_control_enable_publishing(self):
         if not self.enable_publishing:
             self.enable_publishing = True
-            self.enable_thread = threading.Thread(target=self.publish_control_enable_loop)
+            self.enable_thread = threading.Thread(
+                target=self.publish_control_enable_loop
+            )
             self.enable_thread.start()
 
     def stop_control_enable_publishing(self):

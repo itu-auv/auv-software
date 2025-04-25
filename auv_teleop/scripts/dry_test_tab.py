@@ -45,12 +45,16 @@ class CommandThread(QThread):
 class DryTestTab(QWidget):
     def __init__(self):
         super().__init__()
-        
-        self.topic_imu = rospy.get_param('~topic_imu', 'imu/data')
-        self.topic_pressure = rospy.get_param('~topic_pressure', 'depth')
-        self.topic_camera_bottom = rospy.get_param('~topic_camera_bottom', 'cam_bottom/image_raw')
-        self.topic_camera_front = rospy.get_param('~topic_camera_front', 'cam_front/image_raw')
-        
+
+        self.topic_imu = rospy.get_param("~topic_imu", "imu/data")
+        self.topic_pressure = rospy.get_param("~topic_pressure", "depth")
+        self.topic_camera_bottom = rospy.get_param(
+            "~topic_camera_bottom", "cam_bottom/image_raw"
+        )
+        self.topic_camera_front = rospy.get_param(
+            "~topic_camera_front", "cam_front/image_raw"
+        )
+
         self.init_ui()
         self.imu_thread = None
         self.bar30_thread = None
@@ -141,11 +145,11 @@ class DryTestTab(QWidget):
 
         failed_topics = []
         for topic, name in topics.items():
-            if not topic.startswith('/'):
-                full_topic = '/' + topic
+            if not topic.startswith("/"):
+                full_topic = "/" + topic
             else:
                 full_topic = topic
-                
+
             if full_topic not in active_topics:
                 failed_topics.append(f"{name}")
 

@@ -72,7 +72,9 @@ class ROSServiceCaller:
     def clear_objects(self):
         try:
             rospy.wait_for_service("clear_object_transforms", timeout=1)
-            clear_objects_service = rospy.ServiceProxy("clear_object_transforms", Trigger)
+            clear_objects_service = rospy.ServiceProxy(
+                "clear_object_transforms", Trigger
+            )
             response = clear_objects_service(TriggerRequest())
             if response.success:
                 print("Objects cleared successfully")
