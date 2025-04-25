@@ -4,6 +4,8 @@
         name="GAZEBO_MODEL_PATH"
         value="$(find auv_sim_description)/models:${GAZEBO_MODEL_PATH}"
     />
+
+    <param name="/use_sim_time" value="true"/>
     <arg name="namespace" default="taluy" />
     <arg name="control_rate" default="20.0" />
     <arg name="reference_frame" value="world" />
