@@ -308,7 +308,7 @@ class RotateAroundBuoyState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_RED_BUOY_DEPTH",
-                SetDepthState(depth=red_buoy_depth, sleep_duration=3.0),
+                SetDepthState(depth=red_buoy_depth, sleep_duration=3.0, target_frame_id="red_buoy_link"),
                 transitions={
                     "succeeded": "SET_RED_BUOY_TRAVEL_START",
                     "preempted": "preempted",
@@ -403,11 +403,20 @@ class RotateAroundBuoyState(smach.State):
                     direction=direction,
                 ),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )           
             # smach.StateMachine.add(
             #     "CANCEL_ALIGN_CONTROLLER",
             #     CancelAlignControllerState(),

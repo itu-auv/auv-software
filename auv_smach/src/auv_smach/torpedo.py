@@ -47,13 +47,22 @@ class TorpedoTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_TORPEDO_DEPTH",
-                SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
+                SetDepthState(depth=-1, sleep_duration=3.0, target_frame_id="torpedo_map_link"),
+                transitions={
+                    "succeeded": "ABC",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ABC",
+                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "SET_TORPEDO_TRAVEL_START",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )
+            )           
             smach.StateMachine.add(
                 "SET_TORPEDO_TRAVEL_START",
                 SetFrameLookingAtState(
@@ -74,14 +83,23 @@ class TorpedoTaskState(smach.State):
                     target_frame="torpedo_map_travel_start",
                 ),
                 transitions={
-                    "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
+                    "succeeded": "DEF",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
+                "DEF",
+                SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0, target_frame_id="torpedo_map_link"),
+                transitions={
+                    "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )            
+            smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_TRAVEL_START",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=30.0),
                 transitions={
                     "succeeded": "SET_TORPEDO_APPROACH_FRAME",
                     "preempted": "preempted",

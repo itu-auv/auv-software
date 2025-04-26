@@ -81,6 +81,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_GATE_DEPTH",
                 SetDepthState(
                     depth=gate_depth,
+                    target_frame_id="gate_blue_arrow_link",
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
                 ),
                 transitions={
