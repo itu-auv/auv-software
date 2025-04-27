@@ -29,10 +29,19 @@ from auv_smach.common import (
 from auv_smach.initialize import DelayState
 
 from auv_smach.common import (
-    LaunchTorpedoState,
     SetRedBuoyRotationStartFrame,
     SetFrameLookingAtState,
 )
+
+
+class LaunchTorpedoState(smach_ros.ServiceState):
+    def __init__(self, id: int):
+        smach_ros.ServiceState.__init__(
+            self,
+            f"torpedo_{id}/launch",
+            Trigger,
+            request=TriggerRequest(),
+        )
 
 
 class TorpedoTaskState(smach.State):

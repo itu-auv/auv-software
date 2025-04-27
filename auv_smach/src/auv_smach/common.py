@@ -132,26 +132,6 @@ class SetDepthState(smach_ros.ServiceState):
         return result
 
 
-class LaunchTorpedoState(smach_ros.ServiceState):
-    def __init__(self, id: int):
-        smach_ros.ServiceState.__init__(
-            self,
-            f"torpedo_{id}/launch",
-            Trigger,
-            request=TriggerRequest(),
-        )
-
-
-class DropBallState(smach_ros.ServiceState):
-    def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self,
-            "ball_dropper/drop",
-            Trigger,
-            request=TriggerRequest(),
-        )
-
-
 class CancelAlignControllerState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
