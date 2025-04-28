@@ -1,0 +1,15 @@
+<launch>
+
+  <!-- OctoMap Server Node -->
+  <node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
+
+    <!-- load all parameters from YAML -->
+    <rosparam command="load"
+              file="$(find auv_mapping)/config/octomap_server.yaml"/>
+
+    <!-- Input point cloud topic -->
+    <remap from="cloud_in" to="/taluy/camera/depth/points" />
+
+  </node>
+
+</launch>

@@ -3,38 +3,40 @@
 #                        Move Base Flex Main Configuration                   #
 ###############################################################################
 
-# ---------------------- Core Timing Parameters -----------------------------
-controller_frequency: 10.0       # Hz ─ How often the local planner (controller) runs
-planner_frequency: 0.5           # Hz ─ How often the global planner runs
+robot_frame: "taluy/base_link"
+map_frame: "odom"
+global_frame: "odom"
+planner_frequency: 0.5
+planner_patience: 5.0
+planner_max_retries: 3
 
-# ---------------------- Recovery Settings -----------------------------------
-recovery_enabled: true
+controller_frequency: 10.0
+controller_patience: 5.0
+controller_max_retries: 3
+
+recovery_enabled: false
 recovery_patience: 15.0
 
-# -------------------- Oscillation Detection --------------------------------
-oscillation_timeout: 10.0        # sec ─ Time window to detect oscillatory motion
-oscillation_distance: 0.2        # m   ─ Min displacement to clear oscillation flag
+oscillation_timeout: 1.0
+oscillation_distance: 0.2
 
-# ---------------------- Plugin Selection ------------------------------------
-# Global Planner (computes nav_msgs/Path on the global costmap)
-planner_plugin: "mbf_ompl_global_planner/OMPLPlanner"
-planner_max_retries: 3            # retry count if planner fails
-planner_patience: 5.0             # sec ─ max time to wait for a plan
+planners:
+  # - name: ompl_global
+  #   type: "mbf_ompl_global_planner/OMPLPlanner"
+  # - name: global_planner
+  #   type: "global_planner/GlobalPlanner"
+  - name: carrot_planner
+    type: "carrot_planner/CarrotPlanner"
+    allow_unknown: true
 
-# Local Planner / Controller (follows the path, avoids local obstacles)
-controller_plugin: "teb_local_planner/TebLocalPlannerROS"
-controller_max_retries: 3
-controller_patience: 5.0
+controllers:
+  - name: teb_local
+    type: "teb_local_planner/TebLocalPlannerROS"
 
-# -------------------- Recovery Behavior Plugins -----------------------------
-# Invoked in order whenever the local planner fails repeatedly
+
 recovery_behaviors:
-  - name: clear_costmap_recovery
-    type: "clear_costmap_recovery/ClearCostmapRecovery"
-    frequency: 1.0
-  - name: rotate_recovery
-    type: "mbf_recovery/RotateRecovery"
-    frequency: 0.5      # slower spin for AUV
+  - name: rotate_in_place
+    type: "rotate_recovery/RotateRecovery"
 
 
 ###############################################################################
@@ -88,23 +90,23 @@ costmap_common:
 #                  Global Costmap Parameters (global_costmap)                #
 ###############################################################################
 global_costmap:
+  global_frame: "odom"
+  robot_base_frame: "taluy/base_link"
   static_map: false
   rolling_window: false
   resolution: 0.5
   plugins:
+    - {name: static_layer, type: "costmap_2d::StaticLayer"}
     - {name: voxel_layer, type: "costmap_2d::VoxelLayer"}
     - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
 
-  obstacle_layer:
-    observation_sources: objects
-    objects:
-      data_type: PointCloud2
-      topic: "/dynamic_objects"
-      marking: true
-      clearing: true
-      expected_update_rate: 5.0
-      obstacle_range: 10.0
+  static_layer:
+    map_topic: "/projected_map"
+    subscribe_to_updates: true
+    update_in_place: true
+    track_unknown_space: false
+    trinary_map: true
 
   inflation_layer:
     inflation_radius: 1.0
@@ -113,6 +115,8 @@ global_costmap:
 #                   Local Costmap Parameters (local_costmap)                 #
 ###############################################################################
 local_costmap:
+  global_frame: "odom"
+  robot_base_frame: "taluy/base_link"
   static_map: false
   rolling_window: true
   width: 10.0
@@ -123,14 +127,10 @@ local_costmap:
     - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
 
-  obstacle_layer:
-    observation_sources: objects
-    objects:
-      data_type: PointCloud2
-      topic: "/dynamic_objects"
-      marking: true
-      clearing: true
-      expected_update_rate: 5.0
-      obstacle_range: 4.0
   inflation_layer:
     inflation_radius: 0.5
+
+
+# Additional parameters
+shutdown_costmaps: true
+shutdown_costmaps_delay: 1.0     # seconds after last action

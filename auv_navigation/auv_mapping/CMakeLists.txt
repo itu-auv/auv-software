@@ -12,6 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf2
   tf2_ros
+  octomap_ros
+  octomap_msgs
 )
 
 find_package(OpenCV 4 QUIET COMPONENTS
@@ -36,7 +38,7 @@ endif()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp tf2 tf2_ros geometry_msgs auv_msgs
+  CATKIN_DEPENDS roscpp tf2 tf2_ros geometry_msgs auv_msgs octomap_msgs
   DEPENDS OpenCV
 )
 

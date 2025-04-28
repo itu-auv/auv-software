@@ -52,9 +52,6 @@
     <xacro:bar30 name="${namespace}/base_link/external_pressure_sensor" parent="${namespace}/base_link" position="0 0 0.07" orientation="0 0 0"/>
     <xacro:logitech_c920_camera name="${namespace}/base_link/front_camera" parent="${namespace}/base_link" position="0.35 0 0" orientation="0 0 0"/>
     <xacro:logitech_c920_camera name="${namespace}/base_link/bottom_camera" parent="${namespace}/base_link" position="0 0 -0.07" orientation="0 ${math.pi/2} ${math.pi/2}"/>
-    <xacro:depth_camera name="${namespace}/base_link/depth_camera" parent="${namespace}/base_link">
-      <origin xyz="0.35 0 0" rpy="0 0 0"/>
-    </xacro:depth_camera>
     <xacro:torpedo name="${namespace}/base_link/left_torpedo" parent="${namespace}/base_link" position="0.2 0.1 -0.11" orientation="0 0 0"/>
     <xacro:torpedo name="${namespace}/base_link/right_torpedo" parent="${namespace}/base_link" position="0.2 -0.1 -0.11" orientation="0 0 0"/>
     <xacro:sonar name="${namespace}/base_link/sonar_front" parent="${namespace}/base_link" position="0.38 0.09 0.09" orientation="0 0 0"/>
