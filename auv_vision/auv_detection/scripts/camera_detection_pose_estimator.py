@@ -145,7 +145,7 @@ class CameraDetectionNode:
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
         }
-        self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
+        self.camera_frames = { # Keep camera_frames for camera frame lookup based on ns
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
         }
