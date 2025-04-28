@@ -15,6 +15,7 @@
       output="screen">
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="odom_pressure" to="localization/odom_pressure" />
+      <remap from="imu/data" to="sensors/imu/data" />
     </node>
     <node pkg="auv_localization" type="dvl_odometry_node.py" name="dvl_to_odom_node" output="screen">
       <remap from="sensors/dvl/velocity_raw" to="sensors/dvl/velocity_raw" />

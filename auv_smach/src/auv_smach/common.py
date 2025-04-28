@@ -288,6 +288,16 @@ class NavigateToFrameState(smach.State):
             return "aborted"
 
 
+class ClearObjectMapState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "clear_object_transforms",
+            Trigger,
+            request=TriggerRequest(),
+        )
+
+
 class ExecutePlannedPathsState(smach.State):
     """
     Uses the follow path action client to follow a set of planned paths.

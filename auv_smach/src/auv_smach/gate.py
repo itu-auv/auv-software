@@ -122,7 +122,7 @@ class NavigateThroughGateState(smach.State):
                 "EXECUTE_GATE_PATHS",
                 ExecutePlannedPathsState(),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
                     "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
                 },
