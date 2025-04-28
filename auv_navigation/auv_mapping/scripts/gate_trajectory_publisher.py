@@ -72,7 +72,7 @@ class TransformServiceNode:
         2. Calculate the two shifted positions relative to selected_gate_link_translation:
             - entrance_position: offset in the negative perpendicular direction.
             - exit_position: offset in the positive perpendicular direction.
-        3. Adjust the z-value to be 0.5m below the selected gate frame's z-value.
+        3. Apply a vertical offset below the selected gate frame's z-value by z_offset.
         """
 
         MIN_GATE_SEPARATION_THRESHOLD = 0.15
