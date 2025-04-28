@@ -140,7 +140,7 @@ class CameraDetectionNode:
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
         }
-        self.camera_frames = { # Keep camera_frames for camera frame lookup based on ns
+        self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
         }
@@ -295,7 +295,9 @@ class CameraDetectionNode:
             rospy.logwarn(f"Unknown frame_id: {frame_id}")
             return
         calibration = self.camera_calibrations[camera_ns]
-        camera_frame = self.camera_frames[camera_ns] # Use camera_ns to get camera_frame
+        camera_frame = self.camera_frames[
+            camera_ns
+        ]  # Use camera_ns to get camera_frame
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
