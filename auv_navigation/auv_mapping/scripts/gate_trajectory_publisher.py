@@ -66,7 +66,7 @@ class TransformServiceNode:
         other_gate_link_translation: Tuple[float, float, float],
     ) -> Tuple[Pose, Pose]:
         """
-        Compute entrance and exit transforms relative to the selected gate frame.
+        Compute entrance and exit transforms based on the selected gate frame.
 
         1. Define a perpendicular unit vector to the line between the two gate frames.
         2. Calculate the two shifted positions relative to selected_gate_link_translation:
