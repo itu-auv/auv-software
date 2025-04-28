@@ -164,7 +164,7 @@ class TransformServiceNode:
             selected_gate_link_translation, other_gate_link_translation
         )
 
-        # Create TransformStamped messages for entrance and exit relative to target_gate_frame
+        # Create TransformStamped messages for entrance and exit 
         entrance_transform = self.build_transform_message(
             self.entrance_frame, entrance_pose
         )
