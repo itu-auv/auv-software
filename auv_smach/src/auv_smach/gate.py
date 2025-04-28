@@ -15,79 +15,157 @@ from geometry_msgs.msg import WrenchStamped
 
 
 class TwoRollState(smach.State):
-    def __init__(self,
-                 imu_topic='taluy/sensors/imu/data',
-                 wrench_topic='taluy/wrench',
-                 roll_rate=1.0,   
-                 Kp=5.0):         
-        super(TwoRollState, self).__init__(outcomes=['succeeded', 'preempted', 'aborted'])
+    def __init__(
+        self,
+        imu_topic="/taluy/sensors/imu/data",
+        wrench_topic="/taluy/wrench",
+        roll_rate=1.0,
+        Kp=5.0,
+        min_wrench=0.5,
+        max_wrench=60.0,
+    ):
+        super(TwoRollState, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
         self.roll_rate = roll_rate
         self.Kp = Kp
+        self.min_wrench = min_wrench
+        self.max_wrench = max_wrench
         self.wrench_pub = rospy.Publisher(wrench_topic, WrenchStamped, queue_size=1)
         self.imu_data = None
         rospy.Subscriber(imu_topic, Imu, self.imu_cb)
         self.rate = rospy.Rate(20)
+        self.start_time = None
+        self.timeout = rospy.Duration(30)
 
     def imu_cb(self, msg):
         self.imu_data = msg
 
     def get_roll(self):
-
+        if self.imu_data is None:
+            rospy.logerr("IMU data is None!")
+            return 0.0
         q = self.imu_data.orientation
         sinr = 2 * (q.w * q.x + q.y * q.z)
         cosr = 1 - 2 * (q.x * q.x + q.y * q.y)
         return math.atan2(sinr, cosr)
 
     def wrap_angle(self, ang):
-
         return (ang + math.pi) % (2 * math.pi) - math.pi
 
+    def clamp_wrench(self, value):
+
+        if abs(value) < self.min_wrench:
+            return math.copysign(self.min_wrench, value) if value != 0 else 0.0
+        elif abs(value) > self.max_wrench:
+            return math.copysign(self.max_wrench, value)
+        return value
+
     def execute(self, userdata):
-
+        wait_start = rospy.Time.now()
         while not rospy.is_shutdown() and self.imu_data is None:
-            rospy.sleep(0.01)
+            if (rospy.Time.now() - wait_start).to_sec() > 5.0:
+                rospy.logerr("No IMU data received after 5 seconds. Aborting.")
+                return "aborted"
+            rospy.sleep(0.1)
 
+        self.start_time = rospy.Time.now()
         prev_roll = self.get_roll()
         accumulated = 0.0
-        target = 4 * math.pi  
+        target = 4 * math.pi
 
-        rospy.loginfo("Starting TwoRollState: target = %.1f rad", target)
+        rospy.loginfo(
+            "Starting TwoRollState: target = %.1f rad (2 full rotations)", target
+        )
+
+        error_sum = 0.0
+        last_time = rospy.Time.now()
 
         while not rospy.is_shutdown():
             if self.preempt_requested():
-                zero = WrenchStamped()
-                zero.header.stamp = rospy.Time.now()
-                zero.header.frame_id = 'base_link'
-                self.wrench_pub.publish(zero)
-                return 'preempted'
+                self.publish_zero_wrench()
+                rospy.loginfo(
+                    "TwoRollState preempted after accumulating %.1f rad", accumulated
+                )
+                return "preempted"
 
-            current = self.get_roll()
-            delta = abs(self.wrap_angle(current - prev_roll))
-            accumulated += delta
-            prev_roll = current
+            if (rospy.Time.now() - self.start_time) > self.timeout:
+                rospy.logerr(
+                    "TwoRollState timed out after %.1f seconds", self.timeout.to_sec()
+                )
+                self.publish_zero_wrench()
+                return "aborted"
 
-            if accumulated >= target:
-                break
+            try:
+                current = self.get_roll()
+                delta = self.wrap_angle(current - prev_roll)
 
-            omega_x = self.imu_data.angular_velocity.x
-            torque_cmd = self.Kp * (self.roll_rate - omega_x)
+                if abs(delta) > math.pi / 2:
+                    rospy.logwarn(
+                        "Large angle delta detected: %.2f rad, ignoring", delta
+                    )
+                else:
+                    accumulated += abs(delta)
 
-            wrench = WrenchStamped()
-            wrench.header.stamp = rospy.Time.now()
-            wrench.header.frame_id = 'base_link'
-            wrench.wrench.torque.x = torque_cmd
-            self.wrench_pub.publish(wrench)
+                prev_roll = current
+
+                if accumulated >= target:
+                    break
+
+                now = rospy.Time.now()
+                dt = (now - last_time).to_sec()
+                last_time = now
+
+                if dt > 0:
+                    omega_x = self.imu_data.angular_velocity.x
+                    error = self.roll_rate - omega_x
+
+                    error_sum += error * dt
+                    Ki = 0.1
+
+                    torque_cmd = self.Kp * error + Ki * error_sum
+
+                    torque_cmd = self.clamp_wrench(torque_cmd)
+
+                    if abs(error_sum) > 10.0:
+                        error_sum = math.copysign(10.0, error_sum)
+
+                    wrench = WrenchStamped()
+                    wrench.header.stamp = now
+                    wrench.header.frame_id = "taluy/base_link"
+                    wrench.wrench.torque.x = torque_cmd
+                    self.wrench_pub.publish(wrench)
+
+                    if rospy.get_time() % 1.0 < 0.05:
+                        rospy.logdebug(
+                            "Roll: %.2f, Accumulated: %.2f, Error: %.2f, Torque: %.2f",
+                            current,
+                            accumulated,
+                            error,
+                            torque_cmd,
+                        )
+
+            except Exception as e:
+                rospy.logerr("Error in TwoRollState: %s", str(e))
+                self.publish_zero_wrench()
+                return "aborted"
 
             self.rate.sleep()
 
-        stop = WrenchStamped()
-        stop.header.stamp = rospy.Time.now()
-        stop.header.frame_id = 'base_link'
-        self.wrench_pub.publish(stop)
+        self.publish_zero_wrench()
+        duration = (rospy.Time.now() - self.start_time).to_sec()
+        rospy.loginfo(
+            "Two full X-rolls completed (%.1f rad) in %.1f seconds.",
+            accumulated,
+            duration,
+        )
+        return "succeeded"
 
-        rospy.loginfo("Two full X-rolls completed (%.1f rad).", accumulated)
-        return 'succeeded'
-
+    def publish_zero_wrench(self):
+        zero = WrenchStamped()
+        zero.header.stamp = rospy.Time.now()
+        zero.header.frame_id = "taluy/base_link"
+        self.wrench_pub.publish(zero)
 
 
 class PlanGatePathsState(smach.State):
@@ -218,31 +296,38 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_DVL_ODOM",
                 smach_ros.ServiceState(
-                    "/dvl_to_odom_node/enable", SetBool,
-                    request=SetBoolRequest(data=False)
+                    "/dvl_to_odom_node/enable",
+                    SetBool,
+                    request=SetBoolRequest(data=False),
                 ),
                 transitions={
-                    "succeeded": "TWO_ROLL", "preempted": "preempted", "aborted": "aborted"
+                    "succeeded": "TWO_ROLL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
                 "TWO_ROLL",
                 TwoRollState(),
                 transitions={
-                    "succeeded": "ENABLE_DVL_ODOM", "preempted": "preempted", "aborted": "aborted"
+                    "succeeded": "ENABLE_DVL_ODOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
                 "ENABLE_DVL_ODOM",
                 smach_ros.ServiceState(
-                    "/dvl_to_odom_node/enable", SetBool,
-                    request=SetBoolRequest(data=True)
+                    "/dvl_to_odom_node/enable",
+                    SetBool,
+                    request=SetBoolRequest(data=True),
                 ),
                 transitions={
-                    "succeeded": "succeeded", "preempted": "preempted", "aborted": "aborted"
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
-
 
     def execute(self, userdata):
         rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
