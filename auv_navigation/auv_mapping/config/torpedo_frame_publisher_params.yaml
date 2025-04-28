@@ -1,0 +1,6 @@
+---
+create_torpedo_frames_node:
+  offset_x: 0.0
+  offset_y: 0.3
+  offset_z: 0.0
+  offset_yaw: -90.0
