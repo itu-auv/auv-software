@@ -73,7 +73,7 @@ class BinTaskState(smach.State):
                     base_frame="taluy/base_link",
                     target_frame="bin_whole_travel_start",
                     look_at_frame="bin_whole_link",
-                    rotation_rate=0.2,
+                    full_rotation=False,
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",

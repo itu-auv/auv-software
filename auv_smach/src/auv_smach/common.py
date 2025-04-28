@@ -306,14 +306,15 @@ class SetFrameLookingAtState(smach.State):
         target_frame="gate_search",
         look_at_frame="gate_blue_arrow_link",
         rotation_rate=0.2,
-        update_duration=3.0,
+        full_rotation=False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.base_frame = base_frame
         self.target_frame = target_frame
         self.look_at_frame = look_at_frame
         self.rotation_rate = rotation_rate
-        self.update_duration = update_duration
+        self.full_rotation = full_rotation
+        self.angle_threshold = np.radians(5)  # 5 degrees as threshold for alignment
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -324,6 +325,8 @@ class SetFrameLookingAtState(smach.State):
 
     def execute(self, userdata):
         start_time = rospy.Time.now().to_sec()
+        start_angle = None
+        completed_full_rotation = False
 
         while not rospy.is_shutdown():
             if self.preempt_requested():
@@ -338,9 +341,65 @@ class SetFrameLookingAtState(smach.State):
                     rospy.Duration(0.1),
                 )
 
-                end_time = rospy.Time.now().to_sec() + self.update_duration
-                while rospy.Time.now().to_sec() < end_time and not rospy.is_shutdown():
+                # If full_rotation is true and we haven't completed a full rotation yet,
+                # we continue rotating even if we found the look_at_frame
+                if self.full_rotation and not completed_full_rotation:
+                    elapsed = rospy.Time.now().to_sec() - start_time
+                    current_angle = -self.rotation_rate * elapsed
 
+                    if start_angle is None:
+                        start_angle = current_angle
+
+                    if abs(current_angle - start_angle) >= 2 * np.pi:
+                        completed_full_rotation = True
+                        rospy.loginfo("Completed full rotation as requested")
+                    else:
+                        # Continue with rotation (similar to the code in except block)
+                        try:
+                            odom_to_base = self.tf_buffer.lookup_transform(
+                                "odom",
+                                self.base_frame,
+                                rospy.Time(0),
+                                rospy.Duration(0.1),
+                            )
+                        except Exception as e:
+                            rospy.logwarn(
+                                "TF lookup failed for %s: %s", self.base_frame, e
+                            )
+                            return "aborted"
+
+                        t = TransformStamped()
+                        t.header.stamp = rospy.Time.now()
+                        t.header.frame_id = "odom"
+                        t.child_frame_id = self.target_frame
+                        t.transform.translation.x = odom_to_base.transform.translation.x
+                        t.transform.translation.y = odom_to_base.transform.translation.y
+                        t.transform.translation.z = odom_to_base.transform.translation.z
+                        q = quaternion_from_euler(0, 0, current_angle)
+                        (
+                            t.transform.rotation.x,
+                            t.transform.rotation.y,
+                            t.transform.rotation.z,
+                            t.transform.rotation.w,
+                        ) = q
+
+                        req = SetObjectTransformRequest(transform=t)
+                        try:
+                            res = self.set_object_transform(req)
+                            if not res.success:
+                                rospy.logwarn(
+                                    "SetObjectTransform failed: %s", res.message
+                                )
+                        except rospy.ServiceException as e:
+                            rospy.logwarn("Service call failed: %s", e)
+                            return "aborted"
+
+                        self.rate.sleep()
+                        continue
+
+                # Normal behavior when look_at_frame is found and we're not doing a full rotation
+                # or we've already completed the full rotation
+                while not rospy.is_shutdown():
                     if self.preempt_requested():
                         self.service_preempt()
                         return "preempted"
@@ -378,7 +437,41 @@ class SetFrameLookingAtState(smach.State):
                         rospy.logwarn("Service call failed: %s", e)
                         return "aborted"
 
-                    self.rate.sleep()
+                    # Get current robot orientation
+                    try:
+                        base_to_target = self.tf_buffer.lookup_transform(
+                            self.base_frame,
+                            self.target_frame,
+                            rospy.Time(0),
+                            rospy.Duration(0.05),
+                        )
+
+                        # Extract current rotation of the robot
+                        current_quat = [
+                            base_to_target.transform.rotation.x,
+                            base_to_target.transform.rotation.y,
+                            base_to_target.transform.rotation.z,
+                            base_to_target.transform.rotation.w,
+                        ]
+                        _, _, current_yaw = euler_from_quaternion(current_quat)
+
+                        # Calculate angle difference
+                        angle_diff = abs(current_yaw - facing_angle)
+                        angle_diff = min(
+                            angle_diff, 2 * np.pi - angle_diff
+                        )  # Take the smaller angle
+
+                        # If angle difference is less than threshold, we're aligned
+                        if angle_diff < self.angle_threshold:
+                            rospy.loginfo(
+                                "Target aligned within %s radians (%s degrees)",
+                                self.angle_threshold,
+                                np.degrees(self.angle_threshold),
+                            )
+                            return "succeeded"
+                    except Exception as e:
+                        rospy.logwarn("Error checking alignment: %s", e)
+                        break
 
                     try:
                         base_to_look = self.tf_buffer.lookup_transform(
@@ -392,6 +485,8 @@ class SetFrameLookingAtState(smach.State):
                             "look_at_frame cannot found anymore, trying again..."
                         )
                         break
+
+                    self.rate.sleep()
 
                 return "succeeded"
 

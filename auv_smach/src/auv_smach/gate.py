@@ -111,7 +111,7 @@ class NavigateThroughGateState(smach.State):
                     base_frame="taluy/base_link",
                     target_frame="gate_search",
                     look_at_frame="gate_blue_arrow_link",
-                    rotation_rate=0.2,
+                    full_rotation=True,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
