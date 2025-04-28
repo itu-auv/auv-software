@@ -18,7 +18,7 @@ class DvlToOdom:
         rospy.init_node("dvl_to_odom_node", anonymous=True)
 
         self.enabled = rospy.get_param("~enabled", True)
-        self.enable_service = rospy.Service("~enable", SetBool, self.enable_cb)
+        self.enable_service = rospy.Service("/dvl_to_odom_node/enable", SetBool, self.enable_cb)
 
         self.cmdvel_tau = rospy.get_param("~cmdvel_tau", 0.1)
         self.linear_x_covariance = rospy.get_param("sensors/dvl/covariance/linear_x", 0.000015)
