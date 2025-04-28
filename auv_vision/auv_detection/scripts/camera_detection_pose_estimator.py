@@ -135,7 +135,12 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
         rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
-        self.camera_frames = {
+        rospy.Subscriber("/yolo_result_2", YoloResult, self.detection_callback)
+        self.frame_id_to_camera_ns = {
+            "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
+            "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
+        }
+        self.camera_frames = { # Keep camera_frames for camera frame lookup based on ns
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
         }
@@ -284,9 +289,13 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult):
-        camera_ns = "taluy/cameras/cam_front"
+        frame_id = detection_msg.header.frame_id
+        camera_ns = self.frame_id_to_camera_ns.get(frame_id)
+        if camera_ns is None:
+            rospy.logwarn(f"Unknown frame_id: {frame_id}")
+            return
         calibration = self.camera_calibrations[camera_ns]
-        camera_frame = self.camera_frames[camera_ns]
+        camera_frame = self.camera_frames[camera_ns] # Use camera_ns to get camera_frame
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
@@ -295,7 +304,8 @@ class CameraDetectionNode:
             detection_id = detection.results[0].id
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-
+            if self.check_if_detection_is_inside_image(detection) == False:
+                continue
             if detection_id == 9:
                 self.process_altitude_projection(detection, camera_ns)
                 continue
@@ -305,8 +315,6 @@ class CameraDetectionNode:
                 continue
 
             prop = self.props[prop_name]
-            if self.check_if_detection_is_inside_image(detection) == False:
-                continue
 
             # Calculate distance using object dimensions
             distance = prop.estimate_distance(
