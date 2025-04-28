@@ -51,17 +51,7 @@ def send_goal(
     # Simple orientation: facing forward along the frame's X-axis
     goal.target_pose.pose.orientation.w = 1.0
 
-    # Optionally specify planner and controller
-    if planner:
-        goal.planner = planner
-    if controller:
-        goal.controller = controller
-
     rospy.loginfo(f"Sending goal: Position(x={x}, y={y}, z={z}) in '{frame_id}' frame")
-    if planner:
-        rospy.loginfo(f"Using planner: {planner}")
-    if controller:
-        rospy.loginfo(f"Using controller: {controller}")
 
     # Sends the goal to the action server.
     client.send_goal(goal)
