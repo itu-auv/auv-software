@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_teleop)
 
-
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   sensor_msgs
@@ -11,17 +10,20 @@ find_package(catkin REQUIRED COMPONENTS
   auv_msgs
   std_srvs
   message_generation
+  message_runtime
 )
 
 catkin_package(
-  # INCLUDE_DIRS include
-  # LIBRARIES acado_dynamics
-  CATKIN_DEPENDS geometry_msgs sensor_msgs std_msgs auv_msgs std_srvs message_runtime
-  #  DEPENDS system_lib
+  CATKIN_DEPENDS
+    geometry_msgs
+    sensor_msgs
+    std_msgs
+    auv_msgs
+    std_srvs
+    message_runtime
 )
 
 include_directories(
-# include
   ${catkin_INCLUDE_DIRS}
 )
 
