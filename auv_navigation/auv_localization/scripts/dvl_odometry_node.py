@@ -18,12 +18,20 @@ class DvlToOdom:
         rospy.init_node("dvl_to_odom_node", anonymous=True)
 
         self.enabled = rospy.get_param("~enabled", True)
-        self.enable_service = rospy.Service("/dvl_to_odom_node/enable", SetBool, self.enable_cb)
+        self.enable_service = rospy.Service(
+            "/dvl_to_odom_node/enable", SetBool, self.enable_cb
+        )
 
         self.cmdvel_tau = rospy.get_param("~cmdvel_tau", 0.1)
-        self.linear_x_covariance = rospy.get_param("sensors/dvl/covariance/linear_x", 0.000015)
-        self.linear_y_covariance = rospy.get_param("sensors/dvl/covariance/linear_y", 0.000015)
-        self.linear_z_covariance = rospy.get_param("sensors/dvl/covariance/linear_z", 0.00005)
+        self.linear_x_covariance = rospy.get_param(
+            "sensors/dvl/covariance/linear_x", 0.000015
+        )
+        self.linear_y_covariance = rospy.get_param(
+            "sensors/dvl/covariance/linear_y", 0.000015
+        )
+        self.linear_z_covariance = rospy.get_param(
+            "sensors/dvl/covariance/linear_z", 0.00005
+        )
 
         # Subscribers and Publishers
         self.dvl_velocity_subscriber = message_filters.Subscriber(
@@ -63,9 +71,15 @@ class DvlToOdom:
             "DVL Odometry Calibration data loaded", TerminalColors.PASTEL_BLUE
         )
         rospy.loginfo(f"{DVL_odometry_colored} : cmdvel_tau: {self.cmdvel_tau}")
-        rospy.loginfo(f"{DVL_odometry_colored} : linear x covariance: {self.linear_x_covariance}")
-        rospy.loginfo(f"{DVL_odometry_colored} : linear y covariance: {self.linear_y_covariance}")
-        rospy.loginfo(f"{DVL_odometry_colored} : linear z covariance: {self.linear_z_covariance}")
+        rospy.loginfo(
+            f"{DVL_odometry_colored} : linear x covariance: {self.linear_x_covariance}"
+        )
+        rospy.loginfo(
+            f"{DVL_odometry_colored} : linear y covariance: {self.linear_y_covariance}"
+        )
+        rospy.loginfo(
+            f"{DVL_odometry_colored} : linear z covariance: {self.linear_z_covariance}"
+        )
 
         # Fallback variables
         self.cmd_vel_twist = Twist()
@@ -122,7 +136,6 @@ class DvlToOdom:
             self.filtered_cmd_vel.angular.z * (1.0 - self.alpha)
             + self.alpha * self.cmd_vel_twist.angular.z
         )
-
 
         self.last_update_time = current_time
 
