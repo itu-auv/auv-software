@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+
+    <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen">
+        <remap from="set_depth" to="$(arg namespace)/set_depth"/>
+        <remap from="localization_enable" to="$(arg namespace)/auv_localization_node/enable"/>
+        <remap from="dvl/enable" to="$(arg namespace)/sensors/dvl/enable"/>
+        <remap from="ball_dropper/drop" to="$(arg namespace)/actuators/ball_dropper/drop"/>
+        <remap from="torpedo_1/launch" to="$(arg namespace)/actuators/torpedo_1/launch"/>
+        <remap from="torpedo_2/launch" to="$(arg namespace)/actuators/torpedo_2/launch"/>
+        <remap from="cmd_vel" to="$(arg namespace)/cmd_vel"/>
+        <remap from="enable" to="$(arg namespace)/enable"/>
+        <remap from="propulsion_board/status" to="$(arg namespace)/propulsion_board/status"/>
+        <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
+
+        <param name="topic_imu" value="$(arg namespace)/sensors/imu/data" />
+        <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />
+        <param name="topic_camera_bottom" value="$(arg namespace)/cameras/cam_bottom/image_raw" />
+        <param name="topic_camera_front" value="$(arg namespace)/cameras/cam_front/image_raw" />
+    </node>
+</launch>

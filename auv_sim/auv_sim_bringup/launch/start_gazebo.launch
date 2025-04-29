@@ -16,6 +16,7 @@
     <arg name="pressure_update_rate" default="20" />
     <arg name="enable_logging" default="false" />
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
+    <arg name="start_bridge" default="true" />
 
 
     <!-- Run RViz -->
@@ -62,11 +63,13 @@
     </include>
 
     <!-- Start bridge -->
-    <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch">
-        <arg name="namespace" value="$(arg namespace)" />
-        <arg name="control_rate" value="$(arg control_rate)" />
-        <arg name="use_gui" value="$(arg use_gui)" />
-    </include>
+    <group if="$(arg start_bridge)">
+        <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch">
+            <arg name="namespace" value="$(arg namespace)" />
+            <arg name="control_rate" value="$(arg control_rate)" />
+            <arg name="use_gui" value="$(arg use_gui)" />
+        </include>
+    </group>
 
     <group if="$(arg enable_logging)">
         <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
