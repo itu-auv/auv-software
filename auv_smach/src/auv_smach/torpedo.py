@@ -73,7 +73,6 @@ class TorpedoTaskState(smach.State):
                     base_frame="taluy/base_link",
                     target_frame="torpedo_map_travel_start",
                     look_at_frame="torpedo_map_link",
-                    full_rotation=False,
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",

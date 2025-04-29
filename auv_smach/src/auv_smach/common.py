@@ -5,6 +5,7 @@ import threading
 import numpy as np
 import tf2_ros
 import tf.transformations as transformations
+import math
 
 from std_srvs.srv import Trigger, TriggerRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
@@ -24,12 +25,16 @@ from auv_msgs.srv import SetDepth, SetDepthRequest
 from auv_navigation.follow_path_action import follow_path_client
 
 
+from sensor_msgs.msg import Imu
+from geometry_msgs.msg import Twist
+
 from tf.transformations import (
     quaternion_matrix,
     quaternion_from_matrix,
     translation_matrix,
     translation_from_matrix,
     quaternion_from_euler,
+    euler_from_quaternion,
 )
 
 
@@ -299,244 +304,177 @@ class NavigateToFrameState(smach.State):
             return "aborted"
 
 
+class RotationState(smach.State):
+    def __init__(self, imu_topic='/taluy/sensors/imu/data', cmd_vel_topic='/taluy/cmd_vel', 
+                 rotation_rate=0.4, rate_hz=10):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.imu_topic = imu_topic
+        self.cmd_vel_topic = cmd_vel_topic
+        self.rotation_rate = rotation_rate
+        self.imu_data = False
+        self.yaw = None
+        self.yaw_prev = None
+        self.total_yaw = 0.0
+        self.rate = rospy.Rate(rate_hz)
+        self.active = True  # Track if rotation is active
+        
+        # Initialize subscribers and publishers
+        self.sub = rospy.Subscriber(self.imu_topic, Imu, self.imu_cb)
+        self.pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
+        
+        # Add enable publisher similar to FrameAligner
+        self.enable_pub = rospy.Publisher(
+            "/taluy/enable",
+            Bool,
+            queue_size=1,
+        )
+        
+        # Add killswitch subscriber similar to FrameAligner
+        self.killswitch_sub = rospy.Subscriber(
+            "/taluy/propulsion_board/status",
+            Bool,
+            self.killswitch_callback,
+        )
+        
+    def killswitch_callback(self, msg):
+        if not msg.data:
+            self.active = False
+            rospy.logwarn("RotationState: Killswitch activated, stopping rotation")
+            
+    def imu_cb(self, msg):
+        q = msg.orientation
+        orientation_list = [q.x, q.y, q.z, q.w]
+        _, _, yaw = euler_from_quaternion(orientation_list)
+        self.imu_data = True
+        self.yaw = yaw
+    
+    @staticmethod
+    def normalize_angle(angle):
+        return math.atan2(math.sin(angle), math.cos(angle))
+    
+    def execute(self, userdata):
+        rospy.loginfo('RotationState: waiting for IMU data...')
+        while not rospy.is_shutdown() and not self.imu_data:
+            if self.preempt_requested():
+                self.service_preempt()
+                return 'preempted'
+            self.rate.sleep()
+        
+        self.yaw_prev = self.yaw
+        self.total_yaw = 0.0
+        twist = Twist()
+        twist.angular.z = self.rotation_rate
+        self.active = True
+        rospy.loginfo('RotationState: starting rotation...')
+        
+        while not rospy.is_shutdown() and self.total_yaw < 2 * math.pi and self.active:
+            if self.preempt_requested():
+                twist.angular.z = 0.0
+                self.pub.publish(twist)
+                self.service_preempt()
+                return 'preempted'
+            
+            # Publish enable signal similar to FrameAligner
+            self.enable_pub.publish(Bool(data=True))
+            
+            self.pub.publish(twist)
+            dyaw = RotationState.normalize_angle(self.yaw - self.yaw_prev)
+            self.total_yaw += abs(dyaw)
+            self.yaw_prev = self.yaw
+            self.rate.sleep()
+        
+        twist.angular.z = 0.0
+        self.pub.publish(twist)
+        
+        if not self.active:
+            rospy.loginfo('RotationState: rotation aborted by killswitch.')
+            return 'aborted'
+        
+        rospy.loginfo('RotationState: completed full rotation.')
+        return 'succeeded'
+
+
 class SetFrameLookingAtState(smach.State):
-    def __init__(
-        self,
-        base_frame="taluy/base_link",
-        target_frame="gate_search",
-        look_at_frame="gate_blue_arrow_link",
-        rotation_rate=0.5,
-        full_rotation=False,
-    ):
+    def __init__(self, base_frame, look_at_frame, target_frame, duration_time=3.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.base_frame = base_frame
-        self.target_frame = target_frame
         self.look_at_frame = look_at_frame
-        self.rotation_rate = rotation_rate
-        self.full_rotation = full_rotation
-        self.angle_threshold = np.radians(5)  # 5 degrees as threshold for alignment
-
+        self.target_frame = target_frame
+        self.duration_time = duration_time  # Duration in seconds
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.set_object_transform = rospy.ServiceProxy(
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        self.rate = rospy.Rate(10)  # 10 Hz update rate
+        self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
-        self.rate = rospy.Rate(10)
-
+        
     def execute(self, userdata):
-        start_time = rospy.Time.now().to_sec()
-        start_angle = None
-        completed_full_rotation = False
-
-        while not rospy.is_shutdown():
+        start_time = rospy.Time.now()
+        end_time = start_time + rospy.Duration(self.duration_time)
+        
+        while rospy.Time.now() < end_time:
             if self.preempt_requested():
                 self.service_preempt()
                 return "preempted"
-
+                
             try:
-                base_to_look = self.tf_buffer.lookup_transform(
+
+                base_to_look_at_transform = self.tf_buffer.lookup_transform(
                     self.base_frame,
                     self.look_at_frame,
                     rospy.Time(0),
-                    rospy.Duration(0.1),
+                    rospy.Duration(1.0),  
                 )
+                
 
-                # If full_rotation is true and we haven't completed a full rotation yet,
-                # we continue rotating even if we found the look_at_frame
-                if self.full_rotation and not completed_full_rotation:
-                    elapsed = rospy.Time.now().to_sec() - start_time
-                    current_angle = -self.rotation_rate * elapsed
+                direction_vector = np.array(
+                    [
+                        base_to_look_at_transform.transform.translation.x,
+                        base_to_look_at_transform.transform.translation.y,
+                    ]
+                )
+                
+                facing_angle = np.arctan2(direction_vector[1], direction_vector[0])
+                quaternion = transformations.quaternion_from_euler(0, 0, facing_angle)
+                
+                t = TransformStamped()
+                t.header.stamp = rospy.Time.now()
+                t.header.frame_id = self.base_frame
+                t.child_frame_id = self.target_frame
+                t.transform.translation.x = 0.0  
+                t.transform.translation.y = 0.0
+                t.transform.translation.z = 0.0
+                t.transform.rotation.x = quaternion[0]
+                t.transform.rotation.y = quaternion[1]
+                t.transform.rotation.z = quaternion[2]
+                t.transform.rotation.w = quaternion[3]
+                
+                req = SetObjectTransformRequest()
+                req.transform = t
+                res = self.set_object_transform_service(req)
+                
+                if not res.success:
+                    rospy.logwarn(f"SetObjectTransform failed: {res.message}")
 
-                    if start_angle is None:
-                        start_angle = current_angle
-
-                    if abs(current_angle - start_angle) >= 2 * np.pi:
-                        completed_full_rotation = True
-                        rospy.loginfo("Completed full rotation as requested")
-                    else:
-                        # Continue with rotation (similar to the code in except block)
-                        try:
-                            odom_to_base = self.tf_buffer.lookup_transform(
-                                "odom",
-                                self.base_frame,
-                                rospy.Time(0),
-                                rospy.Duration(0.1),
-                            )
-                        except Exception as e:
-                            rospy.logwarn(
-                                "TF lookup failed for %s: %s", self.base_frame, e
-                            )
-                            return "aborted"
-
-                        t = TransformStamped()
-                        t.header.stamp = rospy.Time.now()
-                        t.header.frame_id = "odom"
-                        t.child_frame_id = self.target_frame
-                        t.transform.translation.x = odom_to_base.transform.translation.x
-                        t.transform.translation.y = odom_to_base.transform.translation.y
-                        t.transform.translation.z = odom_to_base.transform.translation.z
-                        q = quaternion_from_euler(0, 0, current_angle)
-                        (
-                            t.transform.rotation.x,
-                            t.transform.rotation.y,
-                            t.transform.rotation.z,
-                            t.transform.rotation.w,
-                        ) = q
-
-                        req = SetObjectTransformRequest(transform=t)
-                        try:
-                            res = self.set_object_transform(req)
-                            if not res.success:
-                                rospy.logwarn(
-                                    "SetObjectTransform failed: %s", res.message
-                                )
-                        except rospy.ServiceException as e:
-                            rospy.logwarn("Service call failed: %s", e)
-                            return "aborted"
-
-                        self.rate.sleep()
-                        continue
-
-                # Normal behavior when look_at_frame is found and we're not doing a full rotation
-                # or we've already completed the full rotation
-                while not rospy.is_shutdown():
-                    if self.preempt_requested():
-                        self.service_preempt()
-                        return "preempted"
-
-                    vec = np.array(
-                        [
-                            base_to_look.transform.translation.x,
-                            base_to_look.transform.translation.y,
-                        ]
-                    )
-                    facing_angle = np.arctan2(vec[1], vec[0])
-                    q = quaternion_from_euler(0, 0, facing_angle)
-
-                    t = TransformStamped()
-                    t.header.stamp = rospy.Time.now()
-                    t.header.frame_id = self.base_frame
-                    t.child_frame_id = self.target_frame
-                    t.transform.translation.x = 0.0
-                    t.transform.translation.y = 0.0
-                    t.transform.translation.z = 0.0
-                    (
-                        t.transform.rotation.x,
-                        t.transform.rotation.y,
-                        t.transform.rotation.z,
-                        t.transform.rotation.w,
-                    ) = q
-
-                    req = SetObjectTransformRequest(transform=t)
-                    try:
-                        res = self.set_object_transform(req)
-                        if not res.success:
-                            rospy.logwarn("SetObjectTransform failed: %s", res.message)
-                            return "aborted"
-                    except rospy.ServiceException as e:
-                        rospy.logwarn("Service call failed: %s", e)
-                        return "aborted"
-
-                    # Get current robot orientation
-                    try:
-                        base_to_target = self.tf_buffer.lookup_transform(
-                            self.base_frame,
-                            self.target_frame,
-                            rospy.Time(0),
-                            rospy.Duration(0.05),
-                        )
-
-                        # Extract current rotation of the robot
-                        current_quat = [
-                            base_to_target.transform.rotation.x,
-                            base_to_target.transform.rotation.y,
-                            base_to_target.transform.rotation.z,
-                            base_to_target.transform.rotation.w,
-                        ]
-                        _, _, current_yaw = euler_from_quaternion(current_quat)
-
-                        # Calculate angle difference
-                        angle_diff = abs(current_yaw - facing_angle)
-                        angle_diff = min(
-                            angle_diff, 2 * np.pi - angle_diff
-                        )  # Take the smaller angle
-
-                        # If angle difference is less than threshold, we're aligned
-                        if angle_diff < self.angle_threshold:
-                            rospy.loginfo(
-                                "Target aligned within %s radians (%s degrees)",
-                                self.angle_threshold,
-                                np.degrees(self.angle_threshold),
-                            )
-                            return "succeeded"
-                    except Exception as e:
-                        rospy.logwarn("Error checking alignment: %s", e)
-                        break
-
-                    try:
-                        base_to_look = self.tf_buffer.lookup_transform(
-                            self.base_frame,
-                            self.look_at_frame,
-                            rospy.Time(0),
-                            rospy.Duration(0.05),
-                        )
-                    except Exception:
-                        rospy.logdebug(
-                            "look_at_frame cannot found anymore, trying again..."
-                        )
-                        break
-
-                    self.rate.sleep()
-
-                return "succeeded"
-
+                time_remaining = (end_time - rospy.Time.now()).to_sec()
+                rospy.loginfo(f"Looking at {self.look_at_frame}. Time remaining: {time_remaining:.2f}s")
+                
             except (
                 tf2_ros.LookupException,
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException,
-            ):
-                elapsed = rospy.Time.now().to_sec() - start_time
-                current_angle = -self.rotation_rate * elapsed
+            ) as e:
+                rospy.logwarn(f"TF lookup exception: {e}")
 
-                try:
-                    odom_to_base = self.tf_buffer.lookup_transform(
-                        "odom", self.base_frame, rospy.Time(0), rospy.Duration(0.1)
-                    )
-                except Exception as e:
-                    rospy.logwarn("TF lookup failed for %s: %s", self.base_frame, e)
-                    return "aborted"
-
-                t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
-                t.header.frame_id = "odom"
-                t.child_frame_id = self.target_frame
-                t.transform.translation.x = odom_to_base.transform.translation.x
-                t.transform.translation.y = odom_to_base.transform.translation.y
-                t.transform.translation.z = odom_to_base.transform.translation.z
-                q = quaternion_from_euler(0, 0, current_angle)
-                (
-                    t.transform.rotation.x,
-                    t.transform.rotation.y,
-                    t.transform.rotation.z,
-                    t.transform.rotation.w,
-                ) = q
-
-                req = SetObjectTransformRequest(transform=t)
-                try:
-                    res = self.set_object_transform(req)
-                    if not res.success:
-                        rospy.logwarn("SetObjectTransform failed: %s", res.message)
-                except rospy.ServiceException as e:
-                    rospy.logwarn("Service call failed: %s", e)
-                    return "aborted"
-
-                if abs(current_angle) >= 2 * np.pi:
-                    rospy.loginfo(
-                        "completed a full rotation, could not find look_at_frame"
-                    )
-                    return "succeeded"
-
-                self.rate.sleep()
+            except rospy.ServiceException as e:
+                rospy.logwarn(f"Service call failed: {e}")
+                return "aborted"  
+                
+            self.rate.sleep()
+            
+        rospy.loginfo(f"Successfully looked at {self.look_at_frame} for {self.duration_time} seconds")
+        return "succeeded"
 
 
 class ClearObjectMapState(smach_ros.ServiceState):

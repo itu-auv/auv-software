@@ -9,6 +9,7 @@ from auv_smach.common import (
     SetDepthState,
     ExecutePlannedPathsState,
     SetFrameLookingAtState,
+    RotationState,
 )
 
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
@@ -89,6 +90,15 @@ class NavigateThroughGateState(smach.State):
                 "SET_GATE_DEPTH",
                 SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
+                    "succeeded": "FULL_ROTATION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FULL_ROTATION",
+                RotationState(),
+                transitions={
                     "succeeded": "SET_GATE_SEARCH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -111,7 +121,7 @@ class NavigateThroughGateState(smach.State):
                     base_frame="taluy/base_link",
                     target_frame="gate_search",
                     look_at_frame="gate_blue_arrow_link",
-                    full_rotation=True,
+                    duration_time=7.0,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
