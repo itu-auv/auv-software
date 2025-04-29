@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.10.2)
 project(auv_vision)
 
+add_compile_options()
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+set(CMAKE_CXX_STANDARD 17)
+
 find_package(catkin REQUIRED COMPONENTS
   auv_detection
   rospy
