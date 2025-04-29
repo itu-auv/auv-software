@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(catkin REQUIRED COMPONENTS
   auv_detection
   rospy
+  image_transport
   cv_bridge
   sensor_msgs
   tf
