@@ -1,5 +1,8 @@
 <?xml version="1.0"?>
 <launch>
+  <!-- Include OctoMap Server -->
+  <include file="$(find auv_mapping)/launch/octomap.launch" />
+
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
   <arg name="static_frame" default="odom" />

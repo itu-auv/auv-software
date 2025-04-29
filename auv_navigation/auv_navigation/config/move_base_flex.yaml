@@ -3,10 +3,33 @@
 #                        Move Base Flex Main Configuration                   #
 ###############################################################################
 
+# Enable the MoveBase compatibility server
+action_server_plugins:
+  - move_base
+  - get_path
+  - exe_path
+  - exe_goal
+
+# configure each action server
+action_servers:
+  move_base:
+    type: "mbf_compatibility/MoveBaseServer"
+    ros_namespace: "/taluy/move_base_flex"
+  get_path:
+    type: "mbf_abstract_nav/GetPathAction"
+    ros_namespace: "/taluy/move_base_flex/get_path"
+  exe_path:
+    type: "mbf_abstract_nav/ExePathAction"
+    ros_namespace: "/taluy/move_base_flex/exe_path"
+  exe_goal:
+    type: "mbf_abstract_nav/ExeGoalAction"
+    ros_namespace: "/taluy/move_base_flex/exe_goal"
+
+
 robot_frame: "taluy/base_link"
 map_frame: "odom"
 global_frame: "odom"
-planner_frequency: 0.5
+planner_frequency: 1.4
 planner_patience: 5.0
 planner_max_retries: 3
 
@@ -14,24 +37,25 @@ controller_frequency: 10.0
 controller_patience: 5.0
 controller_max_retries: 3
 
-recovery_enabled: false
+recovery_enabled: true
 recovery_patience: 15.0
 
-oscillation_timeout: 1.0
-oscillation_distance: 0.2
+oscillation_timeout: 0.0
+oscillation_distance: 0.1
 
 planners:
   # - name: ompl_global
   #   type: "mbf_ompl_global_planner/OMPLPlanner"
-  # - name: global_planner
-  #   type: "global_planner/GlobalPlanner"
-  - name: carrot_planner
-    type: "carrot_planner/CarrotPlanner"
-    allow_unknown: true
+  - name: global_planner
+    type: "global_planner/GlobalPlanner"
+#  - name: carrot_planner
+#    type: "carrot_planner/CarrotPlanner"
+#    allow_unknown: true
 
 controllers:
   - name: teb_local
     type: "teb_local_planner/TebLocalPlannerROS"
+    cmd_vel_topic: "/taluy/cmd_vel"
 
 
 recovery_behaviors:
@@ -67,7 +91,7 @@ costmap_common:
   # Default inflation behaviour (can be overridden below)
   inflation_layer:
     cost_scaling_factor: 5.0
-    inflation_radius: 1.0                # m
+    inflation_radius: 0.1                # m
 
   # Default voxel-layer sensor (depth cam)
   voxel_layer:
@@ -75,7 +99,7 @@ costmap_common:
     observation_sources: depth_camera_source
     depth_camera_source:
       data_type: PointCloud2
-      topic: /taluy/depth/points
+      topic: /taluy/camera/depth/points
       marking: true
       clearing: true
       min_obstacle_height: 0.0
@@ -98,7 +122,6 @@ global_costmap:
   plugins:
     - {name: static_layer, type: "costmap_2d::StaticLayer"}
     - {name: voxel_layer, type: "costmap_2d::VoxelLayer"}
-    - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
 
   static_layer:
@@ -116,15 +139,18 @@ global_costmap:
 ###############################################################################
 local_costmap:
   global_frame: "odom"
+  shutdown_costmaps: false
+  shutdown_costmaps_delay: 1.0     # seconds after last action
   robot_base_frame: "taluy/base_link"
   static_map: false
+  footprint: [[0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5]]
   rolling_window: true
-  width: 10.0
-  height: 10.0
+  width: 3.0
+  height: 3.0
   resolution: 0.2
+  always_send_full_costmap: true
   plugins:
     - {name: voxel_layer, type: "costmap_2d::VoxelLayer"}
-    - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
 
   inflation_layer:
@@ -132,5 +158,5 @@ local_costmap:
 
 
 # Additional parameters
-shutdown_costmaps: true
+shutdown_costmaps: false
 shutdown_costmaps_delay: 1.0     # seconds after last action
