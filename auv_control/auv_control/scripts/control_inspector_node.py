@@ -51,11 +51,10 @@ class ControlInspectorNode:
 
         # Parameters
         self.update_rate = rospy.get_param("~update_rate", 20)
-        self.command_timeout = rospy.get_param("~command_timeout", 0.1)
         self.min_battery_voltage = rospy.get_param("~min_battery_voltage", 13.0)
         self.odometry_timeout = rospy.get_param("~odometry_timeout", 0.5)
         self.altitude_timeout = rospy.get_param("~altitude_timeout", 0.5)
-        self.dvl_timeout = rospy.get_param("~dvl_timeout", 2.0)
+        self.dvl_timeout = rospy.get_param("~dvl_timeout", 1.0)
         self.min_altitude = rospy.get_param("~min_altitude", 30.0)
 
     def odometry_callback(self, msg):
@@ -71,9 +70,6 @@ class ControlInspectorNode:
     def dvl_callback(self, msg):
         if msg.data:
             self.last_dvl_time = rospy.get_time()
-
-    def cmd_callback(self, msg):
-        self.last_cmd = msg
 
     def handle_control_enable_request(self, req):
         if req.data:
@@ -117,8 +113,9 @@ class ControlInspectorNode:
             if self.safety_checks_passed():
                 self.control_enable_pub.publish(Bool(data=True))
             else:
-                rospy.logerr("Safety checks failed! Disabling control.")
-                self.control_inspector_enabled = False
+                rospy.logerr(
+                    "[ControlInspectorNode] Safety checks failed, disabling control"
+                )
                 self.control_enable_pub.publish(Bool(data=False))
         else:
             self.control_enable_pub.publish(Bool(data=False))
