@@ -46,7 +46,6 @@ class ControlInspectorNode:
         self.altitude = None
         self.battery_voltage = None
         self.last_dvl_time = None
-        self.last_cmd = None
         self.control_inspector_enabled = False
 
         # Parameters
