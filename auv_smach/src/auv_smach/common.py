@@ -352,7 +352,7 @@ class ExecutePlannedPathsState(smach.State):
 
 class ControllingState(smach.State):
     def _init_(self):
-        smach.State._init_(self, outcomes=["succeeded", "aborted", "preempted"])
+        smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
 
         self.enable_control = rospy.ServiceProxy("set_control_enable", SetBool)
 
