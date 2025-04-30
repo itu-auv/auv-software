@@ -1,49 +1,24 @@
 ---
-# Parameters for DWA Local Planner (used as the controller in MBF)
-DWAPlannerROS:
+TebLocalPlannerROS:
+  # Trajectory Options
 
-  # Robot Configuration Parameters
-  acc_lim_x: 1.0       # m/s^2
-  acc_lim_y: 0.0       # m/s^2 - Set to 0 if non-holonomic
-  acc_lim_theta: 2.0   # rad/s^2
-  acc_lim_trans: 1.0   # m/s^2 - Translational acceleration limit
-  max_vel_x: 0.5       # m/s
-  min_vel_x: 0.1       # m/s - Minimum forward speed, adjust if robot can move backwards
-  max_vel_y: 0.0       # m/s - Set to 0 if non-holonomic
-  min_vel_y: 0.0       # m/s - Set to 0 if non-holonomic
-  max_trans_vel: 0.5   # m/s - Maximum translational velocity
-  min_trans_vel: 0.1   # m/s - Minimum translational velocity
-  max_rot_vel: 1.0     # rad/s
-  min_rot_vel: 0.2     # rad/s
 
-  # Goal Tolerance Parameters
-  yaw_goal_tolerance: 0.1  # rad
-  xy_goal_tolerance: 0.2   # meters
-  latch_xy_goal_tolerance: false
+  global_plan_overwrite_orientation: true
+  max_global_plan_lookahead_dist: 3.0
 
-  # Forward Simulation Parameters
-  sim_time: 1.5        # seconds - Time to simulate trajectories
-  sim_granularity: 0.025 # meters - Step size in simulation
-  vx_samples: 6        # Number of samples for x velocity
-  vy_samples: 1        # Number of samples for y velocity (1 if non-holonomic)
-  vtheta_samples: 20   # Number of samples for rotational velocity
-  controller_frequency: 10.0 # Hz - Should match MBF controller frequency
+  max_vel_x: 0.5
+  max_vel_x_backwards: 0.5
+  max_vel_theta: 0.5
+  acc_lim_x: 100.0  # Set high to effectively disable limit
+  acc_lim_theta: 100.0 # Set high to effectively disable limit
 
-  # Trajectory Scoring Parameters
-  path_distance_bias: 32.0  # Weight for staying close to the path
-  goal_distance_bias: 24.0  # Weight for getting closer to the goal
-  occdist_scale: 0.02       # Weight for avoiding obstacles
-  forward_point_distance: 0.325 # meters - Distance to look ahead on the path
-  stop_time_buffer: 0.2     # seconds - Time buffer before collision
-  scaling_speed: 0.25       # m/s - Speed at which to start scaling footprint
-  max_scaling_factor: 0.2   # Maximum scaling factor
+  xy_goal_tolerance: 0.2
+  yaw_goal_tolerance: 0.2
+  free_goal_vel: false
 
-  # Oscillation Prevention Parameters
-  oscillation_reset_dist: 0.05 # meters
+  min_obstacle_dist: 0.3
+  include_costmap_obstacles: false #! Default is true
+  costmap_obstacles_behind_robot_dist: 1.0
+  obstacle_poses_affected: 30
 
-  # Debugging
-  publish_traj_pc: true
-  publish_cost_grid_pc: true
-
-  # Differential-drive specific (adjust if holonomic)
-  holonomic_robot: false
+  footprint: [[0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5]] #! To be changed

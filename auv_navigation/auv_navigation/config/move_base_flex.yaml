@@ -56,6 +56,9 @@ controllers:
   - name: teb_local
     type: "teb_local_planner/TebLocalPlannerROS"
     cmd_vel_topic: "/taluy/cmd_vel"
+    # Parameters are loaded from mbf_local_planner_params.yaml via launch file
+    # into the appropriate namespace (e.g., /taluy/move_base_flex/TebLocalPlannerROS or /taluy/move_base_flex/teb_local)
+    TebLocalPlannerROS: {} # Parameters loaded externally
 
 
 recovery_behaviors:
