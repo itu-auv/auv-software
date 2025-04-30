@@ -72,36 +72,62 @@ class ControlInspectorNode:
 
     def handle_control_enable_request(self, req):
         if req.data:
-            if self.safety_checks_passed():
+            success, errors = self.safety_checks_passed()
+            if success:
                 self.control_inspector_enabled = True
                 return SetBoolResponse(True, "Control inspector enabled")
             else:
-                return SetBoolResponse(
-                    False, "Control inspector denied: Safety checks failed"
-                )
+                error_msg = "Control inspector denied: " + "; ".join(errors)
+                return SetBoolResponse(False, error_msg)
         else:
             self.control_inspector_enabled = False
             return SetBoolResponse(True, "Control inspector disabled")
 
     def safety_checks_passed(self):
         current_time = rospy.get_time()
-        odometry_ok = (self.last_odometry_time is not None) and (
-            current_time - self.last_odometry_time <= self.odometry_timeout
-        )
-        altitude_ok = (self.last_altitude_time is not None) and (
-            current_time - self.last_altitude_time <= self.altitude_timeout
-        )
-        min_altitude_ok = (self.altitude is not None) and (
-            self.altitude >= self.min_altitude
-        )
-        battery_ok = (self.battery_voltage is not None) and (
-            self.battery_voltage >= self.min_battery_voltage
-        )
-        dvl_ok = (self.last_dvl_time is not None) and (
-            current_time - self.last_dvl_time <= self.dvl_timeout
-        )
+        errors = []
 
-        return odometry_ok and altitude_ok and min_altitude_ok and battery_ok and dvl_ok
+        # Check odometry status
+        if self.last_odometry_time is None:
+            errors.append("No odometry data received")
+        elif current_time - self.last_odometry_time > self.odometry_timeout:
+            errors.append(
+                f"Odometry timeout (last update: {current_time - self.last_odometry_time:.1f}s ago)"
+            )
+
+        # Check altitude status
+        if self.last_altitude_time is None:
+            errors.append("No altitude data received")
+        elif current_time - self.last_altitude_time > self.altitude_timeout:
+            errors.append(
+                f"Altitude timeout (last update: {current_time - self.last_altitude_time:.1f}s ago)"
+            )
+
+        # Check minimum altitude
+        if self.altitude is None:
+            errors.append("Altitude data not available")
+        elif self.altitude < self.min_altitude:
+            errors.append(
+                f"Altitude below minimum ({self.altitude:.1f} < {self.min_altitude})"
+            )
+
+        # Check battery voltage
+        if self.battery_voltage is None:
+            errors.append("Battery voltage data not available")
+        elif self.battery_voltage < self.min_battery_voltage:
+            errors.append(
+                f"Battery voltage low ({self.battery_voltage:.1f} < {self.min_battery_voltage})"
+            )
+
+        # Check DVL status
+        if self.last_dvl_time is None:
+            errors.append("DVL not enabled or no data received")
+        elif current_time - self.last_dvl_time > self.dvl_timeout:
+            errors.append(
+                f"DVL timeout (last enabled: {current_time - self.last_dvl_time:.1f}s ago)"
+            )
+
+        return (len(errors) == 0, errors)
 
     def control_loop(self):
         self.control_inspector_enabled_pub.publish(
@@ -109,11 +135,13 @@ class ControlInspectorNode:
         )
 
         if self.control_inspector_enabled:
-            if self.safety_checks_passed():
+            success, errors = self.safety_checks_passed()
+            if success:
                 self.control_enable_pub.publish(Bool(data=True))
             else:
+                error_msg = "; ".join(errors)
                 rospy.logerr(
-                    "[ControlInspectorNode] Safety checks failed, disabling control"
+                    f"[ControlInspectorNode] Safety checks failed: {error_msg}"
                 )
                 self.control_enable_pub.publish(Bool(data=False))
         else:
