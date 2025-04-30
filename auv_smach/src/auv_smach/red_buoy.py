@@ -26,6 +26,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
     SetFrameLookingAtState,
+    RotationState,
 )
 
 from auv_smach.initialize import DelayState
@@ -234,6 +235,20 @@ class RotateAroundBuoyState(smach.State):
                 "SET_RED_BUOY_DEPTH",
                 SetDepthState(depth=red_buoy_depth, sleep_duration=3.0),
                 transitions={
+                    "succeeded": "ROTATE_UNTIL_FRAME_VISIBLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ROTATE_UNTIL_FRAME_VISIBLE",
+                RotationState(
+                    source_frame="taluy/base_link",
+                    look_at_frame="red_buoy_link",
+                    rotation_rate=0.3,
+                    full_rotation=False,
+                ),
+                transitions={
                     "succeeded": "SET_RED_BUOY_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -253,19 +268,11 @@ class RotateAroundBuoyState(smach.State):
             smach.StateMachine.add(
                 "SET_RED_BUOY_TRAVEL_START",
                 SetFrameLookingAtState(
-                    base_frame="taluy/base_link",
+                    source_frame="taluy/base_link",
                     target_frame="red_buoy_travel_start",
                     look_at_frame="red_buoy_link",
+                    duration_time=4.0,
                 ),
-                transitions={
-                    "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_ALIGNING_TRAVEL_START",
-                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "SET_RED_BUOY_ROTATION_START_FRAME",
                     "preempted": "preempted",
