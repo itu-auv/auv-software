@@ -51,7 +51,9 @@
 
             <!-- gate.py -->
             <remap from="set_transform_gate_trajectory" to="set_transform_gate_trajectory"/>
-
+            <remap from="imu/data" to="sensors/imu/data"/>
+            <remap from="cmd_vel" to="cmd_vel"/>
+            
             <!--initialize.py-->
             <remap from="set_depth" to="set_depth"/>
             <remap from="set_pose" to="set_pose"/>

@@ -11,161 +11,124 @@ from auv_smach.common import (
     ExecutePlannedPathsState,
 )
 from sensor_msgs.msg import Imu
-from geometry_msgs.msg import WrenchStamped
+from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 
+from tf.transformations import euler_from_quaternion
+
+from auv_smach.initialize import DelayState
 
 class TwoRollState(smach.State):
-    def __init__(
-        self,
-        imu_topic="/taluy/sensors/imu/data",
-        wrench_topic="/taluy/wrench",
-        roll_rate=1.0,
-        Kp=5.0,
-        min_wrench=0.5,
-        max_wrench=60.0,
-    ):
-        super(TwoRollState, self).__init__(
-            outcomes=["succeeded", "preempted", "aborted"]
-        )
+    def __init__(self, roll_rate=100.0, rate_hz=20, timeout_s=15.0):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        self.imu_topic = "imu/data"
+        self.cmd_vel_topic = "cmd_vel"
         self.roll_rate = roll_rate
-        self.Kp = Kp
-        self.min_wrench = min_wrench
-        self.max_wrench = max_wrench
-        self.wrench_pub = rospy.Publisher(wrench_topic, WrenchStamped, queue_size=1)
-        self.imu_data = None
-        rospy.Subscriber(imu_topic, Imu, self.imu_cb)
-        self.rate = rospy.Rate(20)
-        self.start_time = None
-        self.timeout = rospy.Duration(30)
+        self.timeout = rospy.Duration(timeout_s)
+
+        self.imu_ready = False
+        self.roll = 0.0
+        self.roll_prev = None
+        self.total_roll = 0.0
+        self.active = True
+
+        self.sub_imu = rospy.Subscriber(self.imu_topic, Imu, self.imu_cb)
+        self.sub_kill = rospy.Subscriber(
+            "propulsion_board/status", Bool, self.killswitch_cb
+        )
+        self.pub_cmd = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
+        self.pub_enable = rospy.Publisher("enable", Bool, queue_size=1)
+
+        self.rate = rospy.Rate(rate_hz)
 
     def imu_cb(self, msg):
-        self.imu_data = msg
+        # convert quaternion → roll
+        q = msg.orientation
+        _, _, r = euler_from_quaternion([q.x, q.y, q.z, q.w])
+        self.roll = r
+        self.imu_ready = True
 
-    def get_roll(self):
-        if self.imu_data is None:
-            rospy.logerr("IMU data is None!")
-            return 0.0
-        q = self.imu_data.orientation
-        sinr = 2 * (q.w * q.x + q.y * q.z)
-        cosr = 1 - 2 * (q.x * q.x + q.y * q.y)
-        return math.atan2(sinr, cosr)
+    def killswitch_cb(self, msg):
+        if not msg.data:
+            self.active = False
+            rospy.logwarn("TwoRollState: propulsion board disabled → aborting")
 
-    def wrap_angle(self, ang):
-        return (ang + math.pi) % (2 * math.pi) - math.pi
-
-    def clamp_wrench(self, value):
-
-        if abs(value) < self.min_wrench:
-            return math.copysign(self.min_wrench, value) if value != 0 else 0.0
-        elif abs(value) > self.max_wrench:
-            return math.copysign(self.max_wrench, value)
-        return value
+    @staticmethod
+    def normalize_angle(angle):
+        # wrap to [-π, π]
+        return math.atan2(math.sin(angle), math.cos(angle))
 
     def execute(self, userdata):
-        wait_start = rospy.Time.now()
-        while not rospy.is_shutdown() and self.imu_data is None:
-            if (rospy.Time.now() - wait_start).to_sec() > 5.0:
-                rospy.logerr("No IMU data received after 5 seconds. Aborting.")
+        rospy.loginfo("TwoRollState: waiting for IMU data…")
+        start_wait = rospy.Time.now()
+        while not rospy.is_shutdown() and not self.imu_ready:
+            if (rospy.Time.now() - start_wait).to_sec() > 5.0:
+                rospy.logerr("No IMU data after 5 s → abort")
                 return "aborted"
-            rospy.sleep(0.1)
+            if self.preempt_requested():
+                return "preempted"
+            self.rate.sleep()
 
+        self.roll_prev = self.roll
+        self.total_roll = 0.0
         self.start_time = rospy.Time.now()
-        prev_roll = self.get_roll()
-        accumulated = 0.0
-        target = 4 * math.pi
 
+        twist = Twist()
+        twist.angular.x = self.roll_rate
+
+        target = 4 * math.pi
         rospy.loginfo(
-            "Starting TwoRollState: target = %.1f rad (2 full rotations)", target
+            "TwoRollState: starting roll at %.2f rad/s, target = %.2f rad",
+            self.roll_rate,
+            target,
         )
 
-        error_sum = 0.0
-        last_time = rospy.Time.now()
-
-        while not rospy.is_shutdown():
+        while (
+            not rospy.is_shutdown()
+            and self.total_roll < target
+            and self.active
+        ):
             if self.preempt_requested():
-                self.publish_zero_wrench()
-                rospy.loginfo(
-                    "TwoRollState preempted after accumulating %.1f rad", accumulated
-                )
+                twist.angular.x = 0.0
+                self.pub_cmd.publish(twist)
                 return "preempted"
 
-            if (rospy.Time.now() - self.start_time) > self.timeout:
-                rospy.logerr(
-                    "TwoRollState timed out after %.1f seconds", self.timeout.to_sec()
+            if rospy.Time.now() - self.start_time > self.timeout:
+                rospy.logerr("TwoRollState: timed out after %.1f s", self.timeout.to_sec())
+                twist.angular.x = 0.0
+                self.pub_cmd.publish(twist)
+                return "aborted"
+
+            self.pub_enable.publish(Bool(data=True))
+            self.pub_cmd.publish(twist)
+
+            delta = self.normalize_angle(self.roll - self.roll_prev)
+            self.total_roll += abs(delta)
+            self.roll_prev = self.roll
+
+            if rospy.get_time() % 1.0 < 0.05:
+                rospy.logdebug(
+                    "roll=%.2f, accumulated=%.2f/%.2f",
+                    self.roll,
+                    self.total_roll,
+                    target,
                 )
-                self.publish_zero_wrench()
-                return "aborted"
-
-            try:
-                current = self.get_roll()
-                delta = self.wrap_angle(current - prev_roll)
-
-                if abs(delta) > math.pi / 2:
-                    rospy.logwarn(
-                        "Large angle delta detected: %.2f rad, ignoring", delta
-                    )
-                else:
-                    accumulated += abs(delta)
-
-                prev_roll = current
-
-                if accumulated >= target:
-                    break
-
-                now = rospy.Time.now()
-                dt = (now - last_time).to_sec()
-                last_time = now
-
-                if dt > 0:
-                    omega_x = self.imu_data.angular_velocity.x
-                    error = self.roll_rate - omega_x
-
-                    error_sum += error * dt
-                    Ki = 0.1
-
-                    torque_cmd = self.Kp * error + Ki * error_sum
-
-                    torque_cmd = self.clamp_wrench(torque_cmd)
-
-                    if abs(error_sum) > 10.0:
-                        error_sum = math.copysign(10.0, error_sum)
-
-                    wrench = WrenchStamped()
-                    wrench.header.stamp = now
-                    wrench.header.frame_id = "taluy/base_link"
-                    wrench.wrench.torque.x = torque_cmd
-                    self.wrench_pub.publish(wrench)
-
-                    if rospy.get_time() % 1.0 < 0.05:
-                        rospy.logdebug(
-                            "Roll: %.2f, Accumulated: %.2f, Error: %.2f, Torque: %.2f",
-                            current,
-                            accumulated,
-                            error,
-                            torque_cmd,
-                        )
-
-            except Exception as e:
-                rospy.logerr("Error in TwoRollState: %s", str(e))
-                self.publish_zero_wrench()
-                return "aborted"
 
             self.rate.sleep()
 
-        self.publish_zero_wrench()
-        duration = (rospy.Time.now() - self.start_time).to_sec()
+        twist.angular.x = 0.0
+        self.pub_cmd.publish(twist)
+
+        if not self.active:
+            return "aborted"
+
         rospy.loginfo(
-            "Two full X-rolls completed (%.1f rad) in %.1f seconds.",
-            accumulated,
-            duration,
+            "TwoRollState: completed two rolls (%.2f rad) in %.2f s",
+            self.total_roll,
+            (rospy.Time.now() - self.start_time).to_sec(),
         )
         return "succeeded"
-
-    def publish_zero_wrench(self):
-        zero = WrenchStamped()
-        zero.header.stamp = rospy.Time.now()
-        zero.header.frame_id = "taluy/base_link"
-        self.wrench_pub.publish(zero)
 
 
 class PlanGatePathsState(smach.State):
@@ -225,74 +188,27 @@ class NavigateThroughGateState(smach.State):
         # Open the container for adding states
         with self.state_machine:
 
-            # smach.StateMachine.add(
-            #     "ENABLE_GATE_TRAJECTORY_PUBLISHER",
-            #     TransformServiceEnableState(req=True),
-            #     transitions={
-            #         "succeeded": "SET_GATE_DEPTH",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "SET_GATE_DEPTH",
-            #     SetDepthState(
-            #         depth=gate_depth,
-            #         sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
-            #     ),
-            #     transitions={
-            #         "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "DISABLE_GATE_TRAJECTORY_PUBLISHER",
-            #     TransformServiceEnableState(req=False),
-            #     transitions={
-            #         "succeeded": "PLAN_GATE_PATHS",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "PLAN_GATE_PATHS",
-            #     PlanGatePathsState(self.tf_buffer),
-            #     transitions={
-            #         "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "SET_ALIGN_CONTROLLER_TARGET",
-            #     SetAlignControllerTargetState(
-            #         source_frame="taluy/base_link", target_frame="dynamic_target"
-            #     ),
-            #     transitions={
-            #         "succeeded": "EXECUTE_GATE_PATHS",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "EXECUTE_GATE_PATHS",
-            #     ExecutePlannedPathsState(),
-            #     transitions={
-            #         "succeeded": "CANCEL_ALIGN_CONTROLLER",
-            #         "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
-            #         "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
-            #     },
-            # )
-            # smach.StateMachine.add(
-            #     "CANCEL_ALIGN_CONTROLLER",
-            #     CancelAlignControllerState(),
-            #     transitions={
-            #         "succeeded": "DISABLE_DVL_ODOM",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
+            smach.StateMachine.add(
+                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
+                TransformServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "SET_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(
+                    depth=gate_depth,
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
+                ),
+                transitions={
+                    "succeeded": "DISABLE_DVL_ODOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "DISABLE_DVL_ODOM",
                 smach_ros.ServiceState(
@@ -300,6 +216,15 @@ class NavigateThroughGateState(smach.State):
                     SetBool,
                     request=SetBoolRequest(data=False),
                 ),
+                transitions={
+                    "succeeded": "WAIT_FOR_TWO_ROLL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_TWO_ROLL",
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "TWO_ROLL",
                     "preempted": "preempted",
@@ -310,11 +235,20 @@ class NavigateThroughGateState(smach.State):
                 "TWO_ROLL",
                 TwoRollState(),
                 transitions={
-                    "succeeded": "ENABLE_DVL_ODOM",
+                    "succeeded": "WAIT_FOR_ENABLE_DVL_ODOM",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            smach.StateMachine.add(
+                "WAIT_FOR_ENABLE_DVL_ODOM",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "ENABLE_DVL_ODOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )            
             smach.StateMachine.add(
                 "ENABLE_DVL_ODOM",
                 smach_ros.ServiceState(
@@ -323,7 +257,91 @@ class NavigateThroughGateState(smach.State):
                     request=SetBoolRequest(data=True),
                 ),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "WAIT_FOR_RESET_ODOMETRY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_RESET_ODOMETRY",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "ODOMETRY_ENABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ODOMETRY_ENABLE",
+                OdometryEnableState(),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSE",
+                ResetOdometryPoseState(),
+                transitions={
+                    "succeeded": "DELAY_AFTER_RESET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 1 second delay after resetting odometry pose
+            smach.StateMachine.add(
+                "DELAY_AFTER_RESET",
+                DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                TransformServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "PLAN_GATE_PATHS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PLAN_GATE_PATHS",
+                PlanGatePathsState(self.tf_buffer),
+                transitions={
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_CONTROLLER_TARGET",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame="dynamic_target"
+                ),
+                transitions={
+                    "succeeded": "EXECUTE_GATE_PATHS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "EXECUTE_GATE_PATHS",
+                ExecutePlannedPathsState(),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "DISABLE_DVL_ODOM",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
