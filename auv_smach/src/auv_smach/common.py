@@ -6,7 +6,7 @@ import numpy as np
 import tf2_ros
 import tf.transformations as transformations
 
-from std_srvs.srv import Trigger, TriggerRequest
+from std_srvs.srv import Trigger, TriggerRequest, SetBool
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
@@ -348,3 +348,50 @@ class ExecutePlannedPathsState(smach.State):
         except Exception as e:
             rospy.logerr("[ExecutePlannedPathsState] Exception occurred: %s", str(e))
             return "aborted"
+
+
+class ControllingState(smach.State):
+    def _init_(self):
+        smach.State._init_(self, outcomes=["succeeded", "aborted", "preempted"])
+
+        self.enable_control = rospy.ServiceProxy("set_control_enable", SetBool)
+
+    def execute(self, userdata):
+        try:
+            self.enable_control.wait_for_service(timeout=1.0)
+        except rospy.ROSException:
+            rospy.logerr("[ControllingStateSimple] Service unavailable.")
+            return "aborted"
+
+        # Enable control
+        try:
+            resp = self.enable_control(True)
+            if not resp.success:
+                rospy.logerr(
+                    "[ControllingStateSimple] Control enable denied: %s", resp.message
+                )
+                return "aborted"
+        except rospy.ServiceException as e:
+            rospy.logerr("[ControllingStateSimple] Service call failed: %s", e)
+            return "aborted"
+
+
+        # Execute control logic
+        try:
+            outcome = self.execute_control(userdata)
+        except Exception as e:
+            rospy.logerr(
+                "[ControllingStateSimple] Exception in control execution: %s", str(e)
+            )
+            outcome = "aborted"
+        finally:
+            try:
+                self.enable_control(False)
+            except rospy.ServiceException as e:
+                rospy.logerr("[ControllingStateSimple] Service call failed: %s", e)
+
+            return outcome
+
+    def execute_control(self, userdata):
+        """To be implemented by derived classes"""
+        raise NotImplementedError("execute_control must be implemented by subclass")
