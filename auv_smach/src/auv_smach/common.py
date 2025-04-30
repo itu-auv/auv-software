@@ -375,7 +375,6 @@ class ControllingState(smach.State):
             rospy.logerr("[ControllingStateSimple] Service call failed: %s", e)
             return "aborted"
 
-
         # Execute control logic
         try:
             outcome = self.execute_control(userdata)
