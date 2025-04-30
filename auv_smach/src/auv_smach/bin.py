@@ -116,7 +116,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_APPROACH_ALIGNING_START",
-                DelayState(delay_time=40.0),
+                DelayState(delay_time=20.0),
                 transitions={
                     "succeeded": "SET_BIN_WHOLE_TRAVEL_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
@@ -128,6 +128,35 @@ class BinTaskState(smach.State):
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link", target_frame="bin_whole_link"
                 ),
+                transitions={
+                    "succeeded": "WAIT_FOR_BOTTOM_ALIGNING_START",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_BOTTOM_ALIGNING_START",
+                DelayState(delay_time=5.0),
+                transitions={
+                    "succeeded": "SET_BIN_rect",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BIN_rect",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame="bin/red_link"
+                ),
+                transitions={
+                    "succeeded": "WAIT_BEFORE_DROP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_BEFORE_DROP",
+                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "SET_BIN_DROP_DEPTH",
                     "preempted": "preempted",
