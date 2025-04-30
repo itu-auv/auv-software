@@ -119,7 +119,12 @@ class Octagon(Prop):
     def __init__(self):
         super().__init__(14, "octagon", 0.92, 1.30)
 
-
+class BinRed(Prop):
+    def __init__(self):
+        super().__init__(10, "torpedo_hole", 0.30480, 0.30480)
+class BinBlue(Prop):
+    def __init__(self):
+        super().__init__(11, "bin_red", 0.30480, 0.30480)
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
@@ -151,6 +156,8 @@ class CameraDetectionNode:
             "gate_middle_part_link": GateMiddlePart(),
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
+            "bin/red_link": BinRed(),
+            "bin/blue_link": BinBlue(),
         }
 
         self.id_tf_map = {
@@ -167,7 +174,7 @@ class CameraDetectionNode:
                 5: "gate_middle_part_link",
                 14: "octagon_link",
             },
-            "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
+            "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red_link", 11: "bin/blue_link"},
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
@@ -324,7 +331,9 @@ class CameraDetectionNode:
                 detection.bbox.size_x,
                 self.camera_calibrations[camera_ns],
             )
-
+            if detection_id == 10 or detection_id == 11:
+                # use altidude for bin
+                distance = self.altitude
             if distance is None:
                 continue
 
