@@ -2,7 +2,7 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20" />
-  <arg name="use_gui" default="false" />
+  <arg name="use_gui" default="true" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
 
