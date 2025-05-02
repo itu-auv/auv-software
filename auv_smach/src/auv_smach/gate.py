@@ -10,9 +10,10 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
     ExecutePlannedPathsState,
+    ClearObjectMapState,
 )
 from sensor_msgs.msg import Imu
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import WrenchStamped
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool, SetBoolRequest
 
@@ -22,11 +23,15 @@ from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryP
 
 
 class RollTwoTimes(smach.State):
-    def __init__(self, roll_rate=100.0, rate_hz=20, timeout_s=15.0):
+    def __init__(self, roll_rate=25.0, rate_hz=20, timeout_s=15.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.imu_topic = "imu/data"
-        self.cmd_vel_topic = "cmd_vel"
+        self.killswitch_topic = "propulsion_board/status"
+        self.enable_topic = "enable"
+        self.wrench_topic = "wrench"
+        self.frame_id = "taluy/base_link"
+
         self.roll_rate = roll_rate
         self.timeout = rospy.Duration(timeout_s)
 
@@ -38,10 +43,12 @@ class RollTwoTimes(smach.State):
 
         self.sub_imu = rospy.Subscriber(self.imu_topic, Imu, self.imu_cb)
         self.sub_kill = rospy.Subscriber(
-            "propulsion_board/status", Bool, self.killswitch_cb
+            self.killswitch_topic, Bool, self.killswitch_cb
         )
-        self.pub_cmd = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
-        self.pub_enable = rospy.Publisher("enable", Bool, queue_size=1)
+        self.pub_wrench = rospy.Publisher(
+            self.wrench_topic, WrenchStamped, queue_size=1
+        )
+        self.pub_enable = rospy.Publisher(self.enable_topic, Bool, queue_size=1)
 
         self.rate = rospy.Rate(rate_hz)
 
@@ -75,10 +82,7 @@ class RollTwoTimes(smach.State):
         self.total_roll = 0.0
         self.start_time = rospy.Time.now()
 
-        twist = Twist()
-        twist.angular.x = self.roll_rate
-
-        target = 4 * math.pi
+        target = math.radians(690.0)
         rospy.loginfo(
             "ROLL_TWO_TIMES: starting roll at %.2f rad/s, target = %.2f rad",
             self.roll_rate,
@@ -87,20 +91,31 @@ class RollTwoTimes(smach.State):
 
         while not rospy.is_shutdown() and self.total_roll < target and self.active:
             if self.preempt_requested():
-                twist.angular.x = 0.0
-                self.pub_cmd.publish(twist)
+                stop = WrenchStamped()
+                stop.header.stamp = rospy.Time.now()
+                stop.header.frame_id = self.frame_id
+                stop.wrench.torque.x = 0.0
+                self.pub_wrench.publish(stop)
                 return "preempted"
 
             if rospy.Time.now() - self.start_time > self.timeout:
                 rospy.logerr(
                     "ROLL_TWO_TIMES: timed out after %.1f s", self.timeout.to_sec()
                 )
-                twist.angular.x = 0.0
-                self.pub_cmd.publish(twist)
+                timeout_msg = WrenchStamped()
+                timeout_msg.header.stamp = rospy.Time.now()
+                timeout_msg.header.frame_id = self.frame_id
+                timeout_msg.wrench.torque.x = 0.0
+                self.pub_wrench.publish(timeout_msg)
                 return "aborted"
 
             self.pub_enable.publish(Bool(data=True))
-            self.pub_cmd.publish(twist)
+
+            cmd = WrenchStamped()
+            cmd.header.stamp = rospy.Time.now()
+            cmd.header.frame_id = self.frame_id
+            cmd.wrench.torque.x = self.roll_rate
+            self.pub_wrench.publish(cmd)
 
             delta = self.normalize_angle(self.roll - self.roll_prev)
             self.total_roll += abs(delta)
@@ -116,8 +131,10 @@ class RollTwoTimes(smach.State):
 
             self.rate.sleep()
 
-        twist.angular.x = 0.0
-        self.pub_cmd.publish(twist)
+        stop = WrenchStamped()
+        stop.header.stamp = rospy.Time.now()
+        stop.wrench.torque.x = 0.0
+        self.pub_wrench.publish(stop)
 
         if not self.active:
             return "aborted"
@@ -261,6 +278,15 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "DELAY_AFTER_RESET",
                 DelayState(delay_time=2.0),
+                transitions={
+                    "succeeded": "CLEAR_OBJECT_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_OBJECT_MAP",
+                ClearObjectMapState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
