@@ -23,12 +23,11 @@ from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryP
 
 
 class RollTwoTimes(smach.State):
-    def __init__(self, roll_rate=25.0, rate_hz=20, timeout_s=15.0):
+    def __init__(self, roll_rate, rate_hz=20, timeout_s=15.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.imu_topic = "imu/data"
         self.killswitch_topic = "propulsion_board/status"
-        self.enable_topic = "enable"
         self.wrench_topic = "wrench"
         self.frame_id = "taluy/base_link"
 
@@ -48,7 +47,6 @@ class RollTwoTimes(smach.State):
         self.pub_wrench = rospy.Publisher(
             self.wrench_topic, WrenchStamped, queue_size=1
         )
-        self.pub_enable = rospy.Publisher(self.enable_topic, Bool, queue_size=1)
 
         self.rate = rospy.Rate(rate_hz)
 
@@ -108,8 +106,6 @@ class RollTwoTimes(smach.State):
                 timeout_msg.wrench.torque.x = 0.0
                 self.pub_wrench.publish(timeout_msg)
                 return "aborted"
-
-            self.pub_enable.publish(Bool(data=True))
 
             cmd = WrenchStamped()
             cmd.header.stamp = rospy.Time.now()
@@ -223,7 +219,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
-                RollTwoTimes(),
+                RollTwoTimes(roll_rate=25.0, rate_hz=20, timeout_s=15.0),
                 transitions={
                     "succeeded": "WAIT_FOR_ENABLE_DVL_ODOM",
                     "preempted": "preempted",
