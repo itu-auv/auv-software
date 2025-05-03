@@ -12,7 +12,7 @@ from auv_smach.common import (
     ExecutePlannedPathsState,
     ClearObjectMapState,
 )
-from sensor_msgs.msg import Imu
+from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool, SetBoolRequest
@@ -24,23 +24,25 @@ from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryP
 
 class RollTwoTimes(smach.State):
     def __init__(self, roll_rate, rate_hz=20, timeout_s=15.0):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        super(RollTwoTimes, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
 
-        self.imu_topic = "imu/data"
+        self.odometry_topic = "odometry"
         self.killswitch_topic = "propulsion_board/status"
         self.wrench_topic = "wrench"
         self.frame_id = "taluy/base_link"
 
         self.roll_rate = roll_rate
         self.timeout = rospy.Duration(timeout_s)
+        self.rate = rospy.Rate(rate_hz)
 
-        self.imu_ready = False
-        self.roll = 0.0
-        self.roll_prev = None
-        self.total_roll = 0.0
+        self.odom_ready = False
         self.active = True
+        self.total_roll = 0.0
+        self.last_time = None
 
-        self.sub_imu = rospy.Subscriber(self.imu_topic, Imu, self.imu_cb)
+        self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
         self.sub_kill = rospy.Subscriber(
             self.killswitch_topic, Bool, self.killswitch_cb
         )
@@ -48,99 +50,97 @@ class RollTwoTimes(smach.State):
             self.wrench_topic, WrenchStamped, queue_size=1
         )
 
-        self.rate = rospy.Rate(rate_hz)
+    def odom_cb(self, msg: Odometry):
+        now = rospy.Time.now()
 
-    def imu_cb(self, msg):
-        q = msg.orientation
-        _, _, r = euler_from_quaternion([q.x, q.y, q.z, q.w])
-        self.roll = r
-        self.imu_ready = True
+        if not self.odom_ready:
+            self.last_time = now
+            self.odom_ready = True
+            return
 
-    def killswitch_cb(self, msg):
+        if self.last_time is None:
+            self.last_time = now
+            return
+
+        dt = (now - self.last_time).to_sec()
+        self.last_time = now
+
+        omega_x = msg.twist.twist.angular.x
+        delta_angle = omega_x * dt
+        self.total_roll += abs(delta_angle)
+
+    def killswitch_cb(self, msg: Bool):
         if not msg.data:
             self.active = False
             rospy.logwarn("ROLL_TWO_TIMES: propulsion board disabled → aborting")
 
-    @staticmethod
-    def normalize_angle(angle):
-        return math.atan2(math.sin(angle), math.cos(angle))
-
     def execute(self, userdata):
-        rospy.loginfo("ROLL_TWO_TIMES: waiting for IMU data…")
+        rospy.loginfo("ROLL_TWO_TIMES: waiting for odometry data…")
         start_wait = rospy.Time.now()
-        while not rospy.is_shutdown() and not self.imu_ready:
+        while not rospy.is_shutdown() and not self.odom_ready:
             if (rospy.Time.now() - start_wait).to_sec() > 5.0:
-                rospy.logerr("No IMU data after 5 s → abort")
+                rospy.logerr("ROLL_TWO_TIMES: No odometry data after 5 s → abort")
                 return "aborted"
             if self.preempt_requested():
                 return "preempted"
-            self.rate.sleep()
+            try:
+                self.rate.sleep()
+            except rospy.ROSInterruptException:
+                return self._abort_on_shutdown()
 
-        self.roll_prev = self.roll
         self.total_roll = 0.0
+        self.last_time = rospy.Time.now()
         self.start_time = rospy.Time.now()
-
-        target = math.radians(690.0)
+        target = math.radians(675.0)
         rospy.loginfo(
-            "ROLL_TWO_TIMES: starting roll at %.2f rad/s, target = %.2f rad",
+            "ROLL_TWO_TIMES: starting roll @ %.2f rad/s, target = %.2f rad",
             self.roll_rate,
             target,
         )
 
-        while not rospy.is_shutdown() and self.total_roll < target and self.active:
-            if self.preempt_requested():
-                stop = WrenchStamped()
-                stop.header.stamp = rospy.Time.now()
-                stop.header.frame_id = self.frame_id
-                stop.wrench.torque.x = 0.0
-                self.pub_wrench.publish(stop)
-                return "preempted"
+        try:
+            while not rospy.is_shutdown() and self.total_roll < target and self.active:
 
-            if rospy.Time.now() - self.start_time > self.timeout:
-                rospy.logerr(
-                    "ROLL_TWO_TIMES: timed out after %.1f s", self.timeout.to_sec()
-                )
-                timeout_msg = WrenchStamped()
-                timeout_msg.header.stamp = rospy.Time.now()
-                timeout_msg.header.frame_id = self.frame_id
-                timeout_msg.wrench.torque.x = 0.0
-                self.pub_wrench.publish(timeout_msg)
-                return "aborted"
+                if self.preempt_requested():
+                    return self._stop_and("preempted")
 
-            cmd = WrenchStamped()
-            cmd.header.stamp = rospy.Time.now()
-            cmd.header.frame_id = self.frame_id
-            cmd.wrench.torque.x = self.roll_rate
-            self.pub_wrench.publish(cmd)
+                if (rospy.Time.now() - self.start_time) > self.timeout:
+                    rospy.logerr(
+                        "ROLL_TWO_TIMES: timed out after %.1f s", self.timeout.to_sec()
+                    )
+                    return self._stop_and("aborted")
 
-            delta = self.normalize_angle(self.roll - self.roll_prev)
-            self.total_roll += abs(delta)
-            self.roll_prev = self.roll
+                cmd = WrenchStamped()
+                cmd.header.stamp = rospy.Time.now()
+                cmd.header.frame_id = self.frame_id
+                cmd.wrench.torque.x = self.roll_rate
+                self.pub_wrench.publish(cmd)
 
-            if rospy.get_time() % 1.0 < 0.05:
-                rospy.logdebug(
-                    "ROLL_TWO_TIMES: roll=%.2f, accumulated=%.2f/%.2f",
-                    self.roll,
+                rospy.loginfo_throttle(
+                    1.0,
+                    "ROLL_TWO_TIMES: total_roll = %.2f / %.2f",
                     self.total_roll,
                     target,
                 )
 
-            self.rate.sleep()
+                self.rate.sleep()
 
+        except rospy.ROSInterruptException:
+            return self._abort_on_shutdown()
+
+        return self._stop_and("succeeded")
+
+    def _stop_and(self, outcome):
         stop = WrenchStamped()
         stop.header.stamp = rospy.Time.now()
+        stop.header.frame_id = self.frame_id
         stop.wrench.torque.x = 0.0
         self.pub_wrench.publish(stop)
+        return outcome
 
-        if not self.active:
-            return "aborted"
-
-        rospy.loginfo(
-            "ROLL_TWO_TIMES: completed two rolls (%.2f rad) in %.2f s",
-            self.total_roll,
-            (rospy.Time.now() - self.start_time).to_sec(),
-        )
-        return "succeeded"
+    def _abort_on_shutdown(self):
+        rospy.logwarn("ROLL_TWO_TIMES: ROS shutdown detected → aborting state")
+        return self._stop_and("aborted")
 
 
 class PlanGatePathsState(smach.State):
@@ -219,7 +219,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
-                RollTwoTimes(roll_rate=25.0, rate_hz=20, timeout_s=15.0),
+                RollTwoTimes(roll_rate=20.0, rate_hz=20, timeout_s=15.0),
                 transitions={
                     "succeeded": "WAIT_FOR_ENABLE_DVL_ODOM",
                     "preempted": "preempted",
@@ -306,10 +306,10 @@ class NavigateThroughGateState(smach.State):
         with self.state_machine:
 
             smach.StateMachine.add(
-                "SET_GATE_DEPTH",
+                "SET_ROLL_DEPTH",
                 SetDepthState(
-                    depth=gate_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
+                    depth=-0.7,
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
                     "succeeded": "TWO_ROLL_STATE",
@@ -320,6 +320,18 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "TWO_ROLL_STATE",
                 TwoRollState(),
+                transitions={
+                    "succeeded": "SET_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(
+                    depth=gate_depth,
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
+                ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
