@@ -398,7 +398,7 @@ class NavigateThroughGateState(smach.State):
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": "succeeded",  
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
