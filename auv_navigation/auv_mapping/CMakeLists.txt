@@ -12,6 +12,10 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf2
   tf2_ros
+  sensor_msgs
+  std_msgs
+  pcl_ros
+  pcl_conversions
 )
 
 find_package(OpenCV 4 QUIET COMPONENTS
@@ -36,7 +40,7 @@ endif()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp tf2 tf2_ros geometry_msgs auv_msgs
+  CATKIN_DEPENDS roscpp tf2 tf2_ros geometry_msgs auv_msgs sensor_msgs std_msgs pcl_ros pcl_conversions
   DEPENDS OpenCV
 )
 
@@ -71,7 +75,10 @@ target_link_libraries(object_map_tf_server_node
   object_position_filter
 )
 
-install(TARGETS object_map_tf_server_node object_position_filter
+add_executable(realsense_filter_node src/realsense_filter.cpp)
+target_link_libraries(realsense_filter_node ${catkin_LIBRARIES})
+
+install(TARGETS object_map_tf_server_node object_position_filter realsense_filter_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
