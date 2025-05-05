@@ -16,6 +16,8 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   pcl_ros
   pcl_conversions
+  octomap_ros
+  octomap_msgs
 )
 
 find_package(OpenCV 4 QUIET COMPONENTS
