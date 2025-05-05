@@ -4,5 +4,5 @@ create_gate_frames_node:
   gate_frame_2: "gate_red_arrow_link"
   target_gate_frame: "gate_blue_arrow_link"
   entrance_offset: 1.0  # Distance (m) to offset the entrance frame along its normal direction
-  exit_offset: 1.7  # Distance (m) to offset the exit frame along the same normal direction
+  exit_offset: 1.0  # Distance (m) to offset the exit frame along the same normal direction
   z_offset: 0.5  # Vertical drop below the gate frame (m)
