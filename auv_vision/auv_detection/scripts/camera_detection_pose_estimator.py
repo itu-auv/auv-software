@@ -139,8 +139,9 @@ class CameraDetectionNode:
             "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
-        rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
-        rospy.Subscriber("/yolo_result_2", YoloResult, self.detection_callback)
+        # Use lambda to pass camera source information to the callback
+        rospy.Subscriber("/yolo_result", YoloResult, lambda msg: self.detection_callback(msg, camera_source="front_camera"))
+        rospy.Subscriber("/yolo_result_2", YoloResult, lambda msg: self.detection_callback(msg, camera_source="bottom_camera"))
         self.frame_id_to_camera_ns = {
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
@@ -295,17 +296,16 @@ class CameraDetectionNode:
             return False
         return True
 
-    def detection_callback(self, detection_msg: YoloResult):
-        frame_id = detection_msg.header.frame_id
-        camera_ns = self.frame_id_to_camera_ns.get(frame_id)
-        if camera_ns is None:
-            rospy.logwarn(f"Unknown frame_id: {frame_id}")
-            return
-        calibration = self.camera_calibrations[camera_ns]
-        camera_frame = self.camera_frames[
-            camera_ns
-        ]  # Use camera_ns to get camera_frame
-
+    def detection_callback(self, detection_msg: YoloResult, camera_source: str):
+        # Determine camera_ns based on the source passed by the subscriber
+        if camera_source == "front_camera":
+            camera_ns = "taluy/cameras/cam_front" # Ensure this matches your actual namespace
+        elif camera_source == "bottom_camera":
+            camera_ns = "taluy/cameras/cam_bottom" # Ensure this matches your actual namespace
+        else:
+            rospy.logerr(f"Unknown camera_source: {camera_source}")
+            return # Stop processing if the source is unknown
+        camera_frame = self.camera_frames[camera_ns]
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
