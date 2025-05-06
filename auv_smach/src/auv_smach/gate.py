@@ -34,12 +34,13 @@ import tf2_geometry_msgs
 class PlanGatePathsState(smach.State):
     """State that plans the paths for the gate task"""
 
-    def __init__(self, tf_buffer):
+    def __init__(self, tf_buffer, return_home: bool = False):
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
             output_keys=["planned_paths"],
         )
+        self.return_home = return_home
         self.tf_buffer = tf_buffer
 
     def execute(self, userdata) -> str:
@@ -51,7 +52,9 @@ class PlanGatePathsState(smach.State):
             path_planners = PathPlanners(
                 self.tf_buffer
             )  # instance of PathPlanners with tf_buffer
-            paths = path_planners.path_for_gate()
+            paths = path_planners.path_for_gate(
+                return_home=self.return_home
+            )  # return_home parametresi eklendi
             if paths is None:
                 return "aborted"
 
@@ -74,8 +77,9 @@ class TransformServiceEnableState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float):
+    def __init__(self, gate_depth: float, return_home: bool = False):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.return_home = return_home  # return_home parametresi eklendi
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -101,7 +105,7 @@ class NavigateThroughGateState(smach.State):
                     source_frame="taluy/base_link",
                     look_at_frame="gate_blue_arrow_link",
                     rotation_rate=0.4,
-                    full_rotation=True,
+                    full_rotation=False,
                 ),
                 transitions={
                     "succeeded": "SET_GATE_SEARCH",
@@ -145,7 +149,9 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "PLAN_GATE_PATHS",
-                PlanGatePathsState(self.tf_buffer),
+                PlanGatePathsState(
+                    self.tf_buffer, return_home=self.return_home
+                ),  # return_home parametresi aktarıldı
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",

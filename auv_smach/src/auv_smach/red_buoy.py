@@ -271,7 +271,7 @@ class RotateAroundBuoyState(smach.State):
                     source_frame="taluy/base_link",
                     target_frame="red_buoy_travel_start",
                     look_at_frame="red_buoy_link",
-                    duration_time=4.0,
+                    duration_time=10.0,
                 ),
                 transitions={
                     "succeeded": "SET_RED_BUOY_ROTATION_START_FRAME",
