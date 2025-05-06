@@ -19,8 +19,12 @@ class TorpedoLauncherServer:
         self.base_frame = rospy.get_param("~base_frame", "taluy/base_link")
 
         self.drop_frames = {
-            1: rospy.get_param("~torpedo_1_frame", "taluy/base_link/torpedo_upper_link"),
-            2: rospy.get_param("~torpedo_2_frame", "taluy/base_link/torpedo_bottom_link"),
+            1: rospy.get_param(
+                "~torpedo_1_frame", "taluy/base_link/torpedo_upper_link"
+            ),
+            2: rospy.get_param(
+                "~torpedo_2_frame", "taluy/base_link/torpedo_bottom_link"
+            ),
         }
 
         self.torpedo_models = {
@@ -41,7 +45,9 @@ class TorpedoLauncherServer:
                 lambda req, torpedo_id=tid: self.handle_launch(req, torpedo_id),
             )
 
-        rospy.loginfo(f"[launch_torpedo_server] Ready. base_frame={self.base_frame}, drop_frames={self.drop_frames}")
+        rospy.loginfo(
+            f"[launch_torpedo_server] Ready. base_frame={self.base_frame}, drop_frames={self.drop_frames}"
+        )
 
     def lookup_drop_pose(self, torpedo_id: int) -> Pose:
         """
@@ -56,7 +62,9 @@ class TorpedoLauncherServer:
                 rospy.Duration(1.0),
             )
         except TransformException as e:
-            raise RuntimeError(f"TF lookup failed: {self.base_frame} → {drop_frame}: {e}")
+            raise RuntimeError(
+                f"TF lookup failed: {self.base_frame} → {drop_frame}: {e}"
+            )
 
         pose = Pose()
         pose.position.x = trans.transform.translation.x
@@ -72,7 +80,7 @@ class TorpedoLauncherServer:
         try:
             # 1) Get torpedo drop pose
             pose = self.lookup_drop_pose(torpedo_id)
-            
+
             # 2) Load the torpedo model
             rp = rospkg.RosPack()
             pkg_path = rp.get_path(self.model_pkg)
@@ -80,7 +88,7 @@ class TorpedoLauncherServer:
             path = os.path.join(pkg_path, self.model_dir, model_info["file"])
             with open(path, "r") as f:
                 xml = f.read()
-            
+
             # 3) Spawn the torpedo
             resp = self.spawn_model(
                 model_name=model_info["name"],
@@ -89,7 +97,7 @@ class TorpedoLauncherServer:
                 initial_pose=pose,
                 reference_frame=self.base_frame,  # Just like ball dropper
             )
-            
+
             if resp.success:
                 msg = f"Torpedo {torpedo_id} ({model_info['name']}) spawned."
                 rospy.loginfo(msg)
@@ -98,7 +106,7 @@ class TorpedoLauncherServer:
                 msg = f"Torpedo {torpedo_id} spawn failed: {resp.status_message}"
                 rospy.logwarn(msg)
                 return TriggerResponse(success=False, message=msg)
-                
+
         except Exception as e:
             err = f"Torpedo {torpedo_id} error: {e}"
             rospy.logerr(err)
