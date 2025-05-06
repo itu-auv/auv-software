@@ -97,7 +97,7 @@ class PathPlanners:
             rospy.logerr(f"Error in straight_path_to_frame: {e}")
             return None
 
-    def path_for_gate(self) -> Optional[List[Path]]:
+    def path_for_gate(self, return_home: bool = False) -> Optional[List[Path]]:
         """
         Plans paths for the gate task, which includes the two paths:
         1. path to gate entrance
@@ -112,19 +112,30 @@ class PathPlanners:
 
             while (rospy.Time.now() - start_time).to_sec() < self.path_creation_timeout:
                 try:
-                    # create the first segment
-                    if entrance_path is None:
-                        entrance_path = self.straight_path_to_frame(
-                            source_frame=self.base_link_frame,
-                            target_frame=self.gate_entrance_frame,
-                        )
-                    # create the second segment
-                    if exit_path is None:
-                        exit_path = self.straight_path_to_frame(
-                            source_frame=self.gate_entrance_frame,
-                            target_frame=self.gate_exit_frame,
-                            n_turns=1,
-                        )
+                    if not return_home:
+                        if entrance_path is None:
+                            entrance_path = self.straight_path_to_frame(
+                                source_frame=self.base_link_frame,
+                                target_frame=self.gate_entrance_frame,
+                            )
+                        if exit_path is None:
+                            exit_path = self.straight_path_to_frame(
+                                source_frame=self.gate_entrance_frame,
+                                target_frame=self.gate_exit_frame,
+                                n_turns=0,
+                            )
+                    else:
+                        if entrance_path is None:
+                            entrance_path = self.straight_path_to_frame(
+                                source_frame=self.base_link_frame,
+                                target_frame=self.gate_exit_frame,
+                            )
+                        if exit_path is None:
+                            exit_path = self.straight_path_to_frame(
+                                source_frame=self.gate_exit_frame,
+                                target_frame=self.gate_entrance_frame,
+                                n_turns=0,
+                            )
                     if entrance_path is not None and exit_path is not None:
                         return [entrance_path, exit_path]
                     rospy.logwarn(
