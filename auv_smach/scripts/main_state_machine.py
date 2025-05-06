@@ -81,10 +81,6 @@ class MainStateMachineNode:
                     "red_buoy_depth": self.red_buoy_depth,
                 },
             ),
-            "RETURN_THROUGH_GATE": (
-                NavigateThroughGateState,
-                {"gate_depth": self.gate_depth, "return_home": True},
-            ),
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,
                 {
@@ -99,6 +95,10 @@ class MainStateMachineNode:
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
                 {"octagon_depth": self.octagon_depth},
+            ),
+            "RETURN_THROUGH_GATE": (
+                NavigateThroughGateState,
+                {"gate_depth": self.gate_depth, "return_home": True},
             ),
         }
 
