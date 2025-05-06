@@ -655,28 +655,28 @@
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_1</name>
-      <pose>7 3.75 -2 0 0 -0.2</pose>
+      <pose>7 3.75 -2 0 0 2.94159</pose>
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_2</name>
-      <pose>7 -0.5 -2 0 0 0.65</pose>
+      <pose>7 -0.5 -2 0 0 3.79159</pose>
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_3</name>
-      <pose>7 -13 -2 0 0 -0.35</pose>
+      <pose>7 -14 -2 0 0 2.79159</pose>
     </include>
     <include>
       <uri>model://robosub_torpedo</uri>
       <name>robosub_torpedo_4</name>
-      <pose>7 -22.5 -2 0 0 0.5</pose>
+      <pose>7 -23 -2 0 0 3.11799</pose>
     </include>
     <!-- **** 4 × BIN **** -->
     <include>
       <uri>model://robosub_bin</uri>
       <name>robosub_bin_1</name>
-      <pose>7 7.5 -1.9 0 0 0</pose>
+      <pose>7 8.0 -1.9 0 0 0</pose>
     </include>
     <include>
       <uri>model://robosub_bin</uri>
