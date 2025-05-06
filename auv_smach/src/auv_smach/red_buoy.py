@@ -25,6 +25,8 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
+    SetFrameLookingAtState,
+    RotationState,
 )
 
 from auv_smach.initialize import DelayState
@@ -218,83 +220,6 @@ class SetRedBuoyRotationStartFrame(smach.State):
             return "aborted"
 
 
-class SetFrameLookingAtState(smach.State):
-    def __init__(self, base_frame, look_at_frame, target_frame):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.base_frame = base_frame
-        self.look_at_frame = look_at_frame
-        self.target_frame = target_frame
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
-        self.rate = rospy.Rate(10)
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
-        )
-
-    def execute(self, userdata):
-        try:
-            # Lookup the transform from base_frame to look_at_frame
-            base_to_look_at_transform = self.tf_buffer.lookup_transform(
-                self.base_frame,
-                self.look_at_frame,
-                rospy.Time(0),
-                rospy.Duration(10000.0),
-            )
-
-            # Calculate the direction vector from base_frame to look_at_frame
-            direction_vector = np.array(
-                [
-                    base_to_look_at_transform.transform.translation.x,
-                    base_to_look_at_transform.transform.translation.y,
-                ]
-            )
-
-            # Calculate the angle to face the look_at_frame
-            facing_angle = np.arctan2(direction_vector[1], direction_vector[0])
-            quaternion = transformations.quaternion_from_euler(0, 0, facing_angle)
-
-            # Create the TransformStamped message for base_frame -> target_frame
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = self.base_frame
-            t.child_frame_id = self.target_frame
-            t.transform.translation.x = 0.0  # Placed exactly on the base_frame
-            t.transform.translation.y = 0.0
-            t.transform.translation.z = 0.0
-            t.transform.rotation.x = quaternion[0]
-            t.transform.rotation.y = quaternion[1]
-            t.transform.rotation.z = quaternion[2]
-            t.transform.rotation.w = quaternion[3]
-
-            rospy.loginfo(
-                f"Transform from {self.base_frame} to {self.target_frame}: {t}"
-            )
-
-            # Call the set_object_transform service
-            req = SetObjectTransformRequest()
-            req.transform = t
-            res = self.set_object_transform_service(req)
-
-            if res.success:
-                rospy.loginfo(f"SetObjectTransform succeeded: {res.message}")
-            else:
-                rospy.logwarn(f"SetObjectTransform failed: {res.message}")
-
-            return "succeeded" if res.success else "aborted"
-
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            rospy.logwarn(f"TF lookup exception: {e}")
-            return "aborted"
-        except rospy.ServiceException as e:
-            rospy.logwarn(f"Service call failed: {e}")
-            return "aborted"
-
-
 class RotateAroundBuoyState(smach.State):
     def __init__(self, radius, direction, red_buoy_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -310,17 +235,18 @@ class RotateAroundBuoyState(smach.State):
                 "SET_RED_BUOY_DEPTH",
                 SetDepthState(depth=red_buoy_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "SET_RED_BUOY_TRAVEL_START",
+                    "succeeded": "ROTATE_UNTIL_FRAME_VISIBLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_RED_BUOY_TRAVEL_START",
-                SetFrameLookingAtState(
-                    base_frame="taluy/base_link",
+                "ROTATE_UNTIL_FRAME_VISIBLE",
+                RotationState(
+                    source_frame="taluy/base_link",
                     look_at_frame="red_buoy_link",
-                    target_frame="red_buoy_travel_start",
+                    rotation_speed=0.3,
+                    full_rotation=False,
                 ),
                 transitions={
                     "succeeded": "SET_RED_BUOY_ALIGN_CONTROLLER_TARGET",
@@ -334,14 +260,19 @@ class RotateAroundBuoyState(smach.State):
                     source_frame="taluy/base_link", target_frame="red_buoy_travel_start"
                 ),
                 transitions={
-                    "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
+                    "succeeded": "SET_RED_BUOY_TRAVEL_START",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_ALIGNING_TRAVEL_START",
-                DelayState(delay_time=3.0),
+                "SET_RED_BUOY_TRAVEL_START",
+                SetFrameLookingAtState(
+                    source_frame="taluy/base_link",
+                    target_frame="red_buoy_travel_start",
+                    look_at_frame="red_buoy_link",
+                    duration_time=4.0,
+                ),
                 transitions={
                     "succeeded": "SET_RED_BUOY_ROTATION_START_FRAME",
                     "preempted": "preempted",

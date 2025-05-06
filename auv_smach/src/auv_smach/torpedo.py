@@ -24,13 +24,15 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
+    RotationState,
 )
-from auv_smach.red_buoy import SetRedBuoyRotationStartFrame, SetFrameLookingAtState
+from auv_smach.red_buoy import SetRedBuoyRotationStartFrame
 
 from auv_smach.initialize import DelayState
 
 from auv_smach.common import (
     LaunchTorpedoState,
+    SetFrameLookingAtState,
 )
 
 
@@ -49,17 +51,18 @@ class TorpedoTaskState(smach.State):
                 "SET_TORPEDO_DEPTH",
                 SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "SET_TORPEDO_TRAVEL_START",
+                    "succeeded": "ROTATE_UNTIL_FRAME_VISIBLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_TORPEDO_TRAVEL_START",
-                SetFrameLookingAtState(
-                    base_frame="taluy/base_link",
+                "ROTATE_UNTIL_FRAME_VISIBLE",
+                RotationState(
+                    source_frame="taluy/base_link",
                     look_at_frame="torpedo_map_link",
-                    target_frame="torpedo_map_travel_start",
+                    rotation_speed=0.3,
+                    full_rotation=False,
                 ),
                 transitions={
                     "succeeded": "SET_TORPEDO_ALIGN_CONTROLLER_TARGET",
@@ -74,14 +77,19 @@ class TorpedoTaskState(smach.State):
                     target_frame="torpedo_map_travel_start",
                 ),
                 transitions={
-                    "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
+                    "succeeded": "SET_TORPEDO_TRAVEL_START",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_ALIGNING_TRAVEL_START",
-                DelayState(delay_time=3.0),
+                "SET_TORPEDO_TRAVEL_START",
+                SetFrameLookingAtState(
+                    source_frame="taluy/base_link",
+                    target_frame="torpedo_map_travel_start",
+                    look_at_frame="torpedo_map_link",
+                    duration_time=4.0,
+                ),
                 transitions={
                     "succeeded": "SET_TORPEDO_APPROACH_FRAME",
                     "preempted": "preempted",
