@@ -28,6 +28,16 @@
       <!-- params -->
       <param name="rate" value="$(arg control_rate)" />
     </node>
+
+    <!-- Ball Dropper Service Node -->
+    <node name="drop_ball_server" pkg="auv_sim_bridge" type="sim_bin_mock.py" output="screen">
+      <remap from="actuators/ball_dropper/drop" to="actuators/ball_dropper/drop" />
+    </node>
+    <!-- Torpedo Launcher Service Node -->
+    <node name="launch_torpedo_server" pkg="auv_sim_bridge" type="sim_torpedo_mock.py" output="screen">
+      <remap from="actuators/torpedo_1/launch" to="actuators/torpedo_1/launch" />
+      <remap from="actuators/torpedo_2/launch" to="actuators/torpedo_2/launch" />
+    </node>
   </group>
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
