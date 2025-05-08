@@ -5,6 +5,8 @@
 #include <pcl/point_types.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <cmath> // For std::sqrt, std::acos, M_PI, std::isfinite
+#include <limits> // For std::numeric_limits
 
 using PointCloud = pcl::PointCloud<pcl::PointXYZ>;
 
@@ -64,12 +66,64 @@ private:
     PointCloud::Ptr pcl_cloud(new PointCloud);
     pcl::fromROSMsg(*cloud_msg, *pcl_cloud);
 
+    // Apply Refraction Correction
+    PointCloud::Ptr refraction_corrected_cloud(new PointCloud);
+    refraction_corrected_cloud->header = pcl_cloud->header; // Copy header from original PCL cloud
+
+    for (const auto& pt_in : pcl_cloud->points) {
+        double x = pt_in.x;
+        double y = pt_in.y;
+        double z_in = pt_in.z;
+        double corrected_z = z_in; // Default to original z if correction is not possible/applicable
+
+        // Using epsilon for floating point comparisons to avoid division by zero for r
+        double r = std::sqrt(x * x + z_in * z_in);
+
+        if (r > std::numeric_limits<double>::epsilon()) {
+            double val_for_acos = z_in / r;
+            // Clamp val_for_acos to [-1.0, 1.0] to prevent acos domain errors due to precision issues
+            if (val_for_acos < -1.0) val_for_acos = -1.0;
+            if (val_for_acos > 1.0) val_for_acos = 1.0;
+
+            double theta = std::acos(val_for_acos);
+            double angle_deg = theta * 180.0 / M_PI; // M_PI should be defined in <cmath>
+            double error_percent = -25.0 - 0.02 * angle_deg * angle_deg;
+            
+            double denominator = 1.0 + (error_percent / 100.0);
+            // Avoid division by zero for denominator
+            if (std::abs(denominator) > std::numeric_limits<double>::epsilon()) {
+                double correction_factor = 1.0 / denominator;
+                corrected_z = z_in * correction_factor;
+            }
+            // else: keep original z_in if denominator is effectively zero
+        }
+        // else: keep original z_in if r is effectively zero
+
+        pcl::PointXYZ corrected_pt;
+        corrected_pt.x = static_cast<float>(x);
+        corrected_pt.y = static_cast<float>(y);
+        corrected_pt.z = static_cast<float>(corrected_z);
+
+        // Add point only if all coordinates are finite
+        if (std::isfinite(corrected_pt.x) && std::isfinite(corrected_pt.y) && std::isfinite(corrected_pt.z)) {
+            refraction_corrected_cloud->points.push_back(corrected_pt);
+        }
+    }
+
+    refraction_corrected_cloud->width = refraction_corrected_cloud->points.size();
+    refraction_corrected_cloud->height = 1;
+    // is_dense is true if all points are finite. Since we check std::isfinite before adding,
+    // all points in refraction_corrected_cloud are finite.
+    refraction_corrected_cloud->is_dense = true; 
+
+
     PointCloud::Ptr temp_cloud(new PointCloud);
 
     // Manual filtering: keep points that satisfy all conditions
-    temp_cloud->header = pcl_cloud->header;
-    for (size_t i = 0; i < pcl_cloud->points.size(); ++i) {
-      const auto& pt = pcl_cloud->points[i];
+    // Filter from the refraction_corrected_cloud
+    temp_cloud->header = refraction_corrected_cloud->header; // Use header from the corrected cloud
+    
+    for (const auto& pt : refraction_corrected_cloud->points) { // Iterate over corrected points
       // Filter based on Y coordinate using altitude and depth
       // Keep points below altitude (+offset) and above depth (-offset)
       // Also check if AUV depth itself is less than 5.0m
@@ -79,7 +133,7 @@ private:
     }
     temp_cloud->width = temp_cloud->points.size();
     temp_cloud->height = 1;
-    temp_cloud->is_dense = false;
+    temp_cloud->is_dense = false; // Keep original behavior for the final published cloud
 
     // publish
     sensor_msgs::PointCloud2 out_msg;
