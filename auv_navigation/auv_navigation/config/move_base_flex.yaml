@@ -120,16 +120,18 @@ global_costmap:
   global_frame: "odom"
   robot_base_frame: "taluy/base_link"
   static_map: false
-  rolling_window: false
+  rolling_window: true
+  width: 50.0
+  height: 50.0
   resolution: 0.5
   plugins:
-    - {name: static_layer, type: "costmap_2d::StaticLayer"}
-    - {name: voxel_layer, type: "costmap_2d::VoxelLayer"}
+    #- {name: static_layer, type: "costmap_2d::StaticLayer"}
+    #- {name: voxel_layer, type: "costmap_2d::VoxelLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
 
   static_layer:
-    map_topic: "/projected_map"
-    subscribe_to_updates: true
+    #map_topic: "/projected_map"
+    subscribe_to_updates: false
     update_in_place: true
     track_unknown_space: false
     trinary_map: true
@@ -153,12 +155,13 @@ local_costmap:
   resolution: 0.2
   always_send_full_costmap: true
   plugins:
-    - {name: voxel_layer, type: "costmap_2d::VoxelLayer"}
+    #- {name: voxel_layer, type: "costmap_2d::VoxelLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
 
   inflation_layer:
     inflation_radius: 0.5
-
+  voxel_layer:
+    enabled: false
 
 # Additional parameters
 shutdown_costmaps: false
