@@ -36,10 +36,10 @@ class RollTwoTimes(smach.State):
         roll_rate=30.0,
         timeout=rospy.Duration(60),
         frame_id="taluy/base_link",
-        pitch_Kp=15.0,
-        pitch_Kd=15.0,
-        yaw_Kp=5.0,
-        yaw_Kd=2.0,
+        pitch_Kp=10.0,
+        pitch_Kd=10.0,
+        yaw_Kp=10.0,
+        yaw_Kd=10.0,
         max_pitch_torque=50.0,
         max_yaw_torque=20.0,
     ):
@@ -161,7 +161,8 @@ class RollTwoTimes(smach.State):
         self.total_roll = 0.0
         self.last_time = rospy.Time.now()
         start_time = rospy.Time.now()
-        target = 2 * 2 * math.pi  # two full revolutions in rad
+        # target = 2 * 2 * math.pi  # two full revolutions in rad
+        target = (660 * math.pi) / 180.0  # 660 degrees in radians
         rospy.loginfo(f"Rolling {math.degrees(target):.0f}° at {self.roll_rate} rad/s")
 
         while not rospy.is_shutdown() and self.total_roll < target and self.active:
