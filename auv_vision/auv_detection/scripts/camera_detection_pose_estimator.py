@@ -141,21 +141,28 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
 
-        # Normal subscriber for altitude as it doesn't have a header
-        self.altitude = None
-        rospy.Subscriber("dvl/altitude", Float32, self.altitude_callback)
-
-        # Setup message filters subscribers for camera detections
+        # Setup message filters subscribers for synchronized callbacks
         self.front_camera_sub = message_filters.Subscriber('/yolo_result', YoloResult)
         self.bottom_camera_sub = message_filters.Subscriber('/yolo_result_2', YoloResult)
+        self.altitude_sub = message_filters.Subscriber('dvl/altitude', Float32)
         
-        # Register callbacks for individual camera detections
-        self.front_camera_sub.registerCallback(
-            lambda msg: self.detection_callback(msg, "taluy/cameras/cam_front")
+        # Synchronization for front camera and altitude - with allow_headerless=True
+        self.front_sync = message_filters.ApproximateTimeSynchronizer(
+            [self.front_camera_sub, self.altitude_sub],
+            queue_size=10,
+            slop=0.5,  # 500ms time synchronization window
+            allow_headerless=True
         )
-        self.bottom_camera_sub.registerCallback(
-            lambda msg: self.detection_callback(msg, "taluy/cameras/cam_bottom")
+        self.front_sync.registerCallback(self.front_camera_synced_callback)
+        
+        # Synchronization for bottom camera and altitude - with allow_headerless=True
+        self.bottom_sync = message_filters.ApproximateTimeSynchronizer(
+            [self.bottom_camera_sub, self.altitude_sub],
+            queue_size=10,
+            slop=0.5,  # 500ms time synchronization window
+            allow_headerless=True
         )
+        self.bottom_sync.registerCallback(self.bottom_camera_synced_callback)
 
         self.frame_id_to_camera_ns = {
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
@@ -193,16 +200,13 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red_link", 11: "bin/blue_link"},
         }
 
-    def altitude_callback(self, msg: Float32):
-        self.altitude = msg.data
-        rospy.logdebug(f"Received altitude: {self.altitude}")
-
-    def detection_callback(self, detection_msg: YoloResult, camera_ns: str):
-        if self.altitude is None:
-            rospy.logwarn("No altitude data available yet. Skipping detection processing.")
-            return
-        
-        self.process_detection(detection_msg, camera_ns)
+    def front_camera_synced_callback(self, detection_msg: YoloResult, altitude_msg: Float32):
+        self.altitude = altitude_msg.data
+        self.process_detection(detection_msg, "taluy/cameras/cam_front")
+    
+    def bottom_camera_synced_callback(self, detection_msg: YoloResult, altitude_msg: Float32):
+        self.altitude = altitude_msg.data
+        self.process_detection(detection_msg, "taluy/cameras/cam_bottom")
 
     def calculate_intersection_with_ground(self, point1_odom, point2_odom):
         # Calculate t where the z component is zero (ground plane)
