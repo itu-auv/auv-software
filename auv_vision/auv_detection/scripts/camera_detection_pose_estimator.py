@@ -14,10 +14,11 @@ from geometry_msgs.msg import (
 )
 from ultralytics_ros.msg import YoloResult
 from sensor_msgs.msg import Range
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Header
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
+import message_filters
 
 
 class CameraCalibration:
@@ -139,9 +140,23 @@ class CameraDetectionNode:
             "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
-        # Use lambda to pass camera source information to the callback
-        rospy.Subscriber("/yolo_result", YoloResult, lambda msg: self.detection_callback(msg, camera_source="front_camera"))
-        rospy.Subscriber("/yolo_result_2", YoloResult, lambda msg: self.detection_callback(msg, camera_source="bottom_camera"))
+
+        # Normal subscriber for altitude as it doesn't have a header
+        self.altitude = None
+        rospy.Subscriber("dvl/altitude", Float32, self.altitude_callback)
+
+        # Setup message filters subscribers for camera detections
+        self.front_camera_sub = message_filters.Subscriber('/yolo_result', YoloResult)
+        self.bottom_camera_sub = message_filters.Subscriber('/yolo_result_2', YoloResult)
+        
+        # Register callbacks for individual camera detections
+        self.front_camera_sub.registerCallback(
+            lambda msg: self.detection_callback(msg, "taluy/cameras/cam_front")
+        )
+        self.bottom_camera_sub.registerCallback(
+            lambda msg: self.detection_callback(msg, "taluy/cameras/cam_bottom")
+        )
+
         self.frame_id_to_camera_ns = {
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
@@ -177,12 +192,17 @@ class CameraDetectionNode:
             },
             "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red_link", 11: "bin/blue_link"},
         }
-        # Subscribe to YOLO detections and altitude
-        self.altitude = None
-        rospy.Subscriber("dvl/altitude", Float32, self.altitude_callback)
 
     def altitude_callback(self, msg: Float32):
         self.altitude = msg.data
+        rospy.logdebug(f"Received altitude: {self.altitude}")
+
+    def detection_callback(self, detection_msg: YoloResult, camera_ns: str):
+        if self.altitude is None:
+            rospy.logwarn("No altitude data available yet. Skipping detection processing.")
+            return
+        
+        self.process_detection(detection_msg, camera_ns)
 
     def calculate_intersection_with_ground(self, point1_odom, point2_odom):
         # Calculate t where the z component is zero (ground plane)
@@ -296,15 +316,7 @@ class CameraDetectionNode:
             return False
         return True
 
-    def detection_callback(self, detection_msg: YoloResult, camera_source: str):
-        # Determine camera_ns based on the source passed by the subscriber
-        if camera_source == "front_camera":
-            camera_ns = "taluy/cameras/cam_front" # Ensure this matches your actual namespace
-        elif camera_source == "bottom_camera":
-            camera_ns = "taluy/cameras/cam_bottom" # Ensure this matches your actual namespace
-        else:
-            rospy.logerr(f"Unknown camera_source: {camera_source}")
-            return # Stop processing if the source is unknown
+    def process_detection(self, detection_msg: YoloResult, camera_ns: str):
         camera_frame = self.camera_frames[camera_ns]
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
@@ -333,6 +345,9 @@ class CameraDetectionNode:
             )
             if detection_id == 10 or detection_id == 11:
                 # use altidude for bin
+                if self.altitude is None:
+                    rospy.logwarn("No altitude data available for bin detection")
+                    continue
                 distance = self.altitude
             if distance is None:
                 continue
@@ -341,27 +356,34 @@ class CameraDetectionNode:
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
-            camera_to_odom_transform = self.tf_buffer.lookup_transform(
-                camera_frame,
-                "odom",
-                detection_msg.header.stamp,
-                rospy.Duration(1.0),
-            )
-            offset_x = math.tan(angles[0]) * distance * 1.0
-            offset_y = math.tan(angles[1]) * distance * 1.0
-            transform_stamped_msg = TransformStamped()
-            transform_stamped_msg.header.stamp = detection_msg.header.stamp
-            transform_stamped_msg.header.frame_id = camera_frame
-            transform_stamped_msg.child_frame_id = prop_name
+            try:
+                camera_to_odom_transform = self.tf_buffer.lookup_transform(
+                    camera_frame,
+                    "odom",
+                    detection_msg.header.stamp,
+                    rospy.Duration(1.0),
+                )
+                offset_x = math.tan(angles[0]) * distance * 1.0
+                offset_y = math.tan(angles[1]) * distance * 1.0
+                transform_stamped_msg = TransformStamped()
+                transform_stamped_msg.header.stamp = detection_msg.header.stamp
+                transform_stamped_msg.header.frame_id = camera_frame
+                transform_stamped_msg.child_frame_id = prop_name
 
-            transform_stamped_msg.transform.translation = Vector3(
-                offset_x, offset_y, distance
-            )
-            transform_stamped_msg.transform.rotation = (
-                camera_to_odom_transform.transform.rotation
-            )
-            # Calculate the rotation based on odom
-            self.object_transform_pub.publish(transform_stamped_msg)
+                transform_stamped_msg.transform.translation = Vector3(
+                    offset_x, offset_y, distance
+                )
+                transform_stamped_msg.transform.rotation = (
+                    camera_to_odom_transform.transform.rotation
+                )
+                # Calculate the rotation based on odom
+                self.object_transform_pub.publish(transform_stamped_msg)
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                rospy.logerr(f"Transform error: {e}")
 
     def run(self):
         rospy.spin()
