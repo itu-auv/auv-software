@@ -1,8 +1,7 @@
 ---
-control_inspector_node:
-  update_rate: 20
-  min_battery_voltage: 13.0
-  odometry_timeout: 1.0
-  altitude_timeout: 1.0
-  dvl_timeout: 1.0
-  min_altitude: 0.3
+update_rate: 20
+min_battery_voltage: 13.0
+odometry_timeout: 1.0
+altitude_timeout: 1.0
+dvl_timeout: 1.0
+min_altitude: 0.3

@@ -54,7 +54,7 @@ class ControlInspectorNode:
         self.odometry_timeout = rospy.get_param("~odometry_timeout", 0.5)
         self.altitude_timeout = rospy.get_param("~altitude_timeout", 0.5)
         self.dvl_timeout = rospy.get_param("~dvl_timeout", 1.0)
-        self.min_altitude = rospy.get_param("~min_altitude", 30.0)
+        self.min_altitude = rospy.get_param("~min_altitude", 0.3)
 
     def odometry_callback(self, msg):
         self.last_odometry_time = rospy.get_time()
@@ -64,7 +64,7 @@ class ControlInspectorNode:
         self.altitude = msg.data
 
     def battery_callback(self, msg):
-        self.battery_voltage = msg.data.voltage
+        self.battery_voltage = msg.voltage
 
     def dvl_callback(self, msg):
         if msg.data:
@@ -124,7 +124,7 @@ class ControlInspectorNode:
             errors.append("DVL not enabled or no data received")
         elif current_time - self.last_dvl_time > self.dvl_timeout:
             errors.append(
-                f"DVL timeout (last enabled: {current_time - self.last_dvl_time:.1f}s ago)"
+                f"DVL timeout (last successful ping was: {current_time - self.last_dvl_time:.1f}s ago)"
             )
 
         return (len(errors) == 0, errors)
