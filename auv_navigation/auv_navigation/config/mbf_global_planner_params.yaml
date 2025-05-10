@@ -1,0 +1,32 @@
+---
+# Parameters for Global Planner
+GlobalPlanner:
+  # Allow planning in unknown space?
+  allow_unknown: true # Often necessary for AUVs unless a full map is guaranteed
+
+  # Use Dijkstra's algorithm or A*? (A* is generally faster)
+  use_dijkstra: false
+
+  # Use quadratic approximation for cost function? (Faster, less accurate)
+  use_quadratic: true
+
+  # Use grid path? (Smoother path)
+  use_grid_path: false
+
+  # How much to penalize traversing in potential fields higher than lethal_cost
+  # Recommended value: 1.0 for Dijkstra, 2.0-3.0 for A*
+  cost_factor: 2.0
+
+  # If using A*, this factor determines how much the heuristic distance contributes
+  # Higher values prioritize reaching the goal faster, potentially sacrificing optimality
+  heuristic_factor: 1.0
+
+  # Publish potential field as PointCloud2? (For debugging)
+  publish_potential: false
+
+  # Orientation filter settings (if needed to smooth path orientation)
+  # orientation_mode: 0 # None
+  # orientation_window_size: 1
+
+  # Default tolerance for planning if goal tolerance is not specified in the request
+  default_tolerance: 0.1 # meters

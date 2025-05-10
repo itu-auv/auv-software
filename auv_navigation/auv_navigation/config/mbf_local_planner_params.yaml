@@ -1,0 +1,39 @@
+---
+
+# Robot configuration parameters
+max_vel_x: 0.7
+max_vel_x_backwards: 0.5
+max_vel_theta: 0.5
+acc_lim_x: 1.0
+acc_lim_theta: 0.5
+
+  # goal tolerance
+xy_goal_tolerance: 0.2
+yaw_goal_tolerance: 0.35
+free_goal_vel: false
+
+  # Trajectory
+dt_ref: 0.3
+dt_hysteresis: 0.1
+min_samples: 5   #! can be increased to 7
+global_plan_overwrite_orientation: true   #! Modifiable
+max_global_plan_lookahead_dist: 3.0
+enable_homotopy_class_planning: false
+
+weight_optimaltime: 0.5           # default 1.0
+
+weight_max_vel_theta: 2.0   #! default 1.0
+weight_acc_lim_theta: 2.0   #
+min_obstacle_dist: 0.3
+include_costmap_obstacles: false   #! Default is true
+costmap_obstacles_behind_robot_dist: 1.0
+obstacle_poses_affected: 30
+
+  # Add proper footprint model for TEB optimization
+footprint_model:
+  type: "polygon"
+  vertices: [[0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5]]
+  is_footprint_dynamic: false
+
+  # Dynamic reconfiguration
+publish_feedback: true

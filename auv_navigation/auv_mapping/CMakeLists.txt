@@ -42,7 +42,7 @@ endif()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp tf2 tf2_ros geometry_msgs auv_msgs sensor_msgs std_msgs pcl_ros pcl_conversions
+  CATKIN_DEPENDS roscpp tf2 tf2_ros geometry_msgs auv_msgs sensor_msgs std_msgs pcl_ros pcl_conversions octomap_ros octomap_msgs octomap_ros
   DEPENDS OpenCV
 )
 

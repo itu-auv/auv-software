@@ -1,0 +1,155 @@
+---
+# Enable the MoveBase compatibility server #! what is this?
+action_server_plugins:
+  - move_base
+  - get_path
+  - exe_path
+  - exe_goal
+
+# configure each action server
+action_servers:
+  move_base:
+    type: "mbf_compatibility/MoveBaseServer" #! ?
+    ros_namespace: "/taluy/move_base_flex"
+  get_path:
+    type: "mbf_abstract_nav/GetPathAction"
+    ros_namespace: "/taluy/move_base_flex/get_path"
+  exe_path:
+    type: "mbf_abstract_nav/ExePathAction"
+    ros_namespace: "/taluy/move_base_flex/exe_path"
+  exe_goal:
+    type: "mbf_abstract_nav/ExeGoalAction"
+    ros_namespace: "/taluy/move_base_flex/exe_goal"
+
+
+robot_frame: "taluy/base_link"
+map_frame: "odom"
+global_frame: "odom"
+
+planner_frequency: 1.4
+planner_patience: 5.0
+planner_max_retries: 3
+
+controller_frequency: 10.0
+controller_patience: 5.0
+controller_max_retries: 3
+
+recovery_enabled: true
+recovery_patience: 15.0
+
+oscillation_timeout: 0.0
+oscillation_distance: 0.1
+
+planners:
+  - name: global_planner
+    type: "global_planner/GlobalPlanner"
+
+#  - name: carrot_planner
+#    type: "carrot_planner/CarrotPlanner"
+#    allow_unknown: true
+
+controllers:
+  - name: teb_local
+    type: "teb_local_planner/TebLocalPlannerROS"
+    cmd_vel_topic: "/taluy/cmd_vel"
+    TebLocalPlannerROS: {} # Parameters loaded externally
+
+recovery_behaviors:
+  - name: rotate_in_place
+    type: "rotate_recovery/RotateRecovery"
+
+costmap_common:
+  # frames
+  global_frame: "odom"
+  robot_base_frame: "taluy/base_link"
+  transform_tolerance: 0.5
+
+  # timing
+  update_frequency: 10.0
+  publish_frequency: 2.0
+
+  # Robot footprint  (square 1 m × 1 m)
+  footprint: [[0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5]]
+
+  # 3-D costmap parameters (voxel grid)
+  map_type: voxel
+  origin_z: 0.0
+  z_resolution: 0.1                      # m per voxel layer
+  z_voxels: 10                           # ⇒ covers 1 m vertically
+  unknown_threshold: 9
+  mark_threshold: 0
+
+
+  # Default inflation behaviour (can be overridden below)
+  inflation_layer:
+    cost_scaling_factor: 5.0
+    inflation_radius: 0.1                # m
+
+  # Default voxel-layer sensor (depth cam)
+  voxel_layer:
+    enabled: true
+    observation_sources: depth_camera_source
+    depth_camera_source:
+      data_type: PointCloud2
+      topic: /taluy/camera/depth/points
+      marking: true
+      clearing: true
+      min_obstacle_height: 0.0
+      max_obstacle_height: 2.0
+      obstacle_range: 5.0                # m
+      raytrace_range: 6.0                # m
+      sensor_frame: taluy/base_link/depth_camera_link
+
+
+
+###############################################################################
+#                  Global Costmap Parameters (global_costmap)                #
+###############################################################################
+global_costmap:
+  global_frame: "odom"
+  robot_base_frame: "taluy/base_link"
+  static_map: false
+  rolling_window: true
+  width: 50.0
+  height: 50.0
+  resolution: 0.5
+  plugins:
+    #- {name: static_layer, type: "costmap_2d::StaticLayer"}
+    #- {name: voxel_layer, type: "costmap_2d::VoxelLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+
+  static_layer:
+    #map_topic: "/projected_map"
+    subscribe_to_updates: false
+    update_in_place: true
+    track_unknown_space: false
+    trinary_map: true
+
+  inflation_layer:
+    inflation_radius: 1.0
+
+
+local_costmap:
+  global_frame: "odom"
+  shutdown_costmaps: false
+  shutdown_costmaps_delay: 1.0     # seconds after last action
+  robot_base_frame: "taluy/base_link"
+  static_map: false
+  footprint: [[0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5]]
+  rolling_window: true
+  width: 3.0
+  height: 3.0
+  resolution: 0.2
+  always_send_full_costmap: true
+  plugins:
+    #- {name: voxel_layer, type: "costmap_2d::VoxelLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+
+  inflation_layer:
+    inflation_radius: 0.5
+  voxel_layer:
+    enabled: false
+
+# Additional parameters
+shutdown_costmaps: false
+shutdown_costmaps_delay: 1.0     # seconds after last action
