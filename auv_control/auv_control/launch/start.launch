@@ -22,7 +22,7 @@
       <remap from="cmd_vel" to="cmd_vel" />
       <remap from="cmd_pose" to="cmd_pose" />
       <remap from="acceleration" to="acceleration" />
-      <remap from="enable" to="enable" />
+      <remap from="control_inspector_enable" to="control_inspector_enable" />
 
       <remap from="wrench" to="wrench" />
       <rosparam file="$(arg config_file)" command="load" ns="" />
@@ -74,9 +74,8 @@
       <remap from="altitude" to="sensors/dvl/altitude" />
       <remap from="power" to="mainboard/power_sensor/power" />
       <remap from="dvl_enabled" to="sensors/dvl/is_valid" />
-      <remap from="control_enable" to="enable" />
-      <remap from="control_inspector_enabled" to="control_inspector_enabled" />
-      <remap from="set_control_enable" to="set_control_enable" />
+      <remap from="enable" to="enable" />
+      <remap from="control_inspector_enable" to="control_inspector_enable" />
 
       <rosparam command="load" file="$(find auv_control)/config/control_inspector_params.yaml" />
     </node>
