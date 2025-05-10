@@ -1,0 +1,24 @@
+---
+TebLocalPlannerROS:
+  # Trajectory Options
+
+
+  global_plan_overwrite_orientation: true
+  max_global_plan_lookahead_dist: 3.0
+
+  max_vel_x: 0.5
+  max_vel_x_backwards: 0.5
+  max_vel_theta: 0.5
+  acc_lim_x: 100.0  # Set high to effectively disable limit
+  acc_lim_theta: 100.0 # Set high to effectively disable limit
+
+  xy_goal_tolerance: 0.2
+  yaw_goal_tolerance: 0.2
+  free_goal_vel: false
+
+  min_obstacle_dist: 0.3
+  include_costmap_obstacles: false #! Default is true
+  costmap_obstacles_behind_robot_dist: 1.0
+  obstacle_poses_affected: 30
+
+  footprint: [[0.5, 0.5], [0.5, -0.5], [-0.5, -0.5], [-0.5, 0.5]] #! To be changed
