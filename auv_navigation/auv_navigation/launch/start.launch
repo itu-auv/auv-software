@@ -17,7 +17,7 @@
       <rosparam file="$(find auv_navigation)/config/move_base_flex.yaml" command="load" />
 
       <!-- Load Local Planner (Controller) Parameters -->
-      <rosparam file="$(find auv_navigation)/config/mbf_local_planner_params.yaml" command="load" ns="DWAPlannerROS" />
+      <rosparam file="$(find auv_navigation)/config/mbf_local_planner_params.yaml" command="load" ns="teb_local" />
 
       <!-- Load Global Planner Parameters -->
       <rosparam file="$(find auv_navigation)/config/mbf_global_planner_params.yaml" command="load" ns="GlobalPlanner" />

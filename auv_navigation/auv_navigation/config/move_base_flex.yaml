@@ -54,7 +54,6 @@ controllers:
     cmd_vel_topic: "/taluy/cmd_vel"
     TebLocalPlannerROS: {} # Parameters loaded externally
 
-
 recovery_behaviors:
   - name: rotate_in_place
     type: "rotate_recovery/RotateRecovery"
