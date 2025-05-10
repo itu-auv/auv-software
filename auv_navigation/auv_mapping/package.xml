@@ -9,6 +9,8 @@
   <buildtool_depend>catkin</buildtool_depend>
   <depend>auv_msgs</depend>
   <depend>geometry_msgs</depend>
+  <depend>octomap_msgs</depend>
+  <depend>octomap_ros</depend>
   <depend>roscpp</depend>
   <depend>tf2</depend>
   <depend>tf2_ros</depend>
