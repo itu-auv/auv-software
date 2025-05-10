@@ -9,5 +9,23 @@
       name="follow_path_action_server"
       output="screen">
     </node>
+
+    <!-- Move Base Flex Node -->
+    <node pkg="mbf_costmap_nav" type="mbf_costmap_nav" respawn="false" name="move_base_flex" output="screen">
+
+      <!-- Load Main MBF Parameters -->
+      <rosparam file="$(find auv_navigation)/config/move_base_flex.yaml" command="load" />
+
+      <!-- Load Local Planner (Controller) Parameters -->
+      <rosparam file="$(find auv_navigation)/config/mbf_local_planner_params.yaml" command="load" ns="DWAPlannerROS" />
+
+      <!-- Load Global Planner Parameters -->
+      <rosparam file="$(find auv_navigation)/config/mbf_global_planner_params.yaml" command="load" ns="GlobalPlanner" />
+
+      <!-- Load Recovery Behavior Parameters -->
+      <rosparam file="$(find auv_navigation)/config/mbf_recovery_params.yaml" command="load" /> <!-- Load into the node's namespace -->
+
+
+    </node>
   </group>
 </launch>
