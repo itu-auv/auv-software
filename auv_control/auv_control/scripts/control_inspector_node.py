@@ -23,21 +23,13 @@ class ControlInspectorNode:
             "dvl_enabled", Bool, self.dvl_callback, tcp_nodelay=True
         )
 
-        # Publishers
-        self.control_enable_pub = rospy.Publisher(
-            "control_enable", Bool, queue_size=1, latch=True, tcp_nodelay=True
-        )
-        self.control_inspector_enabled_pub = rospy.Publisher(
-            "control_inspector_enabled",
-            Bool,
-            queue_size=1,
-            latch=True,
-            tcp_nodelay=True,
+        self.inspector_enable_sub = rospy.Subscriber(
+            "enable", Bool, self.handle_enable, tcp_nodelay=True
         )
 
-        # Service
-        self.enable_service = rospy.Service(
-            "set_control_enable", SetBool, self.handle_control_enable_request
+        # Publishers
+        self.control_enable_pub = rospy.Publisher(
+            "control_inspector_enable", Bool, queue_size=1, tcp_nodelay=True
         )
 
         # Initialize variables
@@ -46,7 +38,7 @@ class ControlInspectorNode:
         self.altitude = None
         self.battery_voltage = None
         self.last_dvl_time = None
-        self.control_inspector_enabled = False
+        self.enable = False
 
         # Parameters
         self.update_rate = rospy.get_param("~update_rate", 20)
@@ -70,18 +62,8 @@ class ControlInspectorNode:
         if msg.data:
             self.last_dvl_time = rospy.get_time()
 
-    def handle_control_enable_request(self, req):
-        if req.data:
-            success, errors = self.safety_checks_passed()
-            if success:
-                self.control_inspector_enabled = True
-                return SetBoolResponse(True, "Control inspector enabled")
-            else:
-                error_msg = "Control inspector denied: " + "; ".join(errors)
-                return SetBoolResponse(False, error_msg)
-        else:
-            self.control_inspector_enabled = False
-            return SetBoolResponse(True, "Control inspector disabled")
+    def handle_enable(self, msg):
+        self.enable = msg.data
 
     def safety_checks_passed(self):
         current_time = rospy.get_time()
@@ -130,11 +112,7 @@ class ControlInspectorNode:
         return (len(errors) == 0, errors)
 
     def control_loop(self):
-        self.control_inspector_enabled_pub.publish(
-            Bool(data=self.control_inspector_enabled)
-        )
-
-        if self.control_inspector_enabled:
+        if self.enable:
             success, errors = self.safety_checks_passed()
             if success:
                 self.control_enable_pub.publish(Bool(data=True))
