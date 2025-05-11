@@ -23,7 +23,7 @@ from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryP
 
 
 class RollTwoTimes(smach.State):
-    def __init__(self, roll_rate, rate_hz=20, timeout_s=15.0):
+    def __init__(self, pitch_torque=25, rate_hz=20, timeout_s=15.0):
         super(RollTwoTimes, self).__init__(
             outcomes=["succeeded", "preempted", "aborted"]
         )
@@ -33,13 +33,13 @@ class RollTwoTimes(smach.State):
         self.wrench_topic = "wrench"
         self.frame_id = "taluy/base_link"
 
-        self.roll_rate = roll_rate
+        self.pitch_torque = pitch_torque
         self.timeout = rospy.Duration(timeout_s)
         self.rate = rospy.Rate(rate_hz)
 
         self.odom_ready = False
         self.active = True
-        self.total_roll = 0.0
+        self.total_pitch = 0.0
         self.last_time = None
 
         self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
@@ -65,9 +65,9 @@ class RollTwoTimes(smach.State):
         dt = (now - self.last_time).to_sec()
         self.last_time = now
 
-        omega_x = msg.twist.twist.angular.x
-        delta_angle = omega_x * dt
-        self.total_roll += abs(delta_angle)
+        omega_y = msg.twist.twist.angular.y
+        delta_angle = omega_y * dt
+        self.total_pitch += abs(delta_angle)
 
     def killswitch_cb(self, msg: Bool):
         if not msg.data:
@@ -88,18 +88,18 @@ class RollTwoTimes(smach.State):
             except rospy.ROSInterruptException:
                 return self._abort_on_shutdown()
 
-        self.total_roll = 0.0
+        self.total_pitch = 0.0
         self.last_time = rospy.Time.now()
         self.start_time = rospy.Time.now()
         target = math.radians(675.0)
         rospy.loginfo(
-            "ROLL_TWO_TIMES: starting roll @ %.2f rad/s, target = %.2f rad",
-            self.roll_rate,
+            "ROLL_TWO_TIMES: starting pitch @ %.2f Nm, target = %.2f rad",
+            self.pitch_torque,
             target,
         )
 
         try:
-            while not rospy.is_shutdown() and self.total_roll < target and self.active:
+            while not rospy.is_shutdown() and self.total_pitch < target and self.active:
 
                 if self.preempt_requested():
                     return self._stop_and("preempted")
@@ -113,13 +113,13 @@ class RollTwoTimes(smach.State):
                 cmd = WrenchStamped()
                 cmd.header.stamp = rospy.Time.now()
                 cmd.header.frame_id = self.frame_id
-                cmd.wrench.torque.x = self.roll_rate
+                cmd.wrench.torque.y = self.pitch_torque
                 self.pub_wrench.publish(cmd)
 
                 rospy.loginfo_throttle(
                     1.0,
-                    "ROLL_TWO_TIMES: total_roll = %.2f / %.2f",
-                    self.total_roll,
+                    "ROLL_TWO_TIMES: total_pitch = %.2f / %.2f",
+                    self.total_pitch,
                     target,
                 )
 
@@ -134,7 +134,7 @@ class RollTwoTimes(smach.State):
         stop = WrenchStamped()
         stop.header.stamp = rospy.Time.now()
         stop.header.frame_id = self.frame_id
-        stop.wrench.torque.x = 0.0
+        stop.wrench.torque.y = 0.0
         self.pub_wrench.publish(stop)
         return outcome
 
@@ -219,7 +219,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
-                RollTwoTimes(roll_rate=20.0, rate_hz=20, timeout_s=15.0),
+                RollTwoTimes(pitch_torque=50.0, rate_hz=20, timeout_s=15.0),
                 transitions={
                     "succeeded": "WAIT_FOR_ENABLE_DVL_ODOM",
                     "preempted": "preempted",
