@@ -15,7 +15,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <vision_msgs/Detection3DArray.h>
-#include <ultralytics_ros/YoloResult.h>
+#include <ultralytics_ros/YoloResult.h>  // vision_msgs/Detection2DArray yerine
 
 // PCL Kütüphaneleri
 #include <pcl/point_cloud.h>
@@ -25,6 +25,7 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/common/centroid.h>
 #include <pcl/common/pca.h>
+#include <pcl/common/common.h>  // getMinMax3D için gerekli
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl_ros/transforms.h>
 
@@ -448,7 +449,11 @@ public:
     
     // Min ve max noktalar hesapla
     pcl::PointXYZ min_pt, max_pt;
-    pcl::getMinMax3D(*cloud, min_pt, max_pt);
+    if (!cloud->points.empty()) {
+      pcl::getMinMax3D(*cloud, min_pt, max_pt);
+    } else {
+      min_pt = max_pt = pcl::PointXYZ(0, 0, 0);
+    }
     
     // Merkez noktayı ayarla
     detection3d.bbox.center.position.x = centroid[0];

@@ -22,6 +22,9 @@
   <depend>visualization_msgs</depend>
   <depend>image_geometry</depend>
   <depend>cv_bridge</depend>
+  <depend>auv_msgs</depend>
+  <depend>octomap_ros</depend>
+  <depend>octomap_msgs</depend>
   <depend>ultralytics_ros</depend>
   
   <export>
