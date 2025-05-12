@@ -26,7 +26,8 @@ class PathPlanners:
         self,
         source_frame: str,
         target_frame: str,
-        angle_offset: float = 0.0,
+        source_angle_offset: float = 0.0,
+        target_angle_offset: float = 0.0,
         num_waypoints: int = 50,
         n_turns: int = 0,
         interpolate_xy: bool = True,
@@ -39,7 +40,8 @@ class PathPlanners:
         Args:
             source_frame: The starting frame.
             target_frame: The destination frame.
-            angle_offset: Additional angle offset (in radians) to add to the target orientation.
+            source_angle_offset: Additional angle offset (in radians) to add to the source orientation.
+            target_angle_offset: Additional angle offset (in radians) to add to the target orientation.
             num_waypoints: Number of waypoints to generate.
             n_turns: Number of full 360-degree turns to add to the interpolation.
             interpolate_xy: If True, interpolate the x and y positions.
@@ -51,27 +53,31 @@ class PathPlanners:
         """
         try:
             # Lookup transforms and extract positions and quaternions.
-            source_position, source_quaternion = PathPlanningHelper.lookup_transform(
-                self.tf_buffer, source_frame
+            source_position, source_quaternion_actual = (
+                PathPlanningHelper.lookup_transform(self.tf_buffer, source_frame)
             )
-            target_position, target_quaternion = PathPlanningHelper.lookup_transform(
-                self.tf_buffer, target_frame
+            target_position, target_quaternion_actual = (
+                PathPlanningHelper.lookup_transform(self.tf_buffer, target_frame)
             )
 
-            # Apply angle_offset to the target quaternion.
+            # Apply angle_offset to the source and target quaternions.
+            final_source_quat = PathPlanningHelper.apply_angle_offset(
+                source_quaternion_actual, source_angle_offset
+            )
             final_target_quat = PathPlanningHelper.apply_angle_offset(
-                target_quaternion, angle_offset
+                target_quaternion_actual, target_angle_offset
             )
 
             # Get euler of source and target.
-            source_euler = tf.transformations.euler_from_quaternion(source_quaternion)
+            final_source_euler = tf.transformations.euler_from_quaternion(
+                final_source_quat
+            )
             final_target_euler = tf.transformations.euler_from_quaternion(
                 final_target_quat
             )
-
             # Compute the angular difference (yaw only).
             angular_diff = PathPlanningHelper.compute_angular_difference(
-                source_euler, final_target_euler, n_turns
+                final_source_euler, final_target_euler, n_turns
             )
 
             # Create a header for the path.
@@ -82,7 +88,7 @@ class PathPlanners:
                 header,
                 source_position,
                 target_position,
-                source_euler,
+                final_source_euler,
                 angular_diff,
                 num_waypoints,
                 interpolate_xy,
@@ -129,11 +135,14 @@ class PathPlanners:
                             entrance_path = self.straight_path_to_frame(
                                 source_frame=self.base_link_frame,
                                 target_frame=self.gate_exit_frame,
+                                target_angle_offset=np.pi,  # Target gate_exit_frame rotated 180 deg
                             )
                         if exit_path is None:
                             exit_path = self.straight_path_to_frame(
                                 source_frame=self.gate_exit_frame,
                                 target_frame=self.gate_entrance_frame,
+                                source_angle_offset=np.pi,  # Source gate_exit_frame rotated 180 deg
+                                target_angle_offset=np.pi,  # Target gate_entrance_frame rotated 180 deg
                                 n_turns=0,
                             )
                     if entrance_path is not None and exit_path is not None:
