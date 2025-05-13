@@ -66,6 +66,21 @@ private:
   // Son işlem zamanı (marker ömrü için)
   ros::Time last_call_time_;
 
+  // Tespit ID'sinden prop ismini almak için bir mapping ekleyelim
+  std::map<int, std::string> id_to_prop_name = {
+      {8, "red_buoy_link"},
+      {7, "path_link"},
+      {9, "bin_whole_link"},
+      {12, "torpedo_map_link"},
+      {13, "torpedo_hole_link"},
+      {1, "gate_left_link"},
+      {2, "gate_right_link"},
+      {3, "gate_blue_arrow_link"},
+      {4, "gate_red_arrow_link"},
+      {5, "gate_middle_part_link"},
+      {14, "octagon_link"}
+  };
+
 public:
   ProcessTrackerWithCloud() : pnh_("~") {
     // Parametreleri yükle
@@ -120,11 +135,23 @@ public:
     ROS_INFO("Eşzamanlı işlem başlatıldı: %zu adet YOLO tespiti alındı", 
              yolo_result_msg->detections.detections.size());
     
+    // YOLO tespiti yoksa işlem yapma
+    if (yolo_result_msg->detections.detections.empty()) {
+      ROS_WARN("Hiç YOLO tespiti yok, işlem atlanıyor");
+      return;
+    }
+    
     // Nokta bulutunu PCL formatına dönüştür
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*cloud_msg, *cloud);
     
     ROS_INFO("Orijinal nokta bulutu boyutu: %zu nokta", cloud->points.size());
+    
+    // Nokta bulutu boşsa işlem yapma
+    if (cloud->points.empty()) {
+      ROS_WARN("Nokta bulutu boş, işlem atlanıyor");
+      return;
+    }
     
     // Nokta bulutunu downsample et
     pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled_cloud = 
@@ -143,6 +170,9 @@ public:
     
     // Tüm tespitler için birleştirilmiş nokta bulutunu sakla
     pcl::PointCloud<pcl::PointXYZ> combined_detection_cloud;
+    
+    // İşlenen tespit sayacı
+    int processed_detection_count = 0;
     
     // Her bir YOLO tespiti için işlem yap
     for (size_t i = 0; i < yolo_result_msg->detections.detections.size(); i++) {
@@ -170,23 +200,71 @@ public:
       }
       
       // Euclidean cluster extraction uygula
-      pcl::PointCloud<pcl::PointXYZ>::Ptr clustered_cloud = 
+      std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters = 
           euclideanClusterExtraction(detection_cloud);
       
-      // Düzlem segmentasyonu ve yüzey dönüşümü (PCA) uygula
-      Eigen::Vector4f centroid;
-      Eigen::Matrix3f rotation_matrix;
-      bool success = planeSegmentationAndPCA(clustered_cloud, centroid, rotation_matrix);
-      
-      if (success) {
-        // 3D tespit mesajı ve marker oluştur
-        createAndPublishDetection(detections3d_msg, object_markers, plane_markers, 
-                                  clustered_cloud, centroid, rotation_matrix, 
-                                  detection.results, cloud_msg->header, callback_interval.toSec());
+      // Eğer hiç küme bulunamadıysa sonraki tespite geç
+      if (clusters.empty()) {
+        ROS_WARN("Tespit #%zu için hiç küme bulunamadı, atlıyorum", i);
+        continue;
       }
       
-      // Tespit noktalarını birleştir
-      combined_detection_cloud += *clustered_cloud;
+      // Tespit için prop ismini belirle (temel isim)
+      std::string base_frame_id = "object"; // Varsayılan isim
+      
+      // Eğer tespit sonuçları varsa, tespitin sınıf ID'sini doğrudan kullan
+      if (!detection.results.empty()) {
+        // Tespitin ilk (veya tek) sonucunu al
+        int detection_id = detection.results[0].id;
+        
+        // ID'yi prop ismine dönüştür
+        if (detection_id >= 0 && id_to_prop_name.find(detection_id) != id_to_prop_name.end()) {
+          base_frame_id = id_to_prop_name[detection_id];
+        }
+      }
+      
+      ROS_INFO("Tespit #%zu için %zu küme işlenecek, temel isim: %s", 
+              i, clusters.size(), base_frame_id.c_str());
+      
+      // Her bir küme için ayrı işlem yap
+      for (size_t cluster_idx = 0; cluster_idx < clusters.size(); cluster_idx++) {
+        // Kümeyi al
+        pcl::PointCloud<pcl::PointXYZ>::Ptr& cluster_cloud = clusters[cluster_idx];
+        
+        // Küme boşsa atla
+        if (cluster_cloud->points.empty()) {
+          ROS_WARN("Tespit #%zu, Küme #%zu boş, atlıyorum", i, cluster_idx);
+          continue;
+        }
+        
+        // Bu küme için özgün bir frame_id oluştur
+        std::string frame_id = base_frame_id + "_" + std::to_string(i) + "_" + std::to_string(cluster_idx);
+        
+        // Düzlem segmentasyonu ve yüzey dönüşümü (PCA) uygula
+        Eigen::Vector4f centroid;
+        Eigen::Matrix3f rotation_matrix;
+        bool success = planeSegmentationAndPCA(cluster_cloud, centroid, rotation_matrix);
+        
+        if (success) {
+          // 3D tespit mesajı ve marker oluştur
+          createAndPublishDetection(detections3d_msg, object_markers, plane_markers, 
+                                   cluster_cloud, centroid, rotation_matrix, 
+                                   detection.results, cloud_msg->header, callback_interval.toSec(), frame_id);
+          processed_detection_count++;
+        } else {
+          ROS_WARN("Tespit #%zu, Küme #%zu için düzlem segmentasyonu başarısız", i, cluster_idx);
+          continue;
+        }
+        
+        // Tespit noktalarını birleştir
+        combined_detection_cloud += *cluster_cloud;
+      }
+    }
+    
+    // İşlenmiş tespit sayısı kontrolü
+    if (processed_detection_count == 0) {
+      ROS_WARN("Hiçbir tespit başarıyla işlenemedi.");
+      return;
     }
     
     // Birleştirilmiş nokta bulutunu ROS mesajına dönüştür
@@ -199,7 +277,7 @@ public:
     object_marker_pub_.publish(object_markers);
     plane_marker_pub_.publish(plane_markers);
     
-    ROS_INFO("İşlem tamamlandı");
+    ROS_INFO("İşlem tamamlandı: %d tespit başarıyla işlendi", processed_detection_count);
   }
   
   // 2D bounding box kullanarak nokta bulutu işleme
@@ -254,7 +332,7 @@ public:
       
       // Basit derinlik tabanlı filtreleme
       float min_depth = 0.1;  // Minimum derinlik (m)
-      float max_depth = 5.0;  // Maksimum derinlik (m)
+      float max_depth = 10.0;  // Maksimum derinlik (m)
       
       detection_cloud->points.clear();
       points_in_bbox = 0;
@@ -271,15 +349,18 @@ public:
     }
   }
   
-  // Euclidean Cluster Extraction
-  pcl::PointCloud<pcl::PointXYZ>::Ptr
+  // Euclidean Cluster Extraction - tüm kümeleri döndüren versiyon
+  std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>
   euclideanClusterExtraction(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
     ROS_INFO("Euclidean Kümeleme işlemi başlatılıyor: %zu nokta", cloud->points.size());
     
-    // Çok az nokta varsa kümelemeyi atla ve direkt olarak mevcut noktaları kullan
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters;
+    
+    // Çok az nokta varsa kümelemeyi atla ve direkt olarak mevcut noktaları tek küme olarak döndür
     if (cloud->points.size() < min_cluster_size_ || cloud->points.size() < 20) {
       ROS_WARN("Kümeleme için çok az nokta (%zu), tüm noktalar doğrudan kullanılıyor", cloud->points.size());
-      return cloud;
+      clusters.push_back(cloud);
+      return clusters;
     }
     
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
@@ -297,41 +378,36 @@ public:
 
     ROS_INFO("%zu küme bulundu", cluster_indices.size());
     
-    // Hiç küme bulunamazsa tüm noktaları döndür
+    // Hiç küme bulunamazsa tüm noktaları tek küme olarak döndür
     if (cluster_indices.empty()) {
-      ROS_WARN("Hiç küme bulunamadı, tüm noktalar kullanılıyor");
-      return cloud;
+      ROS_WARN("Hiç küme bulunamadı, tüm noktalar tek küme olarak kullanılıyor");
+      clusters.push_back(cloud);
+      return clusters;
     }
 
-    // En yakın kümeyi bul (merkeze en yakın olanı)
-    float min_distance = std::numeric_limits<float>::max();
-    pcl::PointCloud<pcl::PointXYZ>::Ptr closest_cluster(new pcl::PointCloud<pcl::PointXYZ>);
-
-    for (const auto& cluster : cluster_indices) {
+    // Tüm kümeleri oluştur ve döndür
+    for (const auto& indices : cluster_indices) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
       
       // Kümedeki noktaları al
-      for (const auto& indice : cluster.indices) {
-        cloud_cluster->push_back((*cloud)[indice]);
+      for (const auto& idx : indices.indices) {
+        cloud_cluster->push_back((*cloud)[idx]);
       }
 
-      // Küme merkezini hesapla
+      // Küme merkezini hesapla (bilgi amaçlı)
       Eigen::Vector4f centroid;
       pcl::compute3DCentroid(*cloud_cluster, centroid);
-      float distance = centroid.norm(); // Merkezden uzaklık (Euclidean)
+      float distance = centroid.norm(); // Merkezden uzaklık
 
-      ROS_INFO("%zu noktalı küme, uzaklık: %f", cloud_cluster->points.size(), distance);
+      ROS_INFO("Küme %zu: %zu noktalı, uzaklık: %f", 
+               clusters.size(), cloud_cluster->points.size(), distance);
       
-      // Eğer bu küme şimdiye kadar bulunan en yakınsa, en yakın olarak kaydet
-      if (distance < min_distance) {
-        min_distance = distance;
-        *closest_cluster = *cloud_cluster;
-      }
+      // Kümeyi listeye ekle
+      clusters.push_back(cloud_cluster);
     }
 
-    ROS_INFO("En yakın küme seçildi: %zu nokta, uzaklık: %f", 
-             closest_cluster->points.size(), min_distance);
-    return closest_cluster;
+    ROS_INFO("Toplam %zu küme oluşturuldu", clusters.size());
+    return clusters;
   }
   
   // Düzlem segmentasyonu ve PCA
@@ -435,7 +511,8 @@ public:
                                const Eigen::Matrix3f& rotation_matrix,
                                const std::vector<vision_msgs::ObjectHypothesisWithPose>& results,
                                const std_msgs::Header& header,
-                               const double& duration) {
+                               const double& duration,
+                               const std::string& frame_id) {
     ROS_INFO("3D tespit ve marker oluşturma başlatılıyor");
     
     if (cloud->points.empty()) {
@@ -488,7 +565,7 @@ public:
     detections3d_msg.detections.push_back(detection3d);
     
     // Obje için TF yayınla
-    publishTransform(header, centroid, q, "object_" + std::to_string(detections3d_msg.detections.size()));
+    publishTransform(header, centroid, q, frame_id);
     
     // Obje Marker'ı oluştur
     visualization_msgs::Marker object_marker;
@@ -555,8 +632,8 @@ public:
     // Plane marker dizisine ekle
     plane_markers.markers.push_back(plane_marker);
     
-    ROS_INFO("3D tespit oluşturuldu: merkez=(%f,%f,%f), boyut=(%f,%f,%f)",
-             centroid[0], centroid[1], centroid[2],
+    ROS_INFO("3D tespit oluşturuldu: frame_id=%s, merkez=(%f,%f,%f), boyut=(%f,%f,%f)",
+             frame_id.c_str(), centroid[0], centroid[1], centroid[2],
              detection3d.bbox.size.x, detection3d.bbox.size.y, detection3d.bbox.size.z);
   }
   

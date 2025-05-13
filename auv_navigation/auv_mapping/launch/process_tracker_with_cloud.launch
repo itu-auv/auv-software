@@ -9,9 +9,9 @@
     <param name="lidar_topic" value="/taluy/camera/depth/points"/>
     <param name="yolo_result_topic" value="/yolo_result"/>
     <param name="yolo_3d_result_topic" value="/yolo_3d_result"/>
-    <param name="cluster_tolerance" value="0.3"/>
-    <param name="voxel_leaf_size" value="0.1"/>
-    <param name="min_cluster_size" value="100"/>
+    <param name="cluster_tolerance" value="0.2"/>
+    <param name="voxel_leaf_size" value="0.05"/>
+    <param name="min_cluster_size" value="50"/>
     <param name="max_cluster_size" value="10000"/>
     <param name="roi_expansion_factor" value="1.1"/>  <!-- %10 genişletme -->
   </node>
