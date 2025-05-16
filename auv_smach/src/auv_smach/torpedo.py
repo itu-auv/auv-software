@@ -32,7 +32,6 @@ from auv_smach.initialize import DelayState
 
 from auv_smach.common import (
     LaunchTorpedoState,
-    SetFrameLookingAtState,
 )
 
 
@@ -51,13 +50,13 @@ class TorpedoTaskState(smach.State):
                 "SET_TORPEDO_DEPTH",
                 SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "FIND_AND_ALIGN_TORPEDO",
+                    "succeeded": "FIND_AND_AIM_TORPEDO",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FIND_AND_ALIGN_TORPEDO",
+                "FIND_AND_AIM_TORPEDO",
                 SearchForPropState(
                     look_at_frame="torpedo_map_link",
                     alignment_frame="torpedo_search",

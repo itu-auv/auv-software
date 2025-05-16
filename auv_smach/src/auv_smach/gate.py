@@ -72,13 +72,13 @@ class NavigateThroughGateState(smach.State):
                 "SET_GATE_DEPTH",
                 SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "FIND_AND_ALIGN_GATE",
+                    "succeeded": "FIND_AND_AIM_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FIND_AND_ALIGN_GATE",
+                "FIND_AND_AIM_GATE",
                 SearchForPropState(
                     look_at_frame="gate_blue_arrow_link",
                     alignment_frame="gate_search",
