@@ -32,7 +32,6 @@ from auv_smach.initialize import DelayState
 
 from auv_smach.common import (
     DropBallState,
-    SetFrameLookingAtState,
 )
 
 
@@ -57,7 +56,7 @@ class BinTaskState(smach.State):
             #     },
             # )
             smach.StateMachine.add(
-                "FIND_AND_ALIGN_BIN",
+                "FIND_AND_AIM_BIN",
                 SearchForPropState(
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",

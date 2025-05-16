@@ -234,13 +234,13 @@ class RotateAroundBuoyState(smach.State):
                 "SET_RED_BUOY_DEPTH",
                 SetDepthState(depth=red_buoy_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "FIND_AND_ALIGN_RED_BUOY",
+                    "succeeded": "FIND_AND_AIM_RED_BUOY",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FIND_AND_ALIGN_RED_BUOY",
+                "FIND_AND_AIM_RED_BUOY",
                 SearchForPropState(
                     look_at_frame="red_buoy_link",
                     alignment_frame="red_buoy_search",
