@@ -24,7 +24,7 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
-    RotationState,
+    SearchForPropState,
 )
 from auv_smach.red_buoy import SetRedBuoyRotationStartFrame
 
@@ -51,44 +51,20 @@ class TorpedoTaskState(smach.State):
                 "SET_TORPEDO_DEPTH",
                 SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "ROTATE_UNTIL_FRAME_VISIBLE",
+                    "succeeded": "FIND_AND_ALIGN_TORPEDO",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ROTATE_UNTIL_FRAME_VISIBLE",
-                RotationState(
-                    source_frame="taluy/base_link",
+                "FIND_AND_ALIGN_TORPEDO",
+                SearchForPropState(
                     look_at_frame="torpedo_map_link",
-                    rotation_speed=0.3,
+                    alignment_frame="torpedo_search",
                     full_rotation=False,
-                ),
-                transitions={
-                    "succeeded": "SET_TORPEDO_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_TORPEDO_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
+                    set_frame_duration=4.0,
                     source_frame="taluy/base_link",
-                    target_frame="torpedo_map_travel_start",
-                ),
-                transitions={
-                    "succeeded": "SET_TORPEDO_TRAVEL_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_TORPEDO_TRAVEL_START",
-                SetFrameLookingAtState(
-                    source_frame="taluy/base_link",
-                    target_frame="torpedo_map_travel_start",
-                    look_at_frame="torpedo_map_link",
-                    duration_time=4.0,
+                    rotation_speed=0.3,
                 ),
                 transitions={
                     "succeeded": "SET_TORPEDO_APPROACH_FRAME",
