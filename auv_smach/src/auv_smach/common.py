@@ -362,20 +362,13 @@ class RotationState(smach.State):
     def normalize_angle(angle):
         return math.atan2(math.sin(angle), math.cos(angle))
 
-    def check_transform_available(self):
-        if self.source_frame is None or self.look_at_frame is None:
-            rospy.logwarn(f"RotationState: source_frame or look_at_frame is None")
-            return False
-
+    def is_transform_available(self):
         try:
             self.tf_buffer.lookup_transform(
                 self.source_frame,
                 self.look_at_frame,
                 rospy.Time(0),
-                rospy.Duration(0.1),
-            )
-            rospy.loginfo(
-                f"RotationState: Transform found between {self.source_frame} and {self.look_at_frame}"
+                rospy.Duration(1.0),
             )
             return True
         except (
@@ -400,14 +393,12 @@ class RotationState(smach.State):
         twist.angular.z = self.rotation_speed
         self.active = True
 
-        transform_found = self.check_transform_available()
+        transform_found = self.is_transform_available()
         if transform_found and not self.full_rotation:
             rospy.loginfo(
                 "RotationState: transform already available, no need to rotate"
             )
             return "succeeded"
-
-        rospy.loginfo("RotationState: starting rotation to find transform...")
 
         while not rospy.is_shutdown() and self.total_yaw < 2 * math.pi and self.active:
             if self.preempt_requested():
@@ -418,7 +409,7 @@ class RotationState(smach.State):
 
             self.enable_pub.publish(Bool(data=True))
 
-            if not self.full_rotation and self.check_transform_available():
+            if not self.full_rotation and self.is_transform_available():
                 twist.angular.z = 0.0
                 self.pub.publish(twist)
                 rospy.loginfo(
@@ -446,7 +437,7 @@ class RotationState(smach.State):
             f"RotationState: completed full rotation. Total yaw: {self.total_yaw}"
         )
 
-        if self.check_transform_available():
+        if self.is_transform_available():
             return "succeeded"
         else:
             rospy.logwarn(
@@ -475,7 +466,7 @@ class SetFrameLookingAtState(smach.State):
         start_time = rospy.Time.now()
         end_time = start_time + rospy.Duration(self.duration_time)
 
-        while rospy.Time.now() < end_time:
+        while not rospy.is_shutdown() and rospy.Time.now() < end_time:
             if self.preempt_requested():
                 self.service_preempt()
                 return "preempted"
@@ -607,12 +598,9 @@ class ExecutePlannedPathsState(smach.State):
 
 class SearchForPropState(smach.StateMachine):
     """
-    A reusable state machine that combines:
-    1. RotationState: Rotates to find/face a target frame.
+    1. RotationState: Rotates to find a prop's frame.
     2. SetAlignControllerTargetState: Sets the align controller target.
     3. SetFrameLookingAtState: Sets a target frame's pose based on looking at another frame.
-
-    This sequence is common for initially locating and aligning with an object.
     """
 
     def __init__(
