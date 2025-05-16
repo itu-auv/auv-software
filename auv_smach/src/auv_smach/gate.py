@@ -9,8 +9,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
     ExecutePlannedPathsState,
-    SetFrameLookingAtState,
-    RotationState,
+    SearchForPropState,
 )
 
 
@@ -73,43 +72,20 @@ class NavigateThroughGateState(smach.State):
                 "SET_GATE_DEPTH",
                 SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "FULL_ROTATION",
+                    "succeeded": "FIND_AND_ALIGN_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FULL_ROTATION",
-                RotationState(
-                    source_frame="taluy/base_link",
+                "FIND_AND_ALIGN_GATE",
+                SearchForPropState(
                     look_at_frame="gate_blue_arrow_link",
-                    rotation_speed=0.3,
+                    alignment_frame="gate_search",
                     full_rotation=True,
-                ),
-                transitions={
-                    "succeeded": "SET_GATE_SEARCH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_GATE_SEARCH",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="gate_search"
-                ),
-                transitions={
-                    "succeeded": "SEARCH_FOR_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SEARCH_FOR_GATE",
-                SetFrameLookingAtState(
+                    set_frame_duration=7.0,
                     source_frame="taluy/base_link",
-                    target_frame="gate_search",
-                    look_at_frame="gate_blue_arrow_link",
-                    duration_time=7.0,
+                    rotation_speed=0.3,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",

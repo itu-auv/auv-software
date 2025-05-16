@@ -25,8 +25,7 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
-    SetFrameLookingAtState,
-    RotationState,
+    SearchForPropState,
 )
 
 from auv_smach.initialize import DelayState
@@ -235,43 +234,20 @@ class RotateAroundBuoyState(smach.State):
                 "SET_RED_BUOY_DEPTH",
                 SetDepthState(depth=red_buoy_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "ROTATE_UNTIL_FRAME_VISIBLE",
+                    "succeeded": "FIND_AND_ALIGN_RED_BUOY",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ROTATE_UNTIL_FRAME_VISIBLE",
-                RotationState(
-                    source_frame="taluy/base_link",
+                "FIND_AND_ALIGN_RED_BUOY",
+                SearchForPropState(
                     look_at_frame="red_buoy_link",
-                    rotation_speed=0.3,
+                    alignment_frame="red_buoy_search",
                     full_rotation=False,
-                ),
-                transitions={
-                    "succeeded": "SET_RED_BUOY_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_RED_BUOY_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="red_buoy_travel_start"
-                ),
-                transitions={
-                    "succeeded": "SET_RED_BUOY_TRAVEL_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_RED_BUOY_TRAVEL_START",
-                SetFrameLookingAtState(
+                    set_frame_duration=4.0,
                     source_frame="taluy/base_link",
-                    target_frame="red_buoy_travel_start",
-                    look_at_frame="red_buoy_link",
-                    duration_time=4.0,
+                    rotation_speed=0.3,
                 ),
                 transitions={
                     "succeeded": "SET_RED_BUOY_ROTATION_START_FRAME",
