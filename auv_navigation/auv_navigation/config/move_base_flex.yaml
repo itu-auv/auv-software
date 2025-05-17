@@ -17,9 +17,7 @@ action_servers:
   exe_path:
     type: "mbf_abstract_nav/ExePathAction"
     ros_namespace: "/taluy/move_base_flex/exe_path"
-  exe_goal:
-    type: "mbf_abstract_nav/ExeGoalAction"
-    ros_namespace: "/taluy/move_base_flex/exe_goal"
+
 
 
 robot_frame: "taluy/base_link"
