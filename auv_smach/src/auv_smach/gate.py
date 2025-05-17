@@ -101,7 +101,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "NAVIGATE_TO_GATE",
-                NavigateWithMBFState(goal="gate_entrance"),
+                NavigateWithMBFState(goals=["gate_entrance", "gate_exit"]),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

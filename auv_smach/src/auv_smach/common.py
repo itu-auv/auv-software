@@ -357,33 +357,36 @@ class ExecutePlannedPathsState(smach.State):
 class NavigateWithMBFState(smach.State):
     """A generic navigation state that uses Move Base Flex for path planning and execution.
 
-    This state can accept either a TF frame name or a PoseStamped as the navigation goal.
-    It uses MoveBaseClient which internally handles the conversion from TF frames to poses.
+    This state can accept:
+    - A single TF frame (str)
+    - A single PoseStamped object
+    - A list of TF frames
+    - A list of PoseStamped objects
+    - A mixed list of TF frames and PoseStamped objects
     """
 
     def __init__(
-        self, goal: Union[str, PoseStamped, None] = None, map_frame: str = "odom"
+        self, goals: Union[str, PoseStamped, list, None] = None, map_frame: str = "odom"
     ):
         """Initialize the navigation state.
 
         Args:
-            goal: Either a TF frame name (str) or a PoseStamped message. If None,
-                 the goal must be provided through userdata.
+            goals: Can be one of:
+                - A TF frame name (str)
+                - A PoseStamped message
+                - A list of TF frames and/or PoseStamped messages
+                - None (then goal must be provided through userdata)
             map_frame: The frame to express poses in, defaults to "odom"
-            planner: Name of the planner to use
-            controller: Name of the controller to use
-            recovery_behaviors: List of recovery behaviors to use
-            patience: Patience duration for planning and control
         """
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
             input_keys=(
-                ["goal"] if goal is None else []
+                ["goals"] if goals is None else []
             ),  # Only use input_keys if no goal provided
         )
 
-        self.goal = goal
+        self.goals = goals
         self.map_frame = map_frame
         self.mbf_client = None
 
@@ -397,26 +400,36 @@ class NavigateWithMBFState(smach.State):
                 self.mbf_client = MoveBaseClient(map_frame=self.map_frame)
 
             # Get goal from either constructor argument or userdata
-            goal = self.goal if self.goal is not None else userdata.goal
+            goals = self.goals if self.goals is not None else userdata.goals
 
-            if not isinstance(goal, (str, PoseStamped)):
-                rospy.logerr(
-                    f"[NavigateWithMBFState] Invalid goal type: {type(goal)}. Must be str (frame_id) or PoseStamped"
-                )
-                return "aborted"
+            # Convert single goal to a list for unified processing
+            goals = goals if isinstance(goals, list) else [goals]
+
+            # Validate goals
+            for g in goals:
+                if not isinstance(g, (str, PoseStamped)):
+                    rospy.logerr(
+                        f"[NavigateWithMBFState] Invalid goal type: {type(g)}. Must be str (frame_id) or PoseStamped"
+                    )
+                    return "aborted"
 
             # Log navigation attempt
-            goal_desc = (
-                goal
-                if isinstance(goal, str)
-                else f"pose in frame '{goal.header.frame_id}'"
-            )
-            rospy.loginfo(
-                f"[NavigateWithMBFState] Attempting to navigate to {goal_desc}"
-            )
+            if len(goals) == 1:
+                goal_desc = (
+                    goals[0]
+                    if isinstance(goals[0], str)
+                    else f"pose in frame '{goals[0].header.frame_id}'"
+                )
+                rospy.loginfo(
+                    f"[NavigateWithMBFState] Attempting to navigate to {goal_desc}"
+                )
+            else:
+                rospy.loginfo(
+                    f"[NavigateWithMBFState] Attempting to navigate through {len(goals)} waypoints"
+                )
 
-            # Send goal with all parameters
-            success, message, result = self.mbf_client.send_goal(goal)
+            # Send goals
+            success, message, results = self.mbf_client.send_waypoints(goals)
 
             if success:
                 rospy.loginfo(f"[NavigateWithMBFState] Navigation succeeded: {message}")
