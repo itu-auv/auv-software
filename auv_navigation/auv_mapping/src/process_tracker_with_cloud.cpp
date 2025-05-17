@@ -67,6 +67,9 @@ private:
   // Son işlem zamanı (marker ömrü için)
   ros::Time last_call_time_;
 
+  // Atlanacak tespit ID'lerini saklayan set
+  std::set<int> skip_detection_ids;
+
   // Tespit ID'sinden prop ismini almak için bir mapping ekleyelim
   std::map<int, std::string> id_to_prop_name = {
       {8, "red_buoy_link"},
@@ -94,6 +97,18 @@ public:
     pnh_.param<int>("min_cluster_size", min_cluster_size_, 100);
     pnh_.param<int>("max_cluster_size", max_cluster_size_, 10000);
     pnh_.param<float>("roi_expansion_factor", roi_expansion_factor_, 1.1); // %10 genişletme
+    
+    // Atlanacak tespit ID'lerini parametre olarak al (varsayılan olarak 7 ve 13 ID'leri atlanır)
+    std::vector<int> skip_ids;
+    pnh_.getParam("skip_detection_ids", skip_ids);
+    if (skip_ids.empty()) {
+      // Varsayılan değerleri ayarla
+      skip_detection_ids = {7, 13}; // path_link ve torpedo_hole_link
+    } else {
+      // Parametre ile gelen değerleri kullan
+      skip_detection_ids.clear();
+      skip_detection_ids.insert(skip_ids.begin(), skip_ids.end());
+    }
     
     // Yayıncıları başlat
     detection_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("detection_cloud", 1);
@@ -164,6 +179,17 @@ public:
     // Her bir YOLO tespiti için işlem yap
     for (size_t i = 0; i < yolo_result_msg->detections.detections.size(); i++) {
       const auto& detection = yolo_result_msg->detections.detections[i];
+      
+      // Tespit ID'sini kontrol et, atlanacak ID'lerden biriyse sonraki tespite geç
+      if (!detection.results.empty()) {
+        int detection_id = detection.results[0].id;
+        if (skip_detection_ids.find(detection_id) != skip_detection_ids.end()) {
+          ROS_INFO_STREAM("Skipping detection with ID: " << detection_id << " (" << 
+                        (id_to_prop_name.find(detection_id) != id_to_prop_name.end() ? 
+                          id_to_prop_name[detection_id] : "unknown") << ")");
+          continue; // Bu tespiti atla
+        }
+      }
       
       // ROI filtresi uygula ve tespit noktalarını al
       pcl::PointCloud<pcl::PointXYZ>::Ptr detection_cloud(new pcl::PointCloud<pcl::PointXYZ>);
