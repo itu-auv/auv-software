@@ -46,6 +46,7 @@ private:
   ros::Publisher detection3d_pub_;
   ros::Publisher object_marker_pub_;
   ros::Publisher plane_marker_pub_;
+  ros::Publisher object_transform_pub_;
   
   // Abonelikler ve senkronizasyon
   message_filters::Subscriber<sensor_msgs::CameraInfo> camera_info_sub_;
@@ -99,6 +100,7 @@ public:
     detection3d_pub_ = nh_.advertise<vision_msgs::Detection3DArray>(yolo_3d_result_topic_, 1);
     object_marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("object_markers", 1);
     plane_marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("plane_markers", 1);
+    object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>("/taluy/map/object_transform_updates", 10);
     
     // Abonelikleri başlat
     camera_info_sub_.subscribe(nh_, camera_info_topic_, 10);
@@ -566,6 +568,26 @@ public:
     
     // Obje için TF yayınla
     publishTransform(header, centroid, q, frame_id);
+    
+    // TransformStamped mesajını oluştur ve object_transform_updates topic'ine yayınla
+    geometry_msgs::TransformStamped transform_msg;
+    transform_msg.header.stamp = header.stamp;
+    transform_msg.header.frame_id = "taluy/base_link/front_camera_optical_link"; // Point cloud'un frame'i
+    transform_msg.child_frame_id = frame_id; // Cluster/nesne ID'si
+    
+    // Pozisyon bilgisini ayarla - hesaplandığı gibi kullan
+    transform_msg.transform.translation.x = centroid[0];
+    transform_msg.transform.translation.y = centroid[1];
+    transform_msg.transform.translation.z = centroid[2];
+    
+    // Oryantasyon bilgisini ayarla
+    transform_msg.transform.rotation.x = q.x();
+    transform_msg.transform.rotation.y = q.y();
+    transform_msg.transform.rotation.z = q.z();
+    transform_msg.transform.rotation.w = q.w();
+    
+    // TransformStamped mesajını yayınla
+    object_transform_pub_.publish(transform_msg);
     
     // Obje Marker'ı oluştur
     visualization_msgs::Marker object_marker;
