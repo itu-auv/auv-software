@@ -184,9 +184,9 @@ public:
       if (!detection.results.empty()) {
         int detection_id = detection.results[0].id;
         if (skip_detection_ids.find(detection_id) != skip_detection_ids.end()) {
-          ROS_INFO_STREAM("Skipping detection with ID: " << detection_id << " (" << 
-                        (id_to_prop_name.find(detection_id) != id_to_prop_name.end() ? 
-                          id_to_prop_name[detection_id] : "unknown") << ")");
+          //ROS_INFO_STREAM("Skipping detection with ID: " << detection_id << " (" << 
+                        //(id_to_prop_name.find(detection_id) != id_to_prop_name.end() ? 
+                          //id_to_prop_name[detection_id] : "unknown") << ")");
           continue; // Bu tespiti atla
         }
       }
@@ -208,6 +208,21 @@ public:
         continue;
       }
       
+      // Tespit ID'si ve prop ismini burada belirleyelim, bbox filtrelemeden sonra
+      int detection_id = -1;
+      std::string base_frame_id = "object"; // Varsayılan isim
+      
+      // Eğer tespit sonuçları varsa, tespitin sınıf ID'sini doğrudan kullan
+      if (!detection.results.empty()) {
+        // Tespitin ilk (veya tek) sonucunu al
+        detection_id = detection.results[0].id;
+        
+        // ID'yi prop ismine dönüştür
+        if (detection_id >= 0 && id_to_prop_name.find(detection_id) != id_to_prop_name.end()) {
+          base_frame_id = id_to_prop_name[detection_id];
+        }
+      }
+      
       // Euclidean cluster extraction uygula
       std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters = 
           euclideanClusterExtraction(detection_cloud);
@@ -217,19 +232,12 @@ public:
         continue;
       }
       
-      // Tespit için prop ismini belirle (temel isim)
-      std::string base_frame_id = "object"; // Varsayılan isim
-      
-      // Eğer tespit sonuçları varsa, tespitin sınıf ID'sini doğrudan kullan
-      if (!detection.results.empty()) {
-        // Tespitin ilk (veya tek) sonucunu al
-        int detection_id = detection.results[0].id;
-        
-        // ID'yi prop ismine dönüştür
-        if (detection_id >= 0 && id_to_prop_name.find(detection_id) != id_to_prop_name.end()) {
-          base_frame_id = id_to_prop_name[detection_id];
-        }
-      }
+      // Bulunan küme sayısını ROS_INFO ile yazdır
+      ROS_INFO("For detection ID %d (%s) found %zu clusters", 
+               detection_id, 
+               (detection_id >= 0 && id_to_prop_name.find(detection_id) != id_to_prop_name.end() ? 
+                id_to_prop_name[detection_id].c_str() : "unknown"), 
+               clusters.size());
       
       // Her bir küme için ayrı işlem yap
       for (size_t cluster_idx = 0; cluster_idx < clusters.size(); cluster_idx++) {
@@ -242,7 +250,7 @@ public:
         }
         
         // Bu küme için özgün bir frame_id oluştur
-        std::string frame_id = base_frame_id + "_" + std::to_string(i) + "_" + std::to_string(cluster_idx);
+        std::string frame_id = base_frame_id + "_" + std::to_string(detection_id) + "_" + std::to_string(cluster_idx);
         
         // Düzlem segmentasyonu ve yüzey dönüşümü (PCA) uygula
         Eigen::Vector4f centroid;
