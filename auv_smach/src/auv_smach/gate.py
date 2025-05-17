@@ -8,6 +8,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
     ExecutePlannedPathsState,
+    NavigateWithMBFState,
 )
 
 
@@ -93,12 +94,22 @@ class NavigateThroughGateState(smach.State):
                 "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
                 transitions={
-                    "succeeded": "PLAN_GATE_PATHS",
+                    "succeeded": "NAVIGATE_TO_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
+                "NAVIGATE_TO_GATE",
+                NavigateWithMBFState(goal="gate_entrance"),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            """smach.StateMachine.add(
                 "PLAN_GATE_PATHS",
                 PlanGatePathsState(self.tf_buffer),
                 transitions={
@@ -135,7 +146,7 @@ class NavigateThroughGateState(smach.State):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )
+            )"""
 
     def execute(self, userdata):
         rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
