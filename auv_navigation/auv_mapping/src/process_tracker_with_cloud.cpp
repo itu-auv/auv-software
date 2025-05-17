@@ -113,12 +113,6 @@ public:
     
     // TF broadcaster oluştur
     tf_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
-    
-    ROS_INFO("ProcessTrackerWithCloud başlatıldı");
-    ROS_INFO("camera_info_topic: %s", camera_info_topic_.c_str());
-    ROS_INFO("lidar_topic: %s", lidar_topic_.c_str());
-    ROS_INFO("yolo_result_topic: %s", yolo_result_topic_.c_str());
-    ROS_INFO("yolo_3d_result_topic: %s", yolo_3d_result_topic_.c_str());
   }
   
   // Senkronize mesajlar için callback fonksiyonu
@@ -134,12 +128,8 @@ public:
     ros::Duration callback_interval = current_call_time - last_call_time_;
     last_call_time_ = current_call_time;
     
-    ROS_INFO("Eşzamanlı işlem başlatıldı: %zu adet YOLO tespiti alındı", 
-             yolo_result_msg->detections.detections.size());
-    
     // YOLO tespiti yoksa işlem yapma
     if (yolo_result_msg->detections.detections.empty()) {
-      ROS_WARN("Hiç YOLO tespiti yok, işlem atlanıyor");
       return;
     }
     
@@ -147,19 +137,14 @@ public:
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*cloud_msg, *cloud);
     
-    ROS_INFO("Orijinal nokta bulutu boyutu: %zu nokta", cloud->points.size());
-    
     // Nokta bulutu boşsa işlem yapma
     if (cloud->points.empty()) {
-      ROS_WARN("Nokta bulutu boş, işlem atlanıyor");
       return;
     }
     
     // Nokta bulutunu downsample et
     pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled_cloud = 
         downsampleCloud(cloud);
-    
-    ROS_INFO("Downsampled nokta bulutu boyutu: %zu nokta", downsampled_cloud->points.size());
     
     // İşlenmemiş nokta bulutu ve YOLO sonuçları için 3D tespitleri oluşturacak veri yapılarını hazırla
     vision_msgs::Detection3DArray detections3d_msg;
@@ -190,14 +175,10 @@ public:
         // Maske varsa onu kullan
         // processPointsWithMask(cloud, yolo_result_msg->masks[i], detection_cloud);
         // NOT: Şimdilik maske işlemeyi atlıyoruz
-        ROS_WARN("Maske işleme henüz uygulanmadı");
         continue;
       }
       
-      ROS_INFO("Tespit #%zu için %zu nokta ROI içinde", i, detection_cloud->points.size());
-      
       if (detection_cloud->points.empty()) {
-        ROS_WARN("Tespit #%zu için ROI içinde nokta bulunamadı, atlıyorum", i);
         continue;
       }
       
@@ -207,7 +188,6 @@ public:
       
       // Eğer hiç küme bulunamadıysa sonraki tespite geç
       if (clusters.empty()) {
-        ROS_WARN("Tespit #%zu için hiç küme bulunamadı, atlıyorum", i);
         continue;
       }
       
@@ -225,9 +205,6 @@ public:
         }
       }
       
-      ROS_INFO("Tespit #%zu için %zu küme işlenecek, temel isim: %s", 
-              i, clusters.size(), base_frame_id.c_str());
-      
       // Her bir küme için ayrı işlem yap
       for (size_t cluster_idx = 0; cluster_idx < clusters.size(); cluster_idx++) {
         // Kümeyi al
@@ -235,7 +212,6 @@ public:
         
         // Küme boşsa atla
         if (cluster_cloud->points.empty()) {
-          ROS_WARN("Tespit #%zu, Küme #%zu boş, atlıyorum", i, cluster_idx);
           continue;
         }
         
@@ -254,7 +230,6 @@ public:
                                    detection.results, cloud_msg->header, callback_interval.toSec(), frame_id);
           processed_detection_count++;
         } else {
-          ROS_WARN("Tespit #%zu, Küme #%zu için düzlem segmentasyonu başarısız", i, cluster_idx);
           continue;
         }
         
@@ -265,7 +240,6 @@ public:
     
     // İşlenmiş tespit sayısı kontrolü
     if (processed_detection_count == 0) {
-      ROS_WARN("Hiçbir tespit başarıyla işlenemedi.");
       return;
     }
     
@@ -278,8 +252,6 @@ public:
     detection_cloud_pub_.publish(detection_cloud_msg);
     object_marker_pub_.publish(object_markers);
     plane_marker_pub_.publish(plane_markers);
-    
-    ROS_INFO("İşlem tamamlandı: %d tespit başarıyla işlendi", processed_detection_count);
   }
   
   // 2D bounding box kullanarak nokta bulutu işleme
@@ -287,11 +259,6 @@ public:
                              const vision_msgs::Detection2D& detection,
                              pcl::PointCloud<pcl::PointXYZ>::Ptr& detection_cloud) {
     int points_in_bbox = 0;
-    
-    ROS_INFO("Nokta bulutunu 2D tespit bbox kullanarak filtreleme: %zu nokta", cloud->points.size());
-    ROS_INFO("Tespit bbox: merkez_x=%.2f, merkez_y=%.2f, genişlik=%.2f, yükseklik=%.2f",
-             detection.bbox.center.x, detection.bbox.center.y, 
-             detection.bbox.size_x, detection.bbox.size_y);
     
     // Algılama kutusunu genişlet (roi_expansion_factor parametresi kullanarak)
     float min_x = detection.bbox.center.x - (detection.bbox.size_x / 2) * roi_expansion_factor_;
@@ -308,8 +275,6 @@ public:
       if (debug_count < 5) {
         cv::Point3d pt_cv(point.x, point.y, point.z);
         cv::Point2d uv = cam_model_.project3dToPixel(pt_cv);
-        ROS_INFO("Nokta[%d]: 3D=(%f,%f,%f) -> 2D=(%f,%f)", 
-                 debug_count, point.x, point.y, point.z, uv.x, uv.y);
         debug_count++;
       }
       
@@ -326,11 +291,8 @@ public:
       }
     }
     
-    ROS_INFO("Genişletilmiş 2D tespit bbox'ında %d nokta bulundu", points_in_bbox);
-    
     // Eğer çok az nokta varsa alternatif yaklaşım deneyelim
     if (points_in_bbox < 20 && !cloud->points.empty()) {
-      ROS_WARN("Bbox'ta yeterli nokta bulunamadı, derinlik-tabanlı filtreleme deneniyor");
       
       // Basit derinlik tabanlı filtreleme
       float min_depth = 0.1;  // Minimum derinlik (m)
@@ -345,22 +307,16 @@ public:
           points_in_bbox++;
         }
       }
-      
-      ROS_INFO("Derinlik-tabanlı filtreleme: %d nokta (%f ve %f metre arasında)", 
-               points_in_bbox, min_depth, max_depth);
     }
   }
   
   // Euclidean Cluster Extraction - tüm kümeleri döndüren versiyon
   std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr>
   euclideanClusterExtraction(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
-    ROS_INFO("Euclidean Kümeleme işlemi başlatılıyor: %zu nokta", cloud->points.size());
-    
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters;
     
     // Çok az nokta varsa kümelemeyi atla ve direkt olarak mevcut noktaları tek küme olarak döndür
     if (cloud->points.size() < min_cluster_size_ || cloud->points.size() < 20) {
-      ROS_WARN("Kümeleme için çok az nokta (%zu), tüm noktalar doğrudan kullanılıyor", cloud->points.size());
       clusters.push_back(cloud);
       return clusters;
     }
@@ -377,12 +333,9 @@ public:
     ec.setSearchMethod(tree);
     ec.setInputCloud(cloud);
     ec.extract(cluster_indices);
-
-    ROS_INFO("%zu küme bulundu", cluster_indices.size());
     
     // Hiç küme bulunamazsa tüm noktaları tek küme olarak döndür
     if (cluster_indices.empty()) {
-      ROS_WARN("Hiç küme bulunamadı, tüm noktalar tek küme olarak kullanılıyor");
       clusters.push_back(cloud);
       return clusters;
     }
@@ -401,14 +354,10 @@ public:
       pcl::compute3DCentroid(*cloud_cluster, centroid);
       float distance = centroid.norm(); // Merkezden uzaklık
 
-      ROS_INFO("Küme %zu: %zu noktalı, uzaklık: %f", 
-               clusters.size(), cloud_cluster->points.size(), distance);
-      
       // Kümeyi listeye ekle
       clusters.push_back(cloud_cluster);
     }
 
-    ROS_INFO("Toplam %zu küme oluşturuldu", clusters.size());
     return clusters;
   }
   
@@ -416,10 +365,7 @@ public:
   bool planeSegmentationAndPCA(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
                               Eigen::Vector4f& centroid,
                               Eigen::Matrix3f& rotation_matrix) {
-    ROS_INFO("Düzlem segmentasyonu ve PCA başlatılıyor: %zu nokta", cloud->points.size());
-    
     if (cloud->points.empty()) {
-      ROS_WARN("Boş nokta bulutu, düzlem segmentasyonu yapılamıyor");
       return false;
     }
     
@@ -428,7 +374,6 @@ public:
     
     // Nokta sayısı çok azsa basit bir matris oluştur (birim matris - rotasyon yok)
     if (cloud->points.size() < 10) {
-      ROS_WARN("PCA için nokta sayısı çok az (%zu), varsayılan yönelim kullanılıyor", cloud->points.size());
       rotation_matrix = Eigen::Matrix3f::Identity();
       return true;
     }
@@ -440,8 +385,6 @@ public:
     // Eigenvalue ve eigenvector'leri al
     Eigen::Matrix3f eigen_vectors = pca.getEigenVectors();
     Eigen::Vector3f eigen_values = pca.getEigenValues();
-    
-    ROS_INFO("PCA Eigenvalues: [%f, %f, %f]", eigen_values(0), eigen_values(1), eigen_values(2));
     
     // Düzlem segmentasyonu (RANSAC kullanarak)
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
@@ -456,16 +399,10 @@ public:
     seg.segment(*inliers, *coefficients);
     
     if (inliers->indices.size() < 5) {
-      ROS_WARN("Düzlem segmentasyonu yapılamadı, yeterli nokta bulunamadı (%zu)", inliers->indices.size());
       // PCA sonuçlarını doğrudan kullan (düzlemsellik garanti değil)
       rotation_matrix = eigen_vectors;
       return true;
     }
-    
-    ROS_INFO("Düzlem segmentasyonu: %zu nokta düzlemde, katsayılar: [%f, %f, %f, %f]", 
-             inliers->indices.size(),
-             coefficients->values[0], coefficients->values[1], 
-             coefficients->values[2], coefficients->values[3]);
     
     // Düzlem normalini al
     Eigen::Vector3f plane_normal(coefficients->values[0], 
@@ -515,10 +452,7 @@ public:
                                const std_msgs::Header& header,
                                const double& duration,
                                const std::string& frame_id) {
-    ROS_INFO("3D tespit ve marker oluşturma başlatılıyor");
-    
     if (cloud->points.empty()) {
-      ROS_WARN("Boş nokta bulutu, 3D tespit oluşturulamıyor");
       return;
     }
     
@@ -653,10 +587,6 @@ public:
     
     // Plane marker dizisine ekle
     plane_markers.markers.push_back(plane_marker);
-    
-    ROS_INFO("3D tespit oluşturuldu: frame_id=%s, merkez=(%f,%f,%f), boyut=(%f,%f,%f)",
-             frame_id.c_str(), centroid[0], centroid[1], centroid[2],
-             detection3d.bbox.size.x, detection3d.bbox.size.y, detection3d.bbox.size.z);
   }
   
   // Transform yayınla
@@ -690,7 +620,6 @@ public:
     
     // Nokta sayısı çok az ise dönüştürmeyi atla
     if (cloud->points.size() < 100) {
-      ROS_WARN("Çok az nokta var (%zu), downsample atlanıyor", cloud->points.size());
       return cloud;
     }
     
@@ -699,9 +628,6 @@ public:
     voxel_grid.setInputCloud(cloud);
     voxel_grid.setLeafSize(voxel_leaf_size_, voxel_leaf_size_, voxel_leaf_size_); // m cinsinden
     voxel_grid.filter(*downsampled_cloud);
-    
-    ROS_INFO("Nokta bulutu downsampled: %zu -> %zu nokta", 
-             cloud->points.size(), downsampled_cloud->points.size());
     
     return downsampled_cloud;
   }
