@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import rospy
 import actionlib
-from mbf_msgs.msg import MoveBaseAction, MoveBaseGoal
+from mbf_msgs.msg import MoveBaseAction, MoveBaseGoal, ExeGoalAction, ExeGoalGoal
 from geometry_msgs.msg import PoseStamped, TransformStamped
 import tf2_ros
 from typing import Optional
@@ -88,19 +88,19 @@ class MoveBaseClient:
         return outcome == 0, message, result
 
 
-"""class ExePathClient:
-    def __init__(self, server_name='/taluy/move_base_flex/exe_path', map_frame="odom"):
-        self.client = actionlib.SimpleActionClient(server_name, ExePathAction)
-        rospy.logdebug(f"[ExePathClient] Waiting for action server {server_name}...")
+""" class ExeGoalClient:
+    def __init__(self, server_name='/taluy/move_base_flex/exe_goal', map_frame="odom"):
+        self.client = actionlib.SimpleActionClient(server_name, ExeGoalAction)
+        rospy.logdebug(f"[ExeGoalClient] Waiting for action server {server_name}...")
         self.client.wait_for_server()
-        rospy.logdebug(f"[ExePathClient] Connected to {server_name}")
+        rospy.logdebug(f"[ExeGoalClient] Connected to {server_name}")
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.map_frame = map_frame
 
     def send_goal(self, goal_pose_or_frame):
         if isinstance(goal_pose_or_frame, str):
-            rospy.logdebug(f"[ExePathClient] Received TF frame '{goal_pose_or_frame}' as goal. Attempting to look up transform to '{self.map_frame}'.")
+            rospy.logdebug(f"[ExeGoalClient] Received TF frame '{goal_pose_or_frame}' as goal. Attempting to look up transform to '{self.map_frame}'.")
             goal_pose = get_pose_from_transform(self.tf_buffer, goal_pose_or_frame, self.map_frame)
             if goal_pose is None:
                 return False, "TF lookup failed", None
@@ -110,7 +110,7 @@ class MoveBaseClient:
             rospy.logerr("[ExePathClient] Invalid goal type. Must be PoseStamped or TF frame name (str).")
             return False, "Invalid goal type", None
 
-        goal = ExePathGoal()
+        goal = ExeGoalGoal()
         goal.target_pose = goal_pose
 
         rospy.logdebug(f"[ExePathClient] Sending goal to {goal.target_pose.header.frame_id}: {goal.target_pose.pose.position}")
@@ -119,4 +119,5 @@ class MoveBaseClient:
         result = self.client.get_result()
         outcome = getattr(result, 'outcome', -1)
         message = getattr(result, 'message', '')
-        return outcome == 0, message, result """
+        return outcome == 0, message, result
+"""
