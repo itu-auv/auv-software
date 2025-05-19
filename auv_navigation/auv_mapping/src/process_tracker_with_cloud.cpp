@@ -250,7 +250,7 @@ public:
         }
         
         // Bu küme için özgün bir frame_id oluştur
-        std::string frame_id = base_frame_id + "_" + std::to_string(detection_id) + "_" + std::to_string(cluster_idx);
+        std::string frame_id = base_frame_id + "_" + std::to_string(cluster_idx);
         
         // Düzlem segmentasyonu ve yüzey dönüşümü (PCA) uygula
         Eigen::Vector4f centroid;
@@ -433,6 +433,7 @@ public:
     seg.segment(*inliers, *coefficients);
     
     if (inliers->indices.size() < 5) {
+      ROS_INFO("Plane segmentation failed, using PCA directly");
       // PCA sonuçlarını doğrudan kullan (düzlemsellik garanti değil)
       rotation_matrix = eigen_vectors;
       return true;
@@ -444,28 +445,33 @@ public:
                                 coefficients->values[2]);
     plane_normal.normalize();
     
-    // Z eksenini düzlem normaline hizala
-    Eigen::Vector3f z_axis = plane_normal;
+    // Y eksenini düzlem normaline hizala
+    Eigen::Vector3f y_axis = plane_normal;
     
-    // Normalin yukarı bakması için
-    if (z_axis(2) < 0) {
+    // Normalin pozitif Y yönünde olması için
+    if (y_axis(1) < 0) {
+      y_axis = -y_axis;
+    }
+    
+    // X ve Z eksenlerini oluştur
+    Eigen::Vector3f x_axis, z_axis;
+    
+    // Y'ye dik bir eksen bul (Z olacak)
+    if (fabs(y_axis(2)) < fabs(y_axis(0)) && fabs(y_axis(2)) > fabs(y_axis(1))) {
+      z_axis = Eigen::Vector3f(0, 0, 1).cross(y_axis);
+    } else {
+      z_axis = Eigen::Vector3f(1, 0, 0).cross(y_axis);
+    }
+    z_axis.normalize();
+    
+    // Z ekseninin pozitif Z yönünde olması için
+    if (z_axis(2) > 0) {
       z_axis = -z_axis;
     }
     
-    // X ve Y eksenlerini oluştur
-    Eigen::Vector3f x_axis, y_axis;
-    
-    // Z'ye dik bir eksen bul (X olacak)
-    if (fabs(z_axis(0)) < fabs(z_axis(1)) && fabs(z_axis(0)) < fabs(z_axis(2))) {
-      x_axis = Eigen::Vector3f(1, 0, 0).cross(z_axis);
-    } else {
-      x_axis = Eigen::Vector3f(0, 1, 0).cross(z_axis);
-    }
+    // X ekseni Y ve Z'ye dik olmalı (sağ el kuralına göre yeniden hesapla)
+    x_axis = y_axis.cross(z_axis);
     x_axis.normalize();
-    
-    // Y ekseni Z ve X'e dik olmalı
-    y_axis = z_axis.cross(x_axis);
-    y_axis.normalize();
     
     // Rotasyon matrisini oluştur
     rotation_matrix.col(0) = x_axis;
