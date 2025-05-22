@@ -87,7 +87,7 @@ private:
 
             double theta = std::acos(val_for_acos);
             double angle_deg = theta * 180.0 / M_PI; // M_PI should be defined in <cmath>
-            double error_percent = -25.0 - 0.02 * angle_deg * angle_deg;
+            double error_percent = -25.0 - 0.015 * angle_deg * angle_deg;
             
             double denominator = 1.0 + (error_percent / 100.0);
             // Avoid division by zero for denominator
@@ -127,7 +127,7 @@ private:
       // Filter based on Y coordinate using altitude and depth
       // Keep points below altitude (+offset) and above depth (-offset)
       // Also check if AUV depth itself is less than 5.0m
-      if (pt.y <= altitude_ - 0.45 && pt.y >= depth_value_ + 0.30 && pt.z < 5.0) {
+      if (pt.y <= altitude_ - 0.45 && pt.y >= depth_value_ + 0.45 && pt.z < 5.0) {
         temp_cloud->points.push_back(pt);
       }
     }
