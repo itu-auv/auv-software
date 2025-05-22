@@ -103,7 +103,7 @@ public:
     pnh_.getParam("skip_detection_ids", skip_ids);
     if (skip_ids.empty()) {
       // Varsayılan değerleri ayarla
-      skip_detection_ids = {1,2,7, 13}; // path_link ve torpedo_hole_link
+      skip_detection_ids = {}; // path_link ve torpedo_hole_link
     } else {
       // Parametre ile gelen değerleri kullan
       skip_detection_ids.clear();
@@ -546,7 +546,7 @@ public:
     // TransformStamped mesajını oluştur ve object_transform_updates topic'ine yayınla
     geometry_msgs::TransformStamped transform_msg;
     transform_msg.header.stamp = header.stamp;
-    transform_msg.header.frame_id = "taluy/base_link/front_camera_optical_link"; // Point cloud'un frame'i
+    transform_msg.header.frame_id = "camera_depth_optical_frame"; // Point cloud'un frame'i
     transform_msg.child_frame_id = frame_id; // Cluster/nesne ID'si
     
     // Pozisyon bilgisini ayarla - hesaplandığı gibi kullan
