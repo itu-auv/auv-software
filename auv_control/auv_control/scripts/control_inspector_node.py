@@ -13,16 +13,12 @@ class ControlInspectorNode:
         self.odometry_sub = rospy.Subscriber(
             "odometry", Odometry, self.odometry_callback, tcp_nodelay=True
         )
-        self.altitude_sub = rospy.Subscriber(
-            "altitude", Float32, self.altitude_callback, tcp_nodelay=True
-        )
         self.power_sub = rospy.Subscriber(
             "power", Power, self.battery_callback, tcp_nodelay=True
         )
         self.dvl_sub = rospy.Subscriber(
             "dvl_enabled", Bool, self.dvl_callback, tcp_nodelay=True
         )
-
         self.inspector_enable_sub = rospy.Subscriber(
             "enable", Bool, self.handle_enable, tcp_nodelay=True
         )
@@ -47,13 +43,21 @@ class ControlInspectorNode:
         self.altitude_timeout = rospy.get_param("~altitude_timeout", 0.5)
         self.dvl_timeout = rospy.get_param("~dvl_timeout", 1.0)
         self.min_altitude = rospy.get_param("~min_altitude", 0.3)
+        self.pool_depth = rospy.get_param("~pool_depth", 2.2)
+        self.vertical_offset = rospy.get_param("~vertical_offset", 0.3)
 
     def odometry_callback(self, msg):
-        self.last_odometry_time = rospy.get_time()
+        time = rospy.get_time()
+        self.last_odometry_time = time
 
-    def altitude_callback(self, msg):
-        self.last_altitude_time = rospy.get_time()
-        self.altitude = msg.data
+        if msg.pose.pose.position.z:
+            self.altitude = (
+                self.pool_depth + msg.pose.pose.position.z - self.vertical_offset
+            )
+            self.last_altitude_time = time
+        else:
+            self.last_altitude_time = None
+            rospy.logwarn("No altitude data in odometry message")
 
     def battery_callback(self, msg):
         self.battery_voltage = msg.voltage

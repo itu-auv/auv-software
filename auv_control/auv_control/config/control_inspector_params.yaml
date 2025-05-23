@@ -5,3 +5,5 @@ odometry_timeout: 1.0
 altitude_timeout: 1.0
 dvl_timeout: 1.0
 min_altitude: 0.3
+pool_depth: 2.2
+vertical_offset: 0.3
