@@ -9,7 +9,7 @@
             <origin xyz="${position}" rpy="${orientation}"/>
         </joint>
 
-        <link name="${namespace}/camera_depth_optical_frame"/>
+        <link name="${namespace}/_camera_depth_optical_frame"/>
         
         <joint name="${namespace}/camera_depth_optical_joint" type="fixed">
             <parent link="${name}"/>
