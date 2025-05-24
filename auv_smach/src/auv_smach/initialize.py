@@ -129,7 +129,7 @@ class InitializeState(smach.State):
             )
             smach.StateMachine.add(
                 "DELAY_FOR_DVL_ENABLE",
-                DelayState(delay_time=4.4),
+                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "ODOMETRY_ENABLE",
                     "preempted": "preempted",
@@ -139,6 +139,25 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "ODOMETRY_ENABLE",
                 OdometryEnableState(),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSE",
+                ResetOdometryPoseState(),
+                transitions={
+                    "succeeded": "DELAY_AFTER_RESET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 1 second delay after resetting odometry pose
+            smach.StateMachine.add(
+                "DELAY_AFTER_RESET",
+                DelayState(delay_time=1.0),
                 transitions={
                     "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",
