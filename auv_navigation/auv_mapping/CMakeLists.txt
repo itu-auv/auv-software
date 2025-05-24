@@ -11,8 +11,6 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   roscpp
   tf2_ros
-  octomap_ros
-  octomap_msgs
   sensor_msgs
   message_filters
   pcl_ros
