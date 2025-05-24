@@ -9,11 +9,11 @@
             <origin xyz="${position}" rpy="${orientation}"/>
         </joint>
 
-        <link name="${namespace}/_camera_depth_optical_frame"/>
+        <link name="${namespace}/_depth_optical_frame"/>
         
         <joint name="${namespace}/_camera_depth_optical_joint" type="fixed">
             <parent link="${name}"/>
-            <child link="${namespace}/_camera_depth_optical_frame"/>
+            <child link="${namespace}/_depth_optical_frame"/>
             <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
         </joint>
     </xacro:macro>
