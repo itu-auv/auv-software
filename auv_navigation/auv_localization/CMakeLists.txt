@@ -29,7 +29,6 @@ catkin_install_python(PROGRAMS
   scripts/imu_odometry_node.py
   scripts/pressure_odometry_node.py
   scripts/dvl_odometry_node.py
-  scripts/home_anchor_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
