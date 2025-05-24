@@ -80,19 +80,24 @@ target_link_libraries(object_position_filter
   ${OpenCV_LIBRARIES}
 )
 
+# Executables
 add_executable(object_map_tf_server_node
   src/object_map_tf_server_ros.cpp
   src/object_map_tf_server_node.cpp
 )
 
+add_executable(process_tracker_with_cloud
+  src/process_tracker_with_cloud.cpp
+)
+
+add_executable(realsense_filter_node 
+  src/realsense_filter.cpp
+)
+
+# Link libraries
 target_link_libraries(object_map_tf_server_node
   ${catkin_LIBRARIES}
   object_position_filter
-)
-
-# Process Tracker With Cloud
-add_executable(process_tracker_with_cloud
-  src/process_tracker_with_cloud.cpp
 )
 
 target_link_libraries(process_tracker_with_cloud
@@ -101,11 +106,11 @@ target_link_libraries(process_tracker_with_cloud
   ${OpenCV_LIBRARIES}
 )
 
-install(TARGETS object_map_tf_server_node object_position_filter process_tracker_with_cloud
-add_executable(realsense_filter_node src/realsense_filter.cpp)
-target_link_libraries(realsense_filter_node ${catkin_LIBRARIES})
+target_link_libraries(realsense_filter_node 
+  ${catkin_LIBRARIES}
+)
 
-install(TARGETS object_map_tf_server_node object_position_filter realsense_filter_node
+install(TARGETS object_map_tf_server_node object_position_filter process_tracker_with_cloud realsense_filter_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
