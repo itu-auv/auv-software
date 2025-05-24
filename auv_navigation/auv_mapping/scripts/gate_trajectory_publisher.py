@@ -31,7 +31,7 @@ class TransformServiceNode:
         self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_blue_arrow_link")
         self.gate_frame_2 = rospy.get_param("~gate_frame_2", "gate_red_arrow_link")
         self.set_enable_service = rospy.Service(
-            "set_transform_gate_trajectory", SetBool, self.handle_enable_service
+            "toggle_gate_trajectory", SetBool, self.handle_enable_service
         )
 
         self.entrance_offset = rospy.get_param("~entrance_offset", 1.0)
