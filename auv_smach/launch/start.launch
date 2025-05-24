@@ -54,6 +54,8 @@
 
             <!-- gate.py -->
             <remap from="set_transform_gate_trajectory" to="set_transform_gate_trajectory"/>
+            <remap from="odometry" to="odometry"/>
+            <remap from="wrench" to="wrench"/>
 
             <!--initialize.py-->
             <remap from="set_depth" to="set_depth"/>
