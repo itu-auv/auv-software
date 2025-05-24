@@ -9,6 +9,134 @@ from auv_smach.common import (
     SetDepthState,
     ExecutePlannedPathsState,
 )
+<<<<<<< Updated upstream
+=======
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import WrenchStamped
+from std_msgs.msg import Bool
+from std_srvs.srv import SetBool, SetBoolRequest
+
+from tf.transformations import euler_from_quaternion
+
+from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryPoseState
+
+
+class RollTwoTimes(smach.State):
+    def __init__(self, roll_rate, rate_hz=20, timeout_s=15.0):
+        super(RollTwoTimes, self).__init__(outcomes=["succeeded", "preempted", "aborted"])
+
+        self.odometry_topic = "odometry"
+        self.killswitch_topic = "propulsion_board/status"
+        self.wrench_topic = "wrench"
+        self.frame_id = "taluy/base_link"
+
+        self.roll_rate = roll_rate
+        self.timeout = rospy.Duration(timeout_s)
+        self.rate = rospy.Rate(rate_hz)
+
+        self.odom_ready = False
+        self.active = True
+        self.total_roll = 0.0
+        self.last_time = None
+        self.current_pitch = 0.0
+
+        self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
+        self.sub_kill = rospy.Subscriber(self.killswitch_topic, Bool, self.killswitch_cb)
+        self.pub_wrench = rospy.Publisher(self.wrench_topic, WrenchStamped, queue_size=1)
+
+    def odom_cb(self, msg: Odometry):
+        now = rospy.Time.now()
+        if not self.odom_ready:
+            self.last_time = now
+            self.odom_ready = True
+            return
+
+        dt = (now - self.last_time).to_sec()
+        self.last_time = now
+
+        omega_x = msg.twist.twist.angular.x
+        delta_angle = omega_x * dt
+        self.total_roll += abs(delta_angle)
+
+        q = msg.pose.pose.orientation
+        quat = (q.x, q.y, q.z, q.w)
+        _, pitch, _ = euler_from_quaternion(quat)
+        self.current_pitch = pitch
+
+    def killswitch_cb(self, msg: Bool):
+        if not msg.data:
+            self.active = False
+            rospy.logwarn("ROLL_TWO_TIMES: propulsion board disabled → aborting")
+
+    def execute(self, userdata):
+        rospy.loginfo("ROLL_TWO_TIMES: waiting for odometry data…")
+        start_wait = rospy.Time.now()
+        while not rospy.is_shutdown() and not self.odom_ready:
+            if (rospy.Time.now() - start_wait).to_sec() > 5.0:
+                rospy.logerr("ROLL_TWO_TIMES: No odometry data after 5 s → abort")
+                return "aborted"
+            if self.preempt_requested():
+                return "preempted"
+            try:
+                self.rate.sleep()
+            except rospy.ROSInterruptException:
+                return self._abort_on_shutdown()
+
+        self.total_roll = 0.0
+        self.last_time = rospy.Time.now()
+        self.start_time = rospy.Time.now()
+        target = math.radians(675.0)
+        rospy.loginfo(
+            "ROLL_TWO_TIMES: starting roll @ %.2f rad/s, target = %.2f rad",
+            self.roll_rate, target
+        )
+
+        try:
+            while not rospy.is_shutdown() and self.total_roll < target and self.active:
+                if self.preempt_requested():
+                    return self._stop_and("preempted")
+                if (rospy.Time.now() - self.start_time) > self.timeout:
+                    rospy.logerr("ROLL_TWO_TIMES: timed out after %.1f s", self.timeout.to_sec())
+                    return self._stop_and("aborted")
+
+                cmd = WrenchStamped()
+                cmd.header.stamp = rospy.Time.now()
+                cmd.header.frame_id = self.frame_id
+
+                cmd.wrench.torque.x = self.roll_rate
+                raw_ty = -1.0 * self.current_pitch
+                mag = max(0.5, min(abs(raw_ty), 50.0))
+                cmd.wrench.torque.y = math.copysign(mag, raw_ty)
+
+                self.pub_wrench.publish(cmd)
+
+                rospy.loginfo_throttle(
+                    1.0,
+                    "total_roll = %.2f/%.2f rad, pitch = %.3f rad, torque.y = %.2f",
+                    self.total_roll, target, self.current_pitch, cmd.wrench.torque.y
+                )
+                self.rate.sleep()
+
+        except rospy.ROSInterruptException:
+            return self._abort_on_shutdown()
+
+        return self._stop_and("succeeded")
+
+    # helper to stop motion and return outcome
+    def _stop_and(self, outcome):
+        stop = WrenchStamped()
+        stop.header.stamp = rospy.Time.now()
+        stop.header.frame_id = self.frame_id
+        stop.wrench.torque.x = 0.0
+        stop.wrench.torque.y = 0.0
+        self.pub_wrench.publish(stop)
+        return outcome
+
+    # helper for clean shutdown abort
+    def _abort_on_shutdown(self):
+        rospy.logwarn("ROLL_TWO_TIMES: ROS shutdown detected → aborting state")
+        return self._stop_and("aborted")
+>>>>>>> Stashed changes
 
 
 class PlanGatePathsState(smach.State):

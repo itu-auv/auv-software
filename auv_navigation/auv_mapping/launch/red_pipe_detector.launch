@@ -1,0 +1,28 @@
+<launch>
+    <!-- Kamera driver (örnek) -->
+    <include file="$(find usb_cam)/launch/usb_cam-test.launch" />
+    
+    <!-- Red Pipe Pose Detector -->
+    <node name="red_pipe_pose_detector" pkg="auv_mapping" type="red_pipe_pose_detector.py" output="screen">
+        <!-- Boru parametreleri -->
+        <param name="pipe_diameter" value="0.05" />  <!-- 5cm PVC boru -->
+        <param name="safety_margin" value="0.2" />   <!-- 20cm güvenlik mesafesi -->
+        
+        <!-- Görüntü işleme parametreleri -->
+        <param name="min_contour_area" value="500" />
+        <param name="max_contour_area" value="50000" />
+        
+        <!-- YAML dosyasındaki parametreleri bu node'un özel namespace'ine yükle -->
+        <rosparam command="load" file="$(find auv_mapping)/config/red_pipe_params.yaml" />
+
+        <!-- Debug -->
+        <param name="publish_debug" value="true" />
+        
+        <!-- Topic remapping -->
+        <remap from="/camera/image_raw" to="/usb_cam/image_raw" />
+        <remap from="/camera/camera_info" to="/usb_cam/camera_info" />
+    </node>
+    
+    <!-- RViz visualization -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find your_package_name)/config/pipe_detection.rviz" />
+</launch>

@@ -1,0 +1,17 @@
+pipe_detector:
+  # Physical parameters
+  pipe_diameter: 0.0127      # PVC boru çapı (metre)
+  safety_margin: 0.2       # Güvenlik mesafesi (metre)
+  
+  # Image processing parameters
+  min_contour_area: 500
+  max_contour_area: 50000
+  
+  # HSV color ranges for red detection
+  hsv_lower_red1: [0, 120, 70]
+  hsv_upper_red1: [10, 255, 255]
+  hsv_lower_red2: [170, 120, 70]
+  hsv_upper_red2: [180, 255, 255]
+  
+  # Debug settings
+  publish_debug: true

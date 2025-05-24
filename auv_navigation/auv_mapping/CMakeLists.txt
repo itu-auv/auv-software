@@ -12,6 +12,10 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf2
   tf2_ros
+  rospy
+  sensor_msgs
+  cv_bridge
+  tf
 )
 
 find_package(OpenCV 4 QUIET COMPONENTS
@@ -49,6 +53,7 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/prop_transform_publisher.py
   scripts/gate_trajectory_publisher.py
+  scripts/red_pipe_pose_detector.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
