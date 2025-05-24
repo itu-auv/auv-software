@@ -8,16 +8,16 @@
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
   <depend>auv_msgs</depend>
+  <depend>cv_bridge</depend>
   <depend>geometry_msgs</depend>
+  <depend>python3-numpy</depend>
+  <depend>python3-opencv</depend>
   <depend>roscpp</depend>
-  <depend>tf2</depend>
-  <depend>tf2_ros</depend>
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
-  <depend>cv_bridge</depend>
   <depend>tf</depend>
-  <depend>python3-opencv</depend>
-  <depend>python3-numpy</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
   <exec_depend>auv_control</exec_depend>
   <export/>
 </package>
