@@ -102,6 +102,10 @@ target_link_libraries(process_tracker_with_cloud
 )
 
 install(TARGETS object_map_tf_server_node object_position_filter process_tracker_with_cloud
+add_executable(realsense_filter_node src/realsense_filter.cpp)
+target_link_libraries(realsense_filter_node ${catkin_LIBRARIES})
+
+install(TARGETS object_map_tf_server_node object_position_filter realsense_filter_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
