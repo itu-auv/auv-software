@@ -311,6 +311,7 @@ class RotationState(smach.State):
         look_at_frame,
         rotation_speed=0.3,
         full_rotation=False,
+        full_rotation_timeout=25.0,
         rate_hz=10,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -327,6 +328,7 @@ class RotationState(smach.State):
         self.source_frame = source_frame
         self.look_at_frame = look_at_frame
         self.full_rotation = full_rotation
+        self.full_rotation_timeout = full_rotation_timeout
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -380,7 +382,6 @@ class RotationState(smach.State):
             return False
 
     def execute(self, userdata):
-        rospy.loginfo("RotationState: waiting for odometry data...")
         while not rospy.is_shutdown() and not self.odom_data:
             if self.preempt_requested():
                 self.service_preempt()
@@ -392,6 +393,7 @@ class RotationState(smach.State):
         twist = Twist()
         twist.angular.z = self.rotation_speed
         self.active = True
+        rotation_start_time = rospy.Time.now()
 
         transform_found = self.is_transform_available()
         if transform_found and not self.full_rotation:
@@ -406,6 +408,18 @@ class RotationState(smach.State):
                 self.pub.publish(twist)
                 self.service_preempt()
                 return "preempted"
+
+            if (
+                self.full_rotation
+                and (rospy.Time.now() - rotation_start_time).to_sec()
+                > self.full_rotation_timeout
+            ):
+                rospy.logwarn(
+                    f"RotationState: Timeout reached after {self.full_rotation_timeout} seconds during full rotation."
+                )
+                twist.angular.z = 0.0
+                self.pub.publish(twist)
+                break
 
             self.enable_pub.publish(Bool(data=True))
 
@@ -601,6 +615,7 @@ class SearchForPropState(smach.StateMachine):
     1. RotationState: Rotates to find a prop's frame.
     2. SetAlignControllerTargetState: Sets the align controller target.
     3. SetFrameLookingAtState: Sets a target frame's pose based on looking at another frame.
+    4. CancelAlignControllerState: Cancels the align controller target.
     """
 
     def __init__(
@@ -659,6 +674,15 @@ class SearchForPropState(smach.StateMachine):
                     alignment_frame=alignment_frame,
                     duration_time=set_frame_duration,
                 ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_TARGET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_TARGET",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
