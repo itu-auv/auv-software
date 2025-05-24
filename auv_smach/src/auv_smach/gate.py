@@ -12,7 +12,7 @@ from auv_smach.common import (
     SetDepthState,
     ExecutePlannedPathsState,
     SearchForPropState,
-    ClearObjectMapState
+    ClearObjectMapState,
 )
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
