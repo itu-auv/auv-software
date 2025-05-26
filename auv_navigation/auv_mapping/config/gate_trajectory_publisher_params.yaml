@@ -6,4 +6,4 @@ create_gate_frames_node:
   entrance_offset: 1.0  # Distance (m) to offset the entrance frame along its normal direction
   exit_offset: 1.0  # Distance (m) to offset the exit frame along the same normal direction
   z_offset: 0.5  # Vertical drop below the gate frame (m)
-  parallel_shift_offset: 0.1  # Parallel shift offset (m)
+  parallel_shift_offset: 0.15  # Parallel shift offset (m)
