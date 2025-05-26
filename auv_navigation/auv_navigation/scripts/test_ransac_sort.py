@@ -48,12 +48,17 @@ class SlalomProcessorNodeTest:
         ransac_iterations=100,  # Reduced for faster testing
         line_distance_threshold=0.1,
         min_pipe_cluster_size=2,
+        gate_angle_tolerance_degrees=15.0,  # Added
         # Removed other ROS-specific params for this test
     ):
         # --- Parameters (directly set for testing) ---
         self.ransac_iterations = ransac_iterations
         self.line_distance_threshold = line_distance_threshold
         self.min_pipe_cluster_size = min_pipe_cluster_size
+        self.gate_angle_tolerance_degrees = gate_angle_tolerance_degrees  # Added
+        self.gate_angle_cos_threshold = np.cos(
+            np.deg2rad(self.gate_angle_tolerance_degrees)
+        )  # Added
 
         # Removed TF, Subscribers, Publishers for this test
 
@@ -64,9 +69,13 @@ class SlalomProcessorNodeTest:
     # as they require TF. We will directly pass pipe lists to cluster_pipes_with_ransac.
 
     # --- System 1 functions ---
-    def cluster_pipes_with_ransac(self, pipes):
+    def cluster_pipes_with_ransac(
+        self, pipes, robot_y_axis_odom_2d=None
+    ):  # Added robot_y_axis_odom_2d
         unassigned_pipes = list(pipes)
         gate_clusters = []
+
+        perform_directional_check = robot_y_axis_odom_2d is not None
 
         while len(unassigned_pipes) >= self.min_pipe_cluster_size:
             best_inliers = []
@@ -89,6 +98,16 @@ class SlalomProcessorNodeTest:
                 if length < 1e-6:  # Avoid division by zero for coincident points
                     continue
                 unit_direction = line_vec / length
+
+                if perform_directional_check:
+                    # Check if the gate line is parallel to the robot's Y-axis
+                    # unit_direction is the direction of the potential gate line
+                    # robot_y_axis_odom_2d is the expected orientation of gates
+                    dot_product = np.abs(np.dot(unit_direction, robot_y_axis_odom_2d))
+                    # abs(dot_product) should be close to 1 if parallel (cos(0) or cos(180))
+                    # So, abs(dot_product) should be >= cos(tolerance_angle)
+                    if dot_product < self.gate_angle_cos_threshold:
+                        continue  # Line is not aligned with robot's Y-axis, skip this sample
 
                 inliers = []
                 for candidate_pipe in unassigned_pipes:
@@ -259,14 +278,17 @@ def generate_user_input_pipes(
 def generate_pipe_positions(num_gates=3, gate_spacing=1):
     """
     Generate pseudo-random positions for white and red PVC pipes in a slalom course.
+    The gates generated are vertical (constant x for pipes in a gate).
+    The robot's Y-axis is assumed to be parallel to these gate lines.
 
     Args:
         num_gates (int): Number of gates (default=3).
         gate_spacing (float): Approximate spacing between consecutive gates along the x-axis.
 
     Returns:
-        white_pipe_coords (list of tuple): [(x1, y1), ..., (x6, y6)]
-        red_pipe_coords   (list of tuple): [(x1, y1), (x2, y2), (x3, y3)]
+        white_pipe_coords (list of tuple): [(x1, y1), ..., (xN, yN)]
+        red_pipe_coords   (list of tuple): [(x1, y1), ..., (xM, yM)]
+        robot_y_axis_odom_2d (np.array): Assumed robot Y-axis direction in odom [0.0, 1.0]
     """
     white_pipe_coords = []
     red_pipe_coords = []
@@ -287,7 +309,10 @@ def generate_pipe_positions(num_gates=3, gate_spacing=1):
         white_pipe_coords.append((x_center, y_left))
         white_pipe_coords.append((x_center, y_right))
 
-    return white_pipe_coords, red_pipe_coords
+    # For gates aligned vertically (constant x), the robot's Y-axis, if looking straight,
+    # would be parallel to the global Y-axis.
+    robot_y_axis_odom_2d = np.array([0.0, 1.0])
+    return white_pipe_coords, red_pipe_coords, robot_y_axis_odom_2d
 
 
 # --- Visualization ---
@@ -403,15 +428,18 @@ if __name__ == "__main__":
         ransac_iterations=300,  # Might need more for noisy data or more outliers
         line_distance_threshold=0.25,  # Adjusted based on noise_std and potential gate tilt
         min_pipe_cluster_size=2,  # Finds pairs, which can then be validated to form gates
+        gate_angle_tolerance_degrees=20.0,  # Added tolerance
     )
 
     # Reset pipe ID counter on the processor instance before generating pipes
     processor.pipe_id_counter = 0
 
     # Define user inputs for the new function
-    white_pipe_coords, red_pipe_coords = generate_pipe_positions(
-        num_gates=3, gate_spacing=1
-    )  # Corrected gate_spacing to 1
+    # Get robot_y_axis from the pipe generation function
+    white_pipe_coords, red_pipe_coords, robot_y_axis = generate_pipe_positions(
+        num_gates=3,
+        gate_spacing=1,  # Changed gate_spacing to 2 for better visualization
+    )
     # Generate test pipes using the new function for user-defined inputs
     all_test_pipes = generate_user_input_pipes(
         processor, white_pipe_coords, red_pipe_coords
@@ -421,10 +449,14 @@ if __name__ == "__main__":
     for p in all_test_pipes:
         print(p)
     print(f"Total pipes generated: {len(all_test_pipes)}")
+    print(f"Assumed Robot Y-axis for directional check: {robot_y_axis}")
     print("-" * 30)
 
-    print("\n--- Testing cluster_pipes_with_ransac ---")
-    raw_clusters = processor.cluster_pipes_with_ransac(all_test_pipes)
+    print("\\n--- Testing cluster_pipes_with_ransac ---")
+    # Pass the robot_y_axis to RANSAC
+    raw_clusters = processor.cluster_pipes_with_ransac(
+        all_test_pipes, robot_y_axis_odom_2d=robot_y_axis
+    )
 
     print(f"Found {len(raw_clusters)} clusters.")
     for i, cluster in enumerate(raw_clusters):

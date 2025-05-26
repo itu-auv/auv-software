@@ -4,11 +4,13 @@ import numpy as np
 import random
 import tf2_ros
 import tf2_geometry_msgs
-from geometry_msgs.msg import PoseArray, Pose, PointStamped
-from your_package.msg import (
-    DetectedPipes,
-    DetectedPipe,
-)  # replace with your actual package
+from geometry_msgs.msg import (
+    PoseArray,
+    Pose,
+    PointStamped,
+    Vector3Stamped,
+)  # Added Vector3Stamped
+from auv_msgs.msg import DetectedPipes, DetectedPipe  # replace with your actual package
 
 
 class Gate:
@@ -37,6 +39,12 @@ class SlalomProcessorNode:
             "~navigation_mode", "left"
         )  # 'left' or 'right'
         self.red_white_distance = rospy.get_param("~red_white_distance", 1.5)
+        self.gate_angle_tolerance_degrees = rospy.get_param(
+            "~gate_angle_tolerance_degrees", 15.0
+        )
+        self.gate_angle_cos_threshold = np.cos(
+            np.deg2rad(self.gate_angle_tolerance_degrees)
+        )
 
         # TF2 for transformations
         self.tf_buffer = tf2_ros.Buffer()
@@ -115,12 +123,58 @@ class SlalomProcessorNode:
     def cluster_pipes_with_ransac(self, pipes):
         """
         Uses a RANSAC-like approach to cluster pipes lying approximately on the same line (gate).
+        Filters lines based on their orientation relative to the robot's Y-axis.
         Returns a list of clusters, each with member pipes and the fitted line.
         """
         unassigned_pipes = list(
             pipes
         )  # Working copy of pipes that have not been assigned to a cluster
         gate_clusters = []
+
+        perform_directional_check = False
+        robot_y_axis_odom_2d = None
+        if (
+            len(unassigned_pipes) >= self.min_pipe_cluster_size
+        ):  # Only attempt TF if there are pipes
+            robot_y_axis_vector_stamped = Vector3Stamped()
+            robot_y_axis_vector_stamped.header.stamp = rospy.Time(0)
+            robot_y_axis_vector_stamped.header.frame_id = self.base_link_frame
+            robot_y_axis_vector_stamped.vector.x = 0.0
+            robot_y_axis_vector_stamped.vector.y = 1.0  # Robot's Y-axis
+            robot_y_axis_vector_stamped.vector.z = 0.0
+            try:
+                transformed_robot_y_vector = self.tf_buffer.transform(
+                    robot_y_axis_vector_stamped,
+                    self.odom_frame,
+                    timeout=rospy.Duration(0.1),
+                )
+                robot_y_axis_odom_2d_temp = np.array(
+                    [
+                        transformed_robot_y_vector.vector.x,
+                        transformed_robot_y_vector.vector.y,
+                    ]
+                )
+                norm_robot_y = np.linalg.norm(robot_y_axis_odom_2d_temp)
+                if (
+                    norm_robot_y > 1e-6
+                ):  # Avoid division by zero and ensure meaningful vector
+                    robot_y_axis_odom_2d = robot_y_axis_odom_2d_temp / norm_robot_y
+                    perform_directional_check = True
+                else:
+                    rospy.logwarn_throttle(
+                        10.0,
+                        "Robot Y-axis in odom frame has near-zero length after projection. Skipping directional check.",
+                    )
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+                tf2_ros.TransformException,
+            ) as e:
+                rospy.logwarn_throttle(
+                    10.0,
+                    f"TF transform failed for robot Y-axis: {e}. Skipping directional RANSAC constraint for this cycle.",
+                )
 
         while len(unassigned_pipes) >= self.min_pipe_cluster_size:
             best_inliers = []
@@ -135,7 +189,17 @@ class SlalomProcessorNode:
                 length = np.linalg.norm(line_vec)
                 if length == 0:
                     continue
-                unit_direction = line_vec / length
+                unit_direction = (
+                    line_vec / length
+                )  # This is the 2D direction of the potential gate line in odom
+
+                if perform_directional_check and robot_y_axis_odom_2d is not None:
+                    # Check if the gate line is parallel to the robot's Y-axis
+                    dot_product = np.dot(unit_direction, robot_y_axis_odom_2d)
+                    # abs(dot_product) should be close to 1 if parallel (cos(0) or cos(180))
+                    # So, abs(dot_product) should be >= cos(tolerance_angle)
+                    if abs(dot_product) < self.gate_angle_cos_threshold:
+                        continue  # Line is not aligned with robot's Y-axis, skip this sample
 
                 inliers = []
                 for candidate_pipe in unassigned_pipes:
