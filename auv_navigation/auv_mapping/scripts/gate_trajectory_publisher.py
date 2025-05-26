@@ -37,8 +37,8 @@ class TransformServiceNode:
         self.entrance_offset = rospy.get_param("~entrance_offset", 1.0)
         self.exit_offset = rospy.get_param("~exit_offset", 1.0)
         self.z_offset = rospy.get_param("~z_offset", 0.5)
-        self.parallel_shift_offset = rospy.get_param("~parallel_shift_offset", 0.1)
-
+        self.parallel_shift_offset = rospy.get_param("~parallel_shift_offset", 0.15)
+        rospy.loginfo("entrance_offset = %f", self.entrance_offset)
         self.target_gate_frame = rospy.get_param(
             "~target_gate_frame", "gate_blue_arrow_link"
         )
