@@ -281,7 +281,6 @@ class PoolBoundaryDetector:
             self.fit_line_to_points(cluster_points_xy)
 
     def fit_line_to_points(self, points):
-        """RANSAC algoritması ile noktalara çizgi uydur"""
         if len(points) < 2:
             return
 
