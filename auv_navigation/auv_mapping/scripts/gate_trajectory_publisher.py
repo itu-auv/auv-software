@@ -155,9 +155,7 @@ class TransformServiceNode:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(
-                f"TF lookup failed in _shift_transform_parallel_to_gate_line: from {selected_gate_frame_name} to {other_gate_frame_name}: {e}"
-            )
+            rospy.logwarn(f"TF lookup failed: {e}")
             return transform_to_shift
 
         dx_selected_frame = transform_selected_to_other.transform.translation.x
@@ -167,7 +165,7 @@ class TransformServiceNode:
 
         if length < self.MIN_GATE_SEPARATION_THRESHOLD:
             rospy.logwarn(
-                f"Gate links {selected_gate_frame_name} and {other_gate_frame_name} are too close for parallel shift ({length:.2f}m). Skipping shift."
+                f"Gate links are too close for parallel shift. Skipping shift."
             )
             return transform_to_shift
 
