@@ -327,20 +327,7 @@ public:
     
     // Eğer çok az nokta varsa alternatif yaklaşım deneyelim
     if (points_in_bbox < 20 && !cloud->points.empty()) {
-      
-      // Basit derinlik tabanlı filtreleme
-      float min_depth = 0.1;  // Minimum derinlik (m)
-      float max_depth = 10.0;  // Maksimum derinlik (m)
-      
-      detection_cloud->points.clear();
-      points_in_bbox = 0;
-      
-      for (const auto& point : cloud->points) {
-        if (point.z > min_depth && point.z < max_depth) {
-          detection_cloud->points.push_back(point);
-          points_in_bbox++;
-        }
-      }
+    ROS_INFO("Not enough points in bounding box, trying");
     }
   }
   
