@@ -92,7 +92,7 @@ class SimulationTab(QWidget):
                 cb.setChecked(False)
 
     def start_detection(self):
-        cmd = ["roslaunch", "auv_detection", "tracker.launch"]
+        cmd = ["roslaunch", "auv_detection", "tracker.launch", "device:=cpu"]
         print(f"Executing: {' '.join(cmd)}")
         self.detect_process = subprocess.Popen(cmd)
 
