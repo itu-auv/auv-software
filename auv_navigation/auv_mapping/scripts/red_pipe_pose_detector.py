@@ -4,11 +4,12 @@ import rospy
 import cv2
 import numpy as np
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import PoseArray, Pose, Point, Quaternion
+from geometry_msgs.msg import PoseArray, Pose, Point, Quaternion, PoseStamped
 from cv_bridge import CvBridge
 import tf.transformations as tf_trans
 from std_msgs.msg import Header
-import yaml
+import tf2_ros
+import tf2_geometry_msgs
 
 
 class RedPipePoseDetector:
@@ -16,9 +17,10 @@ class RedPipePoseDetector:
         rospy.init_node("red_pipe_pose_detector", anonymous=True)
 
         # Parameters
+        # 2.5 cm pipe diameter as requested
         self.pipe_diameter = rospy.get_param(
-            "~pipe_diameter", 0.0127
-        )  # 5cm varsayılan PVC boru çapı
+            "~pipe_diameter", 0.025
+        )
         self.min_contour_area = rospy.get_param("~min_contour_area", 500)
         self.max_contour_area = rospy.get_param("~max_contour_area", 50000)
         self.safety_margin = rospy.get_param(
@@ -36,6 +38,11 @@ class RedPipePoseDetector:
         self.camera_info = None
         self.camera_matrix = None
         self.dist_coeffs = None
+
+        # TF2 setup
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.target_frame = rospy.get_param("~target_frame", "odom")
 
         # Subscribers
         self.image_sub = rospy.Subscriber(
@@ -193,24 +200,47 @@ class RedPipePoseDetector:
             # Pose array oluştur
             pose_array = PoseArray()
             pose_array.header = Header()
-            pose_array.header.stamp = msg.header.stamp
-            pose_array.header.frame_id = (
-                msg.header.frame_id if msg.header.frame_id else "camera_link"
-            )
+            pose_array.header.stamp = msg.header.stamp # Use image timestamp
+            pose_array.header.frame_id = self.target_frame # Poses will be in odom frame
 
             poses_info = []  # Debug için
+            
+            # Ensure the camera frame_id is valid
+            camera_frame_id = msg.header.frame_id
+            if not camera_frame_id:
+                # Fallback or use camera_info frame_id if available and more reliable
+                if self.camera_info and self.camera_info.header.frame_id:
+                    camera_frame_id = self.camera_info.header.frame_id
+                else:
+                    rospy.logwarn_throttle(5, "Camera frame_id is not available in image header or camera_info. Using 'camera_link' as fallback.")
+                    camera_frame_id = "camera_link" # Fallback, ensure this TF exists
 
             for contour in contours:
                 result = self.estimate_pipe_pose(contour, cv_image.shape)
                 if result is not None:
-                    pose, center, radius, distance = result
-                    pose_array.poses.append(pose)
-                    poses_info.append((pose, center, radius, distance))
+                    pose_in_camera_frame, center, radius, distance = result
+
+                    # Transform pose to target_frame (e.g., odom)
+                    pose_stamped_camera = PoseStamped()
+                    pose_stamped_camera.header.stamp = msg.header.stamp
+                    pose_stamped_camera.header.frame_id = camera_frame_id
+                    pose_stamped_camera.pose = pose_in_camera_frame
+
+                    try:
+                        transform = self.tf_buffer.lookup_transform(
+                            self.target_frame, camera_frame_id, msg.header.stamp, rospy.Duration(0.2)
+                        )
+                        pose_stamped_odom = tf2_geometry_msgs.do_transform_pose(pose_stamped_camera, transform)
+                        pose_array.poses.append(pose_stamped_odom.pose)
+                        poses_info.append((pose_stamped_odom.pose, center, radius, distance)) # Store transformed pose for debug
+                    except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                        rospy.logwarn_throttle(5, f"Failed to transform pose from {camera_frame_id} to {self.target_frame}: {e}")
+                        continue
 
             # Pose'ları yayınla
             if len(pose_array.poses) > 0:
                 self.pose_pub.publish(pose_array)
-                rospy.logdebug(f"Published {len(pose_array.poses)} pipe poses")
+                rospy.logdebug(f"Published {len(pose_array.poses)} pipe poses in {self.target_frame} frame")
 
             # Debug görüntüsü yayınla
             if self.publish_debug and poses_info:
