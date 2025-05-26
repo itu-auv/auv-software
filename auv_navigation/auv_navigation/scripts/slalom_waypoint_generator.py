@@ -36,6 +36,7 @@ class SlalomProcessorNode:
         self.navigation_mode = rospy.get_param(
             "~navigation_mode", "left"
         )  # 'left' or 'right'
+        self.red_white_distance = rospy.get_param("~red_white_distance", 1.5)
 
         # TF2 for transformations
         self.tf_buffer = tf2_ros.Buffer()
@@ -63,7 +64,7 @@ class SlalomProcessorNode:
 
     def get_pipe_distance_from_base(self, position):
         """
-        Transforms a pipe position (odom) to the robot's base frame and computes its distance to the origin.
+        Transforms a pipe position (odom) to the robot's base frame and computes its distance to the robot base.
         """
         try:
             pipe_point = PointStamped()
@@ -116,7 +117,9 @@ class SlalomProcessorNode:
         Uses a RANSAC-like approach to cluster pipes lying approximately on the same line (gate).
         Returns a list of clusters, each with member pipes and the fitted line.
         """
-        unassigned_pipes = list(pipes)
+        unassigned_pipes = list(
+            pipes
+        )  # Working copy of pipes that have not been assigned to a cluster
         gate_clusters = []
 
         while len(unassigned_pipes) >= self.min_pipe_cluster_size:
@@ -164,18 +167,21 @@ class SlalomProcessorNode:
 
     def sort_pipes_along_line(self, cluster):
         """
-        Given a raw cluster {pipes, model=(point, dir)}, project each pipe onto the line
+        Given a raw cluster {pipes, model=(origin_point, unit_direction)}, project each pipe onto the line
         and return a dict with 'pipes' sorted along the line and keep the same model.
         """
-        origin, dir_unit = cluster["model"]
+        origin_point, unit_direction = cluster["line_model"]
         projections = []
-        for p in cluster["pipes"]:
-            coord = np.array([p.position.x, p.position.y])
-            t = np.dot((coord - origin), dir_unit)
-            projections.append((t, p))
-        projections.sort(key=lambda x: x[0])
-        sorted_pipes = [p for (_, p) in projections]
-        return {"pipes": sorted_pipes, "model": cluster["model"]}
+        for pipe in cluster["pipes"]:
+            pipe_position_xy = np.array([pipe.position.x, pipe.position.y])
+            projection_scalar = np.dot(
+                (pipe_position_xy - origin_point), unit_direction
+            )
+            # projection_scalar represents how far along the line the pipe is located
+            projections.append((projection_scalar, pipe))
+        projections.sort(key=lambda item: item[0])
+        sorted_pipes = [pipe for (_, pipe) in projections]
+        return {"pipes": sorted_pipes, "line_model": cluster["line_model"]}
 
     def validate_cluster(self, sorted_cluster):
         """
@@ -203,39 +209,8 @@ class SlalomProcessorNode:
         Given validated info, fill in missing pipes using known spacing and orientation.
         Returns a Gate object with white_left, red, white_right, and direction.
         """
-        origin, dir_unit = info["model"]
-        pipes = info["pipes"]
-        # Initialize placeholders
-        w_left = r = w_right = None
-        # Assign seen pipes
-        for p in pipes:
-            if p.color == "red":
-                r = p
-            elif w_left is None:
-                w_left = p
-            else:
-                w_right = p
-                #! Assumes first white pipe is left, second is right
-        # Guess missing
-        if r and not w_left:
-            # red seen only: place whites at ±d along dir
-            pos = np.array([r.position.x, r.position.y])
-            w_left = self._make_fake_pipe(
-                pos - dir_unit * self.red_white_spacing, "white"
-            )
-            w_right = self._make_fake_pipe(
-                pos + dir_unit * self.red_white_spacing, "white"
-            )
-        elif r and w_left and not w_right:
-            # red + one white
-            pos_r = np.array([r.position.x, r.position.y])
-            pos_w = np.array([w_left.position.x, w_left.position.y])
-            # determine which side is missing
-            side = np.sign(np.dot((pos_w - pos_r), dir_unit))
-            missing_pos = pos_r - side * dir_unit * self.red_white_spacing
-            w_right = self._make_fake_pipe(missing_pos, "white")
-        # More cases (only whites, etc.) can be added similarly
-        return Gate(w_left, r, w_right, dir_unit)
+        # TODO will be implemented in the future
+        return 1
 
     def _make_fake_pipe(self, pos_xy, color):
         """Create a DetectedPipe-like placeholder at pos_xy with given color."""

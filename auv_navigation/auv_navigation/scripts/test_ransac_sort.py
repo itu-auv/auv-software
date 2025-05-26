@@ -156,54 +156,171 @@ class SlalomProcessorNodeTest:
 
 
 # --- Test Data Generation ---
-def generate_test_pipes(processor_node_instance):
+def generate_realistic_slalom_pipes(
+    processor_node_instance,
+    num_gates=3,
+    inter_pipe_dist=1.5,  # Distance from red to white pipe in a gate
+    gate_progression_x=4.0,  # How far along X for the next gate
+    slalom_offset_y=2.0,  # Lateral Y offset for slalom
+    initial_gate_center_x=0.0,
+    initial_gate_center_y=0.0,
+    gate_angle_rad_range=(-0.15, 0.15),  # Radians, tilt from horizontal
+    position_noise_std=0.08,  # Std dev for Gaussian noise on x,y
+    num_outliers=3,
+):
     pipes = []
-    # Gate 1 (approx y=1)
-    pipes.append(processor_node_instance._create_pipe(0, 1.0, "white"))
-    pipes.append(processor_node_instance._create_pipe(1.5, 1.05, "red"))
-    pipes.append(processor_node_instance._create_pipe(3.0, 0.95, "white"))
-    pipes.append(
-        processor_node_instance._create_pipe(1.4, 2.5, "blue")
-    )  # Nearby outlier for Gate 1
 
-    # Gate 2 (approx x=4)
-    pipes.append(processor_node_instance._create_pipe(4.0, 0, "white"))
-    pipes.append(processor_node_instance._create_pipe(4.05, 1.5, "red"))
-    pipes.append(processor_node_instance._create_pipe(3.95, 3.0, "white"))
+    for i in range(num_gates):
+        # Determine gate center
+        gc_x = initial_gate_center_x + i * gate_progression_x
+        gc_y = initial_gate_center_y
+        if i % 2 == 1:  # Apply slalom offset for odd-numbered gates (0-indexed)
+            gc_y += slalom_offset_y
 
-    # Outliers
-    pipes.append(processor_node_instance._create_pipe(-2, -2, "green"))
-    pipes.append(processor_node_instance._create_pipe(5, 5, "yellow"))
+        gate_center = np.array([gc_x, gc_y])
 
-    # A small cluster of 2 that might be picked up
-    pipes.append(processor_node_instance._create_pipe(0, 4.0, "white"))
-    pipes.append(processor_node_instance._create_pipe(0.5, 4.05, "red"))
+        # Determine gate orientation
+        angle = random.uniform(gate_angle_rad_range[0], gate_angle_rad_range[1])
+        gate_direction_vec = np.array(
+            [np.cos(angle), np.sin(angle)]
+        )  # Unit vector along the gate
 
-    random.shuffle(pipes)  # Shuffle to make it more realistic
+        # Pipe positions (ideal) relative to gate center along its direction
+        # Red pipe is at the gate center
+        red_pos_ideal = gate_center
+        wl_pos_ideal = gate_center - gate_direction_vec * inter_pipe_dist
+        wr_pos_ideal = gate_center + gate_direction_vec * inter_pipe_dist
+
+        # Add noise and create pipes
+        noise_wl = np.random.normal(0, position_noise_std, size=2)
+        noise_r = np.random.normal(0, position_noise_std, size=2)
+        noise_wr = np.random.normal(0, position_noise_std, size=2)
+
+        pipes.append(
+            processor_node_instance._create_pipe(
+                wl_pos_ideal[0] + noise_wl[0], wl_pos_ideal[1] + noise_wl[1], "white"
+            )
+        )
+        pipes.append(
+            processor_node_instance._create_pipe(
+                red_pos_ideal[0] + noise_r[0], red_pos_ideal[1] + noise_r[1], "red"
+            )
+        )
+        pipes.append(
+            processor_node_instance._create_pipe(
+                wr_pos_ideal[0] + noise_wr[0], wr_pos_ideal[1] + noise_wr[1], "white"
+            )
+        )
+
+    # Add some outliers
+    # Determine bounds for outliers based on generated gates
+    if pipes:
+        all_x = [p.position.x for p in pipes]
+        all_y = [p.position.y for p in pipes]
+        min_x, max_x = min(all_x), max(all_x)
+        min_y, max_y = min(all_y), max(all_y)
+        x_range = max_x - min_x
+        y_range = max_y - min_y
+    else:  # Default if no gates were generated
+        min_x, max_x, min_y, max_y = -5, 5, -5, 5
+        x_range, y_range = 10, 10
+
+    for _ in range(num_outliers):
+        ox = random.uniform(min_x - x_range * 0.2, max_x + x_range * 0.2)
+        oy = random.uniform(min_y - y_range * 0.2, max_y + y_range * 0.2)
+        pipes.append(
+            processor_node_instance._create_pipe(
+                ox, oy, random.choice(["blue", "green", "yellow"])
+            )
+        )
+
+    random.shuffle(pipes)
     return pipes
+
+
+# NEW FUNCTION to generate pipes from user-specified coordinates
+def generate_user_input_pipes(
+    processor_node_instance, white_coords_list, red_coords_list
+):
+    """Generates a list of MockDetectedPipe objects from user-defined coordinates."""
+    pipes = []
+    # The pipe_id_counter should be managed by the caller if it needs to be reset globally
+    # for the processor_node_instance. This function just uses the instance.
+    for x, y in white_coords_list:
+        pipes.append(processor_node_instance._create_pipe(x, y, "white"))
+    for x, y in red_coords_list:
+        pipes.append(processor_node_instance._create_pipe(x, y, "red"))
+    # Shuffle the pipes, similar to the other generation function.
+    # 'random' is imported at the top of the file.
+    random.shuffle(pipes)
+    return pipes
+
+
+def generate_pipe_positions(num_gates=3, gate_spacing=1):
+    """
+    Generate pseudo-random positions for white and red PVC pipes in a slalom course.
+
+    Args:
+        num_gates (int): Number of gates (default=3).
+        gate_spacing (float): Approximate spacing between consecutive gates along the x-axis.
+
+    Returns:
+        white_pipe_coords (list of tuple): [(x1, y1), ..., (x6, y6)]
+        red_pipe_coords   (list of tuple): [(x1, y1), (x2, y2), (x3, y3)]
+    """
+    white_pipe_coords = []
+    red_pipe_coords = []
+
+    for i in range(num_gates):
+        # Center of this gate, with ±0.2 m noise along x
+        x_center = i * gate_spacing + random.uniform(-0.2, 0.2)
+        # Lateral center line of the red pipe, with ±0.2 m noise along y
+        y_center = random.uniform(-0.2, 0.2)
+
+        # Record red pipe
+        red_pipe_coords.append((x_center, y_center))
+
+        # White pipes are ±1.5 m from the red, plus a bit of noise
+        y_left = y_center - 1.5 + random.uniform(-0.5, 0.5)
+        y_right = y_center + 1.5 + random.uniform(-0.5, 0.5)
+
+        white_pipe_coords.append((x_center, y_left))
+        white_pipe_coords.append((x_center, y_right))
+
+    return white_pipe_coords, red_pipe_coords
 
 
 # --- Visualization ---
 def visualize_clusters(all_pipes, clusters, title="RANSAC Pipe Clustering"):
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(12, 9))  # Adjusted size for potentially more spread out data
 
     # Plot all original pipes
+    # Pre-define colors for consistent legend
+    pipe_color_map = {
+        "red": "r",
+        "white": "gray",
+        "blue": "b",
+        "green": "g",
+        "yellow": "y",
+    }
+    plotted_legend_colors = set()
+
     for pipe in all_pipes:
-        color_map = {
-            "red": "r",
-            "white": "gray",
-            "blue": "b",
-            "green": "g",
-            "yellow": "y",
-        }
+        plot_color = pipe_color_map.get(pipe.color, "k")
+        label = None
+        if pipe.color not in plotted_legend_colors:
+            label = f"Pipe ({pipe.color})"
+            plotted_legend_colors.add(pipe.color)
+
         plt.scatter(
             pipe.position.x,
             pipe.position.y,
-            c=color_map.get(pipe.color, "k"),
+            c=plot_color,
             marker="o",
             s=100,
-            label=f"All Pipes ({pipe.color})" if pipe.id == 0 else None,
-            alpha=0.3,
+            label=label,
+            alpha=0.4,
+            edgecolors="k",
         )
         plt.text(
             pipe.position.x + 0.1, pipe.position.y + 0.1, f"{pipe.id}({pipe.color[0]})"
@@ -214,32 +331,48 @@ def visualize_clusters(all_pipes, clusters, title="RANSAC Pipe Clustering"):
         cluster_pipes = cluster_info["pipes"]
         line_model = cluster_info["line_model"]
 
-        cluster_color_plot = plt.cm.viridis(
-            i / len(clusters) if len(clusters) > 0 else 0
-        )
+        # Use a distinct color for each cluster's line and inliers
+        cluster_plot_color = plt.cm.rainbow(
+            i / max(1, len(clusters))
+        )  # Avoid division by zero if no clusters
 
         # Plot inlier pipes for this cluster
-        for pipe in cluster_pipes:
+        for idx, pipe_in_cluster in enumerate(cluster_pipes):
             plt.scatter(
-                pipe.position.x,
-                pipe.position.y,
-                c=[cluster_color_plot],  # Use a consistent color for the cluster
+                pipe_in_cluster.position.x,
+                pipe_in_cluster.position.y,
+                c=[cluster_plot_color],
                 marker="x",
-                s=150,
-                label=f"Cluster {i} Inlier" if pipe == cluster_pipes[0] else None,
+                s=180,
+                linewidths=1.5,
+                label=f"Cluster {i} Inlier" if idx == 0 else None,
             )
 
         # Plot RANSAC line
         if line_model:
             origin, direction = line_model
-            # Extend line for plotting
-            p1 = origin - direction * 5  # Extend backward
-            p2 = origin + direction * 10  # Extend forward
+            # Extend line for plotting based on typical gate span
+            line_extension = 5.0  # How far to draw line beyond typical points
+
+            # Find min/max projection of inliers to define segment, then extend
+            if cluster_pipes:
+                projs = [
+                    np.dot(np.array([p.position.x, p.position.y]) - origin, direction)
+                    for p in cluster_pipes
+                ]
+                min_proj, max_proj = min(projs), max(projs)
+                p1 = origin + direction * (min_proj - line_extension * 0.5)
+                p2 = origin + direction * (max_proj + line_extension * 0.5)
+            else:  # Fallback if somehow no pipes in a cluster with a model
+                p1 = origin - direction * line_extension
+                p2 = origin + direction * line_extension
+
             plt.plot(
                 [p1[0], p2[0]],
                 [p1[1], p2[1]],
                 linestyle="--",
-                color=cluster_color_plot,
+                color=cluster_plot_color,
+                linewidth=2,
                 label=f"Cluster {i} Line" if line_model else None,
             )
 
@@ -250,78 +383,81 @@ def visualize_clusters(all_pipes, clusters, title="RANSAC Pipe Clustering"):
     plt.axhline(0, color="black", lw=0.5)
     plt.axvline(0, color="black", lw=0.5)
 
-    # Collect unique labels for legend
     handles, labels = plt.gca().get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))  # Remove duplicate labels
-    if by_label:  # only show legend if there are labels
+    by_label = dict(zip(labels, handles))
+    if by_label:
         plt.legend(
             by_label.values(),
             by_label.keys(),
-            bbox_to_anchor=(1.05, 1),
+            bbox_to_anchor=(1.02, 1),
             loc="upper left",
         )
-    plt.tight_layout(rect=[0, 0, 0.85, 1])  # Adjust layout to make space for legend
-    plt.axis("equal")
+    plt.tight_layout(rect=[0, 0, 0.83, 1])  # Adjust for legend
+    plt.axis("equal")  # Important for correct perception of distances and angles
     plt.show()
 
 
 # --- Main test execution ---
 if __name__ == "__main__":
-    # 1. Initialize the test version of SlalomProcessorNode
-    # Increased iterations for potentially better RANSAC, decreased for speed in testing
-    # Increased tolerance for slightly more spread out points
     processor = SlalomProcessorNodeTest(
-        ransac_iterations=200,
-        line_distance_threshold=0.2,
-        min_pipe_cluster_size=2,  # Should be at least 2 for RANSAC
+        ransac_iterations=300,  # Might need more for noisy data or more outliers
+        line_distance_threshold=0.25,  # Adjusted based on noise_std and potential gate tilt
+        min_pipe_cluster_size=2,  # Finds pairs, which can then be validated to form gates
     )
 
-    # 2. Generate test pipes
-    all_test_pipes = generate_test_pipes(processor)
-    print("--- Generated Test Pipes ---")
+    # Reset pipe ID counter on the processor instance before generating pipes
+    processor.pipe_id_counter = 0
+
+    # Define user inputs for the new function
+    white_pipe_coords, red_pipe_coords = generate_pipe_positions(
+        num_gates=3, gate_spacing=1
+    )  # Corrected gate_spacing to 1
+    # Generate test pipes using the new function for user-defined inputs
+    all_test_pipes = generate_user_input_pipes(
+        processor, white_pipe_coords, red_pipe_coords
+    )
+
+    print("--- Generated Test Pipes (User Defined) ---")  # Updated print statement
     for p in all_test_pipes:
         print(p)
+    print(f"Total pipes generated: {len(all_test_pipes)}")
     print("-" * 30)
 
-    # 3. Test cluster_pipes_with_ransac
     print("\n--- Testing cluster_pipes_with_ransac ---")
     raw_clusters = processor.cluster_pipes_with_ransac(all_test_pipes)
 
     print(f"Found {len(raw_clusters)} clusters.")
     for i, cluster in enumerate(raw_clusters):
         print(f"Cluster {i}:")
-        print(f"  Line Model (origin, direction): {cluster['line_model']}")
+        # Ensure line_model exists before trying to access its elements
+        if cluster["line_model"]:
+            origin_str = f"({cluster['line_model'][0][0]:.2f}, {cluster['line_model'][0][1]:.2f})"
+            direction_str = f"({cluster['line_model'][1][0]:.2f}, {cluster['line_model'][1][1]:.2f})"
+            print(f"  Line Model (origin: {origin_str}, direction: {direction_str})")
+        else:
+            print("  Line Model: None")
         print(f"  Pipes in cluster ({len(cluster['pipes'])}):")
         for pipe in cluster["pipes"]:
             print(f"    {pipe}")
     print("-" * 30)
 
-    # Visualize the raw clusters
     visualize_clusters(
-        all_test_pipes, raw_clusters, title="RANSAC Pipe Clustering Results"
+        all_test_pipes, raw_clusters, title="RANSAC Pipe Clustering (Realistic Slalom)"
     )
 
-    # 4. Test sort_pipes_along_line for each found cluster
     print("\n--- Testing sort_pipes_along_line for each cluster ---")
     sorted_clusters_data = []
     for i, cluster in enumerate(raw_clusters):
-        print(f"Sorting Cluster {i}:")
-        print(
-            f"  Pipes BEFORE sorting ({len(cluster['pipes'])}): {[p.id for p in cluster['pipes']]}"
-        )
+        print(f"Sorting Cluster {i} (IDs): {[p.id for p in cluster['pipes']]}")
 
         sorted_cluster_info = processor.sort_pipes_along_line(cluster)
-        sorted_clusters_data.append(
-            sorted_cluster_info
-        )  # Store for potential further use/viz
+        sorted_clusters_data.append(sorted_cluster_info)
 
-        print(f"  Pipes AFTER sorting ({len(sorted_cluster_info['pipes'])}):")
-        for pipe in sorted_cluster_info["pipes"]:
-            print(f"    {pipe}")
+        print(
+            f"  Sorted Pipe IDs in Cluster {i}: {[p.id for p in sorted_cluster_info['pipes']]}"
+        )
+        # For detailed check:
+        # for pipe in sorted_cluster_info['pipes']:
+        #     print(f"    {pipe}")
         print("-" * 20)
     print("-" * 30)
-
-    # Note: Visualization for sort_pipes_along_line is implicitly covered by
-    # the RANSAC visualization if you mentally trace the line.
-    # Explicitly showing sort order might involve numbering pipes in the plot
-    # or printing their order clearly, which we've done above.
