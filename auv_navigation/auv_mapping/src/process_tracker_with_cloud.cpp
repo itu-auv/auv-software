@@ -179,6 +179,7 @@ public:
     // Her bir YOLO tespiti için işlem yap
     for (size_t i = 0; i < yolo_result_msg->detections.detections.size(); i++) {
       const auto& detection = yolo_result_msg->detections.detections[i];
+      ROS_INFO("[Debug] Detection %zu accessed", i);
       
       // Tespit ID'sini kontrol et, atlanacak ID'lerden biriyse sonraki tespite geç
       if (!detection.results.empty()) {
@@ -190,13 +191,16 @@ public:
           continue; // Bu tespiti atla
         }
       }
+      ROS_INFO("[Debug] ID check completed");
       
       // ROI filtresi uygula ve tespit noktalarını al
       pcl::PointCloud<pcl::PointXYZ>::Ptr detection_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+      ROS_INFO("[Debug] New point cloud created");
       
       if (yolo_result_msg->masks.empty()) {
         // Maske yoksa bounding box kullan
         processPointsWithBbox(downsampled_cloud, detection, detection_cloud);
+        ROS_INFO("[Debug] Bounding box processing completed");
       } else {
         // Maske varsa onu kullan
         // processPointsWithMask(cloud, yolo_result_msg->masks[i], detection_cloud);
@@ -207,6 +211,7 @@ public:
       if (detection_cloud->points.empty()) {
         continue;
       }
+      ROS_INFO("[Debug] Point cloud check completed");
       
       // Tespit ID'si ve prop ismini burada belirleyelim, bbox filtrelemeden sonra
       int detection_id = -1;
@@ -226,11 +231,13 @@ public:
       // Euclidean cluster extraction uygula
       std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters = 
           euclideanClusterExtraction(detection_cloud);
+      ROS_INFO("[Debug] Clustering completed");
       
       // Eğer hiç küme bulunamadıysa sonraki tespite geç
       if (clusters.empty()) {
         continue;
       }
+      ROS_INFO("[Debug] Cluster check completed");
       
       // Bulunan küme sayısını ROS_INFO ile yazdır
       ROS_INFO("For detection ID %d (%s) found %zu clusters", 
@@ -243,6 +250,7 @@ public:
       for (size_t cluster_idx = 0; cluster_idx < clusters.size(); cluster_idx++) {
         // Kümeyi al
         pcl::PointCloud<pcl::PointXYZ>::Ptr& cluster_cloud = clusters[cluster_idx];
+        ROS_INFO("[Debug] Processing cluster %zu", cluster_idx);
         
         // Küme boşsa atla
         if (cluster_cloud->points.empty()) {
@@ -251,11 +259,13 @@ public:
         
         // Bu küme için özgün bir frame_id oluştur
         std::string frame_id = base_frame_id + "_" + std::to_string(cluster_idx);
+        ROS_INFO("[Debug] Frame ID created");
         
         // Düzlem segmentasyonu ve yüzey dönüşümü (PCA) uygula
         Eigen::Vector4f centroid;
         Eigen::Matrix3f rotation_matrix;
         bool success = planeSegmentationAndPCA(cluster_cloud, centroid, rotation_matrix);
+        ROS_INFO("[Debug] Plane segmentation completed");
         
         if (success) {
           // 3D tespit mesajı ve marker oluştur
@@ -263,12 +273,14 @@ public:
                                    cluster_cloud, centroid, rotation_matrix, 
                                    detection.results, cloud_msg->header, callback_interval.toSec(), frame_id);
           processed_detection_count++;
+          ROS_INFO("[Debug] Detection published");
         } else {
           continue;
         }
         
         // Tespit noktalarını birleştir
         combined_detection_cloud += *cluster_cloud;
+        ROS_INFO("[Debug] Points added to combined cloud");
       }
     }
     
