@@ -292,42 +292,48 @@ public:
   void processPointsWithBbox(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
                              const vision_msgs::Detection2D& detection,
                              pcl::PointCloud<pcl::PointXYZ>::Ptr& detection_cloud) {
-    int points_in_bbox = 0;
-    
-    // Algılama kutusunu genişlet (roi_expansion_factor parametresi kullanarak)
-    float min_x = detection.bbox.center.x - (detection.bbox.size_x / 2) * roi_expansion_factor_;
-    float max_x = detection.bbox.center.x + (detection.bbox.size_x / 2) * roi_expansion_factor_;
-    float min_y = detection.bbox.center.y - (detection.bbox.size_y / 2) * roi_expansion_factor_;
-    float max_y = detection.bbox.center.y + (detection.bbox.size_y / 2) * roi_expansion_factor_;
-    
-    // İlk birkaç noktanın projeksiyon bilgilerini göster (debug için)
-    int debug_count = 0;
-    
-    // Nokta bulutundaki her noktayı kontrol et
-    for (const auto& point : cloud->points) {
-      // Debug için ilk 5 noktanın projeksiyon bilgisini göster
-      if (debug_count < 5) {
+    try {
+      int points_in_bbox = 0;
+      
+      // Algılama kutusunu genişlet (roi_expansion_factor parametresi kullanarak)
+      float min_x = detection.bbox.center.x - (detection.bbox.size_x / 2) * roi_expansion_factor_;
+      float max_x = detection.bbox.center.x + (detection.bbox.size_x / 2) * roi_expansion_factor_;
+      float min_y = detection.bbox.center.y - (detection.bbox.size_y / 2) * roi_expansion_factor_;
+      float max_y = detection.bbox.center.y + (detection.bbox.size_y / 2) * roi_expansion_factor_;
+      
+      // Nokta bulutundaki her noktayı kontrol et
+      for (const auto& point : cloud->points) {
+        // NaN kontrolü
+        if (std::isnan(point.x) || std::isnan(point.y) || std::isnan(point.z)) {
+          continue;
+        }
+        
+        // Noktayı görüntü düzlemine yansıt
         cv::Point3d pt_cv(point.x, point.y, point.z);
-        cv::Point2d uv = cam_model_.project3dToPixel(pt_cv);
-        debug_count++;
+        cv::Point2d uv;
+        
+        try {
+          uv = cam_model_.project3dToPixel(pt_cv);
+        } catch (const std::exception& e) {
+          continue;  // Projeksiyon başarısız olursa bu noktayı atla
+        }
+        
+        // Noktanın ROI içinde olup olmadığını kontrol et
+        if (point.z > 0 && 
+            uv.x >= min_x && uv.x <= max_x &&
+            uv.y >= min_y && uv.y <= max_y) {
+          detection_cloud->points.push_back(point);
+          points_in_bbox++;
+        }
       }
       
-      // Noktayı görüntü düzlemine yansıt
-      cv::Point3d pt_cv(point.x, point.y, point.z);
-      cv::Point2d uv = cam_model_.project3dToPixel(pt_cv);
-      
-      // Noktanın ROI içinde olup olmadığını kontrol et
-      if (point.z > 0 && 
-          uv.x >= min_x && uv.x <= max_x &&
-          uv.y >= min_y && uv.y <= max_y) {
-        detection_cloud->points.push_back(point);
-        points_in_bbox++;
+      if (points_in_bbox < 20) {
+        ROS_DEBUG("Few points (%d) found in bounding box", points_in_bbox);
       }
-    }
-    
-    // Eğer çok az nokta varsa alternatif yaklaşım deneyelim
-    if (points_in_bbox < 20 && !cloud->points.empty()) {
-      ROS_INFO("Not enough points in bounding box, trying");
+      
+    } catch (const std::exception& e) {
+      ROS_ERROR_STREAM("Exception in processPointsWithBbox: " << e.what());
+      detection_cloud->points.clear();
     }
   }
   
