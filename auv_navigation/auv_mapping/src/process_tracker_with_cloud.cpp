@@ -89,7 +89,7 @@ public:
   ProcessTrackerWithCloud() : pnh_("~") {
     // Parametreleri yükle
     pnh_.param<std::string>("camera_info_topic", camera_info_topic_, "/camera/color/camera_info");
-    pnh_.param<std::string>("lidar_topic", lidar_topic_, "camera/depth/color/points");
+    pnh_.param<std::string>("lidar_topic", lidar_topic_, "/camera/depth/color/points");
     pnh_.param<std::string>("yolo_result_topic", yolo_result_topic_, "yolo_result");
     pnh_.param<std::string>("yolo_3d_result_topic", yolo_3d_result_topic_, "yolo_3d_result");
     pnh_.param<float>("cluster_tolerance", cluster_tolerance_, 0.3);
