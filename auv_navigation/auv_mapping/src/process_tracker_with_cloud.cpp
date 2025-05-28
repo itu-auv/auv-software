@@ -136,7 +136,18 @@ public:
                    const ultralytics_ros::YoloResultConstPtr& yolo_result_msg) {
     
     // Kamera modelini güncelle
-    cam_model_.fromCameraInfo(camera_info_msg);
+    try {
+        cam_model_.fromCameraInfo(camera_info_msg);
+        if (!cam_model_.initialized()) {
+            ROS_ERROR("Kamera modeli başlatılamadı!");
+            return;
+        }
+        ROS_INFO("Kamera modeli başarıyla güncellendi: fx=%.2f, fy=%.2f, cx=%.2f, cy=%.2f",
+                 cam_model_.fx(), cam_model_.fy(), cam_model_.cx(), cam_model_.cy());
+    } catch (const std::exception& e) {
+        ROS_ERROR("Kamera modeli güncellenirken hata oluştu: %s", e.what());
+        return;
+    }
     
     // Çağrı zamanını kaydet
     ros::Time current_call_time = ros::Time::now();
@@ -151,6 +162,9 @@ public:
     // Nokta bulutunu PCL formatına dönüştür
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*cloud_msg, *cloud);
+    
+    ROS_INFO("Received cloud size: %zu", cloud_msg->width * cloud_msg->height);
+    ROS_INFO("Converted cloud size: %zu", cloud->points.size());
     
     // Nokta bulutu boşsa işlem yapma
     if (cloud->points.empty()) {
@@ -292,8 +306,13 @@ public:
   void processPointsWithBbox(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
                              const vision_msgs::Detection2D& detection,
                              pcl::PointCloud<pcl::PointXYZ>::Ptr& detection_cloud) {
+    if (!cam_model_.initialized()) {
+        ROS_ERROR("processPointsWithBbox: Kamera modeli initialize edilmemiş!");
+        return;
+    }
+
     int points_in_bbox = 0;
-    
+    ROS_INFO("Processing points with bbox");
     // Algılama kutusunu genişlet (roi_expansion_factor parametresi kullanarak)
     float min_x = detection.bbox.center.x - (detection.bbox.size_x / 2) * roi_expansion_factor_;
     float max_x = detection.bbox.center.x + (detection.bbox.size_x / 2) * roi_expansion_factor_;
@@ -533,7 +552,7 @@ public:
     // TransformStamped mesajını oluştur ve object_transform_updates topic'ine yayınla
     geometry_msgs::TransformStamped transform_msg;
     transform_msg.header.stamp = header.stamp;
-    transform_msg.header.frame_id = "camera_depth_optical_frame"; // Point cloud'un frame'i
+    transform_msg.header.frame_id = "taluy/_camera_depth_optical_frame"; // Point cloud'un frame'i
     transform_msg.child_frame_id = frame_id; // Cluster/nesne ID'si
     
     // Pozisyon bilgisini ayarla - hesaplandığı gibi kullan
