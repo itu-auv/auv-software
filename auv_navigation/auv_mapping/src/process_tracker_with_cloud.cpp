@@ -88,15 +88,15 @@ private:
 public:
   ProcessTrackerWithCloud() : pnh_("~") {
     // Parametreleri yükle
-    pnh_.param<std::string>("camera_info_topic", camera_info_topic_, "camera_info");
-    pnh_.param<std::string>("lidar_topic", lidar_topic_, "points_raw");
-    pnh_.param<std::string>("yolo_result_topic", yolo_result_topic_, "yolo_result");
+    pnh_.param<std::string>("camera_info_topic", camera_info_topic_, "/camera/color/camera_info");
+    pnh_.param<std::string>("lidar_topic", lidar_topic_, "/camera/depth/color/points");
+    pnh_.param<std::string>("yolo_result_topic", yolo_result_topic_, "/yolo_result");
     pnh_.param<std::string>("yolo_3d_result_topic", yolo_3d_result_topic_, "yolo_3d_result");
     pnh_.param<float>("cluster_tolerance", cluster_tolerance_, 0.3);
     pnh_.param<float>("voxel_leaf_size", voxel_leaf_size_, 0.1);
     pnh_.param<int>("min_cluster_size", min_cluster_size_, 100);
     pnh_.param<int>("max_cluster_size", max_cluster_size_, 10000);
-    pnh_.param<float>("roi_expansion_factor", roi_expansion_factor_, 1.1); // %10 genişletme
+    pnh_.param<float>("roi_expansion_factor", roi_expansion_factor_, 1.4); // %10 genişletme
     
     // Atlanacak tespit ID'lerini parametre olarak al (varsayılan olarak 7 ve 13 ID'leri atlanır)
     std::vector<int> skip_ids;
