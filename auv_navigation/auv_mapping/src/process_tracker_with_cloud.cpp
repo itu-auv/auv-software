@@ -88,8 +88,8 @@ private:
 public:
   ProcessTrackerWithCloud() : pnh_("~") {
     // Parametreleri yükle
-    pnh_.param<std::string>("camera_info_topic", camera_info_topic_, "camera_info");
-    pnh_.param<std::string>("lidar_topic", lidar_topic_, "points_raw");
+    pnh_.param<std::string>("camera_info_topic", camera_info_topic_, "/camera/color/camera_info");
+    pnh_.param<std::string>("lidar_topic", lidar_topic_, "camera/depth/color/points");
     pnh_.param<std::string>("yolo_result_topic", yolo_result_topic_, "yolo_result");
     pnh_.param<std::string>("yolo_3d_result_topic", yolo_3d_result_topic_, "yolo_3d_result");
     pnh_.param<float>("cluster_tolerance", cluster_tolerance_, 0.3);
@@ -195,7 +195,10 @@ public:
       pcl::PointCloud<pcl::PointXYZ>::Ptr detection_cloud(new pcl::PointCloud<pcl::PointXYZ>);
       
       if (yolo_result_msg->masks.empty()) {
-        // Maske yoksa bounding box kullan
+        if (!downsampled_cloud || downsampled_cloud->points.empty()) {
+            ROS_WARN("Empty downsampled cloud, skipping detection");
+            continue;
+        }
         processPointsWithBbox(downsampled_cloud, detection, detection_cloud);
       } else {
         // Maske varsa onu kullan
@@ -292,6 +295,10 @@ public:
   void processPointsWithBbox(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
                              const vision_msgs::Detection2D& detection,
                              pcl::PointCloud<pcl::PointXYZ>::Ptr& detection_cloud) {
+    if (!cam_model_.initialized()) {
+        ROS_ERROR("Camera model not initialized!");
+        return;
+    }
     int points_in_bbox = 0;
     
     // Algılama kutusunu genişlet (roi_expansion_factor parametresi kullanarak)
