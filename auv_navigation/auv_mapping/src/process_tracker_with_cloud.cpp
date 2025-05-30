@@ -103,7 +103,7 @@ public:
     pnh_.getParam("skip_detection_ids", skip_ids);
     if (skip_ids.empty()) {
       // Varsayılan değerleri ayarla
-      skip_detection_ids = {}; // path_link ve torpedo_hole_link
+      skip_detection_ids = {7,13}; // path_link ve torpedo_hole_link
     } else {
       // Parametre ile gelen değerleri kullan
       skip_detection_ids.clear();
