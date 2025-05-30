@@ -145,7 +145,7 @@ public:
     
     // YOLO tespiti yoksa işlem yapma
     if (yolo_result_msg->detections.detections.empty()) {
-      ROS_INFO("FOUND NO DETECTION")
+      ROS_INFO("FOUND NO DETECTION");
       return;
     }
     
@@ -155,7 +155,7 @@ public:
     
     // Nokta bulutu boşsa işlem yapma
     if (cloud->points.empty()) {
-      ROS_INFO("CLOUD EMPTY")
+      ROS_INFO("CLOUD EMPTY");
       return;
     }
     
