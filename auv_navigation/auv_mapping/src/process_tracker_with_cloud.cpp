@@ -310,16 +310,29 @@ public:
           continue;
         }
         
-        // Noktayı görüntü düzlemine yansıt
-        cv::Point3d pt_cv(point.x, point.y, point.z);
-        cv::Point2d uv;
-        
-        try {
-          uv = cam_model_.project3dToPixel(pt_cv);
-          ROS_INFO("PROCESSED POINT");
-        } catch (const std::exception& e) {
-          continue;  // Projeksiyon başarısız olursa bu noktayı atla
+        // Manuel projeksiyon hesaplaması
+        if (point.z <= 0) {
+          continue;  // Z değeri negatif veya sıfır olan noktaları atla
         }
+
+        // Kamera parametrelerini al
+        const double fx = cam_model_.fx(); // Odak uzaklığı x
+        const double fy = cam_model_.fy(); // Odak uzaklığı y
+        const double cx = cam_model_.cx(); // Optik merkez x
+        const double cy = cam_model_.cy(); // Optik merkez y
+        
+        // Manuel projeksiyon hesaplaması
+        double inv_z = 1.0 / point.z;
+        cv::Point2d uv;
+        uv.x = fx * point.x * inv_z + cx;
+        uv.y = fy * point.y * inv_z + cy;
+        
+        // Projeksiyon sonrası değerleri kontrol et
+        if (std::isnan(uv.x) || std::isnan(uv.y)) {
+          continue;
+        }
+        
+        ROS_DEBUG("Point processed successfully");
         
         // Noktanın ROI içinde olup olmadığını kontrol et
         if (point.z > 0 && 
