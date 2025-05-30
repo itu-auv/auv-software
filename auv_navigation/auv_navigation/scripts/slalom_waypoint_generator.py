@@ -228,7 +228,8 @@ class SlalomProcessorNode:
         return gate_clusters
 
     # --- System 2 functions ---
-
+    #! Left to right, or right to left?
+    #! In unit direction (pos_b - pos_a), so randomly..
     def sort_pipes_along_line(self, cluster):
         """
         Given a raw cluster {pipes, model=(origin_point, unit_direction)}, project each pipe onto the line
