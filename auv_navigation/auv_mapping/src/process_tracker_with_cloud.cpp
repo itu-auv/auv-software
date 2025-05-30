@@ -145,6 +145,7 @@ public:
     
     // YOLO tespiti yoksa işlem yapma
     if (yolo_result_msg->detections.detections.empty()) {
+      ROS_INFO("FOUND NO DETECTION")
       return;
     }
     
@@ -154,6 +155,7 @@ public:
     
     // Nokta bulutu boşsa işlem yapma
     if (cloud->points.empty()) {
+      ROS_INFO("CLOUD EMPTY")
       return;
     }
     
@@ -314,6 +316,7 @@ public:
         
         try {
           uv = cam_model_.project3dToPixel(pt_cv);
+          ROS_INFO("PROCESSED POINT");
         } catch (const std::exception& e) {
           continue;  // Projeksiyon başarısız olursa bu noktayı atla
         }
