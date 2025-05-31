@@ -13,7 +13,9 @@
   <exec_depend>auv_localization</exec_depend>
   <exec_depend>auv_mapping</exec_depend>
   <exec_depend>auv_navigation</exec_depend>
+  <exec_depend>mbf_costmap_nav</exec_depend>
   <exec_depend>move_base</exec_depend>
+  <exec_depend>move_base_flex</exec_depend>
   <exec_depend>ping360_sonar</exec_depend>
   <exec_depend>robot_localization</exec_depend>
   <exec_depend>xsens_mti_driver</exec_depend>
