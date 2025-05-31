@@ -83,7 +83,6 @@ install(TARGETS thruster_manager_node
 )
 
 install(DIRECTORY include/${PROJECT_NAME}/
-  launch
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
   FILES_MATCHING PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
