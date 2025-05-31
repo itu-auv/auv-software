@@ -7,7 +7,7 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 
-from std_srvs.srv import Trigger, TriggerRequest, SetBool
+from std_srvs.srv import Trigger, TriggerRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
