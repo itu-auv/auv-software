@@ -6,7 +6,7 @@
   <arg name="pub_camera_info" default="true"/>
   <!-- load parameters -->
   <group ns="$(arg namespace)/cameras">
-    <rosparam command="load" file="$(find auv_bringup)/config/cameras.yaml"/>
+    <rosparam command="load" file="$(find auv_bringup)/config/$(arg namespace)/cameras.yaml"/>
   </group>
   <!-- launch front camera -->
   <include file="$(find auv_cam)/launch/start_gst_camera.launch">
