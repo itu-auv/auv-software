@@ -45,8 +45,8 @@ class RotateAroundCenterState(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
-        self.linear_velocity = 0.8  # rospy.get_param("/smach/max_linear_velocity")
-        self.angular_velocity = 0.8  # rospy.get_param("/smach/max_angular_velocity")
+        self.linear_velocity = 0.5
+        self.angular_velocity = 0.5
 
     def execute(self, userdata):
         try:
@@ -403,20 +403,20 @@ class RotateAroundBuoyState(smach.State):
                     direction=direction,
                 ),
                 transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
+                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # smach.StateMachine.add(
-            #     "CANCEL_ALIGN_CONTROLLER",
-            #     CancelAlignControllerState(),
-            #     transitions={
-            #         "succeeded": "succeeded",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
 
     def execute(self, userdata):
         # Execute the state machine

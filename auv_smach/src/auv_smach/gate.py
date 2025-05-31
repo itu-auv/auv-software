@@ -10,16 +10,21 @@ from auv_smach.common import (
     ExecutePlannedPathsState,
 )
 
+from auv_smach.red_buoy import SetFrameLookingAtState
+
+from auv_smach.initialize import DelayState
+
 
 class PlanGatePathsState(smach.State):
     """State that plans the paths for the gate task"""
 
-    def __init__(self, tf_buffer):
+    def __init__(self, tf_buffer, return_home: bool = False):
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
             output_keys=["planned_paths"],
         )
+        self.return_home = return_home
         self.tf_buffer = tf_buffer
 
     def execute(self, userdata) -> str:
@@ -31,7 +36,9 @@ class PlanGatePathsState(smach.State):
             path_planners = PathPlanners(
                 self.tf_buffer
             )  # instance of PathPlanners with tf_buffer
-            paths = path_planners.path_for_gate()
+            paths = path_planners.path_for_gate(
+                return_home=self.return_home
+            )  # return_home parametresi eklendi
             if paths is None:
                 return "aborted"
 
@@ -54,9 +61,10 @@ class TransformServiceEnableState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float):
+    def __init__(self, gate_depth: float, return_home: bool = False):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        self.return_home = return_home
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
@@ -84,6 +92,39 @@ class NavigateThroughGateState(smach.State):
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
                 ),
                 transitions={
+                    "succeeded": "SET_LOOK_AT_GATE_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_LOOK_AT_GATE_FRAME",
+                SetFrameLookingAtState(
+                    base_frame="taluy/base_link",
+                    look_at_frame="gate_blue_arrow_link",
+                    target_frame="gate_travel_start",
+                ),
+                transitions={
+                    "succeeded": "SET_GATE_CONTROLLER_TARGET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_GATE_CONTROLLER_TARGET",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame="gate_travel_start"
+                ),
+                transitions={
+                    "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_ALIGNING_TRAVEL_START",
+                DelayState(delay_time=5.0),
+                transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -100,7 +141,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "PLAN_GATE_PATHS",
-                PlanGatePathsState(self.tf_buffer),
+                PlanGatePathsState(self.tf_buffer, return_home=self.return_home),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
