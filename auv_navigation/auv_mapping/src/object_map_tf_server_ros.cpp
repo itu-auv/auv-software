@@ -54,8 +54,8 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
       nh_.subscribe("object_transform_updates", 10,
                     &ObjectMapTFServerROS::dynamic_transform_callback, this);
 
-  ROS_INFO("ObjectMapTFServerROS initialized. Static frame: %s",
-           static_frame_.c_str());
+  ROS_DEBUG("ObjectMapTFServerROS initialized. Static frame: %s",
+            static_frame_.c_str());
 }
 
 void ObjectMapTFServerROS::run() {
@@ -111,8 +111,8 @@ bool ObjectMapTFServerROS::set_transform_handler(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
   }
 
-  ROS_INFO_STREAM("Stored static transform from " << static_frame_ << " to "
-                                                  << target_frame);
+  ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
+                                                   << target_frame);
   res.success = true;
   res.message = "Stored transform for frame: " + target_frame;
   return true;
@@ -140,7 +140,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     // Create first filter for this object
     filters_[object_frame].push_back(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-    ROS_INFO_STREAM("Created new filter for " << object_frame);
+    ROS_DEBUG_STREAM("Created new filter for " << object_frame);
     return;
   }
 
@@ -167,7 +167,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     if (distance_squared < distance_threshold_squared_) {
       filter_ptr->update(*static_transform, dt);
       filter_updated = true;
-      ROS_INFO_STREAM("Updated filter for " << object_frame);
+      ROS_DEBUG_STREAM("Updated filter for " << object_frame);
       break;
     }
   }
@@ -176,8 +176,8 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   if (!filter_updated) {
     filters_[object_frame].push_back(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-    ROS_INFO_STREAM("Created new filter for " << object_frame
-                                              << " due to distance threshold.");
+    ROS_DEBUG_STREAM("Created new filter for "
+                     << object_frame << " due to distance threshold.");
   }
 
   // Update the frame IDs based on distance from the static frame
