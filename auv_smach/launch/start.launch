@@ -85,7 +85,7 @@
             <rosparam param="full_mission_states" subst_value="true">$(arg full_mission_states)</rosparam>
             <param name="test_states" value="$(arg test_states)"/>
             <!-- Load path planner parameters in the node -->
-            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
+            <rosparam file="$(find auv_bringup)/config/$(arg namespace)/path_planner_config.yaml" command="load"/>
         </node>
     </group>
 </launch>
