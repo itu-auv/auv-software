@@ -127,7 +127,7 @@ private:
       // Filter based on Y coordinate using altitude and depth
       // Keep points below altitude (+offset) and above depth (-offset)
       // Also check if AUV depth itself is less than 5.0m
-      if (pt.y <= altitude_ - 0.45 && pt.y >= depth_value_ + 0.45 && pt.z < 5.0) {
+      if (pt.y <= altitude_ - 0.30 && pt.y >= depth_value_ + 0.45 && pt.z < 5.0) {
         temp_cloud->points.push_back(pt);
       }
     }
