@@ -18,6 +18,9 @@ class PathPlanners:
             "~gate_entrance_frame", "gate_entrance"
         )
         self.gate_exit_frame: str = rospy.get_param("~gate_exit_frame", "gate_exit")
+        self.torpido_target_frame: str = rospy.get_param(
+            "~torpido_target_frame", "torpedo_target"
+        )
         self.path_creation_timeout: float = rospy.get_param(
             "~path_creation_timeout", 20.0
         )
@@ -153,4 +156,56 @@ class PathPlanners:
 
         except Exception as e:
             rospy.logwarn("[GatePathPlanner] Error in gate path planning: %s", str(e))
+            return None
+
+    def path_for_torpido(self) -> Optional[List[Path]]:
+        """
+        Plans paths for the torpido task, which includes the this path:
+        1. path to torpido target
+        """
+        try:
+            rospy.logdebug("[TorpidoPathPlanner] Planning paths for torpido task...")
+            start_time = rospy.Time.now()
+            # Plan path to gate entrance
+            path = None
+
+            while (rospy.Time.now() - start_time).to_sec() < self.path_creation_timeout:
+                try:
+                    # create the first segment
+                    if path is None:
+                        path = self.straight_path_to_frame(
+                            source_frame=self.base_link_frame,
+                            target_frame=self.torpido_target_frame,
+                        )
+
+                    if path is not None:
+                        return [path]
+                    rospy.logwarn(
+                        "[TorpidoPathPlanner] Failed to plan paths, retrying... Time elapsed: %.1f seconds",
+                        (rospy.Time.now() - start_time).to_sec(),
+                    )
+                    rospy.sleep(0.5)
+
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
+                ) as e:
+                    rospy.logwarn(
+                        "[TorpidoPathPlanner] TF error while planning paths: %s. Retrying...",
+                        str(e),
+                    )
+                    rospy.sleep(0.5)
+
+            # If we get here, we timed out
+            rospy.logwarn(
+                "[TorpidoPathPlanner] Failed to plan paths after %.1f seconds",
+                self.path_creation_timeout,
+            )
+            return None
+
+        except Exception as e:
+            rospy.logwarn(
+                "[TorpidoPathPlanner] Error in torpido path planning: %s", str(e)
+            )
             return None
