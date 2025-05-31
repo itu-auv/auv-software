@@ -11,6 +11,7 @@ include_directories(
 )
 catkin_install_python(PROGRAMS
   scripts/camera_detection_pose_estimator.py
+  scripts/oak_yolo_ros_wrapper.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

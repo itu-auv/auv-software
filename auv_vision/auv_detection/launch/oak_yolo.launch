@@ -1,0 +1,9 @@
+<launch>
+  <node pkg="auv_detection" type="oak_yolo_ros_wrapper.py" name="oak_yolo_ros_wrapper" output="screen">
+    <param name="model_path" value="$(find auv_detection)/models/bin_model.blob" />
+    <param name="config_path" value="$(find auv_detection)/config/yolo.json" />
+    <param name="conf_threshold" value="0.5" />
+    <param name="iou_threshold" value="0.4" />
+    <param name="camera_resolution" value="1080p" />
+  </node>
+</launch>

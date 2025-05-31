@@ -1,0 +1,16 @@
+{
+  "input_size": [640, 640],
+  "num_classes": 15,
+  "coordinate_size": 4,
+  "iou_threshold": 0.5,
+  "confidence_threshold": 0.5,
+  "anchors": [10, 13, 16, 30, 33, 23, 30, 61, 62, 45, 59, 119],
+  "anchor_masks": {
+    "side8400": [0, 1, 2, 3]
+  },
+  "labels": [
+    "gate_left_arm", "gate_right_arm", "gate_blue_arrow", "gate_red_arrow",
+    "gate_middle_part", "gate_whole", "path", "red_buoy", "bin_whole",
+    "bin_red_part", "bin_blue_part", "map_whole", "map_torpedo", "octagon"
+  ]
+}

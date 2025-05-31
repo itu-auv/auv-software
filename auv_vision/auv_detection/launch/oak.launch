@@ -1,0 +1,6 @@
+<launch>
+  <arg name="model_path" default="$(find auv_detection)/models/yolov8.blob" />
+  <node name="depthai_yolo_node" pkg="auv_detection" type="depthai_custom_yolo_node.py" output="screen">
+    <param name="model_path" value="$(arg model_path)" />
+  </node>
+</launch>
