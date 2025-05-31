@@ -8,7 +8,7 @@
 
   <group ns="$(arg namespace)">
     <node name="auv_sim_bridge" pkg="auv_sim_bridge" type="simulation_mock_node" output="screen">
-      <rosparam command="load" file="$(find auv_localization)/config/imu_calibration_data.yaml"
+      <rosparam command="load" file="$(find auv_bringup)/config/$(arg namespace)/imu_calibration_data.yaml"
         ns="imu" />
 
       <!-- outputs -->
@@ -40,11 +40,10 @@
     </node>
   </group>
 
-  <include file="$(find auv_bringup)/launch/start_navigation.launch">
+  <include file="$(find auv_bringup)/launch/inc/start_navigation.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
-    <arg name="start_state_publisher" value="false" />
     <arg name="config_file" value="$(find auv_sim_bridge)/config/control_config.yaml"/>
   </include>
 
