@@ -3,16 +3,9 @@
   <arg name="namespace" default="taluy" />
   <arg name="rate" default="20" />
   <arg name="use_gui" default="false" />
-  <arg name="start_state_publisher" default="false" />
   <arg name="command_timeout" default="0.1" />
-  <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
+  <arg name="config_file" default="$(find auv_bringup)/config/$(arg namespace)/control.yaml" />
   <arg name="start_visual_servoing" default="true" />
-
-  <include file="$(find auv_description)/launch/start_state_publisher.launch"
-    if="$(arg start_state_publisher)">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="use_gui" value="$(arg use_gui)" />
-  </include>
 
   <group ns="$(arg namespace)">
     <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
