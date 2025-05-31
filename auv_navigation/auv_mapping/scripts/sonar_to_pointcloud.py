@@ -21,9 +21,6 @@ class SonarToPointCloud:
         self.max_point_cloud_size = rospy.get_param("~max_point_cloud_size", 25000)
         self.min_valid_range = rospy.get_param("~min_valid_range", 0.3)
         self.max_valid_range = rospy.get_param("~max_valid_range", 100.0)
-        self.min_distance_between_points = rospy.get_param(
-            "~min_distance_between_points", 0.02
-        )
         self.frame_id = rospy.get_param("~frame_id", "odom")
         self.sonar_front_frame = rospy.get_param(
             "~sonar_front_frame", "taluy/base_link/sonar_front_link"
@@ -141,18 +138,6 @@ class SonarToPointCloud:
             return tf2_geometry_msgs.do_transform_point(point_stamped, transform)
         return None
 
-    def is_point_too_close(self, new_point):
-        new_point_array = [new_point.x, new_point.y, new_point.z]
-        for existing_point in self.point_cloud_data:
-            distance = math.sqrt(
-                (new_point_array[0] - existing_point[0]) ** 2
-                + (new_point_array[1] - existing_point[1]) ** 2
-                + (new_point_array[2] - existing_point[2]) ** 2
-            )
-            if distance < self.min_distance_between_points:
-                return True
-        return False
-
     def process_sonar_reading(self, msg, sonar_frame):
         if not self.services_active:
             return
@@ -169,9 +154,6 @@ class SonarToPointCloud:
 
         odom_point = self.transform_point_to_odom(sensor_point)
         if not odom_point:
-            return
-
-        if self.is_point_too_close(odom_point.point):
             return
 
         if self.reference_z is None:
