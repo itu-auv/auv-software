@@ -18,7 +18,7 @@ class SonarToPointCloud:
     def __init__(self):
         rospy.init_node("sonar_to_pointcloud", anonymous=True)
 
-        self.max_point_cloud_size = rospy.get_param("~max_point_cloud_size", 25000)
+        self.max_point_cloud_size = rospy.get_param("~max_point_cloud_size", 200000)
         self.min_valid_range = rospy.get_param("~min_valid_range", 0.3)
         self.max_valid_range = rospy.get_param("~max_valid_range", 100.0)
         self.frame_id = rospy.get_param("~frame_id", "odom")
