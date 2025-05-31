@@ -9,8 +9,11 @@ from geometry_msgs.msg import (
     Pose,
     PointStamped,
     Vector3Stamped,
-)  # Added Vector3Stamped
-from auv_msgs.msg import DetectedPipes, DetectedPipe  # replace with your actual package
+)
+from auv_msgs.msg import DetectedPipes, DetectedPipe
+from visualization_msgs.msg import Marker, MarkerArray
+
+# TODO - The word Detected is wrong.
 
 
 class Gate:
@@ -28,16 +31,13 @@ class Gate:
 
 class SlalomProcessorNode:
     def __init__(self):
-        # --- Parameters ---
         self.base_link_frame = rospy.get_param("~robot_base_frame", "taluy/base_link")
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
-        self.max_pipe_distance = rospy.get_param("~max_view_distance", 5.0)
+        self.max_view_distance = rospy.get_param("~max_view_distance", 5.0)
         self.ransac_iterations = rospy.get_param("~ransac_iters", 500)
         self.line_distance_threshold = rospy.get_param("~line_tolerance", 0.1)
         self.min_pipe_cluster_size = rospy.get_param("~min_inliers", 2)
-        self.navigation_mode = rospy.get_param(
-            "~navigation_mode", "left"
-        )  # 'left' or 'right'
+        self.navigation_mode = rospy.get_param("~navigation_mode", "left")
         self.red_white_distance = rospy.get_param("~red_white_distance", 1.5)
         self.gate_angle_tolerance_degrees = rospy.get_param(
             "~gate_angle_tolerance_degrees", 15.0
@@ -46,29 +46,54 @@ class SlalomProcessorNode:
             np.deg2rad(self.gate_angle_tolerance_degrees)
         )
 
-        # TF2 for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        # Subscribers & Publishers
         self.pipe_sub = rospy.Subscriber(
             "/slalom_pipes", DetectedPipes, self.cb_detected_pipes, queue_size=1
         )
         self.centers_pub = rospy.Publisher("/slalom/centers", PoseArray, queue_size=10)
+        self.centers_marker_pub = rospy.Publisher(
+            "/slalom/centers_markers", MarkerArray, queue_size=10
+        )
 
     def cb_detected_pipes(self, msg):
+        rospy.loginfo(
+            "[SlalomProcessorNode] Received DetectedPipes message with %d pipes",
+            len(msg.detected_pipes),
+        )
         # System 1
         valid_pipes = self.filter_pipes_within_distance(msg.detected_pipes)
+        rospy.loginfo(
+            "[SlalomProcessorNode] %d pipes within max_view_distance", len(valid_pipes)
+        )
         raw_clusters = self.cluster_pipes_with_ransac(valid_pipes)
+        rospy.loginfo(
+            "[SlalomProcessorNode] Found %d raw clusters (gate candidates)",
+            len(raw_clusters),
+        )
 
         # System 2
         sorted_clusters = [self.sort_pipes_along_line(c) for c in raw_clusters]
+        rospy.loginfo("[SlalomProcessorNode] Sorted pipes along line for all clusters")
         validated = [self.validate_cluster(c) for c in sorted_clusters]
-        gates = [self.complete_gate(c) for c in validated]
+        rospy.loginfo("[SlalomProcessorNode] Validated clusters: %d", len(validated))
+        gates = [self.create_gate_object(c) for c in validated]
+        num_gates = sum(1 for g in gates if g is not None)
+        rospy.loginfo(
+            "[SlalomProcessorNode] Created %d complete Gate objects", num_gates
+        )
 
         # System 3 (publish navigation targets)
-        targets = [self.compute_navigation_targets(g) for g in gates]
+        targets = [self.compute_navigation_targets(g) for g in gates if g is not None]
+        rospy.loginfo(
+            "[SlalomProcessorNode] Computed navigation targets for %d gates",
+            len(targets),
+        )
         self.publish_centers(targets)
+        rospy.loginfo(
+            "[SlalomProcessorNode] Published centers and markers for navigation targets"
+        )
 
     def get_pipe_distance_from_base(self, position):
         """
@@ -116,7 +141,7 @@ class SlalomProcessorNode:
         close_pipes = []
         for pipe in detected_pipes:
             distance = self.get_pipe_distance_from_base(pipe.position)
-            if distance is not None and distance <= self.max_pipe_distance:
+            if distance is not None and distance <= self.max_view_distance:
                 close_pipes.append(pipe)
         return close_pipes
 
@@ -267,23 +292,24 @@ class SlalomProcessorNode:
             and flags["has_white_right"]
             and (len(pipes) == 3)
         )
-        return {"pipes": pipes, "model": sorted_cluster["model"], **flags}
+        return {"pipes": pipes, "line_model": sorted_cluster["line_model"], **flags}
 
-    def complete_gate(self, info):
+    def create_gate_object(self, info):
         """
-        Given validated info, fill in missing pipes using known spacing and orientation.
-        Returns a Gate object with white_left, red, white_right, and direction.
+        Create a Gate object from a validated cluster info dict.
+        Assumes info is from validate_cluster and is complete (3 pipes: white, red, white, in order).
         """
-        # TODO will be implemented in the future
-        return 1
-
-    def _make_fake_pipe(self, pos_xy, color):
-        """Create a DetectedPipe-like placeholder at pos_xy with given color."""
-        fake = DetectedPipe()
-        fake.color = color
-        fake.position.x, fake.position.y = float(pos_xy[0]), float(pos_xy[1])
-        fake.position.z = 0.0
-        return fake
+        if not info.get("is_complete", False):
+            return None
+        pipes = info["pipes"]
+        if len(pipes) != 3:
+            return None
+        # By validate_cluster: [white, red, white]
+        white_left = pipes[0]
+        red = pipes[1]
+        white_right = pipes[2]
+        _, direction = info["line_model"]
+        return Gate(white_left, red, white_right, direction)
 
     # --- System 3 functions ---
     def compute_navigation_targets(self, gate):
@@ -301,10 +327,38 @@ class SlalomProcessorNode:
         pa = PoseArray()
         pa.header.stamp = rospy.Time.now()
         pa.header.frame_id = self.odom_frame
-        for targets in targets_list:
-            for pose in targets:
-                pa.poses.append(pose)
+
+        marker_array = MarkerArray()
+        marker_id_counter = 0
+
+        for (
+            targets_for_one_gate
+        ) in targets_list:  # targets_list is a list of [pose1, pose2] from each gate
+            for pose_target in targets_for_one_gate:
+                pa.poses.append(pose_target)
+
+                marker = Marker()
+                marker.header.frame_id = self.odom_frame
+                marker.header.stamp = pa.header.stamp  # Use same timestamp
+                marker.ns = "slalom_navigation_targets"
+                marker.id = marker_id_counter
+                marker.type = Marker.ARROW
+                marker.action = Marker.ADD
+                marker.pose = pose_target
+                marker.scale.x = 0.5  # Arrow length
+                marker.scale.y = 0.1  # Arrow width
+                marker.scale.z = 0.1  # Arrow height
+                marker.color.a = 1.0  # Alpha
+                marker.color.r = 0.0
+                marker.color.g = 1.0  # Green
+                marker.color.b = 0.0
+                marker.lifetime = rospy.Duration(5.0)  # Disappear after 5 seconds
+                marker_array.markers.append(marker)
+                marker_id_counter += 1
+
         self.centers_pub.publish(pa)
+        if marker_array.markers:  # Only publish if there are markers
+            self.centers_marker_pub.publish(marker_array)
 
     def _pipe_to_pose(self, pipe):
         """Convert a DetectedPipe to a geometry_msgs/Pose (position only)."""
