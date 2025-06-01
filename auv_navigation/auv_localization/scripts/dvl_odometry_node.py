@@ -28,6 +28,24 @@ class DvlToOdom:
             "sensors/dvl/covariance/linear_z", 0.00005
         )
 
+        # Initialize variables for fallback mechanism and state
+        self.cmd_vel_twist = Twist()
+        self.filtered_cmd_vel = Twist()
+        self.last_update_time = rospy.Time.now()
+
+        self.odom_publisher = rospy.Publisher("odom_dvl", Odometry, queue_size=10)
+
+        # Initialize the odometry message
+        self.odom_msg = Odometry()
+        self.odom_msg.header.frame_id = "odom"
+        self.odom_msg.child_frame_id = "taluy/base_link"
+
+        # Initialize covariances with default values
+        self.odom_msg.pose.covariance = np.zeros(36).tolist()
+        self.odom_msg.twist.covariance = np.zeros(36).tolist()
+        self.odom_msg.twist.covariance[0] = self.linear_x_covariance
+        self.odom_msg.twist.covariance[7] = self.linear_y_covariance
+        self.odom_msg.twist.covariance[14] = self.linear_z_covariance
         # Subscribers and Publishers
         self.dvl_velocity_subscriber = message_filters.Subscriber(
             "dvl/velocity_raw", Twist, tcp_nodelay=True
@@ -47,21 +65,6 @@ class DvlToOdom:
         )
         self.sync.registerCallback(self.dvl_callback)
 
-        self.odom_publisher = rospy.Publisher("odom_dvl", Odometry, queue_size=10)
-
-        # Initialize the odometry message
-        self.odom_msg = Odometry()
-        self.odom_msg.header.frame_id = "odom"
-        self.odom_msg.child_frame_id = "taluy/base_link"
-
-        # Initialize covariances with default values
-        self.odom_msg.pose.covariance = np.zeros(36).tolist()
-        self.odom_msg.twist.covariance = np.zeros(36).tolist()
-
-        self.odom_msg.twist.covariance[0] = self.linear_x_covariance
-        self.odom_msg.twist.covariance[7] = self.linear_y_covariance
-        self.odom_msg.twist.covariance[14] = self.linear_z_covariance
-
         # Log loaded parameters
         DVL_odometry_colored = TerminalColors.color_text(
             "DVL Odometry Calibration data loaded", TerminalColors.PASTEL_BLUE
@@ -76,11 +79,6 @@ class DvlToOdom:
         rospy.loginfo(
             f"{DVL_odometry_colored} : linear z covariance: {self.linear_z_covariance}"
         )
-
-        # Initialize variables for fallback mechanism
-        self.cmd_vel_twist = Twist()
-        self.filtered_cmd_vel = Twist()
-        self.last_update_time = rospy.Time.now()
 
     def transform_vector(self, vector):
         theta = np.radians(-135)
