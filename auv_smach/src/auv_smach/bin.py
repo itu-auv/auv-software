@@ -24,8 +24,9 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
+    SearchForPropState,
 )
-from auv_smach.red_buoy import SetRedBuoyRotationStartFrame, SetFrameLookingAtState
+from auv_smach.red_buoy import SetRedBuoyRotationStartFrame
 
 from auv_smach.initialize import DelayState
 
@@ -55,33 +56,15 @@ class BinTaskState(smach.State):
             #     },
             # )
             smach.StateMachine.add(
-                "SET_BIN_TRAVEL_START",
-                SetFrameLookingAtState(
-                    base_frame="taluy/base_link",
+                "FIND_AND_AIM_BIN",
+                SearchForPropState(
                     look_at_frame="bin_whole_link",
-                    target_frame="bin_whole_travel_start",
-                ),
-                transitions={
-                    "succeeded": "SET_BIN_WHOLE_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_BIN_WHOLE_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
+                    alignment_frame="bin_search",
+                    full_rotation=False,
+                    set_frame_duration=4.0,
                     source_frame="taluy/base_link",
-                    target_frame="bin_whole_travel_start",
+                    rotation_speed=0.3,
                 ),
-                transitions={
-                    "succeeded": "WAIT_FOR_ALIGNING_TRAVEL_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_ALIGNING_TRAVEL_START",
-                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "SET_BIN_APPROACH_FRAME",
                     "preempted": "preempted",
