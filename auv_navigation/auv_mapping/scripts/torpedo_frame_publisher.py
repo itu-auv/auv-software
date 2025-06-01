@@ -9,8 +9,7 @@ from tf.transformations import (
 from typing import Tuple
 import rospy
 import tf2_ros
-import tf_conversions
-from geometry_msgs.msg import Pose, Point, Quaternion, TransformStamped
+from geometry_msgs.msg import Pose, Quaternion, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
@@ -34,7 +33,7 @@ class TorpedoTransformServiceNode:
         self.offset_x = rospy.get_param("~offset_x", 0.0)
         self.offset_y = rospy.get_param("~offset_y", 0.5)
         self.offset_z = rospy.get_param("~offset_z", 0.0)
-        self.offset_yaw = rospy.get_param("~offset_yaw", -90.0)  # in degrees
+        self.offset_yaw = rospy.get_param("~offset_yaw", -90.0)
 
         self.set_enable_service = rospy.Service(
             "set_transform_torpedo_frames", SetBool, self.handle_enable_service

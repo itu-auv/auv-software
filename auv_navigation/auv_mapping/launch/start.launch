@@ -29,7 +29,7 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <node pkg="auv_mapping" type="torpedo_frame_publisher.py" name="torpode_frame_publisher">
+    <node pkg="auv_mapping" type="torpedo_frame_publisher.py" name="torpode_frame_publisher" output="screen">
       <rosparam command="load" file="$(find auv_mapping)/config/torpedo_frame_publisher_params.yaml" />
       <param name="torpedo_frame" value="$(arg torpedo_frame)" />
       <remap from="set_transform_torpedo_frames" to="set_transform_torpedo_frames" />
