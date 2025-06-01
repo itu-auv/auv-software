@@ -1,19 +1,18 @@
-from .initialize import *
 import smach
+import smach_ros
+import rospy
 import tf2_ros
+from std_srvs.srv import SetBool, SetBoolRequest
 
 
 from auv_smach.common import (
-    NavigateToFrameState,
     SetAlignControllerTargetState,
     SetDepthState,
+    CancelAlignControllerState,
 )
-from auv_smach.red_buoy import SetRedBuoyRotationStartFrame, SetFrameLookingAtState
-
+from auv_smach.red_buoy import SetFrameLookingAtState
 from auv_navigation.path_planning.path_planners import PathPlanners
-
 from auv_smach.initialize import DelayState
-
 from auv_smach.common import (
     LaunchTorpedoState,
     ExecutePlannedPathsState,
@@ -124,13 +123,13 @@ class TorpedoTaskState(smach.State):
                 "WAIT_FOR_ALIGNING_TRAVEL_START",
                 DelayState(delay_time=3.0),
                 transitions={
-                    "succeeded": "PLAN_GATE_PATHS",
+                    "succeeded": "PLAN_TORPEDO_PATHS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "PLAN_GATE_PATHS",
+                "PLAN_TORPEDO_PATHS",
                 PlanTorpedoPathState(self.tf_buffer),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TRAVEL_START",
@@ -144,13 +143,13 @@ class TorpedoTaskState(smach.State):
                     source_frame="taluy/base_link", target_frame="dynamic_target"
                 ),
                 transitions={
-                    "succeeded": "EXECUTE_GATE_PATHS",
+                    "succeeded": "EXECUTE_TORPEDO_PATHS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "EXECUTE_GATE_PATHS",
+                "EXECUTE_TORPEDO_PATHS",
                 ExecutePlannedPathsState(),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPIDO_TARGET",
