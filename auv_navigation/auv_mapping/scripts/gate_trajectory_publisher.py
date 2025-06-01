@@ -38,7 +38,6 @@ class TransformServiceNode:
         self.exit_offset = rospy.get_param("~exit_offset", 1.0)
         self.z_offset = rospy.get_param("~z_offset", 0.5)
         self.parallel_shift_offset = rospy.get_param("~parallel_shift_offset", 0.15)
-        rospy.loginfo("entrance_offset = %f", self.entrance_offset)
         self.target_gate_frame = rospy.get_param(
             "~target_gate_frame", "gate_blue_arrow_link"
         )
@@ -155,7 +154,9 @@ class TransformServiceNode:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"TF lookup failed: {e}")
+            rospy.logwarn(
+                f"Parallel shift for trajectory frames failed because of TF Error: {e}"
+            )
             return transform_to_shift
 
         dx_selected_frame = transform_selected_to_other.transform.translation.x
