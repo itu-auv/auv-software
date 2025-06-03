@@ -59,6 +59,17 @@ class MainStateMachineNode:
             "gate_red_arrow_link": {"red_buoy": "cw"},
             "gate_blue_arrow_link": {"red_buoy": "ccw"},
         }
+        # using collecting data (gate)
+        self.task_targets = {
+            "gate_red_arrow_link": {
+                "bin": "bin_red_area_link",
+                "torpedo": "torpedo_red_target",
+            },
+            "gate_blue_arrow_link": {
+                "bin": "bin_blue_area_link",
+                "torpedo": "torpedo_blue_target",
+            },
+        }
         self.red_buoy_direction = mission_selection_map[self.target_gate_link][
             "red_buoy"
         ]
@@ -118,6 +129,14 @@ class MainStateMachineNode:
                 if state_class is None:
                     rospy.logerr(f"Unknown state: {state_name}")
                     continue
+
+                if "NAVIGATE_THROUGH_GATE" in self.state_list:
+                    params["bin_target_frame"] = self.task_targets[
+                        self.target_gate_link
+                    ]["bin"]
+                    params["torpedo_target_frame"] = self.task_targets[
+                        self.target_gate_link
+                    ]["torpedo"]
 
                 smach.StateMachine.add(
                     state_name,

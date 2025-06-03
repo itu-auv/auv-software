@@ -35,13 +35,16 @@ from auv_smach.common import (
 
 
 class BinTaskState(smach.State):
-    def __init__(self, bin_whole_depth):
+    def __init__(self, bin_whole_depth, bin_target_frame="bin_whole_link"):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
+
+        self.bin_whole_depth = bin_whole_depth
+        self.bin_target_frame = bin_target_frame
 
         # Open the container for adding states
         with self.state_machine:
@@ -129,6 +132,26 @@ class BinTaskState(smach.State):
                     source_frame="taluy/base_link", target_frame="bin_whole_link"
                 ),
                 transitions={
+                    "succeeded": "WAIT_FOR_ALIGNING_TARGET_AREA",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_ALIGNING_TARGET_AREA",
+                DelayState(delay_time=7.0),
+                transitions={
+                    "succeeded": "SET_BIN_TARGET_TRAVEL_ALIGN_CONTROLLER_TARGET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BIN_TARGET_TRAVEL_ALIGN_CONTROLLER_TARGET",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame=self.bin_target_frame
+                ),
+                transitions={
                     "succeeded": "SET_BIN_DROP_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -136,7 +159,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DROP_DEPTH",
-                SetDepthState(depth=bin_whole_depth, sleep_duration=3.0),
+                SetDepthState(depth=self.bin_whole_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_START",
                     "preempted": "preempted",
