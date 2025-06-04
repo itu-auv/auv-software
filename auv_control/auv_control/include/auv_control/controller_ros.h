@@ -209,11 +209,17 @@ class ControllerROS {
             tf_buffer.lookupTransform(depth_control_reference_frame_,
                                       source_frame.value(), ros::Time::now());
 
-        // only transform the z-axis component of the pose
-        geometry_msgs::Point transformed_z;
-        tf2::doTransform(msg->pose.position, transformed_z, transform_stamped);
-        transformed_pose.position.z =
-            transformed_z.z;  // override the z component
+        // Transform orientation and the z-axis position component
+        geometry_msgs::PoseStamped in_pose;
+        in_pose.header.frame_id = source_frame.value();
+        in_pose.header.stamp = ros::Time::now();
+        in_pose.pose = msg->pose;
+
+        geometry_msgs::PoseStamped out_pose;
+        tf2::doTransform(in_pose, out_pose, transform_stamped);
+
+        transformed_pose.position.z = out_pose.pose.position.z;
+        transformed_pose.orientation = out_pose.pose.orientation;
 
       } catch (tf2::TransformException& ex) {  // If unsuccessful, exit and
                                                // don't update desired state
