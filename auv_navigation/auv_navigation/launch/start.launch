@@ -9,5 +9,12 @@
       name="follow_path_action_server"
       output="screen">
     </node>
+
+    <node
+      pkg="auv_navigation"
+      type="slalom_waypoint_generator.py"
+      name="slalom_processor"
+      output="screen">
+    </node>
   </group>
 </launch>

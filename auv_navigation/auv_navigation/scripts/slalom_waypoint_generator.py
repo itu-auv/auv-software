@@ -14,6 +14,7 @@ from auv_msgs.msg import DetectedPipes, DetectedPipe
 from visualization_msgs.msg import Marker, MarkerArray
 
 # TODO - The word Detected is wrong.
+# TODO - Left right is wrong
 
 
 class Gate:
@@ -90,7 +91,7 @@ class SlalomProcessorNode:
             "[SlalomProcessorNode] Computed navigation targets for %d gates",
             len(targets),
         )
-        self.publish_centers(targets)
+        self.publish_waypoints(targets)
         rospy.loginfo(
             "[SlalomProcessorNode] Published centers and markers for navigation targets"
         )
@@ -314,15 +315,48 @@ class SlalomProcessorNode:
     # --- System 3 functions ---
     def compute_navigation_targets(self, gate):
         """
-        For a complete Gate, return the two Pose targets based on navigation_mode.
+        For a complete Gate, compute the navigation target Pose.
+        The target is at the middle of the selected passage pipes.
+        Its orientation is normal to the gate direction, pointing away from the robot.
         """
-        p1 = gate.white_left if self.navigation_mode == "left" else gate.red
-        p2 = gate.red if self.navigation_mode == "left" else gate.white_right
-        pose1 = self._pipe_to_pose(p1)
-        pose2 = self._pipe_to_pose(p2)
-        return [pose1, pose2]
 
-    def publish_centers(self, targets_list):
+        if self.navigation_mode == "left":
+            pipe_A = gate.white_left
+            pipe_B = gate.red
+        elif self.navigation_mode == "right":
+            pipe_A = gate.red
+            pipe_B = gate.white_right
+        else:
+            rospy.logwarn_throttle(
+                5.0,
+                f"Unknown navigation_mode: {self.navigation_mode}. Defaulting to left.",
+            )
+            pipe_A = gate.white_left
+            pipe_B = gate.red
+        pipe_A_pos = np.array([pipe_A.position.x, pipe_A.position.y])
+        pipe_B_pos = np.array([pipe_B.position.x, pipe_B.position.y])
+        midpoint_pos = (pipe_A_pos + pipe_B_pos) / 2
+        waypoint = Pose()
+        waypoint.position.x = midpoint_pos[0]
+        waypoint.position.y = midpoint_pos[1]
+        waypoint.position.z = (
+            0.0  # Assuming 2D navigation for slalom, Z can be refined later
+        )
+
+        # Orientation
+        # TODO: Calculate proper orientation: normal to the gate (gate.direction),
+        # and pointing "away" from the robot.
+        # gate.direction is a 2D unit vector [dx, dy]. A normal could be (-dy, dx) or (dy, -dx).
+        # The "away" part needs the robot's current pose relative to the gate to determine.
+        # For now, using a placeholder (identity quaternion: no rotation).
+        waypoint.orientation.x = 0.0
+        waypoint.orientation.y = 0.0
+        waypoint.orientation.z = 0.0
+        waypoint.orientation.w = 1.0
+
+        return [waypoint]  # Return a list containing the single Pose target
+
+    def publish_waypoints(self, targets_list):
         """Publish all gate targets as a concatenated PoseArray."""
         pa = PoseArray()
         pa.header.stamp = rospy.Time.now()
@@ -359,14 +393,6 @@ class SlalomProcessorNode:
         self.centers_pub.publish(pa)
         if marker_array.markers:  # Only publish if there are markers
             self.centers_marker_pub.publish(marker_array)
-
-    def _pipe_to_pose(self, pipe):
-        """Convert a DetectedPipe to a geometry_msgs/Pose (position only)."""
-        pose = Pose()
-        pose.position.x = pipe.position.x
-        pose.position.y = pipe.position.y
-        pose.position.z = pipe.position.z
-        return pose
 
 
 if __name__ == "__main__":
