@@ -3,6 +3,8 @@
 #include <Eigen/Dense>
 #include <array>
 #include <vector>
+#include <algorithm>
+#include <limits>
 
 #include "angles/angles.h"
 #include "auv_controllers/controller_base.h"
@@ -26,6 +28,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
   void set_ki(const Vector2nd& ki) { ki_ = ki.asDiagonal(); }
 
   void set_kd(const Vector2nd& kd) { kd_ = kd.asDiagonal(); }
+
+  void set_integral_limits(const Vector2nd& limits) {
+    integral_limits_ = limits.cwiseAbs();
+  }
 
   /**
    * @brief Calculate the control output, in the form of a wrench
@@ -55,6 +61,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
       const auto p_term = kp_.template block<N, N>(0, 0) * error;
 
       integral_.head(N) += error * dt;
+      integral_.head(N) =
+          integral_.head(N).cwiseMax(-integral_limits_.head(N)).cwiseMin(
+              integral_limits_.head(N));
       const auto i_term = ki_.template block<N, N>(0, 0) * integral_.head(N);
 
       // d/dt (desired) is considered to be zero
@@ -72,6 +81,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto p_term = kp_.template block<N, N>(N, N) * error;
 
     integral_.tail(N) += error * dt;
+    integral_.tail(N) =
+        integral_.tail(N).cwiseMax(-integral_limits_.tail(N)).cwiseMin(
+            integral_limits_.tail(N));
     const auto i_term = ki_.template block<N, N>(N, N) * integral_.tail(N);
 
     // d/dt (desired) is considered to be zero
@@ -131,6 +143,8 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   // gains
   Vector2nd integral_{Vector2nd::Zero()};
+  Vector2nd integral_limits_{
+      Vector2nd::Constant(std::numeric_limits<double>::max())};
   Matrix2nd kp_;
   Matrix2nd ki_;
   Matrix2nd kd_;
