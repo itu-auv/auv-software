@@ -46,7 +46,9 @@ class AlignFrameControllerNode:
         if not msg.data:
             self.active = False
 
-    def handle_align_request(self, req: AlignFrameController) -> AlignFrameControllerResponse:
+    def handle_align_request(
+        self, req: AlignFrameController
+    ) -> AlignFrameControllerResponse:
         self.source_frame = req.source_frame
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
@@ -59,6 +61,15 @@ class AlignFrameControllerNode:
     def handle_cancel_request(self, req) -> TriggerResponse:
         self.active = False
         rospy.loginfo("Control canceled")
+        # Publish a zero velocity command to clear old velocity commands
+        stop_twist = Twist()
+        stop_twist.linear.x = 0.0
+        stop_twist.linear.y = 0.0
+        stop_twist.linear.z = 0.0
+        stop_twist.angular.x = 0.0
+        stop_twist.angular.y = 0.0
+        stop_twist.angular.z = 0.0
+        self.cmd_vel_pub.publish(stop_twist)
         return TriggerResponse(success=True, message="Control deactivated")
 
     def get_error(
