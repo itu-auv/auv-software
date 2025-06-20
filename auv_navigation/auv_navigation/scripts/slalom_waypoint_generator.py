@@ -10,7 +10,7 @@ from geometry_msgs.msg import (
     PointStamped,
     Vector3Stamped,
 )
-from auv_msgs.msg import DetectedPipes, DetectedPipe
+from auv_msgs.msg import Pipes, Pipe
 from visualization_msgs.msg import Marker, MarkerArray
 
 # TODO - The word Detected is wrong.
@@ -20,7 +20,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 class Gate:
     """
     Represents a complete or partial slalom gate with left white, red, right white pipes.
-    Each attribute is a DetectedPipe or a placeholder if guessed.
+    Each attribute is a Pipe or a placeholder if guessed.
     """
 
     def __init__(self, white_left, red, white_right, direction):
@@ -51,20 +51,20 @@ class SlalomProcessorNode:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.pipe_sub = rospy.Subscriber(
-            "/slalom_pipes", DetectedPipes, self.cb_detected_pipes, queue_size=1
+            "/slalom_pipes", Pipes, self.callback_pipes, queue_size=1
         )
         self.centers_pub = rospy.Publisher("/slalom/centers", PoseArray, queue_size=10)
         self.centers_marker_pub = rospy.Publisher(
             "/slalom/centers_markers", MarkerArray, queue_size=10
         )
 
-    def cb_detected_pipes(self, msg):
+    def callback_pipes(self, msg):
         rospy.loginfo(
-            "[SlalomProcessorNode] Received DetectedPipes message with %d pipes",
-            len(msg.detected_pipes),
+            "[SlalomProcessorNode] Received Pipes message with %d pipes",
+            len(msg.pipes),
         )
         # System 1
-        valid_pipes = self.filter_pipes_within_distance(msg.detected_pipes)
+        valid_pipes = self.filter_pipes_within_distance(msg.pipes)
         rospy.loginfo(
             "[SlalomProcessorNode] %d pipes within max_view_distance", len(valid_pipes)
         )
@@ -135,12 +135,12 @@ class SlalomProcessorNode:
             return None
 
     # --- System 1 functions ---
-    def filter_pipes_within_distance(self, detected_pipes):
+    def filter_pipes_within_distance(self, pipes):
         """
         Returns only those pipes within max_pipe_distance from the robot base.
         """
         close_pipes = []
-        for pipe in detected_pipes:
+        for pipe in pipes:
             distance = self.get_pipe_distance_from_base(pipe.position)
             if distance is not None and distance <= self.max_view_distance:
                 close_pipes.append(pipe)

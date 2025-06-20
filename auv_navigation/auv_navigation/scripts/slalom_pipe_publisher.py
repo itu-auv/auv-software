@@ -3,8 +3,8 @@
 import rospy
 import numpy as np
 import random
-from auv_msgs.msg import DetectedPipes, DetectedPipe
-from geometry_msgs.msg import Point  # Used by DetectedPipe
+from auv_msgs.msg import Pipes, Pipe
+from geometry_msgs.msg import Point  # Used by Pipe
 from std_msgs.msg import Header
 from visualization_msgs.msg import Marker, MarkerArray
 
@@ -30,9 +30,7 @@ class SlalomPipePublisherNode:
         )  # Added for Z control
 
         # --- Publisher ---
-        self.pipes_publisher = rospy.Publisher(
-            "/slalom_pipes", DetectedPipes, queue_size=10
-        )
+        self.pipes_publisher = rospy.Publisher("/slalom_pipes", Pipes, queue_size=10)
         self.marker_publisher = rospy.Publisher(
             "/slalom_pipes_markers", MarkerArray, queue_size=10
         )  # New publisher
@@ -81,11 +79,9 @@ class SlalomPipePublisherNode:
             "Slalom Pipe Publisher node started. Publishing to /slalom_pipes and /slalom_pipes_markers"
         )
 
-    def _create_ros_pipe(
-        self, x: float, y: float, z: float, color_str: str
-    ) -> DetectedPipe:
+    def _create_ros_pipe(self, x: float, y: float, z: float, color_str: str) -> Pipe:
         """Helper to create an auv_msgs.msg.DetectedPipe object."""
-        pipe = DetectedPipe()
+        pipe = Pipe()
         pipe.color = color_str
         pipe.position.x = float(x)
         pipe.position.y = float(y)
@@ -182,7 +178,7 @@ class SlalomPipePublisherNode:
             )
             return
 
-        msg = DetectedPipes()
+        msg = Pipes()
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = self.pipe_frame_id
         msg.detected_pipes = list_of_pipe_objects

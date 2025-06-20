@@ -4,4 +4,4 @@
 std_msgs/Header header
 
 # Array of detected pipes
-auv_msgs/DetectedPipe[] detected_pipes
+auv_msgs/Pipe[] detected_pipes

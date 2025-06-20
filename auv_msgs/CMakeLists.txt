@@ -21,8 +21,8 @@ add_message_files(
   FILES
   MotorCommand.msg
   Power.msg
-  DetectedPipe.msg
-  DetectedPipes.msg
+  Pipe.msg
+  Pipes.msg
 )
 
 add_service_files(
