@@ -5,6 +5,10 @@ FROM ${BASE_IMAGE}
 
 WORKDIR /auv_ws
 
+# GPG KEY FIX – ROS repository key expired, update it before apt-get update
+RUN apt-key del F42ED6FBAB17C654 || true && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key | apt-key add -
+
 RUN apt-get update && \
   apt-get install -y \
   git \
