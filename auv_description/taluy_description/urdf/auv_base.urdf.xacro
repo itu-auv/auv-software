@@ -58,7 +58,7 @@
     <xacro:sonar name="${namespace}/base_link/sonar_back" parent="${namespace}/base_link" position="-0.42 -0.09 0.09" orientation="0 0 ${math.pi}"/>
     <xacro:sonar name="${namespace}/base_link/sonar_right" parent="${namespace}/base_link" position="0.02 -0.21 -0.14" orientation="0 0 ${-math.pi/2}"/>
     <xacro:sonar name="${namespace}/base_link/sonar_left" parent="${namespace}/base_link" position="0.02 0.21 -0.14" orientation="0 0 ${math.pi/2}"/>
-    <xacro:realsense_d435 name="${namespace}/camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 0"/>
+    <xacro:realsense_d435 name="${namespace}/camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 ${math.pi}"/>
     <!-- <link name="base_footprint">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />

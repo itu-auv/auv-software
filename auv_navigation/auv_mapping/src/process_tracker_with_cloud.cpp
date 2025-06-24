@@ -555,7 +555,7 @@ public:
     // TransformStamped mesajını oluştur ve object_transform_updates topic'ine yayınla
     geometry_msgs::TransformStamped transform_msg;
     transform_msg.header.stamp = header.stamp;
-    transform_msg.header.frame_id = "taluy/_camera_depth_optical_frame"; // Point cloud'un frame'i
+    transform_msg.header.frame_id = "taluy/camera_depth_optical_frame"; // Point cloud'un frame'i
     transform_msg.child_frame_id = frame_id; // Cluster/nesne ID'si
     
     // Pozisyon bilgisini ayarla - hesaplandığı gibi kullan
