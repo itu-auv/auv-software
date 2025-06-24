@@ -5,11 +5,13 @@ ARG HOST=desktop
 
 COPY . ./src/auv_software
 
+RUN mv /etc/apt/sources.list.d/ros-latest.list /etc/apt/sources.list.d/ros-latest.list.bak || true
+
 RUN apt-get update && apt-get install -y curl gnupg
 
 RUN mkdir -p /etc/apt/keyrings && \
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-    | tee /etc/apt/keyrings/ros-archive-keyring.gpg > /dev/null && \
+    -o /etc/apt/keyrings/ros-archive-keyring.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros/ubuntu focal main" \
     > /etc/apt/sources.list.d/ros-latest.list
 
