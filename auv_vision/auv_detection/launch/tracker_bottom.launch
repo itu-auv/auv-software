@@ -6,7 +6,7 @@
   <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
   <arg name="input_topic" default="/taluy/cameras/cam_bottom/image_raw"/>
   <arg name="result_topic" default="/yolo_result_2"/>
-  <arg name="result_image_topic" default="/yolo_image"/>
+  <arg name="result_image_topic" default="/yolo_image_2"/>
   <arg name="conf_thres" default="0.25"/>
   <arg name="iou_thres" default="0.45"/>
   <arg name="max_det" default="300"/>
