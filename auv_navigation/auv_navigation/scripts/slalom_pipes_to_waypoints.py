@@ -6,7 +6,7 @@ from geometry_msgs.msg import (
     PoseArray,
     Pose,
 )
-from auv_msgs.msg import Pipes, Pipe  # Pipe is used in type hints
+from auv_msgs.msg import Pipes, Pipe
 from visualization_msgs.msg import Marker, MarkerArray
 from auv_navigation.slalom import (
     cluster_pipes_with_ransac,
@@ -120,7 +120,6 @@ class SlalomProcessorNode:
             compute_navigation_targets(
                 gate=g,
                 navigation_mode=self.navigation_mode,
-                # tf_buffer, odom_frame, base_link_frame could be passed if needed by compute_navigation_targets
             )
             for g in gates
             if g is not None
