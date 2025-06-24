@@ -5,7 +5,7 @@ ARG HOST=desktop
 
 COPY . ./src/auv_software
 
-RUN mv /etc/apt/sources.list.d/ros-latest.list /etc/apt/sources.list.d/ros-latest.list.bak || true
+RUN find /etc/apt/ -type f -name '*.list' -exec grep -l 'packages.ros.org' {} \; | xargs -r mv -t /tmp || true
 
 RUN apt-get update && apt-get install -y curl gnupg
 
