@@ -197,13 +197,14 @@ class CameraDetectionNode:
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
+        self.pool_depth = rospy.get_param("~pool_depth", 2.2)
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
     def altitude_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
-        self.altitude = 2.2 - depth
+        self.altitude = self.pool_depth - depth
         rospy.loginfo_once(
-            f"Calculated altitude from odom_pressure: {self.altitude:.2f} m"
+            f"Calculated altitude from odom_pressure: {self.altitude:.2f} m (pool_depth={self.pool_depth})"
         )
 
     def calculate_intersection_with_ground(self, point1_odom, point2_odom):
