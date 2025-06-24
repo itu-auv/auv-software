@@ -8,7 +8,7 @@
   <group ns="$(arg namespace)">
     <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
       <remap from="object_transform_updates" to="map/object_transform_updates" />
-      <remap from="dvl/altitude" to="sensors/dvl/altitude" />
+      <remap from="odom_pressure" to="localization/odom_pressure" />
     </node>
 
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
