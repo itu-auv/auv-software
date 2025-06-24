@@ -1,0 +1,67 @@
+<sdf version="1.6">
+  <model name="torpedo">
+    <link name="torpedo_body">
+      <inertial>
+        <mass>0.5</mass>
+        <inertia>
+          <ixx>0.000422</ixx>
+          <iyy>0.000422</iyy>
+          <izz>0.000011</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+      <gravity>0</gravity>
+      <visual name="torpedo_visual">
+        <geometry>
+          <cylinder>
+            <radius>0.0065</radius>
+            <length>0.1</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+          <emissive>0 0 0 1</emissive>
+        </material>
+        <pose>0 0 0 0 1.5708 0</pose>
+      </visual>
+      <velocity_decay>
+        <linear>0.0005</linear>
+        <angular>0.05</angular>
+      </velocity_decay>
+      <collision name="torpedo_collision">
+        <geometry>
+          <cylinder>
+            <radius>0.0065</radius>
+            <length>0.1</length>
+          </cylinder>
+        </geometry>
+        <pose>0 0 0 0 1.5708 0</pose>
+      </collision>
+      <damping>
+        <linear>0 0 0</linear>
+        <angular>0 0 0</angular>
+      </damping>
+      <hydrodynamics>
+        <added_mass>
+          <linear>0.25 0.25 0.25</linear>
+          <angular>0.05 0.05 0.05</angular>
+        </added_mass>
+        <drag>
+          <linear>0 0 0</linear>
+          <angular>0 0 0</angular>
+        </drag>
+      </hydrodynamics>
+      <plugin name="hydrodynamics" filename="libhydrodynamics_plugin.so">
+        <fluid_density>1000</fluid_density>
+        <fluid_level>10</fluid_level>
+        <linear_drag>0.0</linear_drag>
+        <angular_drag>0.0</angular_drag>
+        <buoyancy>0.0</buoyancy>
+      </plugin>
+    </link>
+  </model>
+</sdf>
