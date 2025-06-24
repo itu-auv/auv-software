@@ -119,12 +119,17 @@ class Octagon(Prop):
     def __init__(self):
         super().__init__(14, "octagon", 0.92, 1.30)
 
+
 class BinRed(Prop):
     def __init__(self):
         super().__init__(10, "torpedo_hole", 0.30480, 0.30480)
+
+
 class BinBlue(Prop):
     def __init__(self):
         super().__init__(11, "bin_red", 0.30480, 0.30480)
+
+
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
@@ -140,8 +145,16 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
         # Use lambda to pass camera source information to the callback
-        rospy.Subscriber("/yolo_result", YoloResult, lambda msg: self.detection_callback(msg, camera_source="front_camera"))
-        rospy.Subscriber("/yolo_result_2", YoloResult, lambda msg: self.detection_callback(msg, camera_source="bottom_camera"))
+        rospy.Subscriber(
+            "/yolo_result",
+            YoloResult,
+            lambda msg: self.detection_callback(msg, camera_source="front_camera"),
+        )
+        rospy.Subscriber(
+            "/yolo_result_2",
+            YoloResult,
+            lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
+        )
         self.frame_id_to_camera_ns = {
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
@@ -175,7 +188,11 @@ class CameraDetectionNode:
                 5: "gate_middle_part_link",
                 14: "octagon_link",
             },
-            "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red_link", 11: "bin/blue_link"},
+            "taluy/cameras/cam_bottom": {
+                9: "bin/whole",
+                10: "bin/red_link",
+                11: "bin/blue_link",
+            },
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
@@ -299,12 +316,16 @@ class CameraDetectionNode:
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
         # Determine camera_ns based on the source passed by the subscriber
         if camera_source == "front_camera":
-            camera_ns = "taluy/cameras/cam_front" # Ensure this matches your actual namespace
+            camera_ns = (
+                "taluy/cameras/cam_front"  # Ensure this matches your actual namespace
+            )
         elif camera_source == "bottom_camera":
-            camera_ns = "taluy/cameras/cam_bottom" # Ensure this matches your actual namespace
+            camera_ns = (
+                "taluy/cameras/cam_bottom"  # Ensure this matches your actual namespace
+            )
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
-            return # Stop processing if the source is unknown
+            return  # Stop processing if the source is unknown
         camera_frame = self.camera_frames[camera_ns]
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
