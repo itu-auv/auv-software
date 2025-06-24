@@ -16,12 +16,11 @@ def get_pipe_distance_from_base(
     try:
         pipe_point = PointStamped()
         pipe_point.header.frame_id = odom_frame
-        pipe_point.header.stamp = rospy.Time(
-            0
-        )  # Use rospy.Time(0) for latest transform
+        pipe_point.header.stamp = rospy.Time(0)
         pipe_point.point.x = position.x
         pipe_point.point.y = position.y
         pipe_point.point.z = position.z
+
         transform = tf_buffer.lookup_transform(
             base_link_frame,
             odom_frame,
@@ -42,9 +41,8 @@ def get_pipe_distance_from_base(
         tf2_ros.LookupException,
         tf2_ros.ConnectivityException,
         tf2_ros.ExtrapolationException,
-        tf2_ros.TransformException,
     ) as e:
-        rospy.logwarn(f"TF lookup/transform failed for distance computation: {e}")
+        rospy.logwarn(f"TF lookup failed for distance computation: {e}")
         return None
 
 
