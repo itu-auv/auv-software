@@ -5,7 +5,7 @@ import tf2_ros  # For exceptions
 from geometry_msgs.msg import Vector3Stamped
 
 # from auv_msgs.msg import Pipe # Assuming Pipe objects are passed in and have a 'position' attribute
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 
 
 def cluster_pipes_with_ransac(
@@ -96,7 +96,7 @@ def _compute_robot_y_axis(
     base_link_frame: str,
     odom_frame: str,
     tf_buffer,
-) -> Tuple[bool, np.ndarray | None]:
+) -> Tuple[bool, Optional[np.ndarray]]:
     """Return (do_directional_check, robot_y_axis_2d).
 
     If there aren’t enough pipes, or TF fails, the first item is False and the

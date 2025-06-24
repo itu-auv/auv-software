@@ -12,8 +12,7 @@ from geometry_msgs.msg import (
 )
 from auv_msgs.msg import Pipes, Pipe
 from visualization_msgs.msg import Marker, MarkerArray
-
-# from auv_navigation.slalom import cluster_pipes_with_ransac
+from auv_navigation.slalom import cluster_pipes_with_ransac
 
 # TODO - Left right is wrong
 
@@ -67,7 +66,7 @@ class SlalomProcessorNode:
         # System 1
         valid_pipes = self.filter_pipes_within_distance(msg.pipes)
         rospy.loginfo(
-            "[SlalomProcessorNode] %d pipes within max_view_distance", len(valid_pipes)
+            f"Received {len(msg.pipes)} pipes. Processing for slalom waypoints."
         )
         raw_clusters = cluster_pipes_with_ransac(
             pipes=valid_pipes,

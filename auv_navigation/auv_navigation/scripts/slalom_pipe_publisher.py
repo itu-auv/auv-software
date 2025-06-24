@@ -181,7 +181,7 @@ class SlalomPipePublisherNode:
         msg = Pipes()
         msg.header.stamp = rospy.Time.now()
         msg.header.frame_id = self.pipe_frame_id
-        msg.detected_pipes = list_of_pipe_objects
+        msg.pipes = list_of_pipe_objects
 
         self.pipes_publisher.publish(msg)
         # rospy.loginfo(f"Published {len(list_of_pipe_objects)} pipes to /slalom_pipes")

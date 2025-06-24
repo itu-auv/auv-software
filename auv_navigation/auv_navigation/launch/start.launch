@@ -13,7 +13,7 @@
     <node
       pkg="auv_navigation"
       type="slalom_pipes_to_waypoints.py"
-      name="slalom_processor"
+      name="slalom_pipes_to_waypoints"
       output="screen">
     </node>
   </group>

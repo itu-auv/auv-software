@@ -28,7 +28,7 @@ class MockDetectedPipe:
 # Not strictly needed for this test as cluster_pipes_with_ransac takes a list of pipes
 # class MockDetectedPipes:
 #     def __init__(self):
-#         self.detected_pipes = []
+#         self.pipes = []
 #         self.header = None # Mock header if needed
 
 
