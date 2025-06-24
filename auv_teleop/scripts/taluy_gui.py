@@ -27,10 +27,11 @@ class MainControlPanel(QWidget):
         self.setWindowTitle("Taluy Control Panel")
 
         screen = QApplication.primaryScreen()
+        screen_width = screen.size().width()
         screen_height = screen.size().height()
         min_width = 400
 
-        self.setGeometry(0, 0, min_width, screen_height)
+        self.setGeometry(screen_width - min_width, 0, min_width, screen_height)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)

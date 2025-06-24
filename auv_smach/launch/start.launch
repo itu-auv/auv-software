@@ -52,7 +52,7 @@
             <param name="enable_rate" value="$(arg enable_rate)"/>
 
             <!-- gate.py -->
-            <remap from="set_transform_gate_trajectory" to="set_transform_gate_trajectory"/>
+            <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
 
             <!--initialize.py-->
             <remap from="set_depth" to="set_depth"/>
