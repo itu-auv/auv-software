@@ -90,7 +90,7 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_TO_BIN_TASK": (
                 BinTaskState,
-                {"bin_whole_depth": self.bin_whole_depth},
+                {"bin_task_depth": self.bin_task_depth},
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
