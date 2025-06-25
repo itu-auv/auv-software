@@ -9,5 +9,7 @@
   <buildtool_depend>catkin</buildtool_depend>
   <!--<depend>ultralytics_ros</depend>-->
   <!--<depend>image_view</depend>-->
+  <depend>cv_bridge</depend>
+  <depend>rospy</depend>
   <export/>
 </package>
