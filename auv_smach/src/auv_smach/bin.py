@@ -25,7 +25,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
 )
-from auv_smach.red_buoy import SetRedBuoyRotationStartFrame, SetFrameLookingAtState
+from auv_smach.red_buoy import SetFrameLookingAtState
 
 from auv_smach.initialize import DelayState
 
@@ -140,7 +140,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_AIMER",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "PLAN_BIN_PATHS",
                     "preempted": "preempted",

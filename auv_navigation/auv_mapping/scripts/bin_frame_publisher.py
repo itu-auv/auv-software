@@ -1,16 +1,11 @@
 #!/usr/bin/env python3
 
-import math
 import numpy as np
-from tf.transformations import (
-    quaternion_from_euler,
-    quaternion_multiply,
-    quaternion_matrix,
-)
+
 from typing import Tuple
 import rospy
 import tf2_ros
-from geometry_msgs.msg import Pose, Quaternion, TransformStamped, Vector3
+from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
@@ -31,10 +26,10 @@ class BinTransformServiceNode:
         self.robot_frame = "taluy/base_link"
         self.bin_frame = "bin_whole_link"
 
-        self.bin_further_frame = "bin_further"
-        self.bin_closer_frame = "bin_closer"
+        self.bin_further_frame = "bin_far_trial"
+        self.bin_closer_frame = "bin_close_trial"
 
-        self.further_distance = rospy.get_param("~further_distance", 1.5)
+        self.further_distance = rospy.get_param("~further_distance", 2.0)
         self.closer_distance = rospy.get_param("~closer_distance", 1.0)
 
         self.set_enable_service = rospy.Service(
@@ -94,19 +89,22 @@ class BinTransformServiceNode:
             [bin_pose.position.x, bin_pose.position.y, bin_pose.position.z]
         )
 
-        direction_vector = bin_pos - robot_pos
-        total_distance = np.linalg.norm(direction_vector)
+        direction_vector_2d = bin_pos[:2] - robot_pos[:2]
+        total_distance_2d = np.linalg.norm(direction_vector_2d)
 
-        if total_distance == 0:
+        if total_distance_2d == 0:
             rospy.logwarn(
-                "Robot and bin are at the same position! Cannot create frames."
+                "Robot and bin are at the same XY position! Cannot create frames."
             )
             return
 
-        direction_unit = direction_vector / total_distance
+        direction_unit_2d = direction_vector_2d / total_distance_2d
 
-        closer_pos = bin_pos - (direction_unit * self.closer_distance)
-        further_pos = bin_pos + (direction_unit * self.further_distance)
+        closer_pos_2d = bin_pos[:2] - (direction_unit_2d * self.closer_distance)
+        further_pos_2d = bin_pos[:2] + (direction_unit_2d * self.further_distance)
+
+        closer_pos = np.append(closer_pos_2d, robot_pos[2])
+        further_pos = np.append(further_pos_2d, robot_pos[2])
 
         closer_pose = Pose()
         closer_pose.position.x, closer_pose.position.y, closer_pose.position.z = (

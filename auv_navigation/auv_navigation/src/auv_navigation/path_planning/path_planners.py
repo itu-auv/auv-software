@@ -18,9 +18,11 @@ class PathPlanners:
             "~gate_entrance_frame", "gate_entrance"
         )
         self.gate_exit_frame: str = rospy.get_param("~gate_exit_frame", "gate_exit")
-        self.bin_closer_frame: str = rospy.get_param("~bin_closer_frame", "bin_closer")
+        self.bin_closer_frame: str = rospy.get_param(
+            "~bin_closer_frame", "bin_close_trial"
+        )
         self.bin_further_frame: str = rospy.get_param(
-            "~bin_further_frame", "bin_further"
+            "~bin_further_frame", "bin_far_trial"
         )
         self.path_creation_timeout: float = rospy.get_param(
             "~path_creation_timeout", 20.0
