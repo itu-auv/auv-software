@@ -17,6 +17,6 @@ catkin_package(CATKIN_DEPENDS
   auv_detection
   )
 
-catkin_install_python(PROGRAMS scripts/merge_images_node.py
+catkin_install_python(PROGRAMS scripts/front_bottom_yolo_handler.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
