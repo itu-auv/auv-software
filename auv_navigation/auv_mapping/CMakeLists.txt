@@ -49,6 +49,7 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/prop_transform_publisher.py
   scripts/gate_trajectory_publisher.py
+  scripts/bin_frame_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

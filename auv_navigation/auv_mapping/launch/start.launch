@@ -21,6 +21,11 @@
       <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
+    <node pkg="auv_mapping" type="bin_frame_publisher.py" name="bin_frame_publisher" output="screen">
+      <remap from="set_transform_bin_frames" to="set_transform_bin_frames" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
       <rosparam command="load" file="$(find auv_mapping)/config/gate_trajectory_publisher_params.yaml" />
       <param name="target_gate_frame" value="$(arg target_gate_frame)" />
