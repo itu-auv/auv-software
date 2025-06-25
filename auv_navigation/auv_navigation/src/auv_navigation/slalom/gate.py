@@ -8,7 +8,9 @@ from typing import (
     Tuple,
 )  # Added Any, Tuple for broader compatibility if needed later
 import rospy
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Quaternion
+from tf.transformations import quaternion_from_euler
+import math  # For atan2
 
 
 class Gate:
@@ -45,9 +47,60 @@ def create_gate_object(info: Dict[str, Any]) -> Optional["Gate"]:
     return Gate(white_left, red, white_right, direction)
 
 
+def _calculate_orientation(
+    gate_direction: np.ndarray,
+    waypoint_position: np.ndarray,
+    robot_position: np.ndarray,
+) -> Quaternion:
+    """
+    Calculates the orientation (Quaternion) for the waypoint.
+    The orientation is normal to the gate and points away from the robot.
+
+    Args:
+        gate_direction: A 2D numpy array representing the unit vector along the gate [dx, dy].
+        waypoint_position: A 2D numpy array for the waypoint's position [x, y].
+        robot_position: A 2D numpy array for the robot's current position [x, y].
+
+    Returns:
+            geometry_msgs.msg.Quaternion representing the calculated orientation.
+    """
+    dx, dy = gate_direction[0], gate_direction[1]
+
+    # the two possible normal vectors
+    normal1 = np.array([-dy, dx])
+    normal2 = np.array([dy, -dx])
+
+    # Vector from robot to waypoint
+    robot_to_waypoint_vector = waypoint_position - robot_position
+    # Normalize for dot product comparison, handle zero vector case
+    if np.linalg.norm(robot_to_waypoint_vector) > 1e-6:  # a small epsilon
+        robot_to_waypoint_vector_normalized = robot_to_waypoint_vector / np.linalg.norm(
+            robot_to_waypoint_vector
+        )
+    else:  # robot is at the waypoint, default to normal1
+        robot_to_waypoint_vector_normalized = normal1
+
+    # Determine which normal points "away" from the robot
+    # (aligns better with robot_to_waypoint_vector)
+    dot_product1 = np.dot(normal1, robot_to_waypoint_vector_normalized)
+    dot_product2 = np.dot(normal2, robot_to_waypoint_vector_normalized)
+
+    chosen_normal = normal1 if dot_product1 >= dot_product2 else normal2
+
+    # Calculate yaw angle from the chosen normal vector
+    # The chosen_normal is in odom frame, so yaw is relative to odom's X-axis
+    yaw = math.atan2(chosen_normal[1], chosen_normal[0])
+
+    # Convert yaw to quaternion (roll=0, pitch=0)
+    q = quaternion_from_euler(0, 0, yaw)
+    orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+    return orientation
+
+
 def compute_navigation_targets(
     gate: "Gate",
     navigation_mode: str,
+    robot_pose: Pose,  # Added robot_pose
 ) -> List[Pose]:
     """
     For a complete Gate, compute the navigation target Pose.
@@ -75,19 +128,14 @@ def compute_navigation_targets(
     waypoint = Pose()
     waypoint.position.x = midpoint_pos[0]
     waypoint.position.y = midpoint_pos[1]
-    waypoint.position.z = (
-        0.0  # Assuming 2D navigation for slalom, Z can be refined later
-    )
+    waypoint.position.z = 0.0
 
     # Orientation
-    # TODO: Calculate proper orientation: normal to the gate (gate.direction),
-    # and pointing "away" from the robot.
-    # gate.direction is a 2D unit vector [dx, dy]. A normal could be (-dy, dx) or (dy, -dx).
-    # The "away" part needs the robot's current pose relative to the gate to determine.
-    # For now, using a placeholder (identity quaternion: no rotation).
-    waypoint.orientation.x = 0.0
-    waypoint.orientation.y = 0.0
-    waypoint.orientation.z = 0.0
-    waypoint.orientation.w = 1.0
+    robot_position_2d = np.array([robot_pose.position.x, robot_pose.position.y])
+    waypoint.orientation = _calculate_orientation(
+        gate_direction=gate.direction,
+        waypoint_position=midpoint_pos,  # This is the 2D position of the waypoint
+        robot_position=robot_position_2d,
+    )
 
-    return [waypoint]  # Return a list containing the single Pose target
+    return [waypoint]
