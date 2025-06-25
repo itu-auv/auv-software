@@ -151,6 +151,15 @@ class BinTaskState(smach.State):
                 "PLAN_BIN_PATHS",
                 PlanBinPathState(self.tf_buffer),
                 transitions={
+                    "succeeded": "DISABLE_BIN_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_BIN_FRAME_PUBLISHER",
+                BinTransformServiceEnableState(req=False),
+                transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_PATH",
                     "preempted": "preempted",
                     "aborted": "aborted",
