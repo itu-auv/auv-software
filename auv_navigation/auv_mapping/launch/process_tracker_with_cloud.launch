@@ -2,11 +2,14 @@
 <launch>
   <!-- Opsiyonel debug parametresi -->
   <arg name="debug" default="false"/>
+
+  <!-- Point cloud topic argument -->
+  <arg name="point_cloud_topic" default="/points_filtered"/>
   
   <!-- Process Tracker With Cloud Node -->
   <node name="process_tracker_with_cloud" pkg="auv_mapping" type="process_tracker_with_cloud" output="screen">
     <param name="camera_info_topic" value="/camera/color/camera_info"/>
-    <param name="lidar_topic" value="/points_filtered"/>
+    <param name="lidar_topic" value="$(arg point_cloud_topic)"/>
     <param name="yolo_result_topic" value="/yolo_result"/>
     <param name="yolo_3d_result_topic" value="/yolo_3d_result"/>
     <param name="cluster_tolerance" value="0.2"/>
@@ -18,4 +21,4 @@
   
   <!-- Opsiyonel olarak RViz başlat -->
   <node if="$(arg debug)" pkg="rviz" type="rviz" name="rviz"/>
-</launch> 
+</launch>
