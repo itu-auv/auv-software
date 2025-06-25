@@ -14,30 +14,12 @@ find_package(catkin REQUIRED COMPONENTS
   tf
 )
 
-find_package(OpenCV 4 QUIET COMPONENTS
-  opencv_core
-  opencv_imgproc
-  opencv_imgcodecs
-  opencv_videoio
-  CONFIG)
-
-if(NOT OpenCV_FOUND)
-  message(STATUS "Did not find OpenCV 4, trying OpenCV 3")
-  find_package(OpenCV 3 REQUIRED COMPONENTS
-    opencv_core
-    opencv_imgproc
-    opencv_imgcodecs
-    opencv_videoio
-    CONFIG)
-endif()
-
 catkin_package(
   CATKIN_DEPENDS
     auv_detection
     rospy
     sensor_msgs
     tf
-  DEPENDS OpenCV
 )
 
 include_directories(
