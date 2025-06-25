@@ -19,7 +19,9 @@ class PathPlanners:
         )
         self.gate_exit_frame: str = rospy.get_param("~gate_exit_frame", "gate_exit")
         self.bin_closer_frame: str = rospy.get_param("~bin_closer_frame", "bin_closer")
-        self.bin_further_frame: str = rospy.get_param("~bin_further_frame", "bin_further")
+        self.bin_further_frame: str = rospy.get_param(
+            "~bin_further_frame", "bin_further"
+        )
         self.path_creation_timeout: float = rospy.get_param(
             "~path_creation_timeout", 20.0
         )
@@ -157,7 +159,6 @@ class PathPlanners:
             rospy.logwarn("[GatePathPlanner] Error in gate path planning: %s", str(e))
             return None
 
-
     def path_for_bin(self) -> Optional[List[Path]]:
         try:
             rospy.logdebug("[BinPathPlanner] Planning paths for bin task...")
@@ -209,5 +210,3 @@ class PathPlanners:
         except Exception as e:
             rospy.logwarn("[GatePathPlanner] Error in gate path planning: %s", str(e))
             return None
-
-           

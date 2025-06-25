@@ -40,7 +40,6 @@ from auv_navigation.path_planning.path_planners import PathPlanners
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 
 
-
 class BinTransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
@@ -50,13 +49,14 @@ class BinTransformServiceEnableState(smach_ros.ServiceState):
             request=SetBoolRequest(data=req),
         )
 
+
 class PlanBinPathState(smach.State):
     """State that plans the path for the bin task"""
 
     def __init__(self, tf_buffer):
         smach.State.__init__(
             self,
-            outcomes=["succeeded", "preempted", "aborted"], 
+            outcomes=["succeeded", "preempted", "aborted"],
             output_keys=["planned_paths"],
         )
         self.tf_buffer = tf_buffer
@@ -81,7 +81,6 @@ class PlanBinPathState(smach.State):
         except Exception as e:
             rospy.logerr("[PlanTorpedoPathState] Error: %s", str(e))
             return "aborted"
-
 
 
 class BinTaskState(smach.State):

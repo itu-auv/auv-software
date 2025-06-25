@@ -30,7 +30,7 @@ class BinTransformServiceNode:
         self.odom_frame = "odom"
         self.robot_frame = "taluy/base_link"
         self.bin_frame = "bin_whole_link"
-        
+
         self.bin_further_frame = "bin_further"
         self.bin_closer_frame = "bin_closer"
 
@@ -75,7 +75,7 @@ class BinTransformServiceNode:
             transform_bin = self.tf_buffer.lookup_transform(
                 self.odom_frame, self.bin_frame, rospy.Time(0), rospy.Duration(1)
             )
-            
+
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
@@ -87,14 +87,20 @@ class BinTransformServiceNode:
         robot_pose = self.get_pose(transform_robot)
         bin_pose = self.get_pose(transform_bin)
 
-        robot_pos = np.array([robot_pose.position.x, robot_pose.position.y, robot_pose.position.z])
-        bin_pos = np.array([bin_pose.position.x, bin_pose.position.y, bin_pose.position.z])
+        robot_pos = np.array(
+            [robot_pose.position.x, robot_pose.position.y, robot_pose.position.z]
+        )
+        bin_pos = np.array(
+            [bin_pose.position.x, bin_pose.position.y, bin_pose.position.z]
+        )
 
         direction_vector = bin_pos - robot_pos
         total_distance = np.linalg.norm(direction_vector)
 
         if total_distance == 0:
-            rospy.logwarn("Robot and bin are at the same position! Cannot create frames.")
+            rospy.logwarn(
+                "Robot and bin are at the same position! Cannot create frames."
+            )
             return
 
         direction_unit = direction_vector / total_distance
@@ -103,11 +109,15 @@ class BinTransformServiceNode:
         further_pos = bin_pos + (direction_unit * self.further_distance)
 
         closer_pose = Pose()
-        closer_pose.position.x, closer_pose.position.y, closer_pose.position.z = closer_pos
-        closer_pose.orientation = bin_pose.orientation 
+        closer_pose.position.x, closer_pose.position.y, closer_pose.position.z = (
+            closer_pos
+        )
+        closer_pose.orientation = bin_pose.orientation
 
         further_pose = Pose()
-        further_pose.position.x, further_pose.position.y, further_pose.position.z = further_pos
+        further_pose.position.x, further_pose.position.y, further_pose.position.z = (
+            further_pos
+        )
         further_pose.orientation = bin_pose.orientation
 
         further_transform = self.build_transform_message(
@@ -116,10 +126,10 @@ class BinTransformServiceNode:
         closer_transform = self.build_transform_message(
             self.bin_closer_frame, closer_pose
         )
-        
+
         self.send_transform(further_transform)
         self.send_transform(closer_transform)
-        
+
         rospy.logdebug(
             f"Published bin frames relative to bin: {self.bin_closer_frame} (-{self.closer_distance}m) and "
             f"{self.bin_further_frame} (+{self.further_distance}m)"
