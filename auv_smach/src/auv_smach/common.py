@@ -21,6 +21,10 @@ from tf.transformations import (
     translation_from_matrix,
 )
 
+from auv_navigation.mbf_client.mbf_clients import MoveBaseClient
+from geometry_msgs.msg import PoseStamped
+from typing import Union, Optional
+
 
 def transform_to_matrix(transform):
     trans = translation_matrix(
@@ -347,4 +351,96 @@ class ExecutePlannedPathsState(smach.State):
 
         except Exception as e:
             rospy.logerr("[ExecutePlannedPathsState] Exception occurred: %s", str(e))
+            return "aborted"
+
+
+class NavigateWithMBFState(smach.State):
+    """A generic navigation state that uses Move Base Flex for path planning and execution.
+
+    This state can accept:
+    - A single TF frame (str)
+    - A single PoseStamped object
+    - A list of TF frames
+    - A list of PoseStamped objects
+    - A mixed list of TF frames and PoseStamped objects
+    """
+
+    def __init__(
+        self, goals: Union[str, PoseStamped, list, None] = None, map_frame: str = "odom"
+    ):
+        """Initialize the navigation state.
+
+        Args:
+            goals: Can be one of:
+                - A TF frame name (str)
+                - A PoseStamped message
+                - A list of TF frames and/or PoseStamped messages
+                - None (then goal must be provided through userdata)
+            map_frame: The frame to express poses in, defaults to "odom"
+        """
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            input_keys=(
+                ["goals"] if goals is None else []
+            ),  # Only use input_keys if no goal provided
+        )
+
+        self.goals = goals
+        self.map_frame = map_frame
+        self.mbf_client = None
+
+    def execute(self, userdata) -> str:
+        if self.preempt_requested():
+            rospy.logwarn("[NavigateWithMBFState] Preempt requested")
+            return "preempted"
+
+        try:
+            if self.mbf_client is None:
+                self.mbf_client = MoveBaseClient(map_frame=self.map_frame)
+
+            # Get goal from either constructor argument or userdata
+            goals = self.goals if self.goals is not None else userdata.goals
+
+            # Convert single goal to a list for unified processing
+            goals = goals if isinstance(goals, list) else [goals]
+
+            # Validate goals
+            for g in goals:
+                if not isinstance(g, (str, PoseStamped)):
+                    rospy.logerr(
+                        f"[NavigateWithMBFState] Invalid goal type: {type(g)}. Must be str (frame_id) or PoseStamped"
+                    )
+                    return "aborted"
+
+            # Log navigation attempt
+            if len(goals) == 1:
+                goal_desc = (
+                    goals[0]
+                    if isinstance(goals[0], str)
+                    else f"pose in frame '{goals[0].header.frame_id}'"
+                )
+                rospy.loginfo(
+                    f"[NavigateWithMBFState] Attempting to navigate to {goal_desc}"
+                )
+            else:
+                rospy.loginfo(
+                    f"[NavigateWithMBFState] Attempting to navigate through {len(goals)} waypoints"
+                )
+
+            # Send goals
+            success, message, results = self.mbf_client.send_waypoints(goals)
+
+            if success:
+                rospy.loginfo(f"[NavigateWithMBFState] Navigation succeeded: {message}")
+                return "succeeded"
+            else:
+                rospy.logerr(f"[NavigateWithMBFState] Navigation failed: {message}")
+                return "aborted"
+
+        except rospy.ROSInterruptException:
+            rospy.logwarn("[NavigateWithMBFState] Interrupted by ROS")
+            return "preempted"
+        except Exception as e:
+            rospy.logerr(f"[NavigateWithMBFState] Error during navigation: {str(e)}")
             return "aborted"
