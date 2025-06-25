@@ -5,6 +5,7 @@ import numpy as np
 from typing import Tuple
 import rospy
 import tf2_ros
+import tf.transformations
 from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
@@ -58,7 +59,7 @@ class BinTransformServiceNode:
         req.transform = transform
         resp = self.set_object_transform_service.call(req)
         if not resp.success:
-            rospy.logerr(
+            rospy.logwarn(
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
 
@@ -100,6 +101,16 @@ class BinTransformServiceNode:
 
         direction_unit_2d = direction_vector_2d / total_distance_2d
 
+        # Calculate yaw from the direction vector (robot to bin)
+        yaw = np.arctan2(direction_unit_2d[1], direction_unit_2d[0])
+        q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+
+        orientation = Pose().orientation
+        orientation.x = q[0]
+        orientation.y = q[1]
+        orientation.z = q[2]
+        orientation.w = q[3]
+
         closer_pos_2d = bin_pos[:2] - (direction_unit_2d * self.closer_distance)
         further_pos_2d = bin_pos[:2] + (direction_unit_2d * self.further_distance)
 
@@ -110,13 +121,13 @@ class BinTransformServiceNode:
         closer_pose.position.x, closer_pose.position.y, closer_pose.position.z = (
             closer_pos
         )
-        closer_pose.orientation = bin_pose.orientation
+        closer_pose.orientation = orientation
 
         further_pose = Pose()
         further_pose.position.x, further_pose.position.y, further_pose.position.z = (
             further_pos
         )
-        further_pose.orientation = bin_pose.orientation
+        further_pose.orientation = orientation
 
         further_transform = self.build_transform_message(
             self.bin_further_frame, further_pose
@@ -127,11 +138,6 @@ class BinTransformServiceNode:
 
         self.send_transform(further_transform)
         self.send_transform(closer_transform)
-
-        rospy.logdebug(
-            f"Published bin frames relative to bin: {self.bin_closer_frame} (-{self.closer_distance}m) and "
-            f"{self.bin_further_frame} (+{self.further_distance}m)"
-        )
 
     def handle_enable_service(self, req):
         self.enable = req.data

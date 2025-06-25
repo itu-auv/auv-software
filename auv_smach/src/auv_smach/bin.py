@@ -3,24 +3,9 @@ import smach
 import smach_ros
 import rospy
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
-    AlignFrameController,
-    AlignFrameControllerRequest,
-    AlignFrameControllerResponse,
-)
-from std_msgs.msg import Bool
-from geometry_msgs.msg import TransformStamped, PointStamped
 import tf2_ros
-import numpy as np
-import tf.transformations as transformations
 
 from auv_smach.common import (
-    NavigateToFrameState,
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
@@ -36,8 +21,6 @@ from auv_smach.common import (
 )
 
 from auv_navigation.path_planning.path_planners import PathPlanners
-
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 
 
 class BinTransformServiceEnableState(smach_ros.ServiceState):
@@ -253,7 +236,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_2",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "SET_BIN_EXIT_DEPTH",
                     "preempted": "preempted",
