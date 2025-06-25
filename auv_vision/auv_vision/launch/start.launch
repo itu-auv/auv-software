@@ -1,12 +1,9 @@
 <launch>
   <arg name="namespace" default="taluy" />
-
   <group ns="$(arg namespace)">
-    <node pkg="auv_vision" type="merge_images_node.py" name="image_merger_node" output="screen">
+    <node pkg="auv_vision" type="front_bottom_yolo_handler.py" name="yolo_handler_node" output="screen">
       <remap from="cam_front/image_raw" to="cameras/cam_front/image_raw" />
       <remap from="cam_bottom/image_raw" to="cameras/cam_bottom/image_raw" />
-      <remap from="merged_image" to="cameras/merged/image_raw" />
     </node>
   </group>
-
 </launch>
