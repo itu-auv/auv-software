@@ -2,75 +2,53 @@
 
 import rospy
 import tf
-from geometry_msgs.msg import Twist
-from auv_msgs.srv import AlignFrameController, AlignFrameControllerResponse
-import auv_common_lib.control.enable_state as enable_state
-from std_srvs.srv import Trigger, TriggerResponse
-from std_msgs.msg import Bool
-from tf.transformations import euler_from_quaternion, quaternion_from_euler
-import angles
 import tf2_ros
+import angles
+from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
+from std_srvs.srv import Trigger, TriggerResponse
+from auv_msgs.srv import AlignFrameController, AlignFrameControllerResponse
+from tf.transformations import euler_from_quaternion
+from typing import Tuple, Optional
 
 
-class FrameAligner:
-    def __init__(self):
-        rospy.init_node("frame_aligner_node")
+class AlignFrameControllerNode:
+    def __init__(self) -> None:
+        rospy.init_node("align_frame_controller")
+
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer)
+
         self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
+
+        self.rate = rospy.get_param("~rate", 0.1)
+        self.linear_kp = rospy.get_param("~linear_kp", 0.55)
+        self.angular_kp = rospy.get_param("~angular_kp", 0.45)
+        self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.8)
+        self.max_angular_velocity = rospy.get_param("~max_angular_velocity", 0.9)
+
         self.active = False
         self.source_frame = ""
         self.target_frame = ""
         self.angle_offset = 0.0
 
-        self.max_linear_velocity = 0.8
-        self.max_angular_velocity = 0.9
-
-        # Initialize the enable signal handler with a timeout duration
-        self.rate = rospy.get_param("~rate", 0.1)
-
-        self.enable_pub = rospy.Publisher(
-            "enable",
-            Bool,
-            queue_size=1,
-        )
-
         self.killswitch_sub = rospy.Subscriber(
-            "propulsion_board/status",
-            Bool,
-            self.killswitch_callback,
+            "propulsion_board/status", Bool, self.killswitch_callback
         )
 
-        # Service for setting frames and starting alignment
         rospy.Service(
-            "align_frame/start",
-            AlignFrameController,
-            self.handle_align_request,
+            "align_frame/start", AlignFrameController, self.handle_align_request
         )
-
-        # Service for canceling control
         rospy.Service("cancel_control", Trigger, self.handle_cancel_request)
 
-    def killswitch_callback(self, msg):
+    def killswitch_callback(self, msg: Bool) -> None:
         if not msg.data:
             self.active = False
 
-    def handle_align_request(self, req):
-        # if not self.enable_handler.is_enabled():
-        #     message = "Control enable signal not active. Cannot start alignment."
-        #     rospy.logerr(message)
-        #     return AlignFrameControllerResponse(success=False, message=message)
-
-        trans, rot = self.get_transform(
-            req.source_frame, req.target_frame, req.angle_offset
-        )
-
-        # if trans is None or rot is None:
-        #     rospy.logerr("Failed to get transform. Cannot start alignment.")
-        #     return AlignFrameControllerResponse(
-        #         success=False, message="Failed to get transform"
-        #     )
-
+    def handle_align_request(
+        self, req: AlignFrameController
+    ) -> AlignFrameControllerResponse:
         self.source_frame = req.source_frame
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
@@ -80,96 +58,79 @@ class FrameAligner:
         )
         return AlignFrameControllerResponse(success=True, message="Alignment started")
 
-    def handle_cancel_request(self, req):
+    def handle_cancel_request(self, req) -> TriggerResponse:
         self.active = False
         rospy.loginfo("Control canceled")
+        # Publish a zero velocity command to clear old velocity commands
+        self.cmd_vel_pub.publish(Twist())
         return TriggerResponse(success=True, message="Control deactivated")
 
-    def get_transform(
-        self, source_frame, target_frame, angle_offset, time=rospy.Time(0)
-    ):
+    def get_error(
+        self,
+        source_frame: str,
+        target_frame: str,
+        angle_offset: float,
+        time: rospy.Time = rospy.Time(0),
+    ) -> Tuple[Optional[Tuple[float, float, float]], Optional[float]]:
         try:
-            # Get the current transform
             transform = self.tf_buffer.lookup_transform(
-                target_frame, source_frame, time, rospy.Duration(2.0)
+                source_frame, target_frame, time, rospy.Duration(2.0)
             )
-
-            trans = (
-                transform.transform.translation.x,
-                transform.transform.translation.y,
-                transform.transform.translation.z,
-            )
-            rot = (
-                transform.transform.rotation.x,
-                transform.transform.rotation.y,
-                transform.transform.rotation.z,
-                transform.transform.rotation.w,
-            )
-
-            return trans, rot
-
-            # Apply the angle offset to the rotation
-            roll, pitch, yaw = euler_from_quaternion(rot)
-            yaw -= angle_offset  # Adjust yaw with angle offset
-            yaw = angles.normalize_angle(yaw)
-            new_rot = quaternion_from_euler(roll, pitch, yaw)
-
-            return trans, new_rot
+            trans = transform.transform.translation
+            rot = transform.transform.rotation
+            trans_error = (trans.x, trans.y, trans.z)
+            _, _, yaw_error = euler_from_quaternion((rot.x, rot.y, rot.z, rot.w))
+            yaw_error = angles.normalize_angle(yaw_error + angle_offset)
+            return trans_error, yaw_error
         except (
             tf.LookupException,
             tf.ConnectivityException,
             tf.ExtrapolationException,
-        ):
-            rospy.logerr(
-                f"Cannot lookup transform from {source_frame} to {target_frame}"
-            )
+        ) as e:
+            rospy.logwarn(f"Transform lookup failed: {e}")
             return None, None
 
-    def constrain(self, value, max_value):
-        if value > max_value:
-            return max_value
-        if value < -max_value:
-            return -max_value
-        return value
+    @staticmethod
+    def constrain(value: float, limit: float) -> float:
+        return max(min(value, limit), -limit)
 
-    def compute_cmd_vel(self, trans, rot):
-        kp = 0.55
-        angle_kp = 0.45
-
+    def compute_cmd_vel(
+        self, trans_error: Tuple[float, float, float], yaw_error: float
+    ) -> Twist:
         twist = Twist()
-        # Set linear velocities based on translation differences
-        twist.linear.x = self.constrain(trans[0] * kp, self.max_linear_velocity)
-        twist.linear.y = self.constrain(trans[1] * kp, self.max_linear_velocity)
-        # twist.linear.z = self.constrain(trans[2] * kp, self.max_linear_velocity)
-        # Convert quaternion to Euler angles and set angular velocity
-        _, _, yaw = euler_from_quaternion(rot)
-        twist.angular.z = self.constrain(yaw * angle_kp, self.max_angular_velocity)
-
+        twist.linear.x = self.constrain(
+            trans_error[0] * self.linear_kp, self.max_linear_velocity
+        )
+        twist.linear.y = self.constrain(
+            trans_error[1] * self.linear_kp, self.max_linear_velocity
+        )
+        # twist.linear.z = self.constrain(trans_error[2] * self.linear_kp, self.max_linear_velocity)
+        twist.angular.z = self.constrain(
+            yaw_error * self.angular_kp, self.max_angular_velocity
+        )
         return twist
 
-    def run(self):
+    def step(self) -> None:
+        trans_error, yaw_error = self.get_error(
+            self.source_frame, self.target_frame, self.angle_offset
+        )
+        if trans_error is None or yaw_error is None:
+            return
+        self.enable_pub.publish(Bool(data=True))
+        cmd_vel = self.compute_cmd_vel(trans_error, yaw_error)
+        self.cmd_vel_pub.publish(cmd_vel)
+
+    def spin(self) -> None:
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
-
-            if not self.active:
-                rate.sleep()
-                continue
-
-            self.enable_pub.publish(Bool(data=True))
-
-            trans, rot = self.get_transform(
-                self.target_frame, self.source_frame, self.angle_offset
-            )
-            if trans is None or rot is None:
-                continue
-
-            twist = self.compute_cmd_vel(trans, rot)
-            self.cmd_vel_pub.publish(twist)
+            if self.active:
+                self.step()
             rate.sleep()
 
 
 if __name__ == "__main__":
     try:
-        FrameAligner().run()
+        node = AlignFrameControllerNode()
+        node.spin()
     except rospy.ROSInterruptException:
         pass
