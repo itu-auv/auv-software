@@ -68,6 +68,27 @@ class SlalomProcessorNode:
             "[SlalomProcessorNode] Received Pipes message with %d pipes",
             len(msg.pipes),
         )
+
+        # Get current robot pose in odom frame
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.odom_frame, self.base_link_frame, rospy.Time(0)
+            )
+            robot_pose = Pose()
+            robot_pose.position.x = transform.transform.translation.x
+            robot_pose.position.y = transform.transform.translation.y
+            robot_pose.position.z = transform.transform.translation.z
+            robot_pose.orientation = transform.transform.rotation
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(
+                5.0, f"[SlalomProcessorNode] Could not get robot pose: {e}"
+            )
+            return  # Cannot proceed without robot pose
+
         # 1. Filter pipes based on distance from robot base
         valid_pipes = filter_pipes_within_distance(
             pipes=msg.pipes,
@@ -120,6 +141,7 @@ class SlalomProcessorNode:
             compute_navigation_targets(
                 gate=g,
                 navigation_mode=self.navigation_mode,
+                robot_pose=robot_pose,  # Pass the robot's pose
             )
             for g in gates
             if g is not None
