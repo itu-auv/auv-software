@@ -9,8 +9,8 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
+    SearchForPropState,
 )
-from auv_smach.red_buoy import SetFrameLookingAtState
 
 from auv_smach.initialize import DelayState
 
@@ -91,39 +91,21 @@ class BinTaskState(smach.State):
                 "SET_BIN_DEPTH",
                 SetDepthState(depth=bin_task_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "SET_BIN_AIMER_FRAME",
+                    "succeeded": "FIND_AND_AIM_BIN",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_BIN_AIMER_FRAME",
-                SetFrameLookingAtState(
-                    base_frame="taluy/base_link",
+                "FIND_AND_AIM_BIN",
+                SearchForPropState(
                     look_at_frame="bin_whole_link",
-                    target_frame="bin_whole_travel_start",
-                ),
-                transitions={
-                    "succeeded": "ALIGN_BIN_AIMER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_BIN_AIMER",
-                SetAlignControllerTargetState(
+                    alignment_frame="bin_search",
+                    full_rotation=False,
+                    set_frame_duration=4.0,
                     source_frame="taluy/base_link",
-                    target_frame="bin_whole_travel_start",
+                    rotation_speed=0.3,
                 ),
-                transitions={
-                    "succeeded": "WAIT_FOR_ALIGNING_AIMER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_ALIGNING_AIMER",
-                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "PLAN_BIN_PATHS",
                     "preempted": "preempted",
