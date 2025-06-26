@@ -60,44 +60,39 @@ class PressureToOdom:
         self.base_to_pressure_translation = None
         rate = rospy.Rate(1.0)
 
-        while not rospy.is_shutdown() and self.base_to_pressure_translation is None:
-            try:
-                self.base_to_pressure_translation, _ = self.transformer.get_transform(
-                    "taluy/base_link", "taluy/base_link/external_pressure_sensor_link"
-                )
-            except Exception as e:
-                rospy.logwarn(f"Waiting for transform: {e}")
-                rate.sleep()
-
     def imu_callback(self, imu_msg):
         self.imu_data = imu_msg
 
     def get_base_to_pressure_height(self):
-        assert self.base_to_pressure_translation is not None
+        # Try to fetch and cache the TF once
+        if self.base_to_pressure_translation is None:
+            try:
+                trans, _ = self.transformer.get_transform(
+                    "taluy/base_link", "taluy/base_link/external_pressure_sensor_link"
+                )
+                arr = np.array(trans)
+                # flatten any nested structure to 1D [x, y, z]
+                self.base_to_pressure_translation = arr.flatten()
+            except Exception as e:
+                rospy.logwarn_throttle(
+                    10, f"Pressure TF not available: {e}; using zero offset."
+                )
+                return 0.0
 
+        # If no IMU data arrived yet, use the static Z offset
         if self.imu_data is None:
             rospy.logwarn_throttle(
                 10, "No IMU data received yet. Using default orientation."
             )
-            return self.base_to_pressure_translation[0, 2]
+            return float(self.base_to_pressure_translation[2])
 
+        # Compute rotated Z-offset based on current orientation
         orientation = self.imu_data.orientation
-        quaternion = [
-            orientation.x,
-            orientation.y,
-            orientation.z,
-            orientation.w,
-        ]
-
-        # Convert quaternion to 3x3 rotation matrix
-        rotation_matrix = tf.transformations.quaternion_matrix(quaternion)[:3, :3]
-
-        sensor_offset = np.array(self.base_to_pressure_translation[0])
-
-        # Rotate the translation vector using the rotation matrix
-        rotated_vector = rotation_matrix.dot(sensor_offset)
-
-        return rotated_vector[2]
+        quat = [orientation.x, orientation.y, orientation.z, orientation.w]
+        rotation_matrix = tf.transformations.quaternion_matrix(quat)[:3, :3]
+        # now a flat vector, dot works
+        rotated_vector = rotation_matrix.dot(self.base_to_pressure_translation)
+        return float(rotated_vector[2])
 
     def depth_callback(self, depth_msg):
         # Fill the odometry message with depth data as the z component of the linear position
