@@ -112,11 +112,6 @@ class ImuToOdom:
         # Add proper timestamp logging for debugging
         current_time = rospy.Time.now()
         time_diff = (current_time - imu_msg.header.stamp).to_sec()
-        rospy.loginfo_throttle(
-            5.0,
-            f"{TerminalColors.OKCYAN}IMU Processing:{TerminalColors.ENDC} "
-            f"Delay: {time_diff*1000:.1f}ms",
-        )
 
         # Correct angular velocity using the drift
         corrected_angular_velocity = Vector3(
