@@ -90,7 +90,6 @@ class PressureToOdom:
         orientation = self.imu_data.orientation
         quat = [orientation.x, orientation.y, orientation.z, orientation.w]
         rotation_matrix = tf.transformations.quaternion_matrix(quat)[:3, :3]
-        # now a flat vector, dot works
         rotated_vector = rotation_matrix.dot(self.base_to_pressure_translation)
         return float(rotated_vector[2])
 
