@@ -6,6 +6,7 @@
   <arg name="start_state_publisher" default="false" />
   <arg name="command_timeout" default="0.1" />
   <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
+  <arg name="start_visual_servoing" default="false" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch"
     if="$(arg start_state_publisher)">
@@ -67,6 +68,13 @@
       <param name="min_log_interval" value="1.0" />
       <param name="max_log_interval" value="120.0" />
     </node>
+
+    <group if="$(arg start_visual_servoing)">
+      <node pkg="auv_control" type="visual_servoing_controller.py" name="visual_servoing_controller"
+        output="screen">
+        <rosparam file="$(find auv_control)/config/visual_servoing_params.yaml" command="load" />
+      </node>
+    </group>
 
   </group>
 

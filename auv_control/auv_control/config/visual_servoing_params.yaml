@@ -1,0 +1,6 @@
+---
+visual_servoing_controller:
+  u_desired: 320.0  # Center of a 640x480 image
+  v_desired: 240.0  # Center of a 640x480 image
+  lambda: 0.2       # Proportional control gain
+  camera_info_topic: "/taluy/cameras/cam_front/camera_info"
