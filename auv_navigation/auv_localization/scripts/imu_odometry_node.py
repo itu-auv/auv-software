@@ -108,7 +108,6 @@ class ImuToOdom:
 
         self.odom_msg.header.stamp = imu_msg.header.stamp
 
-        #! Remove these
         # Add proper timestamp logging for debugging
         current_time = rospy.Time.now()
         time_diff = (current_time - imu_msg.header.stamp).to_sec()
