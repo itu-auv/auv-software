@@ -288,6 +288,48 @@ class NavigateToFrameState(smach.State):
             return "aborted"
 
 
+class CheckForTransformState(smach.State):
+    """
+    Waits for a specific TF transform to become available within a given timeout.
+
+    Outcomes:
+        - succeeded: The transform was found within the timeout.
+        - preempted: The state was preempted.
+        - aborted: The transform was not found within the timeout.
+    """
+
+    def __init__(
+        self, target_frame: str, source_frame: str = "odom", timeout: float = 10.0
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.target_frame = target_frame
+        self.source_frame = source_frame
+        self.timeout = rospy.Duration(timeout)
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+    def execute(self, userdata) -> str:
+        start_time = rospy.Time.now()
+        rate = rospy.Rate(10)
+
+        while (rospy.Time.now() - start_time) < self.timeout:
+            if self.preempt_requested():
+                return "preempted"
+            if self.tf_buffer.can_transform(
+                self.source_frame, self.target_frame, rospy.Time(0), self.timeout
+            ):
+                rospy.loginfo(
+                    f"[WaitForTransformState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
+                )
+                return "succeeded"
+            rate.sleep()
+
+        rospy.logwarn(
+            f"[WaitForTransformState] Timeout: Transform from '{self.source_frame}' to '{self.target_frame}' not found after {self.timeout.to_sec()} seconds."
+        )
+        return "aborted"
+
+
 class ClearObjectMapState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(

@@ -9,6 +9,7 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
+    CheckForTransformState,
 )
 from auv_smach.red_buoy import SetFrameLookingAtState
 
@@ -163,9 +164,20 @@ class BinTaskState(smach.State):
                 "EXECUTE_BIN_PATH",
                 ExecutePlannedPathsState(),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_DROP_AREA",
+                    "succeeded": "CHECK_DROP_AREA_FOUND",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+            smach.StateMachine.add(
+                "CHECK_DROP_AREA_FOUND",
+                CheckForTransformState(
+                    target_frame="bin/blue_link", source_frame="odom", timeout=5.0
+                ),
+                transitions={
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_DROP_AREA",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
