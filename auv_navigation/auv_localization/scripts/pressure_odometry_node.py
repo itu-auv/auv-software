@@ -73,7 +73,11 @@ class PressureToOdom:
                 arr = np.array(trans)
                 # flatten any nested structure to 1D [x, y, z]
                 self.base_to_pressure_translation = arr.flatten()
-            except Exception as e:
+            except (
+                tf.LookupException,
+                tf.ConnectivityException,
+                tf.ExtrapolationException,
+            ) as e:
                 rospy.logwarn_throttle(
                     10, f"Pressure TF not available: {e}; using zero offset."
                 )
