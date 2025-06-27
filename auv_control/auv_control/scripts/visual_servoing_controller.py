@@ -19,12 +19,13 @@ class VisualServoingController:
 
         # Load parameters
         self.u_desired = rospy.get_param("~u_desired", 320.0)
-        self.v_desired = rospy.get_param("~v_desired", 240.0)
+        self.alignment_threshold_u = rospy.get_param("~alignment_threshold_u", 15.0)
+        self.v_x_desired = rospy.get_param("~v_x_desired", 0.4)
         camera_info_topic = rospy.get_param(
             "~camera_info_topic", "/taluy/cameras/cam_front/camera_info"
         )
-        self.kp_gain = 1.0
-        self.kd_gain = 0.2
+        self.kp_gain = rospy.get_param("~kp_gain", 1.0)
+        self.kd_gain = rospy.get_param("~kd_gain", 0.2)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
 
         # Camera intrinsics (will be updated by the callback)
@@ -63,8 +64,10 @@ class VisualServoingController:
         self.srv = Server(VisualServoingConfig, self.reconfigure_callback)
 
     def reconfigure_callback(self, config, level):
-        self.kp_gain = config.kp_gain
-        self.kd_gain = config.kd_gain
+        if "kp_gain" in config:
+            self.kp_gain = config.kp_gain
+        if "kd_gain" in config:
+            self.kd_gain = config.kd_gain
         rospy.loginfo(f"Updated gains: Kp={self.kp_gain}, kd={self.kd_gain}")
         return config
 
@@ -126,7 +129,7 @@ class VisualServoingController:
             )
             return
 
-        error = np.array([[u - self.u_desired], [v - self.v_desired]])
+        error = np.array([[u - self.u_desired]])
 
         current_time = rospy.Time.now()
 
@@ -157,17 +160,7 @@ class VisualServoingController:
             y_norm * self.fx,
         ]
 
-        # Row for v_dot
-        L_v = [
-            0,
-            -self.fy / Z,
-            y_norm * self.fy / Z,
-            (1 + y_norm**2) * self.fy,
-            -x_norm * y_norm * self.fy,
-            -x_norm * self.fy,
-        ]
-
-        L = np.array([L_u, L_v])
+        L = np.array([L_u])
 
         # PD control law
         pd_signal = self.kp_gain * error + self.kd_gain * error_dot
@@ -180,18 +173,13 @@ class VisualServoingController:
 
         twist = Twist()
         # Linear Velocities
-        # Robot X (forward) = Camera Z (forward)
-        # twist.linear.x = v_cam[2, 0]
+        if abs(error[0, 0]) < self.alignment_threshold_u:
+            twist.linear.x = self.v_x_desired
+        else:
+            twist.linear.x = 0.0
         # Robot Y (left) = -Camera X (right)
         twist.linear.y = round(-v_cam[0, 0], 2)
-        # Robot Z (up) = -Camera Y (down)
-        # twist.linear.z = -v_cam[1, 0]
-
-        # Angular Velocities
-        # Robot Roll (around X) = Camera Yaw (around Z)
-        # twist.angular.x = v_cam[5, 0]
-        # Robot Pitch (around Y) = -Camera Roll (around X)
-        # twist.angular.y = -v_cam[3, 0]
+        twist.linear.z = 0.0
         # Robot Yaw (around Z) = -Camera Pitch (around Y)
         twist.angular.z = round(-v_cam[4, 0], 2)
         self.cmd_vel_pub.publish(twist)
