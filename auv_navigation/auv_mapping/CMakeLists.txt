@@ -90,7 +90,7 @@ add_executable(process_tracker_with_cloud
   src/process_tracker_with_cloud.cpp
 )
 
-add_executable(realsense_filter_node 
+add_executable(realsense_filter_node
   src/realsense_filter.cpp
 )
 
@@ -106,7 +106,7 @@ target_link_libraries(process_tracker_with_cloud
   ${OpenCV_LIBRARIES}
 )
 
-target_link_libraries(realsense_filter_node 
+target_link_libraries(realsense_filter_node
   ${catkin_LIBRARIES}
 )
 
