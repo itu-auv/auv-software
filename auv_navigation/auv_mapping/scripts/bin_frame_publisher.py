@@ -30,8 +30,9 @@ class BinTransformServiceNode:
         self.bin_further_frame = "bin_far_trial"
         self.bin_closer_frame = "bin_close_trial"
 
-        self.further_distance = rospy.get_param("~further_distance", 2.0)
+        self.further_distance = rospy.get_param("~further_distance", 2.5)
         self.closer_distance = rospy.get_param("~closer_distance", 1.0)
+        self.second_trial_distance = rospy.get_param("~second_trial_distance", 2.0)
 
         self.set_enable_service = rospy.Service(
             "set_transform_bin_frames", SetBool, self.handle_enable_service
@@ -138,6 +139,33 @@ class BinTransformServiceNode:
 
         self.send_transform(further_transform)
         self.send_transform(closer_transform)
+
+        # Calculate position for bin_second_trial frame
+        perp_direction_unit_2d = np.array([-direction_unit_2d[1], direction_unit_2d[0]])
+
+        second_trial_pos_2d = bin_pos[:2] - (
+            perp_direction_unit_2d * self.second_trial_distance
+        )
+        second_trial_pos = np.append(second_trial_pos_2d, bin_pos[2])
+
+        second_trial_yaw = yaw + np.pi / 2.0
+        second_trial_q = tf.transformations.quaternion_from_euler(
+            0, 0, second_trial_yaw
+        )
+
+        second_trial_pose = Pose()
+        (
+            second_trial_pose.position.x,
+            second_trial_pose.position.y,
+            second_trial_pose.position.z,
+        ) = second_trial_pos
+        second_trial_pose.orientation.x = second_trial_q[0]
+        second_trial_pose.orientation.y = second_trial_q[1]
+        second_trial_pose.orientation.z = second_trial_q[2]
+        second_trial_pose.orientation.w = second_trial_q[3]
+        self.send_transform(
+            self.build_transform_message("bin_second_trial", second_trial_pose)
+        )
 
     def handle_enable_service(self, req):
         self.enable = req.data

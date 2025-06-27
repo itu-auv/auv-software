@@ -304,46 +304,6 @@ class NavigateToFrameState(smach.State):
             return "aborted"
 
 
-class CheckForTransformState(smach.State):
-    """
-    Waits for a specific TF transform to become available within a given timeout.
-
-    Outcomes:
-        - succeeded: The transform was found within the timeout.
-        - preempted: The state was preempted.
-        - aborted: The transform was not found within the timeout.
-    """
-
-    def __init__(
-        self, target_frame: str, source_frame: str = "odom", timeout: float = 10.0
-    ):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.target_frame = target_frame
-        self.source_frame = source_frame
-        self.timeout = rospy.Duration(timeout)
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-
-    def execute(self, userdata) -> str:
-        start_time = rospy.Time.now()
-        rate = rospy.Rate(10)
-
-        while (rospy.Time.now() - start_time) < self.timeout:
-            if self.preempt_requested():
-                return "preempted"
-            if self.tf_buffer.can_transform(
-                self.source_frame, self.target_frame, rospy.Time(0), self.timeout
-            ):
-                rospy.loginfo(
-                    f"[WaitForTransformState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
-                )
-                return "succeeded"
-            rate.sleep()
-
-        rospy.logwarn(
-            f"[WaitForTransformState] Timeout: Transform from '{self.source_frame}' to '{self.target_frame}' not found after {self.timeout.to_sec()} seconds."
-        )
-        return "aborted"
 class RotationState(smach.State):
     def __init__(
         self,
@@ -729,3 +689,52 @@ class SearchForPropState(smach.StateMachine):
                     "aborted": "aborted",
                 },
             )
+
+
+class PlanPathToSingleFrameState(smach.State):
+    def __init__(
+        self, tf_buffer, target_frame: str, source_frame: str = "taluy/base_link"
+    ):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["planned_paths"],
+        )
+        self.tf_buffer = tf_buffer
+        self.target_frame = target_frame
+        self.source_frame = source_frame
+
+    def execute(self, userdata) -> str:
+        try:
+            if self.preempt_requested():
+                rospy.logwarn(
+                    f"[PlanPathToSingleFrameState] Preempt requested for path to {self.target_frame}"
+                )
+                return "preempted"
+
+            from auv_navigation.path_planning.path_planners import PathPlanners
+
+            path_planners = PathPlanners(self.tf_buffer)
+            path = path_planners.straight_path_to_frame(
+                source_frame=self.source_frame,
+                target_frame=self.target_frame,
+                num_waypoints=50,
+            )
+
+            if path is None:
+                rospy.logerr(
+                    f"[PlanPathToSingleFrameState] Failed to plan path to {self.target_frame}"
+                )
+                return "aborted"
+
+            userdata.planned_paths = [path]  #
+            rospy.loginfo(
+                f"[PlanPathToSingleFrameState] Successfully planned path to {self.target_frame}"
+            )
+            return "succeeded"
+
+        except Exception as e:
+            rospy.logerr(
+                f"[PlanPathToSingleFrameState] Error planning path to {self.target_frame}: {e}"
+            )
+            return "aborted"
