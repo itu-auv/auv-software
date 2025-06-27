@@ -33,7 +33,7 @@ class NavigateThroughGateStateIVS(smach.State):
             )
             smach.StateMachine.add(
                 "VISUAL_SERVOING",
-                VisualServoingState(target_prop=target_prop),
+                VisualServoingState(target_prop="gate_blue_arrow"),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
