@@ -32,7 +32,7 @@ class BinTransformServiceNode:
 
         self.further_distance = rospy.get_param("~further_distance", 2.5)
         self.closer_distance = rospy.get_param("~closer_distance", 1.0)
-        self.second_trial_distance = rospy.get_param("~second_trial_distance", 2.0)
+        self.second_trial_distance = rospy.get_param("~second_trial_distance", 2.5)
 
         self.set_enable_service = rospy.Service(
             "set_transform_bin_frames", SetBool, self.handle_enable_service

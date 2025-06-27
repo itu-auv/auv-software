@@ -102,6 +102,15 @@ class BinSecondTrialAttemptState(smach.StateMachine):
                 "ENABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
                 BinTransformServiceEnableState(req=True),
                 transitions={
+                    "succeeded": "CANCEL_ALIGN_FOR_SEARCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_FOR_SEARCH",
+                CancelAlignControllerState(),
+                transitions={
                     "succeeded": "FIND_AND_AIM_BIN_SECOND_TRIAL",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -135,6 +144,17 @@ class BinSecondTrialAttemptState(smach.StateMachine):
             smach.StateMachine.add(
                 "DISABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
                 BinTransformServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_SECOND_TRIAL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_CONTROLLER_TARGET_SECOND_TRIAL",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame="dynamic_target"
+                ),
                 transitions={
                     "succeeded": "EXECUTE_BIN_PATH_SECOND_TRIAL",
                     "preempted": "preempted",
