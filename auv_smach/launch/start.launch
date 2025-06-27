@@ -49,6 +49,9 @@
             <remap from="align_frame/cancel" to="control/align_frame/cancel"/>
             <remap from="align_frame/start" to="control/align_frame/start"/>
             <remap from="enable" to="enable"/>
+            <remap from="propulsion_board/status" to="propulsion_board/status"/>
+            <remap from="odometry" to="odometry"/>
+            <remap from="cmd_vel" to="cmd_vel"/>
             <param name="enable_rate" value="$(arg enable_rate)"/>
 
             <!-- gate.py -->
