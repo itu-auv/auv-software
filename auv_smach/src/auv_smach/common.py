@@ -370,7 +370,7 @@ class RotationState(smach.State):
                 self.source_frame,
                 self.look_at_frame,
                 rospy.Time(0),
-                rospy.Duration(0.0),
+                rospy.Duration(0.05),
             )
         except (
             tf2_ros.LookupException,
