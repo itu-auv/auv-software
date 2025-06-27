@@ -12,10 +12,13 @@
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/buffer.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <visualization_msgs/MarkerArray.h>
 #include <vision_msgs/Detection3DArray.h>
 #include <ultralytics_ros/YoloResult.h>  // vision_msgs/Detection2DArray yerine
+#include <tf2_ros/transform_listener.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 
 // PCL Kütüphaneleri
 #include <pcl/point_cloud.h>
@@ -43,9 +46,6 @@ private:
   
   // Yayıncılar
   ros::Publisher detection_cloud_pub_;
-  ros::Publisher detection3d_pub_;
-  ros::Publisher object_marker_pub_;
-  ros::Publisher plane_marker_pub_;
   ros::Publisher object_transform_pub_;
   
   // Abonelikler ve senkronizasyon
@@ -60,6 +60,10 @@ private:
   
   // TF
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+  tf2_ros::Buffer tf_buffer_;
+  std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
+  std::string camera_optical_frame_;
+  std::string base_link_frame_;
   
   // Kamera modeli
   image_geometry::PinholeCameraModel cam_model_;
@@ -86,7 +90,9 @@ private:
   };
 
 public:
-  ProcessTrackerWithCloud() : pnh_("~") {
+  ProcessTrackerWithCloud() : pnh_("~"),
+      tf_buffer_(ros::Duration(10.0)),
+      tf_listener_(std::make_unique<tf2_ros::TransformListener>(tf_buffer_)) {
     // Parametreleri yükle
     pnh_.param<std::string>("camera_info_topic", camera_info_topic_, "camera_info");
     pnh_.param<std::string>("lidar_topic", lidar_topic_, "points_raw");
@@ -112,9 +118,6 @@ public:
     
     // Yayıncıları başlat
     detection_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("detection_cloud", 1);
-    detection3d_pub_ = nh_.advertise<vision_msgs::Detection3DArray>(yolo_3d_result_topic_, 1);
-    object_marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("object_markers", 1);
-    plane_marker_pub_ = nh_.advertise<visualization_msgs::MarkerArray>("plane_markers", 1);
     object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>("/taluy/map/object_transform_updates", 10);
     
     // Abonelikleri başlat
@@ -128,6 +131,8 @@ public:
     
     // TF broadcaster oluştur
     tf_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
+    camera_optical_frame_ = "taluy/camera_depth_optical_frame";
+    base_link_frame_ = "taluy/base_link";
   }
   
   // Senkronize mesajlar için callback fonksiyonu
@@ -145,7 +150,6 @@ public:
     
     // YOLO tespiti yoksa işlem yapma
     if (yolo_result_msg->detections.detections.empty()) {
-      ROS_INFO("FOUND NO DETECTION");
       return;
     }
     
@@ -155,7 +159,6 @@ public:
     
     // Nokta bulutu boşsa işlem yapma
     if (cloud->points.empty()) {
-      ROS_INFO("CLOUD EMPTY");
       return;
     }
     
@@ -241,9 +244,15 @@ public:
                 id_to_prop_name[detection_id].c_str() : "unknown"), 
                clusters.size());
       
-      // Her bir küme için ayrı işlem yap
+      // En yakın cluster'ı bulmak için değişkenler
+      size_t closest_cluster_idx = 0;
+      float min_squared_distance = std::numeric_limits<float>::max();
+      std::vector<Eigen::Vector4f> centroids(clusters.size());
+      std::vector<Eigen::Matrix3f> rotation_matrices(clusters.size());
+      std::vector<bool> success_flags(clusters.size(), false);
+      
+      // Her bir küme için önce planeSegmentation ve PCA işlemini yap, merkezleri hesapla
       for (size_t cluster_idx = 0; cluster_idx < clusters.size(); cluster_idx++) {
-        // Kümeyi al
         pcl::PointCloud<pcl::PointXYZ>::Ptr& cluster_cloud = clusters[cluster_idx];
         
         // Küme boşsa atla
@@ -251,26 +260,49 @@ public:
           continue;
         }
         
-        // Bu küme için özgün bir frame_id oluştur
-        std::string frame_id = base_frame_id + "_" + std::to_string(cluster_idx);
-        
         // Düzlem segmentasyonu ve yüzey dönüşümü (PCA) uygula
-        Eigen::Vector4f centroid;
-        Eigen::Matrix3f rotation_matrix;
-        bool success = planeSegmentationAndPCA(cluster_cloud, centroid, rotation_matrix);
+        success_flags[cluster_idx] = planeSegmentationAndPCA(
+            cluster_cloud, centroids[cluster_idx], rotation_matrices[cluster_idx], tf_buffer_, camera_optical_frame_, base_link_frame_);
         
-        if (success) {
-          // 3D tespit mesajı ve marker oluştur
-          createAndPublishDetection(detections3d_msg, object_markers, plane_markers, 
-                                   cluster_cloud, centroid, rotation_matrix, 
-                                   detection.results, cloud_msg->header, callback_interval.toSec(), frame_id);
-          processed_detection_count++;
-        } else {
+        // En yakın kümeyi bul (centroid norm karesi en küçük olan)
+        if (success_flags[cluster_idx]) {
+          float squared_distance = centroids[cluster_idx][0] * centroids[cluster_idx][0] +
+                                 centroids[cluster_idx][1] * centroids[cluster_idx][1] +
+                                 centroids[cluster_idx][2] * centroids[cluster_idx][2];
+                                 
+          if (squared_distance < min_squared_distance) {
+            min_squared_distance = squared_distance;
+            closest_cluster_idx = cluster_idx;
+          }
+        }
+      }
+      
+      ROS_INFO("Closest cluster index: %zu with squared distance: %f", 
+               closest_cluster_idx, min_squared_distance);
+      
+      // Şimdi tüm kümeleri işle ve tespit oluştur
+      for (size_t cluster_idx = 0; cluster_idx < clusters.size(); cluster_idx++) {
+        // Küme boşsa veya PCA başarısız olduysa atla
+        if (!success_flags[cluster_idx]) {
           continue;
         }
         
+        // Bu küme için özgün bir frame_id oluştur
+        // En yakın cluster ise index eklemeden kullan, diğerlerinde index ekle
+        std::string frame_id;
+        if (cluster_idx == closest_cluster_idx) {
+          frame_id = base_frame_id + "clossest"  ; 
+          frame_id = base_frame_id + "_" + std::to_string(cluster_idx);
+        }
+        
+        // 3D tespit mesajı ve marker oluştur (hesaplanmış centroid ve rotation matrix kullanılır)
+        createAndPublishDetection(detections3d_msg, object_markers, plane_markers, 
+                                 clusters[cluster_idx], centroids[cluster_idx], rotation_matrices[cluster_idx], 
+                                 detection.results, cloud_msg->header, callback_interval.toSec(), frame_id);
+        processed_detection_count++;
+        
         // Tespit noktalarını birleştir
-        combined_detection_cloud += *cluster_cloud;
+        combined_detection_cloud += *(clusters[cluster_idx]);
       }
     }
     
@@ -284,10 +316,7 @@ public:
     detection_cloud_msg.header = cloud_msg->header;
     
     // İşlenmiş verileri yayınla
-    detection3d_pub_.publish(detections3d_msg);
     detection_cloud_pub_.publish(detection_cloud_msg);
-    object_marker_pub_.publish(object_markers);
-    plane_marker_pub_.publish(plane_markers);
   }
   
   // 2D bounding box kullanarak nokta bulutu işleme
@@ -404,91 +433,93 @@ public:
     return clusters;
   }
   
-  // Düzlem segmentasyonu ve PCA
-  bool planeSegmentationAndPCA(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-                              Eigen::Vector4f& centroid,
-                              Eigen::Matrix3f& rotation_matrix) {
-    if (cloud->points.empty()) {
-      return false;
-    }
-    
-    // Centroid hesapla
-    pcl::compute3DCentroid(*cloud, centroid);
-    
-    // Nokta sayısı çok azsa basit bir matris oluştur (birim matris - rotasyon yok)
-    if (cloud->points.size() < 10) {
-      rotation_matrix = Eigen::Matrix3f::Identity();
-      return true;
-    }
-    
-    // PCA analizi yap
-    pcl::PCA<pcl::PointXYZ> pca;
-    pca.setInputCloud(cloud);
-    
-    // Eigenvalue ve eigenvector'leri al
-    Eigen::Matrix3f eigen_vectors = pca.getEigenVectors();
-    Eigen::Vector3f eigen_values = pca.getEigenValues();
-    
-    // Düzlem segmentasyonu (RANSAC kullanarak)
-    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-    pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-    
-    pcl::SACSegmentation<pcl::PointXYZ> seg;
-    seg.setOptimizeCoefficients(true);
-    seg.setModelType(pcl::SACMODEL_PLANE);
-    seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setDistanceThreshold(0.01); // 1cm tolerans
-    seg.setInputCloud(cloud);
-    seg.segment(*inliers, *coefficients);
-    
-    if (inliers->indices.size() < 5) {
-      ROS_INFO("Plane segmentation failed, using PCA directly");
-      // PCA sonuçlarını doğrudan kullan (düzlemsellik garanti değil)
-      rotation_matrix = eigen_vectors;
-      return true;
-    }
-    
-    // Düzlem normalini al
-    Eigen::Vector3f plane_normal(coefficients->values[0], 
-                                coefficients->values[1], 
-                                coefficients->values[2]);
-    plane_normal.normalize();
-    
-    // Y eksenini düzlem normaline hizala
-    Eigen::Vector3f y_axis = plane_normal;
-    
-    // Normalin pozitif Y yönünde olması için
-    if (y_axis(1) < 0) {
-      y_axis = -y_axis;
-    }
-    
-    // X ve Z eksenlerini oluştur
-    Eigen::Vector3f x_axis, z_axis;
-    
-    // Y'ye dik bir eksen bul (Z olacak)
-    if (fabs(y_axis(2)) < fabs(y_axis(0)) && fabs(y_axis(2)) > fabs(y_axis(1))) {
-      z_axis = Eigen::Vector3f(0, 0, 1).cross(y_axis);
-    } else {
-      z_axis = Eigen::Vector3f(1, 0, 0).cross(y_axis);
-    }
-    z_axis.normalize();
-    
-    // Z ekseninin pozitif Z yönünde olması için
-    if (z_axis(2) > 0) {
-      z_axis = -z_axis;
-    }
-    
-    // X ekseni Y ve Z'ye dik olmalı (sağ el kuralına göre yeniden hesapla)
-    x_axis = y_axis.cross(z_axis);
-    x_axis.normalize();
-    
-    // Rotasyon matrisini oluştur
-    rotation_matrix.col(0) = x_axis;
-    rotation_matrix.col(1) = y_axis;
-    rotation_matrix.col(2) = z_axis;
-    
+// -----------------------------------------------------------------------------
+//  Düzlem segmentasyonu + PCA
+// -----------------------------------------------------------------------------
+bool planeSegmentationAndPCA(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+                             Eigen::Vector4f&               centroid,
+                             Eigen::Matrix3f&               rotation_matrix,
+                             const tf2_ros::Buffer&         tf_buffer,
+                             const std::string&             camera_optical_frame_,
+                             const std::string&             base_link_frame_)
+{
+  /* ------------------------------------------------------------------------ */
+  /* 0) ÖN KONTROLLER                                                         */
+  /* ------------------------------------------------------------------------ */
+  if (cloud->empty())
+    return false;
+
+  /* ------------------------------------------------------------------------ */
+  /* 1) CENTROID                                                              */
+  /* ------------------------------------------------------------------------ */
+  pcl::compute3DCentroid(*cloud, centroid);
+
+  if (cloud->size() < 10) {                 // nokta az → kimlik yok
+    rotation_matrix.setIdentity();
     return true;
   }
+
+  /* ------------------------------------------------------------------------ */
+  /* 2) PCA (yedek)                                                           */
+  /* ------------------------------------------------------------------------ */
+  pcl::PCA<pcl::PointXYZ> pca;
+  pca.setInputCloud(cloud);
+  const Eigen::Matrix3f pca_eig = pca.getEigenVectors();
+
+  /* ------------------------------------------------------------------------ */
+  /* 3) RANSAC ile düzlem                                                     */
+  /* ------------------------------------------------------------------------ */
+  pcl::ModelCoefficients::Ptr coeff(new pcl::ModelCoefficients);
+  pcl::PointIndices::Ptr      inliers(new pcl::PointIndices);
+
+  pcl::SACSegmentation<pcl::PointXYZ> seg;
+  seg.setOptimizeCoefficients(true);
+  seg.setModelType(pcl::SACMODEL_PLANE);
+  seg.setMethodType(pcl::SAC_RANSAC);
+  seg.setDistanceThreshold(0.01);           // 1 cm
+  seg.setInputCloud(cloud);
+  seg.segment(*inliers, *coeff);
+
+  if (inliers->indices.size() < 5) {        // başarısız → PCA
+    rotation_matrix = pca_eig;
+    return true;
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* 4) Kameradan bakacak Y‐ekseni (düzlem normali)                           */
+  Eigen::Vector3f n(coeff->values[0], coeff->values[1], coeff->values[2]);
+  n.normalize();
+
+  Eigen::Vector3f c_vec(centroid[0], centroid[1], centroid[2]);
+  const Eigen::Vector3f y_axis = (-n.dot(c_vec) < n.dot(c_vec)) ? -n : n;
+
+  /* ------------------------------------------------------------------------ */
+  /* 5) İlk kaba Z‐ekseni seçimi (y’ye dik)                                   */
+  Eigen::Vector3f z_axis, ref = (std::abs(y_axis.x()) < 0.9f) ? Eigen::Vector3f::UnitX()
+                                                                 : Eigen::Vector3f::UnitY();
+  z_axis = ref.cross(y_axis).normalized();
+  Eigen::Vector3f x_axis = y_axis.cross(z_axis).normalized();
+
+  try {
+    geometry_msgs::TransformStamped tf_msg = tf_buffer.lookupTransform(
+        camera_optical_frame_, base_link_frame_, ros::Time(0), ros::Duration(0.05));
+    tf2::Quaternion q(tf_msg.transform.rotation.x,
+                      tf_msg.transform.rotation.y,
+                      tf_msg.transform.rotation.z,
+                      tf_msg.transform.rotation.w);
+    tf2::Matrix3x3 m(q);
+    Eigen::Vector3f base_z_cam(m[0][2], m[1][2], m[2][2]); base_z_cam.normalize();
+    if (z_axis.dot(base_z_cam) < 0.0f) { z_axis = -z_axis; x_axis = -x_axis; }
+  } catch (const tf2::TransformException& ex) {
+    ROS_WARN_STREAM_THROTTLE(5.0, "TF lookup failed: " << ex.what());
+  }
+
+  rotation_matrix.col(0) = x_axis;
+  rotation_matrix.col(1) = y_axis;
+  rotation_matrix.col(2) = z_axis;
+  if (rotation_matrix.determinant() < 0.0f) rotation_matrix.col(2) *= -1.0f;
+  return true;
+}
   
   // 3D tespit mesajı ve marker oluştur
   void createAndPublishDetection(vision_msgs::Detection3DArray& detections3d_msg,
@@ -504,58 +535,12 @@ public:
     if (cloud->points.empty()) {
       return;
     }
-    
-    // 3D Bounding Box oluştur
-    vision_msgs::Detection3D detection3d;
-    detection3d.header = header;
-    
-    // Min ve max noktalar hesapla
-    pcl::PointXYZ min_pt, max_pt;
-    if (!cloud->points.empty()) {
-      pcl::getMinMax3D(*cloud, min_pt, max_pt);
-    } else {
-      min_pt = max_pt = pcl::PointXYZ(0, 0, 0);
-    }
-    
-    // Merkez noktayı ayarla
-    detection3d.bbox.center.position.x = centroid[0];
-    detection3d.bbox.center.position.y = centroid[1];
-    detection3d.bbox.center.position.z = centroid[2];
-    
-    // Rotasyon matrisinden quaternion'a dönüştür
     Eigen::Matrix3f rot = rotation_matrix; // Kopya oluştur
     Eigen::Quaternionf q(rot);
-    
-    // Quaternion değerlerini ata
-    detection3d.bbox.center.orientation.x = q.x();
-    detection3d.bbox.center.orientation.y = q.y();
-    detection3d.bbox.center.orientation.z = q.z();
-    detection3d.bbox.center.orientation.w = q.w();
-    
-    // Boyutları ayarla (min/max farkları)
-    float x_size = max_pt.x - min_pt.x;
-    float y_size = max_pt.y - min_pt.y;
-    float z_size = max_pt.z - min_pt.z;
-    
-    // Minimum boyut kontrolü
-    const float min_size = 0.05; // 5cm
-    detection3d.bbox.size.x = std::max(x_size, min_size);
-    detection3d.bbox.size.y = std::max(y_size, min_size);
-    detection3d.bbox.size.z = std::max(z_size, min_size);
-    
-    // Tespit sonuçları ata
-    detection3d.results = results;
-    
-    // Tespit mesajı dizisine ekle
-    detections3d_msg.detections.push_back(detection3d);
-    
-    // Obje için TF yayınla
-    publishTransform(header, centroid, q, frame_id);
-    
     // TransformStamped mesajını oluştur ve object_transform_updates topic'ine yayınla
     geometry_msgs::TransformStamped transform_msg;
     transform_msg.header.stamp = header.stamp;
-    transform_msg.header.frame_id = "taluy/camera_depth_optical_frame"; // Point cloud'un frame'i
+    transform_msg.header.frame_id = camera_optical_frame_; // Point cloud'un frame'i
     transform_msg.child_frame_id = frame_id; // Cluster/nesne ID'si
     
     // Pozisyon bilgisini ayarla - hesaplandığı gibi kullan
@@ -571,97 +556,7 @@ public:
     
     // TransformStamped mesajını yayınla
     object_transform_pub_.publish(transform_msg);
-    
-    // Obje Marker'ı oluştur
-    visualization_msgs::Marker object_marker;
-    object_marker.header = header;
-    object_marker.ns = "objects";
-    object_marker.id = detections3d_msg.detections.size() - 1;
-    object_marker.type = visualization_msgs::Marker::CUBE;
-    object_marker.action = visualization_msgs::Marker::ADD;
-    
-    // Marker pozisyonu
-    object_marker.pose.position.x = centroid[0];
-    object_marker.pose.position.y = centroid[1];
-    object_marker.pose.position.z = centroid[2];
-    
-    // Marker yönelimi
-    object_marker.pose.orientation.x = q.x();
-    object_marker.pose.orientation.y = q.y();
-    object_marker.pose.orientation.z = q.z();
-    object_marker.pose.orientation.w = q.w();
-    
-    // Marker boyutu
-    object_marker.scale.x = detection3d.bbox.size.x;
-    object_marker.scale.y = detection3d.bbox.size.y;
-    object_marker.scale.z = detection3d.bbox.size.z;
-    
-    // Marker rengi (yarı saydam yeşil)
-    object_marker.color.r = 0.0;
-    object_marker.color.g = 1.0;
-    object_marker.color.b = 0.0;
-    object_marker.color.a = 0.5;
-    
-    // Marker ömrü
-    object_marker.lifetime = ros::Duration(duration);
-    
-    // Marker dizisine ekle
-    object_markers.markers.push_back(object_marker);
-    
-    // Düzlem marker'ı oluştur
-    visualization_msgs::Marker plane_marker;
-    plane_marker.header = header;
-    plane_marker.ns = "planes";
-    plane_marker.id = detections3d_msg.detections.size() - 1;
-    plane_marker.type = visualization_msgs::Marker::CUBE;
-    plane_marker.action = visualization_msgs::Marker::ADD;
-    
-    // Plane marker pozisyonu (aynı)
-    plane_marker.pose.position = object_marker.pose.position;
-    plane_marker.pose.orientation = object_marker.pose.orientation;
-    
-    // Plane marker boyutu (z ekseninde daha ince)
-    plane_marker.scale.x = detection3d.bbox.size.x;
-    plane_marker.scale.y = detection3d.bbox.size.y;
-    plane_marker.scale.z = 0.01; // 1cm kalınlık
-    
-    // Plane marker rengi (yarı saydam mavi)
-    plane_marker.color.r = 0.0;
-    plane_marker.color.g = 0.0;
-    plane_marker.color.b = 1.0;
-    plane_marker.color.a = 0.5;
-    
-    // Plane marker ömrü
-    plane_marker.lifetime = ros::Duration(duration);
-    
-    // Plane marker dizisine ekle
-    plane_markers.markers.push_back(plane_marker);
   }
-  
-  // Transform yayınla
-  void publishTransform(const std_msgs::Header& header,
-                      const Eigen::Vector4f& centroid,
-                      const Eigen::Quaternionf& rotation,
-                      const std::string& child_frame) {
-    geometry_msgs::TransformStamped transform;
-    transform.header = header;
-    transform.child_frame_id = child_frame;
-    
-    // Çeviri (translation)
-    transform.transform.translation.x = centroid[0];
-    transform.transform.translation.y = centroid[1];
-    transform.transform.translation.z = centroid[2];
-    
-    // Döndürme (rotation)
-    transform.transform.rotation.x = rotation.x();
-    transform.transform.rotation.y = rotation.y();
-    transform.transform.rotation.z = rotation.z();
-    transform.transform.rotation.w = rotation.w();
-    
-    // Transform yayınla
-    tf_broadcaster_->sendTransform(transform);
-  }
-
   // Nokta bulutunu downsample et
   pcl::PointCloud<pcl::PointXYZ>::Ptr
   downsampleCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
