@@ -66,21 +66,66 @@ class BinSecondTrialAttemptState(smach.StateMachine):
 
         with self:
             smach.StateMachine.add(
-                "ENABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
-                BinTransformServiceEnableState(req=True),
-                transitions={
-                    "succeeded": "PLAN_PATH_TO_BIN_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "PLAN_PATH_TO_BIN_SECOND_TRIAL",
                 PlanPathToSingleFrameState(
                     tf_buffer=self.tf_buffer,
                     target_frame="bin_second_trial",
                     source_frame="taluy/base_link",
                 ),
+                transitions={
+                    "succeeded": "EXECUTE_BIN_PATH_TO_SECOND_TRIAL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "EXECUTE_BIN_PATH_TO_SECOND_TRIAL",
+                ExecutePlannedPathsState(),
+                transitions={
+                    "succeeded": "CHECK_DROP_AREA_FOUND_TO_SECOND_TRIAL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CHECK_DROP_AREA_FOUND_TO_SECOND_TRIAL",
+                CheckForTransformState(
+                    target_frame="bin/blue_link", source_frame="odom", timeout=3.0
+                ),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "ENABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
+                BinTransformServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "FIND_AND_AIM_BIN_SECOND_TRIAL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FIND_AND_AIM_BIN_SECOND_TRIAL",
+                SearchForPropState(
+                    look_at_frame="bin_whole_link",
+                    alignment_frame="bin_search",
+                    full_rotation=True,
+                    set_frame_duration=4.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.3,
+                ),
+                transitions={
+                    "succeeded": "PLAN_BIN_PATHS_SECOND_TRIAL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PLAN_BIN_PATHS_SECOND_TRIAL",
+                PlanBinPathState(self.tf_buffer),
                 transitions={
                     "succeeded": "DISABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
                     "preempted": "preempted",
@@ -90,17 +135,6 @@ class BinSecondTrialAttemptState(smach.StateMachine):
             smach.StateMachine.add(
                 "DISABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
                 BinTransformServiceEnableState(req=False),
-                transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_PATH_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET_TO_PATH_SECOND_TRIAL",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="dynamic_target"
-                ),
                 transitions={
                     "succeeded": "EXECUTE_BIN_PATH_SECOND_TRIAL",
                     "preempted": "preempted",
@@ -112,8 +146,8 @@ class BinSecondTrialAttemptState(smach.StateMachine):
                 ExecutePlannedPathsState(),
                 transitions={
                     "succeeded": "CHECK_DROP_AREA_FOUND_SECOND_TRIAL",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER_AND_PREEMPT",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER_AND_ABORT",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
                 },
             )
             smach.StateMachine.add(
@@ -122,26 +156,17 @@ class BinSecondTrialAttemptState(smach.StateMachine):
                     target_frame="bin/blue_link", source_frame="odom", timeout=3.0
                 ),
                 transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER_AND_PREEMPT",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
+                    "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_AND_PREEMPT",
-                CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "preempted",
-                    "preempted": "preempted",
-                    "aborted": "preempted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_AND_ABORT",
+                "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
                 CancelAlignControllerState(),
                 transitions={
                     "succeeded": "aborted",
-                    "preempted": "aborted",
+                    "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
@@ -283,7 +308,6 @@ class BinTaskState(smach.State):
                     "aborted": "BIN_SECOND_TRIAL_ATTEMPT",
                 },
             )
-
             smach.StateMachine.add(
                 "BIN_SECOND_TRIAL_ATTEMPT",
                 BinSecondTrialAttemptState(self.tf_buffer),
