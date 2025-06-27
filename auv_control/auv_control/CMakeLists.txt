@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
 # Generate dynamic reconfigure options
 generate_dynamic_reconfigure_options(
   cfg/Controller.cfg
+  cfg/VisualServoing.cfg
 )
 
 find_package(Eigen3 REQUIRED)
