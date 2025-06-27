@@ -5,6 +5,9 @@
 
   <!-- Point cloud topic argument -->
   <arg name="point_cloud_topic" default="/points_filtered"/>
+
+  <!-- Camera optical frame argument -->
+  <arg name="camera_optical_frame" default="taluy/camera_depth_optical_frame"/>
   
   <!-- Process Tracker With Cloud Node -->
   <node name="process_tracker_with_cloud" pkg="auv_mapping" type="process_tracker_with_cloud" output="screen">
@@ -12,6 +15,7 @@
     <param name="lidar_topic" value="$(arg point_cloud_topic)"/>
     <param name="yolo_result_topic" value="/yolo_result"/>
     <param name="yolo_3d_result_topic" value="/yolo_3d_result"/>
+    <param name="camera_optical_frame" value="$(arg camera_optical_frame)"/>
     <param name="cluster_tolerance" value="0.2"/>
     <param name="voxel_leaf_size" value="0.05"/>
     <param name="min_cluster_size" value="50"/>

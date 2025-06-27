@@ -131,7 +131,7 @@ public:
     
     // TF broadcaster oluştur
     tf_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
-    camera_optical_frame_ = "taluy/camera_depth_optical_frame";
+    pnh_.param<std::string>("camera_optical_frame", camera_optical_frame_, "taluy/camera_depth_optical_frame");
     base_link_frame_ = "taluy/base_link";
   }
   
