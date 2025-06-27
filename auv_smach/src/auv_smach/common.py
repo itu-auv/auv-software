@@ -366,13 +366,12 @@ class RotationState(smach.State):
 
     def is_transform_available(self):
         try:
-            self.tf_buffer.lookup_transform(
+            return self.tf_buffer.can_transform(
                 self.source_frame,
                 self.look_at_frame,
                 rospy.Time(0),
-                rospy.Duration(1.0),
+                rospy.Duration(0.0),
             )
-            return True
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
