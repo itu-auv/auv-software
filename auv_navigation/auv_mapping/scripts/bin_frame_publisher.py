@@ -146,7 +146,7 @@ class BinTransformServiceNode:
         second_trial_pos_2d = bin_pos[:2] - (
             perp_direction_unit_2d * self.second_trial_distance
         )
-        second_trial_pos = np.append(second_trial_pos_2d, bin_pos[2])
+        second_trial_pos = np.append(second_trial_pos_2d, robot_pos[2])
 
         second_trial_yaw = yaw + np.pi / 2.0
         second_trial_q = tf.transformations.quaternion_from_euler(
