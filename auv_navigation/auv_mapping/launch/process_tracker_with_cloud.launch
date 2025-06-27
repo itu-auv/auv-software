@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+  <!-- Opsiyonel debug parametresi -->
+  <arg name="debug" default="false"/>
+
+  <!-- Point cloud topic argument -->
+  <arg name="point_cloud_topic" default="/points_filtered"/>
+
+  <!-- Camera optical frame argument -->
+  <arg name="camera_optical_frame" default="taluy/camera_depth_optical_frame"/>
+  
+  <!-- Process Tracker With Cloud Node -->
+  <node name="process_tracker_with_cloud" pkg="auv_mapping" type="process_tracker_with_cloud" output="screen">
+    <param name="camera_info_topic" value="/camera/color/camera_info"/>
+    <param name="lidar_topic" value="$(arg point_cloud_topic)"/>
+    <param name="yolo_result_topic" value="/yolo_result"/>
+    <param name="yolo_3d_result_topic" value="/yolo_3d_result"/>
+    <param name="camera_optical_frame" value="$(arg camera_optical_frame)"/>
+    <param name="cluster_tolerance" value="0.2"/>
+    <param name="voxel_leaf_size" value="0.05"/>
+    <param name="min_cluster_size" value="50"/>
+    <param name="max_cluster_size" value="10000"/>
+    <param name="roi_expansion_factor" value="1.1"/>  <!-- %10 genişletme -->
+  </node>
+  
+  <!-- Opsiyonel olarak RViz başlat -->
+  <node if="$(arg debug)" pkg="rviz" type="rviz" name="rviz"/>
+</launch>
