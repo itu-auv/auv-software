@@ -121,22 +121,22 @@ class VisualServoingController:
 
         # Row for u_dot
         L_u = [
-            -1 / Z,  # Effect of linear velocity Vx
-            0,  # Effect of linear velocity Vy
-            x_norm / Z,  # Effect of linear velocity Vz
-            x_norm * y_norm,  # Effect of angular velocity Wx
-            -(1 + x_norm**2),  # Effect of angular velocity Wy
-            y_norm,  # Effect of angular velocity Wz
+            -self.fx / Z,
+            0,
+            x_norm * self.fx / Z,
+            x_norm * y_norm * self.fx,
+            -(1 + x_norm**2) * self.fx,
+            y_norm * self.fx,
         ]
 
-        # Row for v_dot (how v changes with camera velocity)
+        # Row for v_dot
         L_v = [
-            0,  # Effect of linear velocity Vx
-            -1 / Z,  # Effect of linear velocity Vy
-            y_norm / Z,  # Effect of linear velocity Vz
-            1 + y_norm**2,  # Effect of angular velocity Wx
-            -x_norm * y_norm,  # Effect of angular velocity Wy
-            -x_norm,  # Effect of angular velocity Wz
+            0,
+            -self.fy / Z,
+            y_norm * self.fy / Z,
+            (1 + y_norm**2) * self.fy,
+            -x_norm * y_norm * self.fy,
+            -x_norm * self.fy,
         ]
 
         L = np.array([L_u, L_v])
