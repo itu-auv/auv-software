@@ -4,6 +4,10 @@
     <node pkg="auv_vision" type="front_bottom_yolo_handler.py" name="yolo_handler_node" output="screen">
       <remap from="cam_front/image_raw" to="cameras/cam_front/image_raw" />
       <remap from="cam_bottom/image_raw" to="cameras/cam_bottom/image_raw" />
+      <param name="canvas_width" value="1280" />
+      <param name="canvas_height" value="480" />
+      <param name="sync_slop" value="0.1" />
+      <param name="queue_size" value="10" />
     </node>
   </group>
 </launch>
