@@ -360,7 +360,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DROP_DEPTH",
-                SetDepthState(depth=-1.3, sleep_duration=3.0),
+                SetDepthState(depth=-0.8, sleep_duration=3.0),
                 transitions={
                     "succeeded": "WAIT_FOR_BIN_DROP_DEPTH",
                     "preempted": "preempted",
