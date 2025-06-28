@@ -12,28 +12,28 @@ from vision_msgs.msg import Detection2D
 class YoloHandler:
     def __init__(self):
         rospy.init_node("front_bottom_yolo_handler_node")
+
+        # Initialize parameters
+        self._init_params()
         self.bridge = CvBridge()
 
-        # Params
-        self.canvas_w = 1280
-        self.canvas_h = 480
+        # Setup publishers and subscribers
+        self._setup_publishers()
+        self._setup_subscribers()
+
+    def _init_params(self):
+        """Initialize ROS parameters with defaults"""
+        self.canvas_w = rospy.get_param("~canvas_width", 1280)
+        self.canvas_h = rospy.get_param("~canvas_height", 480)
         self.split_x = self.canvas_w // 2
+        self.sync_slop = rospy.get_param(
+            "~sync_slop", 0.1
+        )  # Time sync tolerance in seconds
+        self.queue_size = rospy.get_param("~queue_size", 10)
 
-        # Image sync & merger
-        sub_front = Subscriber("cam_front/image_raw", Image)
-        sub_bottom = Subscriber("cam_bottom/image_raw", Image)
-
-        ats = ApproximateTimeSynchronizer(
-            [sub_front, sub_bottom], queue_size=10, slop=0.1
-        )
-        ats.registerCallback(self.image_callback)
-
+    def _setup_publishers(self):
+        """Initialize all publishers"""
         self.merged_pub = rospy.Publisher("/merged_image", Image, queue_size=1)
-
-        # Subscribe to YOLO combined detections
-        rospy.Subscriber("/yolo_result", YoloResult, self.yolo_callback)
-
-        # Output separated detections
         self.pub_front = rospy.Publisher(
             "/yolo/front_view_detections", YoloResult, queue_size=1
         )
@@ -41,67 +41,108 @@ class YoloHandler:
             "/yolo/bottom_view_detections", YoloResult, queue_size=1
         )
 
+    def _setup_subscribers(self):
+        """Initialize all subscribers and synchronizers"""
+        # Image sync & merger
+        sub_front = Subscriber("cam_front/image_raw", Image)
+        sub_bottom = Subscriber("cam_bottom/image_raw", Image)
+
+        ats = ApproximateTimeSynchronizer(
+            [sub_front, sub_bottom], queue_size=self.queue_size, slop=self.sync_slop
+        )
+        ats.registerCallback(self.image_callback)
+
+        # YOLO results subscriber
+        rospy.Subscriber("/yolo_result", YoloResult, self.yolo_callback)
+
     def image_callback(self, front_msg, bottom_msg):
+        """
+        Callback for synchronized front and bottom camera images.
+        Merges them into a single image and publishes it.
+        """
         try:
+            # Convert ROS images to OpenCV format
             img_front = self.bridge.imgmsg_to_cv2(front_msg, "bgr8")
             img_bottom = self.bridge.imgmsg_to_cv2(bottom_msg, "bgr8")
-        except CvBridgeError as e:
-            rospy.logerr("CvBridge error: %s", e)
-            return
 
-        canvas = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
-        half_w = self.canvas_w // 2
+            # Create blank canvas
+            canvas = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
+            half_w = self.canvas_w // 2
 
-        # Front image (left)
-        y_off = (self.canvas_h - img_front.shape[0]) // 2
-        x_off = (half_w - img_front.shape[1]) // 2
-        canvas[
-            y_off : y_off + img_front.shape[0], x_off : x_off + img_front.shape[1]
-        ] = img_front
+            # Place front image (left side)
+            self._place_image_on_canvas(canvas, img_front, 0, half_w)
 
-        # Bottom image (right)
-        y_off2 = (self.canvas_h - img_bottom.shape[0]) // 2
-        x_off2 = half_w + (half_w - img_bottom.shape[1]) // 2
-        canvas[
-            y_off2 : y_off2 + img_bottom.shape[0], x_off2 : x_off2 + img_bottom.shape[1]
-        ] = img_bottom
+            # Place bottom image (right side)
+            self._place_image_on_canvas(canvas, img_bottom, half_w, self.canvas_w)
 
-        try:
+            # Convert back to ROS image and publish
             out = self.bridge.cv2_to_imgmsg(canvas, "bgr8")
             out.header = front_msg.header
             self.merged_pub.publish(out)
+
         except CvBridgeError as e:
-            rospy.logerr("CvBridge error: %s", e)
+            rospy.logerr(f"CvBridge error in image_callback: {e}")
+        except Exception as e:
+            rospy.logerr(f"Unexpected error in image_callback: {e}")
+
+    def _place_image_on_canvas(self, canvas, image, x_start, x_end):
+        """
+        Helper method to place an image on the canvas with proper centering
+        """
+        img_h, img_w = image.shape[:2]
+        available_w = x_end - x_start
+
+        # Calculate offsets for centering
+        x_offset = x_start + (available_w - img_w) // 2
+        y_offset = (self.canvas_h - img_h) // 2
+
+        # Ensure we don't go out of bounds
+        x_offset = max(0, x_offset)
+        y_offset = max(0, y_offset)
+
+        # Place the image
+        canvas[y_offset : y_offset + img_h, x_offset : x_offset + img_w] = image
 
     def yolo_callback(self, msg: YoloResult):
-        front_result = YoloResult()
-        bottom_result = YoloResult()
+        """
+        Callback for YOLO detections. Splits detections into front and bottom views.
+        """
+        try:
+            front_result = YoloResult()
+            bottom_result = YoloResult()
 
-        front_result.header = msg.header
-        bottom_result.header = msg.header
+            # Copy headers and masks
+            front_result.header = msg.header
+            bottom_result.header = msg.header
+            front_result.masks = msg.masks
+            bottom_result.masks = msg.masks
 
-        front_result.masks = msg.masks
-        bottom_result.masks = msg.masks
+            # Copy detection headers
+            front_result.detections.header = msg.detections.header
+            bottom_result.detections.header = msg.detections.header
 
-        front_result.detections.header = msg.detections.header
-        bottom_result.detections.header = msg.detections.header
+            # Split detections based on x-coordinate
+            for det in msg.detections.detections:
+                if det.bbox.center.x < self.split_x:
+                    front_result.detections.detections.append(
+                        self._shift_detection(det, shift_x=0)
+                    )
+                else:
+                    bottom_result.detections.detections.append(
+                        self._shift_detection(det, shift_x=-self.split_x)
+                    )
 
-        for i, det in enumerate(msg.detections.detections):
-            x = det.bbox.center.x
+            # Publish results
+            self.pub_front.publish(front_result)
+            self.pub_bottom.publish(bottom_result)
 
-            if x < self.split_x:
-                front_result.detections.detections.append(
-                    self.shift_detection(det, shift_x=0)
-                )
-            else:
-                bottom_result.detections.detections.append(
-                    self.shift_detection(det, shift_x=-self.split_x)
-                )
+        except Exception as e:
+            rospy.logerr(f"Error in yolo_callback: {e}")
 
-        self.pub_front.publish(front_result)
-        self.pub_bottom.publish(bottom_result)
-
-    def shift_detection(self, det: Detection2D, shift_x=0):
+    def _shift_detection(self, det: Detection2D, shift_x=0):
+        """
+        Helper method to create a new detection with shifted coordinates
+        """
         new_det = Detection2D()
         new_det.header = det.header
         new_det.results = det.results
@@ -115,8 +156,15 @@ class YoloHandler:
         return new_det
 
     def spin(self):
+        """Main loop"""
         rospy.spin()
 
 
 if __name__ == "__main__":
-    YoloHandler().spin()
+    try:
+        handler = YoloHandler()
+        handler.spin()
+    except rospy.ROSInterruptException:
+        pass
+    except Exception as e:
+        rospy.logerr(f"Error in main: {e}")
