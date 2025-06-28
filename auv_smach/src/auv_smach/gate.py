@@ -338,7 +338,7 @@ class NavigateThroughGateState(smach.State):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )           
+            )
             smach.StateMachine.add(
                 "FIND_AND_AIM_GATE",
                 SearchForPropState(
@@ -423,7 +423,7 @@ class NavigateThroughGateState(smach.State):
 
     def execute(self, userdata):
         rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
-        
+
         outcome = self.state_machine.execute()
 
         if outcome is None:
