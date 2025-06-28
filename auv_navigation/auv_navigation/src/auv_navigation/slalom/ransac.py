@@ -142,7 +142,6 @@ def _compute_robot_y_axis(
         return False, None
 
 
-#! Naming is poor?
 def _sample_line_model(unassigned_pipes: List, max_attempts: int = 10):
     """Randomly pick two distinct pipes and return (pos_a, unit_direction).
 

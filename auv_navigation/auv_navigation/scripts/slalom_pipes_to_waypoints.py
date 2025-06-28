@@ -64,7 +64,7 @@ class SlalomProcessorNode:
         )
 
     def callback_pipes(self, msg: Pipes) -> None:
-        rospy.loginfo(
+        rospy.logdebug(
             "[SlalomProcessorNode] Received Pipes message with %d pipes",
             len(msg.pipes),
         )
@@ -109,7 +109,7 @@ class SlalomProcessorNode:
             gate_angle_cos_threshold=self.gate_angle_cos_threshold,
             line_distance_threshold=self.line_distance_threshold,
         )
-        rospy.loginfo(
+        rospy.logdebug(
             "[SlalomProcessorNode] Found %d raw clusters (gate candidates)",
             len(raw_clusters),
         )
@@ -125,14 +125,13 @@ class SlalomProcessorNode:
             for c in raw_clusters
         ]
 
-        rospy.loginfo("[SlalomProcessorNode] Sorted pipes along line for all clusters")
         # 4. Validate clusters
         validated = [validate_cluster(sorted_cluster=c) for c in sorted_clusters]
-        rospy.loginfo("[SlalomProcessorNode] Validated clusters: %d", len(validated))
+        rospy.logdebug("[SlalomProcessorNode] Validated clusters: %d", len(validated))
         # 5. Create Gate objects from validated clusters
         gates = [create_gate_object(info=c) for c in validated]
         num_gates = sum(1 for g in gates if g is not None)
-        rospy.loginfo(
+        rospy.logdebug(
             "[SlalomProcessorNode] Created %d complete Gate objects", num_gates
         )
 
@@ -146,15 +145,12 @@ class SlalomProcessorNode:
             for g in gates
             if g is not None
         ]
-        rospy.loginfo(
+        rospy.logdebug(
             "[SlalomProcessorNode] Computed navigation targets for %d gates",
             len(targets),
         )
         # 7. Publish the targets as PoseArray and markers
         self.publish_waypoints(targets)
-        rospy.loginfo(
-            "[SlalomProcessorNode] Published centers and markers for navigation targets"
-        )
 
     def publish_waypoints(self, targets_list: List[List[Pose]]) -> None:
         """Publish all gate targets as PoseArray and markers."""
