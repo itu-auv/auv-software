@@ -10,6 +10,10 @@ find_package(catkin REQUIRED
   sensor_msgs
   std_msgs
   nav_msgs
+  rospy
+  std_srvs
+  gazebo_msgs
+  tf
 )
 
 find_package(Eigen3 REQUIRED)
@@ -45,4 +49,10 @@ install(DIRECTORY include/${PROJECT_NAME}/
 
 install(TARGETS simulation_mock_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+catkin_install_python(PROGRAMS
+  scripts/sim_bin_mock.py
+  scripts/sim_torpedo_mock.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

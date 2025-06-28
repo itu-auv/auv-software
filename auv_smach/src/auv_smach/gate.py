@@ -5,12 +5,14 @@ import rospy
 import tf2_ros
 import math
 from auv_navigation.path_planning.path_planners import PathPlanners
+
 from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
     ExecutePlannedPathsState,
     ClearObjectMapState,
+    SearchForPropState,
 )
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
@@ -177,7 +179,7 @@ class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
-            "set_transform_gate_trajectory",
+            "toggle_gate_trajectory",
             SetBool,
             request=SetBoolRequest(data=req),
         )
@@ -304,7 +306,6 @@ class NavigateThroughGateState(smach.State):
         )
 
         with self.state_machine:
-
             smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
                 SetDepthState(
@@ -333,6 +334,22 @@ class NavigateThroughGateState(smach.State):
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
                 ),
                 transitions={
+                    "succeeded": "FIND_AND_AIM_GATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )           
+            smach.StateMachine.add(
+                "FIND_AND_AIM_GATE",
+                SearchForPropState(
+                    look_at_frame="gate_blue_arrow_link",
+                    alignment_frame="gate_search",
+                    full_rotation=True,
+                    set_frame_duration=7.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.3,
+                ),
+                transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -357,7 +374,7 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "PLAN_GATE_PATHS",
@@ -406,7 +423,7 @@ class NavigateThroughGateState(smach.State):
 
     def execute(self, userdata):
         rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
-
+        
         outcome = self.state_machine.execute()
 
         if outcome is None:

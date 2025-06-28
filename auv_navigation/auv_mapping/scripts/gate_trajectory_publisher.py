@@ -31,16 +31,19 @@ class TransformServiceNode:
         self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_blue_arrow_link")
         self.gate_frame_2 = rospy.get_param("~gate_frame_2", "gate_red_arrow_link")
         self.set_enable_service = rospy.Service(
-            "set_transform_gate_trajectory", SetBool, self.handle_enable_service
+            "toggle_gate_trajectory", SetBool, self.handle_enable_service
         )
 
         self.entrance_offset = rospy.get_param("~entrance_offset", 1.0)
         self.exit_offset = rospy.get_param("~exit_offset", 1.0)
         self.z_offset = rospy.get_param("~z_offset", 0.5)
-
+        self.parallel_shift_offset = rospy.get_param("~parallel_shift_offset", 0.15)
         self.target_gate_frame = rospy.get_param(
             "~target_gate_frame", "gate_blue_arrow_link"
         )
+
+        # Threshold for gate link separation
+        self.MIN_GATE_SEPARATION_THRESHOLD = 0.15
 
     def assign_selected_gate_translations(
         self,
@@ -75,13 +78,11 @@ class TransformServiceNode:
         3. Apply a vertical offset below the selected gate frame's z-value by z_offset.
         """
 
-        MIN_GATE_SEPARATION_THRESHOLD = 0.15
-
         dx = other_gate_link_translation[0] - selected_gate_link_translation[0]
         dy = other_gate_link_translation[1] - selected_gate_link_translation[1]
 
         length = math.sqrt(dx**2 + dy**2)
-        if length < MIN_GATE_SEPARATION_THRESHOLD:
+        if length < self.MIN_GATE_SEPARATION_THRESHOLD:
             raise ValueError(
                 "The gate links are almost identical or at the same position"
             )
@@ -128,6 +129,57 @@ class TransformServiceNode:
 
         return entrance_pose, exit_pose
 
+    def _shift_transform_parallel_to_gate_line(
+        self,
+        transform_to_shift: TransformStamped,
+        selected_gate_frame_name: str,
+        other_gate_frame_name: str,
+        parallel_offset: float,
+        tf_buffer: tf2_ros.Buffer,
+    ) -> TransformStamped:
+        """
+        Shifts the given transform parallel to the line connecting selected_gate_frame_name
+        and other_gate_frame_name, in the direction from selected to other.
+        The shift is applied in the XY plane of the selected_gate_frame_name.
+        """
+        try:
+            transform_selected_to_other = tf_buffer.lookup_transform(
+                selected_gate_frame_name,
+                other_gate_frame_name,
+                rospy.Time(0),
+                rospy.Duration(0.5),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn(
+                f"Parallel shift for trajectory frames failed because of TF Error: {e}"
+            )
+            return transform_to_shift
+
+        dx_selected_frame = transform_selected_to_other.transform.translation.x
+        dy_selected_frame = transform_selected_to_other.transform.translation.y
+
+        length = math.sqrt(dx_selected_frame**2 + dy_selected_frame**2)
+
+        if length < self.MIN_GATE_SEPARATION_THRESHOLD:
+            rospy.logwarn(
+                f"Gate links are too close for parallel shift. Skipping shift."
+            )
+            return transform_to_shift
+
+        unit_dx = dx_selected_frame / length
+        unit_dy = dy_selected_frame / length
+
+        shift_x = unit_dx * parallel_offset
+        shift_y = unit_dy * parallel_offset
+
+        transform_to_shift.transform.translation.x += shift_x
+        transform_to_shift.transform.translation.y += shift_y
+        return transform_to_shift
+
     def create_trajectory_frames(self) -> None:
         """
         Look up the current transforms, compute entrance and exit transforms,
@@ -169,6 +221,29 @@ class TransformServiceNode:
             self.entrance_frame, entrance_pose
         )
         exit_transform = self.build_transform_message(self.exit_frame, exit_pose)
+
+        # Apply parallel shift if offset is significant
+        if abs(self.parallel_shift_offset) > 1e-6:
+            other_gate_frame_for_shift_direction: str
+            if self.target_gate_frame == self.gate_frame_1:
+                other_gate_frame_for_shift_direction = self.gate_frame_2
+            else:
+                other_gate_frame_for_shift_direction = self.gate_frame_1
+
+            entrance_transform = self._shift_transform_parallel_to_gate_line(
+                entrance_transform,
+                self.target_gate_frame,  # Frame in which entrance_transform.transform is defined
+                other_gate_frame_for_shift_direction,
+                self.parallel_shift_offset,
+                self.tf_buffer,
+            )
+            exit_transform = self._shift_transform_parallel_to_gate_line(
+                exit_transform,
+                self.target_gate_frame,  # Frame in which exit_transform.transform is defined
+                other_gate_frame_for_shift_direction,
+                self.parallel_shift_offset,
+                self.tf_buffer,
+            )
 
         self.send_transform(entrance_transform)
         self.send_transform(exit_transform)
