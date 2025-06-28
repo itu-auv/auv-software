@@ -36,7 +36,17 @@ from auv_smach.common import (
 
 
 class TorpedoTaskState(smach.State):
-    def __init__(self, torpedo_map_radius, torpedo_map_depth):
+    def __init__(
+        self,
+        torpedo_map_radius,
+        torpedo_map_depth,
+        torpedo_target_frame="torpedo_map_target",
+    ):
+
+        self.torpedo_map_radius = torpedo_map_radius
+        self.torpedo_map_depth = torpedo_map_depth
+        self.torpedo_target_frame = torpedo_target_frame
+
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         # Initialize the state machine
@@ -48,7 +58,7 @@ class TorpedoTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_TORPEDO_DEPTH",
-                SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
+                SetDepthState(depth=self.torpedo_map_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO",
                     "preempted": "preempted",
@@ -77,7 +87,7 @@ class TorpedoTaskState(smach.State):
                     base_frame="taluy/base_link",
                     center_frame="torpedo_map_link",
                     target_frame="torpedo_approach_start",
-                    radius=torpedo_map_radius,
+                    radius=self.torpedo_map_radius,
                 ),
                 transitions={
                     "succeeded": "SET_TORPEDO_TRAVEL_ALIGN_CONTROLLER_TARGET",
@@ -145,6 +155,28 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_CLOSE_APPROACH_COMPLETE",
+                DelayState(delay_time=7.0),
+                transitions={
+                    "succeeded": "APPROACH_TO_TARGET_WHOLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "APPROACH_TO_TARGET_WHOLE",
+                NavigateToFrameState(
+                    "taluy/base_link",
+                    self.torpedo_target_frame,
+                    "torpedo_map_target",
+                ),
+                transitions={
+                    "succeeded": "WAIT_FOR_TARGET_APPROACH_COMPLETE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_TARGET_APPROACH_COMPLETE",
                 DelayState(delay_time=7.0),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
