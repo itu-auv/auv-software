@@ -23,9 +23,18 @@ from tf.transformations import euler_from_quaternion
 
 from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryPoseState
 
+from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+
 
 class RollTwoTimes(smach.State):
-    def __init__(self, roll_rate, rate_hz=20, timeout_s=15.0):
+    def __init__(
+        self,
+        roll_rate,
+        rate_hz=20,
+        timeout_s=15.0,
+        publish_frame=False,
+        frame_name="roll_reference_frame",
+    ):
         super(RollTwoTimes, self).__init__(
             outcomes=["succeeded", "preempted", "aborted"]
         )
@@ -38,6 +47,11 @@ class RollTwoTimes(smach.State):
         self.roll_rate = roll_rate
         self.timeout = rospy.Duration(timeout_s)
         self.rate = rospy.Rate(rate_hz)
+
+        # Frame publishing parameters
+        self.publish_frame = publish_frame
+        self.frame_name = frame_name
+        self.current_odom = None
 
         self.odom_ready = False
         self.active = True
@@ -52,8 +66,24 @@ class RollTwoTimes(smach.State):
             self.wrench_topic, WrenchStamped, queue_size=1
         )
 
+        # Frame publishing setup
+        if self.publish_frame:
+            try:
+                self.set_object_transform_service = rospy.ServiceProxy(
+                    "set_object_transform", SetObjectTransform
+                )
+                rospy.loginfo("ROLL_TWO_TIMES: Frame publishing enabled")
+            except Exception as e:
+                rospy.logwarn(
+                    f"ROLL_TWO_TIMES: Could not initialize frame publishing service: {e}"
+                )
+                self.publish_frame = False
+
     def odom_cb(self, msg: Odometry):
         now = rospy.Time.now()
+
+        # Store current odometry for frame publishing
+        self.current_odom = msg
 
         if not self.odom_ready:
             self.last_time = now
@@ -76,6 +106,59 @@ class RollTwoTimes(smach.State):
             self.active = False
             rospy.logwarn("ROLL_TWO_TIMES: propulsion board disabled → aborting")
 
+    def publish_reference_frame(self):
+        """Publish a reference frame at current position with current yaw but original pitch/roll"""
+        if not self.publish_frame or self.current_odom is None:
+            return
+
+        try:
+            # Extract current position
+            current_pos = self.current_odom.pose.pose.position
+            current_orient = self.current_odom.pose.pose.orientation
+
+            # Convert current orientation to euler angles
+            euler = transformations.euler_from_quaternion(
+                [current_orient.x, current_orient.y, current_orient.z, current_orient.w]
+            )
+
+            # Keep original pitch and roll, use current yaw
+            roll = euler[0]  # Keep current roll
+            pitch = euler[1]  # Keep current pitch
+            yaw = euler[2]  # Keep current yaw
+
+            # Create new quaternion with preserved pitch/roll and current yaw
+            new_quaternion = transformations.quaternion_from_euler(roll, pitch, yaw)
+
+            # Create transform
+            t = TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "map"  # or your world frame
+            t.child_frame_id = self.frame_name
+
+            # Set position (current vehicle position)
+            t.transform.translation.x = current_pos.x
+            t.transform.translation.y = current_pos.y
+            t.transform.translation.z = current_pos.z
+
+            # Set orientation (preserved pitch/roll, current yaw)
+            t.transform.rotation.x = new_quaternion[0]
+            t.transform.rotation.y = new_quaternion[1]
+            t.transform.rotation.z = new_quaternion[2]
+            t.transform.rotation.w = new_quaternion[3]
+
+            # Publish via service
+            req = SetObjectTransformRequest()
+            req.transform = t
+            res = self.set_object_transform_service(req)
+
+            if not res.success:
+                rospy.logwarn(
+                    f"ROLL_TWO_TIMES: SetObjectTransform failed: {res.message}"
+                )
+
+        except Exception as e:
+            rospy.logwarn(f"ROLL_TWO_TIMES: Frame publishing error: {e}")
+
     def execute(self, userdata):
         rospy.loginfo("ROLL_TWO_TIMES: waiting for odometry data…")
         start_wait = rospy.Time.now()
@@ -94,6 +177,14 @@ class RollTwoTimes(smach.State):
         self.last_time = rospy.Time.now()
         self.start_time = rospy.Time.now()
         target = math.radians(675.0)
+
+        # Publish initial reference frame
+        if self.publish_frame:
+            self.publish_reference_frame()
+            rospy.loginfo(
+                f"ROLL_TWO_TIMES: Published reference frame '{self.frame_name}'"
+            )
+
         rospy.loginfo(
             "ROLL_TWO_TIMES: starting roll @ %.2f rad/s, target = %.2f rad",
             self.roll_rate,
@@ -111,6 +202,13 @@ class RollTwoTimes(smach.State):
                         "ROLL_TWO_TIMES: timed out after %.1f s", self.timeout.to_sec()
                     )
                     return self._stop_and("aborted")
+
+                # Publish reference frame periodically (every second)
+                if (
+                    self.publish_frame
+                    and (rospy.Time.now() - self.start_time).to_sec() % 1.0 < 0.05
+                ):
+                    self.publish_reference_frame()
 
                 cmd = WrenchStamped()
                 cmd.header.stamp = rospy.Time.now()
