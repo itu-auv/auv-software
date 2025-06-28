@@ -13,7 +13,7 @@ from geometry_msgs.msg import (
     Quaternion,
 )
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import VisualFeature
+from auv_msgs.msg import VisualFeature, YawError
 from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
@@ -140,6 +140,9 @@ class CameraDetectionNode:
         )
         self.feature_pub = rospy.Publisher(
             "/visual_features", VisualFeature, queue_size=10
+        )
+        self.yaw_error_pub = rospy.Publisher(
+            "/visual_servoing/yaw_error", YawError, queue_size=10
         )
         # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
@@ -375,6 +378,11 @@ class CameraDetectionNode:
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
+
+            yaw_error_msg = YawError()
+            yaw_error_msg.object = prop.name
+            yaw_error_msg.angle = angles[0]
+            self.yaw_error_pub.publish(yaw_error_msg)
             camera_to_odom_transform = self.tf_buffer.lookup_transform(
                 camera_frame,
                 "odom",
