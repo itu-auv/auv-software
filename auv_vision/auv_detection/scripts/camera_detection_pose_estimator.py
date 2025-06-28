@@ -13,7 +13,7 @@ from geometry_msgs.msg import (
     Quaternion,
 )
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import VisualFeature, YawError
+from auv_msgs.msg import YawError
 from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
@@ -137,9 +137,6 @@ class CameraDetectionNode:
         rospy.loginfo("Camera detection node started")
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
-        )
-        self.feature_pub = rospy.Publisher(
-            "/visual_features", VisualFeature, queue_size=10
         )
         self.yaw_error_pub = rospy.Publisher(
             "/visual_servoing/yaw_error", YawError, queue_size=10
@@ -364,15 +361,6 @@ class CameraDetectionNode:
 
             if distance is None:
                 continue
-
-            # Create and publish the VisualFeature message
-            feature_msg = VisualFeature()
-            feature_msg.header = detection_msg.header
-            feature_msg.object_name = prop.name
-            feature_msg.u = detection.bbox.center.x
-            feature_msg.v = detection.bbox.center.y
-            feature_msg.Z = distance
-            self.feature_pub.publish(feature_msg)
 
             # Calculate angles from pixel coordinates
             angles = self.camera_calibrations[camera_ns].calculate_angles(
