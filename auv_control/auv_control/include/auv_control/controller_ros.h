@@ -131,11 +131,39 @@ class ControllerROS {
         continue;
       }
 
+      auto controller =
+          dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+
+      auto kp_masked = kp_;
+      auto ki_masked = ki_;
+      auto kd_masked = kd_;
+
+      if (is_pose_timeouted()) {
+        kp_masked.head<6>().setZero();
+        ki_masked.head<6>().setZero();
+        kd_masked.head<6>().setZero();
+      }
+      if (is_vel_timeouted()) {
+        kp_masked.tail<6>().setZero();
+        ki_masked.tail<6>().setZero();
+        kd_masked.tail<6>().setZero();
+        desired_state_.tail(6).setZero();
+      }
+
+      if (is_pose_timeouted() && is_vel_timeouted()) {
+        desired_state_.head(6) = state_.head(6);
+      }
+
+      controller->set_kp(kp_masked);
+      controller->set_ki(ki_masked);
+      controller->set_kd(kd_masked);
+
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
       geometry_msgs::WrenchStamped wrench_msg;
-      if (is_control_enabled() && !is_timeouted()) {
+      if (is_control_enabled() &&
+          !(is_vel_timeouted() && is_pose_timeouted())) {
         wrench_msg.header.stamp = ros::Time::now();
         wrench_msg.header.frame_id = body_frame_;
         wrench_msg.wrench =
@@ -154,8 +182,12 @@ class ControllerROS {
   std::string body_frame_;
   double transform_timeout_;
 
-  bool is_timeouted() const {
-    return (ros::Time::now() - latest_command_time_).toSec() > 1.0;
+  bool is_vel_timeouted() const {
+    return (ros::Time::now() - latest_vel_cmd_time_).toSec() > 1.0;
+  }
+
+  bool is_pose_timeouted() const {
+    return (ros::Time::now() - latest_pose_cmd_time_).toSec() > 1.0;
   }
 
   void odometry_callback(const nav_msgs::Odometry::ConstPtr& msg) {
@@ -169,7 +201,7 @@ class ControllerROS {
     desired_state_.tail(6) =
         auv::common::conversions::convert<geometry_msgs::Twist,
                                           ControllerBase::Vector>(*msg);
-    latest_command_time_ = ros::Time::now();
+    latest_vel_cmd_time_ = ros::Time::now();
   }
 
   const std::optional<std::string> get_source_frame(
@@ -227,7 +259,7 @@ class ControllerROS {
     desired_state_.head(6) = auv::common::conversions::convert<
         geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
 
-    latest_command_time_ = ros::Time::now();
+    latest_pose_cmd_time_ = ros::Time::now();
   }
 
   void accel_callback(
@@ -369,7 +401,8 @@ class ControllerROS {
 
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;
-  ros::Time latest_command_time_{ros::Time(0)};
+  ros::Time latest_vel_cmd_time_{ros::Time(0)};
+  ros::Time latest_pose_cmd_time_{ros::Time(0)};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
   ControllerBase::StateVector desired_state_{
