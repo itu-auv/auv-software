@@ -24,16 +24,18 @@ from auv_smach.common import (
 from auv_navigation.path_planning.path_planners import PathPlanners
 
 
-class CheckForTransformState(smach.State):
-    def __init__(
-        self, target_frame: str, source_frame: str = "odom", timeout: float = 3.0
-    ):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.target_frame = target_frame
+class CheckForDropAreaState(smach.State):
+    def __init__(self, source_frame: str = "odom", timeout: float = 3.0):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["found_frame"],
+        )
         self.source_frame = source_frame
         self.timeout = rospy.Duration(timeout)
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.target_frames = ["bin/blue_link", "bin/red_link"]
 
     def execute(self, userdata) -> str:
         start_time = rospy.Time.now()
@@ -42,19 +44,49 @@ class CheckForTransformState(smach.State):
         while (rospy.Time.now() - start_time) < self.timeout:
             if self.preempt_requested():
                 return "preempted"
-            if self.tf_buffer.can_transform(
-                self.source_frame, self.target_frame, rospy.Time(0), self.timeout
-            ):
-                rospy.loginfo(
-                    f"[WaitForTransformState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
-                )
-                return "succeeded"
+
+            # Check for both blue and red bin frames
+            for frame in self.target_frames:
+                if self.tf_buffer.can_transform(
+                    self.source_frame, frame, rospy.Time(0), self.timeout
+                ):
+                    rospy.loginfo(
+                        f"[CheckForDropAreaState] Transform from '{self.source_frame}' to '{frame}' found."
+                    )
+                    userdata.found_frame = frame
+                    return "succeeded"
+
             rate.sleep()
 
         rospy.logwarn(
-            f"[WaitForTransformState] Timeout: Transform from '{self.source_frame}' to '{self.target_frame}' not found after {self.timeout.to_sec()} seconds."
+            f"[CheckForDropAreaState] Timeout: No drop area transforms found after {self.timeout.to_sec()} seconds."
         )
         return "aborted"
+
+
+class SetAlignToFoundState(smach.State):
+    def __init__(self, source_frame: str):
+        super().__init__(
+            outcomes=["succeeded", "preempted", "aborted"], input_keys=["found_frame"]
+        )
+        self.source_frame = source_frame
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            return "preempted"
+
+        if "found_frame" not in userdata or not userdata.found_frame:
+            rospy.logerr("[SetAlignToFoundState] No found_frame in userdata")
+            return "aborted"
+
+        rospy.loginfo(
+            f"[SetAlignToFoundState] Setting align target to {userdata.found_frame}"
+        )
+
+        align_state = SetAlignControllerTargetState(
+            source_frame=self.source_frame, target_frame=userdata.found_frame
+        )
+        return align_state.execute(userdata)
 
 
 class BinSecondTrialAttemptState(smach.StateMachine):
@@ -89,9 +121,7 @@ class BinSecondTrialAttemptState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_FOUND_TO_SECOND_TRIAL",
-                CheckForTransformState(
-                    target_frame="bin/blue_link", source_frame="odom", timeout=3.0
-                ),
+                CheckForDropAreaState(source_frame="odom", timeout=3.0),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -172,9 +202,7 @@ class BinSecondTrialAttemptState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_FOUND_SECOND_TRIAL",
-                CheckForTransformState(
-                    target_frame="bin/blue_link", source_frame="odom", timeout=3.0
-                ),
+                CheckForDropAreaState(source_frame="odom", timeout=3.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
                     "preempted": "preempted",
@@ -319,11 +347,9 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_FOUND",
-                CheckForTransformState(
-                    target_frame="bin/blue_link", source_frame="odom", timeout=3.0
-                ),
+                CheckForDropAreaState(source_frame="odom", timeout=3.0),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_DROP_AREA",
+                    "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",
                     "aborted": "BIN_SECOND_TRIAL_ATTEMPT",
                 },
@@ -332,17 +358,14 @@ class BinTaskState(smach.State):
                 "BIN_SECOND_TRIAL_ATTEMPT",
                 BinSecondTrialAttemptState(self.tf_buffer),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_DROP_AREA",
+                    "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",
                     "aborted": "DROP_BALL_1",
                 },
             )
             smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET_TO_DROP_AREA",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link/ball_dropper_link",
-                    target_frame="bin/blue_link",
-                ),
+                "SET_ALIGN_TO_FOUND_DROP_AREA",
+                SetAlignToFoundState(source_frame="taluy/base_link/ball_dropper_link"),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_DROP_AREA",
                     "preempted": "preempted",
