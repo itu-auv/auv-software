@@ -25,7 +25,7 @@ from auv_navigation.path_planning.path_planners import PathPlanners
 
 
 class CheckForDropAreaState(smach.State):
-    def __init__(self, source_frame: str = "odom", timeout: float = 3.0):
+    def __init__(self, source_frame: str = "odom", timeout: float = 2.0):
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
@@ -121,7 +121,7 @@ class BinSecondTrialAttemptState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_FOUND_TO_SECOND_TRIAL",
-                CheckForDropAreaState(source_frame="odom", timeout=3.0),
+                CheckForDropAreaState(source_frame="odom", timeout=2.0),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -202,7 +202,7 @@ class BinSecondTrialAttemptState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_FOUND_SECOND_TRIAL",
-                CheckForDropAreaState(source_frame="odom", timeout=3.0),
+                CheckForDropAreaState(source_frame="odom", timeout=2.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
                     "preempted": "preempted",
@@ -347,7 +347,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_FOUND",
-                CheckForDropAreaState(source_frame="odom", timeout=3.0),
+                CheckForDropAreaState(source_frame="odom", timeout=2.0),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",
@@ -375,6 +375,12 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_DROP_AREA",
                 DelayState(delay_time=15.0),
+                "SET_BIN_WHOLE_TRAVEL_ALIGN_CONTROLLER_TARGET",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link",
+                    target_frame="bin_whole_link",
+                    keep_orientation=True,
+                ),
                 transitions={
                     "succeeded": "SET_BIN_DROP_DEPTH",
                     "preempted": "preempted",
@@ -392,7 +398,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_BIN_DROP_DEPTH",
-                DelayState(delay_time=10.0),
+                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "preempted": "preempted",
