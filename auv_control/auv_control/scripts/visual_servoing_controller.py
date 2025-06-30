@@ -5,7 +5,7 @@ import tf.transformations
 import math
 
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float64
 from std_srvs.srv import Trigger, TriggerResponse
 from auv_msgs.msg import PropsYaw
 from auv_msgs.srv import VisualServoing, VisualServoingResponse
@@ -24,8 +24,8 @@ class VisualServoingController:
         rospy.init_node("visual_servoing_controller", anonymous=True)
         rospy.loginfo("Visual Servoing Controller node started")
 
-        self.kp_gain = rospy.get_param("~kp_gain", 1.0)
-        self.kd_gain = rospy.get_param("~kd_gain", 0.2)
+        self.kp_gain = rospy.get_param("~kp_gain", 3.0)
+        self.kd_gain = rospy.get_param("~kd_gain", 0.8)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
         # State
@@ -43,14 +43,18 @@ class VisualServoingController:
 
         self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
         self.control_enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
+        self.error_pub = rospy.Publisher("visual_servoing/error", Float64, queue_size=1)
+        self.current_yaw_pub = rospy.Publisher(
+            "visual_servoing/current_yaw", Float64, queue_size=1
+        )
+        self.target_yaw_pub = rospy.Publisher(
+            "visual_servoing/target_yaw", Float64, queue_size=1
+        )
 
         # Subscribers
-        rospy.Subscriber(
-            "/visual_servoing/yaw_error", PropsYaw, self.prop_yaw_callback, queue_size=1
-        )
+        rospy.Subscriber("props_yaw", PropsYaw, self.prop_yaw_callback, queue_size=1)
         rospy.Subscriber("sensors/imu/data", Imu, self.imu_callback, queue_size=1)
-        # Services
-        rospy.Service("props_yaw", VisualServoing, self.handle_start_request)
+
         rospy.Service(
             "visual_servoing/start", VisualServoing, self.handle_start_request
         )
@@ -85,11 +89,11 @@ class VisualServoingController:
 
         prop_stamp = msg.header.stamp
         angle_to_prop_from_robot = msg.angle
+        rospy.loginfo(f"angle to prop: {angle_to_prop_from_robot}")
         closest_imu_reading = min(
             self.imu_history, key=lambda x: abs(x[0] - prop_stamp)
         )
         yaw_at_prop_time = closest_imu_reading[1]
-
         self.target_yaw_in_world = normalize_angle(
             yaw_at_prop_time + angle_to_prop_from_robot
         )
@@ -101,13 +105,16 @@ class VisualServoingController:
 
         # error is the shortest angular distance between where we want to be and where we are.
         error = normalize_angle(self.target_yaw_in_world - self.current_yaw)
+        self.error_pub.publish(Float64(error))
+        self.current_yaw_pub.publish(Float64(self.current_yaw))
+        self.target_yaw_pub.publish(Float64(self.target_yaw_in_world))
         p_signal = self.kp_gain * error
         d_signal = self.kd_gain * self.angular_velocity_z
 
-        pd_signal = p_signal + d_signal
+        pd_signal = p_signal - d_signal
 
         twist = Twist()
-        twist.angular.z = pd_signal
+        twist.angular.z = -pd_signal
         self.cmd_vel_pub.publish(twist)
 
     def reconfigure_callback(self, config, level):
