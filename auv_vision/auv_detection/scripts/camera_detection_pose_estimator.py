@@ -120,6 +120,16 @@ class Octagon(Prop):
         super().__init__(14, "octagon", 0.92, 1.30)
 
 
+class BinRed(Prop):
+    def __init__(self):
+        super().__init__(10, "torpedo_hole", 0.30480, 0.30480)
+
+
+class BinBlue(Prop):
+    def __init__(self):
+        super().__init__(11, "bin_red", 0.30480, 0.30480)
+
+
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
@@ -134,8 +144,22 @@ class CameraDetectionNode:
             "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
-        rospy.Subscriber("/yolo_result", YoloResult, self.detection_callback)
-        self.camera_frames = {
+        # Use lambda to pass camera source information to the callback
+        rospy.Subscriber(
+            "/yolo_result",
+            YoloResult,
+            lambda msg: self.detection_callback(msg, camera_source="front_camera"),
+        )
+        rospy.Subscriber(
+            "/yolo_result_2",
+            YoloResult,
+            lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
+        )
+        self.frame_id_to_camera_ns = {
+            "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
+            "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
+        }
+        self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
         }
@@ -146,6 +170,8 @@ class CameraDetectionNode:
             "gate_middle_part_link": GateMiddlePart(),
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
+            "bin/red_link": BinRed(),
+            "bin/blue_link": BinBlue(),
         }
 
         self.id_tf_map = {
@@ -162,7 +188,11 @@ class CameraDetectionNode:
                 5: "gate_middle_part_link",
                 14: "octagon_link",
             },
-            "taluy/cameras/cam_bottom": {9: "bin/whole", 10: "bin/red", 11: "bin/blue"},
+            "taluy/cameras/cam_bottom": {
+                9: "bin/whole",
+                10: "bin/red_link",
+                11: "bin/blue_link",
+            },
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
@@ -283,30 +313,42 @@ class CameraDetectionNode:
             return False
         return True
 
-    def detection_callback(self, detection_msg: YoloResult):
-        camera_ns = "taluy/cameras/cam_front"
-        calibration = self.camera_calibrations[camera_ns]
+    def detection_callback(self, detection_msg: YoloResult, camera_source: str):
+        # Determine camera_ns based on the source passed by the subscriber
+        if camera_source == "front_camera":
+            camera_ns = (
+                "taluy/cameras/cam_front"  # Ensure this matches your actual namespace
+            )
+        elif camera_source == "bottom_camera":
+            camera_ns = (
+                "taluy/cameras/cam_bottom"  # Ensure this matches your actual namespace
+            )
+        else:
+            rospy.logerr(f"Unknown camera_source: {camera_source}")
+            return  # Stop processing if the source is unknown
         camera_frame = self.camera_frames[camera_ns]
-
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-
+            skip_inside_image = False
             detection_id = detection.results[0].id
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-
+            if detection_id == 10 or detection_id == 11:
+                skip_inside_image = True
+                # use altidude for bin
+                distance = self.altitude
             if detection_id == 9:
                 self.process_altitude_projection(detection, camera_ns)
                 continue
-
+            if not skip_inside_image:
+                if self.check_if_detection_is_inside_image(detection) is False:
+                    continue
             prop_name = self.id_tf_map[camera_ns][detection_id]
             if prop_name not in self.props:
                 continue
 
             prop = self.props[prop_name]
-            if self.check_if_detection_is_inside_image(detection) == False:
-                continue
 
             # Calculate distance using object dimensions
             distance = prop.estimate_distance(
