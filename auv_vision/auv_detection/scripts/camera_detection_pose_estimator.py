@@ -330,18 +330,20 @@ class CameraDetectionNode:
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-
+            skip_inside_image = False
             detection_id = detection.results[0].id
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
             if detection_id == 10 or detection_id == 11:
+                skip_inside_image = True
                 # use altidude for bin
                 distance = self.altitude
             if detection_id == 9:
                 self.process_altitude_projection(detection, camera_ns)
                 continue
-            if self.check_if_detection_is_inside_image(detection) == False:
-                continue
+            if not skip_inside_image:
+                if self.check_if_detection_is_inside_image(detection) is False:
+                    continue
             prop_name = self.id_tf_map[camera_ns][detection_id]
             if prop_name not in self.props:
                 continue
