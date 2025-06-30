@@ -109,7 +109,9 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_BIN_WHOLE_TRAVEL_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="bin_whole_link"
+                    source_frame="taluy/base_link",
+                    target_frame="bin_whole_link",
+                    keep_orientation=True,
                 ),
                 transitions={
                     "succeeded": "SET_BIN_DROP_DEPTH",
