@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 
 import rospy
-import numpy as np
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
-from sensor_msgs.msg import CameraInfo
 from std_srvs.srv import Trigger, TriggerResponse
-from auv_msgs.msg import VisualFeature
+from auv_msgs.msg import PropsYaw
 from auv_msgs.srv import VisualServoing, VisualServoingResponse
 from dynamic_reconfigure.server import Server
 from auv_control.cfg import VisualServoingConfig
+from sensor_msgs.msg import Imu
+import math
+
+
+def normalize_angle(angle):
+    return math.atan2(math.sin(angle), math.cos(angle))
 
 
 class VisualServoingController:
@@ -17,30 +21,19 @@ class VisualServoingController:
         rospy.init_node("visual_servoing_controller", anonymous=True)
         rospy.loginfo("Visual Servoing Controller node started")
 
-        # Load parameters
-        self.u_desired = rospy.get_param("~u_desired", 320.0)
-        self.alignment_threshold_u = rospy.get_param("~alignment_threshold_u", 15.0)
-        self.v_x_desired = rospy.get_param("~v_x_desired", 0.4)
-        camera_info_topic = rospy.get_param(
-            "~camera_info_topic", "/taluy/cameras/cam_front/camera_info"
-        )
         self.kp_gain = rospy.get_param("~kp_gain", 1.0)
         self.kd_gain = rospy.get_param("~kd_gain", 0.2)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
-
-        # Camera intrinsics (will be updated by the callback)
-        self.fx = 0.0
-        self.fy = 0.0
-        self.cx = 0.0
-        self.cy = 0.0
 
         # State
         self.active = False
         self.target_prop = ""
         self.service_start_time = None
-        self.last_feature = None
         self.last_error = None
         self.last_time = None
+        self.current_yaw = 0.0  # Robot's yaw in the world frame (from IMU)
+        self.last_prop_yaw_in_robot = 0.0
+        self.angular_velocity_z = 0.0  # Robot's angular velocity (from IMU)
 
         # Publisher for velocity commands
         self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
@@ -48,12 +41,9 @@ class VisualServoingController:
 
         # Subscribers
         rospy.Subscriber(
-            "/visual_features", VisualFeature, self.feature_callback, queue_size=1
+            "/visual_servoing/yaw_error", PropsYaw, self.prop_yaw_callback, queue_size=1
         )
-        rospy.Subscriber(
-            camera_info_topic, CameraInfo, self.camera_info_callback, queue_size=1
-        )
-
+        rospy.Subscriber("/imu/data", Imu, self.imu_callback, queue_size=1)
         # Services
         rospy.Service(
             "visual_servoing/start", VisualServoing, self.handle_start_request
@@ -62,6 +52,34 @@ class VisualServoingController:
 
         # Dynamic reconfigure
         self.srv = Server(VisualServoingConfig, self.reconfigure_callback)
+
+    def imu_callback(self, msg: Imu):
+        orientation_q = msg.orientation
+        _, _, self.current_yaw = self.euler_from_quaternion(
+            orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w
+        )
+        self.angular_velocity_z = msg.angular_velocity.z
+
+    def prop_yaw_callback(self, msg: PropsYaw):  #! Make this last yaw style
+
+        if not self.active or msg.object != self.target_prop:
+            return
+
+    def control_step(self):
+
+        # Update desired yaw
+        target_yaw_in_world = self.current_yaw + self.last_prop_yaw_in_robot
+
+        # error is the difference between the desired and current yaw
+        error = normalize_angle(target_yaw_in_world - self.current_yaw)
+        p_signal = self.kp_gain * error
+        d_signal = self.kd_gain * self.angular_velocity_z
+
+        pd_signal = p_signal + d_signal
+
+        twist = Twist()
+        twist.angular.z = pd_signal
+        self.cmd_vel_pub.publish(twist)
 
     def reconfigure_callback(self, config, level):
         if "kp_gain" in config:
@@ -74,7 +92,7 @@ class VisualServoingController:
     def handle_start_request(self, req: VisualServoing) -> VisualServoingResponse:
         if self.active:
             return VisualServoingResponse(
-                success=False, message="IVS Controller is already active."
+                success=False, message="VS Controller is already active."
             )
 
         self.target_prop = req.target_prop
@@ -98,92 +116,6 @@ class VisualServoingController:
         rospy.loginfo("Visual servoing cancelled by request.")
         return TriggerResponse(success=True, message="Visual servoing deactivated.")
 
-    def camera_info_callback(self, msg: CameraInfo):
-        # Store camera intrinsic parameters from the CameraInfo message
-        self.fx, self.fy = msg.K[0], msg.K[4]
-        self.cx, self.cy = msg.K[2], msg.K[5]
-        rospy.loginfo_once(
-            f"Intrinsics fx={self.fx}, fy={self.fy}, cx={self.cx}, cy={self.cy}"
-        )
-
-    def feature_callback(self, msg: VisualFeature):
-        self.last_feature = msg
-
-    def step(self):
-        feature = self.last_feature
-        if not feature or feature.object_name != self.target_prop or self.fx == 0.0:
-            return
-
-        rospy.loginfo_throttle(
-            5,
-            f"Feature callback received for {feature.object_name}. Target: {self.target_prop}. Active: {self.active}",
-        )
-
-        u, v, Z = feature.u, feature.v, feature.Z
-
-        rospy.loginfo_throttle(5, f"Received feature: u={u}, v={v}, Z={Z}")
-
-        if Z <= 0:
-            rospy.logwarn_throttle(
-                1, f"Invalid depth Z={Z}. Skipping control calculation."
-            )
-            return
-
-        error = np.array([[u - self.u_desired]])
-
-        current_time = rospy.Time.now()
-
-        # PD Control
-        error_dot = np.zeros_like(error)
-        if self.last_error is not None and self.last_time is not None:
-            dt = (current_time - self.last_time).to_sec()
-            if dt > 0:
-                error_dot = (error - self.last_error) / dt
-
-        self.last_error = error
-        self.last_time = current_time
-
-        x_norm = (u - self.cx) / self.fx
-        y_norm = (v - self.cy) / self.fy
-
-        # Interaction matrix L maps camera velocity to feature velocity (vel_feature = L * v_cam).
-        # Equals to Jacobian of the image feature with respect to the camera's 6-dof velocity.
-        # Each row corresponds to a feature (u, v), and each column to a velocity component.
-
-        # Row for u_dot
-        L_u = [
-            -self.fx / Z,
-            0,
-            x_norm * self.fx / Z,
-            x_norm * y_norm * self.fx,
-            -(1 + x_norm**2) * self.fx,
-            y_norm * self.fx,
-        ]
-
-        L = np.array([L_u])
-
-        # PD control law
-        pd_signal = self.kp_gain * error + self.kd_gain * error_dot
-
-        try:
-            v_cam = -np.linalg.pinv(L).dot(pd_signal)
-        except np.linalg.LinAlgError:
-            rospy.logerr("Cannot invert L.")
-            return
-
-        twist = Twist()
-        # Linear Velocities
-        if abs(error[0, 0]) < self.alignment_threshold_u:
-            twist.linear.x = self.v_x_desired
-        else:
-            twist.linear.x = 0.0
-        # Robot Y (left) = -Camera X (right)
-        twist.linear.y = round(-v_cam[0, 0], 2)
-        twist.linear.z = 0.0
-        # Robot Yaw (around Z) = -Camera Pitch (around Y)
-        twist.angular.z = round(-v_cam[4, 0], 2)
-        self.cmd_vel_pub.publish(twist)
-
     def spin(self):
         rate = rospy.Rate(self.rate_hz)
         while not rospy.is_shutdown():
@@ -196,7 +128,7 @@ class VisualServoingController:
                     self.control_enable_pub.publish(Bool(False))
                 else:
                     self.control_enable_pub.publish(Bool(True))
-                    self.step()
+                    self.control_step()
             rate.sleep()
 
 
