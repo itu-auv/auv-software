@@ -11,11 +11,13 @@ from PyQt5.QtWidgets import (
     QLabel,
     QCheckBox,
 )
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 import subprocess
 import rospy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
+import auv_msgs.msg
+import threading
 
 
 class CommandThread(QThread):
@@ -59,17 +61,16 @@ class DryTestTab(QWidget):
         self.topic_camera_front = rospy.get_param(
             "~topic_camera_front", "cam_front/image_raw"
         )
+        self.thruster_topic = rospy.get_param(
+            "~thruster_topic", "/taluy/board/drive_pulse"
+        )
 
         self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
-        self.topic_imu = rospy.get_param("~topic_imu", "imu/data")
-        self.topic_pressure = rospy.get_param("~topic_pressure", "depth")
-        self.topic_camera_bottom = rospy.get_param(
-            "~topic_camera_bottom", "cam_bottom/image_raw"
+        self.thruster_pub = rospy.Publisher(
+            self.thruster_topic, auv_msgs.msg.MotorCommand, queue_size=10
         )
-        self.topic_camera_front = rospy.get_param(
-            "~topic_camera_front", "cam_front/image_raw"
-        )
+
         self.init_ui()
         self.imu_thread = None
         self.bar30_thread = None
@@ -78,6 +79,8 @@ class DryTestTab(QWidget):
         self.enable_thread = None
         self.enable_publishing = False
         self.launch_process = None
+        self.thruster_test_timer = QTimer()
+        self.thruster_test_timer.timeout.connect(self.stop_thruster_test)
 
     def init_ui(self):
         layout = QGridLayout()
@@ -106,9 +109,13 @@ class DryTestTab(QWidget):
         self.rqt_btn = QPushButton("Open rqt_image_view")
         self.rqt_btn.setStyleSheet("background-color: lightblue; color: black;")
 
+        self.thruster_test_btn = QPushButton("Test Thrusters")
+        self.thruster_test_btn.setStyleSheet("background-color: orange; color: black;")
+
         button_layout.addWidget(self.dry_test_btn)
         button_layout.addSpacing(10)
         button_layout.addWidget(self.rqt_btn)
+        button_layout.addWidget(self.thruster_test_btn)
 
         layout.addWidget(sensor_group, 0, 0)
         layout.addLayout(button_layout, 1, 0)
@@ -140,6 +147,7 @@ class DryTestTab(QWidget):
         self.teleop_stop.clicked.connect(self.stop_teleop)
         self.start_enable.clicked.connect(self.start_control_enable_publishing)
         self.stop_enable.clicked.connect(self.stop_control_enable_publishing)
+        self.thruster_test_btn.clicked.connect(self.test_thrusters)
 
         self.imu_start_btn.clicked.connect(self.start_imu)
         self.imu_stop_btn.clicked.connect(self.stop_imu)
@@ -204,6 +212,33 @@ class DryTestTab(QWidget):
 
     def clear_output(self):
         self.output.clear()
+
+    def test_thrusters(self):
+        """Publish motor commands to test thrusters for 2 seconds"""
+        try:
+            motor_cmd = auv_msgs.msg.MotorCommand()
+            motor_cmd.channels = [1600] * 8
+
+            self.thruster_pub.publish(motor_cmd)
+            self.output.append("Thruster test started! Running for 2 seconds...")
+
+            self.thruster_test_timer.start(2000)
+
+        except Exception as e:
+            self.output.append(f"Error testing thrusters: {str(e)}")
+
+    def stop_thruster_test(self):
+        try:
+            self.thruster_test_timer.stop()
+
+            stop_cmd = auv_msgs.msg.MotorCommand()
+            stop_cmd.channels = [0] * 8
+            self.thruster_pub.publish(stop_cmd)
+
+            self.output.append("Thruster test completed.")
+
+        except Exception as e:
+            self.output.append(f"Error stopping thrusters: {str(e)}")
 
     def start_teleop(self):
         cmd = ["roslaunch", "auv_teleop", "start_teleop.launch"]
