@@ -7,10 +7,15 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QTextEdit,
     QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QCheckBox,
 )
 from PyQt5.QtCore import QThread, pyqtSignal
 import subprocess
 import rospy
+from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 
 
 class CommandThread(QThread):
@@ -55,9 +60,24 @@ class DryTestTab(QWidget):
             "~topic_camera_front", "cam_front/image_raw"
         )
 
+        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
+        self.topic_imu = rospy.get_param("~topic_imu", "imu/data")
+        self.topic_pressure = rospy.get_param("~topic_pressure", "depth")
+        self.topic_camera_bottom = rospy.get_param(
+            "~topic_camera_bottom", "cam_bottom/image_raw"
+        )
+        self.topic_camera_front = rospy.get_param(
+            "~topic_camera_front", "cam_front/image_raw"
+        )
         self.init_ui()
         self.imu_thread = None
         self.bar30_thread = None
+        self.publishing = False
+        self.current_twist = Twist()
+        self.enable_thread = None
+        self.enable_publishing = False
+        self.launch_process = None
 
     def init_ui(self):
         layout = QGridLayout()
@@ -97,7 +117,29 @@ class DryTestTab(QWidget):
         self.clear_btn = QPushButton("Clear")
         layout.addWidget(self.clear_btn, 3, 0)
 
+        # Teleoperation controls
+        teleop_group = QGroupBox("Teleoperation")
+        teleop_layout = QGridLayout()
+        self.teleop_start = QPushButton("Start Teleop")
+        self.start_enable = QPushButton("Enable Control")
+        self.stop_enable = QPushButton("Disable Control")
+        self.xbox_check = QCheckBox("Xbox")
+        self.teleop_stop = QPushButton("Stop Teleop")
+        teleop_layout.addWidget(self.teleop_start, 0, 0)
+        teleop_layout.addWidget(self.start_enable, 1, 0)
+        teleop_layout.addWidget(self.stop_enable, 1, 2)
+        teleop_layout.addWidget(self.xbox_check, 0, 1)
+        teleop_layout.addWidget(self.teleop_stop, 0, 2)
+        teleop_group.setLayout(teleop_layout)
+
+        layout.addWidget(teleop_group, 4, 0)
+
         self.setLayout(layout)
+
+        self.teleop_start.clicked.connect(self.start_teleop)
+        self.teleop_stop.clicked.connect(self.stop_teleop)
+        self.start_enable.clicked.connect(self.start_control_enable_publishing)
+        self.stop_enable.clicked.connect(self.stop_control_enable_publishing)
 
         self.imu_start_btn.clicked.connect(self.start_imu)
         self.imu_stop_btn.clicked.connect(self.stop_imu)
@@ -162,3 +204,40 @@ class DryTestTab(QWidget):
 
     def clear_output(self):
         self.output.clear()
+
+    def start_teleop(self):
+        cmd = ["roslaunch", "auv_teleop", "start_teleop.launch"]
+        if self.xbox_check.isChecked():
+            cmd.append("controller:=xbox")
+        print(f"Executing: {' '.join(cmd)}")
+        self.launch_process = subprocess.Popen(cmd)
+
+    def stop_teleop(self):
+        if self.launch_process is not None:
+            print("Terminating teleop process...")
+            self.launch_process.terminate()
+            try:
+                self.launch_process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                print("Process did not terminate, killing it...")
+                self.launch_process.kill()
+            self.launch_process = None
+        else:
+            print("No teleop process to stop.")
+
+    def start_control_enable_publishing(self):
+        self.enable_publishing = True
+        self.enable_thread = threading.Thread(target=self.publish_enable)
+        self.enable_thread.start()
+
+    def stop_control_enable_publishing(self):
+        self.enable_publishing = False
+        if self.enable_thread is not None:
+            self.enable_thread.join()
+            self.enable_thread = None
+
+    def publish_enable(self):
+        rate = rospy.Rate(20)
+        while self.enable_publishing and not rospy.is_shutdown():
+            self.enable_pub.publish(True)
+            rate.sleep()
