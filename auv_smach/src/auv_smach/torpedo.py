@@ -73,12 +73,11 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_TORPEDO_TRAVEL_START",
                 SetFrameLookingAtState(
-                    base_frame="taluy/base_link",
+                    source_frame="taluy/base_link",
                     look_at_frame="torpedo_map_link",
                     alignment_frame="torpedo_search",
                     full_rotation=False,
                     set_frame_duration=4.0,
-                    source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -127,7 +126,7 @@ class TorpedoTaskState(smach.State):
                     angle_offset=1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    timeout=5.0,
+                    timeout=10.0,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -162,7 +161,7 @@ class TorpedoTaskState(smach.State):
                     target_frame=torpedo_target_link,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    timeout=5.0,
+                    timeout=10.0,
                     cancel_on_success=False,
                 ),
                 transitions={
