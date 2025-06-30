@@ -46,7 +46,6 @@ class MainControlPanel(QWidget):
         else:
             tabs_layout.addWidget(ServicesTab())
             tabs_layout.addWidget(DryTestTab())
-            tabs_layout.addWidget(VehicleControlTab())
 
         main_layout.addLayout(tabs_layout)
         main_layout.addStretch(0)
@@ -174,23 +173,23 @@ class StartScreen(QMainWindow):
 
 if __name__ == "__main__":
     import signal
-    
+
     def signal_handler(sig, frame):
         print("\nClosing GUI...")
         sys.exit(0)
-    
+
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
-    
+
     rospy.init_node("taluy_gui_node", anonymous=True)
     app = QApplication(sys.argv)
     window = StartScreen()
     window.show()
-    
+
     timer = QTimer()
     timer.timeout.connect(lambda: None)
     timer.start(100)
-    
+
     try:
         sys.exit(app.exec_())
     except SystemExit:

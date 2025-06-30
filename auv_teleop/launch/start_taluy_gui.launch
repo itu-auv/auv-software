@@ -14,6 +14,9 @@
         <remap from="propulsion_board/status" to="$(arg namespace)/propulsion_board/status"/>
         <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
 
+        <remap from="cancel_align" to="$(arg namespace)/control/align_frame/cancel"/>
+        <remap from="set_pose" to="$(arg namespace)/set_pose"/>
+
         <param name="topic_imu" value="$(arg namespace)/sensors/imu/data" />
         <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />
         <param name="topic_camera_bottom" value="$(arg namespace)/cameras/cam_bottom/image_raw" />
