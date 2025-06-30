@@ -21,6 +21,7 @@ add_message_files(
   FILES
   MotorCommand.msg
   Power.msg
+  PropsYaw.msg
   VisualFeature.msg
 )
 
