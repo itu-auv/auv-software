@@ -61,10 +61,11 @@ class AlignFrameControllerNode:
         return AlignFrameControllerResponse(success=True, message="Alignment started")
 
     def handle_cancel_request(self, req) -> TriggerResponse:
+        self.cmd_vel_pub.publish(Twist())
+        rospy.sleep(1.0)  # Allow time for the command to be processed
         self.active = False
         rospy.loginfo("Control canceled")
         # Publish a zero velocity command to clear old velocity commands
-        self.cmd_vel_pub.publish(Twist())
         return TriggerResponse(success=True, message="Control deactivated")
 
     def get_error(
