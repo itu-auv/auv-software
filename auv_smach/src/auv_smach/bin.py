@@ -84,7 +84,9 @@ class SetAlignToFoundState(smach.State):
         )
 
         align_state = SetAlignControllerTargetState(
-            source_frame=self.source_frame, target_frame=userdata.found_frame
+            source_frame=self.source_frame,
+            target_frame=userdata.found_frame,
+            keep_orientation=True,
         )
         return align_state.execute(userdata)
 
@@ -375,30 +377,6 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_DROP_AREA",
                 DelayState(delay_time=15.0),
-                "SET_BIN_WHOLE_TRAVEL_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link",
-                    target_frame="bin_whole_link",
-                    keep_orientation=True,
-                ),
-                transitions={
-                    "succeeded": "SET_BIN_DROP_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_BIN_DROP_DEPTH",
-                SetDepthState(depth=-0.8, sleep_duration=3.0),
-                transitions={
-                    "succeeded": "WAIT_FOR_BIN_DROP_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_BIN_DROP_DEPTH",
-                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "preempted": "preempted",
@@ -435,15 +413,6 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_2",
                 DelayState(delay_time=3.0),
-                transitions={
-                    "succeeded": "SET_BIN_EXIT_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_BIN_EXIT_DEPTH",
-                SetDepthState(depth=-0.7, sleep_duration=3.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
