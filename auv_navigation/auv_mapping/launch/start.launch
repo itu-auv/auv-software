@@ -38,6 +38,7 @@
       <rosparam command="load" file="$(find auv_mapping)/config/torpedo_frame_publisher_params.yaml" />
       <param name="torpedo_frame" value="$(arg torpedo_frame)" />
       <remap from="set_transform_torpedo_frames" to="set_transform_torpedo_frames" />
+      <remap from="set_torpedo_frame" to="set_torpedo_frame" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
   </group>

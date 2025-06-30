@@ -1,25 +1,15 @@
 from .initialize import *
 import smach
 import smach_ros
-import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
+from std_srvs.srv import SetBool, SetBoolRequest
 from auv_msgs.srv import (
     SetString,
     SetStringRequest,
-    SetStringResponse,
 )
-from std_msgs.msg import Bool
-from geometry_msgs.msg import TransformStamped, PointStamped
-import tf2_ros
-import numpy as np
-import tf.transformations as transformations
 
 from auv_smach.common import (
     SetFrameLookingAtState,
     AlignFrame,
-    SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
 )
