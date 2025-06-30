@@ -108,13 +108,11 @@ class VisualServoingController:
         self.error_pub.publish(Float64(error))
         self.current_yaw_pub.publish(Float64(self.current_yaw))
         self.target_yaw_pub.publish(Float64(self.target_yaw_in_world))
-        p_signal = self.kp_gain * error
+        p_signal = -self.kp_gain * error
         d_signal = self.kd_gain * self.angular_velocity_z
 
-        pd_signal = p_signal - d_signal
-
         twist = Twist()
-        twist.angular.z = -pd_signal
+        twist.angular.z = p_signal + d_signal
         self.cmd_vel_pub.publish(twist)
 
     def reconfigure_callback(self, config, level):
