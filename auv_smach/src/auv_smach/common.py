@@ -6,6 +6,7 @@ import numpy as np
 import tf2_ros
 import tf.transformations as transformations
 import math
+import angles
 
 from std_srvs.srv import Trigger, TriggerRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
@@ -179,11 +180,11 @@ class CancelAlignControllerState(smach_ros.ServiceState):
 
 
 class SetAlignControllerTargetState(smach_ros.ServiceState):
-    def __init__(self, source_frame: str, target_frame: str):
+    def __init__(self, source_frame: str, target_frame: str, angle_offset: float = 0.0):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
-        align_request.angle_offset = 0.0
+        align_request.angle_offset = angle_offset
 
         smach_ros.ServiceState.__init__(
             self,
