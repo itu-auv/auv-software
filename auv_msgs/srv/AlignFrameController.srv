@@ -1,6 +1,7 @@
 string source_frame
 string target_frame
 float32 angle_offset
+bool keep_orientation
 ---
 bool success
 string message
