@@ -660,9 +660,7 @@ class SearchForPropState(smach.StateMachine):
             smach.StateMachine.add(
                 "SET_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
-                    source_frame=source_frame,
-                    target_frame=alignment_frame,
-                    keep_orientation=True,
+                    source_frame=source_frame, target_frame=alignment_frame
                 ),
                 transitions={
                     "succeeded": "BROADCAST_ALIGNMENT_FRAME",
