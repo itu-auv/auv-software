@@ -107,6 +107,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_target_link,
+                    angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     timeout=20.0,
@@ -147,74 +148,74 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_FRAME",
-                DelayState(delay_time=5.0),
+                DelayState(delay_time=100.0),
                 transitions={
                     "succeeded": "TURN_TO_LAUNCH_TORPEDO",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            smach.StateMachine.add(
-                "TURN_TO_LAUNCH_TORPEDO",
-                AlignFrame(
-                    source_frame="taluy/base_link/torpedo_upper_link",
-                    target_frame=torpedo_target_link,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    timeout=10.0,
-                    cancel_on_success=False,
-                ),
-                transitions={
-                    "succeeded": "LAUNCH_TORPEDO_1",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "LAUNCH_TORPEDO_1",
-                LaunchTorpedoState(id=1),
-                transitions={
-                    "succeeded": "WAIT_FOR_TORPEDO_LAUNCH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_TORPEDO_LAUNCH",
-                DelayState(delay_time=6.0),
-                transitions={
-                    "succeeded": "LAUNCH_TORPEDO_2",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "LAUNCH_TORPEDO_2",
-                LaunchTorpedoState(id=2),
-                transitions={
-                    "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_TORPEDO_2_LAUNCH",
-                DelayState(delay_time=6.0),
-                transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER_FINAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_FINAL",
-                CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+            # smach.StateMachine.add(
+            #     "TURN_TO_LAUNCH_TORPEDO",
+            #     AlignFrame(
+            #         source_frame="taluy/base_link/torpedo_upper_link",
+            #         target_frame=torpedo_target_link,
+            #         dist_threshold=0.1,
+            #         yaw_threshold=0.1,
+            #         timeout=10.0,
+            #         cancel_on_success=False,
+            #     ),
+            #     transitions={
+            #         "succeeded": "LAUNCH_TORPEDO_1",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "LAUNCH_TORPEDO_1",
+            #     LaunchTorpedoState(id=1),
+            #     transitions={
+            #         "succeeded": "WAIT_FOR_TORPEDO_LAUNCH",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "WAIT_FOR_TORPEDO_LAUNCH",
+            #     DelayState(delay_time=6.0),
+            #     transitions={
+            #         "succeeded": "LAUNCH_TORPEDO_2",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "LAUNCH_TORPEDO_2",
+            #     LaunchTorpedoState(id=2),
+            #     transitions={
+            #         "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "WAIT_FOR_TORPEDO_2_LAUNCH",
+            #     DelayState(delay_time=6.0),
+            #     transitions={
+            #         "succeeded": "CANCEL_ALIGN_CONTROLLER_FINAL",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "CANCEL_ALIGN_CONTROLLER_FINAL",
+            #     CancelAlignControllerState(),
+            #     transitions={
+            #         "succeeded": "succeeded",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
 
     def execute(self, userdata):
         # Execute the state machine
