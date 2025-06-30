@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 import rospy
+import tf.transformations
+import math
+
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
 from std_srvs.srv import Trigger, TriggerResponse
@@ -9,11 +12,13 @@ from auv_msgs.srv import VisualServoing, VisualServoingResponse
 from dynamic_reconfigure.server import Server
 from auv_control.cfg import VisualServoingConfig
 from sensor_msgs.msg import Imu
-import math
 
 
 def normalize_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
+
+
+#! angle info / imu info should be in real time, same timestamp, etc.
 
 
 class VisualServoingController:
@@ -31,11 +36,11 @@ class VisualServoingController:
         self.service_start_time = None
         self.last_error = None
         self.last_time = None
+        # State from sensors - updated in callbacks
         self.current_yaw = 0.0  # Robot's yaw in the world frame (from IMU)
         self.last_prop_yaw_in_robot = 0.0
         self.angular_velocity_z = 0.0  # Robot's angular velocity (from IMU)
 
-        # Publisher for velocity commands
         self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
         self.control_enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
@@ -55,22 +60,23 @@ class VisualServoingController:
 
     def imu_callback(self, msg: Imu):
         orientation_q = msg.orientation
-        _, _, self.current_yaw = self.euler_from_quaternion(
+        _, _, self.current_yaw = tf.transformations.euler_from_quaternion(
             orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w
         )
         self.angular_velocity_z = msg.angular_velocity.z
 
-    def prop_yaw_callback(self, msg: PropsYaw):  #! Make this last yaw style
-
+    def prop_yaw_callback(self, msg: PropsYaw):
         if not self.active or msg.object != self.target_prop:
             return
 
     def control_step(self):
-
-        # Update desired yaw
+        """
+        Executes one iteration of the PD control loop
+        """
+        # desired absolute heading
         target_yaw_in_world = self.current_yaw + self.last_prop_yaw_in_robot
 
-        # error is the difference between the desired and current yaw
+        # error is the shortest angular distance between where we want to be and where we are.
         error = normalize_angle(target_yaw_in_world - self.current_yaw)
         p_signal = self.kp_gain * error
         d_signal = self.kd_gain * self.angular_velocity_z
