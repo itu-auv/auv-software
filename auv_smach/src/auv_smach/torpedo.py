@@ -157,7 +157,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "TURN_TO_LAUNCH_TORPEDO",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=torpedo_target_link,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
