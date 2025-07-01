@@ -17,7 +17,7 @@
   <xacro:include filename="$(find realsense2_description)/urdf/_d435.urdf.xacro" />  
   <!-- Add RealSense camera to the front of the AUV -->
   <xacro:sensor_d435 parent="$(arg namespace)/base_link" use_nominal_extrinsics="true" add_plug="true" use_mesh="true">
-    <origin xyz="0.3 0 0" rpy="0 0 0"/>
+    <origin xyz="-0.35 0 0" rpy="0 0 ${math.pi}"/>
   </xacro:sensor_d435>
 
   <!-- RealSense RGB Camera Gazebo plugin -->
@@ -73,7 +73,7 @@
         <depthImageTopicName>depth/image_raw</depthImageTopicName>
         <depthImageCameraInfoTopicName>depth/camera_info</depthImageCameraInfoTopicName>
         <pointCloudTopicName>depth/points</pointCloudTopicName>
-        <frameName>taluy/base_link/front_camera_optical_link</frameName>
+        <frameName>taluy/camera_depth_optical_frame</frameName>
         <pointCloudCutoff>0.1</pointCloudCutoff>
         <pointCloudCutoffMax>10.0</pointCloudCutoffMax>
       </plugin>
