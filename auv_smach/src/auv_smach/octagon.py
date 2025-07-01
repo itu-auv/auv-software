@@ -37,7 +37,6 @@ class OctagonTaskState(smach.State):
         )
 
         with self.state_machine:
-            # 1. Enable octagon frame service
             smach.StateMachine.add(
                 "ENABLE_OCTAGON_FRAME",
                 OctagonTransformServiceEnableState(True),
@@ -47,8 +46,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 2. Set depth
             smach.StateMachine.add(
                 "SET_OCTAGON_DEPTH",
                 SetDepthState(depth=octagon_depth, sleep_duration=4.0),
@@ -58,8 +55,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 3. Search for octagon
             smach.StateMachine.add(
                 "SEARCH_FOR_OCTAGON",
                 SearchForPropState(
@@ -76,8 +71,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 4. Plan path to closer frame
             smach.StateMachine.add(
                 "PLAN_PATH_TO_CLOSER_FRAME",
                 PlanPathToSingleFrameState(
@@ -91,8 +84,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 5. Disable octagon frame service
             smach.StateMachine.add(
                 "DISABLE_OCTAGON_FRAME",
                 OctagonTransformServiceEnableState(False),
@@ -102,8 +93,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 6. Set align controller to dynamic target
             smach.StateMachine.add(
                 "SET_ALIGN_TO_DYNAMIC_TARGET",
                 SetAlignControllerTargetState(
@@ -116,8 +105,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 7. Execute planned path
             smach.StateMachine.add(
                 "EXECUTE_PATH",
                 ExecutePlannedPathsState(),
@@ -127,8 +114,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 8. Set align controller to octagon
             smach.StateMachine.add(
                 "SET_ALIGN_TO_OCTAGON",
                 SetAlignControllerTargetState(
@@ -141,8 +126,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 9. Delay before surfacing
             smach.StateMachine.add(
                 "DELAY_BEFORE_SURFACE",
                 DelayState(delay_time=10.0),
@@ -152,37 +135,40 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 10. Set depth to -4
             smach.StateMachine.add(
                 "SET_DEPTH_MINUS_4",
                 SetDepthState(depth=-0.4, sleep_duration=4.0),
                 transitions={
-                    "succeeded": "SEARCH_FOR_OCTAGON_FULL_ROTATION",
+                    "succeeded": "CANCEL_ALIGN_FOR_ROTATION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
-            # 11. Search for octagon with full rotation
             smach.StateMachine.add(
-                "SEARCH_FOR_OCTAGON_FULL_ROTATION",
-                SearchForPropState(
-                    look_at_frame="octagon_animal_image_link",
-                    alignment_frame="octagon_search",
-                    full_rotation=True,
-                    set_frame_duration=4.0,
-                    source_frame="taluy/base_link",
-                    rotation_speed=0.3,
-                ),
+                "CANCEL_ALIGN_FOR_ROTATION",
+                CancelAlignControllerState(),
+                #    transitions={
+                #        "succeeded": "SEARCH_FOR_OCTAGON_FULL_ROTATION",
+                #        "preempted": "preempted",
+                #        "aborted": "aborted",
+                #    },
+                # )
+                # smach.StateMachine.add(
+                #    "SEARCH_FOR_OCTAGON_FULL_ROTATION",
+                #    SearchForPropState(
+                #        look_at_frame="octagon_animal_image_link",
+                #        alignment_frame="octagon_search",
+                #        full_rotation=True,
+                #        set_frame_duration=4.0,
+                #        source_frame="taluy/base_link",
+                #        rotation_speed=0.3,
+                #    ),
                 transitions={
                     "succeeded": "SET_DEPTH_0",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
-            # 12. Set depth to 0
             smach.StateMachine.add(
                 "SET_DEPTH_0",
                 SetDepthState(depth=0.0, sleep_duration=3.0),
@@ -192,8 +178,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 13. Set final depth
             smach.StateMachine.add(
                 "SET_FINAL_DEPTH",
                 SetDepthState(depth=-0.5, sleep_duration=4.0),
@@ -203,8 +187,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # 14. Cancel align controller
             smach.StateMachine.add(
                 "CANCEL_ALIGN",
                 CancelAlignControllerState(),

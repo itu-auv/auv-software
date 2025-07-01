@@ -28,7 +28,7 @@ class OctagonTransformServiceNode:
         self.octagon_closer_frame = "octagon_closer_link"
         self.closer_distance = rospy.get_param(
             "~closer_distance", 2.0
-        )  # 2 meters closer
+        )  # distance from octagon to closer frame
 
         self.set_enable_service = rospy.Service(
             "set_transform_octagon_frame", SetBool, self.handle_enable_service
@@ -99,23 +99,28 @@ class OctagonTransformServiceNode:
             )
             return
 
-        # Calculate position 2 meters closer to octagon
-        direction_unit = direction_vector_2d / total_distance_2d
-        closer_position = octagon_pos[:2] + direction_unit * self.closer_distance
+        direction_unit_2d = direction_vector_2d / total_distance_2d
+
+        # Calculate yaw from the direction vector (robot to octagon)
+        yaw = np.arctan2(direction_unit_2d[1], direction_unit_2d[0])
+        q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+
+        orientation = Pose().orientation
+        orientation.x = q[0]
+        orientation.y = q[1]
+        orientation.z = q[2]
+        orientation.w = q[3]
+
+        # Calculate position for closer frame
+        closer_pos_2d = octagon_pos[:2] - (direction_unit_2d * self.closer_distance)
+        closer_pos = np.append(closer_pos_2d, robot_pos[2])
 
         # Create closer frame
         closer_pose = Pose()
-        closer_pose.position.x = closer_position[0]
-        closer_pose.position.y = closer_position[1]
-        closer_pose.position.z = octagon_pose.position.z  # Keep same z height
-
-        # Face the octagon
-        direction_angle = np.arctan2(direction_vector_2d[1], direction_vector_2d[0])
-        quat = tf.transformations.quaternion_from_euler(0, 0, direction_angle)
-        closer_pose.orientation.x = quat[0]
-        closer_pose.orientation.y = quat[1]
-        closer_pose.orientation.z = quat[2]
-        closer_pose.orientation.w = quat[3]
+        closer_pose.position.x, closer_pose.position.y, closer_pose.position.z = (
+            closer_pos
+        )
+        closer_pose.orientation = orientation
 
         # Send the transform
         closer_transform = self.build_transform_message(
