@@ -370,12 +370,21 @@ class CameraDetectionNode:
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
-            camera_to_odom_transform = self.tf_buffer.lookup_transform(
-                camera_frame,
-                "odom",
-                detection_msg.header.stamp,
-                rospy.Duration(1.0),
-            )
+            try:
+                camera_to_odom_transform = self.tf_buffer.lookup_transform(
+                    camera_frame,
+                    "odom",
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                rospy.logerr(f"Transform error: {e}")
+                return
+
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
             transform_stamped_msg = TransformStamped()
