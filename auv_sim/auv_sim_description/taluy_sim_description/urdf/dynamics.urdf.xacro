@@ -32,7 +32,7 @@
         <length>0.03</length>
         <height>0.03</height>
       </box>
-      <center_of_buoyancy>${cob}</center_of_buoyancy>
+      <center_of_buoyancy>0.0 0.0 0.02</center_of_buoyancy>
       <hydrodynamic_model>
         <type>fossen</type>
         <added_mass>
