@@ -15,6 +15,7 @@ from geometry_msgs.msg import (
 from ultralytics_ros.msg import YoloResult
 from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
+from nav_msgs.msg import Odometry
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
@@ -196,10 +197,15 @@ class CameraDetectionNode:
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
-        rospy.Subscriber("dvl/altitude", Float32, self.altitude_callback)
+        self.pool_depth = rospy.get_param("~pool_depth", 2.2)
+        rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
-    def altitude_callback(self, msg: Float32):
-        self.altitude = msg.data
+    def altitude_callback(self, msg: Odometry):
+        depth = -msg.pose.pose.position.z
+        self.altitude = self.pool_depth - depth
+        rospy.loginfo_once(
+            f"Calculated altitude from odom_pressure: {self.altitude:.2f} m (pool_depth={self.pool_depth})"
+        )
 
     def calculate_intersection_with_ground(self, point1_odom, point2_odom):
         # Calculate t where the z component is zero (ground plane)
@@ -350,12 +356,12 @@ class CameraDetectionNode:
 
             prop = self.props[prop_name]
 
-            # Calculate distance using object dimensions
-            distance = prop.estimate_distance(
-                detection.bbox.size_y,
-                detection.bbox.size_x,
-                self.camera_calibrations[camera_ns],
-            )
+            if not skip_inside_image:  # Calculate distance using object dimensions
+                distance = prop.estimate_distance(
+                    detection.bbox.size_y,
+                    detection.bbox.size_x,
+                    self.camera_calibrations[camera_ns],
+                )
 
             if distance is None:
                 continue
@@ -364,12 +370,21 @@ class CameraDetectionNode:
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
-            camera_to_odom_transform = self.tf_buffer.lookup_transform(
-                camera_frame,
-                "odom",
-                detection_msg.header.stamp,
-                rospy.Duration(1.0),
-            )
+            try:
+                camera_to_odom_transform = self.tf_buffer.lookup_transform(
+                    camera_frame,
+                    "odom",
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                rospy.logerr(f"Transform error: {e}")
+                return
+
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
             transform_stamped_msg = TransformStamped()
