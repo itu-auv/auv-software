@@ -88,14 +88,24 @@ def concatenate_transforms(transform1, transform2):
 # ------------------- STATES -------------------
 
 
-class VisualServoingState(smach_ros.ServiceState):
+class VisualServoingCentering(smach_ros.ServiceState):
     def __init__(self, target_prop):
         request = VisualServoingRequest()
         request.target_prop = target_prop
-        super(VisualServoingState, self).__init__(
+        super(VisualServoingCentering, self).__init__(
             "visual_servoing/start",
             VisualServoing,
             request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
+class VisualServoingNavigation(smach_ros.ServiceState):
+    def __init__(self):
+        super(VisualServoingNavigation, self).__init__(
+            "visual_servoing/navigate",
+            Trigger,
+            request=TriggerRequest(),
             outcomes=["succeeded", "preempted", "aborted"],
         )
 
