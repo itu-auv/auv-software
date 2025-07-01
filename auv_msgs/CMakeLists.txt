@@ -30,7 +30,6 @@ add_service_files(
   SetDepth.srv
   SetObjectTransform.srv
   VisualServoing.srv
-  SetString.srv
 )
 
 # # Generate added messages and services with any dependencies listed here

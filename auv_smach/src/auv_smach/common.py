@@ -748,7 +748,11 @@ class AlignFrame(smach.StateMachine):
         with self:
             smach.StateMachine.add(
                 "REQUEST_ALIGNMENT",
-                SetAlignControllerTargetState(source_frame, target_frame, angle_offset),
+                SetAlignControllerTargetState(
+                    source_frame=source_frame,
+                    target_frame=target_frame,
+                    angle_offset=angle_offset,
+                ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
                     "preempted": "preempted",
