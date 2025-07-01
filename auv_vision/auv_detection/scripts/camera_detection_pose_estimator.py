@@ -356,12 +356,12 @@ class CameraDetectionNode:
 
             prop = self.props[prop_name]
 
-            # Calculate distance using object dimensions
-            distance = prop.estimate_distance(
-                detection.bbox.size_y,
-                detection.bbox.size_x,
-                self.camera_calibrations[camera_ns],
-            )
+            if not skip_inside_image:  # Calculate distance using object dimensions
+                distance = prop.estimate_distance(
+                    detection.bbox.size_y,
+                    detection.bbox.size_x,
+                    self.camera_calibrations[camera_ns],
+                )
 
             if distance is None:
                 continue
