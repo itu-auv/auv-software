@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
-import math
 import numpy as np
 from tf.transformations import (
-    quaternion_from_euler,
-    quaternion_multiply,
     quaternion_matrix,
 )
-from typing import Tuple
 import rospy
 import tf2_ros
-from geometry_msgs.msg import Pose, Quaternion, TransformStamped
+from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
 
 from auv_msgs.srv import (
     SetObjectTransform,
     SetObjectTransformRequest,
-    SetString,
-    SetStringResponse,
 )
 
 
@@ -34,27 +28,22 @@ class TorpedoTransformServiceNode:
 
         self.odom_frame = "odom"
         self.target_frame = "torpedo_target"
+        self.realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_frame = rospy.get_param("~torpedo_frame", "torpedo_map_link")
+        self.torpedo_realsense_frame = rospy.get_param(
+            "~torpedo_realsense_frame", "torpedo_map_link_realsense"
+        )
 
         self.offset_x = rospy.get_param("~offset_x", 0.0)
         self.offset_y = rospy.get_param("~offset_y", 0.5)
         self.offset_z = rospy.get_param("~offset_z", 0.0)
-
-        self.set_torpedo_frame_service = rospy.Service(
-            "set_torpedo_frame", SetString, self.set_torpedo_frame
-        )
+        self.realsense_offset_x = rospy.get_param("~realsense_offset_x", 0.0)
+        self.realsense_offset_y = rospy.get_param("~realsense_offset_y", 0.5)
+        self.realsense_offset_z = rospy.get_param("~realsense_offset_z", 0.0)
 
         self.set_enable_service = rospy.Service(
             "set_transform_torpedo_frames", SetBool, self.handle_enable_service
         )
-
-    def set_torpedo_frame(self, req: SetString) -> SetStringResponse:
-        """
-        Service to set the torpedo frame dynamically.
-        """
-        self.torpedo_frame = req.data
-        rospy.loginfo(f"Torpedo frame set to: {self.torpedo_frame}")
-        return SetStringResponse(success=True)
 
     def get_pose(self, transform: TransformStamped) -> Pose:
         """
@@ -117,22 +106,47 @@ class TorpedoTransformServiceNode:
             transform_torpedo = self.tf_buffer.lookup_transform(
                 self.odom_frame, self.torpedo_frame, rospy.Time(0), rospy.Duration(1)
             )
+            torpedo_pose = self.get_pose(transform_torpedo)
+            target_pose = self.apply_offsets(
+                torpedo_pose, [self.offset_x, self.offset_y, self.offset_z]
+            )
+            target_transform = self.build_transform_message(
+                self.target_frame, target_pose
+            )
+            self.send_transform(target_transform)
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"TF lookup failed: {e}")
-            return
+            rospy.logwarn(f"TF lookup for {self.torpedo_frame} failed: {e}")
 
-        torpedo_pose = self.get_pose(transform_torpedo)
-
-        target_pose = self.apply_offsets(
-            torpedo_pose, [self.offset_x, self.offset_y, self.offset_z]
-        )
-
-        target_transform = self.build_transform_message(self.target_frame, target_pose)
-        self.send_transform(target_transform)
+        try:
+            transform_realsense = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.torpedo_realsense_frame,
+                rospy.Time(0),
+                rospy.Duration(1),
+            )
+            realsense_pose = self.get_pose(transform_realsense)
+            realsense_target_pose = self.apply_offsets(
+                realsense_pose,
+                [
+                    self.realsense_offset_x,
+                    self.realsense_offset_y,
+                    self.realsense_offset_z,
+                ],
+            )
+            realsense_target_transform = self.build_transform_message(
+                self.realsense_target_frame, realsense_target_pose
+            )
+            self.send_transform(realsense_target_transform)
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ):
+            pass
 
     def handle_enable_service(self, req):
         self.enable = req.data
@@ -141,7 +155,7 @@ class TorpedoTransformServiceNode:
         return SetBoolResponse(success=True, message=message)
 
     def spin(self):
-        rate = rospy.Rate(2.0)
+        rate = rospy.Rate(20)
         while not rospy.is_shutdown():
             if self.enable:
                 self.create_torpedo_frames()
