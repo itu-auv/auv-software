@@ -19,6 +19,10 @@ def normalize_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
+#! log info check
+#! normalize angle
+
+
 class VisualServoingController:
     def __init__(self):
         rospy.init_node("visual_servoing_controller", anonymous=True)
@@ -41,6 +45,7 @@ class VisualServoingController:
         self.angular_velocity_z = 0.0  # Robot's angular velocity (from IMU)
         self.imu_history = deque(maxlen=int(self.rate_hz * imu_history_secs))
 
+        # Publishers and Subscribers
         self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
         self.control_enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
         self.error_pub = rospy.Publisher("visual_servoing/error", Float64, queue_size=1)
@@ -51,7 +56,6 @@ class VisualServoingController:
             "visual_servoing/target_yaw", Float64, queue_size=1
         )
 
-        # Subscribers
         rospy.Subscriber("props_yaw", PropsYaw, self.prop_yaw_callback, queue_size=1)
         rospy.Subscriber("sensors/imu/data", Imu, self.imu_callback, queue_size=1)
 
@@ -78,6 +82,7 @@ class VisualServoingController:
         self.imu_history.append((msg.header.stamp, yaw, msg.angular_velocity.z))
 
     def prop_yaw_callback(self, msg: PropsYaw):
+        # Only process the message if the controller is active and the target prop matches
         if not self.active or msg.object != self.target_prop:
             return
 
@@ -89,6 +94,7 @@ class VisualServoingController:
 
         prop_stamp = msg.header.stamp
         angle_to_prop_from_robot = msg.angle
+        #! Change this
         rospy.loginfo(f"angle to prop: {angle_to_prop_from_robot}")
         closest_imu_reading = min(
             self.imu_history, key=lambda x: abs(x[0] - prop_stamp)
@@ -124,7 +130,7 @@ class VisualServoingController:
         return config
 
     def handle_start_request(self, req: VisualServoing) -> VisualServoingResponse:
-        if self.active:
+        if self.active and req.target_prop == self.target_prop:
             return VisualServoingResponse(
                 success=False, message="VS Controller is already active."
             )

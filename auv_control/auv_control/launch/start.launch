@@ -72,7 +72,6 @@
     <group if="$(arg start_visual_servoing)">
       <node pkg="auv_control" type="visual_servoing_controller.py" name="visual_servoing_controller"
         output="screen">
-        <rosparam file="$(find auv_control)/config/visual_servoing_params.yaml" command="load" />
       </node>
     </group>
 
