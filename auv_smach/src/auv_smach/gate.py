@@ -221,7 +221,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
-                RollTwoTimes(roll_rate=20.0, rate_hz=20, timeout_s=15.0),
+                RollTwoTimes(roll_rate=35.0, rate_hz=20, timeout_s=15.0),
                 transitions={
                     "succeeded": "WAIT_FOR_ENABLE_DVL_ODOM",
                     "preempted": "preempted",
@@ -374,7 +374,7 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
+                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "PLAN_GATE_PATHS",
