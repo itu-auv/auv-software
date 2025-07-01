@@ -85,6 +85,11 @@
             <arg name="logging_directory" value="$(arg logging_directory)" />
         </include>
     </group>
-<!-- TODO (eminmeydanoglu): add start camera process here -->
 
+    <!-- Start image processing -->
+    <include file="$(find auv_sim_bringup)/launch/inc/start_image_processing.launch">
+        <arg name="namespace" value="$(arg namespace)" />
+        <arg name="cam_front_name" value="cam_front" />
+        <arg name="cam_bottom_name" value="cam_bottom" />
+    </include>
 </launch>

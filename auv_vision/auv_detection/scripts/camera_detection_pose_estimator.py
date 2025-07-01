@@ -356,12 +356,12 @@ class CameraDetectionNode:
 
             prop = self.props[prop_name]
 
-            # Calculate distance using object dimensions
-            distance = prop.estimate_distance(
-                detection.bbox.size_y,
-                detection.bbox.size_x,
-                self.camera_calibrations[camera_ns],
-            )
+            if not skip_inside_image:  # Calculate distance using object dimensions
+                distance = prop.estimate_distance(
+                    detection.bbox.size_y,
+                    detection.bbox.size_x,
+                    self.camera_calibrations[camera_ns],
+                )
 
             if distance is None:
                 continue
@@ -370,12 +370,21 @@ class CameraDetectionNode:
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
-            camera_to_odom_transform = self.tf_buffer.lookup_transform(
-                camera_frame,
-                "odom",
-                detection_msg.header.stamp,
-                rospy.Duration(1.0),
-            )
+            try:
+                camera_to_odom_transform = self.tf_buffer.lookup_transform(
+                    camera_frame,
+                    "odom",
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                rospy.logerr(f"Transform error: {e}")
+                return
+
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
             transform_stamped_msg = TransformStamped()
