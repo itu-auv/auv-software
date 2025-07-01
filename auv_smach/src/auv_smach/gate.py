@@ -54,6 +54,7 @@ class RollTwoTimes(smach.State):
         self.last_time = None
         self.current_odom = None
         self.frame_created = False
+        self.initial_yaw = None
 
         # Initialize service proxy for setting object transform
         self.set_object_transform_service = rospy.ServiceProxy(
@@ -67,6 +68,61 @@ class RollTwoTimes(smach.State):
         self.pub_wrench = rospy.Publisher(
             self.wrench_topic, WrenchStamped, queue_size=1
         )
+
+    def create_roll_control_frame(self):
+        """Create and broadcast roll_control_frame based on current odometry"""
+        if not self.current_odom:
+            return
+
+        try:
+            # Get current vehicle position from odometry
+            position = self.current_odom.pose.pose.position
+
+            # Use initial yaw, zero roll and pitch
+            if self.initial_yaw is None:
+                # Get current vehicle orientation to extract initial yaw
+                quat = (
+                    self.current_odom.pose.pose.orientation.x,
+                    self.current_odom.pose.pose.orientation.y,
+                    self.current_odom.pose.pose.orientation.z,
+                    self.current_odom.pose.pose.orientation.w,
+                )
+                _, _, yaw = euler_from_quaternion(quat)
+                self.initial_yaw = yaw
+
+            # Create quaternion with initial yaw and zero roll/pitch
+            new_quat = quaternion_from_euler(0.0, 0.0, self.initial_yaw)
+
+            # Create transform - frame will be at robot's current position
+            # but with initial yaw and zero roll/pitch
+            transform = TransformStamped()
+            transform.header.stamp = rospy.Time.now()
+            transform.header.frame_id = "odom"  # Parent frame is now "odom"
+            transform.child_frame_id = self.roll_frame_id
+
+            # Use robot's current position from odometry
+            transform.transform.translation.x = position.x
+            transform.transform.translation.y = position.y
+            transform.transform.translation.z = position.z
+
+            # Use initial yaw with zero roll/pitch
+            transform.transform.rotation.x = new_quat[0]
+            transform.transform.rotation.y = new_quat[1]
+            transform.transform.rotation.z = new_quat[2]
+            transform.transform.rotation.w = new_quat[3]
+
+            # Call set_object_transform service
+            req = SetObjectTransformRequest()
+            req.transform = transform
+            res = self.set_object_transform_service(req)
+
+            if not res.success:
+                rospy.logwarn(f"SetObjectTransform failed: {res.message}")
+            else:
+                self.frame_created = True
+
+        except Exception as e:
+            rospy.logwarn_throttle(3.0, f"Error creating roll control frame: {str(e)}")
 
     def odom_cb(self, msg: Odometry):
         now = rospy.Time.now()
@@ -91,55 +147,9 @@ class RollTwoTimes(smach.State):
         delta_angle = omega_x * dt
         self.total_roll += abs(delta_angle)
 
-        # Create and broadcast roll_control_frame using set_object_transform
-        if self.current_odom:
-            try:
-                # Get current vehicle orientation
-                quat = (
-                    self.current_odom.pose.pose.orientation.x,
-                    self.current_odom.pose.pose.orientation.y,
-                    self.current_odom.pose.pose.orientation.z,
-                    self.current_odom.pose.pose.orientation.w,
-                )
-                roll, pitch, yaw = euler_from_quaternion(quat)
-
-                # Get current odom orientation
-                odom_quat = (
-                    self.current_odom.pose.pose.orientation.x,
-                    self.current_odom.pose.pose.orientation.y,
-                    self.current_odom.pose.pose.orientation.z,
-                    self.current_odom.pose.pose.orientation.w,
-                )
-                odom_roll, odom_pitch, _ = euler_from_quaternion(odom_quat)
-
-                # Create new quaternion with vehicle yaw, odom pitch and roll
-                new_quat = quaternion_from_euler(odom_roll, odom_pitch, yaw)
-
-                # Create transform
-                transform = TransformStamped()
-                transform.header.stamp = now
-                transform.header.frame_id = self.frame_id
-                transform.child_frame_id = self.roll_frame_id
-                transform.transform.translation.x = 0.0
-                transform.transform.translation.y = 0.0
-                transform.transform.translation.z = 0.0
-                transform.transform.rotation.x = new_quat[0]
-                transform.transform.rotation.y = new_quat[1]
-                transform.transform.rotation.z = new_quat[2]
-                transform.transform.rotation.w = new_quat[3]
-
-                # Call set_object_transform service
-                req = SetObjectTransformRequest()
-                req.transform = transform
-                res = self.set_object_transform_service(req)
-
-                if not res.success:
-                    rospy.logwarn(f"SetObjectTransform failed: {res.message}")
-
-            except Exception as e:
-                rospy.logwarn_throttle(
-                    3.0, f"Error creating roll control frame: {str(e)}"
-                )
+        # Update roll control frame continuously during execution
+        if self.frame_created:
+            self.create_roll_control_frame()
 
     def killswitch_cb(self, msg: Bool):
         if not msg.data:
@@ -161,54 +171,11 @@ class RollTwoTimes(smach.State):
                 return self._abort_on_shutdown()
 
         # Create initial roll control frame
-        try:
-            if self.current_odom and not self.frame_created:
-                # Get current vehicle orientation
-                quat = (
-                    self.current_odom.pose.pose.orientation.x,
-                    self.current_odom.pose.pose.orientation.y,
-                    self.current_odom.pose.pose.orientation.z,
-                    self.current_odom.pose.pose.orientation.w,
-                )
-                roll, pitch, yaw = euler_from_quaternion(quat)
+        self.create_roll_control_frame()
 
-                # Get current odom orientation
-                odom_quat = (
-                    self.current_odom.pose.pose.orientation.x,
-                    self.current_odom.pose.pose.orientation.y,
-                    self.current_odom.pose.pose.orientation.z,
-                    self.current_odom.pose.pose.orientation.w,
-                )
-                odom_roll, odom_pitch, _ = euler_from_quaternion(odom_quat)
-
-                # Create new quaternion with vehicle yaw, odom pitch and roll
-                new_quat = quaternion_from_euler(odom_roll, odom_pitch, yaw)
-
-                # Create transform
-                transform = TransformStamped()
-                transform.header.stamp = rospy.Time.now()
-                transform.header.frame_id = self.frame_id
-                transform.child_frame_id = self.roll_frame_id
-                transform.transform.translation.x = 0.0
-                transform.transform.translation.y = 0.0
-                transform.transform.translation.z = 0.0
-                transform.transform.rotation.x = new_quat[0]
-                transform.transform.rotation.y = new_quat[1]
-                transform.transform.rotation.z = new_quat[2]
-                transform.transform.rotation.w = new_quat[3]
-
-                # Call set_object_transform service
-                req = SetObjectTransformRequest()
-                req.transform = transform
-                res = self.set_object_transform_service(req)
-
-                if res.success:
-                    self.frame_created = True
-                else:
-                    rospy.logwarn(f"SetObjectTransform failed: {res.message}")
-
-        except Exception as e:
-            rospy.logwarn_throttle(3.0, f"Error creating roll control frame: {str(e)}")
+        if not self.frame_created:
+            rospy.logerr("ROLL_TWO_TIMES: Failed to create roll control frame → abort")
+            return "aborted"
 
         self.total_roll = 0.0
         self.last_time = rospy.Time.now()
@@ -219,11 +186,6 @@ class RollTwoTimes(smach.State):
             self.roll_torque,
             self.pitch_torque,
         )
-
-        self.total_roll = 0.0
-        self.last_time = rospy.Time.now()
-        self.start_time = rospy.Time.now()
-        target = math.radians(675.0)
 
         try:
             while not rospy.is_shutdown() and self.total_roll < target and self.active:
@@ -352,7 +314,7 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
                 RollTwoTimes(
-                    roll_torque=30.0, pitch_torque=10.0, rate_hz=20, timeout_s=15.0
+                    roll_torque=25.0, pitch_torque=5.0, rate_hz=20, timeout_s=15.0
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_ENABLE_DVL_ODOM",
