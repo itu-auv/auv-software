@@ -19,7 +19,6 @@ def normalize_angle(angle):
     return math.atan2(math.sin(angle), math.cos(angle))
 
 
-#! log info check
 #! normalize angle
 #! 10000 seconds timeout
 
@@ -33,7 +32,7 @@ class VisualServoingController:
         self.kd_gain = rospy.get_param("~kd_gain", 0.8)
         self.v_x_desired = rospy.get_param("~v_x_desired", 0.3)
         self.navigation_timeout_s = rospy.get_param("~navigation_timeout_s", 3.0)
-        self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 10000.0)
+        self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 50.0)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
         # State
@@ -107,8 +106,8 @@ class VisualServoingController:
         prop_stamp = msg.header.stamp
         self.last_prop_stamp_time = prop_stamp
         angle_to_prop_from_robot = msg.angle
-        #! Change this
-        rospy.loginfo(f"angle to prop: {angle_to_prop_from_robot}")
+        #! Remove this
+        rospy.loginfo_throttle(2, f"angle to prop: {angle_to_prop_from_robot}")
         closest_imu_reading = min(
             self.imu_history, key=lambda x: abs(x[0] - prop_stamp)
         )
