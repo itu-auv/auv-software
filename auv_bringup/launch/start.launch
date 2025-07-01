@@ -15,34 +15,14 @@
     <arg name="use_gui" value="$(arg use_gui)" />
   </include>
 
-  <!-- launch xsens driver -->
-  <!-- <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
+  <include file="$(find auv_bringup)/launch/inc/$(arg namespace).launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="port" value="/dev/auv_imu" />
-  </include> -->
-
-    <!-- launch ping360 driver -->
-    <!-- <include file="$(find auv_bringup)/launch/inc/sensors/start_ping360_driver.launch.xml">
-      <arg name="namespace" value="$(arg namespace)" />
-      <arg name="device_ip" value="192.168.7.151" />
-      <arg name="device_port" value="12345" />
-    </include> -->
-
-    <!-- launch expansion bridge -->
-    <include file="$(find auv_bringup)/launch/inc/boards/start_expansion_board_bridge.launch.xml">
-      <arg name="namespace" value="$(arg namespace)" />
-      <arg name="baudrate" value="921600" />
-      <arg name="port" value="/dev/auv_expansion_board" />
-      <arg name="virtual_port" value="$(arg dvl_virtual_port)" />
-    </include>
-
-    <!-- launch dvl driver -->
-    <include file="$(find auv_bringup)/launch/inc/sensors/start_wayfinder_dvl_driver.launch.xml">
-      <arg name="namespace" value="$(arg namespace)" />
-      <arg name="port" value="$(arg dvl_virtual_port)" />
-    </include>
-  </group>
+    <arg name="dvl_virtual_port" value="$(arg dvl_virtual_port)" />
+    <arg name="use_gui" value="$(arg use_gui)" />
+    <arg name="enable_logging" value="$(arg enable_logging)" />
+    <arg name="logging_directory" value="$(arg logging_directory)" />
+  </include>
 
   <!-- launch cameras -->
   <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras.launch.xml">
