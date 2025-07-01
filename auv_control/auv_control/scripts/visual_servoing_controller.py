@@ -21,6 +21,7 @@ def normalize_angle(angle):
 
 #! log info check
 #! normalize angle
+#! 10000 seconds timeout
 
 
 class VisualServoingController:
@@ -30,14 +31,19 @@ class VisualServoingController:
 
         self.kp_gain = rospy.get_param("~kp_gain", 3.0)
         self.kd_gain = rospy.get_param("~kd_gain", 0.8)
+        self.v_x_desired = rospy.get_param("~v_x_desired", 0.3)
+        self.navigation_timeout_s = rospy.get_param("~navigation_timeout_s", 3.0)
+        self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 10000.0)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
         # State
-        self.active = False
+        self.centering_active = False
+        self.navigation_active = False
         self.target_prop = ""
         self.service_start_time = None
         self.last_error = None
         self.last_time = None
+        self.last_prop_stamp_time = None
         # State from sensors - updated in callbacks
         self.current_yaw = 0.0  # Robot's yaw in the world frame (from IMU)
         self.target_yaw_in_world = 0.0
@@ -63,6 +69,12 @@ class VisualServoingController:
             "visual_servoing/start", VisualServoing, self.handle_start_request
         )
         rospy.Service("visual_servoing/cancel", Trigger, self.handle_cancel_request)
+        rospy.Service("visual_servoing/navigate", Trigger, self.handle_navigate_request)
+        rospy.Service(
+            "visual_servoing/cancel_navigation",
+            Trigger,
+            self.handle_cancel_navigation_request,
+        )
 
         # Dynamic reconfigure
         self.srv = Server(VisualServoingConfig, self.reconfigure_callback)
@@ -83,7 +95,7 @@ class VisualServoingController:
 
     def prop_yaw_callback(self, msg: PropsYaw):
         # Only process the message if the controller is active and the target prop matches
-        if not self.active or msg.object != self.target_prop:
+        if not self.centering_active or msg.object != self.target_prop:
             return
 
         if not self.imu_history:
@@ -93,6 +105,7 @@ class VisualServoingController:
             return
 
         prop_stamp = msg.header.stamp
+        self.last_prop_stamp_time = prop_stamp
         angle_to_prop_from_robot = msg.angle
         #! Change this
         rospy.loginfo(f"angle to prop: {angle_to_prop_from_robot}")
@@ -108,7 +121,32 @@ class VisualServoingController:
         """
         Executes one iteration of the PD control loop
         """
+        twist = Twist()
+        twist.angular.z = self.calculate_angular_z()
 
+        if self.navigation_active:
+            if self.last_prop_stamp_time is None:
+                rospy.logwarn_throttle(
+                    1.0, "In navigation mode but no prop has been seen yet."
+                )
+                twist.linear.x = 0.0
+            else:
+                time_since_last_prop = (
+                    rospy.Time.now() - self.last_prop_stamp_time
+                ).to_sec()
+                if time_since_last_prop > self.navigation_timeout_s:
+                    rospy.loginfo(
+                        "Navigation timeout reached. Stopping forward motion."
+                    )
+                    twist.linear.x = 0.0
+                    self.navigation_active = False
+                    self.centering_active = False
+                else:
+                    twist.linear.x = self.v_x_desired
+
+        self.cmd_vel_pub.publish(twist)
+
+    def calculate_angular_z(self):
         # error is the shortest angular distance between where we want to be and where we are.
         error = normalize_angle(self.target_yaw_in_world - self.current_yaw)
         self.error_pub.publish(Float64(error))
@@ -116,10 +154,7 @@ class VisualServoingController:
         self.target_yaw_pub.publish(Float64(self.target_yaw_in_world))
         p_signal = -self.kp_gain * error
         d_signal = self.kd_gain * self.angular_velocity_z
-
-        twist = Twist()
-        twist.angular.z = p_signal + d_signal
-        self.cmd_vel_pub.publish(twist)
+        return p_signal + d_signal
 
     def reconfigure_callback(self, config, level):
         if "kp_gain" in config:
@@ -130,46 +165,79 @@ class VisualServoingController:
         return config
 
     def handle_start_request(self, req: VisualServoing) -> VisualServoingResponse:
-        if self.active and req.target_prop == self.target_prop:
+        if self.centering_active and req.target_prop == self.target_prop:
             return VisualServoingResponse(
                 success=False, message="VS Controller is already active."
             )
 
         self.target_prop = req.target_prop
         self.target_yaw_in_world = self.current_yaw
-        self.active = True
+        self.centering_active = True
         self.service_start_time = rospy.Time.now()
         self.last_error = None
         self.last_time = None
+        self.last_prop_stamp_time = None
         rospy.loginfo(f"Visual servoing started for target: {self.target_prop}")
         return VisualServoingResponse(
             success=True, message="Visual servoing activated."
         )
 
     def handle_cancel_request(self, req: Trigger) -> TriggerResponse:
-        if not self.active:
+        if not self.centering_active:
             return TriggerResponse(success=False, message="Controller is not active.")
 
-        self.active = False
+        self.centering_active = False
+        self.navigation_active = False
         self.cmd_vel_pub.publish(Twist())  # Stop the vehicle
         rospy.sleep(1.0)
         self.control_enable_pub.publish(Bool(data=False))
         rospy.loginfo("Visual servoing cancelled by request.")
         return TriggerResponse(success=True, message="Visual servoing deactivated.")
 
+    def handle_navigate_request(self, req: Trigger) -> TriggerResponse:
+        if not self.centering_active:
+            return TriggerResponse(
+                success=False, message="Controller is not in centering mode."
+            )
+        if self.navigation_active:
+            return TriggerResponse(
+                success=False, message="Controller is already in navigation mode."
+            )
+
+        self.navigation_active = True
+        rospy.loginfo("Visual servoing navigation started.")
+        return TriggerResponse(success=True, message="Navigation mode activated.")
+
+    def handle_cancel_navigation_request(self, req: Trigger) -> TriggerResponse:
+        if not self.navigation_active:
+            return TriggerResponse(
+                success=False, message="Controller is not in navigation mode."
+            )
+
+        self.navigation_active = False
+        rospy.loginfo("Visual servoing navigation cancelled.")
+        return TriggerResponse(success=True, message="Navigation mode deactivated.")
+
     def spin(self):
         rate = rospy.Rate(self.rate_hz)
         while not rospy.is_shutdown():
-            if self.active:
-                # timeout after 10 000s
-                if (rospy.Time.now() - self.service_start_time).to_sec() > 10000.0:
-                    rospy.loginfo("Timed out")
-                    self.active = False
-                    self.cmd_vel_pub.publish(Twist())
-                    self.control_enable_pub.publish(Bool(False))
-                else:
-                    self.control_enable_pub.publish(Bool(True))
-                    self.control_step()
+            if not self.centering_active:
+                rate.sleep()
+                continue
+
+            # Overall timeout
+            if (
+                rospy.Time.now() - self.service_start_time
+            ).to_sec() > self.overall_timeout_s:
+                rospy.loginfo("Visual Servoing has timed out.")
+                self.centering_active = False
+                self.navigation_active = False
+                self.cmd_vel_pub.publish(Twist())
+                self.control_enable_pub.publish(Bool(False))
+                continue
+
+            self.control_enable_pub.publish(Bool(True))
+            self.control_step()
             rate.sleep()
 
 
