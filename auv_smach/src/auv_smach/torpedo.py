@@ -42,7 +42,9 @@ class TorpedoFrameNameService(smach_ros.ServiceState):
 
 
 class TorpedoTaskState(smach.State):
-    def __init__(self, torpedo_map_depth, torpedo_target_link):
+    def __init__(
+        self, torpedo_map_depth, torpedo_target_frame, torpedo_realsense_target_frame
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         # Initialize the state machine
@@ -106,7 +108,7 @@ class TorpedoTaskState(smach.State):
                 "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame=torpedo_target_link,
+                    target_frame=torpedo_target_frame,
                     angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -123,23 +125,13 @@ class TorpedoTaskState(smach.State):
                 "ROTATE_FOR_REALSENSE",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame=torpedo_target_link,
+                    target_frame=torpedo_target_frame,
                     angle_offset=1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     timeout=10.0,
                     cancel_on_success=False,
                 ),
-                transitions={
-                    "succeeded": "SET_TORPEDO_FRAME_NAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_TORPEDO_FRAME_NAME",
-                # TODO: replace name
-                TorpedoFrameNameService(req="torpedo_map_link_0"),
                 transitions={
                     "succeeded": "WAIT_FOR_FRAME",
                     "preempted": "preempted",
@@ -150,7 +142,7 @@ class TorpedoTaskState(smach.State):
                 "WAIT_FOR_FRAME",
                 DelayState(delay_time=100.0),
                 transitions={
-                    "succeeded": "TURN_TO_LAUNCH_TORPEDO",
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -159,7 +151,7 @@ class TorpedoTaskState(smach.State):
             #     "TURN_TO_LAUNCH_TORPEDO",
             #     AlignFrame(
             #         source_frame="taluy/base_link/torpedo_upper_link",
-            #         target_frame=torpedo_target_link,
+            #         target_frame=torpedo_realsense_target_frame,
             #         dist_threshold=0.1,
             #         yaw_threshold=0.1,
             #         timeout=10.0,
