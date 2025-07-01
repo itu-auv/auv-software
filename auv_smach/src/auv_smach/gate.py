@@ -78,20 +78,17 @@ class RollTwoTimes(smach.State):
             # Get current vehicle position from odometry
             position = self.current_odom.pose.pose.position
 
-            # Use initial yaw, zero roll and pitch
-            if self.initial_yaw is None:
-                # Get current vehicle orientation to extract initial yaw
-                quat = (
-                    self.current_odom.pose.pose.orientation.x,
-                    self.current_odom.pose.pose.orientation.y,
-                    self.current_odom.pose.pose.orientation.z,
-                    self.current_odom.pose.pose.orientation.w,
-                )
-                _, _, yaw = euler_from_quaternion(quat)
-                self.initial_yaw = yaw
+            # Get current vehicle orientation for yaw
+            quat = (
+                self.current_odom.pose.pose.orientation.x,
+                self.current_odom.pose.pose.orientation.y,
+                self.current_odom.pose.pose.orientation.z,
+                self.current_odom.pose.pose.orientation.w,
+            )
+            _, _, yaw = euler_from_quaternion(quat)
 
-            # Create quaternion with initial yaw and zero roll/pitch
-            new_quat = quaternion_from_euler(0.0, 0.0, self.initial_yaw)
+            # Create quaternion with current yaw and zero roll/pitch
+            new_quat = quaternion_from_euler(0.0, 0.0, yaw)
 
             # Create transform - frame will be at robot's current position
             # but with initial yaw and zero roll/pitch
