@@ -3,11 +3,12 @@ import smach
 import rospy
 from auv_smach.common import (
     SetDepthState,
-    VisualServoingState,
+    VisualServoingCentering,
+    VisualServoingNavigationState,
 )
 
 
-class NavigateThroughGateStateIVS(smach.State):
+class NavigateThroughGateStateVS(smach.State):
     def __init__(self, gate_depth: float, target_prop: str):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -26,14 +27,23 @@ class NavigateThroughGateStateIVS(smach.State):
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
                 ),
                 transitions={
-                    "succeeded": "VISUAL_SERVOING",
+                    "succeeded": "VISUAL_SERVOING_CENTERING",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "VISUAL_SERVOING",
-                VisualServoingState(target_prop=target_prop),
+                "VISUAL_SERVOING_CENTERING",
+                VisualServoingCentering(target_prop=target_prop),
+                transitions={
+                    "succeeded": "VISUAL_SERVOING_NAVIGATION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "VISUAL_SERVOING_NAVIGATION",
+                VisualServoingNavigationState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -42,9 +52,7 @@ class NavigateThroughGateStateIVS(smach.State):
             )
 
     def execute(self, userdata):
-        rospy.logdebug(
-            "[NavigateThroughGateStateIVS] Starting state machine execution."
-        )
+        rospy.logdebug("[NavigateThroughGateStateVS] Starting state machine execution.")
 
         # Execute the state machine
         outcome = self.state_machine.execute()
