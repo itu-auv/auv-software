@@ -17,11 +17,21 @@ from auv_smach.common import (
 )
 
 
-class TorpedoFramePublisherServiceState(smach_ros.ServiceState):
+class TorpedoTargetFramePublisherServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
-            "set_transform_torpedo_frames",
+            "set_transform_torpedo_target_frame",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
+class TorpedoRealsenseTargetFramePublisherServiceState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "set_transform_torpedo_realsense_target_frame",
             SetBool,
             request=SetBoolRequest(data=req),
         )
@@ -42,7 +52,7 @@ class TorpedoTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "ENABLE_TORPEDO_FRAME_PUBLISHER",
-                TorpedoFramePublisherServiceState(req=True),
+                TorpedoTargetFramePublisherServiceState(req=True),
                 transitions={
                     "succeeded": "SET_TORPEDO_DEPTH",
                     "preempted": "preempted",
@@ -101,6 +111,15 @@ class TorpedoTaskState(smach.State):
                     timeout=20.0,
                     cancel_on_success=False,
                 ),
+                transitions={
+                    "succeeded": "DISABLE_TORPEDO_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_TORPEDO_FRAME_PUBLISHER",
+                TorpedoTargetFramePublisherServiceState(req=True),
                 transitions={
                     "succeeded": "ROTATE_FOR_REALSENSE",
                     "preempted": "preempted",
