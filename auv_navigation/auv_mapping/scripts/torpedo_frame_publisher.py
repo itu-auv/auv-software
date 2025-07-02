@@ -157,7 +157,7 @@ class TorpedoTransformServiceNode:
         orientation.w = q[3]
 
         # Calculate position for closer frame
-        closer_pos_2d = octagon_pos[:2] - (direction_unit_2d * self.closer_distance)
+        closer_pos_2d = octagon_pos[:2] - (direction_unit_2d * self.offset_y)
         closer_pos = np.append(closer_pos_2d, robot_pos[2])
 
         # Create closer frame
