@@ -173,6 +173,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=torpedo_realsense_target_frame,
+                    angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=10.0,

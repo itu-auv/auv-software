@@ -312,8 +312,8 @@ class ProcessTrackerWithCloud {
         // En yakın cluster ise index eklemeden kullan, diğerlerinde index ekle
         std::string frame_id;
         if (cluster_idx == closest_cluster_idx) {
-          frame_id = base_frame_id + "clossest";
-          frame_id = base_frame_id + "_" + std::to_string(cluster_idx);
+          frame_id = base_frame_id + "_closest";
+          //frame_id = base_frame_id + "_" + std::to_string(cluster_idx);
         }
 
         // 3D tespit mesajı ve marker oluştur (hesaplanmış centroid ve rotation
