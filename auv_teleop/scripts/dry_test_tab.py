@@ -7,14 +7,11 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QTextEdit,
     QGridLayout,
-    QHBoxLayout,
-    QLabel,
     QCheckBox,
 )
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer
 import subprocess
 import rospy
-from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
 import auv_msgs.msg
 import threading
@@ -27,26 +24,43 @@ class CommandThread(QThread):
         super().__init__()
         self.command = command
         self._is_running = True
+        self.process = None
 
     def run(self):
-        process = subprocess.Popen(
-            self.command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        while self._is_running:
-            output = process.stdout.readline()
-            if output == "" and process.poll() is not None:
-                break
-            if output:
-                self.output_signal.emit(output.strip())
-        process.stdout.close()
-        process.wait()
+        try:
+            self.process = subprocess.Popen(
+                self.command,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            while self._is_running:
+                output = self.process.stdout.readline()
+                if output == "" and self.process.poll() is not None:
+                    break
+                if output:
+                    self.output_signal.emit(output.strip())
+        finally:
+            self.cleanup()
+
+    def cleanup(self):
+        if self.process:
+            try:
+                self.process.terminate()
+                self.process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+            finally:
+                if self.process.stdout:
+                    self.process.stdout.close()
+                if self.process.stderr:
+                    self.process.stderr.close()
+                self.process = None
 
     def stop(self):
         self._is_running = False
+        self.cleanup()
 
 
 class DryTestTab(QWidget):
@@ -65,7 +79,6 @@ class DryTestTab(QWidget):
             "~thruster_topic", "/taluy/board/drive_pulse"
         )
 
-        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
         self.thruster_pub = rospy.Publisher(
             self.thruster_topic, auv_msgs.msg.MotorCommand, queue_size=10
@@ -74,8 +87,6 @@ class DryTestTab(QWidget):
         self.init_ui()
         self.imu_thread = None
         self.bar30_thread = None
-        self.publishing = False
-        self.current_twist = Twist()
         self.enable_thread = None
         self.enable_publishing = False
         self.launch_process = None
@@ -158,6 +169,10 @@ class DryTestTab(QWidget):
         self.clear_btn.clicked.connect(self.clear_output)
 
     def start_imu(self):
+        if self.imu_thread and self.imu_thread.isRunning():
+            self.output.append("IMU echo is already running")
+            return
+
         cmd = f"rostopic echo {self.topic_imu}"
         self.output.append(f"Running: {cmd}")
         self.imu_thread = CommandThread(cmd)
@@ -165,10 +180,17 @@ class DryTestTab(QWidget):
         self.imu_thread.start()
 
     def stop_imu(self):
-        if self.imu_thread:
+        if self.imu_thread and self.imu_thread.isRunning():
             self.imu_thread.stop()
+            self.imu_thread.wait()
+            self.imu_thread = None
+            self.output.append("IMU echo stopped")
 
     def start_bar30(self):
+        if self.bar30_thread and self.bar30_thread.isRunning():
+            self.output.append("Bar30 echo is already running")
+            return
+
         cmd = f"rostopic echo {self.topic_pressure}"
         self.output.append(f"Running: {cmd}")
         self.bar30_thread = CommandThread(cmd)
@@ -176,8 +198,11 @@ class DryTestTab(QWidget):
         self.bar30_thread.start()
 
     def stop_bar30(self):
-        if self.bar30_thread:
+        if self.bar30_thread and self.bar30_thread.isRunning():
             self.bar30_thread.stop()
+            self.bar30_thread.wait()
+            self.bar30_thread = None
+            self.output.append("Bar30 echo stopped")
 
     def open_rqt(self):
         subprocess.Popen("rqt -s rqt_image_view", shell=True)
