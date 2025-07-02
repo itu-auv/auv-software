@@ -23,19 +23,21 @@ class BinTransformServiceNode:
         )
         self.set_object_transform_service.wait_for_service()
 
-        self.odom_frame = "odom"
-        self.robot_frame = "taluy/base_link"
-        self.bin_frame = "bin_whole_link"
+        self.odom_frame = rospy.get_param("~odom_frame", "odom")
+        self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
+        self.bin_frame = rospy.get_param("~bin_frame", "bin_whole_link")
+        self.bin_further_frame = rospy.get_param("~bin_further_frame", "bin_far_trial")
+        self.bin_closer_frame = rospy.get_param("~bin_closer_frame", "bin_close_trial")
+        self.second_trial_frame = rospy.get_param(
+            "~second_trial_frame", "bin_second_trial"
+        )
 
-        self.bin_further_frame = "bin_far_trial"
-        self.bin_closer_frame = "bin_close_trial"
-
-        self.further_distance = rospy.get_param("~further_distance", 2.5)
-        self.closer_distance = rospy.get_param("~closer_distance", 1.0)
+        self.closer_frame_distance = rospy.get_param("~closer_frame_distance", 1.0)
+        self.further_frame_distance = rospy.get_param("~further_frame_distance", 2.5)
         self.second_trial_distance = rospy.get_param("~second_trial_distance", 2.5)
 
         self.set_enable_service = rospy.Service(
-            "set_transform_bin_frames", SetBool, self.handle_enable_service
+            "toggle_bin_trajectory", SetBool, self.handle_enable_service
         )
 
     def get_pose(self, transform: TransformStamped) -> Pose:
