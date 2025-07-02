@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+import tf.transformations
 from tf.transformations import (
     quaternion_matrix,
 )
@@ -28,6 +29,7 @@ class TorpedoTransformServiceNode:
         self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = "odom"
+        self.robot_frame = "taluy/base_link"
         self.target_frame = "torpedo_target"
         self.realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_frame = rospy.get_param("~torpedo_frame", "torpedo_map_link")
@@ -111,23 +113,64 @@ class TorpedoTransformServiceNode:
         Look up the current transforms, compute target transforms, and broadcast them
         """
         try:
+            transform_robot = self.tf_buffer.lookup_transform(
+                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(1)
+            )
             transform_torpedo = self.tf_buffer.lookup_transform(
                 self.odom_frame, self.torpedo_frame, rospy.Time(0), rospy.Duration(1)
             )
-            torpedo_pose = self.get_pose(transform_torpedo)
-            target_pose = self.apply_offsets(
-                torpedo_pose, [self.offset_x, self.offset_y, self.offset_z]
-            )
-            target_transform = self.build_transform_message(
-                self.target_frame, target_pose
-            )
-            self.send_transform(target_transform)
+
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"TF lookup for {self.torpedo_frame} failed: {e}")
+            rospy.logwarn(f"TF lookup failed: {e}")
+            return
+
+        robot_pose = self.get_pose(transform_robot)
+        torpedo_pose = self.get_pose(transform_torpedo)
+
+        robot_pos = np.array(
+            [robot_pose.position.x, robot_pose.position.y, robot_pose.position.z]
+        )
+        torpedo_pos = np.array(
+            [torpedo_pose.position.x, torpedo_pose.position.y, torpedo_pose.position.z]
+        )
+
+        direction_vector_2d = torpedo_pos[:2] - robot_pos[:2]
+        total_distance_2d = np.linalg.norm(direction_vector_2d)
+
+        if total_distance_2d == 0:
+            rospy.logwarn(
+                "Robot and torpedo are at the same XY position! Cannot create frame."
+            )
+            return
+
+        direction_unit_2d = direction_vector_2d / total_distance_2d
+
+        # Calculate yaw from the direction vector (robot to torpedo)
+        yaw = np.arctan2(direction_unit_2d[1], direction_unit_2d[0])
+        q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+
+        orientation = Pose().orientation
+        orientation.x = q[0]
+        orientation.y = q[1]
+        orientation.z = q[2]
+        orientation.w = q[3]
+
+        # Apply offsets to the original torpedo pose
+        offset_pose = Pose()
+        offset_pose.position = torpedo_pose.position
+        offset_pose.orientation = orientation
+
+        target_pose = self.apply_offsets(
+            offset_pose, [self.offset_x, self.offset_y, self.offset_z]
+        )
+
+        # Create and send the transform
+        target_transform = self.build_transform_message(self.target_frame, target_pose)
+        self.send_transform(target_transform)
 
     def create_torpedo_realsense_target_frame(self):
         try:
