@@ -12,9 +12,7 @@ from auv_smach.common import (
 
 from auv_smach.initialize import DelayState
 
-from auv_smach.common import (
-    LaunchTorpedoState,
-)
+from auv_smach.common import LaunchTorpedoState, SearchForPropState
 
 
 class TorpedoTargetFramePublisherServiceState(smach_ros.ServiceState):
@@ -70,10 +68,13 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_TORPEDO_TRAVEL_START",
-                SetFrameLookingAtState(
-                    source_frame="taluy/base_link",
+                SearchForPropState(
                     look_at_frame="torpedo_map_link",
                     alignment_frame="torpedo_map_travel_start",
+                    full_rotation=False,
+                    set_frame_duration=7.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.3,
                 ),
                 transitions={
                     "succeeded": "SET_TORPEDO_ALIGN_CONTROLLER_TARGET",
@@ -92,6 +93,15 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
+                    "succeeded": "DISABLE_TORPEDO_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_TORPEDO_FRAME_PUBLISHER",
+                TorpedoTargetFramePublisherServiceState(req=False),
+                transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -102,22 +112,13 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_target_frame,
-                    angle_offset=-1.57,
+                    # angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=5.0,
                     timeout=30.0,
                     cancel_on_success=False,
                 ),
-                transitions={
-                    "succeeded": "DISABLE_TORPEDO_FRAME_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_TORPEDO_FRAME_PUBLISHER",
-                TorpedoTargetFramePublisherServiceState(req=False),
                 transitions={
                     "succeeded": "ROTATE_FOR_REALSENSE",
                     "preempted": "preempted",
@@ -129,7 +130,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_target_frame,
-                    angle_offset=1.57,
+                    angle_offset=3.14,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     timeout=20.0,
@@ -173,7 +174,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=torpedo_realsense_target_frame,
-                    angle_offset=-1.57,
+                    # angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=10.0,
