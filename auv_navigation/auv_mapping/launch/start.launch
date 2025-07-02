@@ -6,7 +6,7 @@
   <arg name="target_gate_frame" default="gate_blue_arrow_link" />
   <arg name="pool_depth" default="2.2" />
   <arg name="torpedo_frame" default="torpedo_map_link" />
-  <arg name="torpedo_realsense_frame" default="torpedo_map_link_realsense" />
+  <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
 
   <group ns="$(arg namespace)">
     <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">

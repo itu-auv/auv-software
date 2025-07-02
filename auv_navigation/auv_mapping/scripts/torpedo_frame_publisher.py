@@ -35,10 +35,10 @@ class TorpedoTransformServiceNode:
         )
 
         self.offset_x = rospy.get_param("~offset_x", 0.0)
-        self.offset_y = rospy.get_param("~offset_y", 0.5)
+        self.offset_y = rospy.get_param("~offset_y", 3.0)
         self.offset_z = rospy.get_param("~offset_z", 0.0)
         self.realsense_offset_x = rospy.get_param("~realsense_offset_x", 0.0)
-        self.realsense_offset_y = rospy.get_param("~realsense_offset_y", 0.5)
+        self.realsense_offset_y = rospy.get_param("~realsense_offset_y", 1.5)
         self.realsense_offset_z = rospy.get_param("~realsense_offset_z", 0.0)
 
         self.set_enable_service = rospy.Service(
