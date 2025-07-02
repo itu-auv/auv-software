@@ -114,8 +114,8 @@ class BinTransformServiceNode:
         orientation.z = q[2]
         orientation.w = q[3]
 
-        closer_pos_2d = bin_pos[:2] - (direction_unit_2d * self.closer_distance)
-        further_pos_2d = bin_pos[:2] + (direction_unit_2d * self.further_distance)
+        closer_pos_2d = bin_pos[:2] - (direction_unit_2d * self.closer_frame_distance)
+        further_pos_2d = bin_pos[:2] + (direction_unit_2d * self.further_frame_distance)
 
         closer_pos = np.append(closer_pos_2d, robot_pos[2])
         further_pos = np.append(further_pos_2d, robot_pos[2])

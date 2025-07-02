@@ -300,7 +300,7 @@ class BinTaskState(smach.State):
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",
                     full_rotation=False,
-                    set_frame_duration=4.0,
+                    set_frame_duration=7.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
                 ),
@@ -377,7 +377,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_DROP_AREA",
-                DelayState(delay_time=15.0),
+                DelayState(delay_time=12.0),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "preempted": "preempted",
