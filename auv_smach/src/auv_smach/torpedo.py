@@ -2,10 +2,6 @@ from .initialize import *
 import smach
 import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest
-from auv_msgs.srv import (
-    SetString,
-    SetStringRequest,
-)
 
 from auv_smach.common import (
     SetFrameLookingAtState,
@@ -28,16 +24,6 @@ class TorpedoFramePublisherServiceState(smach_ros.ServiceState):
             "set_transform_torpedo_frames",
             SetBool,
             request=SetBoolRequest(data=req),
-        )
-
-
-class TorpedoFrameNameService(smach_ros.ServiceState):
-    def __init__(self, req: str):
-        smach_ros.ServiceState.__init__(
-            self,
-            "set_torpedo_frame",
-            SetString,
-            request=SetStringRequest(data=req),
         )
 
 
