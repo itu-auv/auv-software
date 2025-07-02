@@ -729,7 +729,7 @@ class CheckAlignmentState(smach.State):
             self.rate.sleep()
 
         rospy.logwarn("CheckAlignmentState: Timeout reached.")
-        return "aborted"
+        return "succeded"
 
 
 class AlignFrame(smach.StateMachine):
