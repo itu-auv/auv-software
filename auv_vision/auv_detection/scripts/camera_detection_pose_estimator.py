@@ -368,7 +368,7 @@ class CameraDetectionNode:
             props_yaw_msg = PropsYaw()
             props_yaw_msg.header.stamp = detection_msg.header.stamp
             props_yaw_msg.object = prop.name
-            props_yaw_msg.angle = angles[0]
+            props_yaw_msg.angle = -angles[0]
             self.yaw_error_pub.publish(props_yaw_msg)
             camera_to_odom_transform = self.tf_buffer.lookup_transform(
                 camera_frame,

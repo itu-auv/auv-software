@@ -32,7 +32,7 @@ class VisualServoingController:
         self.kd_gain = rospy.get_param("~kd_gain", 0.8)
         self.v_x_desired = rospy.get_param("~v_x_desired", 0.3)
         self.navigation_timeout_s = rospy.get_param("~navigation_timeout_s", 3.0)
-        self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 50.0)
+        self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 1500.0)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
         # State
@@ -107,6 +107,11 @@ class VisualServoingController:
         self.last_prop_stamp_time = prop_stamp
         angle_to_prop_from_robot = msg.angle
         #! Remove this
+
+        delay = (rospy.Time.now() - prop_stamp).to_sec()
+        rospy.loginfo_throttle(
+            1.0, f"Visual Servoing perception delay: {delay:.3f} seconds"
+        )
         rospy.loginfo_throttle(2, f"angle to prop: {angle_to_prop_from_robot}")
         closest_imu_reading = min(
             self.imu_history, key=lambda x: abs(x[0] - prop_stamp)
@@ -151,9 +156,9 @@ class VisualServoingController:
         self.error_pub.publish(Float64(error))
         self.current_yaw_pub.publish(Float64(self.current_yaw))
         self.target_yaw_pub.publish(Float64(self.target_yaw_in_world))
-        p_signal = -self.kp_gain * error
+        p_signal = self.kp_gain * error
         d_signal = self.kd_gain * self.angular_velocity_z
-        return p_signal + d_signal
+        return p_signal - d_signal
 
     def reconfigure_callback(self, config, level):
         if "kp_gain" in config:
