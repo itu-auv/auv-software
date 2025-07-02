@@ -91,7 +91,7 @@ class TorpedoTaskState(smach.State):
                     target_frame="torpedo_map_travel_start",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    timeout=5.0,
+                    timeout=10.0,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -108,7 +108,8 @@ class TorpedoTaskState(smach.State):
                     angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    timeout=20.0,
+                    confirm_duration=5.0,
+                    timeout=30.0,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -119,7 +120,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "DISABLE_TORPEDO_FRAME_PUBLISHER",
-                TorpedoTargetFramePublisherServiceState(req=True),
+                TorpedoTargetFramePublisherServiceState(req=False),
                 transitions={
                     "succeeded": "ROTATE_FOR_REALSENSE",
                     "preempted": "preempted",
@@ -134,9 +135,18 @@ class TorpedoTaskState(smach.State):
                     angle_offset=1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    timeout=10.0,
+                    timeout=20.0,
                     cancel_on_success=False,
                 ),
+                transitions={
+                    "succeeded": "ENABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
+                TorpedoRealsenseTargetFramePublisherServiceState(req=True),
                 transitions={
                     "succeeded": "WAIT_FOR_FRAME",
                     "preempted": "preempted",
@@ -146,6 +156,15 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_FRAME",
                 DelayState(delay_time=10.0),
+                transitions={
+                    "succeeded": "DISABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
+                TorpedoRealsenseTargetFramePublisherServiceState(req=False),
                 transitions={
                     "succeeded": "TURN_TO_LAUNCH_TORPEDO",
                     "preempted": "preempted",
@@ -159,7 +178,8 @@ class TorpedoTaskState(smach.State):
                     target_frame=torpedo_realsense_target_frame,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    timeout=10.0,
+                    confirm_duration=10.0,
+                    timeout=30.0,
                     cancel_on_success=False,
                 ),
                 transitions={
