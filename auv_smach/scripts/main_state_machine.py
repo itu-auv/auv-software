@@ -24,8 +24,9 @@ class MainStateMachineNode:
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
 
-        self.torpedo_map_radius = 1.5
         self.torpedo_map_depth = -1.3
+        self.torpedo_target_frame = "torpedo_target"
+        self.torpedo_realsense_target_frame = "torpedo_realsense_target"
 
         self.bin_whole_depth = -1.0
 
@@ -84,8 +85,9 @@ class MainStateMachineNode:
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,
                 {
-                    "torpedo_map_radius": self.torpedo_map_radius,
                     "torpedo_map_depth": self.torpedo_map_depth,
+                    "torpedo_target_frame": self.torpedo_target_frame,
+                    "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (
