@@ -109,6 +109,7 @@ target_link_libraries(process_tracker_with_cloud
 
 target_link_libraries(realsense_filter_node
   ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
 )
 
 install(TARGETS object_map_tf_server_node object_position_filter process_tracker_with_cloud realsense_filter_node
