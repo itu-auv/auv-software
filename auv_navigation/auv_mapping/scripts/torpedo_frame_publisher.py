@@ -16,7 +16,8 @@ from auv_msgs.srv import (
 
 class TorpedoTransformServiceNode:
     def __init__(self):
-        self.enable = False
+        self.enable_target = False
+        self.enable_realsense_target = False
         rospy.init_node("create_torpedo_frames_node")
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -35,6 +36,7 @@ class TorpedoTransformServiceNode:
         )
 
         self.offset_x = rospy.get_param("~offset_x", 0.0)
+<<<<<<< HEAD
         self.offset_y = rospy.get_param("~offset_y", 0.5)
         self.offset_z = rospy.get_param("~offset_z", 0.0)
         self.realsense_offset_x = rospy.get_param("~realsense_offset_x", 0.0)
@@ -43,6 +45,23 @@ class TorpedoTransformServiceNode:
 
         self.set_enable_service = rospy.Service(
             "set_transform_torpedo_frames", SetBool, self.handle_enable_service
+=======
+        self.offset_y = rospy.get_param("~offset_y", 3.0)
+        self.offset_z = rospy.get_param("~offset_z", 0.0)
+        self.realsense_offset_x = rospy.get_param("~realsense_offset_x", 0.0)
+        self.realsense_offset_y = rospy.get_param("~realsense_offset_y", 1.5)
+        self.realsense_offset_z = rospy.get_param("~realsense_offset_z", 0.0)
+
+        self.set_enable_service = rospy.Service(
+            "set_transform_torpedo_target_frame",
+            SetBool,
+            self.handle_enable_target_service,
+        )
+        self.set_enable_realsense_service = rospy.Service(
+            "set_transform_torpedo_realsense_target_frame",
+            SetBool,
+            self.handle_enable_realsense_target_service,
+>>>>>>> origin/talha/torpedo
         )
 
     def get_pose(self, transform: TransformStamped) -> Pose:
@@ -98,7 +117,11 @@ class TorpedoTransformServiceNode:
 
         return new_pose
 
+<<<<<<< HEAD
     def create_torpedo_frames(self):
+=======
+    def create_torpedo_target_frame(self):
+>>>>>>> origin/talha/torpedo
         """
         Look up the current transforms, compute target transforms, and broadcast them
         """
@@ -121,6 +144,10 @@ class TorpedoTransformServiceNode:
         ) as e:
             rospy.logwarn(f"TF lookup for {self.torpedo_frame} failed: {e}")
 
+<<<<<<< HEAD
+=======
+    def create_torpedo_realsense_target_frame(self):
+>>>>>>> origin/talha/torpedo
         try:
             transform_realsense = self.tf_buffer.lookup_transform(
                 self.odom_frame,
@@ -148,17 +175,38 @@ class TorpedoTransformServiceNode:
         ):
             pass
 
+<<<<<<< HEAD
     def handle_enable_service(self, req):
         self.enable = req.data
         message = f"Torpido target frames transform publish is set to: {self.enable}"
+=======
+    def handle_enable_target_service(self, req):
+        self.enable_target = req.data
+        message = (
+            f"Torpido target frame transform publish is set to: {self.enable_target}"
+        )
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
+    def handle_enable_realsense_target_service(self, req):
+        self.enable_realsense_target = req.data
+        message = f"Torpido realsense target frame transform publish is set to: {self.enable_realsense_target}"
+>>>>>>> origin/talha/torpedo
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
     def spin(self):
         rate = rospy.Rate(20)
         while not rospy.is_shutdown():
+<<<<<<< HEAD
             if self.enable:
                 self.create_torpedo_frames()
+=======
+            if self.enable_target:
+                self.create_torpedo_target_frame()
+            if self.enable_realsense_target:
+                self.create_torpedo_realsense_target_frame()
+>>>>>>> origin/talha/torpedo
             rate.sleep()
 
 

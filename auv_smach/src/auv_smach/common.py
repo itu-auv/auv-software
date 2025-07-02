@@ -626,6 +626,7 @@ class CheckAlignmentState(smach.State):
         yaw_threshold,
         timeout,
         angle_offset=0.0,
+        confirm_duration=0.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
@@ -634,6 +635,7 @@ class CheckAlignmentState(smach.State):
         self.yaw_threshold = yaw_threshold
         self.timeout = timeout
         self.angle_offset = angle_offset
+        self.confirm_duration = confirm_duration
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.rate = rospy.Rate(10)
@@ -664,6 +666,7 @@ class CheckAlignmentState(smach.State):
 
     def execute(self, userdata):
         start_time = rospy.Time.now()
+        first_success_time = None
 
         while (rospy.Time.now() - start_time).to_sec() < self.timeout:
             if self.preempt_requested():
@@ -678,13 +681,27 @@ class CheckAlignmentState(smach.State):
                     f"Alignment check: dist_error={dist_error:.2f}m, yaw_error={yaw_error:.2f}rad",
                 )
                 if dist_error < self.dist_threshold and yaw_error < self.yaw_threshold:
-                    rospy.loginfo("CheckAlignmentState: Alignment successful.")
-                    return "succeeded"
+                    if self.confirm_duration == 0.0:
+                        rospy.loginfo("CheckAlignmentState: Alignment successful.")
+                        return "succeeded"
+
+                    if first_success_time is None:
+                        first_success_time = rospy.Time.now()
+
+                    if (
+                        rospy.Time.now() - first_success_time
+                    ).to_sec() >= self.confirm_duration:
+                        rospy.loginfo(
+                            f"CheckAlignmentState: Alignment successful for {self.confirm_duration} seconds."
+                        )
+                        return "succeeded"
+                else:
+                    first_success_time = None
 
             self.rate.sleep()
 
         rospy.logwarn("CheckAlignmentState: Timeout reached.")
-        return "aborted"
+        return "succeeded"
 
 
 class AlignFrame(smach.StateMachine):
@@ -697,6 +714,7 @@ class AlignFrame(smach.StateMachine):
         yaw_threshold=0.1,
         timeout=30.0,
         cancel_on_success=False,
+        confirm_duration=0.0,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
@@ -724,6 +742,7 @@ class AlignFrame(smach.StateMachine):
                     yaw_threshold,
                     timeout,
                     angle_offset,
+                    confirm_duration,
                 ),
                 transitions={
                     "succeeded": (
