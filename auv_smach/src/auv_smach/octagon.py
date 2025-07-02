@@ -38,15 +38,6 @@ class OctagonTaskState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
-                "ENABLE_OCTAGON_FRAME",
-                OctagonTransformServiceEnableState(True),
-                transitions={
-                    "succeeded": "SET_OCTAGON_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "SET_OCTAGON_DEPTH",
                 SetDepthState(depth=octagon_depth, sleep_duration=4.0),
                 transitions={
@@ -75,18 +66,10 @@ class OctagonTaskState(smach.State):
                 "PLAN_PATH_TO_CLOSER_FRAME",
                 PlanPathToSingleFrameState(
                     tf_buffer=self.tf_buffer,
-                    target_frame="octagon_closer_link",
+                    target_frame="octagon_link",
                     source_frame="taluy/base_link",
+                    interpolate_z=False,
                 ),
-                transitions={
-                    "succeeded": "DISABLE_OCTAGON_FRAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_OCTAGON_FRAME",
-                OctagonTransformServiceEnableState(False),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_DYNAMIC_TARGET",
                     "preempted": "preempted",
@@ -98,6 +81,7 @@ class OctagonTaskState(smach.State):
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link",
                     target_frame="dynamic_target",
+                    keep_orientation=True,
                 ),
                 transitions={
                     "succeeded": "EXECUTE_PATH",
@@ -109,61 +93,6 @@ class OctagonTaskState(smach.State):
                 "EXECUTE_PATH",
                 ExecutePlannedPathsState(),
                 transitions={
-                    "succeeded": "SET_ALIGN_TO_OCTAGON",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ALIGN_TO_OCTAGON",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link",
-                    target_frame="octagon_link",
-                ),
-                transitions={
-                    "succeeded": "DELAY_BEFORE_SURFACE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DELAY_BEFORE_SURFACE",
-                DelayState(delay_time=10.0),
-                transitions={
-                    "succeeded": "SET_DEPTH_MINUS_4",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_DEPTH_MINUS_4",
-                SetDepthState(depth=-0.4, sleep_duration=4.0),
-                transitions={
-                    "succeeded": "CANCEL_ALIGN_FOR_ROTATION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_ALIGN_FOR_ROTATION",
-                CancelAlignControllerState(),
-                #    transitions={
-                #        "succeeded": "SEARCH_FOR_OCTAGON_FULL_ROTATION",
-                #        "preempted": "preempted",
-                #        "aborted": "aborted",
-                #    },
-                # )
-                # smach.StateMachine.add(
-                #    "SEARCH_FOR_OCTAGON_FULL_ROTATION",
-                #    SearchForPropState(
-                #        look_at_frame="octagon_animal_image_link",
-                #        alignment_frame="octagon_search",
-                #        full_rotation=True,
-                #        set_frame_duration=4.0,
-                #        source_frame="taluy/base_link",
-                #        rotation_speed=0.3,
-                #    ),
-                transitions={
                     "succeeded": "SET_DEPTH_0",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -171,7 +100,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_DEPTH_0",
-                SetDepthState(depth=0.0, sleep_duration=3.0),
+                SetDepthState(depth=0.0, sleep_duration=5.0),
                 transitions={
                     "succeeded": "SET_FINAL_DEPTH",
                     "preempted": "preempted",

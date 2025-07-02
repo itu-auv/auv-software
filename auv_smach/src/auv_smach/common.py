@@ -695,7 +695,11 @@ class SearchForPropState(smach.StateMachine):
 
 class PlanPathToSingleFrameState(smach.State):
     def __init__(
-        self, tf_buffer, target_frame: str, source_frame: str = "taluy/base_link"
+        self,
+        tf_buffer,
+        target_frame: str,
+        source_frame: str = "taluy/base_link",
+        interpolate_z=False,
     ):
         smach.State.__init__(
             self,
@@ -705,6 +709,7 @@ class PlanPathToSingleFrameState(smach.State):
         self.tf_buffer = tf_buffer
         self.target_frame = target_frame
         self.source_frame = source_frame
+        self.interpolate_z = interpolate_z
 
     def execute(self, userdata) -> str:
         try:
@@ -720,6 +725,7 @@ class PlanPathToSingleFrameState(smach.State):
             path = path_planners.straight_path_to_frame(
                 source_frame=self.source_frame,
                 target_frame=self.target_frame,
+                interpolate_z=self.interpolate_z,
                 num_waypoints=50,
             )
 
