@@ -23,6 +23,7 @@ from std_srvs.srv import (
     SetBoolRequest,
 )
 from auv_msgs.srv import SetDepth, SetDepthRequest
+from robot_localization.srv import SetPose, SetPoseRequest
 
 
 class ROSServiceCaller:
@@ -122,14 +123,10 @@ class ROSServiceCaller:
             set_pose_service = rospy.ServiceProxy("set_pose", SetPose)
             request = SetPoseRequest()
             request.pose.header.frame_id = ""
-            request.pose.pose.position.x = 0.0
-            request.pose.pose.position.y = 0.0
-            request.pose.pose.position.z = 0.0
-            request.pose.pose.orientation.x = 0.0
-            request.pose.pose.orientation.y = 0.0
-            request.pose.pose.orientation.z = 0.0
-            request.pose.pose.orientation.w = 1.0
-            request.pose.covariance = [0.0] * 36
+            request.pose.header.stamp = rospy.Time.now()
+            request.pose.pose.pose.orientation.w = 1.0
+            request.pose.pose.covariance = [0.0] * 36
+
             response = set_pose_service(request)
             return response.success
         except rospy.ServiceException as e:
