@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="cam_front_name" default="cam_front"/>
+  <arg name="cam_bottom_name" default="cam_bottom"/>
+
+  <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
+    <arg name="camera_namespace" value="$(arg namespace)/cameras/$(arg cam_front_name)" />
+  </include>
+
+  <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
+    <arg name="camera_namespace" value="$(arg namespace)/cameras/$(arg cam_bottom_name)" />
+  </include>
+</launch>
