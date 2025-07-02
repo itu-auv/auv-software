@@ -108,15 +108,12 @@ class TorpedoTransformServiceNode:
 
         return new_pose
 
-    def create_torpedo_target_frame(self):
-        """
-        Look up the current transforms, compute target transforms, and broadcast them
-        """
+    def create_octagon_frame(self):
         try:
             transform_robot = self.tf_buffer.lookup_transform(
                 self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(1)
             )
-            transform_torpedo = self.tf_buffer.lookup_transform(
+            transform_octagon = self.tf_buffer.lookup_transform(
                 self.odom_frame, self.torpedo_frame, rospy.Time(0), rospy.Duration(1)
             )
 
@@ -129,27 +126,27 @@ class TorpedoTransformServiceNode:
             return
 
         robot_pose = self.get_pose(transform_robot)
-        torpedo_pose = self.get_pose(transform_torpedo)
+        octagon_pose = self.get_pose(transform_octagon)
 
         robot_pos = np.array(
             [robot_pose.position.x, robot_pose.position.y, robot_pose.position.z]
         )
-        torpedo_pos = np.array(
-            [torpedo_pose.position.x, torpedo_pose.position.y, torpedo_pose.position.z]
+        octagon_pos = np.array(
+            [octagon_pose.position.x, octagon_pose.position.y, octagon_pose.position.z]
         )
 
-        direction_vector_2d = torpedo_pos[:2] - robot_pos[:2]
+        direction_vector_2d = octagon_pos[:2] - robot_pos[:2]
         total_distance_2d = np.linalg.norm(direction_vector_2d)
 
         if total_distance_2d == 0:
             rospy.logwarn(
-                "Robot and torpedo are at the same XY position! Cannot create frame."
+                "Robot and octagon are at the same XY position! Cannot create frame."
             )
             return
 
         direction_unit_2d = direction_vector_2d / total_distance_2d
 
-        # Calculate yaw from the direction vector (robot to torpedo)
+        # Calculate yaw from the direction vector (robot to octagon)
         yaw = np.arctan2(direction_unit_2d[1], direction_unit_2d[0])
         q = tf.transformations.quaternion_from_euler(0, 0, yaw)
 
@@ -159,18 +156,20 @@ class TorpedoTransformServiceNode:
         orientation.z = q[2]
         orientation.w = q[3]
 
-        # Apply offsets to the original torpedo pose
-        offset_pose = Pose()
-        offset_pose.position = torpedo_pose.position
-        offset_pose.orientation = orientation
+        # Calculate position for closer frame
+        closer_pos_2d = octagon_pos[:2] - (direction_unit_2d * self.closer_distance)
+        closer_pos = np.append(closer_pos_2d, robot_pos[2])
 
-        target_pose = self.apply_offsets(
-            offset_pose, [self.offset_x, self.offset_y, self.offset_z]
+        # Create closer frame
+        closer_pose = Pose()
+        closer_pose.position.x, closer_pose.position.y, closer_pose.position.z = (
+            closer_pos
         )
+        closer_pose.orientation = orientation
 
-        # Create and send the transform
-        target_transform = self.build_transform_message(self.target_frame, target_pose)
-        self.send_transform(target_transform)
+        # Send the transform
+        closer_transform = self.build_transform_message(self.target_frame, closer_pose)
+        self.send_transform(closer_transform)
 
     def create_torpedo_realsense_target_frame(self):
         try:
@@ -218,7 +217,7 @@ class TorpedoTransformServiceNode:
         rate = rospy.Rate(20)
         while not rospy.is_shutdown():
             if self.enable_target:
-                self.create_torpedo_target_frame()
+                self.create_octagon_frame()
             if self.enable_realsense_target:
                 self.create_torpedo_realsense_target_frame()
             rate.sleep()
