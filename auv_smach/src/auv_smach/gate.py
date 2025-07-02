@@ -311,7 +311,7 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
                 RollTwoTimes(
-                    roll_torque=25.0, pitch_torque=5.0, rate_hz=20, timeout_s=15.0
+                    roll_torque=35.0, pitch_torque=-8.0, rate_hz=20, timeout_s=15.0
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_ENABLE_DVL_ODOM",
