@@ -35,7 +35,7 @@ class DynamicRollCompensationNode:
         )
 
         self.image_sub = rospy.Subscriber(
-            "camera/image_raw",
+            "camera/image_rect_color",
             Image,
             self.image_callback,
             queue_size=1,

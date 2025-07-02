@@ -8,7 +8,7 @@
       name="dynamic_roll_compensation_node"
       output="screen">
       <remap from="odometry" to="odometry" />
-      <remap from="camera/image_raw" to="cameras/cam_front/image_raw" />
+      <remap from="camera/image_rect_color" to="cameras/cam_front/image_rect_color" />
       <remap from="camera/image_corrected" to="cameras/cam_front/image_corrected" />
     </node>
   </group>
