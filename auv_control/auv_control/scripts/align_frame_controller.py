@@ -32,6 +32,7 @@ class AlignFrameControllerNode:
         self.source_frame = ""
         self.target_frame = ""
         self.angle_offset = 0.0
+        self.keep_orientation = False
 
         self.killswitch_sub = rospy.Subscriber(
             "propulsion_board/status", Bool, self.killswitch_callback
@@ -52,6 +53,7 @@ class AlignFrameControllerNode:
         self.source_frame = req.source_frame
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
+        self.keep_orientation = req.keep_orientation
         self.active = True
         rospy.loginfo(
             f"Aligning {self.source_frame} to {self.target_frame} with angle offset {self.angle_offset}"
@@ -59,10 +61,11 @@ class AlignFrameControllerNode:
         return AlignFrameControllerResponse(success=True, message="Alignment started")
 
     def handle_cancel_request(self, req) -> TriggerResponse:
+        self.cmd_vel_pub.publish(Twist())
+        rospy.sleep(1.0)  # Allow time for the command to be processed
         self.active = False
         rospy.loginfo("Control canceled")
         # Publish a zero velocity command to clear old velocity commands
-        self.cmd_vel_pub.publish(Twist())
         return TriggerResponse(success=True, message="Control deactivated")
 
     def get_error(
@@ -105,9 +108,12 @@ class AlignFrameControllerNode:
             trans_error[1] * self.linear_kp, self.max_linear_velocity
         )
         # twist.linear.z = self.constrain(trans_error[2] * self.linear_kp, self.max_linear_velocity)
-        twist.angular.z = self.constrain(
+        cmd_vel_yaw = self.constrain(
             yaw_error * self.angular_kp, self.max_angular_velocity
         )
+        if self.keep_orientation:
+            cmd_vel_yaw = 0.0
+        twist.angular.z = cmd_vel_yaw
         return twist
 
     def step(self) -> None:

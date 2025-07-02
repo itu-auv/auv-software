@@ -179,11 +179,14 @@ class CancelAlignControllerState(smach_ros.ServiceState):
 
 
 class SetAlignControllerTargetState(smach_ros.ServiceState):
-    def __init__(self, source_frame: str, target_frame: str):
+    def __init__(
+        self, source_frame: str, target_frame: str, keep_orientation: bool = False
+    ):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
         align_request.angle_offset = 0.0
+        align_request.keep_orientation = keep_orientation
 
         smach_ros.ServiceState.__init__(
             self,
@@ -366,13 +369,12 @@ class RotationState(smach.State):
 
     def is_transform_available(self):
         try:
-            self.tf_buffer.lookup_transform(
+            return self.tf_buffer.can_transform(
                 self.source_frame,
                 self.look_at_frame,
                 rospy.Time(0),
-                rospy.Duration(1.0),
+                rospy.Duration(0.05),
             )
-            return True
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
