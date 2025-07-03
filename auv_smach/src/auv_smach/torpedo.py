@@ -4,7 +4,6 @@ import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest
 
 from auv_smach.common import (
-    SetFrameLookingAtState,
     AlignFrame,
     CancelAlignControllerState,
     SetDepthState,
@@ -12,9 +11,7 @@ from auv_smach.common import (
 
 from auv_smach.initialize import DelayState
 
-from auv_smach.common import (
-    LaunchTorpedoState,
-)
+from auv_smach.common import LaunchTorpedoState, SearchForPropState
 
 
 class TorpedoTargetFramePublisherServiceState(smach_ros.ServiceState):
@@ -63,20 +60,20 @@ class TorpedoTaskState(smach.State):
                 "SET_TORPEDO_DEPTH",
                 SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "SET_TORPEDO_TRAVEL_START",
+                    "succeeded": "FIND_AND_AIM_TORPEDO",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_TORPEDO_TRAVEL_START",
-                SetFrameLookingAtState(
-                    source_frame="taluy/base_link",
+                "FIND_AND_AIM_TORPEDO",
+                SearchForPropState(
                     look_at_frame="torpedo_map_link",
-                    alignment_frame="torpedo_search",
+                    alignment_frame="torpedo_map_travel_start",
                     full_rotation=False,
-                    set_frame_duration=4.0,
-                    rotation_speed=0.2,
+                    set_frame_duration=7.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.3,
                 ),
                 transitions={
                     "succeeded": "SET_TORPEDO_ALIGN_CONTROLLER_TARGET",
@@ -105,7 +102,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_target_frame,
-                    angle_offset=-1.57,
+                    # angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=5.0,
@@ -132,7 +129,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_target_frame,
-                    angle_offset=1.57,
+                    angle_offset=3.14,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     timeout=20.0,
@@ -176,6 +173,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=torpedo_realsense_target_frame,
+                    angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=10.0,
