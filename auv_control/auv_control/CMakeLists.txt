@@ -47,6 +47,7 @@ catkin_install_python(PROGRAMS
   scripts/reference_pose_publisher.py
   scripts/battery_monitor_node.py
   scripts/align_frame_controller.py
+  scripts/odometry_reset_service.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -69,6 +69,13 @@
       <param name="max_log_interval" value="120.0" />
     </node>
 
+    <node pkg="auv_control" type="odometry_reset_service.py" name="odometry_reset_service_node"
+      output="screen">
+      <remap from="odometry_reset" to="odometry_reset" />
+      <remap from="set_pose" to="set_pose" />
+      <remap from="reset_heading" to="reset_heading" />
+    </node>
+
   </group>
 
 </launch>
