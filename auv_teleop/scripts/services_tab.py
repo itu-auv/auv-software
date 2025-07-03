@@ -89,11 +89,11 @@ class ROSServiceCaller:
             print(f"Service not available: {e}")
             return False
 
-    def cancel_align(self):
+    def cancel_alignment(self):
         try:
             rospy.wait_for_service("align_frame/cancel", timeout=1)
-            cancel_align_service = rospy.ServiceProxy("align_frame/cancel", Trigger)
-            response = cancel_align_service(TriggerRequest())
+            cancel_alignment_service = rospy.ServiceProxy("align_frame/cancel", Trigger)
+            response = cancel_alignment_service(TriggerRequest())
             return response.success
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
@@ -218,7 +218,7 @@ class ServicesTab(QWidget):
 
         # Second row of buttons
         second_row = QHBoxLayout()
-        self.cancel_align_btn = QPushButton("Cancel\nAlign")
+        self.cancel_align_btn = QPushButton("Cancel\nAlignment")
         self.cancel_align_btn.setFixedSize(button_width, button_height)
         self.disable_dvl_btn = QPushButton("Disable\nDVL")
         self.disable_dvl_btn.setFixedSize(button_width, button_height)
@@ -262,7 +262,7 @@ class ServicesTab(QWidget):
         self.localization_btn.clicked.connect(self.start_localization)
         self.dvl_btn.clicked.connect(self.enable_dvl)
         self.clear_objects_btn.clicked.connect(self.clear_objects)
-        self.cancel_align_btn.clicked.connect(self.cancel_align)
+        self.cancel_align_btn.clicked.connect(self.cancel_alignment)
         self.disable_dvl_btn.clicked.connect(self.disable_dvl)
         self.reset_pose_btn.clicked.connect(self.reset_pose)
         self.torpedo1_btn.clicked.connect(lambda: self.launch_torpedo("torpedo_1"))
@@ -303,8 +303,8 @@ class ServicesTab(QWidget):
         else:
             QMessageBox.warning(self, "Error", "Failed to clear objects.")
 
-    def cancel_align(self):
-        result = self.ros_service_caller.cancel_align()
+    def cancel_alignment(self):
+        result = self.ros_service_caller.cancel_alignment()
         if result:
             print("Alignment cancelled")
         else:

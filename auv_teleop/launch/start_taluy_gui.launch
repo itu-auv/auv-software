@@ -12,7 +12,6 @@
         <remap from="cmd_vel" to="$(arg namespace)/cmd_vel"/>
         <remap from="enable" to="$(arg namespace)/enable"/>
         <remap from="drive_pulse" to="$(arg namespace)/board/drive_pulse"/>
-        <remap from="propulsion_board/status" to="$(arg namespace)/propulsion_board/status"/>
         <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
 
         <remap from="align_frame" to="$(arg namespace)/control/align_frame/cancel"/>

@@ -236,15 +236,20 @@ class DryTestTab(QWidget):
         self.output.clear()
 
     def test_thrusters(self):
-        """Publish motor commands to test thrusters for 2 seconds"""
+        """Publish motor commands to test thrusters for 1 second"""
         try:
             motor_cmd = auv_msgs.msg.MotorCommand()
             motor_cmd.channels = [1600] * 8
 
-            self.thruster_pub.publish(motor_cmd)
-            self.output.append("Thruster test started! Running for 2 seconds...")
+            self.thruster_test_timer.start(1000)
+            self.output.append("Thruster test started! Running for 1 second...")
 
-            self.thruster_test_timer.start(2000)
+            # Start continuous publishing
+            self.thruster_publishing = True
+            self.thruster_thread = threading.Thread(
+                target=self.publish_thrusters, args=(motor_cmd,)
+            )
+            self.thruster_thread.start()
 
         except Exception as e:
             self.output.append(f"Error testing thrusters: {str(e)}")
@@ -252,6 +257,11 @@ class DryTestTab(QWidget):
     def stop_thruster_test(self):
         try:
             self.thruster_test_timer.stop()
+            self.thruster_publishing = False
+
+            if self.thruster_thread is not None:
+                self.thruster_thread.join()
+                self.thruster_thread = None
 
             stop_cmd = auv_msgs.msg.MotorCommand()
             stop_cmd.channels = [0] * 8
@@ -297,4 +307,10 @@ class DryTestTab(QWidget):
         rate = rospy.Rate(20)
         while self.enable_publishing and not rospy.is_shutdown():
             self.enable_pub.publish(True)
+            rate.sleep()
+
+    def publish_thrusters(self, motor_cmd):
+        rate = rospy.Rate(20)  # 20 Hz
+        while self.thruster_publishing and not rospy.is_shutdown():
+            self.thruster_pub.publish(motor_cmd)
             rate.sleep()
