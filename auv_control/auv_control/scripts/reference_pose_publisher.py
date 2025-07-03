@@ -2,9 +2,10 @@
 
 import rospy
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseStamped, Twist
+from geometry_msgs.msg import PoseStamped, Twist, PoseWithCovarianceStamped
 from std_srvs.srv import Trigger, TriggerResponse
 from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
+from robot_localization.srv import SetPose, SetPoseRequest
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from auv_common_lib.control.enable_state import ControlEnableHandler
 
@@ -21,9 +22,10 @@ class ReferencePosePublisherNode:
         self.cmd_vel_sub = rospy.Subscriber(
             "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
         )
-        self.reset_heading_service = rospy.Service(
-            "reset_heading", Trigger, self.reset_heading_handler
+        self.reset_odometry_service = rospy.Service(
+            "reset_odometry", Trigger, self.reset_odometry_handler
         )
+        self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
 
         # Initialize publisher
         self.cmd_pose_pub = rospy.Publisher("cmd_pose", PoseStamped, queue_size=10)
@@ -35,6 +37,12 @@ class ReferencePosePublisherNode:
         self.target_heading = 0.0
         self.last_cmd_time = rospy.Time.now()
         self.target_frame_id = ""
+        self.is_resetting = False
+
+        self.set_pose_req = SetPoseRequest()
+        self.set_pose_req.pose = PoseWithCovarianceStamped()
+        self.set_pose_req.pose.header.stamp = rospy.Time.now()
+        self.set_pose_req.pose.header.frame_id = "odom"
 
         # Parameters
         self.update_rate = rospy.get_param("~update_rate", 10)
@@ -48,15 +56,32 @@ class ReferencePosePublisherNode:
             message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
         )
 
-    def reset_heading_handler(self, req):
-        self.target_heading = 0.0
-        return TriggerResponse(
-            success=True,
-            message="Target heading reset to 0.0",
-        )
+    def reset_odometry_handler(self, req):
+        if self.is_resetting:
+            return TriggerResponse(
+                success=False, message="Odometry reset already in progress."
+            )
+
+        self.is_resetting = True
+        rospy.logdebug("Starting odometry reset.")
+
+        try:
+            self.set_pose_client(self.set_pose_req)
+            rospy.logdebug("Called set_pose service.")
+        except (rospy.ServiceException, rospy.ROSException) as e:
+            rospy.logerr(f"Service call failed: {e}")
+            self.is_resetting = False
+            return TriggerResponse(success=False, message=f"Service call failed: {e}")
+
+        rospy.logdebug("Waiting for heading to settle.")
+        rospy.sleep(2.0)
+
+        self.is_resetting = False
+        rospy.logdebug("Odometry reset finished.")
+        return TriggerResponse(success=True, message="Odometry reset successfully.")
 
     def odometry_callback(self, msg):
-        if self.control_enable_handler.is_enabled():
+        if self.control_enable_handler.is_enabled() and not self.is_resetting:
             return
 
         quaternion = [
@@ -68,7 +93,7 @@ class ReferencePosePublisherNode:
         _, _, self.target_heading = euler_from_quaternion(quaternion)
 
     def cmd_vel_callback(self, msg):
-        if not self.control_enable_handler.is_enabled():
+        if (not self.control_enable_handler.is_enabled()) or self.is_resetting:
             return
 
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()

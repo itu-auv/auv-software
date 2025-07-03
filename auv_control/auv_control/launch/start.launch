@@ -45,7 +45,8 @@
       <remap from="cmd_vel" to="cmd_vel" />
       <remap from="cmd_pose" to="cmd_pose" />
       <remap from="enable" to="enable" />
-      <remap from="reset_heading" to="reset_heading" />
+      <remap from="set_pose" to="set_pose" />
+      <remap from="reset_odometry" to="reset_odometry" />
     </node>
 
 
@@ -68,14 +69,6 @@
       <param name="min_log_interval" value="1.0" />
       <param name="max_log_interval" value="120.0" />
     </node>
-
-    <node pkg="auv_control" type="odometry_reset_service.py" name="odometry_reset_service_node"
-      output="screen">
-      <remap from="odometry_reset" to="odometry_reset" />
-      <remap from="set_pose" to="set_pose" />
-      <remap from="reset_heading" to="reset_heading" />
-    </node>
-
   </group>
 
 </launch>
