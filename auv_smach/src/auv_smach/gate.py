@@ -56,7 +56,7 @@ class TransformServiceEnableState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float):
+    def __init__(self, gate_depth: float, gate_target_frame: str):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -80,7 +80,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_GATE",
                 SearchForPropState(
-                    look_at_frame="gate_blue_arrow_link",
+                    look_at_frame=gate_target_frame,
                     alignment_frame="gate_search",
                     full_rotation=True,
                     set_frame_duration=7.0,

@@ -19,7 +19,31 @@ class MainStateMachineNode:
 
         # USER EDIT
         self.gate_depth = -1.5
-        self.target_selection = "blue"
+        # Get target selection from YAML
+        self.target_selection = rospy.get_param("~target_selection", "blue")
+        self.mission_targets = rospy.get_param(
+            "~mission_targets",
+            {
+                "blue": {
+                    "gate_frame_1": "gate_blue_arrow_link",
+                    "gate_frame_2": "gate_red_arrow_link",
+                    "red_buoy_direction": "ccw",
+                    "slalom_direction": "left_side",
+                    "bin_frame": "bin/blue_link",
+                    "torpedo_frame": "torpedo_map_link",
+                    "octagon_frame": "octagon_link",
+                },
+                "red": {
+                    "gate_frame_1": "gate_red_arrow_link",
+                    "gate_frame_2": "gate_blue_arrow_link",
+                    "red_buoy_direction": "cw",
+                    "slalom_direction": "right_side",
+                    "bin_frame": "bin/red_link",
+                    "torpedo_frame": "torpedo_map_link",
+                    "octagon_frame": "octagon_link",
+                },
+            },
+        )
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -31,6 +55,15 @@ class MainStateMachineNode:
 
         self.octagon_depth = -1.0
         # USER EDIT
+
+        # Set parameters based on target selection
+        self.target_frames = self.mission_targets[self.target_selection]
+        self.red_buoy_direction = self.target_frames["red_buoy_direction"]
+        self.slalom_direction = self.target_frames["slalom_direction"]
+        self.bin_target_frame = self.target_frames["bin_target_frame"]
+        self.torpedo_target_frame = self.target_frames["torpedo_target_frame"]
+        self.octagon_target_frame = self.target_frames["octagon_target_frame"]
+        self.gate_target_frame = self.target_frames["gate_target_frame"]
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -54,38 +87,6 @@ class MainStateMachineNode:
         else:
             self.state_list = rospy.get_param("~full_mission_states")
 
-        # automatically select other params
-        mission_selection_map = {
-            "blue": {
-                "gate": "gate_blue_arrow_link",
-                "red_buoy": "ccw",
-                "slalom": "left_side",
-                "bin": "bin/blue_link",
-                "torpedo": "torpedo_map_link",
-                "octagon": "octagon_link",
-            },
-            "red": {
-                "gate": "gate_red_arrow_link",
-                "red_buoy": "cw",
-                "slalom": "right_side",
-                "bin": "bin/red_link",
-                "torpedo": "torpedo_map_link",
-                "octagon": "octagon_link",
-            },
-        }
-        self.red_buoy_direction = mission_selection_map[self.target_selection][
-            "red_buoy"
-        ]
-        self.gate_target_frame = mission_selection_map[self.target_selection]["gate"]
-        self.slalom_direction = mission_selection_map[self.target_selection]["slalom"]
-        self.bin_drop_frame = mission_selection_map[self.target_selection]["bin"]
-        self.torpedo_target_hole_frame = mission_selection_map[self.target_selection][
-            "torpedo"
-        ]
-        self.octagon_target_facing_frame = mission_selection_map[self.target_selection][
-            "octagon"
-        ]
-
         # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
 
@@ -95,7 +96,10 @@ class MainStateMachineNode:
             "INITIALIZE": (InitializeState, {}),
             "NAVIGATE_THROUGH_GATE": (
                 NavigateThroughGateState,
-                {"gate_depth": self.gate_depth},
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_target_frame": self.gate_target_frame,
+                },
             ),
             "NAVIGATE_AROUND_RED_BUOY": (
                 RotateAroundBuoyState,

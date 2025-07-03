@@ -28,8 +28,21 @@ class TransformServiceNode:
         self.exit_frame = "gate_exit"
 
         # Gate frames
-        self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_blue_arrow_link")
-        self.gate_frame_2 = rospy.get_param("~gate_frame_2", "gate_red_arrow_link")
+        # Get mission targets from YAML
+        mission_targets = rospy.get_param(
+            "~mission_targets",
+            {
+                "blue": {"gate_target_frame": "gate_blue_arrow_link"},
+                "red": {"gate_target_frame": "gate_red_arrow_link"},
+            },
+        )
+
+        # Get target selection from YAML
+        target_selection = rospy.get_param("~target_selection", "blue")
+
+        # Set gate target frame based on target selection
+        self.target_gate_frame = mission_targets[target_selection]["gate_target_frame"]
+
         self.set_enable_service = rospy.Service(
             "toggle_gate_trajectory", SetBool, self.handle_enable_service
         )
@@ -38,9 +51,6 @@ class TransformServiceNode:
         self.exit_offset = rospy.get_param("~exit_offset", 1.0)
         self.z_offset = rospy.get_param("~z_offset", 0.5)
         self.parallel_shift_offset = rospy.get_param("~parallel_shift_offset", 0.15)
-        self.target_gate_frame = rospy.get_param(
-            "~target_gate_frame", "gate_blue_arrow_link"
-        )
 
         # Threshold for gate link separation
         self.MIN_GATE_SEPARATION_THRESHOLD = 0.15
