@@ -138,7 +138,7 @@ class CameraDetectionNode:
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
         )
-        self.yaw_error_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
+        self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
         # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -369,7 +369,7 @@ class CameraDetectionNode:
             props_yaw_msg.header.stamp = detection_msg.header.stamp
             props_yaw_msg.object = prop.name
             props_yaw_msg.angle = -angles[0]
-            self.yaw_error_pub.publish(props_yaw_msg)
+            self.props_yaw_pub.publish(props_yaw_msg)
             camera_to_odom_transform = self.tf_buffer.lookup_transform(
                 camera_frame,
                 "odom",
