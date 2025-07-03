@@ -4,7 +4,7 @@ import rospy
 import smach
 import auv_smach
 from auv_smach.initialize import InitializeState
-from auv_smach.gate_ivs import NavigateThroughGateStateIVS
+from auv_smach.gate import NavigateThroughGateState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
@@ -20,7 +20,6 @@ class MainStateMachineNode:
         # USER EDIT
         self.gate_depth = -1.5
         self.target_gate_link = "gate_blue_arrow_link"
-        self.target_prop = "gate_blue_arrow"
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -71,11 +70,8 @@ class MainStateMachineNode:
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
             "NAVIGATE_THROUGH_GATE": (
-                NavigateThroughGateStateIVS,
-                {
-                    "gate_depth": self.gate_depth,
-                    "target_prop": self.target_prop,
-                },
+                NavigateThroughGateState,
+                {"gate_depth": self.gate_depth},
             ),
             "NAVIGATE_AROUND_RED_BUOY": (
                 RotateAroundBuoyState,

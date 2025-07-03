@@ -9,7 +9,7 @@ from auv_smach.common import (
 
 
 class NavigateThroughGateStateVS(smach.State):
-    def __init__(self, gate_depth: float, target_prop: str):
+    def __init__(self, gate_depth: float, target_prop: str, wait_duration: float = 6.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         # Initialize the state machine
@@ -35,6 +35,15 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "VISUAL_SERVOING_CENTERING",
                 VisualServoingCentering(target_prop=target_prop),
+                transitions={
+                    "succeeded": "WAIT_FOR_CENTERING",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_CENTERING",
+                DelayState(delay_time=wait_duration),
                 transitions={
                     "succeeded": "VISUAL_SERVOING_NAVIGATION",
                     "preempted": "preempted",
