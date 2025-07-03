@@ -70,6 +70,8 @@
             <param name="test_states" value="$(arg test_states)"/>
             <!-- Load path planner parameters in the node -->
             <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
+            <!-- Load mission target selection parameters -->
+            <rosparam file="$(find auv_smach)/config/mission_target_selection.yaml" command="load"/>
         </node>
     </group>
 </launch>
