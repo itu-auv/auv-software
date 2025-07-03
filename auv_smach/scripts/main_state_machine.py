@@ -20,7 +20,7 @@ class MainStateMachineNode:
         # USER EDIT
         self.gate_depth = -1.35
         self.gate_search_depth = -0.7
-        self.target_gate_link = "gate_blue_arrow_link"
+        self.target_selection = "blue"
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -60,12 +60,36 @@ class MainStateMachineNode:
 
         # automatically select other params
         mission_selection_map = {
-            "gate_red_arrow_link": {"red_buoy": "cw"},
-            "gate_blue_arrow_link": {"red_buoy": "ccw"},
+            "blue": {
+                "gate": "gate_blue_arrow_link",
+                "red_buoy": "ccw",
+                "slalom": "left_side",
+                "bin": "bin/blue_link",
+                "torpedo": "torpedo_map_link",
+                "octagon": "octagon_link",
+            },
+            "red": {
+                "gate": "gate_red_arrow_link",
+                "red_buoy": "cw",
+                "slalom": "right_side",
+                "bin": "bin/red_link",
+                "torpedo": "torpedo_map_link",
+                "octagon": "octagon_link",
+            },
         }
-        self.red_buoy_direction = mission_selection_map[self.target_gate_link][
+        self.red_buoy_direction = mission_selection_map[self.target_selection][
             "red_buoy"
         ]
+        self.gate_target_frame = mission_selection_map[self.target_selection]["gate"]
+        self.slalom_direction = mission_selection_map[self.target_selection]["slalom"]
+        self.bin_drop_frame = mission_selection_map[self.target_selection]["bin"]
+        self.torpedo_target_hole_frame = mission_selection_map[self.target_selection][
+            "torpedo"
+        ]
+        self.octagon_target_facing_frame = mission_selection_map[self.target_selection][
+            "octagon"
+        ]
+
         # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
 
