@@ -1,17 +1,17 @@
 ---
-target_selection: blue
+target_selection: red
 mission_targets:
   blue:
     gate_target_frame: gate_blue_arrow_link
     red_buoy_direction: ccw
     slalom_direction: left_side
-    bin_target_frame: bin/blue_link
-    torpedo_target_frame: torpedo_map_link
-    octagon_target_frame: octagon_link
+    bin_target_frame: bin/blue_link   # The frame where robot drops the ball
+    torpedo_target_frame: torpedo_blue_link # The frame where torpedo is launched
+    octagon_target_frame: octagon_blue_link # The frame where robot is facing in octagon task
   red:
     gate_target_frame: gate_red_arrow_link
     red_buoy_direction: cw
     slalom_direction: right_side
-    bin_target_frame: bin/red_link
-    torpedo_target_frame: torpedo_map_link
-    octagon_target_frame: octagon_link
+    bin_target_frame: bin/red_link   # The frame where robot drops the ball
+    torpedo_target_frame: torpedo_red_link  # The frame where torpedo is launched
+    octagon_target_frame: octagon_red_link  # The frame where robot is facing in octagon task
