@@ -75,13 +75,10 @@ class DryTestTab(QWidget):
         self.topic_camera_front = rospy.get_param(
             "~topic_camera_front", "cam_front/image_raw"
         )
-        self.thruster_topic = rospy.get_param(
-            "~thruster_topic", "/taluy/board/drive_pulse"
-        )
 
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
         self.thruster_pub = rospy.Publisher(
-            self.thruster_topic, auv_msgs.msg.MotorCommand, queue_size=10
+            "drive_pulse", auv_msgs.msg.MotorCommand, queue_size=10
         )
 
         self.init_ui()
@@ -139,13 +136,13 @@ class DryTestTab(QWidget):
         teleop_group = QGroupBox("Teleoperation")
         teleop_layout = QGridLayout()
         self.teleop_start = QPushButton("Start Teleop")
-        self.start_enable = QPushButton("Enable Control")
-        self.stop_enable = QPushButton("Disable Control")
+        self.enable_control = QPushButton("Enable Control")
+        self.disable_control = QPushButton("Disable Control")
         self.xbox_check = QCheckBox("Xbox")
         self.teleop_stop = QPushButton("Stop Teleop")
         teleop_layout.addWidget(self.teleop_start, 0, 0)
-        teleop_layout.addWidget(self.start_enable, 1, 0)
-        teleop_layout.addWidget(self.stop_enable, 1, 2)
+        teleop_layout.addWidget(self.enable_control, 1, 0)
+        teleop_layout.addWidget(self.disable_control, 1, 2)
         teleop_layout.addWidget(self.xbox_check, 0, 1)
         teleop_layout.addWidget(self.teleop_stop, 0, 2)
         teleop_group.setLayout(teleop_layout)
@@ -156,8 +153,8 @@ class DryTestTab(QWidget):
 
         self.teleop_start.clicked.connect(self.start_teleop)
         self.teleop_stop.clicked.connect(self.stop_teleop)
-        self.start_enable.clicked.connect(self.start_control_enable_publishing)
-        self.stop_enable.clicked.connect(self.stop_control_enable_publishing)
+        self.enable_control.clicked.connect(self.start_control_enable_publishing)
+        self.disable_control.clicked.connect(self.stop_control_enable_publishing)
         self.thruster_test_btn.clicked.connect(self.test_thrusters)
 
         self.imu_start_btn.clicked.connect(self.start_imu)

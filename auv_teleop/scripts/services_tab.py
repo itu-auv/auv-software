@@ -91,8 +91,8 @@ class ROSServiceCaller:
 
     def cancel_align(self):
         try:
-            rospy.wait_for_service("cancel_align", timeout=1)
-            cancel_align_service = rospy.ServiceProxy("cancel_align", Trigger)
+            rospy.wait_for_service("align_frame/cancel", timeout=1)
+            cancel_align_service = rospy.ServiceProxy("align_frame/cancel", Trigger)
             response = cancel_align_service(TriggerRequest())
             return response.success
         except rospy.ServiceException as e:
