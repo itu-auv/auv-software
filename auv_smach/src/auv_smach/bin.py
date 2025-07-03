@@ -164,7 +164,6 @@ class BinTaskState(smach.State):
                     "preempted": "preempted",
                 },
             )
-
             smach.StateMachine.add(
                 "ALIGN_AND_CHECK_INITIAL",
                 AlignAndCheckConcurrently(align_target_frame="bin_whole_link"),
@@ -176,7 +175,6 @@ class BinTaskState(smach.State):
                 },
                 remapping={"found_frame": "found_frame"},
             )
-
             smach.StateMachine.add(
                 "ALIGN_AND_CHECK_FAR",
                 AlignAndCheckConcurrently(align_target_frame="bin_far_trial"),
@@ -188,7 +186,6 @@ class BinTaskState(smach.State):
                 },
                 remapping={"found_frame": "found_frame"},
             )
-
             smach.StateMachine.add(
                 "ALIGN_AND_CHECK_SECOND_TRIAL",
                 AlignAndCheckConcurrently(align_target_frame="bin_second_trial"),
@@ -200,36 +197,25 @@ class BinTaskState(smach.State):
                 },
                 remapping={"found_frame": "found_frame"},
             )
-
             smach.StateMachine.add(
                 "ALIGN_DROPPER_TO_TARGET",
                 AlignFrame(
                     source_frame="taluy/base_link/ball_dropper_link",
                     target_frame="bin/blue_link",  # Provide a placeholder target_frame
-                    dist_threshold=0.1,
+                    keep_orientation=True,
+                    dist_threshold=0.05,
                     yaw_threshold=0.1,
-                    confirm_duration=3.0,
-                    timeout=20.0,
+                    confirm_duration=10.0,
+                    timeout=30.0,
                     cancel_on_success=False,
                 ),
-                transitions={
-                    "succeeded": "WAIT_FOR_ALIGNING_DROP_AREA",
-                    "aborted": "aborted",
-                    "preempted": "preempted",
-                },
-                remapping={"target_frame": "found_frame"},
-            )
-
-            smach.StateMachine.add(
-                "WAIT_FOR_ALIGNING_DROP_AREA",
-                DelayState(delay_time=12.0),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "aborted": "aborted",
                     "preempted": "preempted",
                 },
+                remapping={"target_frame": "found_frame"},
             )
-
             smach.StateMachine.add(
                 "DROP_BALL_1",
                 DropBallState(),

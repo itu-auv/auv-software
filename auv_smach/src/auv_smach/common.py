@@ -627,7 +627,8 @@ class CheckAlignmentState(smach.State):
         timeout,
         angle_offset=0.0,
         confirm_duration=0.0,
-    ):
+        keep_orientation=False,
+    ):  # Added keep_orientation parameter
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
         self.target_frame = target_frame
@@ -636,6 +637,7 @@ class CheckAlignmentState(smach.State):
         self.timeout = timeout
         self.angle_offset = angle_offset
         self.confirm_duration = confirm_duration
+        self.keep_orientation = keep_orientation  # Store keep_orientation parameter
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.rate = rospy.Rate(10)
@@ -677,10 +679,13 @@ class CheckAlignmentState(smach.State):
 
             if dist_error is not None and yaw_error is not None:
                 rospy.loginfo_throttle(
-                    1.0,
+                    5.0,
                     f"Alignment check: dist_error={dist_error:.2f}m, yaw_error={yaw_error:.2f}rad",
                 )
-                if dist_error < self.dist_threshold and yaw_error < self.yaw_threshold:
+                # Skip yaw check if keep_orientation is True
+                if dist_error < self.dist_threshold and (
+                    self.keep_orientation or yaw_error < self.yaw_threshold
+                ):
                     if self.confirm_duration == 0.0:
                         rospy.loginfo("CheckAlignmentState: Alignment successful.")
                         return "succeeded"
@@ -710,6 +715,7 @@ class AlignFrame(smach.StateMachine):
         source_frame,
         target_frame,
         angle_offset=0.0,
+        keep_orientation=False,
         dist_threshold=0.1,
         yaw_threshold=0.1,
         timeout=30.0,
@@ -725,6 +731,7 @@ class AlignFrame(smach.StateMachine):
                     source_frame=source_frame,
                     target_frame=target_frame,
                     angle_offset=angle_offset,
+                    keep_orientation=keep_orientation,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
@@ -743,6 +750,7 @@ class AlignFrame(smach.StateMachine):
                     timeout,
                     angle_offset,
                     confirm_duration,
+                    keep_orientation,
                 ),
                 transitions={
                     "succeeded": (
