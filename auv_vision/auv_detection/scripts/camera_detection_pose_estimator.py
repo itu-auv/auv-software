@@ -111,6 +111,11 @@ class TorpedoMap(Prop):
         super().__init__(12, "torpedo_map", 0.6096, 0.6096)
 
 
+class TorpedoHole(Prop):
+    def __init__(self):
+        super().__init__(13, "torpedo_hole", None, None)
+
+
 class BinWhole(Prop):
     def __init__(self):
         super().__init__(9, "bin_whole", None, None)
@@ -170,6 +175,7 @@ class CameraDetectionNode:
             "gate_blue_arrow_link": GateBlueArrow(),
             "gate_middle_part_link": GateMiddlePart(),
             "torpedo_map_link": TorpedoMap(),
+            "torpedo_hole_link": TorpedoHole(),
             "octagon_link": Octagon(),
             "bin/red_link": BinRed(),
             "bin/blue_link": BinBlue(),
@@ -337,26 +343,71 @@ class CameraDetectionNode:
             if len(detection.results) == 0:
                 continue
             skip_inside_image = False
+            distance = None  # Initialize distance variable
             detection_id = detection.results[0].id
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
+
+            # Special cases for specific detection IDs
             if detection_id == 10 or detection_id == 11:
                 skip_inside_image = True
-                # use altidude for bin
-                distance = self.altitude
-            if detection_id == 9:
+                distance = self.altitude  # use altidude for bin
+            elif detection_id == 13:
+                # torpedo_hole_link: use torpedo_map distance but torpedo_hole angles
+                # First, find torpedo_map detection to get its distance
+                torpedo_map_distance = None
+                for other_detection in detection_msg.detections.detections:
+                    if (
+                        len(other_detection.results) > 0
+                        and other_detection.results[0].id == 12
+                    ):
+                        torpedo_map_prop = self.props["torpedo_map_link"]
+                        torpedo_map_distance = torpedo_map_prop.estimate_distance(
+                            other_detection.bbox.size_y,
+                            other_detection.bbox.size_x,
+                            self.camera_calibrations[camera_ns],
+                        )
+                        break
+
+                if torpedo_map_distance is not None:
+                    distance = torpedo_map_distance
+                else:
+                    # Fallback: if no torpedo_map found, skip this detection
+                    rospy.logwarn(
+                        "No torpedo_map detection found for torpedo_hole distance reference"
+                    )
+                    continue
+            elif detection_id == 9:
                 self.process_altitude_projection(detection, camera_ns)
                 continue
+
             if not skip_inside_image:
                 if self.check_if_detection_is_inside_image(detection) is False:
                     continue
+
             prop_name = self.id_tf_map[camera_ns][detection_id]
             if prop_name not in self.props:
                 continue
 
-            prop = self.props[prop_name]
+            # Generate unique frame name for torpedo holes
+            if detection_id == 13:
+                # Create unique frame names for each torpedo hole detection
+                torpedo_hole_index = 0
+                for prev_detection in detection_msg.detections.detections:
+                    if (
+                        len(prev_detection.results) > 0
+                        and prev_detection.results[0].id == 13
+                        and prev_detection != detection
+                    ):
+                        torpedo_hole_index += 1
+                    elif prev_detection == detection:
+                        break
+                prop_name = f"torpedo_hole_{torpedo_hole_index}_link"
 
-            if not skip_inside_image:  # Calculate distance using object dimensions
+            prop = self.props[self.id_tf_map[camera_ns][detection_id]]
+
+            # Calculate distance for regular props (if not already calculated above)
+            if distance is None:
                 distance = prop.estimate_distance(
                     detection.bbox.size_y,
                     detection.bbox.size_x,
