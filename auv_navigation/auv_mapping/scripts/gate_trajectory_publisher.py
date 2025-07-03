@@ -27,7 +27,15 @@ class TransformServiceNode:
         self.entrance_frame = "gate_entrance"
         self.exit_frame = "gate_exit"
 
-        # Gate frames
+        # Load gate frame parameters from YAML
+        self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_blue_arrow_link")
+        self.gate_frame_2 = rospy.get_param("~gate_frame_2", "gate_red_arrow_link")
+
+        # Verify that we have valid frame names
+        if not all([self.gate_frame_1, self.gate_frame_2]):
+            rospy.logerr("Missing required gate frame parameters")
+            rospy.signal_shutdown("Missing required parameters")
+
         # Get mission targets from YAML
         mission_targets = rospy.get_param(
             "~mission_targets",
