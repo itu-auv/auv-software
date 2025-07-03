@@ -35,7 +35,7 @@ class CheckForDropAreaState(smach.State):
         self.timeout = rospy.Duration(timeout)
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.target_frames = ["bin/blue_link", "bin/red_link"]
+        self.target_frames = ["bin/blue_drop_link", "bin/red_drop_link"]
 
     def execute(self, userdata) -> str:
         start_time = rospy.Time.now()
@@ -86,7 +86,7 @@ class SetAlignToFoundState(smach.State):
         align_state = SetAlignControllerTargetState(
             source_frame=self.source_frame,
             target_frame=userdata.found_frame,
-            keep_orientation=True,
+            keep_orientation=False,
         )
         return align_state.execute(userdata)
 
