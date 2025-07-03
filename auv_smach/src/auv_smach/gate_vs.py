@@ -4,7 +4,7 @@ import rospy
 from auv_smach.common import (
     SetDepthState,
     VisualServoingCentering,
-    VisualServoingNavigationState,
+    VisualServoingNavigation,
 )
 
 
@@ -52,7 +52,7 @@ class NavigateThroughGateStateVS(smach.State):
             )
             smach.StateMachine.add(
                 "VISUAL_SERVOING_NAVIGATION",
-                VisualServoingNavigationState(),
+                VisualServoingNavigation(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

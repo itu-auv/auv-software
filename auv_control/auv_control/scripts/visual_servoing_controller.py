@@ -47,10 +47,10 @@ class VisualServoingController:
 
     def _load_parameters(self):
         """Load parameters from the ROS parameter server."""
-        self.kp_gain = rospy.get_param("~kp_gain", 3.0)
-        self.kd_gain = rospy.get_param("~kd_gain", 0.8)
+        self.kp_gain = rospy.get_param("~kp_gain", 0.8)
+        self.kd_gain = rospy.get_param("~kd_gain", 0.4)
         self.v_x_desired = rospy.get_param("~v_x_desired", 0.3)
-        self.navigation_timeout_s = rospy.get_param("~navigation_timeout_s", 3.0)
+        self.navigation_timeout_after_prop_disappear_s = 12.0
         self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 1500.0)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
@@ -131,10 +131,10 @@ class VisualServoingController:
         self.last_prop_stamp_time = prop_stamp
         angle_to_prop_from_robot = msg.angle
 
-        delay = (rospy.Time.now() - prop_stamp).to_sec()
-        rospy.loginfo_throttle(
-            1.0, f"Visual Servoing perception delay: {delay:.3f} seconds"
-        )
+        # delay = (rospy.Time.now() - prop_stamp).to_sec()
+        # rospy.loginfo_throttle(
+        #    1.0, f"Visual Servoing perception delay: {delay:.3f} seconds"
+        # )
 
         yaw_at_prop_time = self._get_yaw_at_time(prop_stamp)
         self.target_yaw_in_world = normalize_angle(
@@ -176,20 +176,24 @@ class VisualServoingController:
             return 0.0
 
         time_since_last_prop = (rospy.Time.now() - self.last_prop_stamp_time).to_sec()
-        if time_since_last_prop > self.navigation_timeout_s:
+        if time_since_last_prop > self.navigation_timeout_after_prop_disappear_s:
             rospy.loginfo(
                 "Navigation timeout reached. Stopping forward motion and returning to centering."
             )
             self.state = ControllerState.CENTERING
             return 0.0
-
         return self.v_x_desired
 
     def reconfigure_callback(self, config, level):
         """Handles dynamic reconfigure updates for controller gains."""
         self.kp_gain = config.kp_gain
         self.kd_gain = config.kd_gain
-        rospy.loginfo(f"Updated gains: Kp={self.kp_gain}, kd={self.kd_gain}")
+        self.navigation_timeout_after_prop_disappear_s = (
+            config.navigation_timeout_after_prop_disappear_s
+        )
+        rospy.loginfo(
+            f"Updated gains: Kp={self.kp_gain}, kd={self.kd_gain}, NavTimeout={self.navigation_timeout_after_prop_disappear_s}"
+        )
         return config
 
     def handle_start_request(self, req: VisualServoing) -> VisualServoingResponse:
