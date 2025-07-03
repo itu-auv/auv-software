@@ -1,27 +1,17 @@
-from .initialize import *
 import smach
 import smach_ros
 import rospy
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
+import rospy
 import tf2_ros
-
 from auv_smach.common import (
-    SetAlignControllerTargetState,
+    AlignFrame,
     CancelAlignControllerState,
     SetDepthState,
+    DropBallState,
     SearchForPropState,
 )
-
 from auv_smach.initialize import DelayState
-
-from auv_smach.common import (
-    DropBallState,
-    ExecutePlannedPathsState,
-    CancelAlignControllerState,
-    PlanPathToSingleFrameState,
-)
-
-from auv_navigation.path_planning.path_planners import PathPlanners
 
 
 class CheckForDropAreaState(smach.State):
@@ -38,57 +28,32 @@ class CheckForDropAreaState(smach.State):
         self.target_frames = ["bin/blue_link", "bin/red_link"]
 
     def execute(self, userdata) -> str:
-        start_time = rospy.Time.now()
         rate = rospy.Rate(10)
 
-        while (rospy.Time.now() - start_time) < self.timeout:
-            if self.preempt_requested():
-                return "preempted"
+        userdata.found_frame = None
 
-            # Check for both blue and red bin frames
+        while not self.preempt_requested():
             for frame in self.target_frames:
-                if self.tf_buffer.can_transform(
-                    self.source_frame, frame, rospy.Time(0), self.timeout
+                try:
+                    if self.tf_buffer.can_transform(
+                        self.source_frame, frame, rospy.Time(0), rospy.Duration(0.1)
+                    ):
+                        rospy.loginfo(
+                            f"[CheckForDropAreaState] Transform from '{self.source_frame}' to '{frame}' found."
+                        )
+                        userdata.found_frame = frame
+                        return "succeeded"
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
                 ):
-                    rospy.loginfo(
-                        f"[CheckForDropAreaState] Transform from '{self.source_frame}' to '{frame}' found."
-                    )
-                    userdata.found_frame = frame
-                    return "succeeded"
-
+                    continue
             rate.sleep()
 
-        rospy.logwarn(
-            f"[CheckForDropAreaState] Timeout: No drop area transforms found after {self.timeout.to_sec()} seconds."
-        )
-        return "aborted"
+        userdata.found_frame = None
 
-
-class SetAlignToFoundState(smach.State):
-    def __init__(self, source_frame: str):
-        super().__init__(
-            outcomes=["succeeded", "preempted", "aborted"], input_keys=["found_frame"]
-        )
-        self.source_frame = source_frame
-
-    def execute(self, userdata):
-        if self.preempt_requested():
-            return "preempted"
-
-        if "found_frame" not in userdata or not userdata.found_frame:
-            rospy.logerr("[SetAlignToFoundState] No found_frame in userdata")
-            return "aborted"
-
-        rospy.loginfo(
-            f"[SetAlignToFoundState] Setting align target to {userdata.found_frame}"
-        )
-
-        align_state = SetAlignControllerTargetState(
-            source_frame=self.source_frame,
-            target_frame=userdata.found_frame,
-            keep_orientation=True,
-        )
-        return align_state.execute(userdata)
+        return "preempted"
 
 
 class BinTransformServiceEnableState(smach_ros.ServiceState):
@@ -101,167 +66,50 @@ class BinTransformServiceEnableState(smach_ros.ServiceState):
         )
 
 
-class PlanBinPathState(smach.State):
-    def __init__(self, tf_buffer):
-        smach.State.__init__(
-            self,
-            outcomes=["succeeded", "preempted", "aborted"],
-            output_keys=["planned_paths"],
+def AlignAndCheckConcurrently(align_target_frame):
+
+    def child_term_cb(outcome_map):
+        if outcome_map["CHECK"] == "succeeded":
+            return True
+        if outcome_map["ALIGN"] is not None and outcome_map["ALIGN"] != "preempted":
+            return True
+        return False
+
+    outcome_map = {
+        "found": {"CHECK": "succeeded"},
+        "not_found": {"ALIGN": "succeeded"},
+        "aborted": {"ALIGN": "aborted"},
+        "preempted": {"ALIGN": "preempted"},
+    }
+
+    concurrence_state = smach.Concurrence(
+        outcomes=["found", "not_found", "aborted", "preempted"],
+        default_outcome="aborted",
+        output_keys=["found_frame"],
+        child_termination_cb=child_term_cb,
+        outcome_map=outcome_map,
+    )
+
+    with concurrence_state:
+        smach.Concurrence.add(
+            "ALIGN",
+            AlignFrame(
+                source_frame="taluy/base_link",
+                target_frame=align_target_frame,
+                dist_threshold=0.1,
+                yaw_threshold=0.1,
+                confirm_duration=1.0,
+                timeout=60.0,
+                cancel_on_success=False,
+            ),
         )
-        self.tf_buffer = tf_buffer
-
-    def execute(self, userdata) -> str:
-        try:
-            if self.preempt_requested():
-                rospy.logwarn("[PlanBinPathState] Preempt requested")
-                return "preempted"
-
-            path_planners = PathPlanners(self.tf_buffer)
-            paths = path_planners.path_for_bin()
-
-            if paths is None:
-                return "aborted"
-
-            userdata.planned_paths = paths
-            return "succeeded"
-
-        except Exception as e:
-            rospy.logerr("[PlanBinPathState] Error: %s", str(e))
-            return "aborted"
-
-
-###############################################################################
-# BinSecondTrialState - State machine for managing the second trial attempt
-# for the bin task. Handles path planning, execution, and verification of the second trial process.
-###############################################################################
-
-
-class BinSecondTrialState(smach.StateMachine):
-    def __init__(self, tf_buffer):
-        smach.StateMachine.__init__(
-            self, outcomes=["succeeded", "preempted", "aborted"]
+        smach.Concurrence.add(
+            "CHECK",
+            CheckForDropAreaState(source_frame="odom"),
+            remapping={"found_frame": "found_frame"},
         )
-        self.tf_buffer = tf_buffer
 
-        with self:
-            smach.StateMachine.add(
-                "PLAN_PATH_TO_BIN_SECOND_TRIAL",
-                PlanPathToSingleFrameState(
-                    tf_buffer=self.tf_buffer,
-                    target_frame="bin_second_trial",
-                    source_frame="taluy/base_link",
-                ),
-                transitions={
-                    "succeeded": "EXECUTE_BIN_PATH_TO_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "EXECUTE_BIN_PATH_TO_SECOND_TRIAL",
-                ExecutePlannedPathsState(),
-                transitions={
-                    "succeeded": "CHECK_DROP_AREA_FOUND_TO_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CHECK_DROP_AREA_FOUND_TO_SECOND_TRIAL",
-                CheckForDropAreaState(source_frame="odom", timeout=2.0),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "ENABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
-                },
-            )
-            smach.StateMachine.add(
-                "ENABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
-                BinTransformServiceEnableState(req=True),
-                transitions={
-                    "succeeded": "CANCEL_ALIGN_FOR_SEARCH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_ALIGN_FOR_SEARCH",
-                CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "FIND_AND_AIM_BIN_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "FIND_AND_AIM_BIN_SECOND_TRIAL",
-                SearchForPropState(
-                    look_at_frame="bin_whole_link",
-                    alignment_frame="bin_search",
-                    full_rotation=True,
-                    set_frame_duration=4.0,
-                    source_frame="taluy/base_link",
-                    rotation_speed=0.3,
-                ),
-                transitions={
-                    "succeeded": "PLAN_BIN_PATHS_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "PLAN_BIN_PATHS_SECOND_TRIAL",
-                PlanBinPathState(self.tf_buffer),
-                transitions={
-                    "succeeded": "DISABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
-                BinTransformServiceEnableState(req=False),
-                transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET_SECOND_TRIAL",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="dynamic_target"
-                ),
-                transitions={
-                    "succeeded": "EXECUTE_BIN_PATH_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "EXECUTE_BIN_PATH_SECOND_TRIAL",
-                ExecutePlannedPathsState(),
-                transitions={
-                    "succeeded": "CHECK_DROP_AREA_FOUND_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "CHECK_DROP_AREA_FOUND_SECOND_TRIAL",
-                },
-            )
-            smach.StateMachine.add(
-                "CHECK_DROP_AREA_FOUND_SECOND_TRIAL",
-                CheckForDropAreaState(source_frame="odom", timeout=2.0),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-
-###############################################################################
-# BinTaskState - Main state for managing the bin task. Handles the complete
-# process including frame management, depth control, path planning, and ball dropping operations.
-###############################################################################
+    return concurrence_state
 
 
 class BinTaskState(smach.State):
@@ -272,17 +120,14 @@ class BinTaskState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"]
         )
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-
         with self.state_machine:
             smach.StateMachine.add(
                 "ENABLE_BIN_FRAME_PUBLISHER",
                 BinTransformServiceEnableState(req=True),
                 transitions={
                     "succeeded": "SET_BIN_DEPTH",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
             smach.StateMachine.add(
@@ -290,8 +135,8 @@ class BinTaskState(smach.State):
                 SetDepthState(depth=bin_task_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "FIND_AND_AIM_BIN",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
             smach.StateMachine.add(
@@ -305,92 +150,93 @@ class BinTaskState(smach.State):
                     rotation_speed=0.3,
                 ),
                 transitions={
-                    "succeeded": "PLAN_BIN_PATHS",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "PLAN_BIN_PATHS",
-                PlanBinPathState(self.tf_buffer),
-                transitions={
                     "succeeded": "DISABLE_BIN_FRAME_PUBLISHER",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
             smach.StateMachine.add(
                 "DISABLE_BIN_FRAME_PUBLISHER",
                 BinTransformServiceEnableState(req=False),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_PATH",
-                    "preempted": "preempted",
+                    "succeeded": "ALIGN_AND_CHECK_INITIAL",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
+
             smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET_TO_PATH",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="dynamic_target"
+                "ALIGN_AND_CHECK_INITIAL",
+                AlignAndCheckConcurrently(align_target_frame="bin_whole_link"),
+                transitions={
+                    "found": "ALIGN_DROPPER_TO_TARGET",
+                    "not_found": "ALIGN_AND_CHECK_FAR",
+                    "aborted": "aborted",
+                    "preempted": "preempted",
+                },
+                remapping={"found_frame": "found_frame"},
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_AND_CHECK_FAR",
+                AlignAndCheckConcurrently(align_target_frame="bin_far_trial"),
+                transitions={
+                    "found": "ALIGN_DROPPER_TO_TARGET",
+                    "not_found": "ALIGN_AND_CHECK_SECOND_TRIAL",
+                    "aborted": "aborted",
+                    "preempted": "preempted",
+                },
+                remapping={"found_frame": "found_frame"},
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_AND_CHECK_SECOND_TRIAL",
+                AlignAndCheckConcurrently(align_target_frame="bin_second_trial"),
+                transitions={
+                    "found": "ALIGN_DROPPER_TO_TARGET",
+                    "not_found": "DROP_BALL_1",  # This transition will skip the dropper alignment if no frame is found after all trials
+                    "aborted": "aborted",
+                    "preempted": "preempted",
+                },
+                remapping={"found_frame": "found_frame"},
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_DROPPER_TO_TARGET",
+                AlignFrame(
+                    source_frame="taluy/base_link/ball_dropper_link",
+                    target_frame="bin/blue_link",  # Provide a placeholder target_frame
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=3.0,
+                    timeout=20.0,
+                    cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "EXECUTE_BIN_PATH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "EXECUTE_BIN_PATH",
-                ExecutePlannedPathsState(),
-                transitions={
-                    "succeeded": "CHECK_DROP_AREA_FOUND",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "BIN_SECOND_TRIAL",
-                },
-            )
-            smach.StateMachine.add(
-                "CHECK_DROP_AREA_FOUND",
-                CheckForDropAreaState(source_frame="odom", timeout=2.0),
-                transitions={
-                    "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "BIN_SECOND_TRIAL",
-                },
-            )
-            smach.StateMachine.add(
-                "BIN_SECOND_TRIAL",
-                BinSecondTrialState(self.tf_buffer),
-                transitions={
-                    "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "DROP_BALL_1",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ALIGN_TO_FOUND_DROP_AREA",
-                SetAlignToFoundState(source_frame="taluy/base_link/ball_dropper_link"),
-                transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_DROP_AREA",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
+                remapping={"target_frame": "found_frame"},
             )
+
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_DROP_AREA",
                 DelayState(delay_time=12.0),
                 transitions={
                     "succeeded": "DROP_BALL_1",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
+
             smach.StateMachine.add(
                 "DROP_BALL_1",
                 DropBallState(),
                 transitions={
                     "succeeded": "WAIT_FOR_BALL_DROP_1",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
             smach.StateMachine.add(
@@ -398,8 +244,8 @@ class BinTaskState(smach.State):
                 DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "DROP_BALL_2",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
             smach.StateMachine.add(
@@ -407,8 +253,8 @@ class BinTaskState(smach.State):
                 DropBallState(),
                 transitions={
                     "succeeded": "WAIT_FOR_BALL_DROP_2",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
             smach.StateMachine.add(
@@ -416,8 +262,8 @@ class BinTaskState(smach.State):
                 DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
             smach.StateMachine.add(
@@ -425,16 +271,11 @@ class BinTaskState(smach.State):
                 CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
-                    "preempted": "preempted",
                     "aborted": "aborted",
+                    "preempted": "preempted",
                 },
             )
 
     def execute(self, userdata):
-        # Execute the state machine
         outcome = self.state_machine.execute()
-
-        if outcome is None:
-            return "preempted"
-
-        return outcome
+        return outcome if outcome is not None else "preempted"
