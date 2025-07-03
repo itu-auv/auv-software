@@ -3,6 +3,7 @@
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped, Twist
+from std_srvs.srv import Trigger, TriggerResponse
 from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from auv_common_lib.control.enable_state import ControlEnableHandler
@@ -19,6 +20,9 @@ class ReferencePosePublisherNode:
         )
         self.cmd_vel_sub = rospy.Subscriber(
             "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
+        )
+        self.reset_heading_service = rospy.Service(
+            "reset_heading", Trigger, self.reset_heading_handler
         )
 
         # Initialize publisher
@@ -42,6 +46,13 @@ class ReferencePosePublisherNode:
         return SetDepthResponse(
             success=True,
             message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
+        )
+
+    def reset_heading_handler(self, req):
+        self.target_heading = 0.0
+        return TriggerResponse(
+            success=True,
+            message="Target heading reset to 0.0",
         )
 
     def odometry_callback(self, msg):

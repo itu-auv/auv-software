@@ -45,6 +45,7 @@
       <remap from="cmd_vel" to="cmd_vel" />
       <remap from="cmd_pose" to="cmd_pose" />
       <remap from="enable" to="enable" />
+      <remap from="reset_heading" to="reset_heading" />
     </node>
 
 
