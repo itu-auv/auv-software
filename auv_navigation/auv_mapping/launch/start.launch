@@ -5,8 +5,6 @@
   <arg name="static_frame" default="odom" />
   <arg name="target_gate_frame" default="gate_blue_arrow_link" />
   <arg name="pool_depth" default="2.2" />
-  <arg name="torpedo_frame" default="torpedo_map_link" />
-  <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
 
   <group ns="$(arg namespace)">
     <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
@@ -35,15 +33,6 @@
     <node pkg="auv_mapping" type="bin_trajectory_publisher.py" name="bin_trajectory_publisher">
       <rosparam command="load" file="$(find auv_mapping)/config/bin_trajectory_publisher_params.yaml" />
       <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-    </node>
-
-    <node pkg="auv_mapping" type="torpedo_frame_publisher.py" name="torpode_frame_publisher" output="screen">
-      <rosparam command="load" file="$(find auv_mapping)/config/torpedo_frame_publisher_params.yaml" />
-      <param name="torpedo_frame" value="$(arg torpedo_frame)" />
-      <param name="torpedo_realsense_frame" value="$(arg torpedo_realsense_frame)" />
-      <remap from="set_transform_torpedo_target_frame" to="set_transform_torpedo_target_frame" />
-      <remap from="set_transform_torpedo_realsense_target_frame" to="set_transform_torpedo_realsense_target_frame" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
   </group>
