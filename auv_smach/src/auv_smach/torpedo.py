@@ -4,7 +4,6 @@ import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest
 
 from auv_smach.common import (
-    SetFrameLookingAtState,
     AlignFrame,
     CancelAlignControllerState,
     SetDepthState,
@@ -61,13 +60,13 @@ class TorpedoTaskState(smach.State):
                 "SET_TORPEDO_DEPTH",
                 SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "SET_TORPEDO_TRAVEL_START",
+                    "succeeded": "FIND_AND_AIM_TORPEDO",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_TORPEDO_TRAVEL_START",
+                "FIND_AND_AIM_TORPEDO",
                 SearchForPropState(
                     look_at_frame="torpedo_map_link",
                     alignment_frame="torpedo_map_travel_start",
@@ -174,7 +173,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=torpedo_realsense_target_frame,
-                    # angle_offset=-1.57,
+                    angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=10.0,
