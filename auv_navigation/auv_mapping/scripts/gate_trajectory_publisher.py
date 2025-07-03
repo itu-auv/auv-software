@@ -78,9 +78,7 @@ class TransformServiceNode:
         gate_link_1_translation: Tuple[float, float, float],
         gate_link_2_translation: Tuple[float, float, float],
     ) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
-        """
-        Determines selected_gate_link and other_gate_link based on self.target_gate_frame.
-        """
+        """Determine selected and other gate link translations based on target frame."""
         if self.target_gate_frame == self.gate_frame_1:
             selected_gate_link_translation = gate_link_1_translation
             other_gate_link_translation = gate_link_2_translation
@@ -96,64 +94,68 @@ class TransformServiceNode:
         selected_gate_link_translation: Tuple[float, float, float],
         other_gate_link_translation: Tuple[float, float, float],
     ) -> Tuple[Pose, Pose]:
-        """
-        Compute entrance and exit transforms based on the selected gate frame.
-
-        1. Define a perpendicular unit vector to the line between the two gate frames.
-        2. Calculate the two shifted positions relative to selected_gate_link_translation:
-            - entrance_position: offset in the negative perpendicular direction.
-            - exit_position: offset in the positive perpendicular direction.
-        3. Apply a vertical offset below the selected gate frame's z-value by z_offset.
-        """
+        """Calculate entrance and exit poses based on gate frames."""
 
         dx = other_gate_link_translation[0] - selected_gate_link_translation[0]
         dy = other_gate_link_translation[1] - selected_gate_link_translation[1]
-
         length = math.sqrt(dx**2 + dy**2)
+
         if length < self.MIN_GATE_SEPARATION_THRESHOLD:
             raise ValueError(
                 "The gate links are almost identical or at the same position"
             )
 
-        # Perpendicular unit vector to the line connecting selected_gate_link and other_gate_link frames.
         unit_perpendicular_x = -dy / length
         unit_perpendicular_y = dx / length
+        odom_dx = 0.0 - selected_gate_link_translation[0]
+        odom_dy = 0.0 - selected_gate_link_translation[1]
+
+        # Dot product to determine which side of perpendicular line the odom origin is on
+        dot_product = odom_dx * unit_perpendicular_x + odom_dy * unit_perpendicular_y
+
+        if dot_product > 0:
+            # Odom is on positive side, so entrance should be on positive side (odom's side)
+            entrance_direction = 1.0
+            exit_direction = -1.0
+        else:
+            # Odom is on negative side, so entrance should be on negative side (odom's side)
+            entrance_direction = -1.0
+            exit_direction = 1.0
 
         # Calculate new positions relative to selected_translation
         entrance_position = (
-            -unit_perpendicular_x * self.entrance_offset,
-            -unit_perpendicular_y * self.entrance_offset,
-            selected_gate_link_translation[2]
-            - self.z_offset,  # 0.5m below selected frame
+            selected_gate_link_translation[0]
+            + entrance_direction * unit_perpendicular_x * self.entrance_offset,
+            selected_gate_link_translation[1]
+            + entrance_direction * unit_perpendicular_y * self.entrance_offset,
+            selected_gate_link_translation[2] - self.z_offset,
         )
 
         exit_position = (
-            unit_perpendicular_x * self.exit_offset,
-            unit_perpendicular_y * self.exit_offset,
-            selected_gate_link_translation[2]
-            - self.z_offset,  # 0.5m below selected frame
+            selected_gate_link_translation[0]
+            + exit_direction * unit_perpendicular_x * self.exit_offset,
+            selected_gate_link_translation[1]
+            + exit_direction * unit_perpendicular_y * self.exit_offset,
+            selected_gate_link_translation[2] - self.z_offset,
         )
 
-        # Calculate orientations so that the frames look toward the origin (0,0,0 in local frame)
+        # Calculate orientations - entrance looks toward exit (perpendicular to gate line)
+        # Both frames have same orientation, perpendicular to the gate line
         common_yaw = math.atan2(
-            -entrance_position[1],  # Look toward (0,0,0)
-            -entrance_position[0],
+            exit_position[1] - entrance_position[1],
+            exit_position[0] - entrance_position[0],
         )
         common_quat = tf_conversions.transformations.quaternion_from_euler(
             0, 0, common_yaw
         )
 
-        entrance_quaternion = common_quat
-        exit_quaternion = common_quat
-
-        # Create the entrance and exit poses
         entrance_pose = Pose()
         entrance_pose.position = Point(*entrance_position)
-        entrance_pose.orientation = Quaternion(*entrance_quaternion)
+        entrance_pose.orientation = Quaternion(*common_quat)
 
         exit_pose = Pose()
         exit_pose.position = Point(*exit_position)
-        exit_pose.orientation = Quaternion(*exit_quaternion)
+        exit_pose.orientation = Quaternion(*common_quat)
 
         return entrance_pose, exit_pose
 
@@ -165,11 +167,7 @@ class TransformServiceNode:
         parallel_offset: float,
         tf_buffer: tf2_ros.Buffer,
     ) -> TransformStamped:
-        """
-        Shifts the given transform parallel to the line connecting selected_gate_frame_name
-        and other_gate_frame_name, in the direction from selected to other.
-        The shift is applied in the XY plane of the selected_gate_frame_name.
-        """
+        """Shift transform parallel to gate line from selected to other frame."""
         try:
             transform_selected_to_other = tf_buffer.lookup_transform(
                 selected_gate_frame_name,
@@ -297,7 +295,9 @@ class TransformServiceNode:
     ) -> TransformStamped:
         transform = geometry_msgs.msg.TransformStamped()
         transform.header.stamp = rospy.Time.now()
-        transform.header.frame_id = self.target_gate_frame
+        transform.header.frame_id = (
+            self.odom_frame
+        )  # Changed from self.target_gate_frame to self.odom_frame
         transform.child_frame_id = child_frame_id
         transform.transform.translation = pose.position
         transform.transform.rotation = pose.orientation

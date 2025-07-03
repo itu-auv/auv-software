@@ -1,5 +1,5 @@
 ---
-target_selection: red
+target_selection: blue
 mission_targets:
   blue:
     gate_target_frame: gate_blue_arrow_link
