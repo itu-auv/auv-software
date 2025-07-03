@@ -25,7 +25,7 @@
           <depthImageTopicName>depth/image_raw</depthImageTopicName>
           <depthImageCameraInfoTopicName>depth/camera_info</depthImageCameraInfoTopicName>
           <pointCloudTopicName>points</pointCloudTopicName>
-          <frameName>${name}_depth_optical_link</frameName>
+          <frameName>${name}_depth_optical_frame</frameName>
           <pointCloudCutoff>0.1</pointCloudCutoff>
           <pointCloudCutoffMax>10.0</pointCloudCutoffMax>
         </plugin>

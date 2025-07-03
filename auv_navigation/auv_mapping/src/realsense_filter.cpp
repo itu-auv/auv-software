@@ -15,9 +15,9 @@ class PointCloudFilterNode {
  public:
   PointCloudFilterNode(ros::NodeHandle& nh) {
     // Hardcoded topic names
-    pc_topic_ = "/camera/depth/color/points";
-    alt_topic_ = "/taluy/sensors/dvl/altitude";
-    depth_topic_ = "/taluy/sensors/external_pressure_sensor/depth";
+    pc_topic_ = "camera/depth/color/points";
+    alt_topic_ = "sensors/dvl/altitude";
+    depth_topic_ = "pressure_sensor/depth";
 
     ROS_INFO_ONCE("PointCloudFilterNode started.");  // Node start message
 
@@ -58,8 +58,7 @@ class PointCloudFilterNode {
       const std_msgs::Float32::ConstPtr& msg) {  // Changed message type
     depth_value_ = msg->data;                    // Assign to single value
     depth_received_ = true;
-    ROS_INFO("Depth received: %f",
-             depth_value_);  // Changed log message and format
+    ROS_INFO("Depth received: %f",depth_value_);  // Changed log message and format
   }
 
   void cloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg) {
@@ -156,6 +155,7 @@ class PointCloudFilterNode {
     sensor_msgs::PointCloud2 out_msg;
     pcl::toROSMsg(*temp_cloud, out_msg);
     out_msg.header = cloud_msg->header;
+    ROS_INFO("Publishing filtered PointCloud with");
     pc_pub_.publish(out_msg);
   }
 
