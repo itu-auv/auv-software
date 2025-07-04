@@ -190,7 +190,6 @@ class CameraDetectionNode:
         self.id_tf_map = {
             "taluy/cameras/cam_front": {
                 8: "red_buoy_link",
-                7: "path_link",
                 9: "bin_whole_link",
                 12: "torpedo_map_link",
                 13: "torpedo_hole_link",
@@ -359,7 +358,7 @@ class CameraDetectionNode:
                     prop_to_use = self.props.get("torpedo_hole_top_right_link")
                 else:
                     rospy.logwarn_throttle(
-                        7.0,
+                        10.0,
                         f"Torpedo hole at ({hole_center_x:.2f}, {hole_center_y:.2f}) not in defined quadrants of torpedo_map. Skipping.",
                     )
                     continue  # Skip if not in a known quadrant
