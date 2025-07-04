@@ -9,5 +9,12 @@
       name="follow_path_action_server"
       output="screen">
     </node>
+
+    <node
+      pkg="auv_navigation"
+      type="slalom_pipes_to_waypoints.py"
+      name="slalom_pipes_to_waypoints"
+      output="screen">
+    </node>
   </group>
 </launch>
