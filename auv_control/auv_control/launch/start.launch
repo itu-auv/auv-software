@@ -22,7 +22,7 @@
       <remap from="cmd_vel" to="cmd_vel" />
       <remap from="cmd_pose" to="cmd_pose" />
       <remap from="acceleration" to="acceleration" />
-      <remap from="enable" to="enable" />
+      <remap from="control_inspector_enable" to="control_inspector_enable" />
 
       <remap from="wrench" to="wrench" />
       <rosparam file="$(arg config_file)" command="load" ns="" />
@@ -68,6 +68,17 @@
       <param name="max_log_interval" value="120.0" />
     </node>
 
+    <node pkg="auv_control" type="control_inspector_node.py" name="control_inspector_node"
+      output="screen">
+      <remap from="odometry" to="odometry" />
+      <remap from="altitude" to="sensors/dvl/altitude" />
+      <remap from="power" to="mainboard/power_sensor/power" />
+      <remap from="dvl_enabled" to="sensors/dvl/is_valid" />
+      <remap from="enable" to="enable" />
+      <remap from="control_inspector_enable" to="control_inspector_enable" />
+
+      <rosparam command="load" file="$(find auv_control)/config/control_inspector_params.yaml" />
+    </node>
   </group>
 
 </launch>
