@@ -185,6 +185,7 @@ class CameraDetectionNode:
             "bin/blue_link": BinBlue(),
             "torpedo_big_hole_link": TorpedoHoleBig(),
             "torpedo_medium_hole_link": TorpedoHoleMedium(),
+            "path_link": BinWhole(),
         }
 
         self.id_tf_map = {
