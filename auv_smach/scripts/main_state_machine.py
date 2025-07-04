@@ -27,6 +27,7 @@ class MainStateMachineNode:
         self.torpedo_map_depth = -1.3
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
+        self.torpedo_fire_frame = "torpedo_fire_frame"
 
         self.bin_whole_depth = -1.0
 
@@ -88,6 +89,7 @@ class MainStateMachineNode:
                     "torpedo_map_depth": self.torpedo_map_depth,
                     "torpedo_target_frame": self.torpedo_target_frame,
                     "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
+                    "torpedo_fire_frame": self.torpedo_fire_frame,
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (

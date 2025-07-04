@@ -21,6 +21,7 @@ class TorpedoTransformServiceNode:
 
         self.enable_target = False
         self.enable_realsense_target = False
+        self.enable_torpedo_hole_target = False
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -34,13 +35,18 @@ class TorpedoTransformServiceNode:
         self.robot_frame = "taluy/base_link"
         self.target_frame = "torpedo_target"
         self.realsense_target_frame = "torpedo_target_realsense"
+        self.torpedo_fire_frame = "torpedo_fire_frame"
         self.torpedo_frame = rospy.get_param("~torpedo_frame", "torpedo_map_link")
         self.torpedo_realsense_frame = rospy.get_param(
             "~torpedo_realsense_frame", "torpedo_map_link_realsense"
         )
+        self.torpedo_hole_frame = rospy.get_param(
+            "~torpedo_hole_frame", "torpedo_hole_bottom_left_link"
+        )
 
         self.initial_offset = rospy.get_param("~initial_offset", 3.0)
         self.realsense_offset = rospy.get_param("~realsense_offset", 1.5)
+        self.fire_offset = rospy.get_param("~fire_offset", 1.0)
 
         self.set_enable_service = rospy.Service(
             "set_transform_torpedo_target_frame",
@@ -51,6 +57,11 @@ class TorpedoTransformServiceNode:
             "set_transform_torpedo_realsense_target_frame",
             SetBool,
             self.handle_enable_realsense_target_service,
+        )
+        self.set_enable_torpedo_hole_service = rospy.Service(
+            "set_transform_torpedo_hole_target_frame",
+            SetBool,
+            self.handle_enable_torpedo_hole_target_service,
         )
 
     def get_pose(self, transform: TransformStamped) -> Pose:
@@ -197,6 +208,42 @@ class TorpedoTransformServiceNode:
         ):
             pass
 
+    def create_torpedo_hole_target_frame(self):
+        try:
+            torpedo_hole_tf = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.torpedo_hole_frame,
+                rospy.Time(0),
+                rospy.Duration(1),
+            )
+            realsense_target_tf = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.realsense_target_frame,
+                rospy.Time(0),
+                rospy.Duration(1),
+            )
+            torpedo_hole_pose = self.get_pose(torpedo_hole_tf)
+            realsense_target_pose = self.get_pose(realsense_target_tf)
+            torpedo_hole_pose.orientation = realsense_target_pose.orientation
+            fire_pose = self.apply_offsets(
+                torpedo_hole_pose,
+                [
+                    0.0,
+                    self.fire_offset,
+                    0.0,
+                ],
+            )
+            fire_transform = self.build_transform_message(
+                self.torpedo_fire_frame, fire_pose
+            )
+            self.send_transform(fire_transform)
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ):
+            pass
+
     def handle_enable_target_service(self, req):
         self.enable_target = req.data
         message = (
@@ -211,6 +258,12 @@ class TorpedoTransformServiceNode:
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
+    def handle_enable_torpedo_hole_target_service(self, req):
+        self.enable_torpedo_hole_target = req.data
+        message = f"Torpido hole target frame transform publish is set to: {self.enable_torpedo_hole_target}"
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
     def spin(self):
         rate = rospy.Rate(20)
         while not rospy.is_shutdown():
@@ -218,6 +271,8 @@ class TorpedoTransformServiceNode:
                 self.create_target_frame()
             if self.enable_realsense_target:
                 self.create_realsense_target_frame()
+            if self.enable_torpedo_hole_target:
+                self.create_torpedo_hole_target_frame()
             rate.sleep()
 
 
