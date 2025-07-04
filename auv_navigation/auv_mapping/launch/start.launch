@@ -7,6 +7,7 @@
   <arg name="pool_depth" default="2.2" />
   <arg name="torpedo_frame" default="torpedo_map_link" />
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
+  <arg name="torpedo_hole_frame" default="torpedo_hole_bottom_left_link" />
 
   <group ns="$(arg namespace)">
     <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
@@ -53,6 +54,7 @@
       <param name="torpedo_realsense_frame" value="$(arg torpedo_realsense_frame)" />
       <remap from="set_transform_torpedo_target_frame" to="set_transform_torpedo_target_frame" />
       <remap from="set_transform_torpedo_realsense_target_frame" to="set_transform_torpedo_realsense_target_frame" />
+      <remap from="set_transform_torpedo_hole_target_frame" to="set_transform_torpedo_hole_target_frame" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
   </group>
