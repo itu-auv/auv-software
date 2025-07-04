@@ -34,9 +34,23 @@ class TorpedoRealsenseTargetFramePublisherServiceState(smach_ros.ServiceState):
         )
 
 
+class TorpedoFireFramePublisherServiceState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "set_transform_torpedo_hole_target_frame",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
 class TorpedoTaskState(smach.State):
     def __init__(
-        self, torpedo_map_depth, torpedo_target_frame, torpedo_realsense_target_frame
+        self,
+        torpedo_map_depth,
+        torpedo_target_frame,
+        torpedo_realsense_target_frame,
+        torpedo_fire_frame,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -74,22 +88,6 @@ class TorpedoTaskState(smach.State):
                     set_frame_duration=7.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
-                ),
-                transitions={
-                    "succeeded": "SET_TORPEDO_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_TORPEDO_ALIGN_CONTROLLER_TARGET",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="torpedo_map_travel_start",
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    timeout=10.0,
-                    cancel_on_success=False,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
@@ -171,12 +169,39 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "TURN_TO_LAUNCH_TORPEDO",
                 AlignFrame(
-                    source_frame="taluy/base_link/torpedo_upper_link",
+                    source_frame="taluy/base_link",
                     target_frame=torpedo_realsense_target_frame,
                     angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=10.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "LAUNCH_TORPEDO_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
+                TorpedoFireFramePublisherServiceState(req=False),
+                transitions={
+                    "succeeded": "ALIGN_TO_TORPEDO_FIRE_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_TORPEDO_FIRE_FRAME",
+                AlignFrame(
+                    source_frame="taluy/base_link/torpedo_upper_link",
+                    target_frame=torpedo_fire_frame,
+                    angle_offset=-1.57,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=5.0,
                     timeout=30.0,
                     cancel_on_success=False,
                 ),
