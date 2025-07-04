@@ -2,6 +2,8 @@
 import rospy
 import numpy as np
 import tf2_ros
+from dynamic_reconfigure.server import Server
+from auv_navigation.cfg import SlalomConfig
 from geometry_msgs.msg import (
     PoseArray,
     Pose,
@@ -22,35 +24,38 @@ from typing import List, Optional, Dict, Any, Tuple
 
 class SlalomProcessorNode:
     def __init__(self) -> None:
-        # Frame names and parameters
+        # Initialize dynamic reconfigure server
+        self.config = {}
+        self.srv = Server(SlalomConfig, self.reconfigure_callback)
+
         self.base_link_frame: str = rospy.get_param(
             "~robot_base_frame", "taluy/base_link"
         )
         self.odom_frame: str = rospy.get_param("~odom_frame", "odom")
-        self.max_view_distance: float = rospy.get_param(
-            "~max_view_distance", 5.0
-        )  # Max distance to consider pipes
-        self.ransac_iterations: int = rospy.get_param(
-            "~ransac_iters", 500
-        )  # RANSAC iterations in clustering
-        self.line_distance_threshold: float = rospy.get_param(
-            "~line_tolerance", 0.1
-        )  # Distance threshold for line fitting
-        self.min_pipe_cluster_size: int = rospy.get_param(
-            "~min_inliers", 2
-        )  # Minimum pipes to form a cluster
-        self.navigation_mode: str = rospy.get_param(
-            "~navigation_mode", "left"
-        )  # Navigation mode: 'left' or 'right'
-        self.red_white_distance: float = rospy.get_param(
-            "~red_white_distance", 1.5
-        )  # Expected distance between red and white pipes
+
+        # Maximum distance from the robot to consider a pipe for processing.
+        self.max_view_distance: float = rospy.get_param("~max_view_distance", 5.0)
+
+        # --- RANSAC Clustering Parameters ---
+        # Number of iterations for the RANSAC algorithm to find pipe clusters.
+        self.ransac_iterations: int = rospy.get_param("~ransac_iters", 500)
+        # Maximum distance a pipe can be from the fitted line to be considered an inlier.
+        self.line_distance_threshold: float = rospy.get_param("~line_tolerance", 0.3)
+        # The minimum number of pipes required to form a valid gate cluster.
+        self.min_pipe_cluster_size: int = rospy.get_param("~min_inliers", 2)
+
+        # --- Gate & Navigation Logic Parameters ---
+        # Determines which side of the gate to navigate towards ('left' or 'right').
+        self.navigation_mode: str = rospy.get_param("~navigation_mode", "left")
+        # The expected physical distance between the red and white pipes of a gate.
+        self.red_white_distance: float = rospy.get_param("~red_white_distance", 1.5)
+        # Tolerance in degrees for how much a gate's orientation can deviate from perpendicular.
         self.gate_angle_tolerance_degrees: float = rospy.get_param(
             "~gate_angle_tolerance_degrees", 15.0
         )
         self.gate_angle_cos_threshold: float = np.cos(
             np.deg2rad(self.gate_angle_tolerance_degrees)
-        )  # threshold for angle comparison
+        )
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -62,6 +67,13 @@ class SlalomProcessorNode:
         self.centers_marker_pub = rospy.Publisher(
             "/slalom/centers_markers", MarkerArray, queue_size=10
         )
+
+    def reconfigure_callback(self, config, level):
+        self.line_distance_threshold = config["line_tolerance"]
+        self.max_view_distance = config["max_view_distance"]
+        self.config = config
+        rospy.loginfo("Reconfiguring slalom parameters: %s", config)
+        return self.config
 
     def callback_pipes(self, msg: Pipes) -> None:
         rospy.logdebug(
