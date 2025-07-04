@@ -133,15 +133,12 @@ class BinBlue(Prop):
 
 class TorpedoHoleBottomLeft(Prop):
     def __init__(self):
-        super().__init__(
-            13, "torpedo_hole_bottom_left", 0.178, 0.178
-        )
+        super().__init__(13, "torpedo_hole_bottom_left", 0.178, 0.178)
+
 
 class TorpedoHoleTopRight(Prop):
     def __init__(self):
-        super().__init__(
-            13, "torpedo_hole_top_right", 0.153, 0.153
-        )
+        super().__init__(13, "torpedo_hole_top_right", 0.153, 0.153)
 
 
 class CameraDetectionNode:
@@ -361,8 +358,9 @@ class CameraDetectionNode:
                     child_frame_name = "torpedo_hole_top_right_link"
                     prop_to_use = self.props.get("torpedo_hole_top_right_link")
                 else:
-                    rospy.logwarn(
-                        f"Torpedo hole at ({hole_center_x:.2f}, {hole_center_y:.2f}) not in defined quadrants of torpedo_map. Skipping."
+                    rospy.logwarn_throttle(
+                        7.0,
+                        f"Torpedo hole at ({hole_center_x:.2f}, {hole_center_y:.2f}) not in defined quadrants of torpedo_map. Skipping.",
                     )
                     continue  # Skip if not in a known quadrant
 
@@ -415,9 +413,6 @@ class CameraDetectionNode:
                     camera_to_odom_transform.transform.rotation
                 )
                 self.object_transform_pub.publish(transform_stamped_msg)
-                rospy.loginfo(
-                    f"Published transform for {child_frame_name} at ({offset_x:.2f}, {offset_y:.2f}, {distance:.2f})"
-                )
 
     def check_if_detection_is_inside_image(
         self, detection, image_width: int = 640, image_height: int = 480
@@ -499,9 +494,6 @@ class CameraDetectionNode:
                                 camera_to_odom_transform.transform.rotation
                             )
                             self.object_transform_pub.publish(transform_stamped_msg)
-                            rospy.loginfo(
-                                f"Published transform for {prop_name} at ({offset_x:.2f}, {offset_y:.2f}, {distance:.2f})"
-                            )
                         except (
                             tf2_ros.LookupException,
                             tf2_ros.ConnectivityException,
