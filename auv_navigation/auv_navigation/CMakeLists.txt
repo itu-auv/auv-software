@@ -17,5 +17,6 @@ catkin_python_setup()
 catkin_install_python(PROGRAMS
   scripts/follow_path_action_server.py
   scripts/slalom_pipes_to_waypoints.py
+  scripts/slalom_pipe_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
