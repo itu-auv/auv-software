@@ -46,7 +46,7 @@ class TorpedoTransformServiceNode:
 
         self.initial_offset = rospy.get_param("~initial_offset", 3.0)
         self.realsense_offset = rospy.get_param("~realsense_offset", 1.5)
-        self.fire_offset = rospy.get_param("~fire_offset", 1.0)
+        self.fire_offset = rospy.get_param("~fire_offset", 0.3)
 
         self.set_enable_service = rospy.Service(
             "set_transform_torpedo_target_frame",

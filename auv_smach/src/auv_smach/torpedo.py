@@ -179,14 +179,14 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "LAUNCH_TORPEDO_1",
+                    "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
                 "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
-                TorpedoFireFramePublisherServiceState(req=False),
+                TorpedoFireFramePublisherServiceState(req=True),
                 transitions={
                     "succeeded": "SET_FIRE_DEPTH",
                     "preempted": "preempted",
@@ -196,14 +196,23 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH",
                 SetDepthState(
-                    depth=0.0, sleep_duration=3.0, frame_id=torpedo_fire_frame
+                    depth=0.0, sleep_duration=5.0, frame_id=torpedo_fire_frame
                 ),
+                transitions={
+                    "succeeded": "DISABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+            	"DISABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
+                TorpedoFireFramePublisherServiceState(req=False),
                 transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_FIRE_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )
+	    )
             smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_FIRE_FRAME",
                 AlignFrame(
@@ -212,7 +221,7 @@ class TorpedoTaskState(smach.State):
                     angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=5.0,
+                    confirm_duration=10.0,
                     timeout=30.0,
                     cancel_on_success=False,
                 ),

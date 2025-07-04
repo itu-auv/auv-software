@@ -133,12 +133,12 @@ class BinBlue(Prop):
 
 class TorpedoHoleBottomLeft(Prop):
     def __init__(self):
-        super().__init__(13, "torpedo_hole_bottom_left", 0.178, 0.178)
+        super().__init__(13, "torpedo_hole_bottom_left", 0.153, 0.153)
 
 
 class TorpedoHoleTopRight(Prop):
     def __init__(self):
-        super().__init__(13, "torpedo_hole_top_right", 0.153, 0.153)
+        super().__init__(13, "torpedo_hole_top_right", 0.178, 0.178)
 
 
 class CameraDetectionNode:
