@@ -188,6 +188,17 @@ class TorpedoTaskState(smach.State):
                 "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
                 TorpedoFireFramePublisherServiceState(req=False),
                 transitions={
+                    "succeeded": "SET_FIRE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_FIRE_DEPTH",
+                SetDepthState(
+                    depth=0.0, sleep_duration=3.0, frame_id=torpedo_fire_frame
+                ),
+                transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_FIRE_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
