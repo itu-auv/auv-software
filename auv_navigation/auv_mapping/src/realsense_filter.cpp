@@ -51,20 +51,15 @@ class PointCloudFilterNode {
       const std_msgs::Float32::ConstPtr& msg) {  // Changed message type
     altitude_ = msg->data;
     alt_received_ = true;
-    // ROS_INFO("Altitude received: %f", altitude_);  // Altitude message
-    // received
   }
 
   void depthCallback(
       const std_msgs::Float32::ConstPtr& msg) {  // Changed message type
     depth_value_ = msg->data;                    // Assign to single value
     depth_received_ = true;
-    // ROS_INFO("Depth received: %f",depth_value_);  // Changed log message and
-    // format
   }
 
   void cloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg) {
-    // ROS_INFO("PointCloud received.");  // PointCloud message received
     if (!alt_received_ || !depth_received_) {
       ROS_WARN_THROTTLE(5.0, "Waiting for altitude and depth data...");
       return;
@@ -160,9 +155,6 @@ class PointCloudFilterNode {
     // ROS_INFO("Publishing filtered PointCloud with");
     pc_pub_.publish(out_msg);
   }
-
-  // Removed getMinDepth and getDepthValue functions as they are no longer
-  // needed
 };
 
 int main(int argc, char** argv) {
