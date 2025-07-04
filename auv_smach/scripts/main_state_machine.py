@@ -18,7 +18,7 @@ class MainStateMachineNode:
         self.previous_enabled = False
 
         # USER EDIT
-        self.gate_depth = -1.5
+        self.gate_depth = -1.2
         self.target_gate_link = "gate_blue_arrow_link"
 
         self.red_buoy_radius = 2.2
