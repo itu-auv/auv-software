@@ -123,12 +123,12 @@ class Octagon(Prop):
 
 class BinRed(Prop):
     def __init__(self):
-        super().__init__(10, "torpedo_hole", 0.30480, 0.30480)
+        super().__init__(10, "bin_red", 0.30480, 0.30480)
 
 
 class BinBlue(Prop):
     def __init__(self):
-        super().__init__(11, "bin_red", 0.30480, 0.30480)
+        super().__init__(11, "bin_blue", 0.30480, 0.30480)
 
 
 class CameraDetectionNode:
