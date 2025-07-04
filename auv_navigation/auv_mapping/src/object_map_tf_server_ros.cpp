@@ -51,7 +51,7 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
                            &ObjectMapTFServerROS::clear_map_handler, this);
 
   dynamic_sub_ =
-      nh_.subscribe("object_transform_updates", 10,
+      nh_.subscribe("update_object_transforms", 10,
                     &ObjectMapTFServerROS::dynamic_transform_callback, this);
 
   ROS_DEBUG("ObjectMapTFServerROS initialized. Static frame: %s",
