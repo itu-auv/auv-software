@@ -307,11 +307,11 @@ class ProcessTrackerWithCloud {
         }
 
         // Her küme için boş olmayan benzersiz frame adı
-        const std::string base_name = base_frame_id;    // orijinali koru
-        std::string frame_id = (cluster_idx == closest_cluster_idx)
-                       ? base_name + "_closest"
-                       : base_name + "_cluster_" + std::to_string(cluster_idx);
-
+        const std::string base_name = base_frame_id;  // orijinali koru
+        std::string frame_id =
+            (cluster_idx == closest_cluster_idx)
+                ? base_name + "_closest"
+                : base_name + "_cluster_" + std::to_string(cluster_idx);
 
         // 3D tespit mesajı ve marker oluştur (hesaplanmış centroid ve rotation
         // matrix kullanılır)
