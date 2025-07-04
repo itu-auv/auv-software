@@ -10,6 +10,8 @@ find_package(catkin REQUIRED COMPONENTS
   auv_msgs
   geometry_msgs
   roscpp
+  rospy
+  std_msgs
   tf2_ros
   sensor_msgs
   message_filters
@@ -46,7 +48,7 @@ endif()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp tf2_ros geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs image_geometry cv_bridge ultralytics_ros
+  CATKIN_DEPENDS roscpp rospy std_msgs tf2_ros geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs image_geometry cv_bridge ultralytics_ros
   DEPENDS OpenCV PCL
 )
 
@@ -109,6 +111,7 @@ target_link_libraries(process_tracker_with_cloud
 
 target_link_libraries(realsense_filter_node
   ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
 )
 
 install(TARGETS object_map_tf_server_node object_position_filter process_tracker_with_cloud realsense_filter_node
