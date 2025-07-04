@@ -131,20 +131,17 @@ class BinBlue(Prop):
         super().__init__(11, "bin_blue", 0.30480, 0.30480)
 
 
-# Original Torpedo Hole (assuming this is the bottom-left one based on previous code's behavior)
 class TorpedoHoleBottomLeft(Prop):
     def __init__(self):
         super().__init__(
             13, "torpedo_hole_bottom_left", 0.178, 0.178
-        )  # Original dimensions
+        )
 
-
-# New Torpedo Hole for the top-right
 class TorpedoHoleTopRight(Prop):
     def __init__(self):
         super().__init__(
             13, "torpedo_hole_top_right", 0.153, 0.153
-        )  # New dimensions (153mm)
+        )
 
 
 class CameraDetectionNode:
@@ -187,10 +184,10 @@ class CameraDetectionNode:
             "gate_middle_part_link": GateMiddlePart(),
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
-            "bin_red_link": BinRed(),
-            "bin_blue_link": BinBlue(),
-            "torpedo_hole_bottom_left_link": TorpedoHoleBottomLeft(),  # Specific prop instance
-            "torpedo_hole_top_right_link": TorpedoHoleTopRight(),  # Specific prop instance
+            "bin/red_link": BinRed(),
+            "bin/blue_link": BinBlue(),
+            "torpedo_hole_bottom_left_link": TorpedoHoleBottomLeft(),
+            "torpedo_hole_top_right_link": TorpedoHoleTopRight(),
         }
 
         self.id_tf_map = {
@@ -199,7 +196,7 @@ class CameraDetectionNode:
                 7: "path_link",
                 9: "bin_whole_link",
                 12: "torpedo_map_link",
-                13: "torpedo_hole_link",  # Still points to a generic name, logic in detection determines full name
+                13: "torpedo_hole_link",
                 1: "gate_left_link",
                 2: "gate_right_link",
                 3: "gate_blue_arrow_link",
@@ -208,12 +205,11 @@ class CameraDetectionNode:
                 14: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {
-                9: "bin_whole_link",
-                10: "bin_red_link",
-                11: "bin_blue_link",
+                9: "bin/whole",
+                10: "bin/red_link",
+                11: "bin/blue_link",
             },
         }
-
         # Subscribe to YOLO detections and altitude
         self.altitude = None
         self.pool_depth = rospy.get_param("~pool_depth", 2.2)
@@ -255,7 +251,7 @@ class CameraDetectionNode:
             return
 
         detection_id = detection.results[0].id
-        if detection_id != 9:  # Only process 'bin_whole' (ID 9) for altitude projection
+        if detection_id != 9:
             return
 
         bbox_bottom_x = detection.bbox.center.x
@@ -289,12 +285,9 @@ class CameraDetectionNode:
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
 
-            point1_odom.point.z += (
-                self.altitude + 0.18
-            )  # Adjust for camera height relative to base_link
-            point2_odom.point.z += self.altitude + 0.18
+            point1_odom.point.z += self.altitude
+            point2_odom.point.z += self.altitude
 
-            # Zemin ile kesişim noktasını bul
             intersection = self.calculate_intersection_with_ground(
                 point1_odom, point2_odom
             )
@@ -308,9 +301,7 @@ class CameraDetectionNode:
                 ]
 
                 transform_stamped_msg.transform.translation = Vector3(x, y, z)
-                transform_stamped_msg.transform.rotation = Quaternion(
-                    0, 0, 0, 1
-                )  # Orientation is not estimated by this method
+                transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
                 self.object_transform_pub.publish(transform_stamped_msg)
 
         except (
@@ -467,7 +458,7 @@ class CameraDetectionNode:
 
             detection_id = detection.results[0].id
 
-            if detection_id == 9:  # BinWhole - handle altitude projection
+            if detection_id == 9:
                 self.process_altitude_projection(detection, camera_ns)
             elif detection_id == 12:  # Torpedo Map
                 torpedo_map_bbox = detection.bbox
@@ -586,9 +577,6 @@ class CameraDetectionNode:
                 camera_to_odom_transform.transform.rotation
             )
             self.object_transform_pub.publish(transform_stamped_msg)
-            rospy.loginfo(
-                f"Published transform for {prop_name} at ({offset_x:.2f}, {offset_y:.2f}, {distance:.2f})"
-            )
 
     def run(self):
         rospy.spin()
