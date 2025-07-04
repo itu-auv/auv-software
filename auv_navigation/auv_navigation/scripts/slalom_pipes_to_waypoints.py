@@ -61,7 +61,7 @@ class SlalomProcessorNode:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.pipe_sub = rospy.Subscriber(
-            "/slalom_pipes", Pipes, self.callback_pipes, queue_size=1
+            "/taluy/slalom_pipes", Pipes, self.callback_pipes, queue_size=1
         )
         self.centers_pub = rospy.Publisher("/slalom/centers", PoseArray, queue_size=10)
         self.centers_marker_pub = rospy.Publisher(
@@ -76,7 +76,7 @@ class SlalomProcessorNode:
         return self.config
 
     def callback_pipes(self, msg: Pipes) -> None:
-        rospy.logdebug(
+        rospy.loginfo(
             "[SlalomProcessorNode] Received Pipes message with %d pipes",
             len(msg.pipes),
         )
@@ -121,7 +121,7 @@ class SlalomProcessorNode:
             gate_angle_cos_threshold=self.gate_angle_cos_threshold,
             line_distance_threshold=self.line_distance_threshold,
         )
-        rospy.logdebug(
+        rospy.loginfo(
             "[SlalomProcessorNode] Found %d raw clusters (gate candidates)",
             len(raw_clusters),
         )
@@ -139,11 +139,11 @@ class SlalomProcessorNode:
 
         # 4. Validate clusters
         validated = [validate_cluster(sorted_cluster=c) for c in sorted_clusters]
-        rospy.logdebug("[SlalomProcessorNode] Validated clusters: %d", len(validated))
+        rospy.loginfo("[SlalomProcessorNode] Validated clusters: %d", len(validated))
         # 5. Create Gate objects from validated clusters
         gates = [create_gate_object(info=c) for c in validated]
         num_gates = sum(1 for g in gates if g is not None)
-        rospy.logdebug(
+        rospy.loginfo(
             "[SlalomProcessorNode] Created %d complete Gate objects", num_gates
         )
 
@@ -157,7 +157,7 @@ class SlalomProcessorNode:
             for g in gates
             if g is not None
         ]
-        rospy.logdebug(
+        rospy.loginfo(
             "[SlalomProcessorNode] Computed navigation targets for %d gates",
             len(targets),
         )

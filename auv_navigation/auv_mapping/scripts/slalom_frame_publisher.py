@@ -12,10 +12,12 @@ import numpy as np
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 from sklearn.cluster import DBSCAN
-from geometry_msgs.msg import TransformStamped
-from tf2_ros import TransformBroadcaster
+from geometry_msgs.msg import TransformStamped, PointStamped
+import tf2_geometry_msgs
+from tf2_ros import TransformBroadcaster, Buffer, TransformListener
 from dynamic_reconfigure.server import Server
 from auv_mapping.cfg import SlalomClusteringConfig
+from auv_msgs.msg import Pipe, Pipes
 
 
 class PointCloudClusterer:
@@ -28,6 +30,7 @@ class PointCloudClusterer:
         self.parent_frame = rospy.get_param(
             "~parent_frame", "taluy/camera_depth_optical_frame"
         )
+        self.target_frame = rospy.get_param("~target_frame", "odom")
 
         # kümeleme ayarları
         self.max_distance = rospy.get_param("~max_distance", 30.0)
@@ -40,6 +43,9 @@ class PointCloudClusterer:
 
         # ── aboneler & TF yayıncısı ────────────────────────────────────────
         self.tf_br = TransformBroadcaster()
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer)
+        self.pipes_pub = rospy.Publisher("/taluy/slalom_pipes", Pipes, queue_size=10)
 
         self.red_sub = rospy.Subscriber(
             red_topic, PointCloud2, self.pointcloud_callback, callback_args="red"
@@ -64,7 +70,6 @@ class PointCloudClusterer:
         """
         Tek callback; color argümanı 'red' veya 'white'
         """
-        print("emin selam ya")
         # 1) Noktaları oku (downsample)
         pts_full = [
             (p[0], p[1], p[2])
@@ -95,7 +100,11 @@ class PointCloudClusterer:
             algorithm="ball_tree",
         ).fit_predict(xz)
 
-        # 5) Küme yayınla
+        # 5) Küme ve P boru mesajlarını yayınla
+        pipes_msg = Pipes()
+        pipes_msg.header.stamp = msg.header.stamp
+        pipes_msg.header.frame_id = self.target_frame
+
         for lbl in set(labels):
             if lbl == -1:
                 continue  # outlier
@@ -104,16 +113,15 @@ class PointCloudClusterer:
             cluster_pts = pts[mask]         # hâlâ 3-B
             centroid = cluster_pts.mean(axis=0)  # (x̄,ȳ,z̄)
 
+            # a) TF yayınla (orijinal işlevsellik)
             tfm = TransformStamped()
             tfm.header.stamp    = msg.header.stamp
             tfm.header.frame_id = self.parent_frame
             tfm.child_frame_id  = f"{color}_pipe_cluster_{lbl}"
-
             tfm.transform.translation.x = float(centroid[0])
-            tfm.transform.translation.y = float(centroid[1])  # y ortalaması
+            tfm.transform.translation.y = float(centroid[1])
             tfm.transform.translation.z = float(centroid[2])
-            tfm.transform.rotation.w    = 1.0  # (0,0,0,1) – identite
-
+            tfm.transform.rotation.w    = 1.0
             self.tf_br.sendTransform(tfm)
             print(
                 f"Published TF: {tfm.child_frame_id} at "
@@ -123,6 +131,37 @@ class PointCloudClusterer:
                 f"[{tfm.child_frame_id}] → ({centroid[0]:.2f}, "
                 f"{centroid[1]:.2f}, {centroid[2]:.2f})"
             )
+
+            # b) odom'a dönüştür ve Pipe mesajı oluştur
+            try:
+                source_point = PointStamped()
+                source_point.header.frame_id = self.parent_frame
+                source_point.header.stamp = msg.header.stamp
+                source_point.point.x = float(centroid[0])
+                source_point.point.y = float(centroid[1])
+                source_point.point.z = float(centroid[2])
+
+                # Daha sağlam bir dönüşüm için lookup_transform ve do_transform_point kullan
+                transform = self.tf_buffer.lookup_transform(
+                    self.target_frame,
+                    self.parent_frame,
+                    msg.header.stamp,
+                    rospy.Duration(1.0)
+                )
+                transformed_point = tf2_geometry_msgs.do_transform_point(source_point, transform)
+
+                pipe = Pipe()
+                pipe.color = color
+                pipe.position = transformed_point.point
+                pipes_msg.pipes.append(pipe)
+
+            except Exception as e:
+                rospy.logwarn(f"Could not transform point for {color}_pipe_cluster_{lbl}: {e}")
+
+        # c) Pipes mesajını yayınla
+        if pipes_msg.pipes:
+            self.pipes_pub.publish(pipes_msg)
+            rospy.loginfo(f"Published {len(pipes_msg.pipes)} {color} pipes to /slalom_pipes")
 
 # ═══════════════════════════════════════════════════════════════════════
 if __name__ == "__main__":
