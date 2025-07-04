@@ -99,7 +99,7 @@ class ControllerROS {
                       transport_hints);
 
     control_enable_sub_.subscribe(
-        "enable", 1, nullptr,
+        "control_inspector_enable", 1, nullptr,
         []() { ROS_WARN_STREAM("control enable message timeouted"); },
         ros::Duration{1.0});
     control_enable_sub_.set_default_message(std_msgs::Bool{});
