@@ -25,5 +25,6 @@
       <remap from="cmd_vel" to="cmd_vel" />
       <param name="cmdvel_tau" value="0.2" />
     </node>
+    <node pkg="auv_localization" type="home_anchor_node.py" name="home_anchor_node" output="screen" />
   </group>
 </launch>
