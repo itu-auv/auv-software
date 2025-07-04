@@ -47,6 +47,10 @@ class ProcessTrackerWithCloud {
   // Yayıncılar
   ros::Publisher detection_cloud_pub_;
   ros::Publisher object_transform_pub_;
+  ros::Publisher slalom_red_cloud_pub_;
+  ros::Publisher slalom_white_cloud_pub_;
+  pcl::PointCloud<pcl::PointXYZ> slalom_red_cloud_;
+  pcl::PointCloud<pcl::PointXYZ> slalom_white_cloud_;
 
   // Abonelikler ve senkronizasyon
   message_filters::Subscriber<sensor_msgs::CameraInfo> camera_info_sub_;
@@ -79,8 +83,9 @@ class ProcessTrackerWithCloud {
   // Tespit ID'sinden prop ismini almak için bir mapping ekleyelim
   std::map<int, std::string> id_to_prop_name = {
       {8, "red_buoy_link"},       {7, "path_link"},
+      {1,"slalom_white_link"},    {0, "slalom_red_link"},
       {9, "bin_whole_link"},      {12, "torpedo_map_link"},
-      {13, "torpedo_hole_link"},  {1, "gate_left_link"},
+      {13, "torpedo_hole_link"},  {15, "gate_left_link"},
       {2, "gate_right_link"},     {3, "gate_blue_arrow_link"},
       {4, "gate_red_arrow_link"}, {5, "gate_middle_part_link"},
       {14, "octagon_link"}};
@@ -121,6 +126,8 @@ class ProcessTrackerWithCloud {
         nh_.advertise<sensor_msgs::PointCloud2>("detection_cloud", 1);
     object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
         "/taluy/map/object_transform_updates", 10);
+    slalom_red_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("slalom_red_cloud", 1);
+    slalom_white_cloud_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("slalom_white_cloud", 1);
 
     // Abonelikleri başlat
     camera_info_sub_.subscribe(nh_, camera_info_topic_, 10);
@@ -145,6 +152,8 @@ class ProcessTrackerWithCloud {
       const sensor_msgs::CameraInfo::ConstPtr& camera_info_msg,
       const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
       const ultralytics_ros::YoloResultConstPtr& yolo_result_msg) {
+    slalom_red_cloud_.clear();
+    slalom_white_cloud_.clear();
     // Kamera modelini güncelle
     cam_model_.fromCameraInfo(camera_info_msg);
 
@@ -189,8 +198,25 @@ class ProcessTrackerWithCloud {
     int processed_detection_count = 0;
 
     // Her bir YOLO tespiti için işlem yap
-    for (size_t i = 0; i < yolo_result_msg->detections.detections.size(); i++) {
+    for (size_t i = 0; i < yolo_result_msg->detections.detections.size(); ++i) {
       const auto& detection = yolo_result_msg->detections.detections[i];
+      if (detection.results.empty()) continue;
+      int det_id = detection.results[0].id;
+
+      // --- SLALOM özel kolu ---
+      if (det_id == 0) { // slalom_red_link
+          pcl::PointCloud<pcl::PointXYZ>::Ptr tmp(new pcl::PointCloud<pcl::PointXYZ>);
+          processPointsWithBbox(downsampled_cloud, detection, tmp);
+          if (!tmp->empty()) { slalom_red_cloud_ += *tmp; }
+          continue;
+      }
+      if (det_id == 1) { // slalom_white_link
+          pcl::PointCloud<pcl::PointXYZ>::Ptr tmp(new pcl::PointCloud<pcl::PointXYZ>);
+          processPointsWithBbox(downsampled_cloud, detection, tmp);
+          if (!tmp->empty()) { slalom_white_cloud_ += *tmp; }
+          continue;
+      }
+      // --- Diğer tespitler akışı (mevcut kod) ---
 
       // Tespit ID'sini kontrol et, atlanacak ID'lerden biriyse sonraki tespite
       // geç
@@ -328,6 +354,18 @@ class ProcessTrackerWithCloud {
     }
 
     // İşlenmiş tespit sayısı kontrolü
+    if (!slalom_red_cloud_.empty()) {
+        sensor_msgs::PointCloud2 slalom_msg;
+        pcl::toROSMsg(slalom_red_cloud_, slalom_msg);
+        slalom_msg.header = cloud_msg->header;
+        slalom_red_cloud_pub_.publish(slalom_msg);
+    }
+    if (!slalom_white_cloud_.empty()) {
+        sensor_msgs::PointCloud2 slalom_msg;
+        pcl::toROSMsg(slalom_white_cloud_, slalom_msg);
+        slalom_msg.header = cloud_msg->header;
+        slalom_white_cloud_pub_.publish(slalom_msg);
+    }
     if (processed_detection_count == 0) {
       return;
     }
