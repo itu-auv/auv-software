@@ -123,12 +123,22 @@ class Octagon(Prop):
 
 class BinRed(Prop):
     def __init__(self):
-        super().__init__(10, "torpedo_hole", 0.30480, 0.30480)
+        super().__init__(10, "bin_red", 0.30480, 0.30480)
 
 
 class BinBlue(Prop):
     def __init__(self):
-        super().__init__(11, "bin_red", 0.30480, 0.30480)
+        super().__init__(11, "bin_blue", 0.30480, 0.30480)
+
+
+class TorpedoHoleBig(Prop):
+    def __init__(self):
+        super().__init__(13, "torpedo_hole_big", 0.178, 0.178)
+
+
+class TorpedoHoleMedium(Prop):
+    def __init__(self):
+        super().__init__(13, "torpedo_hole_medium", 0.153, 0.153)
 
 
 class CameraDetectionNode:
@@ -173,6 +183,9 @@ class CameraDetectionNode:
             "octagon_link": Octagon(),
             "bin/red_link": BinRed(),
             "bin/blue_link": BinBlue(),
+            "torpedo_big_hole_link": TorpedoHoleBig(),
+            "torpedo_medium_hole_link": TorpedoHoleMedium(),
+            "path_link": BinWhole(),
         }
 
         self.id_tf_map = {
@@ -246,10 +259,7 @@ class CameraDetectionNode:
             (bbox_bottom_x, bbox_bottom_y)
         )
 
-        distance = 500.0
-
-        offset_x = math.tan(angles[0]) * distance * 1.0
-        offset_y = math.tan(angles[1]) * distance * 1.0
+        distance = 500.0  # A large arbitrary distance to create a ray
 
         point1 = PointStamped()
         point1.header.frame_id = self.camera_frames[camera_ns]
@@ -259,8 +269,8 @@ class CameraDetectionNode:
 
         point2 = PointStamped()
         point2.header.frame_id = self.camera_frames[camera_ns]
-        point2.point.x = offset_x
-        point2.point.y = offset_y
+        point2.point.x = math.tan(angles[0]) * distance * 1.0
+        point2.point.y = math.tan(angles[1]) * distance * 1.0
         point2.point.z = distance
 
         try:
@@ -273,10 +283,9 @@ class CameraDetectionNode:
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
 
-            point1_odom.point.z += self.altitude + 0.18
-            point2_odom.point.z += self.altitude + 0.18
+            point1_odom.point.z += self.altitude
+            point2_odom.point.z += self.altitude
 
-            # Zemin ile kesişim noktasını bul
             intersection = self.calculate_intersection_with_ground(
                 point1_odom, point2_odom
             )
@@ -300,6 +309,132 @@ class CameraDetectionNode:
         ) as e:
             rospy.logerr(f"Transform error: {e}")
 
+    def _publish_torpedo_hole_transform(
+        self, detection, camera_ns, camera_frame, prop_key, child_frame_id, stamp
+    ):
+        """
+        Helper method to calculate and publish the transform for a specific torpedo hole,
+        using its designated Prop class.
+        """
+        prop_to_use = self.props.get(prop_key)
+        if not prop_to_use:
+            rospy.logerr(f"Prop '{prop_key}' not found. Cannot estimate distance.")
+            return
+
+        distance = prop_to_use.estimate_distance(
+            detection.bbox.size_y,
+            detection.bbox.size_x,
+            self.camera_calibrations[camera_ns],
+        )
+
+        if distance is None:
+            return
+
+        angles = self.camera_calibrations[camera_ns].calculate_angles(
+            (detection.bbox.center.x, detection.bbox.center.y)
+        )
+
+        try:
+            camera_to_odom_transform = self.tf_buffer.lookup_transform(
+                camera_frame,
+                "odom",
+                rospy.Time(0),
+                rospy.Duration(1.0),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logerr(f"Transform error for {child_frame_id}: {e}")
+            return
+
+        offset_x = math.tan(angles[0]) * distance * 1.0
+        offset_y = math.tan(angles[1]) * distance * 1.0
+
+        transform_stamped_msg = TransformStamped()
+        transform_stamped_msg.header.stamp = stamp
+        transform_stamped_msg.header.frame_id = camera_frame
+        transform_stamped_msg.child_frame_id = child_frame_id
+
+        transform_stamped_msg.transform.translation = Vector3(
+            offset_x, offset_y, distance
+        )
+        transform_stamped_msg.transform.rotation = (
+            camera_to_odom_transform.transform.rotation
+        )
+        self.object_transform_pub.publish(transform_stamped_msg)
+
+    def process_torpedo_holes_on_map(
+        self, detection_msg: YoloResult, camera_ns: str, torpedo_map_bbox_data
+    ):
+        torpedo_map_bbox = torpedo_map_bbox_data
+
+        map_min_x = torpedo_map_bbox.center.x - torpedo_map_bbox.size_x * 0.5
+        map_max_x = torpedo_map_bbox.center.x + torpedo_map_bbox.size_x * 0.5
+        map_min_y = torpedo_map_bbox.center.y - torpedo_map_bbox.size_y * 0.5
+        map_max_y = torpedo_map_bbox.center.y + torpedo_map_bbox.size_y * 0.5
+
+        detected_holes_in_map = []
+
+        camera_frame = self.camera_frames[camera_ns]
+
+        for detection in detection_msg.detections.detections:
+            if len(detection.results) == 0:
+                continue
+            detection_id = detection.results[0].id
+
+            if detection_id == 13:  # This is a torpedo_hole (generic ID from YOLO)
+                hole_center_x = detection.bbox.center.x
+                hole_center_y = detection.bbox.center.y
+                hole_half_width = detection.bbox.size_x * 0.5
+                hole_half_height = detection.bbox.size_y * 0.5
+
+                # Check if the torpedo_hole is entirely within the torpedo_map's bounding box
+                hole_min_x = hole_center_x - hole_half_width
+                hole_max_x = hole_center_x + hole_half_width
+                hole_min_y = hole_center_y - hole_half_height
+                hole_max_y = hole_center_y + hole_half_height
+
+                if (
+                    map_min_x <= hole_min_x
+                    and hole_max_x <= map_max_x
+                    and map_min_y <= hole_min_y
+                    and hole_max_y <= map_max_y
+                ):
+
+                    area = detection.bbox.size_x * detection.bbox.size_y
+                    detected_holes_in_map.append((detection, area))
+                else:
+                    rospy.logdebug(
+                        f"Torpedo hole at ({hole_center_x:.2f}, {hole_center_y:.2f}) is not fully inside torpedo_map. Skipping."
+                    )
+
+        # Sort the detected holes by area in descending order
+        detected_holes_in_map.sort(key=lambda x: x[1], reverse=True)
+
+        # Process the largest hole
+        if len(detected_holes_in_map) >= 1:
+            self._publish_torpedo_hole_transform(
+                detected_holes_in_map[0][0],  # detection object
+                camera_ns,
+                camera_frame,
+                "torpedo_big_hole_link",
+                "torpedo_big_hole_link",
+                detection_msg.header.stamp,
+            )
+
+        # Process the second largest hole
+        if len(detected_holes_in_map) >= 2:
+            self._publish_torpedo_hole_transform(
+                detected_holes_in_map[1][0],  # detection object
+                camera_ns,
+                camera_frame,
+                "torpedo_medium_hole_link",
+                "torpedo_medium_hole_link",
+                detection_msg.header.stamp,
+            )
+
     def check_if_detection_is_inside_image(
         self, detection, image_width: int = 640, image_height: int = 480
     ) -> bool:
@@ -322,54 +457,109 @@ class CameraDetectionNode:
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
         # Determine camera_ns based on the source passed by the subscriber
         if camera_source == "front_camera":
-            camera_ns = (
-                "taluy/cameras/cam_front"  # Ensure this matches your actual namespace
-            )
+            camera_ns = "taluy/cameras/cam_front"
         elif camera_source == "bottom_camera":
-            camera_ns = (
-                "taluy/cameras/cam_bottom"  # Ensure this matches your actual namespace
-            )
+            camera_ns = "taluy/cameras/cam_bottom"
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
-            return  # Stop processing if the source is unknown
+            return
         camera_frame = self.camera_frames[camera_ns]
+
+        torpedo_map_bbox = None  # To store torpedo_map bbox if found
+
+        # First pass to find torpedo_map and handle bin_whole
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-            skip_inside_image = False
+
             detection_id = detection.results[0].id
-            if detection_id not in self.id_tf_map[camera_ns]:
-                continue
-            if detection_id == 10 or detection_id == 11:
-                skip_inside_image = True
-                # use altidude for bin
-                distance = self.altitude
+
             if detection_id == 9:
                 self.process_altitude_projection(detection, camera_ns)
+            elif detection_id == 12:  # Torpedo Map
+                torpedo_map_bbox = detection.bbox
+                # Now, directly publish the torpedo_map_link transform here
+                prop_name = self.id_tf_map[camera_ns].get(detection_id)
+                if (
+                    prop_name and prop_name in self.props
+                ):  # Check if prop_name exists and is in self.props
+                    prop = self.props[prop_name]  # Retrieve the TorpedoMap prop
+                    distance = prop.estimate_distance(
+                        detection.bbox.size_y,
+                        detection.bbox.size_x,
+                        self.camera_calibrations[camera_ns],
+                    )
+                    if distance is not None:
+                        angles = self.camera_calibrations[camera_ns].calculate_angles(
+                            (detection.bbox.center.x, detection.bbox.center.y)
+                        )
+                        try:
+                            camera_to_odom_transform = self.tf_buffer.lookup_transform(
+                                camera_frame,
+                                "odom",
+                                rospy.Time(0),
+                                rospy.Duration(1.0),
+                            )
+                            offset_x = math.tan(angles[0]) * distance * 1.0
+                            offset_y = math.tan(angles[1]) * distance * 1.0
+                            transform_stamped_msg = TransformStamped()
+                            transform_stamped_msg.header.stamp = (
+                                detection_msg.header.stamp
+                            )
+                            transform_stamped_msg.header.frame_id = camera_frame
+                            transform_stamped_msg.child_frame_id = prop_name
+                            transform_stamped_msg.transform.translation = Vector3(
+                                offset_x, offset_y, distance
+                            )
+                            transform_stamped_msg.transform.rotation = (
+                                camera_to_odom_transform.transform.rotation
+                            )
+                            self.object_transform_pub.publish(transform_stamped_msg)
+                        except (
+                            tf2_ros.LookupException,
+                            tf2_ros.ConnectivityException,
+                            tf2_ros.ExtrapolationException,
+                        ) as e:
+                            rospy.logerr(f"Transform error for {prop_name}: {e}")
+
+        if torpedo_map_bbox:
+            self.process_torpedo_holes_on_map(
+                detection_msg, camera_ns, torpedo_map_bbox
+            )
+
+        for detection in detection_msg.detections.detections:
+            if len(detection.results) == 0:
                 continue
-            if not skip_inside_image:
-                if self.check_if_detection_is_inside_image(detection) is False:
-                    continue
-            prop_name = self.id_tf_map[camera_ns][detection_id]
-            if prop_name not in self.props:
+            detection_id = detection.results[0].id
+
+            if detection_id == 9 or detection_id == 12 or detection_id == 13:
                 continue
 
-            prop = self.props[prop_name]
+            prop_name = self.id_tf_map[camera_ns].get(detection_id)
+            if prop_name is None:
+                continue
 
-            if not skip_inside_image:  # Calculate distance using object dimensions
-                distance = prop.estimate_distance(
-                    detection.bbox.size_y,
-                    detection.bbox.size_x,
-                    self.camera_calibrations[camera_ns],
-                )
+            if not self.check_if_detection_is_inside_image(detection):
+                continue
+
+            prop = self.props.get(prop_name)
+            if prop is None:
+                rospy.logwarn(f"Prop '{prop_name}' not found in self.props dictionary.")
+                continue
+
+            distance = prop.estimate_distance(
+                detection.bbox.size_y,
+                detection.bbox.size_x,
+                self.camera_calibrations[camera_ns],
+            )
 
             if distance is None:
                 continue
 
-            # Calculate angles from pixel coordinates
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
+
             try:
                 camera_to_odom_transform = self.tf_buffer.lookup_transform(
                     camera_frame,
@@ -382,11 +572,12 @@ class CameraDetectionNode:
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException,
             ) as e:
-                rospy.logerr(f"Transform error: {e}")
-                return
+                rospy.logerr(f"Transform error for {prop_name}: {e}")
+                continue
 
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
+
             transform_stamped_msg = TransformStamped()
             transform_stamped_msg.header.stamp = detection_msg.header.stamp
             transform_stamped_msg.header.frame_id = camera_frame
@@ -398,7 +589,6 @@ class CameraDetectionNode:
             transform_stamped_msg.transform.rotation = (
                 camera_to_odom_transform.transform.rotation
             )
-            # Calculate the rotation based on odom
             self.object_transform_pub.publish(transform_stamped_msg)
 
     def run(self):
