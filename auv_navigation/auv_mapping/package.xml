@@ -5,7 +5,7 @@
   <description>AUV Mapping package for 3D object detection and tracking</description>
 
   <maintainer email="user@example.com">Your Name</maintainer>
-  <license>BSD</license>
+  <license>BSD-3-Clause</license>
 
   <buildtool_depend>catkin</buildtool_depend>
 
