@@ -16,13 +16,13 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
-#include <ultralytics_ros/YoloResult.h>  // vision_msgs/Detection2DArray yerine
+#include <ultralytics_ros/YoloResult.h>
 #include <vision_msgs/Detection3DArray.h>
 #include <visualization_msgs/MarkerArray.h>
 
-// PCL Kütüphaneleri
+// PCL Libraries
 #include <pcl/common/centroid.h>
-#include <pcl/common/common.h>  // getMinMax3D için gerekli
+#include <pcl/common/common.h>
 #include <pcl/common/pca.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/point_cloud.h>
@@ -34,21 +34,21 @@
 
 class ProcessTrackerWithCloud {
  private:
-  // ROS üyeleri
+  // ROS handlers
   ros::NodeHandle nh_, pnh_;
 
-  // Parametreler
+  // Parameters
   std::string camera_info_topic_, lidar_topic_, yolo_result_topic_;
   std::string yolo_3d_result_topic_;
   float cluster_tolerance_, voxel_leaf_size_;
   int min_cluster_size_, max_cluster_size_;
   float roi_expansion_factor_;
 
-  // Yayıncılar
+  // Publishers
   ros::Publisher detection_cloud_pub_;
   ros::Publisher object_transform_pub_;
 
-  // Abonelikler ve senkronizasyon
+  // Subscribers and synchronizers
   message_filters::Subscriber<sensor_msgs::CameraInfo> camera_info_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> lidar_sub_;
   message_filters::Subscriber<ultralytics_ros::YoloResult> yolo_result_sub_;
@@ -67,16 +67,16 @@ class ProcessTrackerWithCloud {
   std::string camera_optical_frame_;
   std::string base_link_frame_;
 
-  // Kamera modeli
+  // Camera model
   image_geometry::PinholeCameraModel cam_model_;
 
-  // Son işlem zamanı (marker ömrü için)
+  // Last processing time
   ros::Time last_call_time_;
 
-  // Atlanacak tespit ID'lerini saklayan set
+  // Set to store detection IDs to skip
   std::set<int> skip_detection_ids;
 
-  // Tespit ID'sinden prop ismini almak için bir mapping ekleyelim
+  // Mapping from detection ID to prop name
   std::map<int, std::string> id_to_prop_name = {
       {8, "red_buoy_link"},       {7, "path_link"},
       {9, "bin_whole_link"},      {12, "torpedo_map_link"},
@@ -90,7 +90,7 @@ class ProcessTrackerWithCloud {
       : pnh_("~"),
         tf_buffer_(ros::Duration(10.0)),
         tf_listener_(std::make_unique<tf2_ros::TransformListener>(tf_buffer_)) {
-    // Parametreleri yükle
+    // Load parameters
     pnh_.param<std::string>("camera_info_topic", camera_info_topic_,
                             "camera_info");
     pnh_.param<std::string>("lidar_topic", lidar_topic_, "points_raw");
@@ -101,120 +101,114 @@ class ProcessTrackerWithCloud {
     pnh_.param<int>("min_cluster_size", min_cluster_size_, 100);
     pnh_.param<int>("max_cluster_size", max_cluster_size_, 10000);
     pnh_.param<float>("roi_expansion_factor", roi_expansion_factor_,
-                      1.1);  // %10 genişletme
+                      1.1);  // 10% expansion
 
-    // Atlanacak tespit ID'lerini parametre olarak al (varsayılan olarak 7 ve 13
-    // ID'leri atlanır)
+    // Get detection IDs to skip as parameter (default: skip IDs 7 and 13)
     std::vector<int> skip_ids;
     pnh_.getParam("skip_detection_ids", skip_ids);
     if (skip_ids.empty()) {
-      // Varsayılan değerleri ayarla
-      skip_detection_ids = {7, 13};  // path_link ve torpedo_hole_link
+      // Set default values
+      skip_detection_ids = {7, 13};  // path_link and torpedo_hole_link
     } else {
-      // Parametre ile gelen değerleri kullan
+      // Use parameter values
       skip_detection_ids.clear();
       skip_detection_ids.insert(skip_ids.begin(), skip_ids.end());
     }
 
-    // Yayıncıları başlat
+    // Initialize publishers
     detection_cloud_pub_ =
         nh_.advertise<sensor_msgs::PointCloud2>("detection_cloud", 1);
     object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
-        "/taluy/map/object_transform_updates", 10);
+        "update_object_transforms", 10);
 
-    // Abonelikleri başlat
+    // Initialize subscribers
     camera_info_sub_.subscribe(nh_, camera_info_topic_, 10);
     lidar_sub_.subscribe(nh_, lidar_topic_, 10);
     yolo_result_sub_.subscribe(nh_, yolo_result_topic_, 10);
 
-    // Senkronizasyonu yapılandır
+    // Configure synchronization
     sync_ = boost::make_shared<Sync>(SyncPolicy(10), camera_info_sub_,
                                      lidar_sub_, yolo_result_sub_);
     sync_->registerCallback(
         boost::bind(&ProcessTrackerWithCloud::syncCallback, this, _1, _2, _3));
 
-    // TF broadcaster oluştur
+    // Create TF broadcaster
     tf_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
     pnh_.param<std::string>("camera_optical_frame", camera_optical_frame_,
                             "taluy/camera_depth_optical_frame");
     base_link_frame_ = "taluy/base_link";
   }
 
-  // Senkronize mesajlar için callback fonksiyonu
+  // Callback for synchronized messages
   void syncCallback(
       const sensor_msgs::CameraInfo::ConstPtr& camera_info_msg,
       const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
       const ultralytics_ros::YoloResultConstPtr& yolo_result_msg) {
-    // Kamera modelini güncelle
+    // Update camera model
     cam_model_.fromCameraInfo(camera_info_msg);
 
-    // Çağrı zamanını kaydet
+    // Record call time
     ros::Time current_call_time = ros::Time::now();
     ros::Duration callback_interval = current_call_time - last_call_time_;
     last_call_time_ = current_call_time;
 
-    // YOLO tespiti yoksa işlem yapma
+    // Skip if no YOLO detections
     if (yolo_result_msg->detections.detections.empty()) {
       return;
     }
 
-    // Nokta bulutunu PCL formatına dönüştür
+    // Convert point cloud to PCL format
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(
         new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*cloud_msg, *cloud);
 
-    // Nokta bulutu boşsa işlem yapma
+    // Skip if point cloud is empty
     if (cloud->points.empty()) {
       return;
     }
 
-    // Nokta bulutunu downsample et
+    // Downsample point cloud
     pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled_cloud =
         downsampleCloud(cloud);
 
-    // İşlenmemiş nokta bulutu ve YOLO sonuçları için 3D tespitleri oluşturacak
-    // veri yapılarını hazırla
+    // Prepare data structures for 3D detections
     vision_msgs::Detection3DArray detections3d_msg;
     sensor_msgs::PointCloud2 detection_cloud_msg;
     visualization_msgs::MarkerArray object_markers, plane_markers;
 
-    // Header bilgilerini ayarla
+    // Set header information
     detections3d_msg.header = cloud_msg->header;
     detections3d_msg.header.stamp = yolo_result_msg->header.stamp;
 
-    // Tüm tespitler için birleştirilmiş nokta bulutunu sakla
+    // Store combined point cloud for all detections
     pcl::PointCloud<pcl::PointXYZ> combined_detection_cloud;
 
-    // İşlenen tespit sayacı
+    // Counter for processed detections
     int processed_detection_count = 0;
 
-    // Her bir YOLO tespiti için işlem yap
+    // Process each YOLO detection
     for (size_t i = 0; i < yolo_result_msg->detections.detections.size(); i++) {
       const auto& detection = yolo_result_msg->detections.detections[i];
 
-      // Tespit ID'sini kontrol et, atlanacak ID'lerden biriyse sonraki tespite
-      // geç
+      // Check detection ID, skip if it's in the skip list
       if (!detection.results.empty()) {
         int detection_id = detection.results[0].id;
         if (skip_detection_ids.find(detection_id) != skip_detection_ids.end()) {
-          // ROS_INFO_STREAM("Skipping detection with ID: " << detection_id << "
-          // (" << (id_to_prop_name.find(detection_id) != id_to_prop_name.end()
-          //? id_to_prop_name[detection_id] : "unknown") << ")");
-          continue;  // Bu tespiti atla
+          continue;  // Skip this detection
         }
       }
 
-      // ROI filtresi uygula ve tespit noktalarını al
+      // Apply ROI filter and get detection points
       pcl::PointCloud<pcl::PointXYZ>::Ptr detection_cloud(
           new pcl::PointCloud<pcl::PointXYZ>);
 
       if (yolo_result_msg->masks.empty()) {
-        // Maske yoksa bounding box kullan
+        // Use bounding box if no mask available
         processPointsWithBbox(downsampled_cloud, detection, detection_cloud);
       } else {
-        // Maske varsa onu kullan
+        // Use mask if available
         // processPointsWithMask(cloud, yolo_result_msg->masks[i],
-        // detection_cloud); NOT: Şimdilik maske işlemeyi atlıyoruz
+        // detection_cloud); NOTE: Skipping mask processing for now
         continue;
       }
 
@@ -222,17 +216,16 @@ class ProcessTrackerWithCloud {
         continue;
       }
 
-      // Tespit ID'si ve prop ismini burada belirleyelim, bbox filtrelemeden
-      // sonra
+      // Determine detection ID and prop name here, after bbox filtering
       int detection_id = -1;
-      std::string base_frame_id = "object";  // Varsayılan isim
+      std::string base_frame_id = "object";  // Default name
 
-      // Eğer tespit sonuçları varsa, tespitin sınıf ID'sini doğrudan kullan
+      // If detection results exist, use the detection class ID directly
       if (!detection.results.empty()) {
-        // Tespitin ilk (veya tek) sonucunu al
+        // Get the first (or only) result of the detection
         detection_id = detection.results[0].id;
 
-        // ID'yi prop ismine dönüştür
+        // Convert ID to prop name
         if (detection_id >= 0 &&
             id_to_prop_name.find(detection_id) != id_to_prop_name.end()) {
           base_frame_id = id_to_prop_name[detection_id];
@@ -243,12 +236,12 @@ class ProcessTrackerWithCloud {
       std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters =
           euclideanClusterExtraction(detection_cloud);
 
-      // Eğer hiç küme bulunamadıysa sonraki tespite geç
+      // Skip to next detection if no clusters found
       if (clusters.empty()) {
         continue;
       }
 
-      // Bulunan küme sayısını ROS_INFO ile yazdır
+      // Print number of clusters found
       ROS_INFO("For detection ID %d (%s) found %zu clusters", detection_id,
                (detection_id >= 0 && id_to_prop_name.find(detection_id) !=
                                          id_to_prop_name.end()
@@ -256,32 +249,31 @@ class ProcessTrackerWithCloud {
                     : "unknown"),
                clusters.size());
 
-      // En yakın cluster'ı bulmak için değişkenler
+      // Variables to find the closest cluster
       size_t closest_cluster_idx = 0;
       float min_squared_distance = std::numeric_limits<float>::max();
       std::vector<Eigen::Vector4f> centroids(clusters.size());
       std::vector<Eigen::Matrix3f> rotation_matrices(clusters.size());
       std::vector<bool> success_flags(clusters.size(), false);
 
-      // Her bir küme için önce planeSegmentation ve PCA işlemini yap,
-      // merkezleri hesapla
+      // Process plane segmentation and PCA for each cluster, calculate centers
       for (size_t cluster_idx = 0; cluster_idx < clusters.size();
            cluster_idx++) {
         pcl::PointCloud<pcl::PointXYZ>::Ptr& cluster_cloud =
             clusters[cluster_idx];
 
-        // Küme boşsa atla
+        // Skip if cluster is empty
         if (cluster_cloud->points.empty()) {
           continue;
         }
 
-        // Düzlem segmentasyonu ve yüzey dönüşümü (PCA) uygula
+        // Apply plane segmentation and surface transformation (PCA)
         success_flags[cluster_idx] =
             planeSegmentationAndPCA(cluster_cloud, centroids[cluster_idx],
                                     rotation_matrices[cluster_idx], tf_buffer_,
                                     camera_optical_frame_, base_link_frame_);
 
-        // En yakın kümeyi bul (centroid norm karesi en küçük olan)
+        // Find closest cluster (smallest centroid norm squared)
         if (success_flags[cluster_idx]) {
           float squared_distance =
               centroids[cluster_idx][0] * centroids[cluster_idx][0] +
@@ -298,23 +290,23 @@ class ProcessTrackerWithCloud {
       ROS_INFO("Closest cluster index: %zu with squared distance: %f",
                closest_cluster_idx, min_squared_distance);
 
-      // Şimdi tüm kümeleri işle ve tespit oluştur
+      // Now process all clusters and create detections
       for (size_t cluster_idx = 0; cluster_idx < clusters.size();
            cluster_idx++) {
-        // Küme boşsa veya PCA başarısız olduysa atla
+        // Skip if cluster is empty or PCA failed
         if (!success_flags[cluster_idx]) {
           continue;
         }
 
-        // Her küme için boş olmayan benzersiz frame adı
-        const std::string base_name = base_frame_id;  // orijinali koru
+        // Create unique frame name for each cluster
+        const std::string base_name = base_frame_id;
         std::string frame_id =
             (cluster_idx == closest_cluster_idx)
                 ? base_name + "_closest"
                 : base_name + "_cluster_" + std::to_string(cluster_idx);
 
-        // 3D tespit mesajı ve marker oluştur (hesaplanmış centroid ve rotation
-        // matrix kullanılır)
+        // Create 3D detection message and marker using calculated centroid and
+        // rotation matrix
         createAndPublishDetection(
             detections3d_msg, object_markers, plane_markers,
             clusters[cluster_idx], centroids[cluster_idx],
@@ -322,25 +314,25 @@ class ProcessTrackerWithCloud {
             cloud_msg->header, callback_interval.toSec(), frame_id);
         processed_detection_count++;
 
-        // Tespit noktalarını birleştir
+        // Combine detection points
         combined_detection_cloud += *(clusters[cluster_idx]);
       }
     }
 
-    // İşlenmiş tespit sayısı kontrolü
+    // Check processed detection count
     if (processed_detection_count == 0) {
       return;
     }
 
-    // Birleştirilmiş nokta bulutunu ROS mesajına dönüştür
+    // Convert combined point cloud to ROS message
     pcl::toROSMsg(combined_detection_cloud, detection_cloud_msg);
     detection_cloud_msg.header = cloud_msg->header;
 
-    // İşlenmiş verileri yayınla
+    // Publish processed data
     detection_cloud_pub_.publish(detection_cloud_msg);
   }
 
-  // 2D bounding box kullanarak nokta bulutu işleme
+  // Process point cloud using 2D bounding box
   void processPointsWithBbox(
       const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
       const vision_msgs::Detection2D& detection,
@@ -348,8 +340,7 @@ class ProcessTrackerWithCloud {
     try {
       int points_in_bbox = 0;
 
-      // Algılama kutusunu genişlet (roi_expansion_factor parametresi
-      // kullanarak)
+      // Expand detection box using roi_expansion_factor parameter
       float min_x = detection.bbox.center.x -
                     (detection.bbox.size_x / 2) * roi_expansion_factor_;
       float max_x = detection.bbox.center.x +
@@ -359,38 +350,38 @@ class ProcessTrackerWithCloud {
       float max_y = detection.bbox.center.y +
                     (detection.bbox.size_y / 2) * roi_expansion_factor_;
 
-      // Nokta bulutundaki her noktayı kontrol et
+      // Check each point in the point cloud
       for (const auto& point : cloud->points) {
-        // NaN kontrolü
+        // NaN check
         if (std::isnan(point.x) || std::isnan(point.y) || std::isnan(point.z)) {
           continue;
         }
 
-        // Manuel projeksiyon hesaplaması
+        // Manual projection calculation
         if (point.z <= 0) {
-          continue;  // Z değeri negatif veya sıfır olan noktaları atla
+          continue;  // Skip points with negative or zero Z values
         }
 
-        // Kamera parametrelerini al
-        const double fx = cam_model_.fx();  // Odak uzaklığı x
-        const double fy = cam_model_.fy();  // Odak uzaklığı y
-        const double cx = cam_model_.cx();  // Optik merkez x
-        const double cy = cam_model_.cy();  // Optik merkez y
+        // Get camera parameters
+        const double fx = cam_model_.fx();  // Focal length x
+        const double fy = cam_model_.fy();  // Focal length y
+        const double cx = cam_model_.cx();  // Optical center x
+        const double cy = cam_model_.cy();  // Optical center y
 
-        // Manuel projeksiyon hesaplaması
+        // Manual projection calculation
         double inv_z = 1.0 / point.z;
         cv::Point2d uv;
         uv.x = fx * point.x * inv_z + cx;
         uv.y = fy * point.y * inv_z + cy;
 
-        // Projeksiyon sonrası değerleri kontrol et
+        // Check projection values
         if (std::isnan(uv.x) || std::isnan(uv.y)) {
           continue;
         }
 
         ROS_DEBUG("Point processed successfully");
 
-        // Noktanın ROI içinde olup olmadığını kontrol et
+        // Check if point is within ROI
         if (point.z > 0 && uv.x >= min_x && uv.x <= max_x && uv.y >= min_y &&
             uv.y <= max_y) {
           detection_cloud->points.push_back(point);
@@ -408,13 +399,13 @@ class ProcessTrackerWithCloud {
     }
   }
 
-  // Euclidean Cluster Extraction - tüm kümeleri döndüren versiyon
+  // Euclidean Cluster Extraction - returns all clusters
   std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> euclideanClusterExtraction(
       const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters;
 
-    // Çok az nokta varsa kümelemeyi atla ve direkt olarak mevcut noktaları tek
-    // küme olarak döndür
+    // Skip clustering if too few points and return existing points as single
+    // cluster
     if (cloud->points.size() < min_cluster_size_ || cloud->points.size() < 20) {
       clusters.push_back(cloud);
       return clusters;
@@ -425,11 +416,11 @@ class ProcessTrackerWithCloud {
     std::vector<pcl::PointIndices> cluster_indices;
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
 
-    // Kümeleme parametrelerini ayarla
+    // Set clustering parameters
     ec.setClusterTolerance(
-        cluster_tolerance_);  // Noktalar arası maksimum mesafe
-    // Dinamik min_cluster_size kullan - eldeki noktaların en az yarısını
-    // içermeli
+        cluster_tolerance_);  // Maximum distance between points
+    // Use dynamic min_cluster_size - should contain at least half of available
+    // points
     ec.setMinClusterSize(std::min(min_cluster_size_,
                                   static_cast<int>(cloud->points.size() / 2)));
     ec.setMaxClusterSize(max_cluster_size_);
@@ -437,28 +428,28 @@ class ProcessTrackerWithCloud {
     ec.setInputCloud(cloud);
     ec.extract(cluster_indices);
 
-    // Hiç küme bulunamazsa tüm noktaları tek küme olarak döndür
+    // If no clusters found, return all points as single cluster
     if (cluster_indices.empty()) {
       clusters.push_back(cloud);
       return clusters;
     }
 
-    // Tüm kümeleri oluştur ve döndür
+    // Create and return all clusters
     for (const auto& indices : cluster_indices) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(
           new pcl::PointCloud<pcl::PointXYZ>);
 
-      // Kümedeki noktaları al
+      // Get points in cluster
       for (const auto& idx : indices.indices) {
         cloud_cluster->push_back((*cloud)[idx]);
       }
 
-      // Küme merkezini hesapla (bilgi amaçlı)
+      // Calculate cluster center (for information)
       Eigen::Vector4f centroid;
       pcl::compute3DCentroid(*cloud_cluster, centroid);
-      float distance = centroid.norm();  // Merkezden uzaklık
+      float distance = centroid.norm();  // Distance from center
 
-      // Kümeyi listeye ekle
+      // Add cluster to list
       clusters.push_back(cloud_cluster);
     }
 
@@ -466,7 +457,7 @@ class ProcessTrackerWithCloud {
   }
 
   // -----------------------------------------------------------------------------
-  //  Düzlem segmentasyonu + PCA
+  //  Plane segmentation + PCA
   // -----------------------------------------------------------------------------
   bool planeSegmentationAndPCA(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
                                Eigen::Vector4f& centroid,
@@ -474,39 +465,31 @@ class ProcessTrackerWithCloud {
                                const tf2_ros::Buffer& tf_buffer,
                                const std::string& camera_optical_frame_,
                                const std::string& base_link_frame_) {
-    /* ------------------------------------------------------------------------
-     */
-    /* 0) ÖN KONTROLLER */
-    /* ------------------------------------------------------------------------
-     */
+    /* ------------------------------------------------------------------------*/
+    /* 0) INITIAL CHECKS */
+    /* ------------------------------------------------------------------------*/
     if (cloud->empty()) return false;
 
-    /* ------------------------------------------------------------------------
-     */
+    /* ------------------------------------------------------------------------*/
     /* 1) CENTROID */
-    /* ------------------------------------------------------------------------
-     */
+    /* ------------------------------------------------------------------------*/
     pcl::compute3DCentroid(*cloud, centroid);
 
-    if (cloud->size() < 10) {  // nokta az → kimlik yok
+    if (cloud->size() < 10) {  // few points → identity
       rotation_matrix.setIdentity();
       return true;
     }
 
-    /* ------------------------------------------------------------------------
-     */
-    /* 2) PCA (yedek) */
-    /* ------------------------------------------------------------------------
-     */
+    /* ------------------------------------------------------------------------*/
+    /* 2) PCA (backup) */
+    /* ------------------------------------------------------------------------*/
     pcl::PCA<pcl::PointXYZ> pca;
     pca.setInputCloud(cloud);
     const Eigen::Matrix3f pca_eig = pca.getEigenVectors();
 
-    /* ------------------------------------------------------------------------
-     */
-    /* 3) RANSAC ile düzlem */
-    /* ------------------------------------------------------------------------
-     */
+    /* ------------------------------------------------------------------------*/
+    /* 3) RANSAC for plane */
+    /* ------------------------------------------------------------------------*/
     pcl::ModelCoefficients::Ptr coeff(new pcl::ModelCoefficients);
     pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
 
@@ -518,23 +501,21 @@ class ProcessTrackerWithCloud {
     seg.setInputCloud(cloud);
     seg.segment(*inliers, *coeff);
 
-    if (inliers->indices.size() < 5) {  // başarısız → PCA
+    if (inliers->indices.size() < 5) {  // Failed → use PCA
       rotation_matrix = pca_eig;
       return true;
     }
 
-    /* ------------------------------------------------------------------------
-     */
-    /* 4) Kameradan bakacak Y‐ekseni (düzlem normali) */
+    /* ------------------------------------------------------------------------*/
+    /* 4) Y-axis looking from camera (plane normal) */
     Eigen::Vector3f n(coeff->values[0], coeff->values[1], coeff->values[2]);
     n.normalize();
 
     Eigen::Vector3f c_vec(centroid[0], centroid[1], centroid[2]);
     const Eigen::Vector3f y_axis = (-n.dot(c_vec) < n.dot(c_vec)) ? -n : n;
 
-    /* ------------------------------------------------------------------------
-     */
-    /* 5) İlk kaba Z‐ekseni seçimi (y’ye dik) */
+    /* ------------------------------------------------------------------------*/
+    /* 5) Selection of Z-axis */
     Eigen::Vector3f z_axis, ref = (std::abs(y_axis.x()) < 0.9f)
                                       ? Eigen::Vector3f::UnitX()
                                       : Eigen::Vector3f::UnitY();
@@ -566,7 +547,7 @@ class ProcessTrackerWithCloud {
     return true;
   }
 
-  // 3D tespit mesajı ve marker oluştur
+  // Create and publish 3D detection message and marker
   void createAndPublishDetection(
       vision_msgs::Detection3DArray& detections3d_msg,
       visualization_msgs::MarkerArray& object_markers,
@@ -579,48 +560,45 @@ class ProcessTrackerWithCloud {
     if (cloud->points.empty()) {
       return;
     }
-    Eigen::Matrix3f rot = rotation_matrix;  // Kopya oluştur
+    Eigen::Matrix3f rot = rotation_matrix;  // Create copy
     Eigen::Quaternionf q(rot);
-    // TransformStamped mesajını oluştur ve object_transform_updates topic'ine
-    // yayınla
+    // Create TransformStamped message and publish to object_transform_updates
+    // topic
     geometry_msgs::TransformStamped transform_msg;
     transform_msg.header.stamp = header.stamp;
-    transform_msg.header.frame_id =
-        camera_optical_frame_;                // Point cloud'un frame'i
-    transform_msg.child_frame_id = frame_id;  // Cluster/nesne ID'si
+    transform_msg.header.frame_id = camera_optical_frame_;  // Point cloud frame
+    transform_msg.child_frame_id = frame_id;                // Cluster/object ID
 
-    // Pozisyon bilgisini ayarla - hesaplandığı gibi kullan
+    // Set position information - use as calculated
     transform_msg.transform.translation.x = centroid[0];
     transform_msg.transform.translation.y = centroid[1];
     transform_msg.transform.translation.z = centroid[2];
 
-    // Oryantasyon bilgisini ayarla
+    // Set orientation information
     transform_msg.transform.rotation.x = q.x();
     transform_msg.transform.rotation.y = q.y();
     transform_msg.transform.rotation.z = q.z();
     transform_msg.transform.rotation.w = q.w();
 
-    // TransformStamped mesajını yayınla
-
-    // TransformStamped mesajını yayınla
+    // Publish TransformStamped message
     object_transform_pub_.publish(transform_msg);
   }
-  // Nokta bulutunu downsample et
+  // Downsample PointCloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr downsampleCloud(
       const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
     pcl::PointCloud<pcl::PointXYZ>::Ptr downsampled_cloud(
         new pcl::PointCloud<pcl::PointXYZ>);
 
-    // Nokta sayısı çok az ise dönüştürmeyi atla
+    // Skip transformation if point count is too low
     if (cloud->points.size() < 100) {
       return cloud;
     }
 
-    // Voxel Grid oluştur
+    // Create Voxel Grid
     pcl::VoxelGrid<pcl::PointXYZ> voxel_grid;
     voxel_grid.setInputCloud(cloud);
     voxel_grid.setLeafSize(voxel_leaf_size_, voxel_leaf_size_,
-                           voxel_leaf_size_);  // m cinsinden
+                           voxel_leaf_size_);  // in meters
     voxel_grid.filter(*downsampled_cloud);
 
     return downsampled_cloud;
