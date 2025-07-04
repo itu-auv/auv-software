@@ -2,8 +2,8 @@ import smach
 import smach_ros
 import rospy
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-import rospy
 import tf2_ros
+
 from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
@@ -16,8 +16,7 @@ from auv_smach.initialize import DelayState
 
 class CheckForDropAreaState(smach.State):
     def __init__(self, source_frame: str = "odom", timeout: float = 2.0):
-        smach.State.__init__(
-            self,
+        super(CheckForDropAreaState, self).__init__(
             outcomes=["succeeded", "preempted", "aborted"],
             output_keys=["found_frame"],
         )
@@ -29,7 +28,6 @@ class CheckForDropAreaState(smach.State):
 
     def execute(self, userdata) -> str:
         rate = rospy.Rate(10)
-
         userdata.found_frame = None
 
         while not self.preempt_requested():
@@ -52,14 +50,12 @@ class CheckForDropAreaState(smach.State):
             rate.sleep()
 
         userdata.found_frame = None
-
         return "preempted"
 
 
 class BinTransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
-        smach_ros.ServiceState.__init__(
-            self,
+        super(BinTransformServiceEnableState, self).__init__(
             "toggle_bin_trajectory",
             SetBool,
             request=SetBoolRequest(data=req),
@@ -67,7 +63,6 @@ class BinTransformServiceEnableState(smach_ros.ServiceState):
 
 
 def AlignAndCheckConcurrently(align_target_frame):
-
     def child_term_cb(outcome_map):
         if outcome_map["CHECK"] == "succeeded":
             return True
@@ -98,7 +93,7 @@ def AlignAndCheckConcurrently(align_target_frame):
                 target_frame=align_target_frame,
                 dist_threshold=0.1,
                 yaw_threshold=0.1,
-                confirm_duration=1.0,
+                confirm_duration=0.1,
                 timeout=60.0,
                 cancel_on_success=False,
             ),
@@ -112,9 +107,38 @@ def AlignAndCheckConcurrently(align_target_frame):
     return concurrence_state
 
 
+class AlignToFoundState(smach.State):
+    """Wrapper state that dynamically aligns to the frame found by CheckForDropAreaState."""
+
+    def __init__(self):
+        super(AlignToFoundState, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"],
+            input_keys=["found_frame"],
+        )
+
+    def execute(self, userdata) -> str:
+        frame = userdata.found_frame
+        if frame is None:
+            rospy.logwarn("[AlignToFoundState] No found_frame available to align to.")
+            return "aborted"
+        align = AlignFrame(
+            source_frame="taluy/base_link/ball_dropper_link",
+            target_frame=frame,
+            keep_orientation=True,
+            dist_threshold=0.1,
+            yaw_threshold=0.1,
+            confirm_duration=10.0,
+            timeout=30.0,
+            cancel_on_success=False,
+        )
+        return align.execute(None)
+
+
 class BinTaskState(smach.State):
     def __init__(self, bin_task_depth):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        super(BinTaskState, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -150,72 +174,93 @@ class BinTaskState(smach.State):
                     rotation_speed=0.3,
                 ),
                 transitions={
-                    "succeeded": "DISABLE_BIN_FRAME_PUBLISHER",
-                    "aborted": "aborted",
-                    "preempted": "preempted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_BIN_FRAME_PUBLISHER",
-                BinTransformServiceEnableState(req=False),
-                transitions={
                     "succeeded": "ALIGN_AND_CHECK_INITIAL",
                     "aborted": "aborted",
                     "preempted": "preempted",
                 },
             )
+
+            # 1st trial: close
             smach.StateMachine.add(
                 "ALIGN_AND_CHECK_INITIAL",
-                AlignAndCheckConcurrently(align_target_frame="bin_whole_link"),
+                AlignAndCheckConcurrently(align_target_frame="bin_close_trial"),
                 transitions={
-                    "found": "ALIGN_DROPPER_TO_TARGET",
-                    "not_found": "ALIGN_AND_CHECK_FAR",
+                    "found": "ALIGN_TO_FOUND_FRAME",
+                    "not_found": "DISABLE_BIN_FRAME_PUBLISHER",
                     "aborted": "aborted",
                     "preempted": "preempted",
                 },
                 remapping={"found_frame": "found_frame"},
             )
+
+            # disable frame publisher for far check
+            smach.StateMachine.add(
+                "DISABLE_BIN_FRAME_PUBLISHER",
+                BinTransformServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "ALIGN_AND_CHECK_FAR",
+                    "aborted": "aborted",
+                    "preempted": "preempted",
+                },
+            )
+
+            # 2nd trial: far
             smach.StateMachine.add(
                 "ALIGN_AND_CHECK_FAR",
                 AlignAndCheckConcurrently(align_target_frame="bin_far_trial"),
                 transitions={
-                    "found": "ALIGN_DROPPER_TO_TARGET",
+                    "found": "ALIGN_TO_FOUND_FRAME",
                     "not_found": "ALIGN_AND_CHECK_SECOND_TRIAL",
                     "aborted": "aborted",
                     "preempted": "preempted",
                 },
                 remapping={"found_frame": "found_frame"},
             )
+
+            # 3rd trial: second
             smach.StateMachine.add(
                 "ALIGN_AND_CHECK_SECOND_TRIAL",
                 AlignAndCheckConcurrently(align_target_frame="bin_second_trial"),
                 transitions={
-                    "found": "ALIGN_DROPPER_TO_TARGET",
-                    "not_found": "DROP_BALL_1",  # This transition will skip the dropper alignment if no frame is found after all trials
+                    "found": "ALIGN_TO_FOUND_FRAME",
+                    "not_found": "DROP_BALL_1",
                     "aborted": "aborted",
                     "preempted": "preempted",
                 },
                 remapping={"found_frame": "found_frame"},
             )
+
+            # final alignment to the actual frame found
             smach.StateMachine.add(
-                "ALIGN_DROPPER_TO_TARGET",
-                AlignFrame(
-                    source_frame="taluy/base_link/ball_dropper_link",
-                    target_frame="bin/blue_link",  # Provide a placeholder target_frame
-                    keep_orientation=True,
-                    dist_threshold=0.05,
-                    yaw_threshold=0.1,
-                    confirm_duration=10.0,
-                    timeout=30.0,
-                    cancel_on_success=False,
-                ),
+                "ALIGN_TO_FOUND_FRAME",
+                AlignToFoundState(confirm_duration=1.0),
+                transitions={
+                    "succeeded": "CHECK_FOR_LAST_TIME",
+                    "aborted": "aborted",
+                    "preempted": "preempted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "CHECK_FOR_LAST_TIME",
+                CheckForDropAreaState(),
+                transitions={
+                    "succeeded": "ALIGN_TO_BLUE",
+                    "aborted": "DROP_BALL_1",
+                    "preempted": "preempted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_TO_BLUE",
+                AlignToFoundState(confirm_duration=10.0),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "aborted": "aborted",
                     "preempted": "preempted",
                 },
-                remapping={"target_frame": "found_frame"},
             )
+
             smach.StateMachine.add(
                 "DROP_BALL_1",
                 DropBallState(),
