@@ -1,42 +1,37 @@
 from .initialize import *
 import smach
 import smach_ros
-import rospy
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
-from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
-    AlignFrameController,
-    AlignFrameControllerRequest,
-    AlignFrameControllerResponse,
-)
-from std_msgs.msg import Bool
-from geometry_msgs.msg import TransformStamped, PointStamped
-import tf2_ros
-import numpy as np
-import tf.transformations as transformations
+from std_srvs.srv import SetBool, SetBoolRequest
 
 from auv_smach.common import (
-    NavigateToFrameState,
-    SetAlignControllerTargetState,
+    AlignFrame,
     CancelAlignControllerState,
     SetDepthState,
-    SearchForPropState,
 )
-from auv_smach.red_buoy import SetRedBuoyRotationStartFrame
 
 from auv_smach.initialize import DelayState
 
-from auv_smach.common import (
-    LaunchTorpedoState,
-)
+from auv_smach.common import LaunchTorpedoState, SearchForPropState
+
+
+class TorpedoTargetFramePublisherServiceState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "toggle_torpedo_trajectory",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
 
 
 class TorpedoTaskState(smach.State):
-    def __init__(self, torpedo_map_radius, torpedo_map_depth):
+    def __init__(
+        self,
+        torpedo_map_depth,
+        torpedo_target_frame,
+        torpedo_realsense_target_frame,
+        torpedo_fire_frame,
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         # Initialize the state machine
@@ -46,6 +41,15 @@ class TorpedoTaskState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
+            smach.StateMachine.add(
+                "ENABLE_TORPEDO_FRAME_PUBLISHER",
+                TorpedoTargetFramePublisherServiceState(req=True),
+                transitions={
+                    "succeeded": "SET_TORPEDO_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_TORPEDO_DEPTH",
                 SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
@@ -59,93 +63,84 @@ class TorpedoTaskState(smach.State):
                 "FIND_AND_AIM_TORPEDO",
                 SearchForPropState(
                     look_at_frame="torpedo_map_link",
-                    alignment_frame="torpedo_search",
+                    alignment_frame="torpedo_map_travel_start",
                     full_rotation=False,
-                    set_frame_duration=4.0,
+                    set_frame_duration=7.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
                 ),
                 transitions={
-                    "succeeded": "SET_TORPEDO_APPROACH_FRAME",
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_TORPEDO_APPROACH_FRAME",
-                SetRedBuoyRotationStartFrame(
-                    base_frame="taluy/base_link",
-                    center_frame="torpedo_map_link",
-                    target_frame="torpedo_approach_start",
-                    radius=torpedo_map_radius,
+                "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="torpedo_close",
+                    # angle_offset=-1.57,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=10.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "SET_TORPEDO_TRAVEL_ALIGN_CONTROLLER_TARGET",
+                    "succeeded": "ALIGN_TO_FRONT_VIEW",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_TORPEDO_TRAVEL_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="torpedo_map_target"
+                "ALIGN_TO_FRONT_VIEW",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="torpedo_front_view",
+                    angle_offset=-1.57,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=10.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "APPROACH_TO_TORPEDO",
+                    "succeeded": "SET_FIRE_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "APPROACH_TO_TORPEDO",
-                NavigateToFrameState(
-                    "taluy/base_link", "torpedo_approach_start", "torpedo_map_target"
+                "SET_FIRE_DEPTH",
+                SetDepthState(depth=0.0, sleep_duration=5.0, frame_id="torpedo_launch"),
+                transitions={
+                    "succeeded": "DISABLE_TORPEDO_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_TORPEDO_FRAME_PUBLISHER",
+                TorpedoTargetFramePublisherServiceState(req=False),
+                transitions={
+                    "succeeded": "ALIGN_TO_TORPEDO_FIRE_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_TORPEDO_FIRE_FRAME",
+                AlignFrame(
+                    source_frame="taluy/base_link/torpedo_upper_link",
+                    target_frame="torpedo_launch",
+                    angle_offset=-1.57,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=10.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
                 ),
-                transitions={
-                    "succeeded": "WAIT_FOR_ALIGNING_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_ALIGNING_START",
-                DelayState(delay_time=4.0),
-                transitions={
-                    "succeeded": "SET_TORPEDO_CLOSE_APPROACH_FRAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_TORPEDO_CLOSE_APPROACH_FRAME",
-                SetRedBuoyRotationStartFrame(
-                    base_frame="taluy/base_link",
-                    center_frame="torpedo_map_link",
-                    target_frame="torpedo_close_approach_start",
-                    radius=0.4,
-                ),
-                transitions={
-                    "succeeded": "CLOSE_APPROACH_TO_TORPEDO",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CLOSE_APPROACH_TO_TORPEDO",
-                NavigateToFrameState(
-                    "taluy/base_link",
-                    "torpedo_close_approach_start",
-                    "torpedo_map_target",
-                ),
-                transitions={
-                    "succeeded": "WAIT_FOR_CLOSE_APPROACH_COMPLETE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_CLOSE_APPROACH_COMPLETE",
-                DelayState(delay_time=7.0),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
                     "preempted": "preempted",
@@ -181,42 +176,22 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_2_LAUNCH",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=6.0),
                 transitions={
-                    "succeeded": "MOVE_BACK_TO_APPROACH_POSE",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_FINAL",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "MOVE_BACK_TO_APPROACH_POSE",
-                NavigateToFrameState(
-                    "taluy/base_link", "torpedo_approach_start", "torpedo_map_target"
-                ),
-                transitions={
-                    "succeeded": "SET_TORPEDO_EXIT_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_TORPEDO_EXIT_DEPTH",
-                SetDepthState(depth=-0.7, sleep_duration=3.0),
+                "CANCEL_ALIGN_CONTROLLER_FINAL",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # smach.StateMachine.add(
-            #     "CANCEL_ALIGN_CONTROLLER",
-            #     CancelAlignControllerState(),
-            #     transitions={
-            #         "succeeded": "succeeded",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
 
     def execute(self, userdata):
         # Execute the state machine
