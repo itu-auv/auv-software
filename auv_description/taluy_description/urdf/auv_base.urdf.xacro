@@ -34,10 +34,10 @@
       <parent link="${namespace}/base_link_ned" />
       <child link="${namespace}/base_link" />
     </joint> -->
-    <xacro:t200_thruster name="${namespace}/thruster_0" parent="${namespace}/base_link" position="0.14250 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
-    <xacro:t200_thruster name="${namespace}/thruster_1" parent="${namespace}/base_link" position="0.14250 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
-    <xacro:t200_thruster name="${namespace}/thruster_2" parent="${namespace}/base_link" position="-0.14250 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
-    <xacro:t200_thruster name="${namespace}/thruster_3" parent="${namespace}/base_link" position="-0.14250 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_0" parent="${namespace}/base_link" position="0.15895 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_1" parent="${namespace}/base_link" position="0.15895 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_2" parent="${namespace}/base_link" position="-0.15895 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_3" parent="${namespace}/base_link" position="-0.15895 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
     <xacro:t200_thruster name="${namespace}/thruster_4" parent="${namespace}/base_link" position="0.352398 0.216638 $(arg angled_thruster_z_offset)" orientation="${-pi/2} 0 ${-7*pi/4}"/>
     <xacro:t200_thruster name="${namespace}/thruster_5" parent="${namespace}/base_link" position="0.352398 -0.216638 $(arg angled_thruster_z_offset)" orientation="${pi/2} 0 ${7*pi/4}"/>
     <xacro:t200_thruster name="${namespace}/thruster_6" parent="${namespace}/base_link" position="-0.352398 0.216638 $(arg angled_thruster_z_offset)" orientation="${-pi/2} 0 ${-pi/4}"/>
@@ -59,6 +59,7 @@
     <xacro:sonar name="${namespace}/base_link/sonar_right" parent="${namespace}/base_link" position="0.02 -0.21 -0.14" orientation="0 0 ${-math.pi/2}"/>
     <xacro:sonar name="${namespace}/base_link/sonar_left" parent="${namespace}/base_link" position="0.02 0.21 -0.14" orientation="0 0 ${math.pi/2}"/>
     <xacro:ball_dropper name="${namespace}/base_link/ball_dropper" parent="${namespace}/base_link" position="0.1004 0.0745 -0.1953" orientation="0 0 0"/>
+    <xacro:realsense_d435 name="${namespace}/base_link/back_camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 ${math.pi}"/>
     <!-- <link name="base_footprint">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />

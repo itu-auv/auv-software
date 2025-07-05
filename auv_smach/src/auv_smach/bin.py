@@ -91,7 +91,52 @@ class SetAlignToFoundState(smach.State):
         return align_state.execute(userdata)
 
 
-class BinSecondTrialAttemptState(smach.StateMachine):
+class BinTransformServiceEnableState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "toggle_bin_trajectory",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
+class PlanBinPathState(smach.State):
+    def __init__(self, tf_buffer):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["planned_paths"],
+        )
+        self.tf_buffer = tf_buffer
+
+    def execute(self, userdata) -> str:
+        try:
+            if self.preempt_requested():
+                rospy.logwarn("[PlanBinPathState] Preempt requested")
+                return "preempted"
+
+            path_planners = PathPlanners(self.tf_buffer)
+            paths = path_planners.path_for_bin()
+
+            if paths is None:
+                return "aborted"
+
+            userdata.planned_paths = paths
+            return "succeeded"
+
+        except Exception as e:
+            rospy.logerr("[PlanBinPathState] Error: %s", str(e))
+            return "aborted"
+
+
+###############################################################################
+# BinSecondTrialState - State machine for managing the second trial attempt
+# for the bin task. Handles path planning, execution, and verification of the second trial process.
+###############################################################################
+
+
+class BinSecondTrialState(smach.StateMachine):
     def __init__(self, tf_buffer):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
@@ -198,69 +243,25 @@ class BinSecondTrialAttemptState(smach.StateMachine):
                 ExecutePlannedPathsState(),
                 transitions={
                     "succeeded": "CHECK_DROP_AREA_FOUND_SECOND_TRIAL",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
+                    "preempted": "preempted",
+                    "aborted": "CHECK_DROP_AREA_FOUND_SECOND_TRIAL",
                 },
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_FOUND_SECOND_TRIAL",
                 CheckForDropAreaState(source_frame="odom", timeout=2.0),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_SECOND_TRIAL",
-                CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "aborted",
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
 
-class BinTransformServiceEnableState(smach_ros.ServiceState):
-    def __init__(self, req: bool):
-        smach_ros.ServiceState.__init__(
-            self,
-            "set_transform_bin_frames",
-            SetBool,
-            request=SetBoolRequest(data=req),
-        )
-
-
-class PlanBinPathState(smach.State):
-    def __init__(self, tf_buffer):
-        smach.State.__init__(
-            self,
-            outcomes=["succeeded", "preempted", "aborted"],
-            output_keys=["planned_paths"],
-        )
-        self.tf_buffer = tf_buffer
-
-    def execute(self, userdata) -> str:
-        try:
-            if self.preempt_requested():
-                rospy.logwarn("[PlanTorpedoPathState] Preempt requested")
-                return "preempted"
-
-            path_planners = PathPlanners(
-                self.tf_buffer
-            )  # instance of PathPlanners with tf_buffer
-            paths = path_planners.path_for_bin()
-
-            if paths is None:
-                return "aborted"
-
-            userdata.planned_paths = paths
-            return "succeeded"
-
-        except Exception as e:
-            rospy.logerr("[PlanTorpedoPathState] Error: %s", str(e))
-            return "aborted"
+###############################################################################
+# BinTaskState - Main state for managing the bin task. Handles the complete
+# process including frame management, depth control, path planning, and ball dropping operations.
+###############################################################################
 
 
 class BinTaskState(smach.State):
@@ -299,7 +300,7 @@ class BinTaskState(smach.State):
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",
                     full_rotation=False,
-                    set_frame_duration=4.0,
+                    set_frame_duration=7.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
                 ),
@@ -344,7 +345,7 @@ class BinTaskState(smach.State):
                 transitions={
                     "succeeded": "CHECK_DROP_AREA_FOUND",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "BIN_SECOND_TRIAL_ATTEMPT",
+                    "aborted": "BIN_SECOND_TRIAL",
                 },
             )
             smach.StateMachine.add(
@@ -353,12 +354,12 @@ class BinTaskState(smach.State):
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "BIN_SECOND_TRIAL_ATTEMPT",
+                    "aborted": "BIN_SECOND_TRIAL",
                 },
             )
             smach.StateMachine.add(
-                "BIN_SECOND_TRIAL_ATTEMPT",
-                BinSecondTrialAttemptState(self.tf_buffer),
+                "BIN_SECOND_TRIAL",
+                BinSecondTrialState(self.tf_buffer),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",
@@ -376,7 +377,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_DROP_AREA",
-                DelayState(delay_time=15.0),
+                DelayState(delay_time=12.0),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "preempted": "preempted",
