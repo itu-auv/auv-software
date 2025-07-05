@@ -66,6 +66,7 @@
             <!--initialize.py-->
             <remap from="set_depth" to="set_depth"/>
             <remap from="set_pose" to="set_pose"/>
+            <remap from="reset_odometry" to="reset_odometry"/>
             <remap from="dvl/enable" to="sensors/dvl/enable"/>
             <remap from="localization_enable" to="auv_localization_node/enable"/>
 

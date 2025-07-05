@@ -21,7 +21,12 @@ from std_srvs.srv import SetBool, SetBoolRequest
 
 from tf.transformations import euler_from_quaternion
 
-from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryPoseState
+from auv_smach.initialize import (
+    DelayState,
+    OdometryEnableState,
+    ResetOdometryPoseState,
+    ResetOdometryState,
+)
 
 
 class RollTwoTimes(smach.State):
@@ -296,7 +301,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "RESET_ODOMETRY_POSE",
-                ResetOdometryPoseState(),
+                ResetOdometryState(),
                 transitions={
                     "succeeded": "DELAY_AFTER_RESET",
                     "preempted": "preempted",
