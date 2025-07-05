@@ -17,6 +17,7 @@ from auv_msgs.msg import PropsYaw
 from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
+from std_srvs.srv import SetBool, SetBoolResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
@@ -124,18 +125,22 @@ class Octagon(Prop):
 
 class BinRed(Prop):
     def __init__(self):
-        super().__init__(10, "torpedo_hole", 0.30480, 0.30480)
+        super().__init__(10, "bin_red", 0.30480, 0.30480)
 
 
 class BinBlue(Prop):
     def __init__(self):
-        super().__init__(11, "bin_red", 0.30480, 0.30480)
+        super().__init__(11, "bin_blue", 0.30480, 0.30480)
 
 
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
         rospy.loginfo("Camera detection node started")
+
+        self.front_camera_enabled = True
+        self.bottom_camera_enabled = True
+
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
         )
@@ -201,6 +206,30 @@ class CameraDetectionNode:
         self.altitude = None
         self.pool_depth = rospy.get_param("~pool_depth", 2.2)
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
+
+        # Services to enable/disable cameras
+        rospy.Service(
+            "enable_front_camera_detections",
+            SetBool,
+            self.handle_enable_front_camera,
+        )
+        rospy.Service(
+            "enable_bottom_camera_detections",
+            SetBool,
+            self.handle_enable_bottom_camera,
+        )
+
+    def handle_enable_front_camera(self, req):
+        self.front_camera_enabled = req.data
+        message = "Front camera detections " + ("enabled" if req.data else "disabled")
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
+    def handle_enable_bottom_camera(self, req):
+        self.bottom_camera_enabled = req.data
+        message = "Bottom camera detections " + ("enabled" if req.data else "disabled")
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
 
     def altitude_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
@@ -275,8 +304,8 @@ class CameraDetectionNode:
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
 
-            point1_odom.point.z += self.altitude + 0.18
-            point2_odom.point.z += self.altitude + 0.18
+            point1_odom.point.z += self.altitude
+            point2_odom.point.z += self.altitude
 
             # Zemin ile kesişim noktasını bul
             intersection = self.calculate_intersection_with_ground(
@@ -324,10 +353,14 @@ class CameraDetectionNode:
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
         # Determine camera_ns based on the source passed by the subscriber
         if camera_source == "front_camera":
+            if not self.front_camera_enabled:
+                return
             camera_ns = (
                 "taluy/cameras/cam_front"  # Ensure this matches your actual namespace
             )
         elif camera_source == "bottom_camera":
+            if not self.bottom_camera_enabled:
+                return
             camera_ns = (
                 "taluy/cameras/cam_bottom"  # Ensure this matches your actual namespace
             )

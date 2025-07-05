@@ -123,7 +123,7 @@ class PathPlanners:
                         exit_path = self.straight_path_to_frame(
                             source_frame=self.gate_entrance_frame,
                             target_frame=self.gate_exit_frame,
-                            n_turns=1,
+                            n_turns=0,
                         )
                     if entrance_path is not None and exit_path is not None:
                         return [entrance_path, exit_path]
