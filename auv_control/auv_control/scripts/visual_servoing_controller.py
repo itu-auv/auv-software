@@ -56,12 +56,13 @@ class VisualServoingController:
         )
         self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 1500.0)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
-        self.prop_detection_timeout_s = rospy.get_param(  #! Change to prop_history_secs
-            "~prop_detection_timeout_s", 0.2
-        )
+        self.prop_history_s = rospy.get_param("~prop_history_s", 2.0)
+        prop_history_size = int(self.rate_hz * self.prop_history_s)
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
         self.imu_history_size = int(self.rate_hz * imu_history_secs)
         self.navigation_mode = rospy.get_param("~navigation_mode", "left")
+        self.white_pipes_history = deque(maxlen=prop_history_size)
+        self.red_pipes_history = deque(maxlen=prop_history_size)
 
     def _setup_state(self):
         """Initialize the controller's state."""
@@ -74,7 +75,8 @@ class VisualServoingController:
         self.angular_velocity_z = 0.0
         self.target_yaw_in_world = 0.0
         self.imu_history = deque(maxlen=self.imu_history_size)
-        self.latest_props = {}
+        self.white_pipes_history.clear()
+        self.red_pipes_history.clear()
 
     def _setup_ros_communication(self):
         """Setup ROS publishers, subscribers, and services."""
@@ -130,14 +132,14 @@ class VisualServoingController:
             return
 
         is_slalom_mode = "slalom" in self.target_prop
-
         if is_slalom_mode:
-            if "slalom" not in msg.object:
+            rospy.loginfo_throttle(1.0, "In slalom mode")
+            if "slalom_white" in msg.object:
+                self.white_pipes_history.append((msg.header.stamp, msg.angle))
+            elif "slalom_red" in msg.object:
+                self.red_pipes_history.append((msg.header.stamp, msg.angle))
+            else:
                 return
-            self.latest_props[msg.object] = {
-                "stamp": msg.header.stamp,
-                "angle": msg.angle,
-            }
             self._process_slalom_gate()
         else:
             if msg.object != self.target_prop:
@@ -166,32 +168,31 @@ class VisualServoingController:
     def _process_slalom_gate(self):
         """Processes the detected pipes for slalom task."""
         now = rospy.Time.now()
-        for prop, data in list(self.latest_props.items()):
-            if (now - data["stamp"]).to_sec() > self.prop_detection_timeout_s:
-                del self.latest_props[prop]
 
-        # 2. Sort the white angles and red angles by angles.
-        white_pipes_angles = sorted(
-            [v["angle"] for k, v in self.latest_props.items() if "slalom_white" in k]
-        )
-        red_pipes_angles = sorted(
-            [v["angle"] for k, v in self.latest_props.items() if "slalom_red" in k]
-        )
+        def get_valid_angles(history):
+            return [
+                angle
+                for stamp, angle in history
+                if (now - stamp).to_sec() <= self.prop_history_s
+            ]
+
+        white_pipes_angles = sorted(get_valid_angles(self.white_pipes_history))
+        red_pipes_angles = sorted(get_valid_angles(self.red_pipes_history))
+
+        rospy.loginfo(f"White pipes angles: {white_pipes_angles}")
+        rospy.loginfo(f"Red pipes angles: {red_pipes_angles}")
 
         if not red_pipes_angles or not white_pipes_angles:
             return
 
-        # 3. average sum of red angles: set it as the angle_red_pipe.
         angle_red_pipe = sum(red_pipes_angles) / len(red_pipes_angles)
+        rospy.loginfo(f"Red pipe angle: {angle_red_pipe:.3f} radians")
 
-        # 4. Check the white pipes list. Only select the pipes that are less than or bigger than angle_red_pipe
         if self.navigation_mode == "left":
-            # Pipes that are smaller than the red pipe's angle (to the left)
             candidate_white_pipes = [
                 angle for angle in white_pipes_angles if angle < angle_red_pipe
             ]
-        else:  # right
-            # Pipes that are larger than the red pipe's angle (to the right)
+        else:
             candidate_white_pipes = [
                 angle for angle in white_pipes_angles if angle > angle_red_pipe
             ]
@@ -199,14 +200,20 @@ class VisualServoingController:
         if not candidate_white_pipes:
             return
 
-        # Average of the remaining white pipes
         chosen_white_pipe_yaw = sum(candidate_white_pipes) / len(candidate_white_pipes)
+        rospy.loginfo(f"Chosen white pipe angle: {chosen_white_pipe_yaw:.3f} radians")
 
-        # 5. angle_to_center_of_pipes = (chosen_white_pipe_yaw + red_pipe_yaw) / 2.0
         angle_to_center_of_pipes = (chosen_white_pipe_yaw + angle_red_pipe) / 2.0
 
-        recent_stamp = max(d["stamp"] for d in self.latest_props.values())
-        self.last_prop_stamp_time = recent_stamp  # ?
+        # Use the most recent stamp from all detected pipes for yaw calculation
+        all_stamps = [stamp for stamp, _ in self.white_pipes_history] + [
+            stamp for stamp, _ in self.red_pipes_history
+        ]
+        if not all_stamps:
+            return
+
+        recent_stamp = max(all_stamps)
+        self.last_prop_stamp_time = recent_stamp
         yaw_at_prop_time = self._get_yaw_at_time(recent_stamp)
         self.target_yaw_in_world = normalize_angle(
             yaw_at_prop_time + angle_to_center_of_pipes
@@ -283,7 +290,8 @@ class VisualServoingController:
         self.state = ControllerState.CENTERING
         self.service_start_time = rospy.Time.now()
         self.last_prop_stamp_time = None
-        self.latest_props.clear()
+        self.white_pipes_history.clear()
+        self.red_pipes_history.clear()
         rospy.loginfo(f"Visual servoing started for target: {self.target_prop}")
         return VisualServoingResponse(
             success=True, message="Visual servoing activated."
