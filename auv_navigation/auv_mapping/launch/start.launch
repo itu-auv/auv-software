@@ -42,6 +42,7 @@
       <remap from="camera/depth/color/points" to="camera/depth/color/points" />
       <remap from="dvl/altitude" to="sensors/dvl/altitude" />
       <remap from="pressure_sensor/depth" to="sensors/external_pressure_sensor/depth" />
+      <remap from="points_filtered" to="points_filtered" />
     </node>
   </group>
 </launch>
