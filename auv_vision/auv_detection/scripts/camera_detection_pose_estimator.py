@@ -17,6 +17,7 @@ from auv_msgs.msg import PropsYaw
 from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
+from auv_msgs.msg import PropsYaw
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
@@ -124,12 +125,22 @@ class Octagon(Prop):
 
 class BinRed(Prop):
     def __init__(self):
-        super().__init__(10, "torpedo_hole", 0.30480, 0.30480)
+        super().__init__(10, "bin_red", 0.30480, 0.30480)
 
 
 class BinBlue(Prop):
     def __init__(self):
-        super().__init__(11, "bin_red", 0.30480, 0.30480)
+        super().__init__(11, "bin_blue", 0.30480, 0.30480)
+
+
+class SlalomRed(Prop):
+    def __init__(self):
+        super().__init__(0, "slalom_red", 0.3400, None)
+
+
+class SlalomWhite(Prop):
+    def __init__(self):
+        super().__init__(1, "slalom_white", 0.3400, None)
 
 
 class CameraDetectionNode:
@@ -139,6 +150,7 @@ class CameraDetectionNode:
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
         )
+        self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
         self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
         # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
@@ -175,6 +187,8 @@ class CameraDetectionNode:
             "octagon_link": Octagon(),
             "bin/red_link": BinRed(),
             "bin/blue_link": BinBlue(),
+            "slalom_red_link": SlalomRed(),
+            "slalom_white_link": SlalomWhite(),
         }
 
         self.id_tf_map = {
@@ -184,7 +198,8 @@ class CameraDetectionNode:
                 9: "bin_whole_link",
                 12: "torpedo_map_link",
                 13: "torpedo_hole_link",
-                1: "gate_left_link",
+                0: "slalom_red_link",
+                1: "slalom_white_link",
                 2: "gate_right_link",
                 3: "gate_blue_arrow_link",
                 4: "gate_red_arrow_link",
@@ -275,8 +290,8 @@ class CameraDetectionNode:
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
 
-            point1_odom.point.z += self.altitude + 0.18
-            point2_odom.point.z += self.altitude + 0.18
+            point1_odom.point.z += self.altitude
+            point2_odom.point.z += self.altitude
 
             # Zemin ile kesişim noktasını bul
             intersection = self.calculate_intersection_with_ground(
@@ -364,7 +379,6 @@ class CameraDetectionNode:
                     detection.bbox.size_x,
                     self.camera_calibrations[camera_ns],
                 )
-
             if distance is None:
                 continue
 
@@ -378,6 +392,7 @@ class CameraDetectionNode:
             props_yaw_msg.object = prop.name
             props_yaw_msg.angle = -angles[0]
             self.props_yaw_pub.publish(props_yaw_msg)
+
             try:
                 camera_to_odom_transform = self.tf_buffer.lookup_transform(
                     camera_frame,
@@ -392,7 +407,6 @@ class CameraDetectionNode:
             ) as e:
                 rospy.logerr(f"Transform error: {e}")
                 return
-
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
             transform_stamped_msg = TransformStamped()
