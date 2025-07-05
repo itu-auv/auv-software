@@ -129,6 +129,12 @@ class BinRed(Prop):
 class BinBlue(Prop):
     def __init__(self):
         super().__init__(11, "bin_blue", 0.30480, 0.30480)
+class SlalomRed(Prop):
+    def __init__(self):
+        super().__init__(0, "slalom_red",None , None)   
+class SlalomWhite(Prop):
+    def __init__(self):
+        super().__init__(1, "slalom_white", None, None)
 
 
 class CameraDetectionNode:
@@ -173,6 +179,8 @@ class CameraDetectionNode:
             "octagon_link": Octagon(),
             "bin/red_link": BinRed(),
             "bin/blue_link": BinBlue(),
+            "slalom_red_link": SlalomRed(),
+            "slalom_white_link": SlalomWhite(),
         }
 
         self.id_tf_map = {
@@ -182,7 +190,8 @@ class CameraDetectionNode:
                 9: "bin_whole_link",
                 12: "torpedo_map_link",
                 13: "torpedo_hole_link",
-                1: "gate_left_link",
+                0:"slalom_red_link",
+                1: "slalom_white_link",
                 2: "gate_right_link",
                 3: "gate_blue_arrow_link",
                 4: "gate_red_arrow_link",
@@ -362,7 +371,6 @@ class CameraDetectionNode:
                     detection.bbox.size_x,
                     self.camera_calibrations[camera_ns],
                 )
-
             if distance is None:
                 continue
 
@@ -370,6 +378,7 @@ class CameraDetectionNode:
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
+            
             try:
                 camera_to_odom_transform = self.tf_buffer.lookup_transform(
                     camera_frame,
@@ -384,7 +393,6 @@ class CameraDetectionNode:
             ) as e:
                 rospy.logerr(f"Transform error: {e}")
                 return
-
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
             transform_stamped_msg = TransformStamped()
