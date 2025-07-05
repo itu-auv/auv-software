@@ -47,13 +47,16 @@ class VisualServoingController:
 
     def _load_parameters(self):
         """Load parameters from the ROS parameter server."""
+        # These are now handled by dynamic_reconfigure, but we can set initial values.
         self.kp_gain = rospy.get_param("~kp_gain", 0.8)
         self.kd_gain = rospy.get_param("~kd_gain", 0.4)
         self.v_x_desired = rospy.get_param("~v_x_desired", 0.3)
-        self.navigation_timeout_after_prop_disappear_s = 12.0
+        self.navigation_timeout_after_prop_disappear_s = rospy.get_param(
+            "~navigation_timeout_after_prop_disappear_s", 12.0
+        )
         self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 1500.0)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
-        self.prop_detection_timeout_s = rospy.get_param(
+        self.prop_detection_timeout_s = rospy.get_param(  #! Change to prop_history_secs
             "~prop_detection_timeout_s", 0.2
         )
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
@@ -256,11 +259,14 @@ class VisualServoingController:
         """Handles dynamic reconfigure updates for controller gains."""
         self.kp_gain = config.kp_gain
         self.kd_gain = config.kd_gain
+        self.v_x_desired = config.v_x_desired
         self.navigation_timeout_after_prop_disappear_s = (
             config.navigation_timeout_after_prop_disappear_s
         )
         rospy.loginfo(
-            f"Updated gains: Kp={self.kp_gain}, kd={self.kd_gain}, NavTimeout={self.navigation_timeout_after_prop_disappear_s}"
+            f"Updated params: Kp={self.kp_gain}, Kd={self.kd_gain}, "
+            f"Vx={self.v_x_desired}, "
+            f"NavTimeout={self.navigation_timeout_after_prop_disappear_s}"
         )
         return config
 
