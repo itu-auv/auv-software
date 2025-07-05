@@ -100,8 +100,8 @@ class RollTwoTimes(smach.State):
         self.start_time = rospy.Time.now()
         target = math.radians(675.0)
         rospy.loginfo(
-            "ROLL_TWO_TIMES: starting roll @ %.2f rad/s, target = %.2f rad",
-            self.roll_rate,
+            "ROLL_TWO_TIMES: starting roll @ %.2f Nm, target = %.2f rad",
+            self.roll_torque,
             target,
         )
 
@@ -120,7 +120,7 @@ class RollTwoTimes(smach.State):
                 cmd = WrenchStamped()
                 cmd.header.stamp = rospy.Time.now()
                 cmd.header.frame_id = self.frame_id
-                cmd.wrench.torque.x = self.roll_rate
+                cmd.wrench.torque.x = self.roll_torque
                 self.pub_wrench.publish(cmd)
 
                 rospy.loginfo_throttle(
