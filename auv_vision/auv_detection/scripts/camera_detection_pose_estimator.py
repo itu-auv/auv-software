@@ -473,7 +473,7 @@ class CameraDetectionNode:
             if len(detection.results) == 0:
                 continue
             detection_id = detection.results[0].id
-            if detection_id == 12:  # Torpedo haritası ID'si
+            if detection_id == 12:  # Torpedo map ID
                 torpedo_map_bbox = detection.bbox
                 break
 
