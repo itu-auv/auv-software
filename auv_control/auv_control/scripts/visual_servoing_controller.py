@@ -129,10 +129,10 @@ class VisualServoingController:
         if self.state == ControllerState.IDLE:
             return
 
-        is_slalom_mode = "pipe" in self.target_prop
+        is_slalom_mode = "slalom" in self.target_prop
 
         if is_slalom_mode:
-            if "pipe" not in msg.object:
+            if "slalom" not in msg.object:
                 return
             self.latest_props[msg.object] = {
                 "stamp": msg.header.stamp,
@@ -172,10 +172,10 @@ class VisualServoingController:
 
         # 2. Sort the white angles and red angles by angles.
         white_pipes_angles = sorted(
-            [v["angle"] for k, v in self.latest_props.items() if "white_pipe" in k]
+            [v["angle"] for k, v in self.latest_props.items() if "slalom_white" in k]
         )
         red_pipes_angles = sorted(
-            [v["angle"] for k, v in self.latest_props.items() if "red_pipe" in k]
+            [v["angle"] for k, v in self.latest_props.items() if "slalom_red" in k]
         )
 
         if not red_pipes_angles or not white_pipes_angles:
