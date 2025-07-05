@@ -29,6 +29,88 @@ from auv_smach.initialize import (
 )
 
 
+class PitchCorrectionState(smach.State):
+    def __init__(
+        self, pitch_torque=0.5, rate_hz=20, timeout_s=10.0, pitch_threshold=0.01
+    ):
+        super(PitchCorrectionState, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        self.odometry_topic = "odometry"
+        self.killswitch_topic = "propulsion_board/status"
+        self.wrench_topic = "wrench"
+        self.frame_id = "taluy/base_link"
+
+        self.pitch_torque = -pitch_torque
+        self.timeout = rospy.Duration(timeout_s)
+        self.rate = rospy.Rate(rate_hz)
+        self.pitch_threshold = pitch_threshold
+
+        self.odom_ready = False
+        self.active = True
+        self.last_time = None
+
+        self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
+        self.sub_kill = rospy.Subscriber(
+            self.killswitch_topic, Bool, self.killswitch_cb
+        )
+        self.pub_wrench = rospy.Publisher(
+            self.wrench_topic, WrenchStamped, queue_size=1
+        )
+
+    def odom_cb(self, msg: Odometry):
+        self.odom_ready = True
+        self.last_odom = msg
+
+    def killswitch_cb(self, msg: Bool):
+        self.active = msg.data
+
+    def execute(self, userdata):
+        start_time = rospy.Time.now()
+        wrench_msg = WrenchStamped()
+        wrench_msg.header.frame_id = self.frame_id
+        wrench_msg.header.stamp = rospy.Time.now()
+        wrench_msg.wrench.force.x = 0
+        wrench_msg.wrench.force.y = 0
+        wrench_msg.wrench.force.z = 0
+        wrench_msg.wrench.torque.x = 0
+        wrench_msg.wrench.torque.y = self.pitch_torque
+        wrench_msg.wrench.torque.z = 0
+
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            if not self.active:
+                return "aborted"
+
+            if (rospy.Time.now() - start_time) > self.timeout:
+                return "aborted"
+
+            if self.odom_ready:
+                # Get current pitch angle from quaternion
+                orientation = self.last_odom.pose.pose.orientation
+                _, pitch, _ = euler_from_quaternion(
+                    [orientation.x, orientation.y, orientation.z, orientation.w]
+                )
+
+                # Check if pitch is positive (front up) and within threshold
+                if pitch > self.pitch_threshold:
+                    # Stop applying torque when pitch is within threshold
+                    wrench_msg.wrench.torque.y = 0
+                    self.pub_wrench.publish(wrench_msg)
+                    rospy.sleep(1.0)  # Wait a bit to ensure torque is applied
+                    return "succeeded"
+
+            wrench_msg.header.stamp = rospy.Time.now()
+            self.pub_wrench.publish(wrench_msg)
+            self.rate.sleep()
+
+        return "aborted"
+
+
 class RollTwoTimes(smach.State):
     def __init__(self, roll_torque, rate_hz=20, timeout_s=15.0):
         super(RollTwoTimes, self).__init__(
@@ -100,8 +182,8 @@ class RollTwoTimes(smach.State):
         self.start_time = rospy.Time.now()
         target = math.radians(675.0)
         rospy.loginfo(
-            "ROLL_TWO_TIMES: starting roll @ %.2f rad/s, target = %.2f rad",
-            self.roll_rate,
+            "ROLL_TWO_TIMES: starting roll with torque %.2f Nm, target = %.2f rad",
+            self.roll_torque,
             target,
         )
 
@@ -120,7 +202,7 @@ class RollTwoTimes(smach.State):
                 cmd = WrenchStamped()
                 cmd.header.stamp = rospy.Time.now()
                 cmd.header.frame_id = self.frame_id
-                cmd.wrench.torque.x = self.roll_rate
+                cmd.wrench.torque.x = self.roll_torque
                 self.pub_wrench.publish(cmd)
 
                 rospy.loginfo_throttle(
@@ -220,7 +302,18 @@ class TwoRollState(smach.StateMachine):
                 "WAIT_FOR_TWO_ROLL",
                 DelayState(delay_time=2.0),
                 transitions={
-                    "succeeded": "ROLL_TWO_TIMES",
+                    "succeeded": "PITCH_CORRECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PITCH_CORRECTION",
+                PitchCorrectionState(
+                    pitch_torque=0.5, rate_hz=20, timeout_s=10.0, pitch_threshold=0.01
+                ),
+                transitions={
+                    "succeeded": "WAIT_FOR_TWO_ROLL",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
