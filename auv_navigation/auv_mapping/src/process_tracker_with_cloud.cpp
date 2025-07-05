@@ -20,6 +20,9 @@
 #include <vision_msgs/Detection3DArray.h>
 #include <visualization_msgs/MarkerArray.h>
 
+// OpenCV
+#include <opencv2/core/core.hpp>
+
 // PCL Libraries
 #include <pcl/common/centroid.h>
 #include <pcl/common/common.h>
