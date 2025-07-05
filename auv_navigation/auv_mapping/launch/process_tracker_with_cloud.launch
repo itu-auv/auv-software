@@ -24,9 +24,9 @@
     <param name="max_cluster_size" value="10000"/>
     <param name="roi_expansion_factor" value="1.1"/>
     <!-- Remaps -->
-    <remap from="update_object_transforms" to="map/object_transform_updates"/>
+    <remap from="update_object_transforms" to="/$(arg namespace)/map/object_transform_updates"/>
   </node>
 
-  <!-- Start RViz Optionally--> -->
+  <!-- Start RViz Optionally-->
   <node if="$(arg debug)" pkg="rviz" type="rviz" name="rviz"/>
 </launch>
