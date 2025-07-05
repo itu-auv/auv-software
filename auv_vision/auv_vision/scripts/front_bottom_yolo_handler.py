@@ -14,9 +14,19 @@ class YoloHandler:
     def __init__(self):
         rospy.init_node("front_bottom_yolo_handler_node")
 
+        # Check if CUDA is available
+        self.gpu_available = cv2.cuda.getCudaEnabledDeviceCount() > 0
+        rospy.loginfo(f"GPU acceleration available: {self.gpu_available}")
+
         # Initialize parameters
         self._init_params()
         self.bridge = CvBridge()
+
+        # Pre-allocate GPU memory if available
+        if self.gpu_available:
+            self.canvas_gpu = cv2.cuda_GpuMat()
+            self.front_gpu = cv2.cuda_GpuMat()
+            self.bottom_gpu = cv2.cuda_GpuMat()
 
         # Setup publishers and subscribers
         self._setup_publishers()
@@ -66,15 +76,34 @@ class YoloHandler:
             img_front = self.bridge.imgmsg_to_cv2(front_msg, "bgr8")
             img_bottom = self.bridge.imgmsg_to_cv2(bottom_msg, "bgr8")
 
-            # Create blank canvas
-            canvas = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
-            half_w = self.canvas_w // 2
+            if self.gpu_available:
+                # Upload images to GPU
+                self.front_gpu.upload(img_front)
+                self.bottom_gpu.upload(img_bottom)
 
-            # Place front image (left side)
-            self._place_image_on_canvas(canvas, img_front, 0, half_w)
+                # Create blank canvas on GPU
+                self.canvas_gpu = cv2.cuda_GpuMat(
+                    self.canvas_h, self.canvas_w, cv2.CV_8UC3
+                )
+                self.canvas_gpu.setTo(0)
 
-            # Place bottom image (right side)
-            self._place_image_on_canvas(canvas, img_bottom, half_w, self.canvas_w)
+                # Place images on canvas using GPU operations
+                self._place_image_on_canvas_gpu(
+                    self.canvas_gpu, self.front_gpu, 0, self.split_x
+                )
+                self._place_image_on_canvas_gpu(
+                    self.canvas_gpu, self.bottom_gpu, self.split_x, self.canvas_w
+                )
+
+                # Download result from GPU
+                canvas = self.canvas_gpu.download()
+            else:
+                # CPU fallback
+                canvas = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
+                self._place_image_on_canvas(canvas, img_front, 0, self.split_x)
+                self._place_image_on_canvas(
+                    canvas, img_bottom, self.split_x, self.canvas_w
+                )
 
             # Convert back to ROS image and publish
             out = self.bridge.cv2_to_imgmsg(canvas, "bgr8")
@@ -85,6 +114,29 @@ class YoloHandler:
             rospy.logerr(f"CvBridge error in image_callback: {e}")
         except Exception as e:
             rospy.logerr(f"Unexpected error in image_callback: {e}")
+
+    def _place_image_on_canvas_gpu(self, canvas_gpu, image_gpu, x_start, x_end):
+        """
+        GPU version of image placement on canvas
+        """
+        img_h, img_w = image_gpu.size()
+        available_w = x_end - x_start
+
+        # Calculate offsets for centering
+        x_offset = x_start + (available_w - img_w) // 2
+        y_offset = (self.canvas_h - img_h) // 2
+
+        # Ensure we don't go out of bounds
+        x_offset = max(0, x_offset)
+        y_offset = max(0, y_offset)
+
+        # Create ROI on canvas
+        canvas_roi = cv2.cuda_GpuMat(
+            canvas_gpu, (y_offset, y_offset + img_h), (x_offset, x_offset + img_w)
+        )
+
+        # Copy image to ROI
+        image_gpu.copyTo(canvas_roi)
 
     def _place_image_on_canvas(self, canvas, image, x_start, x_end):
         """
