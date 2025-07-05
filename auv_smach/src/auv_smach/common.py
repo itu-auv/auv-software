@@ -7,7 +7,7 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 
-from std_srvs.srv import Trigger, TriggerRequest
+from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
@@ -380,7 +380,7 @@ class RotationState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logdebug(f"RotationState: Transform not available yet: {e}")
+            rospy.logdebug(f"RotationState: Transform check failed: {e}")
             return False
 
     def execute(self, userdata):
@@ -560,6 +560,26 @@ class ClearObjectMapState(smach_ros.ServiceState):
         )
 
 
+class SetDetectionState(smach_ros.ServiceState):
+    """
+    Calls the service to enable or disable camera detections.
+    """
+
+    def __init__(self, camera_name: str, enable: bool):
+        if camera_name not in ["front", "bottom"]:
+            raise ValueError("camera_name must be 'front' or 'bottom'")
+
+        service_name = f"enable_{camera_name}_camera_detections"
+        request = SetBoolRequest(data=enable)
+
+        super(SetDetectionState, self).__init__(
+            service_name,
+            SetBool,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
 class ExecutePlannedPathsState(smach.State):
     """
     Uses the follow path action client to follow a set of planned paths.
@@ -691,3 +711,52 @@ class SearchForPropState(smach.StateMachine):
                     "aborted": "aborted",
                 },
             )
+
+
+class PlanPathToSingleFrameState(smach.State):
+    def __init__(
+        self, tf_buffer, target_frame: str, source_frame: str = "taluy/base_link"
+    ):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["planned_paths"],
+        )
+        self.tf_buffer = tf_buffer
+        self.target_frame = target_frame
+        self.source_frame = source_frame
+
+    def execute(self, userdata) -> str:
+        try:
+            if self.preempt_requested():
+                rospy.logwarn(
+                    f"[PlanPathToSingleFrameState] Preempt requested for path to {self.target_frame}"
+                )
+                return "preempted"
+
+            from auv_navigation.path_planning.path_planners import PathPlanners
+
+            path_planners = PathPlanners(self.tf_buffer)
+            path = path_planners.straight_path_to_frame(
+                source_frame=self.source_frame,
+                target_frame=self.target_frame,
+                num_waypoints=50,
+            )
+
+            if path is None:
+                rospy.logerr(
+                    f"[PlanPathToSingleFrameState] Failed to plan path to {self.target_frame}"
+                )
+                return "aborted"
+
+            userdata.planned_paths = [path]  #
+            rospy.loginfo(
+                f"[PlanPathToSingleFrameState] Successfully planned path to {self.target_frame}"
+            )
+            return "succeeded"
+
+        except Exception as e:
+            rospy.logerr(
+                f"[PlanPathToSingleFrameState] Error planning path to {self.target_frame}: {e}"
+            )
+            return "aborted"
