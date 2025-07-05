@@ -133,7 +133,6 @@ class VisualServoingController:
 
         is_slalom_mode = "slalom" in self.target_prop
         if is_slalom_mode:
-            rospy.loginfo_throttle(1.0, "In slalom mode")
             if "slalom_white" in msg.object:
                 self.white_pipes_history.append((msg.header.stamp, msg.angle))
             elif "slalom_red" in msg.object:
