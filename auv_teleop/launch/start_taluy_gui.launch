@@ -14,7 +14,7 @@
         <remap from="drive_pulse" to="$(arg namespace)/board/drive_pulse"/>
         <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
 
-        <remap from="align_frame" to="$(arg namespace)/control/align_frame/cancel"/>
+        <remap from="align_frame/cancel" to="$(arg namespace)/control/align_frame/cancel"/>
         <remap from="set_pose" to="$(arg namespace)/set_pose"/>
 
         <param name="topic_imu" value="$(arg namespace)/sensors/imu/data" />
