@@ -83,7 +83,7 @@ class VisualServoingController:
 
         # Subscribers
         rospy.Subscriber("props_yaw", PropsYaw, self.prop_yaw_callback, queue_size=1)
-        rospy.Subscriber("sensors/imu/data", Imu, self.imu_callback, queue_size=1)
+        rospy.Subscriber("imu/data", Imu, self.imu_callback, queue_size=1)
 
         # Services
         rospy.Service(
