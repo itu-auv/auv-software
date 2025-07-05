@@ -25,7 +25,7 @@ from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryP
 
 
 class RollTwoTimes(smach.State):
-    def __init__(self, roll_rate, rate_hz=20, timeout_s=15.0):
+    def __init__(self, roll_torque, rate_hz=20, timeout_s=15.0):
         super(RollTwoTimes, self).__init__(
             outcomes=["succeeded", "preempted", "aborted"]
         )
@@ -35,7 +35,7 @@ class RollTwoTimes(smach.State):
         self.wrench_topic = "wrench"
         self.frame_id = "taluy/base_link"
 
-        self.roll_rate = roll_rate
+        self.roll_torque = roll_torque
         self.timeout = rospy.Duration(timeout_s)
         self.rate = rospy.Rate(rate_hz)
 
@@ -196,10 +196,11 @@ class DvlOdometryServiceEnableState(smach_ros.ServiceState):
 
 
 class TwoRollState(smach.StateMachine):
-    def __init__(self):
+    def __init__(self, roll_torque=50.0):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
+        self.roll_torque = roll_torque
         with self:
             smach.StateMachine.add(
                 "DISABLE_DVL_ODOM",
@@ -221,7 +222,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
-                RollTwoTimes(roll_rate=35.0, rate_hz=20, timeout_s=15.0),
+                RollTwoTimes(roll_torque=self.roll_torque, rate_hz=20, timeout_s=15.0),
                 transitions={
                     "succeeded": "WAIT_FOR_ENABLE_DVL_ODOM",
                     "preempted": "preempted",
@@ -249,6 +250,35 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "WAIT_FOR_RESET_ODOMETRY",
                 DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_LOOK_AT_GATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_LOOK_AT_GATE",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame="gate_search"
+                ),
+                transitions={
+                    "succeeded": "WAIT_FOR_ALIGNMENT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_ALIGNMENT",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_BEFORE_ODOM_ENABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_BEFORE_ODOM_ENABLE",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "ODOMETRY_ENABLE",
                     "preempted": "preempted",
@@ -309,32 +339,9 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
                 SetDepthState(
-                    depth=-0.7,
+                    depth=gate_search_depth,
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
-                transitions={
-                    "succeeded": "TWO_ROLL_STATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TWO_ROLL_STATE",
-                TwoRollState(),
-                transitions={
-                    "succeeded": "SET_GATE_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_GATE_DEPTH",
-                SetDepthState(
-                    depth=gate_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
-                ),
-                "SET_GATE_SEARCH_DEPTH",
-                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
                     "preempted": "preempted",
@@ -347,10 +354,28 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame="gate_blue_arrow_link",
                     alignment_frame="gate_search",
                     full_rotation=True,
-                    set_frame_duration=7.0,
+                    set_frame_duration=8.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
                 ),
+                transitions={
+                    "succeeded": "TWO_ROLL_STATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TWO_ROLL_STATE",
+                TwoRollState(roll_torque=50.0),
+                transitions={
+                    "succeeded": "SET_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
