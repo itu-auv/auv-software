@@ -179,8 +179,8 @@ class VisualServoingController:
         white_pipes_angles = sorted(get_valid_angles(self.white_pipes_history))
         red_pipes_angles = sorted(get_valid_angles(self.red_pipes_history))
 
-        rospy.loginfo(f"White pipes angles: {white_pipes_angles}")
-        rospy.loginfo(f"Red pipes angles: {red_pipes_angles}")
+        # rospy.loginfo(f"White pipes angles: {white_pipes_angles}")
+        # rospy.loginfo(f"Red pipes angles: {red_pipes_angles}")
 
         if not red_pipes_angles or not white_pipes_angles:
             return
@@ -190,11 +190,11 @@ class VisualServoingController:
 
         if self.navigation_mode == "left":
             candidate_white_pipes = [
-                angle for angle in white_pipes_angles if angle < angle_red_pipe
+                angle for angle in white_pipes_angles if angle > angle_red_pipe
             ]
         else:
             candidate_white_pipes = [
-                angle for angle in white_pipes_angles if angle > angle_red_pipe
+                angle for angle in white_pipes_angles if angle < angle_red_pipe
             ]
 
         if not candidate_white_pipes:
