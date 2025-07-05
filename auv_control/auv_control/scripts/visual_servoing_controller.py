@@ -58,6 +58,7 @@ class VisualServoingController:
         )
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
         self.imu_history_size = int(self.rate_hz * imu_history_secs)
+        self.navigation_mode = rospy.get_param("~navigation_mode", "left")
 
     def _setup_state(self):
         """Initialize the controller's state."""
@@ -181,8 +182,7 @@ class VisualServoingController:
         angle_red_pipe = sum(red_pipes_angles) / len(red_pipes_angles)
 
         # 4. Check the white pipes list. Only select the pipes that are less than or bigger than angle_red_pipe
-        navigation_mode = rospy.get_param("/navigation_mode", "left")
-        if navigation_mode == "left":
+        if self.navigation_mode == "left":
             # Pipes that are smaller than the red pipe's angle (to the left)
             candidate_white_pipes = [
                 angle for angle in white_pipes_angles if angle < angle_red_pipe
@@ -196,10 +196,8 @@ class VisualServoingController:
         if not candidate_white_pipes:
             return
 
-        # Choose the closest white pipe to the red pipe #! No, average of the remaining white pipes
-        chosen_white_pipe_yaw = min(
-            candidate_white_pipes, key=lambda x: abs(x - angle_red_pipe)
-        )
+        # Average of the remaining white pipes
+        chosen_white_pipe_yaw = sum(candidate_white_pipes) / len(candidate_white_pipes)
 
         # 5. angle_to_center_of_pipes = (chosen_white_pipe_yaw + red_pipe_yaw) / 2.0
         angle_to_center_of_pipes = (chosen_white_pipe_yaw + angle_red_pipe) / 2.0
