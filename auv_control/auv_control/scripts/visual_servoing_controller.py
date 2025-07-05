@@ -181,9 +181,7 @@ class VisualServoingController:
         angle_red_pipe = sum(red_pipes_angles) / len(red_pipes_angles)
 
         # 4. Check the white pipes list. Only select the pipes that are less than or bigger than angle_red_pipe
-        navigation_mode = rospy.get_param(
-            "/navigation_mode", "left"
-        )  #! self.slalom_navigation_mode
+        navigation_mode = rospy.get_param("/navigation_mode", "left")
         if navigation_mode == "left":
             # Pipes that are smaller than the red pipe's angle (to the left)
             candidate_white_pipes = [
