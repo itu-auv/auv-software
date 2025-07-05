@@ -191,8 +191,8 @@ class CameraDetectionNode:
             "octagon_link": Octagon(),
             "bin/red_link": BinRed(),
             "bin/blue_link": BinBlue(),
-            "torpedo_hole_1_link": TorpedoHole1(),  # Updated to use TorpedoHole1
-            "torpedo_hole_2_link": TorpedoHole2(),  # Updated to use TorpedoHole2
+            "torpedo_hole_1_link": TorpedoHole1(),
+            "torpedo_hole_2_link": TorpedoHole2(),
             "torpedo_hole_3_link": TorpedoHole3(),
             "torpedo_hole_4_link": TorpedoHole4(),
             "path_link": BinWhole(),
