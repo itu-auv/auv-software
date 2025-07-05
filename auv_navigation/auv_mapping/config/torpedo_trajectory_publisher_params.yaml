@@ -1,0 +1,42 @@
+---
+# Torpedo Trajectory Publisher Parameters
+
+# Control rate (Hz)
+# This parameter defines how often the trajectory is updated
+rate: 10
+
+# Frame configurations for different stages of torpedo mission
+frames:
+  # Torpedo close approach frame (2 meters in front of torpedo_map_link)
+  # Used for initial approach to the target
+  close_approach:
+    frame_id: torpedo_close_approach
+    distance: 2.0  # Distance from torpedo_map_link
+    angle: 0.0     # 0 degrees means looking directly at torpedo_map_link
+
+  # Torpedo map front frame (2 meters in front of torpedo_map_link, perpendicular to holes)
+  # Used for aligning with the target holes
+  map_front:
+    frame_id: torpedo_map_front
+    distance: 2.0  # Distance from torpedo_map_link
+    angle: 90.0    # 90 degrees means perpendicular to torpedo holes
+
+  # Torpedo launch frame (50cm in front of torpedo_big_hole_link)
+  # Used for final torpedo launch position
+  launch:
+    frame_id: torpedo_launch
+    distance: 0.5  # Distance from torpedo_big_hole_link
+    angle: 90.0     # Looking directly at torpedo_big_hole_link
+
+# Frame IDs
+odom_frame: odom
+
+# Frame angles (degrees)
+frame_angles:
+  torpedo_front_view_frame: 180.0  # Looking opposite direction
+  torpedo_closer_frame: 180.0      # Looking opposite direction
+robot_frame: taluy/base_link
+torpedo_frame: torpedo_map_link
+torpedo_closer_frame: torpedo_close
+
+closer_frame_distance: 1.5
