@@ -7,7 +7,7 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 
-from std_srvs.srv import Trigger, TriggerRequest
+from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
@@ -557,6 +557,26 @@ class ClearObjectMapState(smach_ros.ServiceState):
             "clear_object_transforms",
             Trigger,
             request=TriggerRequest(),
+        )
+
+
+class SetDetectionState(smach_ros.ServiceState):
+    """
+    Calls the service to enable or disable camera detections.
+    """
+
+    def __init__(self, camera_name: str, enable: bool):
+        if camera_name not in ["front", "bottom"]:
+            raise ValueError("camera_name must be 'front' or 'bottom'")
+
+        service_name = f"enable_{camera_name}_camera_detections"
+        request = SetBoolRequest(data=enable)
+
+        super(SetDetectionState, self).__init__(
+            service_name,
+            SetBool,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
         )
 
 
