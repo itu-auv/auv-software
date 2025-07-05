@@ -294,7 +294,7 @@ class TwoRollState(smach.StateMachine):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float):
+    def __init__(self, gate_depth: float, gate_search_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -333,6 +333,8 @@ class NavigateThroughGateState(smach.State):
                     depth=gate_depth,
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
                 ),
+                "SET_GATE_SEARCH_DEPTH",
+                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
                     "preempted": "preempted",
@@ -378,6 +380,7 @@ class NavigateThroughGateState(smach.State):
                 TransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "PLAN_GATE_PATHS",
+                    "succeeded": "SET_GATE_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -385,6 +388,8 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "PLAN_GATE_PATHS",
                 PlanGatePathsState(self.tf_buffer),
+                "SET_GATE_DEPTH",
+                SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
