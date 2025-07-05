@@ -16,6 +16,7 @@ from ultralytics_ros.msg import YoloResult
 from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
+from auv_msgs.msg import PropsYaw
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
@@ -131,10 +132,10 @@ class BinBlue(Prop):
         super().__init__(11, "bin_blue", 0.30480, 0.30480)
 class SlalomRed(Prop):
     def __init__(self):
-        super().__init__(0, "slalom_red",None , None)   
+        super().__init__(0, "slalom_red", 0.3400 , None)   
 class SlalomWhite(Prop):
     def __init__(self):
-        super().__init__(1, "slalom_white", None, None)
+        super().__init__(1, "slalom_white", 0.3400, None)
 
 
 class CameraDetectionNode:
@@ -144,6 +145,7 @@ class CameraDetectionNode:
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
         )
+        self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
         # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -378,6 +380,12 @@ class CameraDetectionNode:
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
+
+            props_yaw_msg = PropsYaw()
+            props_yaw_msg.header.stamp = detection_msg.header.stamp
+            props_yaw_msg.object = prop.name
+            props_yaw_msg.angle = -angles[0]
+            self.props_yaw_pub.publish(props_yaw_msg)
             
             try:
                 camera_to_odom_transform = self.tf_buffer.lookup_transform(
