@@ -410,7 +410,6 @@ class NavigateThroughGateState(smach.State):
                 TransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "PLAN_GATE_PATHS",
-                    "succeeded": "SET_GATE_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -418,8 +417,6 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "PLAN_GATE_PATHS",
                 PlanGatePathsState(self.tf_buffer),
-                "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
