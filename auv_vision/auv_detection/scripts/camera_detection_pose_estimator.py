@@ -467,7 +467,7 @@ class CameraDetectionNode:
 
         camera_frame = self.camera_frames[camera_ns]
 
-        # Torpedo haritasını ara
+        # Search for torpedo map
         torpedo_map_bbox = None
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
