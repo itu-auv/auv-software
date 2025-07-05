@@ -23,6 +23,7 @@ from std_srvs.srv import (
     SetBoolRequest,
 )
 from auv_msgs.srv import SetDepth, SetDepthRequest
+from robot_localization.srv import SetPose, SetPoseRequest
 
 
 class ROSServiceCaller:
@@ -80,6 +81,53 @@ class ROSServiceCaller:
                 print("Objects cleared successfully")
             else:
                 print(f"Failed to clear objects: {response.message}")
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
+    def cancel_alignment(self):
+        try:
+            rospy.wait_for_service("align_frame/cancel", timeout=1)
+            cancel_alignment_service = rospy.ServiceProxy("align_frame/cancel", Trigger)
+            response = cancel_alignment_service(TriggerRequest())
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
+    def disable_dvl(self):
+        try:
+            rospy.wait_for_service("dvl/enable", timeout=1)
+            dvl_service = rospy.ServiceProxy("dvl/enable", SetBool)
+            request = SetBoolRequest()
+            request.data = False
+            response = dvl_service(data=False)
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
+    def reset_pose(self):
+        try:
+            rospy.wait_for_service("set_pose", timeout=1)
+            set_pose_service = rospy.ServiceProxy("set_pose", SetPose)
+            request = SetPoseRequest()
+            request.pose.header.frame_id = ""
+            request.pose.header.stamp = rospy.Time.now()
+            request.pose.pose.pose.orientation.w = 1.0
+            request.pose.pose.covariance = [0.0] * 36
+
+            response = set_pose_service(request)
             return response.success
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
@@ -152,18 +200,38 @@ class ServicesTab(QWidget):
 
         # Services
         service_group = QGroupBox("Services")
-        service_layout = QHBoxLayout()
+        service_layout = QVBoxLayout()
+
+        # First row of buttons
+        first_row = QHBoxLayout()
         self.localization_btn = QPushButton("Start\nLocalization")
         self.localization_btn.setFixedSize(button_width, button_height)
         self.dvl_btn = QPushButton("Enable\nDVL")
         self.dvl_btn.setFixedSize(button_width, button_height)
         self.clear_objects_btn = QPushButton("Clear\nObjects")
         self.clear_objects_btn.setFixedSize(button_width, button_height)
-        service_layout.addWidget(self.localization_btn, 0, Qt.AlignLeft)
-        service_layout.addStretch(1)
-        service_layout.addWidget(self.dvl_btn, 0, Qt.AlignLeft)
-        service_layout.addStretch(1)
-        service_layout.addWidget(self.clear_objects_btn, 0, Qt.AlignLeft)
+        first_row.addWidget(self.localization_btn, 0, Qt.AlignLeft)
+        first_row.addStretch(1)
+        first_row.addWidget(self.dvl_btn, 0, Qt.AlignLeft)
+        first_row.addStretch(1)
+        first_row.addWidget(self.clear_objects_btn, 0, Qt.AlignLeft)
+
+        # Second row of buttons
+        second_row = QHBoxLayout()
+        self.cancel_align_btn = QPushButton("Cancel\nAlignment")
+        self.cancel_align_btn.setFixedSize(button_width, button_height)
+        self.disable_dvl_btn = QPushButton("Disable\nDVL")
+        self.disable_dvl_btn.setFixedSize(button_width, button_height)
+        self.reset_pose_btn = QPushButton("Reset\nPose")
+        self.reset_pose_btn.setFixedSize(button_width, button_height)
+        second_row.addWidget(self.cancel_align_btn, 0, Qt.AlignLeft)
+        second_row.addStretch(1)
+        second_row.addWidget(self.disable_dvl_btn, 0, Qt.AlignLeft)
+        second_row.addStretch(1)
+        second_row.addWidget(self.reset_pose_btn, 0, Qt.AlignLeft)
+
+        service_layout.addLayout(first_row)
+        service_layout.addLayout(second_row)
         service_group.setLayout(service_layout)
 
         # Missions
@@ -194,6 +262,9 @@ class ServicesTab(QWidget):
         self.localization_btn.clicked.connect(self.start_localization)
         self.dvl_btn.clicked.connect(self.enable_dvl)
         self.clear_objects_btn.clicked.connect(self.clear_objects)
+        self.cancel_align_btn.clicked.connect(self.cancel_alignment)
+        self.disable_dvl_btn.clicked.connect(self.disable_dvl)
+        self.reset_pose_btn.clicked.connect(self.reset_pose)
         self.torpedo1_btn.clicked.connect(lambda: self.launch_torpedo("torpedo_1"))
         self.torpedo2_btn.clicked.connect(lambda: self.launch_torpedo("torpedo_2"))
 
@@ -231,6 +302,27 @@ class ServicesTab(QWidget):
             print("Objects cleared successfully")
         else:
             QMessageBox.warning(self, "Error", "Failed to clear objects.")
+
+    def cancel_alignment(self):
+        result = self.ros_service_caller.cancel_alignment()
+        if result:
+            print("Alignment cancelled")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to cancel alignment.")
+
+    def disable_dvl(self):
+        result = self.ros_service_caller.disable_dvl()
+        if result:
+            print("DVL disabled")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to disable DVL.")
+
+    def reset_pose(self):
+        result = self.ros_service_caller.reset_pose()
+        if result:
+            print("Pose reset successfully")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to reset pose.")
 
     def drop_ball(self):
         result = self.ros_service_caller.drop_ball()
