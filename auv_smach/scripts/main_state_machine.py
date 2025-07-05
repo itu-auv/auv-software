@@ -18,7 +18,8 @@ class MainStateMachineNode:
         self.previous_enabled = False
 
         # USER EDIT
-        self.gate_depth = -1.2
+        self.gate_depth = -1.5
+        self.gate_search_depth = -0.7
         self.target_gate_link = "gate_blue_arrow_link"
 
         self.red_buoy_radius = 2.2
@@ -71,7 +72,10 @@ class MainStateMachineNode:
             "INITIALIZE": (InitializeState, {}),
             "NAVIGATE_THROUGH_GATE": (
                 NavigateThroughGateState,
-                {"gate_depth": self.gate_depth},
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_search_depth": self.gate_search_depth,
+                },
             ),
             "NAVIGATE_AROUND_RED_BUOY": (
                 RotateAroundBuoyState,
