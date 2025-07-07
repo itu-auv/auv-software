@@ -5,7 +5,6 @@
  */
 
 #include <geometry_msgs/TransformStamped.h>
-#include <image_geometry/pinhole_camera_model.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
@@ -20,7 +19,6 @@
 #include <vision_msgs/Detection3DArray.h>
 #include <visualization_msgs/MarkerArray.h>
 
-// OpenCV
 #include <opencv2/core/core.hpp>
 
 // PCL Libraries
@@ -71,7 +69,7 @@ class ProcessTrackerWithCloud {
   std::string base_link_frame_;
 
   // Camera model
-  image_geometry::PinholeCameraModel cam_model_;
+  sensor_msgs::CameraInfo cam_info_;
 
   // Last processing time
   ros::Time last_call_time_;
@@ -148,7 +146,7 @@ class ProcessTrackerWithCloud {
       const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
       const ultralytics_ros::YoloResultConstPtr& yolo_result_msg) {
     // Update camera model
-    cam_model_.fromCameraInfo(camera_info_msg);
+    cam_info_ = *camera_info_msg;
 
     // Record call time
     ros::Time current_call_time = ros::Time::now();
@@ -366,10 +364,10 @@ class ProcessTrackerWithCloud {
         }
 
         // Get camera parameters
-        const double fx = cam_model_.fx();  // Focal length x
-        const double fy = cam_model_.fy();  // Focal length y
-        const double cx = cam_model_.cx();  // Optical center x
-        const double cy = cam_model_.cy();  // Optical center y
+        const double fx = cam_info_.K[0];  // Focal length in x
+        const double fy = cam_info_.K[4];  // Focal length in y
+        const double cx = cam_info_.K[2];  // Center x
+        const double cy = cam_info_.K[5];  // Center y
 
         // Manual projection calculation
         double inv_z = 1.0 / point.z;
