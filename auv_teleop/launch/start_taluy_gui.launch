@@ -15,7 +15,7 @@
         <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
 
         <remap from="align_frame/cancel" to="$(arg namespace)/control/align_frame/cancel"/>
-        <remap from="set_pose" to="$(arg namespace)/set_pose"/>
+        <remap from="reset_odometry" to="$(arg namespace)/reset_odometry"/>
 
         <param name="topic_imu" value="$(arg namespace)/sensors/imu/data" />
         <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />

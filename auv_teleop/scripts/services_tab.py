@@ -23,7 +23,6 @@ from std_srvs.srv import (
     SetBoolRequest,
 )
 from auv_msgs.srv import SetDepth, SetDepthRequest
-from robot_localization.srv import SetPose, SetPoseRequest
 
 
 class ROSServiceCaller:
@@ -119,22 +118,16 @@ class ROSServiceCaller:
 
     def reset_pose(self):
         try:
-            rospy.wait_for_service("set_pose", timeout=1)
-            set_pose_service = rospy.ServiceProxy("set_pose", SetPose)
-            request = SetPoseRequest()
-            request.pose.header.frame_id = ""
-            request.pose.header.stamp = rospy.Time.now()
-            request.pose.pose.pose.orientation.w = 1.0
-            request.pose.pose.covariance = [0.0] * 36
-
-            response = set_pose_service(request)
-            return response.success
+            rospy.wait_for_service("reset_odometry", timeout=1)
+            reset_odometry_service = rospy.ServiceProxy("reset_odometry", Trigger)
+            response = reset_odometry_service(TriggerRequest())
+            return response.success, response.message
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
-            return False
+            return False, str(e)
         except rospy.ROSException as e:
             print(f"Service not available: {e}")
-            return False
+            return False, str(e)
 
     def drop_ball(self):
         try:
@@ -318,11 +311,11 @@ class ServicesTab(QWidget):
             QMessageBox.warning(self, "Error", "Failed to disable DVL.")
 
     def reset_pose(self):
-        result = self.ros_service_caller.reset_pose()
+        result, message = self.ros_service_caller.reset_pose()
         if result:
-            print("Pose reset successfully")
+            print(message)
         else:
-            QMessageBox.warning(self, "Error", "Failed to reset pose.")
+            QMessageBox.warning(self, "Error", message)
 
     def drop_ball(self):
         result = self.ros_service_caller.drop_ball()
