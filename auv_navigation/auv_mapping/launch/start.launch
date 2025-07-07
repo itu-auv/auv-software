@@ -11,6 +11,8 @@
       <param name="pool_depth" value="$(arg pool_depth)" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
       <remap from="odom_pressure" to="localization/odom_pressure" />
+      <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
+      <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
     </node>
 
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
@@ -36,5 +38,12 @@
       <remap from="pressure_sensor/depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="points_filtered" to="points_filtered" />
     </node>
+
+    <node pkg="auv_mapping" type="bin_trajectory_publisher.py" name="bin_trajectory_publisher">
+      <rosparam command="load" file="$(find auv_mapping)/config/bin_trajectory_publisher_params.yaml" />
+      <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
   </group>
 </launch>
