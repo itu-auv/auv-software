@@ -29,11 +29,9 @@ from auv_smach.initialize import (
 )
 
 
-class PitchCorrectionState(smach.State):
-    def __init__(
-        self, pitch_torque=0.5, rate_hz=20, timeout_s=10.0, pitch_threshold=0.01
-    ):
-        super(PitchCorrectionState, self).__init__(
+class PitchCorrection(smach.State):
+    def __init__(self, fixed_torque=2.0, rate_hz=20, timeout_s=10.0):
+        super(PitchCorrection, self).__init__(
             outcomes=["succeeded", "preempted", "aborted"]
         )
 
@@ -42,115 +40,101 @@ class PitchCorrectionState(smach.State):
         self.wrench_topic = "wrench"
         self.frame_id = "taluy/base_link"
 
-        # PID controller parameters
-        self.Kp = 1.0  # Proportional gain
-        self.Ki = 0.01  # Integral gain
-        self.Kd = 0.1  # Derivative gain
-        self.integral = 0.0
-        self.last_error = 0.0
-        self.max_torque = pitch_torque
-        self.min_torque = -pitch_torque
-
+        self.fixed_torque = -abs(fixed_torque)
         self.timeout = rospy.Duration(timeout_s)
         self.rate = rospy.Rate(rate_hz)
-        self.pitch_threshold = pitch_threshold
 
+        self.current_pitch = 0.0
         self.odom_ready = False
         self.active = True
-        self.last_time = None
+        self.start_time = None
 
         self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
-        self.sub_kill = rospy.Subscriber(
-            self.killswitch_topic, Bool, self.killswitch_cb
-        )
-        self.pub_wrench = rospy.Publisher(
-            self.wrench_topic, WrenchStamped, queue_size=1
-        )
+        self.sub_kill = rospy.Subscriber(self.killswitch_topic, Bool, self.killswitch_cb)
+        self.pub_wrench = rospy.Publisher(self.wrench_topic, WrenchStamped, queue_size=1)
 
     def odom_cb(self, msg: Odometry):
-        self.odom_ready = True
-        self.last_odom = msg
+        orientation = msg.pose.pose.orientation
+        q = [orientation.x, orientation.y, orientation.z, orientation.w]
+        
+        try:
+            _, pitch, _ = euler_from_quaternion(q)
+            self.current_pitch = pitch
+            self.odom_ready = True
+        except:
+            rospy.logwarn("PITCH_CORRECTION: Quaternion conversion failed!")
 
     def killswitch_cb(self, msg: Bool):
-        self.active = msg.data
+        if not msg.data:
+            self.active = False
+            rospy.logwarn("PITCH_CORRECTION: Propulsion board disabled → aborting")
 
     def execute(self, userdata):
-        start_time = rospy.Time.now()
-        wrench_msg = WrenchStamped()
-        wrench_msg.header.frame_id = self.frame_id
-        wrench_msg.header.stamp = rospy.Time.now()
-        wrench_msg.wrench.force.x = 0
-        wrench_msg.wrench.force.y = 0
-        wrench_msg.wrench.force.z = 0
-        wrench_msg.wrench.torque.x = 0
-        wrench_msg.wrench.torque.y = 0
-        wrench_msg.wrench.torque.z = 0
-
-        last_time = rospy.Time.now()
-        while not rospy.is_shutdown():
+        rospy.loginfo("PITCH_CORRECTION: Waiting for odometry data...")
+        start_wait = rospy.Time.now()
+        
+        while not rospy.is_shutdown() and not self.odom_ready:
+            if (rospy.Time.now() - start_wait) > rospy.Duration(5.0):
+                rospy.logerr("PITCH_CORRECTION: No odometry data → abort")
+                return "aborted"
             if self.preempt_requested():
-                self.service_preempt()
                 return "preempted"
-
-            if not self.active:
-                return "aborted"
-
-            if (rospy.Time.now() - start_time) > self.timeout:
-                rospy.logwarn("Pitch correction timed out")
-                return "aborted"
-
-            if self.odom_ready:
-                # Get current pitch angle from quaternion
-                orientation = self.last_odom.pose.pose.orientation
-                _, pitch, _ = euler_from_quaternion(
-                    [orientation.x, orientation.y, orientation.z, orientation.w]
-                )
-
-                # Debug information
-                rospy.logdebug(f"Current pitch: {pitch:.4f}")
-
-                # Check if pitch is within acceptable range
-                if -self.pitch_threshold < pitch < self.pitch_threshold:
-                    # Stop applying torque when pitch is within acceptable range
-                    wrench_msg.wrench.torque.y = 0
-                    self.pub_wrench.publish(wrench_msg)
-                    rospy.sleep(0.5)  # Wait a bit to ensure torque is applied
-                    rospy.loginfo("Pitch correction succeeded")
-                    return "succeeded"
-
-                # Calculate PID control
-                error = -pitch  # We want pitch to be 0
-                dt = (rospy.Time.now() - last_time).to_sec()
-                
-                # Proportional term
-                proportional = self.Kp * error
-                
-                # Integral term
-                self.integral += error * dt
-                integral = self.Ki * self.integral
-                
-                # Derivative term
-                derivative = self.Kd * (error - self.last_error) / dt
-                
-                # Calculate total torque
-                torque = proportional + integral + derivative
-                
-                # Limit torque
-                torque = max(min(torque, self.max_torque), self.min_torque)
-                
-                # Update values for next iteration
-                self.last_error = error
-                last_time = rospy.Time.now()
-                
-                # Apply torque
-                wrench_msg.wrench.torque.y = torque
-                self.pub_wrench.publish(wrench_msg)
-
-            wrench_msg.header.stamp = rospy.Time.now()
-            self.pub_wrench.publish(wrench_msg)
             self.rate.sleep()
 
+        if self.current_pitch <= 0:
+            rospy.loginfo("PITCH_CORRECTION: Pitch already corrected (%.2f°)", math.degrees(self.current_pitch))
+            return "succeeded"
+
+        rospy.loginfo(
+            "PITCH_CORRECTION: Correcting pitch from %.2f° with fixed torque %.2f Nm",
+            math.degrees(self.current_pitch),
+            self.fixed_torque
+        )
+
+        self.start_time = rospy.Time.now()
+        
+        try:
+            while not rospy.is_shutdown() and self.active:
+                if self.preempt_requested():
+                    return self._stop_and("preempted")
+                if (rospy.Time.now() - self.start_time) > self.timeout:
+                    rospy.logerr("PITCH_CORRECTION: Timeout after %.1f s", self.timeout.to_sec())
+                    return self._stop_and("aborted")
+                
+                if self.current_pitch <= 0:
+                    rospy.loginfo("PITCH_CORRECTION: Pitch corrected to %.2f°", math.degrees(self.current_pitch))
+                    return self._stop_and("succeeded")
+                
+                cmd = WrenchStamped()
+                cmd.header.stamp = rospy.Time.now()
+                cmd.header.frame_id = self.frame_id
+                cmd.wrench.torque.y = self.fixed_torque
+                self.pub_wrench.publish(cmd)
+                
+                rospy.loginfo_throttle(
+                    1.0,
+                    "PITCH_CORRECTION: Current pitch: %.2f°",
+                    math.degrees(self.current_pitch)
+                )
+                
+                self.rate.sleep()
+                
+        except rospy.ROSInterruptException:
+            return self._abort_on_shutdown()
+        
         return "aborted"
+
+    def _stop_and(self, outcome):
+        stop_cmd = WrenchStamped()
+        stop_cmd.header.stamp = rospy.Time.now()
+        stop_cmd.header.frame_id = self.frame_id
+        self.pub_wrench.publish(stop_cmd)
+        return outcome
+
+    def _abort_on_shutdown(self):
+        rospy.logwarn("PITCH_CORRECTION: ROS shutdown → aborting")
+        return self._stop_and("aborted")
+        
 
 
 class RollTwoTimes(smach.State):
@@ -351,11 +335,11 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "PITCH_CORRECTION",
-                PitchCorrectionState(
-                    pitch_torque=10.0, rate_hz=20, timeout_s=10.0, pitch_threshold=0.01
+                PitchCorrection(
+                    fixed_torque=3.0, rate_hz=20, timeout_s=10.0
                 ),
                 transitions={
-                    "succeeded": "WAIT_FOR_TWO_ROLL",
+                    "succeeded": "ROLL_TWO_TIMES",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
