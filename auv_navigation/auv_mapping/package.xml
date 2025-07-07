@@ -12,7 +12,6 @@
   <depend>auv_msgs</depend>
   <depend>cv_bridge</depend>
   <depend>geometry_msgs</depend>
-  <depend>image_geometry</depend>
   <depend>message_filters</depend>
   <depend>pcl_conversions</depend>
   <depend>pcl_ros</depend>

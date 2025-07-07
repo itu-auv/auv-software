@@ -19,7 +19,6 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   vision_msgs
   visualization_msgs
-  image_geometry
   cv_bridge
   ultralytics_ros
 )
@@ -48,7 +47,7 @@ endif()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp rospy std_msgs tf2_ros geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs image_geometry cv_bridge ultralytics_ros
+  CATKIN_DEPENDS roscpp rospy std_msgs tf2_ros geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs cv_bridge ultralytics_ros
   DEPENDS OpenCV PCL
 )
 
