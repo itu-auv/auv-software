@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
   <arg name="use_gui" default="false"/>
-  <arg name="yolo_model" default="slalom.pt"/>
+  <arg name="yolo_model" default="rbp3s_best.pt"/>
   <arg name="model_source_path" default="$(find auv_detection)/models/$(arg yolo_model)"/>
   <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
   <arg name="input_topic" default="/taluy/cameras/cam_bottom/image_rect_color"/>
@@ -12,7 +12,7 @@
   <arg name="max_det" default="300"/>
   <arg name="classes" default=""/>
   <arg name="tracker" default="bytetrack.yaml"/>
-  <arg name="device" default="cpu"/>
+  <arg name="device" default="cuda:0"/>
   <arg name="result_conf" default="true"/>
   <arg name="result_line_width" default="1"/>
   <arg name="result_font_size" default="1"/>
