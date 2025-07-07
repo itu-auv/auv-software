@@ -19,6 +19,7 @@ class MainStateMachineNode:
 
         # USER EDIT
         self.gate_depth = -1.5
+        self.gate_search_depth = -0.7
         self.target_gate_link = "gate_blue_arrow_link"
 
         self.red_buoy_radius = 2.2
@@ -27,7 +28,7 @@ class MainStateMachineNode:
         self.torpedo_map_radius = 1.5
         self.torpedo_map_depth = -1.3
 
-        self.bin_whole_depth = -1.0
+        self.bin_task_depth = -0.7
 
         self.octagon_depth = -1.0
         # USER EDIT
@@ -71,7 +72,10 @@ class MainStateMachineNode:
             "INITIALIZE": (InitializeState, {}),
             "NAVIGATE_THROUGH_GATE": (
                 NavigateThroughGateState,
-                {"gate_depth": self.gate_depth},
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_search_depth": self.gate_search_depth,
+                },
             ),
             "NAVIGATE_AROUND_RED_BUOY": (
                 RotateAroundBuoyState,
@@ -90,7 +94,7 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_TO_BIN_TASK": (
                 BinTaskState,
-                {"bin_whole_depth": self.bin_whole_depth},
+                {"bin_task_depth": self.bin_task_depth},
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
