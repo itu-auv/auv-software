@@ -42,7 +42,15 @@ class PitchCorrectionState(smach.State):
         self.wrench_topic = "wrench"
         self.frame_id = "taluy/base_link"
 
-        self.pitch_torque = -pitch_torque
+        # PID controller parameters
+        self.Kp = 1.0  # Proportional gain
+        self.Ki = 0.01  # Integral gain
+        self.Kd = 0.1  # Derivative gain
+        self.integral = 0.0
+        self.last_error = 0.0
+        self.max_torque = pitch_torque
+        self.min_torque = -pitch_torque
+
         self.timeout = rospy.Duration(timeout_s)
         self.rate = rospy.Rate(rate_hz)
         self.pitch_threshold = pitch_threshold
@@ -75,9 +83,10 @@ class PitchCorrectionState(smach.State):
         wrench_msg.wrench.force.y = 0
         wrench_msg.wrench.force.z = 0
         wrench_msg.wrench.torque.x = 0
-        wrench_msg.wrench.torque.y = self.pitch_torque
+        wrench_msg.wrench.torque.y = 0
         wrench_msg.wrench.torque.z = 0
 
+        last_time = rospy.Time.now()
         while not rospy.is_shutdown():
             if self.preempt_requested():
                 self.service_preempt()
@@ -87,6 +96,7 @@ class PitchCorrectionState(smach.State):
                 return "aborted"
 
             if (rospy.Time.now() - start_time) > self.timeout:
+                rospy.logwarn("Pitch correction timed out")
                 return "aborted"
 
             if self.odom_ready:
@@ -96,13 +106,45 @@ class PitchCorrectionState(smach.State):
                     [orientation.x, orientation.y, orientation.z, orientation.w]
                 )
 
-                # Check if pitch is positive (front up) and within threshold
-                if pitch > self.pitch_threshold:
-                    # Stop applying torque when pitch is within threshold
+                # Debug information
+                rospy.logdebug(f"Current pitch: {pitch:.4f}")
+
+                # Check if pitch is within acceptable range
+                if -self.pitch_threshold < pitch < self.pitch_threshold:
+                    # Stop applying torque when pitch is within acceptable range
                     wrench_msg.wrench.torque.y = 0
                     self.pub_wrench.publish(wrench_msg)
-                    rospy.sleep(1.0)  # Wait a bit to ensure torque is applied
+                    rospy.sleep(0.5)  # Wait a bit to ensure torque is applied
+                    rospy.loginfo("Pitch correction succeeded")
                     return "succeeded"
+
+                # Calculate PID control
+                error = -pitch  # We want pitch to be 0
+                dt = (rospy.Time.now() - last_time).to_sec()
+                
+                # Proportional term
+                proportional = self.Kp * error
+                
+                # Integral term
+                self.integral += error * dt
+                integral = self.Ki * self.integral
+                
+                # Derivative term
+                derivative = self.Kd * (error - self.last_error) / dt
+                
+                # Calculate total torque
+                torque = proportional + integral + derivative
+                
+                # Limit torque
+                torque = max(min(torque, self.max_torque), self.min_torque)
+                
+                # Update values for next iteration
+                self.last_error = error
+                last_time = rospy.Time.now()
+                
+                # Apply torque
+                wrench_msg.wrench.torque.y = torque
+                self.pub_wrench.publish(wrench_msg)
 
             wrench_msg.header.stamp = rospy.Time.now()
             self.pub_wrench.publish(wrench_msg)
@@ -310,7 +352,7 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "PITCH_CORRECTION",
                 PitchCorrectionState(
-                    pitch_torque=0.5, rate_hz=20, timeout_s=10.0, pitch_threshold=0.01
+                    pitch_torque=10.0, rate_hz=20, timeout_s=10.0, pitch_threshold=0.01
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_TWO_ROLL",
