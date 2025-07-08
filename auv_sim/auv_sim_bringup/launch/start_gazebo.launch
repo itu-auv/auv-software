@@ -92,4 +92,7 @@
         <arg name="cam_front_name" value="cam_front" />
         <arg name="cam_bottom_name" value="cam_bottom" />
     </include>
+
+    <node pkg="rostopic" type="rostopic" name="propulsion_board_status_publisher"
+          args="pub /$(arg namespace)/propulsion_board/status std_msgs/Bool 'data: true' -r 1" />
 </launch>

@@ -11,8 +11,11 @@
         <remap from="torpedo_2/launch" to="$(arg namespace)/actuators/torpedo_2/launch"/>
         <remap from="cmd_vel" to="$(arg namespace)/cmd_vel"/>
         <remap from="enable" to="$(arg namespace)/enable"/>
-        <remap from="propulsion_board/status" to="$(arg namespace)/propulsion_board/status"/>
+        <remap from="drive_pulse" to="$(arg namespace)/board/drive_pulse"/>
         <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
+
+        <remap from="align_frame/cancel" to="$(arg namespace)/control/align_frame/cancel"/>
+        <remap from="reset_odometry" to="$(arg namespace)/reset_odometry"/>
 
         <param name="topic_imu" value="$(arg namespace)/sensors/imu/data" />
         <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />

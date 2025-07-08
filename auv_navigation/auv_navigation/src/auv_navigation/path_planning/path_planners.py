@@ -18,6 +18,12 @@ class PathPlanners:
             "~gate_entrance_frame", "gate_entrance"
         )
         self.gate_exit_frame: str = rospy.get_param("~gate_exit_frame", "gate_exit")
+        self.bin_closer_frame: str = rospy.get_param(
+            "~bin_closer_frame", "bin_close_trial"
+        )
+        self.bin_further_frame: str = rospy.get_param(
+            "~bin_further_frame", "bin_far_trial"
+        )
         self.path_creation_timeout: float = rospy.get_param(
             "~path_creation_timeout", 20.0
         )
@@ -123,12 +129,64 @@ class PathPlanners:
                         exit_path = self.straight_path_to_frame(
                             source_frame=self.gate_entrance_frame,
                             target_frame=self.gate_exit_frame,
-                            n_turns=1,
+                            n_turns=0,
                         )
                     if entrance_path is not None and exit_path is not None:
                         return [entrance_path, exit_path]
                     rospy.logwarn(
                         "[GatePathPlanner] Failed to plan paths, retrying... Time elapsed: %.1f seconds",
+                        (rospy.Time.now() - start_time).to_sec(),
+                    )
+                    rospy.sleep(0.5)
+
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
+                ) as e:
+                    rospy.logwarn(
+                        "[GatePathPlanner] TF error while planning paths: %s. Retrying...",
+                        str(e),
+                    )
+                    rospy.sleep(0.5)
+
+            # If we get here, we timed out
+            rospy.logwarn(
+                "[GatePathPlanner] Failed to plan paths after %.1f seconds",
+                self.path_creation_timeout,
+            )
+            return None
+
+        except Exception as e:
+            rospy.logwarn("[GatePathPlanner] Error in gate path planning: %s", str(e))
+            return None
+
+    def path_for_bin(self) -> Optional[List[Path]]:
+        try:
+            rospy.logdebug("[BinPathPlanner] Planning paths for bin task...")
+            start_time = rospy.Time.now()
+            # Plan path to gate entrance
+            entrance_path = None
+            exit_path = None
+
+            while (rospy.Time.now() - start_time).to_sec() < self.path_creation_timeout:
+                try:
+                    # create the first segment
+                    if entrance_path is None:
+                        entrance_path = self.straight_path_to_frame(
+                            source_frame=self.base_link_frame,
+                            target_frame=self.bin_closer_frame,
+                        )
+                    # create the second segment
+                    if exit_path is None:
+                        exit_path = self.straight_path_to_frame(
+                            source_frame=self.bin_closer_frame,
+                            target_frame=self.bin_further_frame,
+                        )
+                    if entrance_path is not None and exit_path is not None:
+                        return [entrance_path, exit_path]
+                    rospy.logwarn(
+                        "[BinPathPlanner] Failed to plan paths, retrying... Time elapsed: %.1f seconds",
                         (rospy.Time.now() - start_time).to_sec(),
                     )
                     rospy.sleep(0.5)
