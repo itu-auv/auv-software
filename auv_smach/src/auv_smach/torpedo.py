@@ -163,6 +163,15 @@ class TorpedoTaskState(smach.State):
                 "WAIT_FOR_FRONT_VIEW",
                 DelayState(delay_time=7.0),
                 transitions={
+                    "succeeded": "DISABLE_TORPEDO_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_TORPEDO_FRAME_PUBLISHER",
+                TorpedoTransformServiceNode(req=False),
+                transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_LAUNCH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -182,7 +191,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_LAUNCH_1",
-                DelayState(delay_time=12.0),
+                DelayState(delay_time=10.0),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
                     "preempted": "preempted",
