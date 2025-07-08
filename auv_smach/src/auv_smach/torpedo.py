@@ -56,6 +56,9 @@ class TorpedoTaskState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"]
         )
 
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
