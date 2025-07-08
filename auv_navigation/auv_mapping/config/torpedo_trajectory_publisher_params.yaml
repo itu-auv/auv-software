@@ -9,6 +9,6 @@ torpedo_medium_hole_frame: "torpedo_hole_2_link"
 torpedo_front_view_frame: "torpedo_front_view"
 torpedo_launch_frame: "torpedo_launch"
 
-closer_frame_distance: 2.25
-front_view_distance: 1.75
+closer_frame_distance: 2.0
+front_view_distance: 2.0
 launch_distance: 0.6

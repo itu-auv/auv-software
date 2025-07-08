@@ -24,7 +24,7 @@ from auv_msgs.srv import SetDepth, SetDepthRequest
 from auv_msgs.srv import VisualServoing, VisualServoingRequest
 
 from auv_navigation.follow_path_action import follow_path_client
-
+from auv_navigation.path_planning.path_planners import PathPlanners
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
@@ -757,12 +757,11 @@ class PlanPathToSingleFrameState(smach.State):
                 )
                 return "preempted"
 
-            from auv_navigation.path_planning.path_planners import PathPlanners
-
             path_planners = PathPlanners(self.tf_buffer)
             path = path_planners.straight_path_to_frame(
                 source_frame=self.source_frame,
                 target_frame=self.target_frame,
+                interpolate_z=False,
                 num_waypoints=50,
             )
 
