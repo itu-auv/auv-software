@@ -8,6 +8,7 @@
 
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
+    <arg name="test_states" default="[]" doc="States to execute in test mode"/>
 
     <group ns="$(arg namespace)">
         <!-- Main State Machine Node -->
@@ -48,6 +49,7 @@
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
+            <param name="test_states" value="$(arg test_states)"/>
             <!-- Load path planner parameters in the node -->
             <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
             <!-- Load main state machine parameters -->

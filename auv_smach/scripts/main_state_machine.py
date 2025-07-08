@@ -40,7 +40,8 @@ class MainStateMachineNode:
         # Get test states from ROS param
         if test_mode:
             state_map = rospy.get_param("~state_map", {})
-            short_state_list = rospy.get_param("~test_states", [])
+            test_states_str = rospy.get_param("~test_states", "")
+            short_state_list = [state.strip() for state in test_states_str.split(",")]
 
             # Map test states to full names
             self.state_list = [
