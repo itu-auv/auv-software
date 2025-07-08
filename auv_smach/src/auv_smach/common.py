@@ -24,6 +24,8 @@ from auv_msgs.srv import SetDepth, SetDepthRequest
 
 from auv_navigation.follow_path_action import follow_path_client
 
+from auv_navigation.path_planning.path_planners import PathPlanners
+
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
@@ -99,9 +101,10 @@ class SetDepthState(smach_ros.ServiceState):
         - aborted: The service call failed.
     """
 
-    def __init__(self, depth: float, sleep_duration: float = 5.0):
+    def __init__(self, depth: float, sleep_duration: float = 5.0, frame_id: str = ""):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
+        set_depth_request.frame_id = frame_id
         self.sleep_duration = sleep_duration
 
         super(SetDepthState, self).__init__(
@@ -734,12 +737,11 @@ class PlanPathToSingleFrameState(smach.State):
                 )
                 return "preempted"
 
-            from auv_navigation.path_planning.path_planners import PathPlanners
-
             path_planners = PathPlanners(self.tf_buffer)
             path = path_planners.straight_path_to_frame(
                 source_frame=self.source_frame,
                 target_frame=self.target_frame,
+                interpolate_z=False,
                 num_waypoints=50,
             )
 
