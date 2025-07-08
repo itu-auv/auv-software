@@ -10,6 +10,8 @@ from std_srvs.srv import Trigger, TriggerResponse
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerResponse
 from tf.transformations import euler_from_quaternion
 from typing import Tuple, Optional
+from dynamic_reconfigure.server import Server
+from auv_control.cfg import AlignFrameConfig
 
 
 class AlignFrameControllerNode:
@@ -30,6 +32,8 @@ class AlignFrameControllerNode:
         self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.8)
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity", 0.9)
 
+        self.srv = Server(AlignFrameConfig, self.reconfigure_callback)
+
         self.active = False
         self.source_frame = ""
         self.target_frame = ""
@@ -48,6 +52,18 @@ class AlignFrameControllerNode:
             "align_frame/start", AlignFrameController, self.handle_align_request
         )
         rospy.Service("cancel_control", Trigger, self.handle_cancel_request)
+
+    def reconfigure_callback(self, config, level):
+        """Handles dynamic reconfigure updates for controller gains."""
+        self.linear_kp = config.linear_kp
+        self.linear_kd = config.linear_kd
+        self.angular_kp = config.angular_kp
+        self.angular_kd = config.angular_kd
+        rospy.loginfo(
+            f"Updated gains: Linear Kp={self.linear_kp}, Linear Kd={self.linear_kd}, "
+            f"Angular Kp={self.angular_kp}, Angular Kd={self.angular_kd}"
+        )
+        return config
 
     def killswitch_callback(self, msg: Bool) -> None:
         if not msg.data:
