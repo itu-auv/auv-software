@@ -46,8 +46,9 @@ class RotateAroundCenterState(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
-        self.linear_velocity = 0.8  # rospy.get_param("/smach/max_linear_velocity")
-        self.angular_velocity = 0.8  # rospy.get_param("/smach/max_angular_velocity")
+        rotate_around_center_params = rospy.get_param("~rotate_around_center", {})
+        self.linear_velocity = rotate_around_center_params.get("linear_velocity", 0.8)
+        self.angular_velocity = rotate_around_center_params.get("angular_velocity", 0.8)
 
     def execute(self, userdata):
         try:
@@ -223,6 +224,12 @@ class RotateAroundBuoyState(smach.State):
     def __init__(self, radius, direction, red_buoy_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        set_red_buoy_depth_params = rospy.get_param("~set_red_buoy_depth", {})
+        find_and_aim_red_buoy_params = rospy.get_param("~find_and_aim_red_buoy", {})
+        wait_for_aligning_rotation_start_params = rospy.get_param(
+            "~wait_for_aligning_rotation_start", {}
+        )
+
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -232,7 +239,10 @@ class RotateAroundBuoyState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_RED_BUOY_DEPTH",
-                SetDepthState(depth=red_buoy_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=red_buoy_depth,
+                    sleep_duration=set_red_buoy_depth_params.get("sleep_duration", 3.0),
+                ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_RED_BUOY",
                     "preempted": "preempted",
@@ -244,10 +254,16 @@ class RotateAroundBuoyState(smach.State):
                 SearchForPropState(
                     look_at_frame="red_buoy_link",
                     alignment_frame="red_buoy_search",
-                    full_rotation=False,
-                    set_frame_duration=4.0,
+                    full_rotation=find_and_aim_red_buoy_params.get(
+                        "full_rotation", False
+                    ),
+                    set_frame_duration=find_and_aim_red_buoy_params.get(
+                        "set_frame_duration", 4.0
+                    ),
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=find_and_aim_red_buoy_params.get(
+                        "rotation_speed", 0.3
+                    ),
                 ),
                 transitions={
                     "succeeded": "SET_RED_BUOY_ROTATION_START_FRAME",
@@ -293,7 +309,11 @@ class RotateAroundBuoyState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_ROTATION_START",
-                DelayState(delay_time=4.0),
+                DelayState(
+                    delay_time=wait_for_aligning_rotation_start_params.get(
+                        "delay_time", 4.0
+                    )
+                ),
                 transitions={
                     "succeeded": "ROTATE_AROUND_BUOY",
                     "preempted": "preempted",

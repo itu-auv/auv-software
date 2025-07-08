@@ -52,8 +52,13 @@
             <param name="test_states" value="$(arg test_states)"/>
             <!-- Load path planner parameters in the node -->
             <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
-            <!-- Load main state machine parameters -->
+            <!-- Load state machine parameters -->
             <rosparam file="$(find auv_smach)/config/main_state_machine.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/gate.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/red_buoy.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/torpedo.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/bin.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/octagon.yaml" command="load"/>
         </node>
     </group>
 </launch>

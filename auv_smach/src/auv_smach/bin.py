@@ -33,8 +33,11 @@ class CheckForDropAreaState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
             output_keys=["found_frame"],
         )
-        self.source_frame = source_frame
-        self.timeout = rospy.Duration(timeout)
+        check_for_drop_area_params = rospy.get_param("~check_for_drop_area", {})
+        self.source_frame = check_for_drop_area_params.get("source_frame", source_frame)
+        self.timeout = rospy.Duration(
+            check_for_drop_area_params.get("timeout", timeout)
+        )
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.target_frames = ["bin/blue_link", "bin/red_link"]
@@ -71,7 +74,12 @@ class SetAlignToFoundState(smach.State):
         super().__init__(
             outcomes=["succeeded", "preempted", "aborted"], input_keys=["found_frame"]
         )
-        self.source_frame = source_frame
+        set_align_to_found_drop_area_params = rospy.get_param(
+            "~set_align_to_found_drop_area", {}
+        )
+        self.source_frame = set_align_to_found_drop_area_params.get(
+            "source_frame", source_frame
+        )
 
     def execute(self, userdata):
         if self.preempt_requested():
@@ -118,6 +126,16 @@ class BinSecondTrialState(smach.StateMachine):
         self.bin_front_look_depth = bin_front_look_depth
         self.bin_bottom_look_depth = bin_bottom_look_depth
 
+        check_drop_area_found_to_second_trial_params = rospy.get_param(
+            "~check_drop_area_found_to_second_trial", {}
+        )
+        find_and_aim_bin_second_trial_params = rospy.get_param(
+            "~find_and_aim_bin_second_trial", {}
+        )
+        check_drop_area_found_second_trial_params = rospy.get_param(
+            "~check_drop_area_found_second_trial", {}
+        )
+
         with self:
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_SEARCH_DEPTH",
@@ -147,8 +165,15 @@ class BinSecondTrialState(smach.StateMachine):
                 },
             )
             smach.StateMachine.add(
-                "CHECK_DROP_AREA_AFTER_SECOND_TRIAL_ALIGNMENT",
-                CheckForDropAreaState(source_frame="odom", timeout=1.0),
+                "CHECK_DROP_AREA_FOUND_TO_SECOND_TRIAL_ALIGNMENT",
+                CheckForDropAreaState(
+                    source_frame=check_drop_area_found_to_second_trial_params.get(
+                        "source_frame", "odom"
+                    ),
+                    timeout=check_drop_area_found_to_second_trial_params.get(
+                        "timeout", 2.0
+                    ),
+                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -178,10 +203,16 @@ class BinSecondTrialState(smach.StateMachine):
                 SearchForPropState(
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",
-                    full_rotation=False,
-                    set_frame_duration=5.0,
+                    full_rotation=find_and_aim_bin_second_trial_params.get(
+                        "full_rotation", True
+                    ),
+                    set_frame_duration=find_and_aim_bin_second_trial_params.get(
+                        "set_frame_duration", 5.0
+                    ),
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=find_and_aim_bin_second_trial_params.get(
+                        "rotation_speed", 0.3
+                    ),
                 ),
                 transitions={
                     "succeeded": "DISABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
@@ -226,8 +257,15 @@ class BinSecondTrialState(smach.StateMachine):
                 },
             )
             smach.StateMachine.add(
-                "CHECK_DROP_AREA_AFTER_SECOND_FAR_TRIAL_ALIGNMENT",
-                CheckForDropAreaState(source_frame="odom", timeout=2.0),
+                "CHECK_DROP_AREA_FOUND_SECOND_FAR_TRIAL_ALIGNMENT",
+                CheckForDropAreaState(
+                    source_frame=check_drop_area_found_second_trial_params.get(
+                        "source_frame", "odom"
+                    ),
+                    timeout=check_drop_area_found_second_trial_params.get(
+                        "timeout", 2.0
+                    ),
+                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -246,6 +284,15 @@ class BinTaskState(smach.State):
     def __init__(self, bin_front_look_depth, bin_bottom_look_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        set_bin_depth_params = rospy.get_param("~set_bin_depth", {})
+        find_and_aim_bin_params = rospy.get_param("~find_and_aim_bin", {})
+        check_drop_area_found_params = rospy.get_param("~check_drop_area_found", {})
+        wait_for_aligning_drop_area_params = rospy.get_param(
+            "~wait_for_aligning_drop_area", {}
+        )
+        wait_for_ball_drop_1_params = rospy.get_param("~wait_for_ball_drop_1", {})
+        wait_for_ball_drop_2_params = rospy.get_param("~wait_for_ball_drop_2", {})
+
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
@@ -256,7 +303,10 @@ class BinTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_BIN_DEPTH",
-                SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=bin_front_look_depth,
+                    sleep_duration=set_bin_depth_params.get("sleep_duration", 3.0),
+                ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_BIN",
                     "preempted": "preempted",
@@ -268,10 +318,12 @@ class BinTaskState(smach.State):
                 SearchForPropState(
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",
-                    full_rotation=False,
-                    set_frame_duration=7.0,
+                    full_rotation=find_and_aim_bin_params.get("full_rotation", False),
+                    set_frame_duration=find_and_aim_bin_params.get(
+                        "set_frame_duration", 7.0
+                    ),
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=find_and_aim_bin_params.get("rotation_speed", 0.3),
                 ),
                 transitions={
                     "succeeded": "ENABLE_BIN_FRAME_PUBLISHER",
@@ -371,6 +423,7 @@ class BinTaskState(smach.State):
                 },
             )
             smach.StateMachine.add(
+<<<<<<< HEAD
                 "ALIGN_TO_BIN_ESTIMATED",
                 AlignFrame(
                     source_frame="taluy/base_link",
@@ -391,7 +444,12 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_AFTER_BIN_ESTIMATED_ALIGNMENT",
-                CheckForDropAreaState(source_frame="odom", timeout=1.0),
+                CheckForDropAreaState(
+                    source_frame=check_drop_area_found_params.get(
+                        "source_frame", "odom"
+                    ),
+                    timeout=check_drop_area_found_params.get("timeout", 2.0),
+                ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
                     "preempted": "preempted",
@@ -439,8 +497,12 @@ class BinTaskState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_DROP_AREA_ALIGNMENT",
-                DelayState(delay_time=15.0),
+                "WAIT_FOR_ALIGNING_DROP_ALIGNMENT",
+                DelayState(
+                    delay_time=wait_for_aligning_drop_area_params.get(
+                        "delay_time", 15.0
+                    )
+                ),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "preempted": "preempted",
@@ -458,7 +520,9 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_1",
-                DelayState(delay_time=5.0),
+                DelayState(
+                    delay_time=wait_for_ball_drop_1_params.get("delay_time", 5.0)
+                ),
                 transitions={
                     "succeeded": "DROP_BALL_2",
                     "preempted": "preempted",
@@ -476,7 +540,9 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_2",
-                DelayState(delay_time=3.0),
+                DelayState(
+                    delay_time=wait_for_ball_drop_2_params.get("delay_time", 3.0)
+                ),
                 transitions={
                     "succeeded": "DISABLE_BOTTOM_CAMERA",
                     "preempted": "preempted",

@@ -39,6 +39,23 @@ class TorpedoTaskState(smach.State):
     def __init__(self, torpedo_map_radius, torpedo_map_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        set_torpedo_depth_params = rospy.get_param("~set_torpedo_depth", {})
+        find_and_aim_torpedo_params = rospy.get_param("~find_and_aim_torpedo", {})
+        wait_for_aligning_start_params = rospy.get_param("~wait_for_aligning_start", {})
+        set_torpedo_close_approach_frame_params = rospy.get_param(
+            "~set_torpedo_close_approach_frame", {}
+        )
+        wait_for_close_approach_complete_params = rospy.get_param(
+            "~wait_for_close_approach_complete", {}
+        )
+        launch_torpedo_1_params = rospy.get_param("~launch_torpedo_1", {})
+        wait_for_torpedo_launch_params = rospy.get_param("~wait_for_torpedo_launch", {})
+        launch_torpedo_2_params = rospy.get_param("~launch_torpedo_2", {})
+        wait_for_torpedo_2_launch_params = rospy.get_param(
+            "~wait_for_torpedo_2_launch", {}
+        )
+        set_torpedo_exit_depth_params = rospy.get_param("~set_torpedo_exit_depth", {})
+
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -48,7 +65,10 @@ class TorpedoTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_TORPEDO_DEPTH",
-                SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=torpedo_map_depth,
+                    sleep_duration=set_torpedo_depth_params.get("sleep_duration", 3.0),
+                ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO",
                     "preempted": "preempted",
@@ -60,10 +80,16 @@ class TorpedoTaskState(smach.State):
                 SearchForPropState(
                     look_at_frame="torpedo_map_link",
                     alignment_frame="torpedo_search",
-                    full_rotation=False,
-                    set_frame_duration=4.0,
+                    full_rotation=find_and_aim_torpedo_params.get(
+                        "full_rotation", False
+                    ),
+                    set_frame_duration=find_and_aim_torpedo_params.get(
+                        "set_frame_duration", 4.0
+                    ),
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=find_and_aim_torpedo_params.get(
+                        "rotation_speed", 0.3
+                    ),
                 ),
                 transitions={
                     "succeeded": "SET_TORPEDO_APPROACH_FRAME",
@@ -109,7 +135,9 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_START",
-                DelayState(delay_time=4.0),
+                DelayState(
+                    delay_time=wait_for_aligning_start_params.get("delay_time", 4.0)
+                ),
                 transitions={
                     "succeeded": "SET_TORPEDO_CLOSE_APPROACH_FRAME",
                     "preempted": "preempted",
@@ -122,7 +150,7 @@ class TorpedoTaskState(smach.State):
                     base_frame="taluy/base_link",
                     center_frame="torpedo_map_link",
                     target_frame="torpedo_close_approach_start",
-                    radius=0.4,
+                    radius=set_torpedo_close_approach_frame_params.get("radius", 0.4),
                 ),
                 transitions={
                     "succeeded": "CLOSE_APPROACH_TO_TORPEDO",
@@ -145,7 +173,11 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_CLOSE_APPROACH_COMPLETE",
-                DelayState(delay_time=7.0),
+                DelayState(
+                    delay_time=wait_for_close_approach_complete_params.get(
+                        "delay_time", 7.0
+                    )
+                ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
                     "preempted": "preempted",
@@ -154,7 +186,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_1",
-                LaunchTorpedoState(id=1),
+                LaunchTorpedoState(id=launch_torpedo_1_params.get("id", 1)),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_LAUNCH",
                     "preempted": "preempted",
@@ -163,7 +195,9 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_LAUNCH",
-                DelayState(delay_time=6.0),
+                DelayState(
+                    delay_time=wait_for_torpedo_launch_params.get("delay_time", 6.0)
+                ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",
                     "preempted": "preempted",
@@ -172,7 +206,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_2",
-                LaunchTorpedoState(id=2),
+                LaunchTorpedoState(id=launch_torpedo_2_params.get("id", 2)),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
                     "preempted": "preempted",
@@ -181,7 +215,9 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_2_LAUNCH",
-                DelayState(delay_time=3.0),
+                DelayState(
+                    delay_time=wait_for_torpedo_2_launch_params.get("delay_time", 3.0)
+                ),
                 transitions={
                     "succeeded": "MOVE_BACK_TO_APPROACH_POSE",
                     "preempted": "preempted",
@@ -201,7 +237,12 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_TORPEDO_EXIT_DEPTH",
-                SetDepthState(depth=-0.7, sleep_duration=3.0),
+                SetDepthState(
+                    depth=set_torpedo_exit_depth_params.get("depth", -0.7),
+                    sleep_duration=set_torpedo_exit_depth_params.get(
+                        "sleep_duration", 3.0
+                    ),
+                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
