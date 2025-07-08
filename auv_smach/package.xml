@@ -8,7 +8,6 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <depend>auv_navigation</depend>
-  <depend>dynamic_reconfigure</depend>
   <depend>rospy</depend>
   <depend>smach</depend>
   <export/>
