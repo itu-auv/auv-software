@@ -17,41 +17,34 @@ class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
 
-        # USER EDIT
-        self.gate_depth = -1.5
-        self.gate_search_depth = -0.7
-        self.target_gate_link = "gate_blue_arrow_link"
+        # Parameters
+        self.gate_depth = rospy.get_param("~gate_depth", -1.5)
+        self.gate_search_depth = rospy.get_param("~gate_search_depth", -0.7)
+        self.target_gate_link = rospy.get_param(
+            "~target_gate_link", "gate_blue_arrow_link"
+        )
 
-        self.red_buoy_radius = 2.2
-        self.red_buoy_depth = -0.7
+        self.red_buoy_radius = rospy.get_param("~red_buoy_radius", 2.2)
+        self.red_buoy_depth = rospy.get_param("~red_buoy_depth", -0.7)
 
-        self.torpedo_map_radius = 1.5
-        self.torpedo_map_depth = -1.3
+        self.torpedo_map_radius = rospy.get_param("~torpedo_map_radius", 1.5)
+        self.torpedo_map_depth = rospy.get_param("~torpedo_map_depth", -1.3)
 
-        self.bin_front_look_depth = -1.2
-        self.bin_bottom_look_depth = -0.7
+        self.bin_front_look_depth = rospy.get_param("~bin_front_look_depth", -1.2)
+        self.bin_bottom_look_depth = rospy.get_param("~bin_bottom_look_depth", -0.7)
+        self.bin_task_depth = rospy.get_param("~bin_task_depth", -0.7)
 
-        self.octagon_depth = -1.0
-        # USER EDIT
+        self.octagon_depth = rospy.get_param("~octagon_depth", -1.0)
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
         if test_mode:
-            state_map = rospy.get_param("~state_map")
-
-            short_state_list = rospy.get_param("~test_states", "").split(",")
-
-            # Parse state mapping
-            state_mapping = {
-                item.split(":")[0].strip(): item.split(":")[1].strip()
-                for item in state_map.strip().split(",")
-            }
+            state_map = rospy.get_param("~state_map", {})
+            short_state_list = rospy.get_param("~test_states", [])
 
             # Map test states to full names
             self.state_list = [
-                state_mapping[state.strip()]
-                for state in short_state_list
-                if state.strip() in state_mapping
+                state_map[state] for state in short_state_list if state in state_map
             ]
         else:
             self.state_list = rospy.get_param("~full_mission_states")

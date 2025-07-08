@@ -6,33 +6,8 @@
     <param name="/smach/max_linear_velocity" value="0.3" />
     <param name="/smach/max_angular_velocity" value="0.45" />
 
-    <!-- State Mapping Definitions -->
-    <arg name="state_map" default="
-        init:INITIALIZE,
-        gate:NAVIGATE_THROUGH_GATE,
-        buoy:NAVIGATE_AROUND_RED_BUOY,
-        torpedo:NAVIGATE_TO_TORPEDO_TASK,
-        bin:NAVIGATE_TO_BIN_TASK,
-        octagon:NAVIGATE_TO_OCTAGON_TASK
-    "/>
-
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
-
-    <!-- Full Mission States -->
-    <arg name="full_mission_states" default="[
-        'INITIALIZE',
-        'NAVIGATE_THROUGH_GATE',
-        'NAVIGATE_AROUND_RED_BUOY',
-        'NAVIGATE_TO_TORPEDO_TASK',
-        'NAVIGATE_TO_BIN_TASK',
-        'NAVIGATE_TO_OCTAGON_TASK'
-    ]" doc="Full sequence of mission states"/>
-
-    <!-- Test Mission States -->
-    <arg name="test_states" default="[
-        'init'
-    ]" doc="States to execute in test mode"/>
 
     <group ns="$(arg namespace)">
         <!-- Main State Machine Node -->
@@ -73,11 +48,10 @@
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
-            <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>
-            <rosparam param="full_mission_states" subst_value="true">$(arg full_mission_states)</rosparam>
-            <param name="test_states" value="$(arg test_states)"/>
             <!-- Load path planner parameters in the node -->
             <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
+            <!-- Load main state machine parameters -->
+            <rosparam file="$(find auv_smach)/config/main_state_machine.yaml" command="load"/>
         </node>
     </group>
 </launch>
