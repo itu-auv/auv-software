@@ -71,7 +71,9 @@ class PublishGateAngleState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float, gate_search_depth: float, return_home: bool = False):
+    def __init__(
+        self, gate_depth: float, gate_search_depth: float, return_home: bool = False
+    ):
 
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
