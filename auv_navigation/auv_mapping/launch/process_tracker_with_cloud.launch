@@ -9,7 +9,7 @@
   <arg name="point_cloud_topic" default="/points_filtered"/>
 
   <!-- YOLOv8 result topic argument -->
-  <arg name="yolo_result_topic_in" default="/yolo_result"/>
+  <arg name="yolo_result_topic_in" default="/yolo_result_realsense"/>
   <arg name="yolo_result_topic_out" default="/yolo_detections"/>
 
   <!-- Camera optical frame argument -->
