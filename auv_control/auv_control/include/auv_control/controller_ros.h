@@ -205,9 +205,9 @@ class ControllerROS {
                 source_frame.value().c_str(),
                 depth_control_reference_frame_.c_str());
       try {
-        transform_stamped =
-            tf_buffer.lookupTransform(depth_control_reference_frame_,
-                                      source_frame.value(), ros::Time::now());
+        transform_stamped = tf_buffer.lookupTransform(
+            depth_control_reference_frame_, source_frame.value(), ros::Time(0)),
+        ros::Duration(transform_timeout());
 
         // only transform the z-axis component of the pose
         geometry_msgs::Point transformed_z;

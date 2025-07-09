@@ -184,6 +184,19 @@ class TorpedoTaskState(smach.State):
                     target_frame="torpedo_launch",
                 ),
                 transitions={
+                    "succeeded": "SET_TORPEDO_LAUNCH_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_TORPEDO_LAUNCH_DEPTH",
+                SetDepthState(
+                    depth=torpedo_map_depth,
+                    sleep_duration=3.0,
+                    frame_id="torpedo_launch",
+                ),
+                transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_LAUNCH_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
