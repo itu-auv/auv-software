@@ -36,4 +36,4 @@ RUN apt-get update && \
 
 # Build the workspace
 RUN . /opt/ros/noetic/setup.sh && \
-  catkin build
+  catkin build -- auv_software

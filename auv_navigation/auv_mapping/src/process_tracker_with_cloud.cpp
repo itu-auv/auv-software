@@ -15,7 +15,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
-#include <ultralytics_ros/YoloResult.h>
+#include <vision_msgs/Detection2DArray.h>
 #include <vision_msgs/Detection3DArray.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -52,11 +52,11 @@ class ProcessTrackerWithCloud {
   // Subscribers and synchronizers
   message_filters::Subscriber<sensor_msgs::CameraInfo> camera_info_sub_;
   message_filters::Subscriber<sensor_msgs::PointCloud2> lidar_sub_;
-  message_filters::Subscriber<ultralytics_ros::YoloResult> yolo_result_sub_;
+  message_filters::Subscriber<vision_msgs::Detection2DArray> yolo_result_sub_;
 
   typedef message_filters::sync_policies::ApproximateTime<
       sensor_msgs::CameraInfo, sensor_msgs::PointCloud2,
-      ultralytics_ros::YoloResult>
+      vision_msgs::Detection2DArray>
       SyncPolicy;
   typedef message_filters::Synchronizer<SyncPolicy> Sync;
   boost::shared_ptr<Sync> sync_;
@@ -144,7 +144,7 @@ class ProcessTrackerWithCloud {
   void syncCallback(
       const sensor_msgs::CameraInfo::ConstPtr& camera_info_msg,
       const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
-      const ultralytics_ros::YoloResultConstPtr& yolo_result_msg) {
+      const vision_msgs::Detection2DArray::ConstPtr& yolo_result_msg) {
     // Update camera model
     cam_info_ = *camera_info_msg;
 
@@ -154,7 +154,7 @@ class ProcessTrackerWithCloud {
     last_call_time_ = current_call_time;
 
     // Skip if no YOLO detections
-    if (yolo_result_msg->detections.detections.empty()) {
+    if (yolo_result_msg->detections.empty()) {
       return;
     }
 
@@ -188,8 +188,8 @@ class ProcessTrackerWithCloud {
     int processed_detection_count = 0;
 
     // Process each YOLO detection
-    for (size_t i = 0; i < yolo_result_msg->detections.detections.size(); i++) {
-      const auto& detection = yolo_result_msg->detections.detections[i];
+    for (size_t i = 0; i < yolo_result_msg->detections.size(); i++) {
+      const auto& detection = yolo_result_msg->detections[i];
 
       // Check detection ID, skip if it's in the skip list
       if (!detection.results.empty()) {
@@ -203,15 +203,8 @@ class ProcessTrackerWithCloud {
       pcl::PointCloud<pcl::PointXYZ>::Ptr detection_cloud(
           new pcl::PointCloud<pcl::PointXYZ>);
 
-      if (yolo_result_msg->masks.empty()) {
-        // Use bounding box if no mask available
-        processPointsWithBbox(downsampled_cloud, detection, detection_cloud);
-      } else {
-        // Use mask if available
-        // processPointsWithMask(cloud, yolo_result_msg->masks[i],
-        // detection_cloud); NOTE: Skipping mask processing for now
-        continue;
-      }
+      // Use bounding box
+      processPointsWithBbox(downsampled_cloud, detection, detection_cloud);
 
       if (detection_cloud->points.empty()) {
         continue;
