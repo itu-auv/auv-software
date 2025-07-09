@@ -2,6 +2,7 @@ from .initialize import *
 import smach
 import rospy
 import tf2_ros
+from std_srvs.srv import Trigger, TriggerRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
 
 from auv_smach.common import (
@@ -62,8 +63,16 @@ class TransformServiceEnableState(smach_ros.ServiceState):
         )
 
 
+class PublishGateAngleState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "publish_gate_angle", Trigger, request=TriggerRequest()
+        )
+
+
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float, return_home: bool = False):
+    def __init__(self, gate_depth: float, gate_search_depth: float, return_home: bool = False):
+
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.return_home = return_home
@@ -77,8 +86,8 @@ class NavigateThroughGateState(smach.State):
         )
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                "SET_GATE_SEARCH_DEPTH",
+                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
                     "preempted": "preempted",
@@ -114,6 +123,15 @@ class NavigateThroughGateState(smach.State):
                 "PLAN_GATE_PATHS",
                 PlanGatePathsState(self.tf_buffer, return_home=self.return_home),
                 transitions={
+                    "succeeded": "PUBLISH_GATE_ANGLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PUBLISH_GATE_ANGLE",
+                PublishGateAngleState(),
+                transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -122,6 +140,15 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "SET_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",

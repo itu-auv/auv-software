@@ -52,6 +52,11 @@
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
             <remap from="odometry" to="odometry"/>
             <remap from="cmd_vel" to="cmd_vel"/>
+
+            <!-- camera_detection_pose_estimator.py -->
+            <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
+            <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+
             <param name="enable_rate" value="$(arg enable_rate)"/>
 
             <!-- gate.py -->
