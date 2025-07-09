@@ -8,15 +8,25 @@
   <!-- Point cloud topic argument -->
   <arg name="point_cloud_topic" default="/points_filtered"/>
 
+  <!-- YOLOv8 result topic argument -->
+  <arg name="yolo_result_topic_in" default="/yolo_result"/>
+  <arg name="yolo_result_topic_out" default="/yolo_detections"/>
+
   <!-- Camera optical frame argument -->
   <arg name="camera_optical_frame" default="$(arg namespace)/camera_depth_optical_frame"/>
+
+  <!-- YOLO Result Bridge Node (from auv_detection package) -->
+  <node name="yolo_result_bridge" pkg="auv_detection" type="yolo_result_bridge.py" output="screen">
+    <remap from="/yolo_result" to="$(arg yolo_result_topic_in)"/>
+    <remap from="/yolo_detections" to="$(arg yolo_result_topic_out)"/>
+  </node>
 
   <!-- Process Tracker With Cloud Node -->
   <node name="process_tracker_with_cloud" pkg="auv_mapping" type="process_tracker_with_cloud" output="screen">
     <!-- Parameters -->
     <param name="camera_info_topic" value="/$(arg namespace)/camera/color/camera_info"/>
     <param name="lidar_topic" value="$(arg point_cloud_topic)"/>
-    <param name="yolo_result_topic" value="/yolo_result_realsense"/>
+    <param name="yolo_result_topic" value="$(arg yolo_result_topic_out)"/>
     <param name="camera_optical_frame" value="$(arg camera_optical_frame)"/>
     <param name="cluster_tolerance" value="0.2"/>
     <param name="voxel_leaf_size" value="0.05"/>
