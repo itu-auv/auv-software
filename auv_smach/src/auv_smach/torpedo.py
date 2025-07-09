@@ -192,7 +192,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_TORPEDO_LAUNCH_DEPTH",
                 SetDepthState(
-                    depth=torpedo_map_depth,
+                    depth=0.0,
                     sleep_duration=3.0,
                     frame_id="torpedo_launch",
                 ),
