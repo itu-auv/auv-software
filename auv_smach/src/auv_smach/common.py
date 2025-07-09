@@ -21,6 +21,7 @@ from auv_msgs.srv import (
 )
 
 from auv_msgs.srv import SetDepth, SetDepthRequest
+from auv_msgs.srv import VisualServoing, VisualServoingRequest
 
 from auv_navigation.follow_path_action import follow_path_client
 
@@ -85,6 +86,28 @@ def concatenate_transforms(transform1, transform2):
 
 
 # ------------------- STATES -------------------
+
+
+class VisualServoingCentering(smach_ros.ServiceState):
+    def __init__(self, target_prop):
+        request = VisualServoingRequest()
+        request.target_prop = target_prop
+        super(VisualServoingCentering, self).__init__(
+            "visual_servoing/start",
+            VisualServoing,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
+class VisualServoingNavigation(smach_ros.ServiceState):
+    def __init__(self):
+        super(VisualServoingNavigation, self).__init__(
+            "visual_servoing/navigate",
+            Trigger,
+            request=TriggerRequest(),
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
 
 
 class SetDepthState(smach_ros.ServiceState):

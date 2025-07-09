@@ -4,6 +4,7 @@ import smach_ros
 import rospy
 import tf2_ros
 import math
+from std_srvs.srv import Trigger, TriggerRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
 
 from auv_smach.common import (
@@ -328,6 +329,13 @@ class TwoRollState(smach.StateMachine):
             )
 
 
+class PublishGateAngleState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "publish_gate_angle", Trigger, request=TriggerRequest()
+        )
+
+
 class NavigateThroughGateState(smach.State):
     def __init__(self, gate_depth: float, gate_search_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -399,6 +407,15 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_GATE_TRAJECTORY_PUBLISHER",
                 DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "PUBLISH_GATE_ANGLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PUBLISH_GATE_ANGLE",
+                PublishGateAngleState(),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
