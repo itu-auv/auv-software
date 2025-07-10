@@ -2,8 +2,18 @@
 sensors/external_pressure_sensor:
   depth_covariance: 0.05
   depth_offset: -0.10
+
 sensors/dvl:
   covariance:
     linear_x: 0.000015
     linear_y: 0.000015
     linear_z: 0.05
+
+pressure_odometry_node:
+  min_valid_altitude: 0.3
+  max_valid_altitude: 2.2
+  min_valid_depth: 0.0
+  max_valid_depth: 2.2
+  dvl_frame_id: "taluy/base_link/dvl_link"
+  depth_offset: -0.10
+  depth_covariance: 0.05
