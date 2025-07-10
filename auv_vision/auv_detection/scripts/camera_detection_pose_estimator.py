@@ -220,7 +220,7 @@ class CameraDetectionNode:
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
-        self.pool_depth = rospy.get_param("~pool_depth", 2.2)
+        self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
         # Services to enable/disable cameras
