@@ -16,11 +16,11 @@
   </include>
 
   <!-- launch xsens driver -->
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
+  <!-- <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="port" value="/dev/auv_imu" />
-  </include>
+  </include> -->
 
   <!-- launch ping360 driver -->
   <!-- <include file="$(find auv_bringup)/launch/inc/sensors/start_ping360_driver.launch.xml">

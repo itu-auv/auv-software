@@ -4,6 +4,7 @@ import smach_ros
 import rospy
 import tf2_ros
 import math
+from std_srvs.srv import Trigger, TriggerRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
 
 from auv_smach.common import (
@@ -50,13 +51,17 @@ class PitchCorrection(smach.State):
         self.start_time = None
 
         self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
-        self.sub_kill = rospy.Subscriber(self.killswitch_topic, Bool, self.killswitch_cb)
-        self.pub_wrench = rospy.Publisher(self.wrench_topic, WrenchStamped, queue_size=1)
+        self.sub_kill = rospy.Subscriber(
+            self.killswitch_topic, Bool, self.killswitch_cb
+        )
+        self.pub_wrench = rospy.Publisher(
+            self.wrench_topic, WrenchStamped, queue_size=1
+        )
 
     def odom_cb(self, msg: Odometry):
         orientation = msg.pose.pose.orientation
         q = [orientation.x, orientation.y, orientation.z, orientation.w]
-        
+
         try:
             _, pitch, _ = euler_from_quaternion(q)
             self.current_pitch = pitch
@@ -72,7 +77,7 @@ class PitchCorrection(smach.State):
     def execute(self, userdata):
         rospy.loginfo("PITCH_CORRECTION: Waiting for odometry data...")
         start_wait = rospy.Time.now()
-        
+
         while not rospy.is_shutdown() and not self.odom_ready:
             if (rospy.Time.now() - start_wait) > rospy.Duration(5.0):
                 rospy.logerr("PITCH_CORRECTION: No odometry data → abort")
@@ -82,46 +87,54 @@ class PitchCorrection(smach.State):
             self.rate.sleep()
 
         if self.current_pitch <= 0:
-            rospy.loginfo("PITCH_CORRECTION: Pitch already corrected (%.2f°)", math.degrees(self.current_pitch))
+            rospy.loginfo(
+                "PITCH_CORRECTION: Pitch already corrected (%.2f°)",
+                math.degrees(self.current_pitch),
+            )
             return "succeeded"
 
         rospy.loginfo(
             "PITCH_CORRECTION: Correcting pitch from %.2f° with fixed torque %.2f Nm",
             math.degrees(self.current_pitch),
-            self.fixed_torque
+            self.fixed_torque,
         )
 
         self.start_time = rospy.Time.now()
-        
+
         try:
             while not rospy.is_shutdown() and self.active:
                 if self.preempt_requested():
                     return self._stop_and("preempted")
                 if (rospy.Time.now() - self.start_time) > self.timeout:
-                    rospy.logerr("PITCH_CORRECTION: Timeout after %.1f s", self.timeout.to_sec())
+                    rospy.logerr(
+                        "PITCH_CORRECTION: Timeout after %.1f s", self.timeout.to_sec()
+                    )
                     return self._stop_and("aborted")
-                
+
                 if self.current_pitch <= 0:
-                    rospy.loginfo("PITCH_CORRECTION: Pitch corrected to %.2f°", math.degrees(self.current_pitch))
+                    rospy.loginfo(
+                        "PITCH_CORRECTION: Pitch corrected to %.2f°",
+                        math.degrees(self.current_pitch),
+                    )
                     return self._stop_and("succeeded")
-                
+
                 cmd = WrenchStamped()
                 cmd.header.stamp = rospy.Time.now()
                 cmd.header.frame_id = self.frame_id
                 cmd.wrench.torque.y = self.fixed_torque
                 self.pub_wrench.publish(cmd)
-                
+
                 rospy.loginfo_throttle(
                     1.0,
                     "PITCH_CORRECTION: Current pitch: %.2f°",
-                    math.degrees(self.current_pitch)
+                    math.degrees(self.current_pitch),
                 )
-                
+
                 self.rate.sleep()
-                
+
         except rospy.ROSInterruptException:
             return self._abort_on_shutdown()
-        
+
         return "aborted"
 
     def _stop_and(self, outcome):
@@ -134,7 +147,6 @@ class PitchCorrection(smach.State):
     def _abort_on_shutdown(self):
         rospy.logwarn("PITCH_CORRECTION: ROS shutdown → aborting")
         return self._stop_and("aborted")
-        
 
 
 class RollTwoTimes(smach.State):
@@ -335,9 +347,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "PITCH_CORRECTION",
-                PitchCorrection(
-                    fixed_torque=3.0, rate_hz=20, timeout_s=10.0
-                ),
+                PitchCorrection(fixed_torque=3.0, rate_hz=20, timeout_s=10.0),
                 transitions={
                     "succeeded": "ROLL_TWO_TIMES",
                     "preempted": "preempted",
@@ -447,6 +457,13 @@ class TwoRollState(smach.StateMachine):
             )
 
 
+class PublishGateAngleState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "publish_gate_angle", Trigger, request=TriggerRequest()
+        )
+
+
 class NavigateThroughGateState(smach.State):
     def __init__(self, gate_depth: float, gate_search_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -518,6 +535,15 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_GATE_TRAJECTORY_PUBLISHER",
                 DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "PUBLISH_GATE_ANGLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PUBLISH_GATE_ANGLE",
+                PublishGateAngleState(),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
