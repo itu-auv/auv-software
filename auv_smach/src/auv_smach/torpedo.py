@@ -161,7 +161,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_FRONT_VIEW",
-                DelayState(delay_time=7.0),
+                DelayState(delay_time=10.0),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_FRAME_PUBLISHER",
                     "preempted": "preempted",
