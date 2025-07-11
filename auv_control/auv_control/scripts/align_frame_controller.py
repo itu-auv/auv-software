@@ -25,7 +25,7 @@ class AlignFrameControllerNode:
         self.rate = rospy.get_param("~rate", 0.1)
         self.linear_kp = rospy.get_param("~linear_kp", 0.55)
         self.angular_kp = rospy.get_param("~angular_kp", 0.45)
-        self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.7)
+        self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.5)
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity", 0.5)
 
         self.active = False
