@@ -16,6 +16,9 @@ add_message_files(
   Power.msg
   QuadDrivePulse.msg
   LatchedServo.msg
+  SonarActivation.msg
+  Pressure.msg
+  Geometry.msg
 )
 
 # add_service_files(

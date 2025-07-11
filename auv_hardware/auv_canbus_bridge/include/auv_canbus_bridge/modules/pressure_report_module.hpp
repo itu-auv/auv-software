@@ -1,9 +1,9 @@
 #pragma once
 #include <array>
 
+#include "../canbus/f16_converter.hpp"
 #include "auv_canbus_bridge/modules/module_base.hpp"
 #include "auv_canbus_msgs/Pressure.h"
-#include "canbus/f16_converter.hpp"
 #include "ros/ros.h"
 #include "std_msgs/Float32.h"
 
@@ -21,9 +21,15 @@ class PressureReportModule : public ModuleBase {
  public:
   PressureReportModule(const ros::NodeHandle &node_handle, CanbusSocket &socket)
       : ModuleBase(node_handle, socket) {
-    power_report_publisher_ =
-        ModuleBase::node_handle().advertise<auv_msgs::Power>(
-            "mainboard/pressure_sensor/data", 10);
+    depth_publisher = ModuleBase::node_handle().advertise<std_msgs::Float32>(
+        "mainboard/pressure_sensor/depth", 10);
+    external_pressure_publisher =
+        ModuleBase::node_handle().advertise<std_msgs::Float32>(
+            "mainboard/pressure_sensor/external_pressure", 10);
+    external_temperature_publisher =
+        ModuleBase::node_handle().advertise<std_msgs::Float32>(
+            "mainboard/pressure_sensor/external_temperature", 10);
+
     ROS_INFO_STREAM("Initialized PressureReportModule for CANBUS");
   }
 
@@ -41,22 +47,23 @@ class PressureReportModule : public ModuleBase {
     auto report = auv_canbus_msgs::Pressure{};
     std::copy(data.begin(), data.end(), reinterpret_cast<uint8_t *>(&report));
 
-    const auto depth_msg = std_msgs::Float32{auv::math::from_f16(report.depth)};
+    static auto depth_msg = std_msgs::Float32{};
+    depth_msg.data = auv::math::from_float16(report.depth);
     depth_publisher.publish(depth_msg);
 
-    const auto external_pressure_msg =
-        std_msgs::Float32{auv::math::from_f16(report.pressure)};
+    static auto external_pressure_msg = std_msgs::Float32{};
+    external_pressure_msg.data = auv::math::from_float16(report.pressure);
     external_pressure_publisher.publish(external_pressure_msg);
 
-    const auto external_temperature_msg =
-        std_msgs::Float32{auv::math::from_f16(report.temperature)};
+    static auto external_temperature_msg = std_msgs::Float32{};
+    external_temperature_msg.data = auv::math::from_float16(report.temperature);
     external_temperature_publisher.publish(external_temperature_msg);
   };
 
  private:
   ros::Publisher depth_publisher;
   ros::Publisher external_pressure_publisher;
-  ros::Publisher external_temperature_publisher
+  ros::Publisher external_temperature_publisher;
 };
 
 }  // namespace modules
