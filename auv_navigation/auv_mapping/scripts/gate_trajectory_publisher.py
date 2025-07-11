@@ -2,17 +2,21 @@
 from typing import Tuple
 import math
 import rospy
+import threading
 import tf2_ros
 import tf_conversions
 import geometry_msgs.msg
 from geometry_msgs.msg import Pose, Point, Quaternion, TransformStamped
-from std_srvs.srv import SetBool, SetBoolResponse
+from std_msgs.msg import Float64
+from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 
 class TransformServiceNode:
     def __init__(self):
         self.is_enabled = False
+        self.gate_angle = None
+        self.publish_gate_angle_enabled = False
         rospy.init_node("create_gate_frames_node")
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -22,6 +26,12 @@ class TransformServiceNode:
             "set_object_transform", SetObjectTransform
         )
         self.set_object_transform_service.wait_for_service()
+        self.gate_angle_publisher = rospy.Publisher(
+            "gate_angle", Float64, queue_size=10
+        )
+        self.publish_gate_angle_service = rospy.Service(
+            "publish_gate_angle", Trigger, self.handle_publish_gate_angle
+        )
 
         self.odom_frame = "odom"
         self.entrance_frame = "gate_entrance"
@@ -56,7 +66,7 @@ class TransformServiceNode:
         )
 
         self.entrance_offset = rospy.get_param("~entrance_offset", 1.0)
-        self.exit_offset = rospy.get_param("~exit_offset", 1.0)
+        self.exit_offset = rospy.get_param("~exit_offset", 1.4)
         self.z_offset = rospy.get_param("~z_offset", 0.5)
         self.parallel_shift_offset = rospy.get_param("~parallel_shift_offset", 0.15)
 
@@ -227,6 +237,11 @@ class TransformServiceNode:
             )
         )
 
+        # Calculate and store the gate angle
+        dx = other_gate_link_translation[0] - selected_gate_link_translation[0]
+        dy = other_gate_link_translation[1] - selected_gate_link_translation[1]
+        self.gate_angle = math.atan2(dy, dx)
+
         # Compute the entrance and exit frames relative to selected gate frame
         entrance_pose, exit_pose = self.compute_entrance_and_exit(
             selected_gate_link_translation, other_gate_link_translation
@@ -303,7 +318,24 @@ class TransformServiceNode:
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
+    def handle_publish_gate_angle(self, req):
+        self.publish_gate_angle_enabled = True
+        message = "Gate angle publishing enabled."
+        rospy.loginfo(message)
+        return TriggerResponse(success=True, message=message)
+
+    def _publish_gate_angle_loop(self):
+        rate = rospy.Rate(10.0)
+        while not rospy.is_shutdown():
+            if self.publish_gate_angle_enabled and self.gate_angle is not None:
+                self.gate_angle_publisher.publish(self.gate_angle)
+            rate.sleep()
+
     def spin(self):
+        gate_angle_thread = threading.Thread(target=self._publish_gate_angle_loop)
+        gate_angle_thread.daemon = True
+        gate_angle_thread.start()
+
         rate = rospy.Rate(2.0)
         while not rospy.is_shutdown():
             if self.is_enabled:

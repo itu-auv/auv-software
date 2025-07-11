@@ -21,6 +21,7 @@ add_message_files(
   FILES
   MotorCommand.msg
   Power.msg
+  PropsYaw.msg
 )
 
 add_service_files(
@@ -28,6 +29,7 @@ add_service_files(
   AlignFrameController.srv
   SetDepth.srv
   SetObjectTransform.srv
+  VisualServoing.srv
 )
 
 # # Generate added messages and services with any dependencies listed here
