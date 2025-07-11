@@ -15,9 +15,10 @@ from geometry_msgs.msg import (
 from ultralytics_ros.msg import YoloResult
 from auv_msgs.msg import PropsYaw
 from sensor_msgs.msg import Range
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, ColorRGBA
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
+from visualization_msgs.msg import Marker
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
@@ -165,6 +166,10 @@ class CameraDetectionNode:
             "object_transform_updates", TransformStamped, queue_size=10
         )
         self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
+        self.ground_marker_pub = rospy.Publisher("ground_plane", Marker, queue_size=1)
+        self.projection_marker_pub = rospy.Publisher(
+            "projection_vector", Marker, queue_size=1
+        )
         # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -262,12 +267,35 @@ class CameraDetectionNode:
             f"Calculated altitude from odom_pressure: {self.altitude:.2f} m (pool_depth={self.pool_depth})"
         )
 
-    def calculate_intersection_with_ground(self, point1_odom, point2_odom):
-        # Calculate t where the z component is zero (ground plane)
-        if point2_odom.point.z != point1_odom.point.z:
-            t = -point1_odom.point.z / (point2_odom.point.z - point1_odom.point.z)
+        marker = Marker()
+        marker.header.frame_id = "taluy/base_link"
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "ground_plane"
+        marker.id = 0
+        marker.type = Marker.CUBE
+        marker.action = Marker.ADD
+        marker.pose.position.x = 0
+        marker.pose.position.y = 0
+        marker.pose.position.z = -self.altitude
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 10.0
+        marker.scale.y = 10.0
+        marker.scale.z = 0.01
+        marker.color = ColorRGBA(1.0, 0.0, 0.0, 0.5)  # Semi-transparent red
+        marker.lifetime = rospy.Duration(0.5)
+        self.ground_marker_pub.publish(marker)
 
-            # Check if t is within the segment range [0, 1]
+    def calculate_intersection_with_plane(self, point1_odom, point2_odom, z_plane):
+        # Calculate t where the z component is z_plane
+        if point2_odom.point.z != point1_odom.point.z:
+            t = (z_plane - point1_odom.point.z) / (
+                point2_odom.point.z - point1_odom.point.z
+            )
+
+            # Check if the intersection point is within the segment [point1, point2]
             if 0 <= t <= 1:
                 # Calculate intersection point
                 x = point1_odom.point.x + t * (
@@ -276,10 +304,9 @@ class CameraDetectionNode:
                 y = point1_odom.point.y + t * (
                     point2_odom.point.y - point1_odom.point.y
                 )
-                z = 0  # ground plane
-                return x, y, z
+                return x, y, z_plane
             else:
-                rospy.logwarn("No intersection with ground plane within the segment.")
+                # Intersection is outside the defined segment
                 return None
         else:
             rospy.logwarn("The line segment is parallel to the ground plane.")
@@ -318,21 +345,42 @@ class CameraDetectionNode:
         point2.point.y = offset_y
         point2.point.z = distance
 
+        # Visualize the projection vector
+        arrow_marker = Marker()
+        arrow_marker.header.frame_id = self.camera_frames[camera_ns]
+        arrow_marker.header.stamp = rospy.Time.now()
+        arrow_marker.ns = "projection_vector"
+        arrow_marker.id = 1
+        arrow_marker.type = Marker.ARROW
+        arrow_marker.action = Marker.ADD
+        arrow_marker.points.append(point1.point)
+        arrow_marker.points.append(point2.point)
+        arrow_marker.scale.x = 0.1  # Shaft diameter
+        arrow_marker.scale.y = 0.2  # Head diameter
+        arrow_marker.scale.z = 0.2  # Head length
+        arrow_marker.color = ColorRGBA(0.0, 1.0, 0.0, 1.0)  # Green
+        arrow_marker.lifetime = rospy.Duration(0.5)
+        self.projection_marker_pub.publish(arrow_marker)
+
         try:
+            # Get the transform from the camera frame to the odom frame
             transform = self.tf_buffer.lookup_transform(
                 "odom",
                 self.camera_frames[camera_ns],
                 rospy.Time(0),
                 rospy.Duration(1.0),
             )
+            # Transform the ray points from the camera frame to the odom frame
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
 
-            point1_odom.point.z += self.altitude
-            point2_odom.point.z += self.altitude
-
-            intersection = self.calculate_intersection_with_ground(
-                point1_odom, point2_odom
+            # The ground plane in the 'odom' frame is at a fixed Z-coordinate,
+            # which corresponds to the negative pool depth.
+            # We calculate the intersection of the camera ray with this plane.
+            # We do not add self.altitude here, as both the ray and the plane
+            # are now correctly expressed in the same 'odom' frame.
+            intersection = self.calculate_intersection_with_plane(
+                point1_odom, point2_odom, z_plane=-self.pool_depth
             )
             if intersection:
                 x, y, z = intersection
