@@ -78,25 +78,23 @@ class YoloHandler:
 
             if self.gpu_available:
                 # Upload images to GPU
-                self.front_gpu.upload(img_front)
-                self.bottom_gpu.upload(img_bottom)
+                front_gpu = cv2.cuda_GpuMat()
+                bottom_gpu = cv2.cuda_GpuMat()
+                front_gpu.upload(img_front)
+                bottom_gpu.upload(img_bottom)
 
                 # Create blank canvas on GPU
-                self.canvas_gpu = cv2.cuda_GpuMat(
-                    self.canvas_h, self.canvas_w, cv2.CV_8UC3
-                )
-                self.canvas_gpu.setTo(0)
+                canvas_gpu = cv2.cuda_GpuMat(self.canvas_h, self.canvas_w, cv2.CV_8UC3)
+                canvas_gpu.setTo(0)
 
-                # Place images on canvas using GPU operations
+                # Place images on canvas
+                self._place_image_on_canvas_gpu(canvas_gpu, front_gpu, 0, self.split_x)
                 self._place_image_on_canvas_gpu(
-                    self.canvas_gpu, self.front_gpu, 0, self.split_x
-                )
-                self._place_image_on_canvas_gpu(
-                    self.canvas_gpu, self.bottom_gpu, self.split_x, self.canvas_w
+                    canvas_gpu, bottom_gpu, self.split_x, self.canvas_w
                 )
 
-                # Download result from GPU
-                canvas = self.canvas_gpu.download()
+                # Download result
+                canvas = canvas_gpu.download()
             else:
                 # CPU fallback
                 canvas = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
