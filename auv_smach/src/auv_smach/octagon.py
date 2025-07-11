@@ -13,9 +13,10 @@ class OctagonTaskState(smach.State):
     def __init__(self, octagon_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        set_octagon_depth_params = rospy.get_param("~set_octagon_depth", {})
-        wait_for_surfacing_params = rospy.get_param("~wait_for_surfacing", {})
-        surfacing_params = rospy.get_param("~surfacing", {})
+        octagon_task_params = rospy.get_param("~octagon_task", {})
+        set_octagon_depth_params = octagon_task_params.get("set_octagon_depth", {})
+        wait_for_surfacing_params = octagon_task_params.get("wait_for_surfacing", {})
+        surfacing_params = octagon_task_params.get("surfacing", {})
 
         # Initialize the state machine
         self.state_machine = smach.StateMachine(

@@ -46,7 +46,9 @@ class RotateAroundCenterState(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
-        rotate_around_center_params = rospy.get_param("~rotate_around_center", {})
+        rotate_around_center_params = rospy.get_param(
+            "~red_buoy_task/rotate_around_center", {}
+        )
         self.linear_velocity = rotate_around_center_params.get("linear_velocity", 0.8)
         self.angular_velocity = rotate_around_center_params.get("angular_velocity", 0.8)
 
@@ -224,10 +226,13 @@ class RotateAroundBuoyState(smach.State):
     def __init__(self, radius, direction, red_buoy_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        set_red_buoy_depth_params = rospy.get_param("~set_red_buoy_depth", {})
-        find_and_aim_red_buoy_params = rospy.get_param("~find_and_aim_red_buoy", {})
-        wait_for_aligning_rotation_start_params = rospy.get_param(
-            "~wait_for_aligning_rotation_start", {}
+        red_buoy_task_params = rospy.get_param("~red_buoy_task", {})
+        set_red_buoy_depth_params = red_buoy_task_params.get("set_red_buoy_depth", {})
+        find_and_aim_red_buoy_params = red_buoy_task_params.get(
+            "find_and_aim_red_buoy", {}
+        )
+        wait_for_aligning_rotation_start_params = red_buoy_task_params.get(
+            "wait_for_aligning_rotation_start", {}
         )
 
         # Initialize the state machine

@@ -13,8 +13,32 @@
     <group ns="$(arg namespace)">
         <!-- Main State Machine Node -->
         <node name="main_state_machine" pkg="auv_smach" type="main_state_machine.py" output="screen">
+            <rosparam file="$(find auv_smach)/config/main_state_machine.yaml" command="load"/>
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
             <param name="~base_link" value="$(arg namespace)/base_link"/>
+
+            <!--initialize.py-->
+            <remap from="set_depth" to="set_depth"/>
+            <remap from="set_pose" to="set_pose"/>
+            <remap from="dvl/enable" to="sensors/dvl/enable"/>
+            <remap from="localization_enable" to="auv_localization_node/enable"/>
+
+            <!-- gate.py -->
+            <rosparam file="$(find auv_smach)/config/gate.yaml" command="load"/>
+            <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
+
+            <!--red_buoy.py-->
+            <rosparam file="$(find auv_smach)/config/red_buoy.yaml" command="load"/>
+            <remap from="set_object_transform" to="map/set_object_transform"/>
+
+            <!-- bin.py -->
+            <rosparam file="$(find auv_smach)/config/bin.yaml" command="load"/>
+
+            <!-- torpedo.py -->
+            <rosparam file="$(find auv_smach)/config/torpedo.yaml" command="load"/>
+
+            <!-- octagon.py -->
+            <rosparam file="$(find auv_smach)/config/octagon.yaml" command="load"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -30,35 +54,16 @@
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
-
             <param name="enable_rate" value="$(arg enable_rate)"/>
 
-            <!-- gate.py -->
-            <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
-
-            <!--initialize.py-->
-            <remap from="set_depth" to="set_depth"/>
-            <remap from="set_pose" to="set_pose"/>
-            <remap from="dvl/enable" to="sensors/dvl/enable"/>
-            <remap from="localization_enable" to="auv_localization_node/enable"/>
-
-            <!--red_buoy.py-->
-            <remap from="set_object_transform" to="map/set_object_transform"/>
+            <!-- Load path planner parameters in the node -->
+            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
 
             <!--bin.py-->
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <param name="test_states" value="$(arg test_states)"/>
-            <!-- Load path planner parameters in the node -->
-            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
-            <!-- Load state machine parameters -->
-            <rosparam file="$(find auv_smach)/config/main_state_machine.yaml" command="load"/>
-            <rosparam file="$(find auv_smach)/config/gate.yaml" command="load"/>
-            <rosparam file="$(find auv_smach)/config/red_buoy.yaml" command="load"/>
-            <rosparam file="$(find auv_smach)/config/torpedo.yaml" command="load"/>
-            <rosparam file="$(find auv_smach)/config/bin.yaml" command="load"/>
-            <rosparam file="$(find auv_smach)/config/octagon.yaml" command="load"/>
         </node>
     </group>
 </launch>

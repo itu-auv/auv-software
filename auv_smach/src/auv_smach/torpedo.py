@@ -39,22 +39,31 @@ class TorpedoTaskState(smach.State):
     def __init__(self, torpedo_map_radius, torpedo_map_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        set_torpedo_depth_params = rospy.get_param("~set_torpedo_depth", {})
-        find_and_aim_torpedo_params = rospy.get_param("~find_and_aim_torpedo", {})
-        wait_for_aligning_start_params = rospy.get_param("~wait_for_aligning_start", {})
-        set_torpedo_close_approach_frame_params = rospy.get_param(
-            "~set_torpedo_close_approach_frame", {}
+        torpedo_task_params = rospy.get_param("~torpedo_task", {})
+        set_torpedo_depth_params = torpedo_task_params.get("set_torpedo_depth", {})
+        find_and_aim_torpedo_params = torpedo_task_params.get(
+            "find_and_aim_torpedo", {}
         )
-        wait_for_close_approach_complete_params = rospy.get_param(
-            "~wait_for_close_approach_complete", {}
+        wait_for_aligning_start_params = torpedo_task_params.get(
+            "wait_for_aligning_start", {}
         )
-        launch_torpedo_1_params = rospy.get_param("~launch_torpedo_1", {})
-        wait_for_torpedo_launch_params = rospy.get_param("~wait_for_torpedo_launch", {})
-        launch_torpedo_2_params = rospy.get_param("~launch_torpedo_2", {})
-        wait_for_torpedo_2_launch_params = rospy.get_param(
-            "~wait_for_torpedo_2_launch", {}
+        set_torpedo_close_approach_frame_params = torpedo_task_params.get(
+            "set_torpedo_close_approach_frame", {}
         )
-        set_torpedo_exit_depth_params = rospy.get_param("~set_torpedo_exit_depth", {})
+        wait_for_close_approach_complete_params = torpedo_task_params.get(
+            "wait_for_close_approach_complete", {}
+        )
+        launch_torpedo_1_params = torpedo_task_params.get("launch_torpedo_1", {})
+        wait_for_torpedo_launch_params = torpedo_task_params.get(
+            "wait_for_torpedo_launch", {}
+        )
+        launch_torpedo_2_params = torpedo_task_params.get("launch_torpedo_2", {})
+        wait_for_torpedo_2_launch_params = torpedo_task_params.get(
+            "wait_for_torpedo_2_launch", {}
+        )
+        set_torpedo_exit_depth_params = torpedo_task_params.get(
+            "set_torpedo_exit_depth", {}
+        )
 
         # Initialize the state machine
         self.state_machine = smach.StateMachine(

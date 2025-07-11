@@ -24,3 +24,5 @@ state_map:
 full_mission_states: ['INITIALIZE', 'NAVIGATE_THROUGH_GATE', 'NAVIGATE_AROUND_RED_BUOY', 'NAVIGATE_TO_TORPEDO_TASK', 'NAVIGATE_TO_BIN_TASK', 'NAVIGATE_TO_OCTAGON_TASK']
 
 test_states: ['init']
+
+test_mode: false

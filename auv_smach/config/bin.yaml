@@ -1,25 +1,30 @@
 ---
-check_for_drop_area:
-  timeout: 2.0
-check_drop_area_found_to_second_trial:
-  timeout: 2.0
-find_and_aim_bin_second_trial:
-  full_rotation: true
-  set_frame_duration: 4.0
-  rotation_speed: 0.3
-check_drop_area_found_second_trial:
-  timeout: 2.0
-set_bin_depth:
-  sleep_duration: 3.0
-find_and_aim_bin:
-  full_rotation: false
-  set_frame_duration: 7.0
-  rotation_speed: 0.3
-check_drop_area_found:
-  timeout: 2.0
-wait_for_aligning_drop_area:
-  delay_time: 15.0
-wait_for_ball_drop_1:
-  delay_time: 5.0
-wait_for_ball_drop_2:
-  delay_time: 3.0
+bin_task:
+  set_bin_depth:
+    sleep_duration: 3.0
+  find_and_aim_bin:
+    full_rotation: false
+    set_frame_duration: 7.0
+    rotation_speed: 0.3
+  check_drop_area_found:
+    timeout: 2.0
+  wait_for_aligning_drop_area:
+    delay_time: 15.0
+  wait_for_ball_drop_1:
+    delay_time: 5.0
+  wait_for_ball_drop_2:
+    delay_time: 3.0
+  set_align_to_found_drop_area:
+    source_frame: "taluy/base_link/ball_dropper_link"
+  check_for_drop_area:
+    timeout: 2.0
+
+bin_second_trial:
+  check_drop_area_found_to_second_trial:
+    timeout: 2.0
+  find_and_aim_bin:
+    full_rotation: true
+    set_frame_duration: 4.0
+    rotation_speed: 0.3
+  check_drop_area_found:
+    timeout: 2.0

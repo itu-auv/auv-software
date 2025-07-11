@@ -1,8 +1,9 @@
 ---
-set_octagon_depth:
-  sleep_duration: 4.0
-wait_for_surfacing:
-  delay_time: 3.0
-surfacing:
-  depth: 0.3
-  sleep_duration: 4.0
+octagon_task:
+  set_octagon_depth:
+    sleep_duration: 4.0
+  wait_for_surfacing:
+    delay_time: 3.0
+  surfacing:
+    depth: 0.3
+    sleep_duration: 4.0
