@@ -153,6 +153,16 @@ class TorpedoHole4(Prop):
         super().__init__(13, "torpedo_hole_4", 0.102, 0.102)
 
 
+class RedSlalom(Prop):
+    def __init__(self):
+        super().__init__(0, "red_slalom", 0.606, None)
+
+
+class WhiteSlalom(Prop):
+    def __init__(self):
+        super().__init__(1, "white_slalom", 0.606, None)
+
+
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
@@ -198,6 +208,8 @@ class CameraDetectionNode:
             "gate_middle_part_link": GateMiddlePart(),
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
+            "red_slalom_link": RedSlalom(),
+            "white_slalom_link": WhiteSlalom(),
             "bin/red_link": BinRed(),
             "bin/blue_link": BinBlue(),
             "torpedo_hole_1_link": TorpedoHole1(),
@@ -208,12 +220,13 @@ class CameraDetectionNode:
 
         self.id_tf_map = {
             "taluy/cameras/cam_front": {
+                0: "red_slalom_link",
+                1: "white_slalom_link",
                 8: "red_buoy_link",
                 7: "path_link",
                 9: "bin_whole_link",
                 12: "torpedo_map_link",
                 13: "torpedo_hole_link",
-                1: "gate_left_link",
                 2: "gate_right_link",
                 3: "gate_blue_arrow_link",
                 4: "gate_red_arrow_link",
