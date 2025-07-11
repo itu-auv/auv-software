@@ -20,7 +20,7 @@
     The original values, [0.0822, -0.00773, 0.3872] however, seem to
     assume NWU (otherwise cob is below cog?).
     -->
-  <xacro:property name="cob" value="0.0 0.0 0.2"/>
+  <xacro:property name="cob" value="-0.02 0.0 0.2"/>
   <!-- Volume, see p.31 in Berg2012, normally 0.009165088 -->
   <xacro:property name="volume" value="0.027"/>
   <xacro:macro name="auv_hydro_model" params="namespace">
