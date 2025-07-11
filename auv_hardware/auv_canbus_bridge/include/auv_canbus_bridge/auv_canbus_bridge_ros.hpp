@@ -21,6 +21,9 @@ class CanbusBridgeROS {
   using PingSonarModule = auv_hardware::canbus::modules::PingSonarModule;
   using MarkerDropperModule =
       auv_hardware::canbus::modules::MarkerDropperModule;
+  using PressureReportModule =
+      auv_hardware::canbus::modules::PressureReportModule;
+  using IMUReportModule = auv_hardware::canbus::modules::IMUReportModule;
 
   explicit CanbusBridgeROS(const ros::NodeHandle& node_handle)
       : node_handle_{node_handle}, socket_{}, interface_name_{""} {
@@ -30,7 +33,7 @@ class CanbusBridgeROS {
 
     socket_.initialize(interface_name_);
 
-    modules_.reserve(6);
+    // modules_.reserve(6);
 
     modules_.emplace_back(
         std::make_unique<DrivePulseModule>(node_handle_, socket_));
@@ -44,6 +47,12 @@ class CanbusBridgeROS {
         std::make_unique<PingSonarModule>(node_handle_, socket_));
     modules_.emplace_back(
         std::make_unique<MarkerDropperModule>(node_handle_, socket_));
+    modules_emplace_back(
+        std::make_unique<PressureReportModule>(node_handle_, socket_));
+    modules_.emplace_back(
+        std::make_unique<IMUReportModule>(node_handle_, socket_));
+
+    modules_.shrink_to_fit();
   }
 
   void spin() {

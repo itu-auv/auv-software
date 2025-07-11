@@ -8,6 +8,8 @@
 #include "auv_canbus_bridge/modules/ping_sonar_module.hpp"
 #include "auv_canbus_bridge/modules/power_report_module.hpp"
 #include "auv_canbus_bridge/modules/marker_dropper_module.hpp"
+#include "auv_canbus_bridge/modules/pressure_report_module.hpp"
+#include "auv_canbus_bridge/modules/imu_module.hpp"
 
 namespace auv_hardware {
 namespace canbus {

@@ -11,13 +11,17 @@ enum class Endpoint : uint16_t {
   SetHSS2OutputCommand,
   SetHSS3OutputCommand,
   LatchedServoCommand,
-  SonarActivationCommand,
   MainboardPowerReport,
   BackSonarReport,
   FrontSonarReport,
   RightSonarReport,
   LeftSonarReport,
   PropulsionBoardStatusReport,
+  SonarActivationCommand,
+  OrientationReport,
+  AngularVelocityReport,
+  LinearAccelerationReport,
+  PressureSensorReport,
   Count
 };
 }  // namespace canbus

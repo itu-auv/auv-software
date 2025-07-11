@@ -63,10 +63,10 @@ class LaunchTorpedoModule : public ModuleBase {
     std::array<uint8_t, 1> data = {1};
 
     success = dispatch_message(id, data);
-    ros::Duration(1.0).sleep();
+    // ros::Duration(1.0).sleep();
 
-    data[0] = 0;
-    success &= dispatch_message(id, data);
+    // data[0] = 0;
+    // success &= dispatch_message(id, data);
 
     return success;
   }
