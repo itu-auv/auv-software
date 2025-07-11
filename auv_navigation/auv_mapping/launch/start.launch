@@ -32,6 +32,12 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <node pkg="auv_mapping" type="torpedo_trajectory_publisher.py" name="torpedo_trajectory_publisher">
+      <rosparam command="load" file="$(find auv_mapping)/config/torpedo_trajectory_publisher_params.yaml" />
+      <remap from="toggle_torpedo_trajectory" to="toggle_torpedo_trajectory" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
     <node pkg="auv_mapping" type="bin_trajectory_publisher.py" name="bin_trajectory_publisher">
       <rosparam command="load" file="$(find auv_mapping)/config/bin_trajectory_publisher_params.yaml" />
       <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory" />
