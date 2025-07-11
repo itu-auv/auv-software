@@ -27,7 +27,9 @@ class BinTransformServiceNode:
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
         self.bin_frame = rospy.get_param("~bin_frame", "bin_whole_link")
         self.bin_further_frame = rospy.get_param("~bin_further_frame", "bin_far_trial")
-        self.bin_closer_frame = rospy.get_param("~bin_closer_frame", "bin_close_trial")
+        self.bin_closer_frame = rospy.get_param(
+            "~bin_closer_frame", "bin_close_approach"
+        )
         self.second_trial_frame = rospy.get_param(
             "~second_trial_frame", "bin_second_trial"
         )
@@ -44,6 +46,10 @@ class BinTransformServiceNode:
         self.closer_frame_distance = rospy.get_param("~closer_frame_distance", 1.0)
         self.further_frame_distance = rospy.get_param("~further_frame_distance", 2.5)
         self.second_trial_distance = rospy.get_param("~second_trial_distance", 2.5)
+
+        self.bin_whole_estimated_frame = rospy.get_param(
+            "~bin_whole_estimated_frame", "bin_whole_estimated"
+        )
 
         self.set_enable_service = rospy.Service(
             "toggle_bin_trajectory", SetBool, self.handle_enable_service
@@ -247,6 +253,17 @@ class BinTransformServiceNode:
 
         self.send_transform(further_transform)
         self.send_transform(closer_transform)
+
+        # Yeni frame: bin_whole_estimated
+        bin_whole_estimated_pose = Pose()
+        bin_whole_estimated_pose.position.x = bin_pose.position.x
+        bin_whole_estimated_pose.position.y = bin_pose.position.y
+        bin_whole_estimated_pose.position.z = robot_pose.position.z
+        bin_whole_estimated_pose.orientation = orientation
+        bin_whole_estimated_transform = self.build_transform_message(
+            self.bin_whole_estimated_frame, bin_whole_estimated_pose
+        )
+        self.send_transform(bin_whole_estimated_transform)
 
         perp_direction_unit_2d = np.array([-direction_unit_2d[1], direction_unit_2d[0]])
 
