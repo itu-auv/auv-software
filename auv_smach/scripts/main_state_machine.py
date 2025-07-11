@@ -28,7 +28,7 @@ class MainStateMachineNode:
         self.torpedo_map_radius = 1.5
         self.torpedo_map_depth = -1.3
 
-        self.bin_task_depth = -0.7
+        self.bin_task_depth = -1.1
 
         self.octagon_depth = -1.0
         # USER EDIT

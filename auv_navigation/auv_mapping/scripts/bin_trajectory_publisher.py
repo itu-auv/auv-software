@@ -34,15 +34,6 @@ class BinTransformServiceNode:
             "~second_trial_frame", "bin_second_trial"
         )
 
-        self.blue_link_frame = rospy.get_param("~blue_link_frame", "bin/blue_link")
-        self.red_link_frame = rospy.get_param("~red_link_frame", "bin/red_link")
-        self.blue_drop_link_frame = rospy.get_param(
-            "~blue_drop_link_frame", "bin/blue_drop_link"
-        )
-        self.red_drop_link_frame = rospy.get_param(
-            "~red_drop_link_frame", "bin/red_drop_link"
-        )
-
         self.closer_frame_distance = rospy.get_param("~closer_frame_distance", 1.0)
         self.further_frame_distance = rospy.get_param("~further_frame_distance", 2.5)
         self.second_trial_distance = rospy.get_param("~second_trial_distance", 2.5)
@@ -83,101 +74,6 @@ class BinTransformServiceNode:
                 )
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call failed: {e}")
-
-    def create_drop_links(self):
-        blue_transform = None
-        red_transform = None
-
-        try:
-            blue_transform = self.tf_buffer.lookup_transform(
-                self.odom_frame,
-                self.blue_link_frame,
-                rospy.Time(0),
-                rospy.Duration(0.1),
-            )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ):
-            pass
-
-        try:
-            red_transform = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.red_link_frame, rospy.Time(0), rospy.Duration(0.1)
-            )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ):
-            pass
-
-        if blue_transform:
-            drop_pose = Pose()
-            drop_pose.position = blue_transform.transform.translation
-
-            if red_transform:
-                blue_pos = np.array(
-                    [
-                        blue_transform.transform.translation.x,
-                        blue_transform.transform.translation.y,
-                    ]
-                )
-                red_pos = np.array(
-                    [
-                        red_transform.transform.translation.x,
-                        red_transform.transform.translation.y,
-                    ]
-                )
-
-                direction_vector = blue_pos - red_pos
-                yaw = np.arctan2(direction_vector[1], direction_vector[0])
-                q = tf.transformations.quaternion_from_euler(0, 0, yaw)
-                drop_pose.orientation.x = q[0]
-                drop_pose.orientation.y = q[1]
-                drop_pose.orientation.z = q[2]
-                drop_pose.orientation.w = q[3]
-            else:
-                drop_pose.orientation = blue_transform.transform.rotation
-
-            final_transform = self.build_transform_message(
-                self.blue_drop_link_frame, drop_pose
-            )
-            self.send_transform(final_transform)
-
-        if red_transform:
-            drop_pose = Pose()
-            drop_pose.position = red_transform.transform.translation
-
-            if blue_transform:
-                blue_pos = np.array(
-                    [
-                        blue_transform.transform.translation.x,
-                        blue_transform.transform.translation.y,
-                    ]
-                )
-                red_pos = np.array(
-                    [
-                        red_transform.transform.translation.x,
-                        red_transform.transform.translation.y,
-                    ]
-                )
-
-                direction_vector = red_pos - blue_pos
-                yaw = np.arctan2(direction_vector[1], direction_vector[0])
-                q = tf.transformations.quaternion_from_euler(0, 0, yaw)
-                drop_pose.orientation.x = q[0]
-                drop_pose.orientation.y = q[1]
-                drop_pose.orientation.z = q[2]
-                drop_pose.orientation.w = q[3]
-            else:
-                drop_pose.orientation = red_transform.transform.rotation
-
-            final_transform = self.build_transform_message(
-                self.red_drop_link_frame, drop_pose
-            )
-            self.send_transform(final_transform)
 
     def create_bin_frames(self):
         try:
@@ -300,8 +196,6 @@ class BinTransformServiceNode:
     def spin(self):
         rate = rospy.Rate(5.0)
         while not rospy.is_shutdown():
-            self.create_drop_links()
-
             if self.enable:
                 self.create_bin_frames()
             rate.sleep()
