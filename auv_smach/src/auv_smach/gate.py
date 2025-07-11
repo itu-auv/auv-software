@@ -64,7 +64,7 @@ class PublishGateAngleState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float, gate_search_depth: float):
+    def __init__(self, gate_depth: float, gate_target_frame: str, gate_search_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -88,9 +88,9 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_GATE",
                 SearchForPropState(
-                    look_at_frame="gate_blue_arrow_link",
+                    look_at_frame=gate_target_frame,
                     alignment_frame="gate_search",
-                    full_rotation=True,
+                    full_rotation=False,
                     set_frame_duration=7.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
