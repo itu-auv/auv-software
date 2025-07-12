@@ -23,6 +23,7 @@
       <remap from="dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
       <remap from="dvl/is_valid" to="sensors/dvl/is_valid" />
       <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable" />
       <param name="cmdvel_tau" value="0.2" />
     </node>
   </group>

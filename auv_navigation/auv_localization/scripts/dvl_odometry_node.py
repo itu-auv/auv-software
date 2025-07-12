@@ -3,6 +3,7 @@
 import rospy
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
+from std_srvs.srv import SetBool, SetBoolResponse
 from nav_msgs.msg import Odometry
 import numpy as np
 import yaml
@@ -16,7 +17,11 @@ class DvlToOdom:
     def __init__(self):
         rospy.init_node("dvl_to_odom_node", anonymous=True)
 
-        # Parameters for first-order filter
+        self.enabled = rospy.get_param("~enabled", True)
+        self.enable_service = rospy.Service(
+            "dvl_to_odom_node/enable", SetBool, self.enable_cb
+        )
+
         self.cmdvel_tau = rospy.get_param("~cmdvel_tau", 0.1)
         self.linear_x_covariance = rospy.get_param(
             "sensors/dvl/covariance/linear_x", 0.000015
@@ -57,12 +62,11 @@ class DvlToOdom:
         # Initialize covariances with default values
         self.odom_msg.pose.covariance = np.zeros(36).tolist()
         self.odom_msg.twist.covariance = np.zeros(36).tolist()
-
         self.odom_msg.twist.covariance[0] = self.linear_x_covariance
         self.odom_msg.twist.covariance[7] = self.linear_y_covariance
         self.odom_msg.twist.covariance[14] = self.linear_z_covariance
 
-        # Log loaded parameters
+        # Logging
         DVL_odometry_colored = TerminalColors.color_text(
             "DVL Odometry Calibration data loaded", TerminalColors.PASTEL_BLUE
         )
@@ -77,10 +81,17 @@ class DvlToOdom:
             f"{DVL_odometry_colored} : linear z covariance: {self.linear_z_covariance}"
         )
 
-        # Initialize variables for fallback mechanism
+        # Fallback variables
         self.cmd_vel_twist = Twist()
         self.filtered_cmd_vel = Twist()
         self.last_update_time = rospy.Time.now()
+
+    def enable_cb(self, req):
+        """Service callback to enable/disable DVL->Odom processing"""
+        self.enabled = req.data
+        state = "enabled" if self.enabled else "disabled"
+        rospy.loginfo(f"DVL->Odom node {state} via service call.")
+        return SetBoolResponse(success=True, message=f"DVL->Odom {state}")
 
     def transform_vector(self, vector):
         theta = np.radians(-135)
@@ -129,6 +140,9 @@ class DvlToOdom:
         self.last_update_time = current_time
 
     def dvl_callback(self, velocity_msg, is_valid_msg):
+        if not self.enabled:
+            return
+
         self.filter_cmd_vel()
         # Determine which data to use for odometry based on DVL validity
         if is_valid_msg.data:

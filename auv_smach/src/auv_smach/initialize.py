@@ -3,12 +3,23 @@ import smach_ros
 import rospy
 from std_srvs.srv import SetBool, SetBoolRequest
 from std_srvs.srv import Empty, EmptyRequest
+from std_srvs.srv import Trigger, TriggerRequest
 from robot_localization.srv import SetPose, SetPoseRequest
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
 from auv_smach.common import CancelAlignControllerState, ClearObjectMapState
 from typing import Optional, Literal
 from dataclasses import dataclass
+
+
+class ResetOdometryState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "reset_odometry",
+            Trigger,
+            request=TriggerRequest(),
+        )
 
 
 class WaitForKillswitchEnabledState(smach.State):
