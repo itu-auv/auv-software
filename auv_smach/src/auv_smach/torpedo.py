@@ -24,11 +24,21 @@ from auv_smach.common import (
 from auv_smach.initialize import DelayState
 
 
-class TorpedoTransformServiceNode(smach_ros.ServiceState):
+class TorpedoLaunchFrameServiceNode(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
-            "toggle_torpedo_trajectory",
+            "toggle_torpedo_launch_frame",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
+class TorpedoOtherFramesServiceNode(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "toggle_torpedo_other_frames",
             SetBool,
             request=SetBoolRequest(data=req),
         )
@@ -56,7 +66,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "ENABLE_TORPEDO_FRAME_PUBLISHER",
-                TorpedoTransformServiceNode(req=True),
+                TorpedoOtherFramesServiceNode(req=True),
                 transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO",
                     "preempted": "preempted",
@@ -99,7 +109,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "DISABLE_TORPEDO_FRAME_PUBLISHER",
-                TorpedoTransformServiceNode(req=False),
+                TorpedoOtherFramesServiceNode(req=False),
                 transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_FRONT_VIEW",
                     "preempted": "preempted",
@@ -126,7 +136,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "ENABLE_TORPEDO_FRAME_PUBLISHER_FOR_LAUNCH",
-                TorpedoTransformServiceNode(req=True),
+                TorpedoLaunchFrameServiceNode(req=True),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_FRONT_VIEW_COMPLETE",
                     "preempted": "preempted",
@@ -144,7 +154,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "DISABLE_TORPEDO_FRAME_PUBLISHER_FOR_LAUNCH",
-                TorpedoTransformServiceNode(req=False),
+                TorpedoLaunchFrameServiceNode(req=False),
                 transitions={
                     "succeeded": "SET_TORPEDO_LAUNCH_DEPTH",
                     "preempted": "preempted",

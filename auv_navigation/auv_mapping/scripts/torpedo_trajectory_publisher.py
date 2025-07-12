@@ -13,7 +13,9 @@ from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 class TorpedoTransformServiceNode:
     def __init__(self):
-        self.enable = False
+        # Enable states for different frames
+        self.enable_launch = False
+        self.enable_other_frames = False
         rospy.init_node("create_torpedo_frames_node")
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -46,8 +48,12 @@ class TorpedoTransformServiceNode:
         self.front_view_distance = rospy.get_param("~front_view_distance", 2.5)
         self.launch_distance = rospy.get_param("~launch_distance", 0.5)
 
-        self.set_enable_service = rospy.Service(
-            "toggle_torpedo_trajectory", SetBool, self.handle_enable_service
+        # Create separate services for different frames
+        self.set_launch_frame_service = rospy.Service(
+            "toggle_torpedo_launch_frame", SetBool, self.handle_launch_frame_service
+        )
+        self.set_other_frames_service = rospy.Service(
+            "toggle_torpedo_other_frames", SetBool, self.handle_other_frames_service
         )
 
     def get_pose(self, transform: TransformStamped) -> Pose:
@@ -162,7 +168,7 @@ class TorpedoTransformServiceNode:
         )
         self.send_transform(closer_transform)
 
-        # --- Torpedo Front View and Launch Frames ---
+        # --- Torpedo Front View Frame ---
         try:
             transform_big_hole = self.tf_buffer.lookup_transform(
                 self.odom_frame,
@@ -170,6 +176,25 @@ class TorpedoTransformServiceNode:
                 rospy.Time(0),
                 rospy.Duration(1),
             )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn(f"TF lookup for {self.torpedo_big_hole_frame} failed: {e}")
+            return  # Cannot create front view frame without big_hole frame
+
+        big_hole_pose = self.get_pose(transform_big_hole)
+        big_hole_pos = np.array(
+            [
+                big_hole_pose.position.x,
+                big_hole_pose.position.y,
+                big_hole_pose.position.z,
+            ]
+        )
+
+        # --- Torpedo Medium Hole Frame (torpedo_medium) ---
+        try:
             transform_medium_hole = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.torpedo_medium_hole_frame,
@@ -181,21 +206,10 @@ class TorpedoTransformServiceNode:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(
-                f"TF lookup for big/medium hole failed, cannot create front view/launch frames: {e}"
-            )
-            return  # Cannot proceed with these frames without hole links
+            rospy.logwarn(f"TF lookup for {self.torpedo_medium_hole_frame} failed: {e}")
+            return  # Cannot create front view frame without medium_hole frame
 
-        big_hole_pose = self.get_pose(transform_big_hole)
         medium_hole_pose = self.get_pose(transform_medium_hole)
-
-        big_hole_pos = np.array(
-            [
-                big_hole_pose.position.x,
-                big_hole_pose.position.y,
-                big_hole_pose.position.z,
-            ]
-        )
         medium_hole_pos = np.array(
             [
                 medium_hole_pose.position.x,
@@ -213,8 +227,6 @@ class TorpedoTransformServiceNode:
             return
 
         # Perpendicular vector to big_hole_link -> medium_hole_link
-        # We need this vector to point *away* from the line connecting the holes,
-        # in the general direction the robot would face the torpedo board.
         perp_vector_candidate_1 = np.array(
             [-big_to_medium_vector_2d[1], big_to_medium_vector_2d[0]]
         )
@@ -271,53 +283,27 @@ class TorpedoTransformServiceNode:
         )
         self.send_transform(torpedo_front_view_transform)
 
-        # Calculate torpedo_launch frame
-        # Position is relative to big_hole_link, moved *forward* by launch_distance
-        torpedo_launch_pos_2d = big_hole_pos[:2] + (
-            torpedo_front_unit_2d * self.launch_distance
+    def handle_launch_frame_service(self, req):
+        self.enable_launch = req.data
+        message = (
+            f"Torpedo launch frame transform publish is set to: {self.enable_launch}"
         )
-        torpedo_launch_pos = np.append(torpedo_launch_pos_2d, big_hole_pos[2])
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
 
-        # Orientation for torpedo_launch: looking *towards* torpedo_big_hole_link
-        # So, the direction vector for orientation is -torpedo_front_unit_2d
-        launch_orientation_vector_2d = -torpedo_front_unit_2d
-        torpedo_launch_yaw = np.arctan2(
-            launch_orientation_vector_2d[1], launch_orientation_vector_2d[0]
-        )
-        torpedo_launch_q = tf.transformations.quaternion_from_euler(
-            0, 0, torpedo_launch_yaw
-        )
-
-        torpedo_launch_orientation = Pose().orientation
-        torpedo_launch_orientation.x = torpedo_launch_q[0]
-        torpedo_launch_orientation.y = torpedo_launch_q[1]
-        torpedo_launch_orientation.z = torpedo_launch_q[2]
-        torpedo_launch_orientation.w = torpedo_launch_q[3]
-
-        torpedo_launch_pose = Pose()
-        (
-            torpedo_launch_pose.position.x,
-            torpedo_launch_pose.position.y,
-            torpedo_launch_pose.position.z,
-        ) = torpedo_launch_pos
-        torpedo_launch_pose.orientation = torpedo_launch_orientation
-
-        torpedo_launch_transform = self.build_transform_message(
-            self.torpedo_launch_frame, torpedo_launch_pose
-        )
-        self.send_transform(torpedo_launch_transform)
-
-    def handle_enable_service(self, req):
-        self.enable = req.data
-        message = f"Torpedo target frames transform publish is set to: {self.enable}"
+    def handle_other_frames_service(self, req):
+        self.enable_other_frames = req.data
+        message = f"Torpedo other frames (closer, front view) transform publish is set to: {self.enable_other_frames}"
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
     def spin(self):
         rate = rospy.Rate(5.0)
         while not rospy.is_shutdown():
-            if self.enable:
-                self.create_torpedo_frames()
+            if self.enable_launch:
+                self.create_launch_frame()
+            if self.enable_other_frames:
+                self.create_other_frames()
             rate.sleep()
 
 
