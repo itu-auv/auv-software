@@ -23,7 +23,7 @@
       <remap from="filter/velocity" to="sensors/imu/filter/velocity"/>
       <remap from="gnss" to="sensors/imu/gnss"/>
       <!-- Parameters -->
-      <param name="frame_id" value="$(arg namespace)/base_link/imu_expansion_link"/>
+      <param name="frame_id" value="$(arg namespace)/base_link/imu_link"/>
       <param name="port" value="$(arg port)"/>
       <!-- This is not important since USB CDC doesn't require baudrate -->
       <param name="baudrate" value="2000000"/>
