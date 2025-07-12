@@ -152,12 +152,12 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        taluy/base_link/imu_expansion_link:
+        taluy/base_link/imu_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        taluy/base_link/imu_expansion_sim_link:
+        taluy/base_link/imu_sim_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -378,9 +378,9 @@ Visualization Manager:
           Value: false
         taluy/base_link/hydrophone_3_link:
           Value: false
-        taluy/base_link/imu_expansion_link:
+        taluy/base_link/imu_link:
           Value: false
-        taluy/base_link/imu_expansion_sim_link:
+        taluy/base_link/imu_sim_link:
           Value: false
         taluy/base_link/left_torpedo_link:
           Value: false
@@ -503,8 +503,8 @@ Visualization Manager:
                 {}
               taluy/base_link/hydrophone_3_link:
                 {}
-              taluy/base_link/imu_expansion_link:
-                taluy/base_link/imu_expansion_sim_link:
+              taluy/base_link/imu_link:
+                taluy/base_link/imu_sim_link:
                   {}
               taluy/base_link/left_torpedo_link:
                 taluy/base_link/left_torpedo_lower_link:
