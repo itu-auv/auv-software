@@ -342,7 +342,7 @@ class RotationState(smach.State):
         self,
         source_frame,
         look_at_frame,
-        rotation_speed=0.3,
+        rotation_speed=0.2,
         full_rotation=False,
         full_rotation_timeout=25.0,
         rate_hz=10,
