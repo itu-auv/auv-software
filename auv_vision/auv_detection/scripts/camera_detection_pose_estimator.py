@@ -286,7 +286,7 @@ class CameraDetectionNode:
             rospy.logwarn("The line segment is parallel to the ground plane.")
             return None
 
-    def process_altitude_projection(self, detection, camera_ns: str):
+    def process_altitude_projection(self, detection, camera_ns: str, stamp):
         if self.altitude is None:
             rospy.logwarn("No altitude data available")
             return
@@ -323,7 +323,7 @@ class CameraDetectionNode:
             transform = self.tf_buffer.lookup_transform(
                 "odom",
                 self.camera_frames[camera_ns],
-                rospy.Time(0),
+                stamp,
                 rospy.Duration(1.0),
             )
             # Transform the ray points from the camera frame to the odom frame
@@ -341,7 +341,7 @@ class CameraDetectionNode:
             if intersection:
                 x, y, z = intersection
                 transform_stamped_msg = TransformStamped()
-                transform_stamped_msg.header.stamp = rospy.Time.now()
+                transform_stamped_msg.header.stamp = stamp
                 transform_stamped_msg.header.frame_id = "odom"
                 transform_stamped_msg.child_frame_id = self.id_tf_map[camera_ns][
                     detection_id
@@ -440,7 +440,7 @@ class CameraDetectionNode:
             camera_to_odom_transform = self.tf_buffer.lookup_transform(
                 camera_frame,
                 "odom",
-                rospy.Time(0),
+                stamp,
                 rospy.Duration(1.0),
             )
         except (
@@ -491,15 +491,11 @@ class CameraDetectionNode:
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return
-            camera_ns = (
-                "taluy/cameras/cam_front"  # Ensure this matches your actual namespace
-            )
+            camera_ns = "taluy/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
                 return
-            camera_ns = (
-                "taluy/cameras/cam_bottom"  # Ensure this matches your actual namespace
-            )
+            camera_ns = "taluy/cameras/cam_bottom"
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
@@ -537,7 +533,9 @@ class CameraDetectionNode:
                 # use altidude for bin
                 distance = self.altitude
             if detection_id == 9:
-                self.process_altitude_projection(detection, camera_ns)
+                self.process_altitude_projection(
+                    detection, camera_ns, detection_msg.header.stamp
+                )
                 continue
             if not skip_inside_image:
                 if self.check_if_detection_is_inside_image(detection) is False:
@@ -558,7 +556,6 @@ class CameraDetectionNode:
             if distance is None:
                 continue
 
-            # Calculate angles from pixel coordinates
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
@@ -572,7 +569,7 @@ class CameraDetectionNode:
                 camera_to_odom_transform = self.tf_buffer.lookup_transform(
                     camera_frame,
                     "odom",
-                    rospy.Time(0),
+                    detection_msg.header.stamp,
                     rospy.Duration(1.0),
                 )
             except (
