@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
 import numpy as np
@@ -36,9 +36,11 @@ class PressureToOdom:
     def _load_parameters(self):
         """Load all ROS parameters"""
         # Sensor calibration and parameters
-        self.depth_calibration_offset = rospy.get_param("~depth_offset", 0.0)
+        self.depth_calibration_offset = rospy.get_param(
+            "sensors/external_pressure_sensor/depth_offset", -0.10
+        )
         self.depth_calibration_covariance = rospy.get_param(
-            "~depth_covariance", 0.00005
+            "sensors/external_pressure_sensor/depth_covariance", 0.05
         )
         self.pool_depth = rospy.get_param("/env/pool_depth", 2.2)
 
@@ -49,19 +51,6 @@ class PressureToOdom:
         )
         self.min_valid_depth = rospy.get_param("~min_valid_depth", 0.0)
         self.max_valid_depth = rospy.get_param("~max_valid_depth", -self.pool_depth)
-        self.max_depth_discrepancy = rospy.get_param("~max_depth_discrepancy", 0.5)
-
-        # Fusion weights (must sum to 1.0)
-        self.fusion_weights = rospy.get_param(
-            "~fusion_weights", {"pressure": 0.7, "dvl": 0.3}
-        )
-
-        # Validate weights sum to 1.0
-        weight_sum = sum(self.fusion_weights.values())
-        if not np.isclose(weight_sum, 1.0):
-            rospy.logwarn(f"Fusion weights sum to {weight_sum}, normalizing to 1.0")
-            for key in self.fusion_weights:
-                self.fusion_weights[key] /= weight_sum
 
         # TF transformer
         self.transformer = auv_common_lib.transform.transformer.Transformer()
@@ -117,9 +106,6 @@ class PressureToOdom:
             f"{pressure_odometry_colored} : depth covariance: {self.depth_calibration_covariance}"
         )
         rospy.loginfo(f"{pressure_odometry_colored} : pool_depth: {self.pool_depth}")
-        rospy.loginfo(
-            f"{pressure_odometry_colored} : fusion weights: {self.fusion_weights}"
-        )
 
     def imu_callback(self, imu_msg):
         """Callback for IMU data to get current orientation"""
@@ -202,66 +188,31 @@ class PressureToOdom:
                 self.min_valid_altitude <= dvl_altitude <= self.max_valid_altitude
             )
 
-            # 4. Fusion Logic
-            final_depth, publish = self._fuse_depth_measurements(
-                pressure_depth, dvl_depth, is_pressure_valid, is_dvl_valid
-            )
+            final_depth = 0.0
+            publish = False
+
+            if is_pressure_valid:
+                final_depth = pressure_depth
+                publish = True
+                rospy.logdebug_throttle(
+                    1.0, f"Using valid pressure depth: {final_depth:.3f}"
+                )
+            elif is_dvl_valid:
+                final_depth = dvl_depth
+                publish = True
+                rospy.logwarn_throttle(
+                    1.0, f"Pressure sensor invalid, using DVL depth: {final_depth:.3f}"
+                )
+            else:
+                rospy.logerr_throttle(
+                    1.0,
+                    "Both pressure and DVL depths are invalid! No odometry published.",
+                )
 
             if publish:
                 self._publish_odometry(final_depth)
-
         except Exception as e:
             rospy.logerr(f"Error in fused_depth_callback: {str(e)}")
-
-    def _fuse_depth_measurements(
-        self, pressure_depth, dvl_depth, is_pressure_valid, is_dvl_valid
-    ):
-        """
-        Fuse depth measurements using hybrid approach:
-        - First check sensor validity
-        - For small discrepancies: use weighted average
-        - For large discrepancies: use more trusted sensor
-        """
-        # 1. First check if both sensors are invalid
-        if not is_pressure_valid and not is_dvl_valid:
-            rospy.logerr_throttle(1.0, "Both sensors invalid! No odometry published.")
-            return 0.0, False
-
-        # 2. If only one sensor is valid, use that one
-        if not is_pressure_valid:
-            rospy.logwarn_throttle(1.0, "Pressure sensor invalid, using DVL depth")
-            return dvl_depth, True
-        if not is_dvl_valid:
-            rospy.logwarn_throttle(1.0, "DVL sensor invalid, using pressure depth")
-            return pressure_depth, True
-
-        # 3. Both sensors are valid - check discrepancy
-        discrepancy = abs(pressure_depth - dvl_depth)
-
-        if discrepancy < self.max_depth_discrepancy:
-            # Small discrepancy - use weighted average
-            weighted_depth = (
-                self.fusion_weights["pressure"] * pressure_depth
-                + self.fusion_weights["dvl"] * dvl_depth
-            )
-            rospy.logdebug_throttle(
-                1.0,
-                f"Using weighted average. Pressure: {pressure_depth:.3f}, DVL: {dvl_depth:.3f}, Fused: {weighted_depth:.3f}",
-            )
-            return weighted_depth, True
-        else:
-            # Large discrepancy - use more trusted sensor
-            if self.fusion_weights["pressure"] > self.fusion_weights["dvl"]:
-                rospy.logwarn_throttle(
-                    1.0,
-                    f"Large discrepancy ({discrepancy:.3f}m). Trusting pressure sensor more",
-                )
-                return pressure_depth, True
-            else:
-                rospy.logwarn_throttle(
-                    1.0, f"Large discrepancy ({discrepancy:.3f}m). Trusting DVL more"
-                )
-                return dvl_depth, True
 
     def _publish_odometry(self, depth):
         """Publish odometry message with the given depth"""
