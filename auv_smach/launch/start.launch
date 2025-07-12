@@ -62,6 +62,7 @@
             <remap from="odometry" to="odometry"/>
             <remap from="wrench" to="wrench"/>
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
+            <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable"/>
 
             <!--initialize.py-->
             <remap from="set_depth" to="set_depth"/>

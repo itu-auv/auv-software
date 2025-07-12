@@ -300,21 +300,21 @@ class PlanGatePathsState(smach.State):
             return "aborted"
 
 
-class TransformServiceEnableState(smach_ros.ServiceState):
+class DvlOdometryServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
-            "toggle_gate_trajectory",
+            "dvl_to_odom_node/enable",
             SetBool,
             request=SetBoolRequest(data=req),
         )
 
 
-class DvlOdometryServiceEnableState(smach_ros.ServiceState):
+class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
-            "/dvl_to_odom_node/enable",
+            "toggle_gate_trajectory",
             SetBool,
             request=SetBoolRequest(data=req),
         )
