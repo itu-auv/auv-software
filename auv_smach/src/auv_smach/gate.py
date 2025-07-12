@@ -14,6 +14,7 @@ from auv_smach.common import (
     ExecutePlannedPathsState,
     ClearObjectMapState,
     SearchForPropState,
+    AlignFrame,
 )
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
@@ -25,9 +26,127 @@ from tf.transformations import euler_from_quaternion
 from auv_smach.initialize import (
     DelayState,
     OdometryEnableState,
-    ResetOdometryPoseState,
     ResetOdometryState,
 )
+
+
+class PitchCorrection(smach.State):
+    def __init__(self, fixed_torque=2.0, rate_hz=20, timeout_s=10.0):
+        super(PitchCorrection, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        self.odometry_topic = "odometry"
+        self.killswitch_topic = "propulsion_board/status"
+        self.wrench_topic = "wrench"
+        self.frame_id = "taluy/base_link"
+
+        self.fixed_torque = -abs(fixed_torque)
+        self.timeout = rospy.Duration(timeout_s)
+        self.rate = rospy.Rate(rate_hz)
+
+        self.current_pitch = 0.0
+        self.odom_ready = False
+        self.active = True
+        self.start_time = None
+
+        self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
+        self.sub_kill = rospy.Subscriber(
+            self.killswitch_topic, Bool, self.killswitch_cb
+        )
+        self.pub_wrench = rospy.Publisher(
+            self.wrench_topic, WrenchStamped, queue_size=1
+        )
+
+    def odom_cb(self, msg: Odometry):
+        orientation = msg.pose.pose.orientation
+        q = [orientation.x, orientation.y, orientation.z, orientation.w]
+
+        try:
+            _, pitch, _ = euler_from_quaternion(q)
+            self.current_pitch = pitch
+            self.odom_ready = True
+        except:
+            rospy.logwarn("PITCH_CORRECTION: Quaternion conversion failed!")
+
+    def killswitch_cb(self, msg: Bool):
+        if not msg.data:
+            self.active = False
+            rospy.logwarn("PITCH_CORRECTION: Propulsion board disabled → aborting")
+
+    def execute(self, userdata):
+        rospy.loginfo("PITCH_CORRECTION: Waiting for odometry data...")
+        start_wait = rospy.Time.now()
+
+        while not rospy.is_shutdown() and not self.odom_ready:
+            if (rospy.Time.now() - start_wait) > rospy.Duration(5.0):
+                rospy.logerr("PITCH_CORRECTION: No odometry data → abort")
+                return "aborted"
+            if self.preempt_requested():
+                return "preempted"
+            self.rate.sleep()
+
+        if self.current_pitch <= 0:
+            rospy.loginfo(
+                "PITCH_CORRECTION: Pitch already corrected (%.2f°)",
+                math.degrees(self.current_pitch),
+            )
+            return "succeeded"
+
+        rospy.loginfo(
+            "PITCH_CORRECTION: Correcting pitch from %.2f° with fixed torque %.2f Nm",
+            math.degrees(self.current_pitch),
+            self.fixed_torque,
+        )
+
+        self.start_time = rospy.Time.now()
+
+        try:
+            while not rospy.is_shutdown() and self.active:
+                if self.preempt_requested():
+                    return self._stop_and("preempted")
+                if (rospy.Time.now() - self.start_time) > self.timeout:
+                    rospy.logerr(
+                        "PITCH_CORRECTION: Timeout after %.1f s", self.timeout.to_sec()
+                    )
+                    return self._stop_and("aborted")
+
+                if self.current_pitch <= 0:
+                    rospy.loginfo(
+                        "PITCH_CORRECTION: Pitch corrected to %.2f°",
+                        math.degrees(self.current_pitch),
+                    )
+                    return self._stop_and("succeeded")
+
+                cmd = WrenchStamped()
+                cmd.header.stamp = rospy.Time.now()
+                cmd.header.frame_id = self.frame_id
+                cmd.wrench.torque.y = self.fixed_torque
+                self.pub_wrench.publish(cmd)
+
+                rospy.loginfo_throttle(
+                    1.0,
+                    "PITCH_CORRECTION: Current pitch: %.2f°",
+                    math.degrees(self.current_pitch),
+                )
+
+                self.rate.sleep()
+
+        except rospy.ROSInterruptException:
+            return self._abort_on_shutdown()
+
+        return "aborted"
+
+    def _stop_and(self, outcome):
+        stop_cmd = WrenchStamped()
+        stop_cmd.header.stamp = rospy.Time.now()
+        stop_cmd.header.frame_id = self.frame_id
+        self.pub_wrench.publish(stop_cmd)
+        return outcome
+
+    def _abort_on_shutdown(self):
+        rospy.logwarn("PITCH_CORRECTION: ROS shutdown → aborting")
+        return self._stop_and("aborted")
 
 
 class RollTwoTimes(smach.State):
@@ -101,7 +220,7 @@ class RollTwoTimes(smach.State):
         self.start_time = rospy.Time.now()
         target = math.radians(675.0)
         rospy.loginfo(
-            "ROLL_TWO_TIMES: starting roll @ %.2f Nm, target = %.2f rad",
+            "ROLL_TWO_TIMES: starting roll with torque %.2f Nm, target = %.2f rad",
             self.roll_torque,
             target,
         )
@@ -220,6 +339,15 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "WAIT_FOR_TWO_ROLL",
                 DelayState(delay_time=2.0),
+                transitions={
+                    "succeeded": "PITCH_CORRECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PITCH_CORRECTION",
+                PitchCorrection(fixed_torque=3.0, rate_hz=20, timeout_s=10.0),
                 transitions={
                     "succeeded": "ROLL_TWO_TIMES",
                     "preempted": "preempted",
@@ -381,14 +509,14 @@ class NavigateThroughGateState(smach.State):
                 "TWO_ROLL_STATE",
                 TwoRollState(roll_torque=50.0),
                 transitions={
-                    "succeeded": "SET_GATE_DEPTH",
+                    "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                "SET_GATE_TRAJECTORY_DEPTH",
+                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
@@ -399,23 +527,21 @@ class NavigateThroughGateState(smach.State):
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
                 transitions={
-                    "succeeded": "WAIT_FOR_GATE_TRAJECTORY_PUBLISHER",
+                    "succeeded": "LOOK_AT_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_GATE_TRAJECTORY_PUBLISHER",
-                DelayState(delay_time=3.0),
-                transitions={
-                    "succeeded": "PUBLISH_GATE_ANGLE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "PUBLISH_GATE_ANGLE",
-                PublishGateAngleState(),
+                "LOOK_AT_GATE",
+                SearchForPropState(
+                    look_at_frame="gate_blue_arrow_link",
+                    alignment_frame="gate_search",
+                    full_rotation=False,
+                    set_frame_duration=5.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.3,
+                ),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
@@ -426,38 +552,56 @@ class NavigateThroughGateState(smach.State):
                 "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
                 transitions={
-                    "succeeded": "PLAN_GATE_PATHS",
+                    "succeeded": "PUBLISH_GATE_ANGLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "PLAN_GATE_PATHS",
-                PlanGatePathsState(self.tf_buffer),
+                "PUBLISH_GATE_ANGLE",
+                PublishGateAngleState(),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
+                    "succeeded": "NAVIGATE_TO_GATE_ENTRANCE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="dynamic_target"
+                "NAVIGATE_TO_GATE_ENTRANCE",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="gate_entrance",
+                    angle_offset=0.0,
+                    dist_threshold=0.05,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=60.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
                 ),
                 transitions={
-                    "succeeded": "EXECUTE_GATE_PATHS",
+                    "succeeded": "NAVIGATE_TO_GATE_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "EXECUTE_GATE_PATHS",
-                ExecutePlannedPathsState(),
+                "NAVIGATE_TO_GATE_EXIT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="gate_exit",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=2.0,
+                    timeout=60.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
