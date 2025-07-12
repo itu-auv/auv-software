@@ -104,8 +104,8 @@ class SimulationTab(QWidget):
                 [s for s, cb in self.state_checks.items() if cb.isChecked()]
             )
             cmd.append(f"test_mode:=true")
-            cmd.append(f"sim:=true")
             cmd.append(f"test_states:={states}")
+            cmd.append(f"sim:=true")
         print(f"Executing: {' '.join(cmd)}")
         self.smach_process = subprocess.Popen(cmd)
 
