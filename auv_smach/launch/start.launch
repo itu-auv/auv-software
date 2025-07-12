@@ -76,6 +76,9 @@
             <!--red_buoy.py-->
             <remap from="set_object_transform" to="map/set_object_transform"/>
 
+            <!--bin.py-->
+            <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
+
             <param name="test_mode" value="$(arg test_mode)"/>
             <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>
             <rosparam param="full_mission_states" subst_value="true">$(arg full_mission_states)</rosparam>

@@ -25,6 +25,7 @@ from auv_msgs.srv import SetDepth, SetDepthRequest
 from auv_msgs.srv import VisualServoing, VisualServoingRequest
 
 from auv_navigation.follow_path_action import follow_path_client
+
 from auv_navigation.path_planning.path_planners import PathPlanners
 
 from nav_msgs.msg import Odometry
@@ -123,9 +124,10 @@ class SetDepthState(smach_ros.ServiceState):
         - aborted: The service call failed.
     """
 
-    def __init__(self, depth: float, sleep_duration: float = 5.0):
+    def __init__(self, depth: float, sleep_duration: float = 5.0, frame_id: str = ""):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
+        set_depth_request.frame_id = frame_id
         self.sleep_duration = sleep_duration
 
         super(SetDepthState, self).__init__(
@@ -207,8 +209,8 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         self,
         source_frame: str,
         target_frame: str,
-        angle_offset: float = 0.0,
         keep_orientation: bool = False,
+        angle_offset: float = 0.0,
     ):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
