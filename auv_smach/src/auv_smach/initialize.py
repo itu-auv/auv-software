@@ -9,7 +9,6 @@ from std_msgs.msg import Bool
 from auv_smach.common import (
     CancelAlignControllerState,
     ClearObjectMapState,
-    SetDetectionFocusState,
 )
 from typing import Optional, Literal
 from dataclasses import dataclass
