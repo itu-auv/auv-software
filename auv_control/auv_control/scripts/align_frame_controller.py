@@ -25,12 +25,12 @@ class AlignFrameControllerNode:
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
         self.rate = rospy.get_param("~rate", 20)
-        self.linear_kp = rospy.get_param("~linear_kp", 0.55)
-        self.angular_kp = rospy.get_param("~angular_kp", 0.45)
-        self.linear_kd = rospy.get_param("~linear_kd", 0.2)
-        self.angular_kd = rospy.get_param("~angular_kd", 0.2)
-        self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.8)
-        self.max_angular_velocity = rospy.get_param("~max_angular_velocity", 0.9)
+        self.linear_kp = rospy.get_param("~linear_kp", 1.4)
+        self.linear_kd = rospy.get_param("~linear_kd", 0.7)
+        self.angular_kp = rospy.get_param("~angular_kp", 1.2)
+        self.angular_kd = rospy.get_param("~angular_kd", 0.8)
+        self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.4)
+        self.max_angular_velocity = rospy.get_param("~max_angular_velocity", 0.4)
 
         self.srv = Server(AlignFrameConfig, self.reconfigure_callback)
 
