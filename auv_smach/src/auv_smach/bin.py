@@ -255,15 +255,6 @@ class BinTaskState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
-                "ENABLE_BIN_FRAME_PUBLISHER",
-                BinTransformServiceEnableState(req=True),
-                transitions={
-                    "succeeded": "SET_BIN_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "SET_BIN_DEPTH",
                 SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
                 transitions={
@@ -282,6 +273,24 @@ class BinTaskState(smach.State):
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
                 ),
+                transitions={
+                    "succeeded": "ENABLE_BIN_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_BIN_FRAME_PUBLISHER",
+                BinTransformServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "WAIT_FOR_ENABLE_BIN_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_ENABLE_BIN_FRAME_PUBLISHER",
+                DelayState(delay_time=1.0),
                 transitions={
                     "succeeded": "ALIGN_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
