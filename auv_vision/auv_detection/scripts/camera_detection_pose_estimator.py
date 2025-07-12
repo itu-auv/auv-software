@@ -15,10 +15,9 @@ from geometry_msgs.msg import (
 from ultralytics_ros.msg import YoloResult
 from auv_msgs.msg import PropsYaw
 from sensor_msgs.msg import Range
-from std_msgs.msg import Float32, ColorRGBA
+from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
-from visualization_msgs.msg import Marker
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
@@ -166,10 +165,6 @@ class CameraDetectionNode:
             "object_transform_updates", TransformStamped, queue_size=10
         )
         self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
-        self.ground_marker_pub = rospy.Publisher("ground_plane", Marker, queue_size=1)
-        self.projection_marker_pub = rospy.Publisher(
-            "projection_vector", Marker, queue_size=1
-        )
         # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -267,27 +262,6 @@ class CameraDetectionNode:
             f"Calculated altitude from odom_pressure: {self.altitude:.2f} m (pool_depth={self.pool_depth})"
         )
 
-        marker = Marker()
-        marker.header.frame_id = "taluy/base_link"
-        marker.header.stamp = rospy.Time.now()
-        marker.ns = "ground_plane"
-        marker.id = 0
-        marker.type = Marker.CUBE
-        marker.action = Marker.ADD
-        marker.pose.position.x = 0
-        marker.pose.position.y = 0
-        marker.pose.position.z = -self.altitude
-        marker.pose.orientation.x = 0.0
-        marker.pose.orientation.y = 0.0
-        marker.pose.orientation.z = 0.0
-        marker.pose.orientation.w = 1.0
-        marker.scale.x = 10.0
-        marker.scale.y = 10.0
-        marker.scale.z = 0.01
-        marker.color = ColorRGBA(1.0, 0.0, 0.0, 0.5)  # Semi-transparent red
-        marker.lifetime = rospy.Duration(0.5)
-        self.ground_marker_pub.publish(marker)
-
     def calculate_intersection_with_plane(self, point1_odom, point2_odom, z_plane):
         # Calculate t where the z component is z_plane
         if point2_odom.point.z != point1_odom.point.z:
@@ -344,24 +318,6 @@ class CameraDetectionNode:
         point2.point.x = offset_x
         point2.point.y = offset_y
         point2.point.z = distance
-
-        # Visualize the projection vector
-        arrow_marker = Marker()
-        arrow_marker.header.frame_id = self.camera_frames[camera_ns]
-        arrow_marker.header.stamp = rospy.Time.now()
-        arrow_marker.ns = "projection_vector"
-        arrow_marker.id = 1
-        arrow_marker.type = Marker.ARROW
-        arrow_marker.action = Marker.ADD
-        arrow_marker.points.append(point1.point)
-        arrow_marker.points.append(point2.point)
-        arrow_marker.scale.x = 0.1  # Shaft diameter
-        arrow_marker.scale.y = 0.2  # Head diameter
-        arrow_marker.scale.z = 0.2  # Head length
-        arrow_marker.color = ColorRGBA(0.0, 1.0, 0.0, 1.0)  # Green
-        arrow_marker.lifetime = rospy.Duration(0.5)
-        self.projection_marker_pub.publish(arrow_marker)
-
         try:
             # Get the transform from the camera frame to the odom frame
             transform = self.tf_buffer.lookup_transform(
