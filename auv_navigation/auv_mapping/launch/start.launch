@@ -13,6 +13,7 @@
       <remap from="odom_pressure" to="localization/odom_pressure" />
       <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
       <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+      <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
     </node>
 
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">

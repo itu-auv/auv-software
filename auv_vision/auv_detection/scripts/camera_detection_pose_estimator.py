@@ -18,6 +18,7 @@ from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
+from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
@@ -160,6 +161,16 @@ class CameraDetectionNode:
 
         self.front_camera_enabled = True
         self.bottom_camera_enabled = True
+        self.active_front_camera_ids = list(range(15))  # Allow all by default
+
+        self.object_id_map = {
+            "gate": [1, 2, 3, 4, 5],
+            "torpedo": [12, 13],
+            "buoy": [8],
+            "bin": [9, 10, 11],
+            "octagon": [14],
+            "all": list(range(15)),
+        }
 
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
@@ -242,6 +253,25 @@ class CameraDetectionNode:
             SetBool,
             self.handle_enable_bottom_camera,
         )
+        rospy.Service(
+            "set_front_camera_focus",
+            SetDetectionFocus,
+            self.handle_set_front_camera_focus,
+        )
+
+    def handle_set_front_camera_focus(self, req):
+        target_ids = self.object_id_map.get(req.focus_object)
+        if target_ids is not None:
+            self.active_front_camera_ids = target_ids
+            message = (
+                f"Front camera focus set to '{req.focus_object}' (IDs: {target_ids})"
+            )
+            rospy.loginfo(message)
+            return SetDetectionFocusResponse(success=True, message=message)
+        else:
+            message = f"Unknown focus object: '{req.focus_object}'. Available options: {list(self.object_id_map.keys())}"
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
 
     def handle_enable_front_camera(self, req):
         self.front_camera_enabled = req.data
@@ -522,6 +552,10 @@ class CameraDetectionNode:
                 continue
             skip_inside_image = False
             detection_id = detection.results[0].id
+
+            if camera_source == "front_camera":
+                if detection_id not in self.active_front_camera_ids:
+                    continue
 
             if detection_id == 13:
                 continue

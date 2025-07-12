@@ -6,7 +6,11 @@ from std_srvs.srv import Empty, EmptyRequest
 from robot_localization.srv import SetPose, SetPoseRequest
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
-from auv_smach.common import CancelAlignControllerState, ClearObjectMapState
+from auv_smach.common import (
+    CancelAlignControllerState,
+    ClearObjectMapState,
+    SetDetectionFocusState,
+)
 from typing import Optional, Literal
 from dataclasses import dataclass
 
@@ -148,6 +152,15 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "CLEAR_OBJECT_MAP",
                 ClearObjectMapState(),
+                transitions={
+                    "succeeded": "SET_DETECTION_FOCUS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS",
+                SetDetectionFocusState(focus_object="gate"),
                 transitions={
                     "succeeded": "SET_START_FRAME",
                     "preempted": "preempted",
