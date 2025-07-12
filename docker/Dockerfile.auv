@@ -3,11 +3,18 @@ FROM ${BASE_IMAGE}
 
 ARG HOST=desktop
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 COPY . ./src/auv_software
 
 RUN find /etc/apt/ -type f -name '*.list' -exec grep -l 'packages.ros.org' {} \; | xargs -r mv -t /tmp || true
 
-RUN apt-get update && apt-get install -y curl gnupg
+RUN apt-get update && apt-get install -y curl gnupg debconf-utils
+
+# Preconfigure keyboard layout to avoid interactive prompt
+RUN echo "keyboard-configuration keyboard-configuration/layoutcode string us" | debconf-set-selections && \
+    echo "keyboard-configuration keyboard-configuration/modelcode string pc105" | debconf-set-selections && \
+    echo "keyboard-configuration keyboard-configuration/variantcode string " | debconf-set-selections
 
 RUN mkdir -p /etc/apt/keyrings && \
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
