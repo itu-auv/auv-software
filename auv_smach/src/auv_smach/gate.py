@@ -133,6 +133,15 @@ class NavigateThroughGateState(smach.State):
                 "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
                 transitions={
+                    "succeeded": "SET_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                transitions={
                     "succeeded": "PUBLISH_GATE_ANGLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -153,7 +162,7 @@ class NavigateThroughGateState(smach.State):
                     source_frame="taluy/base_link",
                     target_frame="gate_entrance",
                     angle_offset=0.0,
-                    dist_threshold=0.05,
+                    dist_threshold=0.15,
                     yaw_threshold=0.1,
                     confirm_duration=0.0,
                     timeout=60.0,

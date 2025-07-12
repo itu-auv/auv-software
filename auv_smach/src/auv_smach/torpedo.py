@@ -196,7 +196,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH",
                 SetDepthState(
-                    depth=0.07, sleep_duration=5.0, frame_id=torpedo_fire_frame
+                    depth=0.23, sleep_duration=5.0, frame_id="torpedo_map_link"
                 ),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
@@ -242,7 +242,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_LAUNCH",
-                DelayState(delay_time=6.0),
+                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",
                     "preempted": "preempted",
@@ -260,7 +260,97 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_2_LAUNCH",
-                DelayState(delay_time=6.0),
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "LAUNCH_TORPEDO_3",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LAUNCH_TORPEDO_3",
+                LaunchTorpedoState(id=1),
+                transitions={
+                    "succeeded": "WAIT_FOR_TORPEDO_3_LAUNCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_TORPEDO_3_LAUNCH",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "LAUNCH_TORPEDO_4",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LAUNCH_TORPEDO_4",
+                LaunchTorpedoState(id=2),
+                transitions={
+                    "succeeded": "WAIT_FOR_TORPEDO_4_LAUNCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_TORPEDO_4_LAUNCH",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "LAUNCH_TORPEDO_5",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LAUNCH_TORPEDO_5",
+                LaunchTorpedoState(id=2),
+                transitions={
+                    "succeeded": "WAIT_FOR_TORPEDO_5_LAUNCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_TORPEDO_5_LAUNCH",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "LAUNCH_TORPEDO_6",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LAUNCH_TORPEDO_6",
+                LaunchTorpedoState(id=2),
+                transitions={
+                    "succeeded": "WAIT_FOR_TORPEDO_6_LAUNCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_TORPEDO_6_LAUNCH",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "GET_BACK",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "GET_BACK",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=torpedo_realsense_target_frame,
+                    angle_offset=-3.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=10.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_FINAL",
                     "preempted": "preempted",

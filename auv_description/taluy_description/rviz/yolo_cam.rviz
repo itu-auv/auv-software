@@ -5,7 +5,10 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /TF1
+        - /TF1/Frames1
         - /WrenchVectors1/Thruster 71
+        - /Image1
+        - /Image2
       Splitter Ratio: 0.5438799262046814
     Tree Height: 712
   - Class: rviz/Selection
@@ -87,100 +90,98 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        bin/blue_link:
-          Value: true
-        bin/red_link:
-          Value: true
-        bin/whole:
-          Value: true
-        bin_close_approach:
-          Value: true
-        bin_far_trial:
-          Value: true
-        bin_search:
-          Value: true
-        bin_second_trial:
-          Value: true
-        bin_whole_estimated:
-          Value: true
         bin_whole_link:
           Value: true
         bin_whole_link_0:
-          Value: true
+          Value: false
         bin_whole_link_1:
-          Value: true
-        taluy/base_link/imu_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        taluy/base_link/imu_sim_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        taluy/base_link/left_torpedo_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        taluy/base_link/left_torpedo_lower_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        taluy/base_link/left_torpedo_upper_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        bin_whole_link_11:
-          Value: true
-        bin_whole_link_12:
-          Value: true
-        bin_whole_link_13:
-          Value: true
-        bin_whole_link_14:
-          Value: true
+          Value: false
         bin_whole_link_2:
-          Value: true
+          Value: false
         bin_whole_link_3:
-          Value: true
+          Value: false
         bin_whole_link_4:
-          Value: true
+          Value: false
         bin_whole_link_5:
-          Value: true
-        bin_whole_link_6:
-          Value: true
-        bin_whole_link_7:
-          Value: true
-        bin_whole_link_8:
-          Value: true
-        bin_whole_link_9:
-          Value: true
+          Value: false
         bin_whole_link_closest:
+          Value: false
+        bin_whole_link_closest_0:
           Value: true
+        bin_whole_link_cluster_0:
+          Value: false
         bin_whole_link_cluster_1:
-          Value: true
+          Value: false
         bin_whole_link_cluster_2:
+          Value: false
+        bin_whole_link_cluster_3:
+          Value: true
+        gate_blue_arrow_link:
+          Value: true
+        gate_blue_arrow_link_0:
+          Value: false
+        gate_blue_arrow_link_closest:
+          Value: false
+        gate_blue_arrow_link_closest_0:
+          Value: false
+        gate_blue_arrow_link_cluster_0:
+          Value: false
+        gate_blue_arrow_link_cluster_1:
+          Value: false
+        gate_entrance:
+          Value: true
+        gate_exit:
+          Value: true
+        gate_middle_part_link:
+          Value: false
+        gate_red_arrow_link:
+          Value: true
+        gate_red_arrow_link_0:
+          Value: false
+        gate_red_arrow_link_closest:
+          Value: false
+        gate_red_arrow_link_cluster_0:
+          Value: false
+        gate_search:
           Value: true
         mission_start_link:
           Value: true
         object_closest:
-          Value: true
+          Value: false
+        object_closest_0:
+          Value: false
+        object_closest_1:
+          Value: false
+        object_cluster_0:
+          Value: false
+        object_cluster_0_0:
+          Value: false
+        object_cluster_1:
+          Value: false
+        object_cluster_1_0:
+          Value: false
+        object_cluster_2:
+          Value: false
+        object_cluster_2_0:
+          Value: false
+        object_cluster_3:
+          Value: false
+        object_cluster_4:
+          Value: false
+        object_cluster_5:
+          Value: false
+        object_cluster_6:
+          Value: false
+        object_cluster_7:
+          Value: false
         octagon_link_closest:
           Value: false
-        octagon_link_closest_0:
-          Value: true
-        octagon_link_cluster_0:
-          Value: true
         odom:
           Value: true
         red_buoy_link:
-          Value: true
+          Value: false
         red_buoy_link_0:
-          Value: true
-        red_buoy_link_1:
-          Value: true
+          Value: false
         red_buoy_link_closest:
           Value: true
         taluy/base_link:
@@ -215,15 +216,9 @@ Visualization Manager:
           Value: false
         taluy/base_link/hydrophone_3_link:
           Value: false
+        taluy/base_link/imu_expansion_link:
+          Value: false
         taluy/base_link/imu_link:
-          Value: false
-        taluy/base_link/imu_sim_link:
-          Value: false
-        taluy/base_link/left_torpedo_link:
-          Value: false
-        taluy/base_link/left_torpedo_lower_link:
-          Value: false
-        taluy/base_link/left_torpedo_upper_link:
           Value: false
         taluy/base_link/ping360_link:
           Value: false
@@ -280,38 +275,34 @@ Visualization Manager:
         taluy/thruster_7_propeller_link:
           Value: false
         torpedo_fire_frame:
-          Value: true
+          Value: false
         torpedo_hole_1_link:
           Value: true
         torpedo_hole_1_link_0:
-          Value: true
-        torpedo_hole_1_link_1:
-          Value: true
+          Value: false
         torpedo_hole_2_link:
           Value: true
         torpedo_hole_2_link_0:
-          Value: true
+          Value: false
         torpedo_hole_3_link:
           Value: true
         torpedo_hole_3_link_0:
-          Value: true
+          Value: false
+        torpedo_hole_3_link_1:
+          Value: false
         torpedo_hole_4_link:
-          Value: true
-        torpedo_hole_4_link_0:
           Value: true
         torpedo_map_link:
           Value: true
         torpedo_map_link_0:
-          Value: true
+          Value: false
         torpedo_map_link_1:
-          Value: true
+          Value: false
         torpedo_map_link_closest:
           Value: true
         torpedo_map_link_closest_0:
-          Value: true
-        torpedo_map_link_cluster_0:
-          Value: true
-        torpedo_map_link_cluster_1:
+          Value: false
+        torpedo_map_link_closest_1:
           Value: true
         torpedo_map_travel_start:
           Value: true
@@ -320,44 +311,18 @@ Visualization Manager:
         torpedo_target_realsense:
           Value: true
       Marker Alpha: 1
-      Marker Scale: 3
+      Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
         odom:
-          bin/blue_link:
-            {}
-          bin/red_link:
-            {}
-          bin/whole:
-            {}
-          bin_close_approach:
-            {}
-          bin_far_trial:
-            {}
-          bin_search:
-            {}
-          bin_second_trial:
-            {}
-          bin_whole_estimated:
-            {}
           bin_whole_link:
             {}
           bin_whole_link_0:
             {}
           bin_whole_link_1:
-            {}
-          bin_whole_link_10:
-            {}
-          bin_whole_link_11:
-            {}
-          bin_whole_link_12:
-            {}
-          bin_whole_link_13:
-            {}
-          bin_whole_link_14:
             {}
           bin_whole_link_2:
             {}
@@ -367,35 +332,81 @@ Visualization Manager:
             {}
           bin_whole_link_5:
             {}
-          bin_whole_link_6:
-            {}
-          bin_whole_link_7:
-            {}
-          bin_whole_link_8:
-            {}
-          bin_whole_link_9:
-            {}
           bin_whole_link_closest:
+            {}
+          bin_whole_link_closest_0:
+            {}
+          bin_whole_link_cluster_0:
             {}
           bin_whole_link_cluster_1:
             {}
           bin_whole_link_cluster_2:
             {}
+          bin_whole_link_cluster_3:
+            {}
+          gate_blue_arrow_link:
+            {}
+          gate_blue_arrow_link_0:
+            {}
+          gate_blue_arrow_link_closest:
+            {}
+          gate_blue_arrow_link_closest_0:
+            {}
+          gate_blue_arrow_link_cluster_0:
+            {}
+          gate_blue_arrow_link_cluster_1:
+            {}
+          gate_entrance:
+            {}
+          gate_exit:
+            {}
+          gate_middle_part_link:
+            {}
+          gate_red_arrow_link:
+            {}
+          gate_red_arrow_link_0:
+            {}
+          gate_red_arrow_link_closest:
+            {}
+          gate_red_arrow_link_cluster_0:
+            {}
+          gate_search:
+            {}
           mission_start_link:
             {}
           object_closest:
             {}
+          object_closest_0:
+            {}
+          object_closest_1:
+            {}
+          object_cluster_0:
+            {}
+          object_cluster_0_0:
+            {}
+          object_cluster_1:
+            {}
+          object_cluster_1_0:
+            {}
+          object_cluster_2:
+            {}
+          object_cluster_2_0:
+            {}
+          object_cluster_3:
+            {}
+          object_cluster_4:
+            {}
+          object_cluster_5:
+            {}
+          object_cluster_6:
+            {}
+          object_cluster_7:
+            {}
           octagon_link_closest:
-            {}
-          octagon_link_closest_0:
-            {}
-          octagon_link_cluster_0:
             {}
           red_buoy_link:
             {}
           red_buoy_link_0:
-            {}
-          red_buoy_link_1:
             {}
           red_buoy_link_closest:
             {}
@@ -455,23 +466,8 @@ Visualization Manager:
             taluy/thruster_1_link:
               taluy/thruster_1_propeller_link:
                 {}
-              taluy/base_link/imu_link:
-                taluy/base_link/imu_sim_link:
-                  {}
-              taluy/base_link/left_torpedo_link:
-                taluy/base_link/left_torpedo_lower_link:
-                  {}
-                taluy/base_link/left_torpedo_upper_link:
-                  {}
-              taluy/base_link/ping360_mount_link:
-                taluy/base_link/ping360_link:
-                  {}
-              taluy/base_link/right_torpedo_link:
-                taluy/base_link/right_torpedo_lower_link:
-                  {}
-                taluy/base_link/right_torpedo_upper_link:
-                  {}
-              taluy/base_link/sonar_back_link:
+            taluy/thruster_2_link:
+              taluy/thruster_2_propeller_link:
                 {}
             taluy/thruster_3_link:
               taluy/thruster_3_propeller_link:
@@ -494,8 +490,6 @@ Visualization Manager:
             {}
           torpedo_hole_1_link_0:
             {}
-          torpedo_hole_1_link_1:
-            {}
           torpedo_hole_2_link:
             {}
           torpedo_hole_2_link_0:
@@ -504,9 +498,9 @@ Visualization Manager:
             {}
           torpedo_hole_3_link_0:
             {}
-          torpedo_hole_4_link:
+          torpedo_hole_3_link_1:
             {}
-          torpedo_hole_4_link_0:
+          torpedo_hole_4_link:
             {}
           torpedo_map_link:
             {}
@@ -518,9 +512,7 @@ Visualization Manager:
             {}
           torpedo_map_link_closest_0:
             {}
-          torpedo_map_link_cluster_0:
-            {}
-          torpedo_map_link_cluster_1:
+          torpedo_map_link_closest_1:
             {}
           torpedo_map_travel_start:
             {}
@@ -668,7 +660,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/Image
       Enabled: true
-      Image Topic: /taluy/camera/color/image_raw
+      Image Topic: /yolo_image_realsense
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -746,7 +738,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 22.036048889160156
+      Distance: 8.353084564208984
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -754,17 +746,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -1.6686547994613647
-        Y: 2.9480092525482178
-        Z: -3.8211331367492676
+        X: -0.20149773359298706
+        Y: 0.029902318492531776
+        Z: 1.7247333526611328
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.45979711413383484
+      Pitch: 0.11979808658361435
       Target Frame: <Fixed Frame>
-      Yaw: 4.862241744995117
+      Yaw: 3.0940723419189453
     Saved: ~
 Window Geometry:
   Displays:
@@ -774,7 +766,7 @@ Window Geometry:
   Hide Right Dock: false
   Image:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd00000004000000000000025d00000554fc020000000efb0000001200530065006c0065006300740069006f006e00000001e10000009b000000b000fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000b0fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000006e000003360000018200fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000c00430061006d00650072006100000002ef000000a70000000000000000fb0000000c00430061006d0065007200610000000250000001460000000000000000fb0000000a0056006900650077007300000002c0000000d60000013200fffffffb000000100044006900730070006c0061007900730000000275000001210000018200fffffffb0000000c00430061006d00650072006102000000420000024f00000280000001e0fb0000000a0049006d00610067006501000003b0000002120000002600ffffff000000010000026500000554fc0200000006fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a0049006d006100670065010000006e000002880000002600fffffffc00000302000002c00000016c01000039fa000000000100000003fb0000000a0049006d0061006700650100000000ffffffff000000af00fffffffb0000000a0049006d0061006700650000000000ffffffff0000000000000000fb0000000a0056006900650077007301000005b3000001cd0000015f00fffffffb0000000a0049006d0061006700650100000230000001d10000000000000000fb0000000a0049006d006100670065000000021a0000017c0000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000009d80000005efc0100000002fb0000000800540069006d00650100000000000009d8000006dc00fffffffb0000000800540069006d00650100000000000004500000000000000000000004fe0000055400000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000004000000000000028300000554fc020000000efb0000001200530065006c0065006300740069006f006e00000001e10000009b000000b000fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000b0fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000006e000003360000018200fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000c00430061006d00650072006100000002ef000000a70000000000000000fb0000000c00430061006d0065007200610000000250000001460000000000000000fb0000000a0056006900650077007300000002c0000000d60000013200fffffffb000000100044006900730070006c0061007900730000000275000001210000018200fffffffb0000000c00430061006d00650072006102000000420000024f00000280000001e0fb0000000a0049006d00610067006501000003b0000002120000002600ffffff000000010000026600000554fc0200000006fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a0049006d006100670065010000006e000002880000002600fffffffc00000302000002c00000016c01000039fa000000000100000003fb0000000a0049006d0061006700650100000000ffffffff000000af00fffffffb0000000a0049006d0061006700650000000000ffffffff0000000000000000fb0000000a0056006900650077007301000005b3000001cd0000015f00fffffffb0000000a0049006d0061006700650100000230000001d10000000000000000fb0000000a0049006d006100670065000000021a0000017c0000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000009d80000005efc0100000002fb0000000800540069006d00650100000000000009d8000006dc00fffffffb0000000800540069006d00650100000000000004500000000000000000000004d70000055400000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
