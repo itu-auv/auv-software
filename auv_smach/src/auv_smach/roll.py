@@ -270,6 +270,24 @@ class TwoRollState(smach.StateMachine):
 
         with self:
             smach.StateMachine.add(
+                "DISABLE_DVL_ODOM",
+                DvlOdometryServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "WAIT_FOR_PITCH_CORRECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_PITCH_CORRECTION",
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "PITCH_CORRECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "PITCH_CORRECTION",
                 PitchCorrection(fixed_torque=3.0, rate_hz=20, timeout_s=10.0),
                 transitions={
@@ -282,32 +300,14 @@ class TwoRollState(smach.StateMachine):
                 "ROLL_TWO_TIMES",
                 RollTwoTimes(roll_torque=self.roll_torque, rate_hz=20, timeout_s=15.0),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "WAIT_FOR_STABILIZATION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DISABLE_DVL_ODOM",
-                DvlOdometryServiceEnableState(req=False),
-                transitions={
-                    "succeeded": "WAIT_FOR_TWO_ROLL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_TWO_ROLL",
+                "WAIT_FOR_STABILIZATION",
                 DelayState(delay_time=2.0),
-                transitions={
-                    "succeeded": "PITCH_CORRECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_ENABLE_DVL_ODOM",
-                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "ENABLE_DVL_ODOM",
                     "preempted": "preempted",
@@ -318,13 +318,13 @@ class TwoRollState(smach.StateMachine):
                 "ENABLE_DVL_ODOM",
                 DvlOdometryServiceEnableState(req=True),
                 transitions={
-                    "succeeded": "WAIT_FOR_RESET_ODOMETRY",
+                    "succeeded": "WAIT_FOR_DVL_ODOM_ENABLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_RESET_ODOMETRY",
+                "WAIT_FOR_DVL_ODOM_ENABLE",
                 DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "ALIGN_TO_LOOK_AT_GATE",
@@ -355,15 +355,6 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER_BEFORE_ODOM_ENABLE",
                 CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "ODOMETRY_ENABLE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ODOMETRY_ENABLE",
-                OdometryEnableState(),
                 transitions={
                     "succeeded": "RESET_ODOMETRY_POSE",
                     "preempted": "preempted",

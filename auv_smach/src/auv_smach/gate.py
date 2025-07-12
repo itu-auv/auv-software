@@ -46,6 +46,7 @@ class NavigateThroughGateState(smach.State):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.sim_mode = rospy.get_param("~sim", False)
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -76,7 +77,11 @@ class NavigateThroughGateState(smach.State):
                     rotation_speed=0.3,
                 ),
                 transitions={
-                    "succeeded": "TWO_ROLL_STATE",
+                    "succeeded": (
+                        "TWO_ROLL_STATE"
+                        if not self.sim_mode
+                        else "SET_GATE_TRAJECTORY_DEPTH"
+                    ),
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
