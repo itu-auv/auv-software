@@ -153,15 +153,6 @@ class InitializeState(smach.State):
                 "CLEAR_OBJECT_MAP",
                 ClearObjectMapState(),
                 transitions={
-                    "succeeded": "SET_DETECTION_FOCUS",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_DETECTION_FOCUS",
-                SetDetectionFocusState(focus_object="gate"),
-                transitions={
                     "succeeded": "SET_START_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
