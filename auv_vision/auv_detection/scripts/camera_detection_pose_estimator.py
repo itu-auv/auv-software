@@ -160,7 +160,7 @@ class CameraDetectionNode:
         rospy.loginfo("Camera detection node started")
 
         self.front_camera_enabled = True
-        self.bottom_camera_enabled = True
+        self.bottom_camera_enabled = False
         self.active_front_camera_ids = list(range(15))  # Allow all by default
 
         self.object_id_map = {
@@ -292,12 +292,14 @@ class CameraDetectionNode:
             f"Calculated altitude from odom_pressure: {self.altitude:.2f} m (pool_depth={self.pool_depth})"
         )
 
-    def calculate_intersection_with_ground(self, point1_odom, point2_odom):
-        # Calculate t where the z component is zero (ground plane)
+    def calculate_intersection_with_plane(self, point1_odom, point2_odom, z_plane):
+        # Calculate t where the z component is z_plane
         if point2_odom.point.z != point1_odom.point.z:
-            t = -point1_odom.point.z / (point2_odom.point.z - point1_odom.point.z)
+            t = (z_plane - point1_odom.point.z) / (
+                point2_odom.point.z - point1_odom.point.z
+            )
 
-            # Check if t is within the segment range [0, 1]
+            # Check if the intersection point is within the segment [point1, point2]
             if 0 <= t <= 1:
                 # Calculate intersection point
                 x = point1_odom.point.x + t * (
@@ -306,10 +308,9 @@ class CameraDetectionNode:
                 y = point1_odom.point.y + t * (
                     point2_odom.point.y - point1_odom.point.y
                 )
-                z = 0  # ground plane
-                return x, y, z
+                return x, y, z_plane
             else:
-                rospy.logwarn("No intersection with ground plane within the segment.")
+                # Intersection is outside the defined segment
                 return None
         else:
             rospy.logwarn("The line segment is parallel to the ground plane.")
@@ -347,22 +348,25 @@ class CameraDetectionNode:
         point2.point.x = offset_x
         point2.point.y = offset_y
         point2.point.z = distance
-
         try:
+            # Get the transform from the camera frame to the odom frame
             transform = self.tf_buffer.lookup_transform(
                 "odom",
                 self.camera_frames[camera_ns],
                 rospy.Time(0),
                 rospy.Duration(1.0),
             )
+            # Transform the ray points from the camera frame to the odom frame
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
 
-            point1_odom.point.z += self.altitude
-            point2_odom.point.z += self.altitude
-
-            intersection = self.calculate_intersection_with_ground(
-                point1_odom, point2_odom
+            # The ground plane in the 'odom' frame is at a fixed Z-coordinate,
+            # which corresponds to the negative pool depth.
+            # We calculate the intersection of the camera ray with this plane.
+            # We do not add self.altitude here, as both the ray and the plane
+            # are now correctly expressed in the same 'odom' frame.
+            intersection = self.calculate_intersection_with_plane(
+                point1_odom, point2_odom, z_plane=-self.pool_depth
             )
             if intersection:
                 x, y, z = intersection
