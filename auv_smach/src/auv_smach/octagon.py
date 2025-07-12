@@ -13,6 +13,11 @@ class OctagonTaskState(smach.State):
     def __init__(self, octagon_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        octagon_task_params = rospy.get_param("~octagon_task", {})
+        set_octagon_depth_params = octagon_task_params.get("set_octagon_depth", {})
+        wait_for_surfacing_params = octagon_task_params.get("wait_for_surfacing", {})
+        surfacing_params = octagon_task_params.get("surfacing", {})
+
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -22,7 +27,10 @@ class OctagonTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_OCTAGON_DEPTH",
-                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
+                SetDepthState(
+                    depth=octagon_depth,
+                    sleep_duration=set_octagon_depth_params.get("sleep_duration", 4.0),
+                ),
                 transitions={
                     "succeeded": "SET_OCTAGON_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
@@ -54,7 +62,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_SURFACING",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=wait_for_surfacing_params.get("delay_time", 3.0)),
                 transitions={
                     "succeeded": "SURFACING",
                     "preempted": "preempted",
@@ -63,7 +71,10 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SURFACING",
-                SetDepthState(depth=0.3, sleep_duration=4.0),
+                SetDepthState(
+                    depth=surfacing_params.get("depth", 0.3),
+                    sleep_duration=surfacing_params.get("sleep_duration", 4.0),
+                ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",

@@ -70,6 +70,10 @@ class NavigateThroughGateState(smach.State):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
+        gate_search_depth_sleep = rospy.get_param("~gate_search_depth_sleep", 3.0)
+        gate_depth_sleep = rospy.get_param("~gate_depth_sleep", 3.0)
+        find_and_aim_gate_params = rospy.get_param("~find_and_aim_gate", {})
+
         # Initialize the state machine
 
         self.state_machine = smach.StateMachine(
@@ -78,7 +82,9 @@ class NavigateThroughGateState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_GATE_SEARCH_DEPTH",
-                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=gate_search_depth, sleep_duration=gate_search_depth_sleep
+                ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
                     "preempted": "preempted",
@@ -90,10 +96,12 @@ class NavigateThroughGateState(smach.State):
                 SearchForPropState(
                     look_at_frame="gate_blue_arrow_link",
                     alignment_frame="gate_search",
-                    full_rotation=True,
-                    set_frame_duration=7.0,
+                    full_rotation=find_and_aim_gate_params.get("full_rotation", True),
+                    set_frame_duration=find_and_aim_gate_params.get(
+                        "set_frame_duration", 7.0
+                    ),
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=find_and_aim_gate_params.get("rotation_speed", 0.3),
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -139,7 +147,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                SetDepthState(depth=gate_depth, sleep_duration=gate_depth_sleep),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
