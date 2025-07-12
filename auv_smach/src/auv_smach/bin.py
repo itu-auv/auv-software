@@ -16,14 +16,17 @@ from auv_smach.common import (
 
 from auv_smach.initialize import DelayState
 
-from auv_smach.common import (
-    DropBallState,
-    ExecutePlannedPathsState,
-    CancelAlignControllerState,
-    PlanPathToSingleFrameState,
-)
-
 from auv_navigation.path_planning.path_planners import PathPlanners
+
+
+class DropBallState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "ball_dropper/drop",
+            Trigger,
+            request=TriggerRequest(),
+        )
 
 
 class CheckForDropAreaState(smach.State):
