@@ -102,7 +102,11 @@ class MainStateMachineNode:
             ),
             "RETURN_THROUGH_GATE": (
                 NavigateThroughGateState,
-                {"gate_depth": self.gate_depth, "return_home": True},
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_search_depth": self.gate_search_depth,
+                    "return_home": True,
+                },
             ),
         }
 

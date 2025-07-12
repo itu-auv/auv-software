@@ -204,12 +204,16 @@ class CancelAlignControllerState(smach_ros.ServiceState):
 
 class SetAlignControllerTargetState(smach_ros.ServiceState):
     def __init__(
-        self, source_frame: str, target_frame: str, keep_orientation: bool = False
+        self,
+        source_frame: str,
+        target_frame: str,
+        angle_offset: float = 0.0,
+        keep_orientation: bool = False,
     ):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
-        align_request.angle_offset = 0.0
+        align_request.angle_offset = angle_offset
         align_request.keep_orientation = keep_orientation
 
         smach_ros.ServiceState.__init__(

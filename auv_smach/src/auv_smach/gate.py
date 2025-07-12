@@ -14,8 +14,6 @@ from auv_smach.common import (
     AlignFrame,
 )
 
-from auv_smach.red_buoy import SetFrameLookingAtState
-
 from auv_smach.initialize import DelayState
 
 
@@ -78,6 +76,8 @@ class NavigateThroughGateState(smach.State):
 
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        self.gate_depth = gate_depth
+        self.gate_search_depth = gate_search_depth
         self.return_home = return_home
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -89,9 +89,9 @@ class NavigateThroughGateState(smach.State):
         )
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_ROLL_DEPTH",
+                "SET_GATE_SEARCH_DEPTH",
                 SetDepthState(
-                    depth=gate_search_depth,
+                    depth=self.gate_search_depth,
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
@@ -138,6 +138,18 @@ class NavigateThroughGateState(smach.State):
                 "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
                 transitions={
+                    "succeeded": "SET_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(
+                    depth=self.gate_depth,
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
+                ),
+                transitions={
                     "succeeded": "PUBLISH_GATE_ANGLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -159,7 +171,7 @@ class NavigateThroughGateState(smach.State):
                     target_frame=(
                         "gate_entrance" if not self.return_home else "gate_exit"
                     ),
-                    angle_offset=0.0,
+                    angle_offset=0.0 if not self.return_home else 3.14,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=1.0,
@@ -180,7 +192,7 @@ class NavigateThroughGateState(smach.State):
                     target_frame=(
                         "gate_exit" if not self.return_home else "gate_entrance"
                     ),
-                    angle_offset=0.0,
+                    angle_offset=0.0 if not self.return_home else 3.14,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=1.0,
