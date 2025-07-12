@@ -123,7 +123,7 @@ class TorpedoTransformServiceNode:
                 self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(1)
             )
             torpedo_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.torpedo_frame, rospy.Time(0), rospy.Duration(1)
+                self.odom_frame, self.torpedo_frame, rospy.Time.now(), rospy.Duration(1)
             )
 
         except (
