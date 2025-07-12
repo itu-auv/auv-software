@@ -11,7 +11,7 @@
   <xacro:logitech_c920_camera_sim name="${namespace}/base_link/front_camera" topic_name="cameras/cam_front"/>
   <xacro:logitech_c920_camera_sim name="${namespace}/base_link/bottom_camera" topic_name="cameras/cam_bottom"/>
   <xacro:bar30_sim name="${namespace}/base_link/external_pressure_sensor" update_rate="$(arg pressure_update_rate)"/>
-  <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu_expansion" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg imu_update_rate)"/>
+  <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg imu_update_rate)"/>
   <xacro:wayfinder_dvl_sim name="${namespace}/base_link/dvl" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg dvl_update_rate)"/>
   <xacro:realsense_d435_sim name="${namespace}/base_link/back_camera" topic_name="cameras/cam_back"/>
 </robot>
