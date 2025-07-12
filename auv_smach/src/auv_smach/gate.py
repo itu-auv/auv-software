@@ -11,18 +11,22 @@ from auv_smach.common import (
     SetDepthState,
     ExecutePlannedPathsState,
     SearchForPropState,
+    AlignFrame,
 )
+
+from auv_smach.initialize import DelayState
 
 
 class PlanGatePathsState(smach.State):
     """State that plans the paths for the gate task"""
 
-    def __init__(self, tf_buffer):
+    def __init__(self, tf_buffer, return_home: bool = False):
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
             output_keys=["planned_paths"],
         )
+        self.return_home = return_home
         self.tf_buffer = tf_buffer
 
     def execute(self, userdata) -> str:
@@ -34,7 +38,9 @@ class PlanGatePathsState(smach.State):
             path_planners = PathPlanners(
                 self.tf_buffer
             )  # instance of PathPlanners with tf_buffer
-            paths = path_planners.path_for_gate()
+            paths = path_planners.path_for_gate(
+                return_home=self.return_home
+            )  # return_home parametresi eklendi
             if paths is None:
                 return "aborted"
 
@@ -64,9 +70,15 @@ class PublishGateAngleState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float, gate_search_depth: float):
+    def __init__(
+        self, gate_depth: float, gate_search_depth: float, return_home: bool = False
+    ):
+
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        self.gate_depth = gate_depth
+        self.gate_search_depth = gate_search_depth
+        self.return_home = return_home
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
@@ -78,7 +90,10 @@ class NavigateThroughGateState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_GATE_SEARCH_DEPTH",
-                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=self.gate_search_depth,
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
+                ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
                     "preempted": "preempted",
@@ -90,8 +105,8 @@ class NavigateThroughGateState(smach.State):
                 SearchForPropState(
                     look_at_frame="gate_blue_arrow_link",
                     alignment_frame="gate_search",
-                    full_rotation=True,
-                    set_frame_duration=7.0,
+                    full_rotation=False,
+                    set_frame_duration=3.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
                 ),
@@ -105,23 +120,14 @@ class NavigateThroughGateState(smach.State):
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
                 transitions={
-                    "succeeded": "PLAN_GATE_PATHS",
+                    "succeeded": "WAIT_FOR_TRANSFORM_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "PLAN_GATE_PATHS",
-                PlanGatePathsState(self.tf_buffer),
-                transitions={
-                    "succeeded": "PUBLISH_GATE_ANGLE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "PUBLISH_GATE_ANGLE",
-                PublishGateAngleState(),
+                "WAIT_FOR_TRANSFORM_GATE",
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
@@ -139,31 +145,65 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
-                transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="dynamic_target"
+                SetDepthState(
+                    depth=self.gate_depth,
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
-                    "succeeded": "EXECUTE_GATE_PATHS",
+                    "succeeded": "PUBLISH_GATE_ANGLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "EXECUTE_GATE_PATHS",
-                ExecutePlannedPathsState(),
+                "PUBLISH_GATE_ANGLE",
+                PublishGateAngleState(),
+                transitions={
+                    "succeeded": "NAVIGATE_TO_GATE_ENTRANCE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "NAVIGATE_TO_GATE_ENTRANCE",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=(
+                        "gate_entrance" if not self.return_home else "gate_exit"
+                    ),
+                    angle_offset=0.0 if not self.return_home else 3.14,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=1.0,
+                    timeout=60.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "NAVIGATE_TO_GATE_EXIT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "NAVIGATE_TO_GATE_EXIT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=(
+                        "gate_exit" if not self.return_home else "gate_entrance"
+                    ),
+                    angle_offset=0.0 if not self.return_home else 3.14,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=1.0,
+                    timeout=60.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
