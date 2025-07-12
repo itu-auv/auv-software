@@ -196,7 +196,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH",
                 SetDepthState(
-                    depth=0.0, sleep_duration=5.0, frame_id=torpedo_fire_frame
+                    depth=0.07, sleep_duration=5.0, frame_id=torpedo_fire_frame
                 ),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
@@ -251,7 +251,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_2",
-                LaunchTorpedoState(id=2),
+                LaunchTorpedoState(id=1),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
                     "preempted": "preempted",

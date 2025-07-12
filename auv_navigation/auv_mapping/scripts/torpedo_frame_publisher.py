@@ -41,7 +41,7 @@ class TorpedoTransformServiceNode:
             "~torpedo_realsense_frame", "torpedo_map_link_realsense"
         )
         self.torpedo_hole_frame = rospy.get_param(
-            "~torpedo_hole_frame", "torpedo_hole_bottom_left_link"
+            "~torpedo_hole_frame", "torpedo_hole_1_link"
         )
 
         self.initial_offset = rospy.get_param("~initial_offset", 3.0)

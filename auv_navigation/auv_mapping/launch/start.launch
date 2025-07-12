@@ -47,11 +47,12 @@
       <remap from="pressure_sensor/depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="points_filtered" to="points_filtered" />
     </node>
-    
+
     <node pkg="auv_mapping" type="torpedo_frame_publisher.py" name="torpode_frame_publisher" output="screen">
       <rosparam command="load" file="$(find auv_mapping)/config/torpedo_frame_publisher_params.yaml" />
       <param name="torpedo_frame" value="$(arg torpedo_frame)" />
       <param name="torpedo_realsense_frame" value="$(arg torpedo_realsense_frame)" />
+      <param name="torpedo_hole_frame" value="torpedo_hole_1_link" />
       <remap from="set_transform_torpedo_target_frame" to="set_transform_torpedo_target_frame" />
       <remap from="set_transform_torpedo_realsense_target_frame" to="set_transform_torpedo_realsense_target_frame" />
       <remap from="set_transform_torpedo_hole_target_frame" to="set_transform_torpedo_hole_target_frame" />
