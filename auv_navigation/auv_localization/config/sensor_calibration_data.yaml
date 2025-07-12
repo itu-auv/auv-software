@@ -8,11 +8,3 @@ sensors/dvl:
     linear_x: 0.000015
     linear_y: 0.000015
     linear_z: 0.05
-
-pressure_odometry_node:
-  max_depth_discrepancy: 0.5
-  depth_offset: -0.10
-  depth_covariance: 0.05
-  fusion_weights:
-    pressure: 0.7
-    dvl: 0.3
