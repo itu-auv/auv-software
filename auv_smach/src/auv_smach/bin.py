@@ -37,7 +37,7 @@ class CheckForDropAreaState(smach.State):
         self.timeout = rospy.Duration(timeout)
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.target_frames = ["bin/blue_drop_link", "bin/red_drop_link"]
+        self.target_frames = ["bin/blue_link", "bin/red_link"]
 
     def execute(self, userdata) -> str:
         start_time = rospy.Time.now()
@@ -88,7 +88,7 @@ class SetAlignToFoundState(smach.State):
         align_state = SetAlignControllerTargetState(
             source_frame=self.source_frame,
             target_frame=userdata.found_frame,
-            keep_orientation=False,
+            keep_orientation=True,
         )
         return align_state.execute(userdata)
 
@@ -103,35 +103,6 @@ class BinTransformServiceEnableState(smach_ros.ServiceState):
         )
 
 
-class PlanBinPathState(smach.State):
-    def __init__(self, tf_buffer):
-        smach.State.__init__(
-            self,
-            outcomes=["succeeded", "preempted", "aborted"],
-            output_keys=["planned_paths"],
-        )
-        self.tf_buffer = tf_buffer
-
-    def execute(self, userdata) -> str:
-        try:
-            if self.preempt_requested():
-                rospy.logwarn("[PlanBinPathState] Preempt requested")
-                return "preempted"
-
-            path_planners = PathPlanners(self.tf_buffer)
-            paths = path_planners.path_for_bin()
-
-            if paths is None:
-                return "aborted"
-
-            userdata.planned_paths = paths
-            return "succeeded"
-
-        except Exception as e:
-            rospy.logerr("[PlanBinPathState] Error: %s", str(e))
-            return "aborted"
-
-
 ###############################################################################
 # BinSecondTrialState - State machine for managing the second trial attempt
 # for the bin task. Handles path planning, execution, and verification of the second trial process.
@@ -139,13 +110,24 @@ class PlanBinPathState(smach.State):
 
 
 class BinSecondTrialState(smach.StateMachine):
-    def __init__(self, tf_buffer):
+    def __init__(self, tf_buffer, bin_front_look_depth, bin_bottom_look_depth):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
         self.tf_buffer = tf_buffer
+        self.bin_front_look_depth = bin_front_look_depth
+        self.bin_bottom_look_depth = bin_bottom_look_depth
 
         with self:
+            smach.StateMachine.add(
+                "SET_SECOND_TRIAL_SEARCH_DEPTH",
+                SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_SECOND_TRIAL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "ALIGN_TO_SECOND_TRIAL",
                 AlignFrame(
@@ -197,7 +179,7 @@ class BinSecondTrialState(smach.StateMachine):
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",
                     full_rotation=False,
-                    set_frame_duration=10.0,
+                    set_frame_duration=5.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
                 ),
@@ -210,6 +192,15 @@ class BinSecondTrialState(smach.StateMachine):
             smach.StateMachine.add(
                 "DISABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
                 BinTransformServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "SET_SECOND_TRIAL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_SECOND_TRIAL_DEPTH",
+                SetDepthState(depth=bin_bottom_look_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "ALIGN_TO_SECOND_FAR_TRIAL",
                     "preempted": "preempted",
@@ -252,7 +243,7 @@ class BinSecondTrialState(smach.StateMachine):
 
 
 class BinTaskState(smach.State):
-    def __init__(self, bin_task_depth):
+    def __init__(self, bin_front_look_depth, bin_bottom_look_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.state_machine = smach.StateMachine(
@@ -274,7 +265,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DEPTH",
-                SetDepthState(depth=bin_task_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "FIND_AND_AIM_BIN",
                     "preempted": "preempted",
@@ -318,6 +309,15 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_BIN_FRAME_PUBLISHER",
                 BinTransformServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "SET_BIN_DROP_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BIN_DROP_DEPTH",
+                SetDepthState(depth=bin_bottom_look_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "ENABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
@@ -494,7 +494,9 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "BIN_SECOND_TRIAL",
-                BinSecondTrialState(self.tf_buffer),
+                BinSecondTrialState(
+                    self.tf_buffer, bin_front_look_depth, bin_bottom_look_depth
+                ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
                     "preempted": "preempted",

@@ -800,7 +800,7 @@ class CheckAlignmentState(smach.State):
         timeout,
         angle_offset=0.0,
         confirm_duration=0.0,
-        keep_orientation=False,  # Added keep_orientation
+        keep_orientation=False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
@@ -810,7 +810,7 @@ class CheckAlignmentState(smach.State):
         self.timeout = timeout
         self.angle_offset = angle_offset
         self.confirm_duration = confirm_duration
-        self.keep_orientation = keep_orientation  # Store keep_orientation
+        self.keep_orientation = keep_orientation
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.rate = rospy.Rate(10)
@@ -899,7 +899,7 @@ class AlignFrame(smach.StateMachine):
         timeout=30.0,
         cancel_on_success=False,
         confirm_duration=0.0,
-        keep_orientation=False,  # Added keep_orientation
+        keep_orientation=False,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
@@ -910,7 +910,7 @@ class AlignFrame(smach.StateMachine):
                     source_frame=source_frame,
                     target_frame=target_frame,
                     angle_offset=angle_offset,
-                    keep_orientation=keep_orientation,  # Pass keep_orientation
+                    keep_orientation=keep_orientation,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
@@ -929,7 +929,7 @@ class AlignFrame(smach.StateMachine):
                     timeout,
                     angle_offset,
                     confirm_duration,
-                    keep_orientation=keep_orientation,  # Pass keep_orientation
+                    keep_orientation=keep_orientation,
                 ),
                 transitions={
                     "succeeded": (
