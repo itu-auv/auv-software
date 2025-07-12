@@ -159,7 +159,7 @@ class CameraDetectionNode:
         rospy.loginfo("Camera detection node started")
 
         self.front_camera_enabled = True
-        self.bottom_camera_enabled = True
+        self.bottom_camera_enabled = False
 
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
