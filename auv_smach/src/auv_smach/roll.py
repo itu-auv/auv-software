@@ -197,38 +197,43 @@ class RollTwoTimes(smach.State):
     def killswitch_cb(self, msg: Bool):
         if not msg.data:
             self.active = False
-            rospy.logwarn("ROLL_TWO_TIMES: Propulsion board disabled → aborting")
+            rospy.logwarn("ROLL_TWO_TIMES: propulsion board disabled → aborting")
 
     def execute(self, userdata):
-        rospy.loginfo("ROLL_TWO_TIMES: Waiting for odometry data...")
+        rospy.loginfo("ROLL_TWO_TIMES: waiting for odometry data…")
         start_wait = rospy.Time.now()
-
         while not rospy.is_shutdown() and not self.odom_ready:
-            if (rospy.Time.now() - start_wait) > rospy.Duration(5.0):
-                rospy.logerr("ROLL_TWO_TIMES: No odometry data → abort")
+            if (rospy.Time.now() - start_wait).to_sec() > 5.0:
+                rospy.logerr("ROLL_TWO_TIMES: No odometry data after 5 s → abort")
                 return "aborted"
             if self.preempt_requested():
                 return "preempted"
-            self.rate.sleep()
+            try:
+                self.rate.sleep()
+            except rospy.ROSInterruptException:
+                return self._abort_on_shutdown()
 
-        rospy.loginfo(
-            "ROLL_TWO_TIMES: Starting roll with torque %.2f Nm", self.roll_torque
-        )
+        self.total_roll = 0.0
+        self.last_time = rospy.Time.now()
         self.start_time = rospy.Time.now()
+        target = math.radians(675.0)
+        rospy.loginfo(
+            "ROLL_TWO_TIMES: starting roll with torque %.2f Nm, target = %.2f rad",
+            self.roll_torque,
+            target,
+        )
 
         try:
-            while not rospy.is_shutdown() and self.active:
+            while not rospy.is_shutdown() and self.total_roll < target and self.active:
+
                 if self.preempt_requested():
                     return self._stop_and("preempted")
+
                 if (rospy.Time.now() - self.start_time) > self.timeout:
                     rospy.logerr(
-                        "ROLL_TWO_TIMES: Timeout after %.1f s", self.timeout.to_sec()
+                        "ROLL_TWO_TIMES: timed out after %.1f s", self.timeout.to_sec()
                     )
                     return self._stop_and("aborted")
-
-                if self.total_roll >= 2 * math.pi:
-                    rospy.loginfo("ROLL_TWO_TIMES: Completed two full rolls")
-                    return self._stop_and("succeeded")
 
                 cmd = WrenchStamped()
                 cmd.header.stamp = rospy.Time.now()
@@ -238,8 +243,9 @@ class RollTwoTimes(smach.State):
 
                 rospy.loginfo_throttle(
                     1.0,
-                    "ROLL_TWO_TIMES: Total roll: %.2f°",
-                    math.degrees(self.total_roll),
+                    "ROLL_TWO_TIMES: total_roll = %.2f / %.2f",
+                    self.total_roll,
+                    target,
                 )
 
                 self.rate.sleep()
@@ -247,17 +253,18 @@ class RollTwoTimes(smach.State):
         except rospy.ROSInterruptException:
             return self._abort_on_shutdown()
 
-        return "aborted"
+        return self._stop_and("succeeded")
 
     def _stop_and(self, outcome):
-        stop_cmd = WrenchStamped()
-        stop_cmd.header.stamp = rospy.Time.now()
-        stop_cmd.header.frame_id = self.frame_id
-        self.pub_wrench.publish(stop_cmd)
+        stop = WrenchStamped()
+        stop.header.stamp = rospy.Time.now()
+        stop.header.frame_id = self.frame_id
+        stop.wrench.torque.x = 0.0
+        self.pub_wrench.publish(stop)
         return outcome
 
     def _abort_on_shutdown(self):
-        rospy.logwarn("ROLL_TWO_TIMES: ROS shutdown → aborting")
+        rospy.logwarn("ROLL_TWO_TIMES: ROS shutdown detected → aborting state")
         return self._stop_and("aborted")
 
 
