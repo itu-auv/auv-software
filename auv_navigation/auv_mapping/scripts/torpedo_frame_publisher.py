@@ -41,7 +41,7 @@ class TorpedoTransformServiceNode:
             "~torpedo_realsense_frame", "torpedo_map_link_realsense"
         )
         self.torpedo_hole_frame = rospy.get_param(
-            "~torpedo_hole_frame", "torpedo_hole_bottom_left_link"
+            "~torpedo_hole_frame", "torpedo_hole_1_link"
         )
 
         self.initial_offset = rospy.get_param("~initial_offset", 3.0)
@@ -123,7 +123,7 @@ class TorpedoTransformServiceNode:
                 self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(1)
             )
             torpedo_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.torpedo_frame, rospy.Time(0), rospy.Duration(1)
+                self.odom_frame, self.torpedo_frame, rospy.Time.now(), rospy.Duration(1)
             )
 
         except (
@@ -185,7 +185,7 @@ class TorpedoTransformServiceNode:
             torpedo_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.torpedo_realsense_frame,
-                rospy.Time(0),
+                rospy.Time.now(),
                 rospy.Duration(1),
             )
             torpedo_pose = self.get_pose(torpedo_tf)
@@ -213,13 +213,13 @@ class TorpedoTransformServiceNode:
             torpedo_hole_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.torpedo_hole_frame,
-                rospy.Time(0),
+                rospy.Time.now(),
                 rospy.Duration(1),
             )
             realsense_target_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.realsense_target_frame,
-                rospy.Time(0),
+                rospy.Time.now(),
                 rospy.Duration(1),
             )
             torpedo_hole_pose = self.get_pose(torpedo_hole_tf)

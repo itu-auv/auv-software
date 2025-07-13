@@ -1,17 +1,16 @@
 from .initialize import *
 import smach
 import smach_ros
-from std_srvs.srv import SetBool, SetBoolRequest
+from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerRequest
+import math
 
 from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
     SetDepthState,
+    SearchForPropState,
 )
-
 from auv_smach.initialize import DelayState
-
-from auv_smach.common import LaunchTorpedoState, SearchForPropState
 
 
 class TorpedoTargetFramePublisherServiceState(smach_ros.ServiceState):
@@ -41,6 +40,16 @@ class TorpedoFireFramePublisherServiceState(smach_ros.ServiceState):
             "set_transform_torpedo_hole_target_frame",
             SetBool,
             request=SetBoolRequest(data=req),
+        )
+
+
+class LaunchTorpedoState(smach_ros.ServiceState):
+    def __init__(self, id: int):
+        smach_ros.ServiceState.__init__(
+            self,
+            f"torpedo_{id}/launch",
+            Trigger,
+            request=TriggerRequest(),
         )
 
 
@@ -100,7 +109,6 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_target_frame,
-                    # angle_offset=-1.57,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=5.0,
@@ -127,9 +135,10 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_target_frame,
-                    angle_offset=3.14,
+                    angle_offset=math.pi,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
+                    confirm_duration=3.0,
                     timeout=20.0,
                     cancel_on_success=False,
                 ),
@@ -171,9 +180,9 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_realsense_target_frame,
-                    angle_offset=-1.57,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
+                    angle_offset=-math.pi / 2,
+                    dist_threshold=0.05,
+                    yaw_threshold=0.05,
                     confirm_duration=10.0,
                     timeout=30.0,
                     cancel_on_success=False,
@@ -196,7 +205,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH",
                 SetDepthState(
-                    depth=0.0, sleep_duration=5.0, frame_id=torpedo_fire_frame
+                    depth=0.23, sleep_duration=7.0, frame_id="torpedo_map_link"
                 ),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
@@ -218,7 +227,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=torpedo_fire_frame,
-                    angle_offset=-1.57,
+                    angle_offset=-math.pi / 2,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=10.0,
@@ -242,7 +251,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_LAUNCH",
-                DelayState(delay_time=6.0),
+                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",
                     "preempted": "preempted",
@@ -260,15 +269,33 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_2_LAUNCH",
-                DelayState(delay_time=6.0),
+                DelayState(delay_time=3.0),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER_FINAL",
+                    "succeeded": "GET_BACK",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_FINAL",
+                "GET_BACK",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=torpedo_realsense_target_frame,
+                    angle_offset=-math.pi,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
