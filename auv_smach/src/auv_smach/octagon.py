@@ -2,11 +2,13 @@ from .initialize import *
 import smach
 from auv_smach.common import (
     NavigateToFrameState,
-    SetAlignControllerTargetState,
-    CancelAlignControllerState,
     SetDepthState,
 )
 from auv_smach.initialize import DelayState
+from auv_smach.alignment_states import (
+    SetAlignControllerTargetState,
+    CancelAlignControllerState,
+)
 
 
 class OctagonTaskState(smach.State):

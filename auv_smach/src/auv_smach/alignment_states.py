@@ -169,3 +169,88 @@ class CheckAlignmentState(smach.State):
 
         rospy.logwarn("CheckAlignmentState: Timeout reached.")
         return "succeeded"
+
+
+class AlignFrame(smach.StateMachine):
+    def __init__(
+        self,
+        source_frame,
+        target_frame,
+        angle_offset=0.0,
+        dist_threshold=0.1,
+        yaw_threshold=0.1,
+        timeout=30.0,
+        cancel_on_success=False,
+        confirm_duration=0.0,
+        keep_orientation=False,
+    ):
+        super().__init__(outcomes=["succeeded", "aborted", "preempted"])
+
+        with self:
+            smach.StateMachine.add(
+                "REQUEST_ALIGNMENT",
+                SetAlignControllerTargetState(
+                    source_frame=source_frame,
+                    target_frame=target_frame,
+                    angle_offset=angle_offset,
+                    keep_orientation=keep_orientation,
+                ),
+                transitions={
+                    "succeeded": "WATCH_ALIGNMENT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "WATCH_ALIGNMENT",
+                CheckAlignmentState(
+                    source_frame,
+                    target_frame,
+                    dist_threshold,
+                    yaw_threshold,
+                    timeout,
+                    angle_offset,
+                    confirm_duration,
+                    keep_orientation=keep_orientation,
+                ),
+                transitions={
+                    "succeeded": (
+                        "CANCEL_ALIGNMENT_ON_SUCCESS"
+                        if cancel_on_success
+                        else "succeeded"
+                    ),
+                    "aborted": "CANCEL_ALIGNMENT_ON_FAIL",
+                    "preempted": "CANCEL_ALIGNMENT_ON_PREEMPT",
+                },
+            )
+
+            smach.StateMachine.add(
+                "CANCEL_ALIGNMENT_ON_SUCCESS",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "CANCEL_ALIGNMENT_ON_FAIL",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "aborted",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "CANCEL_ALIGNMENT_ON_PREEMPT",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "preempted",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )

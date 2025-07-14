@@ -21,23 +21,14 @@ from auv_msgs.srv import (
     SetObjectTransformResponse,
 )
 
-from auv_msgs.srv import SetDepth, SetDepthRequest
-from auv_msgs.srv import VisualServoing, VisualServoingRequest
-
-from auv_navigation.follow_path_action import follow_path_client
-
-from auv_navigation.path_planning.path_planners import PathPlanners
-
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 
-from tf.transformations import (
-    quaternion_matrix,
-    quaternion_from_matrix,
-    translation_matrix,
-    translation_from_matrix,
-    quaternion_from_euler,
-    euler_from_quaternion,
+from tf.transformations import euler_from_quaternion
+
+from auv_smach.alignment_states import (
+    SetAlignControllerTargetState,
+    CancelAlignControllerState,
 )
 
 

@@ -22,12 +22,10 @@ import tf2_geometry_msgs
 
 from auv_smach.common import (
     NavigateToFrameState,
-    SetAlignControllerTargetState,
-    CancelAlignControllerState,
     SetDepthState,
-    SearchForPropState,
 )
-
+from auv_smach.alignment_states import SetAlignControllerTargetState
+from auv_smach.search_states import SearchForPropState
 from auv_smach.initialize import DelayState
 
 

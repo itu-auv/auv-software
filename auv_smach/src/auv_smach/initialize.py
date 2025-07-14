@@ -6,7 +6,8 @@ from std_srvs.srv import Empty, EmptyRequest
 from robot_localization.srv import SetPose, SetPoseRequest
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
-from auv_smach.common import CancelAlignControllerState, ClearObjectMapState
+from auv_smach.common import ClearObjectMapState
+from auv_smach.alignment_states import CancelAlignControllerState
 from typing import Optional, Literal
 from dataclasses import dataclass
 

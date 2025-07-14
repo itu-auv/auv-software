@@ -21,12 +21,12 @@ import tf.transformations as transformations
 
 from auv_smach.common import (
     NavigateToFrameState,
-    SetAlignControllerTargetState,
-    CancelAlignControllerState,
     SetDepthState,
-    SearchForPropState,
 )
 from auv_smach.red_buoy import SetRedBuoyRotationStartFrame
+
+from auv_smach.alignment_states import SetAlignControllerTargetState
+from auv_smach.search_states import SearchForPropState
 
 from auv_smach.initialize import DelayState
 

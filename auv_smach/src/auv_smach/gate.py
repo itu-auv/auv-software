@@ -3,47 +3,18 @@ import smach
 import rospy
 import tf2_ros
 from std_srvs.srv import Trigger, TriggerRequest
-from auv_navigation.path_planning.path_planners import PathPlanners
 
 from auv_smach.common import (
-    SetAlignControllerTargetState,
-    CancelAlignControllerState,
     SetDepthState,
-    ExecutePlannedPathsState,
-    SearchForPropState,
+    NavigateToFrameState,
 )
 
+from auv_smach.search_states import SearchForPropState
 
-class PlanGatePathsState(smach.State):
-    """State that plans the paths for the gate task"""
-
-    def __init__(self, tf_buffer):
-        smach.State.__init__(
-            self,
-            outcomes=["succeeded", "preempted", "aborted"],
-            output_keys=["planned_paths"],
-        )
-        self.tf_buffer = tf_buffer
-
-    def execute(self, userdata) -> str:
-        try:
-            if self.preempt_requested():
-                rospy.logwarn("[PlanGatePathsState] Preempt requested")
-                return "preempted"
-
-            path_planners = PathPlanners(
-                self.tf_buffer
-            )  # instance of PathPlanners with tf_buffer
-            paths = path_planners.path_for_gate()
-            if paths is None:
-                return "aborted"
-
-            userdata.planned_paths = paths
-            return "succeeded"
-
-        except Exception as e:
-            rospy.logerr("[PlanGatePathsState] Error: %s", str(e))
-            return "aborted"
+from auv_smach.alignment_states import (
+    SetAlignControllerTargetState,
+    CancelAlignControllerState,
+)
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
@@ -105,15 +76,6 @@ class NavigateThroughGateState(smach.State):
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
                 transitions={
-                    "succeeded": "PLAN_GATE_PATHS",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "PLAN_GATE_PATHS",
-                PlanGatePathsState(self.tf_buffer),
-                transitions={
                     "succeeded": "PUBLISH_GATE_ANGLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -152,18 +114,22 @@ class NavigateThroughGateState(smach.State):
                     source_frame="taluy/base_link", target_frame="dynamic_target"
                 ),
                 transitions={
-                    "succeeded": "EXECUTE_GATE_PATHS",
+                    "succeeded": "NAVIGATE_TO_GATE_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "EXECUTE_GATE_PATHS",
-                ExecutePlannedPathsState(),
+                "NAVIGATE_TO_GATE_EXIT",
+                NavigateToFrameState(
+                    start_frame="gate_entrance",
+                    target_frame="dynamic_target",
+                    end_frame="gate_exit",
+                ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
