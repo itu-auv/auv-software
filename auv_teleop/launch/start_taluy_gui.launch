@@ -13,6 +13,7 @@
         <remap from="enable" to="$(arg namespace)/enable"/>
         <remap from="drive_pulse" to="$(arg namespace)/board/drive_pulse"/>
         <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
+      <remap from="power" to="$(arg namespace)/mainboard/power_sensor/power" />
 
         <remap from="align_frame/cancel" to="$(arg namespace)/control/align_frame/cancel"/>
         <remap from="reset_odometry" to="$(arg namespace)/reset_odometry"/>

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from PyQt5.QtWidgets import (
+    QDialog,
     QWidget,
     QVBoxLayout,
     QGroupBox,
@@ -8,13 +9,69 @@ from PyQt5.QtWidgets import (
     QTextEdit,
     QGridLayout,
     QCheckBox,
+    QLabel,
+    QMessageBox,
+    QApplication,
+    QDialog,
 )
-from PyQt5.QtCore import QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
+from PyQt5.QtGui import QFont
 import subprocess
 import rospy
 from std_msgs.msg import Bool
 import auv_msgs.msg
 import threading
+from auv_msgs.msg import Power
+
+
+class WarningDialog(QDialog):
+    def __init__(self, title, message, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumSize(600, 300)
+        self.setWindowFlags(Qt.WindowStaysOnTopHint)
+
+        layout = QVBoxLayout()
+
+        # Title label
+        title_label = QLabel(title)
+        title_label.setFont(QFont("Arial", 18, QFont.Bold))
+        title_label.setStyleSheet("color: red;")
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
+
+        # Message content
+        msg_label = QLabel(message)
+        msg_label.setFont(QFont("Arial", 14))
+        msg_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(msg_label)
+
+        # Warning icon
+        icon_label = QLabel("⚠️")
+        icon_label.setFont(QFont("Arial", 48))
+        icon_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(icon_label)
+
+        # OK button
+        ok_btn = QPushButton("OK")
+        ok_btn.setFont(QFont("Arial", 14, QFont.Bold))
+        ok_btn.setStyleSheet(
+            "background-color: #FF0000; color: white; padding: 15px; border-radius: 10px;"
+        )
+        ok_btn.clicked.connect(self.accept)
+        layout.addWidget(ok_btn)
+
+        self.setLayout(layout)
+
+        # Center window on screen
+        self.center_on_screen()
+
+    def center_on_screen(self):
+        # Get the screen geometry
+        screen = QApplication.desktop().screenGeometry()
+        x = (screen.width() - self.width()) // 2
+        y = (screen.height() - self.height()) // 2
+        self.move(x, y)
 
 
 class CommandThread(QThread):
@@ -81,6 +138,18 @@ class DryTestTab(QWidget):
             "drive_pulse", auv_msgs.msg.MotorCommand, queue_size=10
         )
 
+        self.voltage = None
+        self.voltage_label = QLabel("Voltage: 0.0V")
+        self.voltage_label.setFont(QFont("Arial", 12, QFont.Bold))
+        self.voltage_timer = QTimer()
+        self.voltage_timer.timeout.connect(self.update_voltage_display)
+        self.voltage_timer.start(1000)  # Update every second
+        self.power_sub = rospy.Subscriber("power", Power, self.power_callback)
+
+        # Warning thresholds
+        self.warning_threshold = 15.2
+        self.critical_threshold = 14.8
+
         self.init_ui()
         self.imu_thread = None
         self.bar30_thread = None
@@ -101,10 +170,11 @@ class DryTestTab(QWidget):
         self.bar30_start_btn = QPushButton("Echo Bar30")
         self.bar30_stop_btn = QPushButton("Stop Echo Bar30")
 
-        sensor_layout.addWidget(self.imu_start_btn, 0, 0)
-        sensor_layout.addWidget(self.imu_stop_btn, 0, 1)
-        sensor_layout.addWidget(self.bar30_start_btn, 1, 0)
-        sensor_layout.addWidget(self.bar30_stop_btn, 1, 1)
+        sensor_layout.addWidget(self.voltage_label, 0, 0, 1, 2)
+        sensor_layout.addWidget(self.imu_start_btn, 1, 0)
+        sensor_layout.addWidget(self.imu_stop_btn, 1, 1)
+        sensor_layout.addWidget(self.bar30_start_btn, 2, 0)
+        sensor_layout.addWidget(self.bar30_stop_btn, 2, 1)
         sensor_group.setLayout(sensor_layout)
 
         self.output = QTextEdit()
@@ -314,3 +384,60 @@ class DryTestTab(QWidget):
         while self.thruster_publishing and not rospy.is_shutdown():
             self.thruster_pub.publish(motor_cmd)
             rate.sleep()
+
+    def power_callback(self, msg):
+        self.voltage = msg.voltage
+
+        # Show warning message only once when voltage drops below warning threshold
+        if self.voltage < self.warning_threshold and not hasattr(self, "warning_shown"):
+            self.warning_shown = True
+            self.show_warning_dialog(
+                "LOW VOLTAGE WARNING",
+                f"BATTERY VOLTAGE BELOW WARNING THRESHOLD!\n\n"
+                f"Current voltage: {self.voltage:.2f}V\n"
+                f"Warning threshold: {self.warning_threshold}V\n\n"
+                "Please recharge batteries soon!",
+                is_critical=False,
+            )
+
+        # Show critical warning message only once when voltage drops below critical threshold
+        if self.voltage < self.critical_threshold and not hasattr(
+            self, "critical_shown"
+        ):
+            self.critical_shown = True
+            self.show_warning_dialog(
+                "CRITICAL VOLTAGE WARNING!",
+                f"BATTERY VOLTAGE CRITICALLY LOW!\n\n"
+                f"Current voltage: {self.voltage:.2f}V\n"
+                f"Critical threshold: {self.critical_threshold}V\n\n"
+                "SYSTEM MAY SHUT DOWN SOON!\n"
+                "IMMEDIATE RECHARGING REQUIRED!",
+                is_critical=True,
+            )
+
+        # Reset flags if voltage goes back above thresholds
+        if self.voltage >= self.warning_threshold and hasattr(self, "warning_shown"):
+            del self.warning_shown
+
+        if self.voltage >= self.critical_threshold and hasattr(self, "critical_shown"):
+            del self.critical_shown
+
+    def show_warning_dialog(self, title, message, is_critical=False):
+        """Show a custom warning dialog"""
+        dialog = WarningDialog(title, message, self)
+        if is_critical:
+            dialog.setStyleSheet("background-color: #FFCCCC;")
+        dialog.exec_()
+
+    def update_voltage_display(self):
+        if self.voltage is not None:
+            self.voltage_label.setText(f"Voltage: {self.voltage:.2f}V")
+            if self.voltage < self.critical_threshold:
+                self.voltage_label.setStyleSheet("color: red;")
+            elif self.voltage < self.warning_threshold:
+                self.voltage_label.setStyleSheet("color: orange;")
+            else:
+                self.voltage_label.setStyleSheet("color: black;")
+        else:
+            self.voltage_label.setText("Voltage: N/A")
+            self.voltage_label.setStyleSheet("color: gray;")
