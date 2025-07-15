@@ -41,11 +41,14 @@
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>auv_navigation</build_depend>
+  <build_depend>dynamic_reconfigure</build_depend>
   <build_depend>rospy</build_depend>
   <build_depend>smach</build_depend>
+  <build_export_depend>dynamic_reconfigure</build_export_depend>
   <build_export_depend>rospy</build_export_depend>
   <build_export_depend>smach</build_export_depend>
   <exec_depend>auv_navigation</exec_depend>
+  <exec_depend>dynamic_reconfigure</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>smach</exec_depend>
   <!-- The export tag contains other, unspecified, tags -->
