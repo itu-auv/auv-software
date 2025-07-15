@@ -11,9 +11,10 @@ from geometry_msgs.msg import (
     Transform,
     Vector3,
     Quaternion,
+    Point,
 )
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw
+from auv_msgs.msg import PropsYaw, LaneBoundaries
 from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
@@ -165,6 +166,12 @@ class CameraDetectionNode:
             "object_transform_updates", TransformStamped, queue_size=10
         )
         self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
+
+        self.lane_boundaries = None
+        rospy.Subscriber(
+            "lane_boundaries", LaneBoundaries, self.lane_boundaries_callback
+        )
+
         # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -254,6 +261,9 @@ class CameraDetectionNode:
         message = "Bottom camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
+
+    def lane_boundaries_callback(self, msg: LaneBoundaries):
+        self.lane_boundaries = msg
 
     def altitude_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
@@ -564,36 +574,75 @@ class CameraDetectionNode:
             props_yaw_msg.object = prop.name
             props_yaw_msg.angle = -angles[0]
             self.props_yaw_pub.publish(props_yaw_msg)
+
+            offset_x = math.tan(angles[0]) * distance * 1.0
+            offset_y = math.tan(angles[1]) * distance * 1.0
+
             try:
-                camera_to_odom_transform = self.tf_buffer.lookup_transform(
-                    camera_frame,
+                transform_odom_to_camera = self.tf_buffer.lookup_transform(
                     "odom",
-                    rospy.Time(0),
+                    camera_frame,
+                    detection_msg.header.stamp,
                     rospy.Duration(1.0),
                 )
+                point_in_camera = PointStamped()
+                point_in_camera.header.frame_id = camera_frame
+                point_in_camera.header.stamp = detection_msg.header.stamp
+                point_in_camera.point = Vector3(offset_x, offset_y, distance)
+
+                point_in_odom = tf2_geometry_msgs.do_transform_point(
+                    point_in_camera, transform_odom_to_camera
+                )
+                in_lane = self.is_in_lane(point_in_odom.point)
+                child_frame_id = prop_name if in_lane else f"out_{prop_name}"
+
+                transform_stamped_msg = TransformStamped()
+                transform_stamped_msg.header.stamp = detection_msg.header.stamp
+                transform_stamped_msg.header.frame_id = "odom"
+                transform_stamped_msg.child_frame_id = child_frame_id
+                transform_stamped_msg.transform.translation = point_in_odom.point
+                transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+                self.object_transform_pub.publish(transform_stamped_msg)
+
             except (
                 tf2_ros.LookupException,
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException,
             ) as e:
-                rospy.logerr(f"Transform error: {e}")
-                return
+                rospy.logerr(f"TF error for {prop_name}: {e}")
+                continue
 
-            offset_x = math.tan(angles[0]) * distance * 1.0
-            offset_y = math.tan(angles[1]) * distance * 1.0
-            transform_stamped_msg = TransformStamped()
-            transform_stamped_msg.header.stamp = detection_msg.header.stamp
-            transform_stamped_msg.header.frame_id = camera_frame
-            transform_stamped_msg.child_frame_id = prop_name
+    def is_in_lane(self, point_in_odom: Point) -> bool:
+        if self.lane_boundaries is None:
+            rospy.logwarn_throttle(
+                10, "Lane boundaries not received yet, allowing all detections."
+            )
+            return True
 
-            transform_stamped_msg.transform.translation = Vector3(
-                offset_x, offset_y, distance
-            )
-            transform_stamped_msg.transform.rotation = (
-                camera_to_odom_transform.transform.rotation
-            )
-            # Calculate the rotation based on odom
-            self.object_transform_pub.publish(transform_stamped_msg)
+        def is_left(p: Point, d: Vector3, x: float, y: float) -> bool:
+            """
+            Is a point (x, y) to the left of the line defined by point p and direction d?
+            positive result: the point is to the left of the line
+            """
+            return (x - p.x) * d.y - (y - p.y) * d.x > 0
+
+        x = point_in_odom.x
+        y = point_in_odom.y
+
+        is_inside_right_boundary = is_left(
+            self.lane_boundaries.right_lane_point,
+            self.lane_boundaries.right_lane_direction,
+            x,
+            y,
+        )
+        is_inside_left_boundary = not is_left(
+            self.lane_boundaries.left_lane_point,
+            self.lane_boundaries.left_lane_direction,
+            x,
+            y,
+        )
+
+        return is_inside_left_boundary and is_inside_right_boundary
 
     def run(self):
         rospy.spin()
