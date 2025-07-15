@@ -260,18 +260,30 @@ class CameraDetectionNode:
         )
 
     def handle_set_front_camera_focus(self, req):
-        target_ids = self.object_id_map.get(req.focus_object)
-        if target_ids is not None:
-            self.active_front_camera_ids = target_ids
-            message = (
-                f"Front camera focus set to '{req.focus_object}' (IDs: {target_ids})"
-            )
-            rospy.loginfo(message)
-            return SetDetectionFocusResponse(success=True, message=message)
-        else:
-            message = f"Unknown focus object: '{req.focus_object}'. Available options: {list(self.object_id_map.keys())}"
+        focus_objects = [obj.strip() for obj in req.focus_object.split(",")]
+        all_target_ids = []
+        unfound_objects = []
+
+        for focus_object in focus_objects:
+            target_ids = self.object_id_map.get(focus_object)
+            if target_ids is not None:
+                all_target_ids.extend(target_ids)
+            else:
+                unfound_objects.append(focus_object)
+
+        if not all_target_ids:
+            message = f"Unknown focus object(s): '{req.focus_object}'. Available options: {list(self.object_id_map.keys())}"
             rospy.logwarn(message)
             return SetDetectionFocusResponse(success=False, message=message)
+
+        self.active_front_camera_ids = list(set(all_target_ids))
+        message = f"Front camera focus set to IDs: {self.active_front_camera_ids}"
+
+        if unfound_objects:
+            message += f". Could not find: {unfound_objects}"
+
+        rospy.loginfo(message)
+        return SetDetectionFocusResponse(success=True, message=message)
 
     def handle_enable_front_camera(self, req):
         self.front_camera_enabled = req.data
@@ -546,7 +558,13 @@ class CameraDetectionNode:
                 torpedo_map_bbox = detection.bbox
                 break
 
-        if torpedo_map_bbox:
+        torpedo_ids = set(self.object_id_map.get("torpedo", []))
+        process_torpedo = True
+        if camera_source == "front_camera":
+            if not torpedo_ids.intersection(self.active_front_camera_ids):
+                process_torpedo = False
+
+        if torpedo_map_bbox and process_torpedo:
             self.process_torpedo_holes_on_map(
                 detection_msg, camera_ns, torpedo_map_bbox
             )
