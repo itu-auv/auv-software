@@ -9,5 +9,12 @@
       name="follow_path_action_server"
       output="screen">
     </node>
+    <node
+      pkg="auv_navigation"
+      type="lane_calculator_node.py"
+      name="lane_calculator_node"
+      output="screen">
+      <rosparam file="$(find auv_navigation)/config/lane_calculator.yaml" command="load" />
+    </node>
   </group>
 </launch>
