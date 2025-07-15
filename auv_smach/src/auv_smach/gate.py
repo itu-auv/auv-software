@@ -4,7 +4,7 @@ import smach_ros
 import rospy
 import tf2_ros
 from std_srvs.srv import Trigger, TriggerRequest
-
+from auv_navigation.path_planning.path_planners import PathPlanners
 from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
@@ -38,6 +38,37 @@ class PublishGateAngleState(smach_ros.ServiceState):
         smach_ros.ServiceState.__init__(
             self, "publish_gate_angle", Trigger, request=TriggerRequest()
         )
+
+
+class PlanGatePathsState(smach.State):
+    """State that plans the paths for the gate task"""
+
+    def __init__(self, tf_buffer):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["planned_paths"],
+        )
+        self.tf_buffer = tf_buffer
+
+    def execute(self, userdata) -> str:
+        try:
+            if self.preempt_requested():
+                rospy.logwarn("[PlanGatePathsState] Preempt requested")
+                return "preempted"
+
+            path_planners = PathPlanners(
+                self.tf_buffer
+            )  # instance of PathPlanners with tf_buffer
+            paths = path_planners.path_for_gate()
+            if paths is None:
+                return "aborted"
+
+            userdata.planned_paths = paths
+            return "succeeded"
+        except Exception as e:
+            rospy.logerr("[PlanGatePathsState] Error: %s", str(e))
+            return "aborted"
 
 
 class NavigateThroughGateState(smach.State):
