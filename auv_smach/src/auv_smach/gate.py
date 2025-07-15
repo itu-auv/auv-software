@@ -108,7 +108,7 @@ class NavigateThroughGateState(smach.State):
                     full_rotation=False,
                     set_frame_duration=3.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
