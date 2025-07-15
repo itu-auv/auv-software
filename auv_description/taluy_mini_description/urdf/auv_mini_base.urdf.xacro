@@ -1,0 +1,79 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="taluy_mini">
+  <!-- create xacro property -->
+  <xacro:property name="namespace" value="taluy_mini"/>
+  <xacro:macro name="taluy_mini_base">
+    <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators.urdf.xacro"/>
+    <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors.urdf.xacro"/>
+    <xacro:include filename="$(find auv_common_descriptions)/urdf/materials.urdf.xacro"/>
+    <xacro:arg name="angled_thruster_z_offset" default="-0.01"/>
+    <link name="${namespace}/base_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="25.37"/>
+        <inertia ixx="0.1" iyy="0.1" izz="0.1" ixy="0.01" iyz="0.01" ixz="0.1"/>
+      </inertial>
+      <visual>
+        <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/body/body.stl" scale="1 1 1"/>
+        </geometry>
+        <material name="black"/>
+      </visual>
+      <collision>
+        <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/body/body.stl" scale="1 1 1"/>
+        </geometry>
+      </collision>
+    </link>
+    <!-- <link name="${namespace}/base_link_ned" />
+
+    <joint name="base_link_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="${math.pi} 0 0" />
+      <parent link="${namespace}/base_link_ned" />
+      <child link="${namespace}/base_link" />
+    </joint> -->
+    <xacro:t200_thruster name="${namespace}/thruster_0" parent="${namespace}/base_link" position="0.15895 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_1" parent="${namespace}/base_link" position="0.15895 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_2" parent="${namespace}/base_link" position="-0.15895 0.20070 -0.00525" orientation="${pi} 0 ${-pi/2}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_3" parent="${namespace}/base_link" position="-0.15895 -0.20070 -0.00525" orientation="${pi} 0 ${pi/2}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_4" parent="${namespace}/base_link" position="0.352398 0.216638 $(arg angled_thruster_z_offset)" orientation="${-pi/2} 0 ${-7*pi/4}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_5" parent="${namespace}/base_link" position="0.352398 -0.216638 $(arg angled_thruster_z_offset)" orientation="${pi/2} 0 ${7*pi/4}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_6" parent="${namespace}/base_link" position="-0.352398 0.216638 $(arg angled_thruster_z_offset)" orientation="${-pi/2} 0 ${-pi/4}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_7" parent="${namespace}/base_link" position="-0.352398 -0.216638 $(arg angled_thruster_z_offset)" orientation="${pi/2} 0 ${pi/4}"/>
+    <xacro:wayfinder_dvl name="${namespace}/base_link/dvl" parent="${namespace}/base_link" position="0.2 0 -0.11" orientation="0 0 0"/>
+    <xacro:xsens_mti_g710 name="${namespace}/base_link/imu" parent="${namespace}/base_link" position="-0.162 0 -0.0108" orientation="0 0 ${math.pi}"/>
+    <xacro:xsens_mti_g710 name="${namespace}/base_link/imu_expansion" parent="${namespace}/base_link" position="-0.282 -0.1 -0.0108" orientation="0 0 ${math.pi}"/>
+    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_0" parent="${namespace}/base_link" position="0.325 0.205 -0.15" orientation="0 0 0"/>
+    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_1" parent="${namespace}/base_link" position="0.325 -0.205 -0.15" orientation="0 0 0"/>
+    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_2" parent="${namespace}/base_link" position="-0.325 0.205 -0.15" orientation="0 0 0"/>
+    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_3" parent="${namespace}/base_link" position="-0.325 -0.205 -0.15" orientation="0 0 0"/>
+    <xacro:ping360 name="${namespace}/base_link/ping360" parent="${namespace}/base_link" position="0.2 0 0.134" orientation="0 0 0"/>
+    <xacro:bar30 name="${namespace}/base_link/external_pressure_sensor" parent="${namespace}/base_link" position="0 0 0.07" orientation="0 0 0"/>
+    <xacro:logitech_c920_camera name="${namespace}/base_link/front_camera" parent="${namespace}/base_link" position="0.35 0 0" orientation="0 0 0"/>
+    <xacro:logitech_c920_camera name="${namespace}/base_link/bottom_camera" parent="${namespace}/base_link" position="0 0 -0.07" orientation="0 ${math.pi/2} ${-math.pi/2}"/>
+    <xacro:torpedo_upper name="${namespace}/base_link/torpedo_upper" parent="${namespace}/base_link" position="0.3916 -0.121 -0.056" orientation="0 0 0"/>
+    <xacro:torpedo_bottom name="${namespace}/base_link/torpedo_bottom" parent="${namespace}/base_link" position="0.3916 -0.121 -0.091" orientation="0 0 0"/>
+    <xacro:sonar name="${namespace}/base_link/sonar_front" parent="${namespace}/base_link" position="0.38 0.09 0.09" orientation="0 0 0"/>
+    <xacro:sonar name="${namespace}/base_link/sonar_back" parent="${namespace}/base_link" position="-0.42 -0.09 0.09" orientation="0 0 ${math.pi}"/>
+    <xacro:sonar name="${namespace}/base_link/sonar_right" parent="${namespace}/base_link" position="0.02 -0.21 -0.14" orientation="0 0 ${-math.pi/2}"/>
+    <xacro:sonar name="${namespace}/base_link/sonar_left" parent="${namespace}/base_link" position="0.02 0.21 -0.14" orientation="0 0 ${math.pi/2}"/>
+    <xacro:ball_dropper name="${namespace}/base_link/ball_dropper" parent="${namespace}/base_link" position="0.1004 0.0745 -0.1953" orientation="0 0 0"/>
+    <xacro:realsense_d435 name="${namespace}/base_link/back_camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 ${math.pi}"/>
+    <!-- <link name="base_footprint">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="15.0" />
+        <inertia ixx="39.351246" iyy="103.261717" izz="127.702526" ixy="-5e-06" iyz="6e-06"
+          ixz="4.403436" />
+      </inertial>
+    </link>
+
+    <joint name="base_link_joint" type="fixed">
+      <origin xyz="0 0 ${-base_z_offsett + 0.06 - draft}" rpy="0 0 0" />
+      <parent link="base_footprint" />
+      <child link="base_link" />
+    </joint> -->
+  </xacro:macro>
+</robot>
