@@ -2,8 +2,10 @@ from .initialize import *
 import smach
 import rospy
 import tf2_ros
-from std_srvs.srv import Trigger, TriggerRequest
+from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
+from auv_msgs.srv import PlanPath, PlanPathRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
+from geometry_msgs.msg import PoseStamped
 
 from auv_smach.common import (
     SetAlignControllerTargetState,
@@ -43,6 +45,35 @@ class PlanGatePathsState(smach.State):
 
         except Exception as e:
             rospy.logerr("[PlanGatePathsState] Error: %s", str(e))
+            return "aborted"
+
+
+class SetPlanState(smach.State):
+    """State that calls the /set_plan service"""
+
+    def __init__(self, planner_type: str, target_frame: str):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.planner_type = planner_type
+        self.target_frame = target_frame
+
+    def execute(self, userdata) -> str:
+        try:
+            if self.preempt_requested():
+                rospy.logwarn("[SetPlanState] Preempt requested")
+                return "preempted"
+
+            rospy.wait_for_service("/set_plan")
+            set_plan = rospy.ServiceProxy("/set_plan", PlanPath)
+
+            req = PlanPathRequest(
+                planner_type=self.planner_type,
+                target_frame=self.target_frame,
+            )
+            set_plan(req)
+            return "succeeded"
+
+        except Exception as e:
+            rospy.logerr("[SetPlanState] Error: %s", str(e))
             return "aborted"
 
 
@@ -111,17 +142,8 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "PLAN_GATE_PATHS",
-                PlanGatePathsState(self.tf_buffer),
-                transitions={
-                    "succeeded": "PUBLISH_GATE_ANGLE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "PUBLISH_GATE_ANGLE",
-                PublishGateAngleState(),
+                "START_PLANNING_GATE_PATHS",
+                SetPlanState(planner_type="gate", target_frame="gate_exit"),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
