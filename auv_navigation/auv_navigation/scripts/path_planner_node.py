@@ -47,7 +47,9 @@ class PathPlannerNode:
                 try:
                     if self.planner_type == "gate":
                         path = self.path_planners.path_for_gate()
-                    if (
+                    elif self.planner_type == "bin":
+                        path = self.path_planners.path_for_bin()
+                    elif (
                         self.planner_type == "straight"
                         and self.target_frame is not None
                     ):
