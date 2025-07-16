@@ -133,24 +133,14 @@ class BinBlue(Prop):
         super().__init__(11, "bin_blue", 0.30480, 0.30480)
 
 
-class TorpedoHole1(Prop):
+class TorpedoHoleUpper(Prop):
     def __init__(self):
-        super().__init__(13, "torpedo_hole_1", 0.178, 0.178)
+        super().__init__(13, "torpedo_hole_upper", 0.115, 0.115)
 
 
-class TorpedoHole2(Prop):
+class TorpedoHoleBottom(Prop):
     def __init__(self):
-        super().__init__(13, "torpedo_hole_2", 0.153, 0.153)
-
-
-class TorpedoHole3(Prop):
-    def __init__(self):
-        super().__init__(13, "torpedo_hole_3", 0.128, 0.128)
-
-
-class TorpedoHole4(Prop):
-    def __init__(self):
-        super().__init__(13, "torpedo_hole_4", 0.102, 0.102)
+        super().__init__(13, "torpedo_hole_bottom", 0.115, 0.115)
 
 
 class CameraDetectionNode:
@@ -200,10 +190,8 @@ class CameraDetectionNode:
             "octagon_link": Octagon(),
             "bin/red_link": BinRed(),
             "bin/blue_link": BinBlue(),
-            "torpedo_hole_1_link": TorpedoHole1(),
-            "torpedo_hole_2_link": TorpedoHole2(),
-            "torpedo_hole_3_link": TorpedoHole3(),
-            "torpedo_hole_4_link": TorpedoHole4(),
+            "torpedo_hole_upper_link": TorpedoHoleUpper(),
+            "torpedo_hole_bottom_link": TorpedoHoleBottom(),
         }
 
         self.id_tf_map = {
@@ -369,51 +357,62 @@ class CameraDetectionNode:
         detected_holes_in_map = []
         camera_frame = self.camera_frames[camera_ns]
 
+        # First, find all hole detections inside the torpedo map
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
             detection_id = detection.results[0].id
 
-            if detection_id == 13:
+            if detection_id == 13:  # Torpedo hole ID
                 hole_center_x = detection.bbox.center.x
                 hole_center_y = detection.bbox.center.y
-                hole_half_width = detection.bbox.size_x * 0.5
-                hole_half_height = detection.bbox.size_y * 0.5
 
-                hole_min_x = hole_center_x - hole_half_width
-                hole_max_x = hole_center_x + hole_half_width
-                hole_min_y = hole_center_y - hole_half_height
-                hole_max_y = hole_center_y + hole_half_height
-
+                # Check if the center of the hole is within the map's bounding box
                 if (
-                    map_min_x <= hole_min_x
-                    and hole_max_x <= map_max_x
-                    and map_min_y <= hole_min_y
-                    and hole_max_y <= map_max_y
+                    map_min_x <= hole_center_x <= map_max_x
+                    and map_min_y <= hole_center_y <= map_max_y
                 ):
-                    area = detection.bbox.size_x * detection.bbox.size_y
-                    detected_holes_in_map.append((detection, area))
+                    detected_holes_in_map.append(detection)
 
-        detected_holes_in_map.sort(key=lambda x: x[1], reverse=True)
+        # We expect to find exactly two holes. If not, we cannot proceed.
+        if len(detected_holes_in_map) != 2:
+            rospy.logwarn_throttle(
+                5,
+                f"Expected 2 torpedo holes, but found {len(detected_holes_in_map)}. Skipping.",
+            )
+            return
 
-        hole_mappings = [
-            ("torpedo_hole_1_link", "torpedo_hole_1_link"),
-            ("torpedo_hole_2_link", "torpedo_hole_2_link"),
-            ("torpedo_hole_3_link", "torpedo_hole_3_link"),
-            ("torpedo_hole_4_link", "torpedo_hole_4_link"),
-        ]
+        # Determine which hole is upper and which is bottom based on their Y coordinate.
+        # In image coordinates, a smaller Y value means it is higher up in the image.
+        hole1 = detected_holes_in_map[0]
+        hole2 = detected_holes_in_map[1]
 
-        for i, (prop_key, child_frame_id) in enumerate(hole_mappings):
-            if i < len(detected_holes_in_map):
-                detection, _ = detected_holes_in_map[i]
-                self._publish_torpedo_hole_transform(
-                    detection,
-                    camera_ns,
-                    camera_frame,
-                    prop_key,
-                    child_frame_id,
-                    detection_msg.header.stamp,
-                )
+        if hole1.bbox.center.y < hole2.bbox.center.y:
+            upper_hole_detection = hole1
+            bottom_hole_detection = hole2
+        else:
+            upper_hole_detection = hole2
+            bottom_hole_detection = hole1
+
+        # Publish transform for the upper hole
+        self._publish_torpedo_hole_transform(
+            upper_hole_detection,
+            camera_ns,
+            camera_frame,
+            "torpedo_hole_upper_link",
+            "torpedo_hole_upper_link",
+            detection_msg.header.stamp,
+        )
+
+        # Publish transform for the bottom hole
+        self._publish_torpedo_hole_transform(
+            bottom_hole_detection,
+            camera_ns,
+            camera_frame,
+            "torpedo_hole_bottom_link",
+            "torpedo_hole_bottom_link",
+            detection_msg.header.stamp,
+        )
 
     def _publish_torpedo_hole_transform(
         self, detection, camera_ns, camera_frame, prop_key, child_frame_id, stamp
