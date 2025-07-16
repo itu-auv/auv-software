@@ -12,6 +12,7 @@
       <remap from="odom_pressure" to="localization/odom_pressure" />
       <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
       <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+      <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
     </node>
 
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
@@ -37,5 +38,11 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen">
+      <remap from="camera/depth/color/points" to="camera/depth/color/points" />
+      <remap from="dvl/altitude" to="sensors/dvl/altitude" />
+      <remap from="pressure_sensor/depth" to="sensors/external_pressure_sensor/depth" />
+      <remap from="points_filtered" to="points_filtered" />
+    </node>
   </group>
 </launch>

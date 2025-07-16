@@ -54,6 +54,7 @@
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+            <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
 
             <param name="enable_rate" value="$(arg enable_rate)"/>
 
@@ -68,6 +69,9 @@
 
             <!--red_buoy.py-->
             <remap from="set_object_transform" to="map/set_object_transform"/>
+
+            <!--bin.py-->
+            <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>

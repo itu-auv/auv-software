@@ -50,7 +50,8 @@ class MainStateMachineNode:
         self.torpedo_map_radius = 1.5
         self.torpedo_map_depth = -1.3
 
-        self.bin_task_depth = -0.7
+        self.bin_front_look_depth = -1.2
+        self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -1.0
         # USER EDIT
@@ -118,7 +119,10 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_TO_BIN_TASK": (
                 BinTaskState,
-                {"bin_task_depth": self.bin_task_depth},
+                {
+                    "bin_front_look_depth": self.bin_front_look_depth,
+                    "bin_bottom_look_depth": self.bin_bottom_look_depth,
+                },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
