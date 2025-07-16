@@ -619,17 +619,11 @@ class ExecutePlannedPathsState(smach.State):
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
-            input_keys=[
-                "planned_paths"
-            ],  # expects the input value under the name "planned_paths"
         )
         self._client = None
 
     def execute(self, userdata) -> str:
         """
-        Args:
-            userdata (smach.UserData): Contains `planned_paths` from the planning state.
-
         Returns:
             str: "succeeded" if execution was successful, otherwise "aborted" or "preempted".
         """
@@ -644,8 +638,8 @@ class ExecutePlannedPathsState(smach.State):
             rospy.logwarn("[ExecutePlannedPathsState] Preempt requested")
             return "preempted"
         try:
-            planned_paths = userdata.planned_paths
-            success = self._client.execute_paths(planned_paths)
+            # We send an empty goal, as the action server now listens to a topic
+            success = self._client.execute_paths([])
             if success:
                 rospy.logdebug(
                     "[ExecutePlannedPathsState] Planned paths executed successfully"
