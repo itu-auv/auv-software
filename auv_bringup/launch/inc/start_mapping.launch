@@ -55,7 +55,7 @@
     </node>
 
     <node pkg="auv_mapping" type="torpedo_frame_publisher.py" name="torpedo_frame_publisher" output="screen">
-      <rosparam command="load" file="$(find auv_mapping)/config/torpedo_frame_publisher_params.yaml" />
+      <rosparam command="load" file="$(find auv_bringup)/config/$(arg namespace)/torpedo_frame_publisher_params.yaml" />
       <rosparam command="load" file="$(find auv_smach)/config/mission_target_selection.yaml" />
       <param name="torpedo_frame" value="$(arg torpedo_frame)" />
       <param name="torpedo_realsense_frame" value="$(arg torpedo_realsense_frame)" />
