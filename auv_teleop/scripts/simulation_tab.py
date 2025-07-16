@@ -59,20 +59,9 @@ class SimulationTab(QWidget):
         smach_layout.addLayout(state_row)
         smach_group.setLayout(smach_layout)
 
-        propulsion_group = QGroupBox("Propulsion Board")
-        propulsion_layout = QHBoxLayout()
-        self.propulsion_btn = QPushButton("Publish propulsion_board")
-        propulsion_layout.addWidget(self.propulsion_btn)
-        propulsion_group.setLayout(propulsion_layout)
-
         layout.addWidget(detect_group)
         layout.addWidget(smach_group)
-        layout.addWidget(propulsion_group)
         self.setLayout(layout)
-
-        self.propulsion_pub = rospy.Publisher(
-            "propulsion_board/status", Bool, queue_size=10
-        )
 
         self.rqt_btn.clicked.connect(self.open_rqt)
         self.detect_start.clicked.connect(self.start_detection)
@@ -80,7 +69,6 @@ class SimulationTab(QWidget):
         self.smach_start.clicked.connect(self.start_smach)
         self.smach_stop.clicked.connect(self.stop_smach)
         self.test_check.stateChanged.connect(self.toggle_state_checks)
-        self.propulsion_btn.clicked.connect(self.publish_propulsion_board)
 
         self.toggle_state_checks(Qt.Unchecked)
 
@@ -117,6 +105,7 @@ class SimulationTab(QWidget):
             )
             cmd.append(f"test_mode:=true")
             cmd.append(f"test_states:={states}")
+            cmd.append(f"sim:=true")
         print(f"Executing: {' '.join(cmd)}")
         self.smach_process = subprocess.Popen(cmd)
 
@@ -135,8 +124,3 @@ class SimulationTab(QWidget):
 
     def open_rqt(self):
         subprocess.Popen(["rqt", "-s", "rqt_image_view"])
-
-    def publish_propulsion_board(self):
-        msg = Bool()
-        msg.data = True
-        self.propulsion_pub.publish(msg)
