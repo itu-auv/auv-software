@@ -26,7 +26,6 @@ class PathPlannerNode:
         self.planning_active = True
         rospy.loginfo("[path_planner_node] Planning activated.")
 
-        self.planner_type = req.planner_type
         self.target_frame = req.target_frame
         rospy.loginfo(f"[path_planner_node] New plan set. Target: {self.target_frame}")
         return PlanPathResponse(success=True)
