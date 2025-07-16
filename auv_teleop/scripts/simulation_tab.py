@@ -105,6 +105,7 @@ class SimulationTab(QWidget):
             )
             cmd.append(f"test_mode:=true")
             cmd.append(f"test_states:={states}")
+            cmd.append(f"sim:=true")
         print(f"Executing: {' '.join(cmd)}")
         self.smach_process = subprocess.Popen(cmd)
 
