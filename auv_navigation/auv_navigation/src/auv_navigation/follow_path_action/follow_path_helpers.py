@@ -151,6 +151,26 @@ def is_segment_completed(
     return closest_index >= segment_end_index
 
 
+def is_path_completed(robot_pose: PoseStamped, path: Path) -> bool:
+    """
+    Checks if the robot has reached the end of the path.
+
+    Args:
+        robot_pose: Current pose of the robot.
+        path: The path to check.
+
+    Returns:
+        True if the robot is close to the last point of the path, False otherwise.
+    """
+    if not path.poses:
+        return False
+
+    closest_index = find_closest_point_index(path, robot_pose)
+    return (
+        closest_index >= len(path.poses) - 4
+    )  # if we are at the last or second to last point
+
+
 def combine_segments(paths: List[Path]) -> Tuple[Path, List[int]]:
     """
     Combines multiple path segments into a single path while keeping track of segment endpoints.
