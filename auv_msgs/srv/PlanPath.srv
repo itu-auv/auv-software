@@ -1,4 +1,4 @@
-string planner_type # e.g., "gate"
-string target_frame
+string planner_type  "gate", "straight", "bin"
+string target_frame "gate_entrance"
 ---
 bool success
