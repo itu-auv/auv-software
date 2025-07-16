@@ -29,6 +29,10 @@ class FollowPathActionServer:
         self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 20))
 
         self.path_pub = rospy.Publisher("target_path", Path, queue_size=1)
+        self.path_sub = rospy.Subscriber(
+            "/planned_path", Path, self.path_cb, queue_size=1
+        )
+        self.current_path = None
 
         self.server = actionlib.SimpleActionServer(
             "follow_path", FollowPathAction, self.execute, auto_start=False
@@ -36,18 +40,15 @@ class FollowPathActionServer:
         self.server.start()
         rospy.logdebug("[follow_path server] Action server started")
 
-    def do_path_following(self, path: Path, segment_endpoints: List[int]) -> bool:
+    def path_cb(self, msg: Path) -> None:
+        self.current_path = msg
+
+    def do_path_following(self) -> bool:
         """
         Performs dynamic target following while tracking path progress and segment completion.
             The function continuously:
             - computes the dynamic target ahead of the vehicle.
-            - tracks whether each segment of the path (that is, the individual paths before they were combined)
-            has been completed.
             - tracks the overall path completion.
-
-        Args:
-            path (Path): The combined path to be followed.
-            segment_endpoints (List[int]): Indices marking the endpoints of individual path segments.
 
         Returns:
             bool: True if the entire path is completed successfully, False if interrupted or failed.
