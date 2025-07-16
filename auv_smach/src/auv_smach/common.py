@@ -19,6 +19,8 @@ from auv_msgs.srv import (
     SetObjectTransform,
     SetObjectTransformRequest,
     SetObjectTransformResponse,
+    SetDetectionFocus,
+    SetDetectionFocusRequest,
 )
 
 from auv_msgs.srv import SetDepth, SetDepthRequest
@@ -605,6 +607,23 @@ class SetDetectionState(smach_ros.ServiceState):
         super(SetDetectionState, self).__init__(
             service_name,
             SetBool,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
+class SetDetectionFocusState(smach_ros.ServiceState):
+    """
+    Calls the service to set the focus for the front camera detections.
+    """
+
+    def __init__(self, focus_object: str):
+        service_name = "set_front_camera_focus"
+        request = SetDetectionFocusRequest(focus_object=focus_object)
+
+        super(SetDetectionFocusState, self).__init__(
+            service_name,
+            SetDetectionFocus,
             request=request,
             outcomes=["succeeded", "preempted", "aborted"],
         )

@@ -7,7 +7,10 @@ from std_srvs.srv import Trigger, TriggerRequest
 from robot_localization.srv import SetPose, SetPoseRequest
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
-from auv_smach.common import CancelAlignControllerState, ClearObjectMapState
+from auv_smach.common import (
+    CancelAlignControllerState,
+    ClearObjectMapState,
+)
 from typing import Optional, Literal
 from dataclasses import dataclass
 
