@@ -117,6 +117,13 @@ class PublishGateAngleState(smach_ros.ServiceState):
         )
 
 
+class SetPlanningNotActive(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "/stop_planning", Trigger, request=TriggerRequest()
+        )
+
+
 class NavigateThroughGateState(smach.State):
     def __init__(self, gate_depth: float, gate_search_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -266,9 +273,17 @@ class NavigateThroughGateState(smach.State):
                 "EXECUTE_GATE_PATH_EXIT",
                 ExecutePathState(),
                 transitions={
-                    "succeeded": "ALING_FRAME_REQUEST_AFTER_EXIT",
+                    "succeeded": "STOP_PLANNING",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
                     "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
+                },
+            )
+            smach.StateMachine.add(
+                "STOP_PLANNING",
+                SetPlanningNotActive(),
+                transitions={
+                    "succeeded": "ALING_FRAME_REQUEST_AFTER_EXIT",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
