@@ -1,0 +1,4 @@
+string planner_type # e.g., "gate"
+string target_frame
+---
+bool success
