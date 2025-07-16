@@ -133,9 +133,9 @@ class VisualServoingController:
 
         is_slalom_mode = "slalom" in self.target_prop
         if is_slalom_mode:
-            if "slalom_white" in msg.object:
+            if "white_pipe" in msg.object:
                 self.white_pipes_history.append((msg.header.stamp, msg.angle))
-            elif "slalom_red" in msg.object:
+            elif "red_pipe" in msg.object:
                 self.red_pipes_history.append((msg.header.stamp, msg.angle))
             else:
                 return
