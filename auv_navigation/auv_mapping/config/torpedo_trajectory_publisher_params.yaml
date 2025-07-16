@@ -4,8 +4,8 @@ robot_frame: "taluy/base_link"
 torpedo_frame: "torpedo_map_link"
 
 torpedo_closer_frame: "torpedo_close_approach"
-torpedo_big_hole_frame: "torpedo_hole_1_link"
-torpedo_medium_hole_frame: "torpedo_hole_2_link"
+torpedo_big_hole_frame: "torpedo_hole_upper_link"
+torpedo_medium_hole_frame: "torpedo_hole_bottom_link"
 torpedo_front_view_frame: "torpedo_front_view"
 torpedo_launch_frame: "torpedo_launch"
 
