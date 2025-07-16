@@ -54,6 +54,7 @@
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+            <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
 
             <param name="enable_rate" value="$(arg enable_rate)"/>
 
