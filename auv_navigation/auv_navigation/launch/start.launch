@@ -9,5 +9,11 @@
       name="follow_path_action_server"
       output="screen">
     </node>
+    <node
+      pkg="auv_navigation"
+      type="path_planner_node.py"
+      name="path_planner_node"
+      output="screen">
+    </node>
   </group>
 </launch>
