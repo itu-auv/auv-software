@@ -85,12 +85,6 @@
       </node>
     </group>
 
-    <group if="$(arg start_visual_servoing)">
-      <node pkg="auv_control" type="visual_servoing_controller.py" name="visual_servoing_controller"
-        output="screen">
-      </node>
-    </group>
-
   </group>
 
 </launch>
