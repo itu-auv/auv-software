@@ -63,8 +63,12 @@ class FollowPathActionServer:
                     rospy.logdebug("Path following preempted")
                     return False
 
+                if self.current_path is None:
+                    self.loop_rate.sleep()
+                    continue
+
                 # Publish the target path for visualization
-                self.path_pub.publish(path)
+                self.path_pub.publish(self.current_path)
 
                 # get current pose of robot
                 robot_pose = follow_path_helpers.get_robot_pose(
@@ -76,7 +80,9 @@ class FollowPathActionServer:
                     continue
 
                 dynamic_target_pose = follow_path_helpers.calculate_dynamic_target(
-                    path, robot_pose, self.dynamic_target_lookahead_distance
+                    self.current_path,
+                    robot_pose,
+                    self.dynamic_target_lookahead_distance,
                 )
                 if dynamic_target_pose is None:
                     rospy.logwarn("Failed to calculate dynamic target. Retrying...")
