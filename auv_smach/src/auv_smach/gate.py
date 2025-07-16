@@ -134,13 +134,13 @@ class NavigateThroughGateState(smach.State):
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
                 transitions={
-                    "succeeded": "START_PLANING_TO_GATE_ENTRANCE",
+                    "succeeded": "START_PLANNING_TO_GATE_ENTRANCE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "START_PLANING_TO_GATE_ENTRANCE",
+                "START_PLANNING_TO_GATE_ENTRANCE",
                 SetPlanState(target_frame="gate_entrance"),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -187,7 +187,7 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "START_PLANING_TO_GATE_EXIT",
+                "START_PLANNING_TO_GATE_EXIT",
                 SetPlanState(target_frame="gate_exit"),
                 transitions={
                     "succeeded": "EXECUTE_PATH_EXIT",
