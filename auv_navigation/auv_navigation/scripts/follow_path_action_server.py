@@ -54,9 +54,6 @@ class FollowPathActionServer:
             bool: True if the entire path is completed successfully, False if interrupted or failed.
         """
         try:
-            num_segments = len(segment_endpoints)
-            current_segment_index = 0
-
             while not rospy.is_shutdown():
                 if self.server.is_preempt_requested():
                     self.server.set_preempted()
@@ -97,28 +94,13 @@ class FollowPathActionServer:
                     dynamic_target_pose,
                 )
 
-                # Check progress along the current segment and overall path
-                current_segment_progress, overall_progress = (
-                    follow_path_helpers.check_segment_progress(
-                        path, robot_pose, current_segment_index, segment_endpoints
-                    )
-                )
+                if follow_path_helpers.is_path_completed(robot_pose, self.current_path):
+                    rospy.loginfo(" [FollowPathActionServer] Path completed!")
+                    return True
+
                 feedback = FollowPathFeedback()
-                feedback.current_segment_progress = current_segment_progress
-                feedback.overall_progress = overall_progress
-                feedback.current_segment_index = current_segment_index
                 self.server.publish_feedback(feedback)
 
-                # Check if current segment is completed
-                segment_end_index = segment_endpoints[current_segment_index]
-                if follow_path_helpers.is_segment_completed(
-                    robot_pose, path, segment_end_index
-                ):
-                    if current_segment_index < num_segments - 1:
-                        current_segment_index += 1
-                    else:  # was on the last path and it's completed
-                        rospy.logdebug("All paths completed")
-                        return True
                 self.loop_rate.sleep()
 
             return False
@@ -130,21 +112,7 @@ class FollowPathActionServer:
     def execute(self, goal: FollowPathActionGoal) -> None:
         rospy.logdebug("FollowPathActionServer: Received a new path following goal.")
 
-        # Check if the goal contains valid paths
-        # 1. Abort if paths list is empty or none
-        # 2. Abort if all paths are empty
-        if goal.paths is None or not goal.paths or all(not p.poses for p in goal.paths):
-            rospy.logerr("Received empty paths list or paths with no poses")
-            self.server.set_aborted(FollowPathResult(success=False))
-            return
-
-        # Combine all paths and get endpoints
-        combined_path, segment_endpoints = follow_path_helpers.combine_segments(
-            goal.paths
-        )
-
-        # Perform path following
-        success = self.do_path_following(combined_path, segment_endpoints)
+        success = self.do_path_following()
         result = FollowPathResult(success=success)
 
         if success:
