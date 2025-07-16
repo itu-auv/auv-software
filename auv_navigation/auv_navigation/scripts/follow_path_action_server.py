@@ -25,6 +25,12 @@ class FollowPathActionServer:
         self.dynamic_target_lookahead_distance: float = rospy.get_param(
             "~dynamic_target_lookahead_distance", 1.0
         )
+        self.completion_distance_threshold: float = rospy.get_param(
+            "~completion_distance_threshold", 0.5
+        )
+        self.completion_yaw_threshold: float = rospy.get_param(
+            "~completion_yaw_threshold", 0.4
+        )
         self.source_frame: str = rospy.get_param("~source_frame", "taluy/base_link")
         self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 20))
 
@@ -61,6 +67,7 @@ class FollowPathActionServer:
                     return False
 
                 if self.current_path is None:
+                    rospy.logdebug("No path received yet. Waiting for path...")
                     self.loop_rate.sleep()
                     continue
 
@@ -94,7 +101,12 @@ class FollowPathActionServer:
                     dynamic_target_pose,
                 )
 
-                if follow_path_helpers.is_path_completed(robot_pose, self.current_path):
+                if follow_path_helpers.is_path_completed(
+                    robot_pose,
+                    self.current_path,
+                    self.completion_distance_threshold,
+                    self.completion_yaw_threshold,
+                ):
                     rospy.loginfo(" [FollowPathActionServer] Path completed!")
                     return True
 
@@ -111,6 +123,7 @@ class FollowPathActionServer:
 
     def execute(self, goal: FollowPathActionGoal) -> None:
         rospy.logdebug("FollowPathActionServer: Received a new path following goal.")
+        self.current_path = None  # Clear the path on new goal
 
         success = self.do_path_following()
         result = FollowPathResult(success=success)
