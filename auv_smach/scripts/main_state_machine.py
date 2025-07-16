@@ -20,7 +20,7 @@ class MainStateMachineNode:
         # USER EDIT
         self.gate_depth = -1.35
         self.gate_search_depth = -0.7
-        self.target_gate_link = "gate_blue_arrow_link"
+        self.target_gate_link = "gate_shark_link"
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7

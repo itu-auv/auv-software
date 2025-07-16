@@ -153,7 +153,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_GATE",
                 SearchForPropState(
-                    look_at_frame="gate_blue_arrow_link",
+                    look_at_frame="gate_shark_link",
                     alignment_frame="gate_search",
                     full_rotation=True,
                     set_frame_duration=8.0,
@@ -200,7 +200,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "LOOK_AT_GATE",
                 SearchForPropState(
-                    look_at_frame="gate_blue_arrow_link",
+                    look_at_frame="gate_shark_link",
                     alignment_frame="gate_search",
                     full_rotation=False,
                     set_frame_duration=5.0,
