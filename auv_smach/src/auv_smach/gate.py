@@ -4,8 +4,6 @@ import smach_ros
 import rospy
 import tf2_ros
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from auv_msgs.srv import PlanPath, PlanPathRequest
-from auv_navigation.path_planning.path_planners import PathPlanners
 from geometry_msgs.msg import PoseStamped
 from auv_smach.common import (
     SetAlignControllerTargetState,
@@ -15,6 +13,8 @@ from auv_smach.common import (
     ClearObjectMapState,
     SearchForPropState,
     AlignFrame,
+    SetPlanState,
+    SetPlanningNotActive,
 )
 
 from nav_msgs.msg import Odometry
@@ -73,33 +73,6 @@ class PlanGatePathsState(smach.State):
             return "aborted"
 
 
-class SetPlanState(smach.State):
-    """State that calls the /set_plan service"""
-
-    def __init__(self, target_frame: str):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.target_frame = target_frame
-
-    def execute(self, userdata) -> str:
-        try:
-            if self.preempt_requested():
-                rospy.logwarn("[SetPlanState] Preempt requested")
-                return "preempted"
-
-            rospy.wait_for_service("/set_plan")
-            set_plan = rospy.ServiceProxy("/set_plan", PlanPath)
-
-            req = PlanPathRequest(
-                target_frame=self.target_frame,
-            )
-            set_plan(req)
-            return "succeeded"
-
-        except Exception as e:
-            rospy.logerr("[SetPlanState] Error: %s", str(e))
-            return "aborted"
-
-
 class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
@@ -114,13 +87,6 @@ class PublishGateAngleState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
             self, "publish_gate_angle", Trigger, request=TriggerRequest()
-        )
-
-
-class SetPlanningNotActive(smach_ros.ServiceState):
-    def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self, "/stop_planning", Trigger, request=TriggerRequest()
         )
 
 
