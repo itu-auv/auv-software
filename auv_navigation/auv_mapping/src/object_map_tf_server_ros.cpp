@@ -145,6 +145,15 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   }
 
   bool filter_updated = false;
+
+  // If object is a slalom gate, use a smaller distance threshold
+  double current_distance_threshold_squared = distance_threshold_squared_;
+  if (object_frame.find("red_slalom_link") != std::string::npos ||
+      object_frame.find("white_slalom_link") != std::string::npos) {
+    current_distance_threshold_squared = 1.0;  // 1.0 metre'nin karesi
+    ROS_DEBUG_STREAM("Using special distance threshold for " << object_frame);
+  }
+
   // Find the closest filter to update
   std::vector<double> distances;
   distances.reserve(it->second.size());
@@ -164,7 +173,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     distances.push_back(distance_squared);
 
     // If this filter is close enough, update it
-    if (distance_squared < distance_threshold_squared_) {
+    if (distance_squared < current_distance_threshold_squared) {
       filter_ptr->update(*static_transform, dt);
       filter_updated = true;
       ROS_DEBUG_STREAM("Updated filter for " << object_frame);
