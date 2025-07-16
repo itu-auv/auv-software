@@ -18,7 +18,7 @@ from auv_smach.initialize import DelayState
 
 from auv_smach.common import (
     DropBallState,
-    ExecutePlannedPathsState,
+    ExecutePathState,
     CancelAlignControllerState,
     PlanPathToSingleFrameState,
 )

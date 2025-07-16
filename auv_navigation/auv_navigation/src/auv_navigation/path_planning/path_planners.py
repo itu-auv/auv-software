@@ -7,6 +7,7 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped
 from typing import Optional, List
 from .path_planning_helpers import PathPlanningHelper
+from auv_navigation.follow_path_action.follow_path_helpers import combine_segments
 
 
 class PathPlanners:
@@ -103,7 +104,7 @@ class PathPlanners:
             rospy.logerr(f"Error in straight_path_to_frame: {e}")
             return None
 
-    def path_for_gate(self) -> Optional[List[Path]]:
+    def path_for_gate(self) -> Optional[Path]:
         """
         Plans paths for the gate task, which includes the two paths:
         1. path to gate entrance
@@ -132,7 +133,8 @@ class PathPlanners:
                             n_turns=0,
                         )
                     if entrance_path is not None and exit_path is not None:
-                        return [entrance_path, exit_path]
+                        combined_path, _ = combine_segments([entrance_path, exit_path])
+                        return combined_path
                     rospy.logwarn(
                         "[GatePathPlanner] Failed to plan paths, retrying... Time elapsed: %.1f seconds",
                         (rospy.Time.now() - start_time).to_sec(),
