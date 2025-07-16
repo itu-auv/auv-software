@@ -21,6 +21,9 @@ from auv_smach.common import (
     ExecutePathState,
     CancelAlignControllerState,
     PlanPathToSingleFrameState,
+    SetDetectionFocusState,
+    SetPlanState,
+    SetPlanningNotActive,
 )
 
 from auv_navigation.path_planning.path_planners import PathPlanners
@@ -255,6 +258,15 @@ class BinTaskState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "FOCUS_ON_BIN",
+                SetDetectionFocusState(),
+                transitions={
+                    "succeeded": "SET_BIN_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_BIN_DEPTH",
                 SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
                 transitions={
@@ -292,8 +304,45 @@ class BinTaskState(smach.State):
                 "WAIT_FOR_ENABLE_BIN_FRAME_PUBLISHER",
                 DelayState(delay_time=1.0),
                 transitions={
-                    "succeeded": "ALIGN_TO_CLOSE_APPROACH",
+                    "succeeded": "START_PLANNING_TO_BIN_CLOSE_APPROACH",
                     "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "START_PLANNING_TO_BIN_CLOSE_APPROACH",
+                SetPlanState(target_frame="bin_close_approach"),
+                transitions={
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_PATH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_CONTROLLER_TARGET_TO_PATH",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame="dynamic_target"
+                ),
+                transitions={
+                    "succeeded": "EXECUTE_PATH_TO_BIN_CLOSE_APPROACH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "EXECUTE_PATH_TO_BIN_CLOSE_APPROACH",
+                ExecutePathState(),
+                transitions={
+                    "succeeded": "STOP_PLANNING",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
+                },
+            )
+            smach.StateMachine.add(
+                "STOP_PLANNING",
+                SetPlanningNotActive(),
+                transitions={
+                    "succeeded": "ALIGN_TO_CLOSE_APPROACH",
                     "aborted": "aborted",
                 },
             )
