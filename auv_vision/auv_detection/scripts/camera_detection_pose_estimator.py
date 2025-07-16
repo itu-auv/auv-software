@@ -547,13 +547,14 @@ class CameraDetectionNode:
 
         camera_frame = self.camera_frames[camera_ns]
 
-        # Search for torpedo map
         torpedo_map_bbox = None
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
             detection_id = detection.results[0].id
-            if detection_id == 12:  # Torpedo map ID
+
+            if detection_id == 12:  # Torpedo haritası ID'si
+
                 torpedo_map_bbox = detection.bbox
                 break
 
