@@ -9,6 +9,10 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
     SearchForPropState,
+    SetPlanState,
+    SetPlanningNotActive,
+    ExecutePathState,
+    SetDetectionFocusState,
 )
 from auv_smach.initialize import DelayState
 
@@ -71,6 +75,15 @@ class TorpedoTaskState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
+                "SET_CAMERA_FOCUS",
+                SetDetectionFocusState(focus_object="torpedo"),
+                transitions={
+                    "succeeded": "ENABLE_TORPEDO_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "ENABLE_TORPEDO_FRAME_PUBLISHER",
                 TorpedoTargetFramePublisherServiceState(req=True),
                 transitions={
@@ -99,9 +112,27 @@ class TorpedoTaskState(smach.State):
                     rotation_speed=0.3,
                 ),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
+                    "succeeded": "START_PATH_PLANNING",
                     "preempted": "preempted",
                     "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "START_PATH_PLANNING",
+                SetPlanState(target_frame=torpedo_target_frame),
+                transitions={
+                    "succeeded": "EXECUTE_TORPEDO_PATH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "EXECUTE_TORPEDO_PATH",
+                ExecutePathState(),
+                transitions={
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -111,8 +142,8 @@ class TorpedoTaskState(smach.State):
                     target_frame=torpedo_target_frame,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=5.0,
-                    timeout=30.0,
+                    confirm_duration=3.0,
+                    timeout=10.0,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -139,7 +170,7 @@ class TorpedoTaskState(smach.State):
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=3.0,
-                    timeout=20.0,
+                    timeout=30.0,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -183,7 +214,7 @@ class TorpedoTaskState(smach.State):
                     angle_offset=-math.pi / 2,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
-                    confirm_duration=10.0,
+                    confirm_duration=5.0,
                     timeout=30.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
