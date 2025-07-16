@@ -2,7 +2,6 @@
 import rospy
 import tf2_ros
 from nav_msgs.msg import Path
-from geometry_msgs.msg import PoseStamped
 from auv_msgs.srv import PlanPath, PlanPathResponse
 from auv_navigation.path_planning.path_planners import PathPlanners
 
@@ -17,7 +16,6 @@ class PathPlannerNode:
         # -- States --
         self.planning_active = False
         self.target_frame = None
-        self.planner_type = None
 
         self.path_pub = rospy.Publisher("/planned_path", Path, queue_size=1)
         self.set_plan_service = rospy.Service("/set_plan", PlanPath, self.set_plan_cb)
@@ -32,31 +30,19 @@ class PathPlannerNode:
             self.planner_type = req.planner_type
             self.target_frame = req.target_frame
             rospy.loginfo(
-                f"[path_planner_node] New plan set. Type: {self.planner_type}"
+                f"[path_planner_node] New plan set. Target: {self.target_frame}"
             )
         return PlanPathResponse(success=True)
 
     def run(self):
         while not rospy.is_shutdown():
-            if (
-                self.planning_active
-                and self.target_pose is not None
-                and self.planner_type is not None
-            ):
+            if self.planning_active and self.target_frame is not None:
                 path = None
                 try:
-                    if self.planner_type == "gate":
-                        path = self.path_planners.path_for_gate()
-                    elif self.planner_type == "bin":
-                        path = self.path_planners.path_for_bin()
-                    elif (
-                        self.planner_type == "straight"
-                        and self.target_frame is not None
-                    ):
-                        path = self.path_planners.straight_path_to_frame(
-                            source_frame=self.robot_frame,
-                            target_frame=self.target_frame,
-                        )
+                    path = self.path_planners.straight_path_to_frame(
+                        source_frame=self.robot_frame,
+                        target_frame=self.target_frame,
+                    )
                     if path:
                         self.path_pub.publish(path)
                     else:
