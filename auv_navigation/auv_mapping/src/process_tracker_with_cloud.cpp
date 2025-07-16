@@ -79,12 +79,10 @@ class ProcessTrackerWithCloud {
 
   // Mapping from detection ID to prop name
   std::map<int, std::string> id_to_prop_name = {
-      {8, "red_buoy_link"},       {7, "path_link"},
-      {9, "bin_whole_link"},      {12, "torpedo_map_link"},
-      {13, "torpedo_hole_link"},  {1, "gate_left_link"},
-      {2, "gate_right_link"},     {3, "gate_blue_arrow_link"},
-      {4, "gate_red_arrow_link"}, {5, "gate_middle_part_link"},
-      {14, "octagon_link"}};
+      {0, "gate_sawfish_link"}, {1, "gate_shark_link"},
+      {2, "red_pipe_link"},     {3, "white_pipe_link"},
+      {4, "torpedo_map_link"},  {5, "torpedo_hole_link"},
+      {6, "bin_whole_link"},    {7, "octagon_link"}};
 
  public:
   ProcessTrackerWithCloud()
@@ -104,12 +102,11 @@ class ProcessTrackerWithCloud {
     pnh_.param<float>("roi_expansion_factor", roi_expansion_factor_,
                       1.1);  // 10% expansion
 
-    // Get detection IDs to skip as parameter (default: skip IDs 7 and 13)
     std::vector<int> skip_ids;
     pnh_.getParam("skip_detection_ids", skip_ids);
     if (skip_ids.empty()) {
       // Set default values
-      skip_detection_ids = {7, 13};  // path_link and torpedo_hole_link
+      skip_detection_ids = {0, 1, 2, 3, 5, 6, 7};  // torpedo_hole_link
     } else {
       // Use parameter values
       skip_detection_ids.clear();
