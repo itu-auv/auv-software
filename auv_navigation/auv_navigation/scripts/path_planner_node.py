@@ -19,19 +19,16 @@ class PathPlannerNode:
 
         self.path_pub = rospy.Publisher("/planned_path", Path, queue_size=1)
         self.set_plan_service = rospy.Service("/set_plan", PlanPath, self.set_plan_cb)
-        self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 10))
+        self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 9))
         rospy.loginfo("[path_planner_node] Path planner node started.")
 
     def set_plan_cb(self, req):
-        if not self.planning_active:
-            self.planning_active = True
-            rospy.loginfo("[path_planner_node] Planning activated.")
+        self.planning_active = True
+        rospy.loginfo("[path_planner_node] Planning activated.")
 
-            self.planner_type = req.planner_type
-            self.target_frame = req.target_frame
-            rospy.loginfo(
-                f"[path_planner_node] New plan set. Target: {self.target_frame}"
-            )
+        self.planner_type = req.planner_type
+        self.target_frame = req.target_frame
+        rospy.loginfo(f"[path_planner_node] New plan set. Target: {self.target_frame}")
         return PlanPathResponse(success=True)
 
     def run(self):

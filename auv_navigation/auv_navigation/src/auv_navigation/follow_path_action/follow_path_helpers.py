@@ -6,6 +6,7 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import PoseStamped, TransformStamped
 import tf2_ros
 import tf2_geometry_msgs
+from tf.transformations import euler_from_quaternion
 from typing import Optional, List, Tuple
 
 ZERO_DISTANCE_TOLERANCE: float = (
@@ -151,24 +152,60 @@ def is_segment_completed(
     return closest_index >= segment_end_index
 
 
-def is_path_completed(robot_pose: PoseStamped, path: Path) -> bool:
+def is_path_completed(
+    robot_pose: PoseStamped,
+    path: Path,
+    completion_distance_threshold: float,
+    completion_yaw_threshold: float,
+) -> bool:
     """
-    Checks if the robot has reached the end of the path.
+    Checks if the robot has reached the end of the path based on distance and yaw thresholds.
 
     Args:
         robot_pose: Current pose of the robot.
         path: The path to check.
+        completion_distance_threshold: The maximum allowed distance to the final point.
+        completion_yaw_threshold: The maximum allowed yaw difference to the final orientation.
 
     Returns:
-        True if the robot is close to the last point of the path, False otherwise.
+        True if the robot is within the specified thresholds of the last point, False otherwise.
     """
     if not path.poses:
         return False
 
-    closest_index = find_closest_point_index(path, robot_pose)
+    last_pose = path.poses[-1].pose
+
+    # Calculate 2D distance (x, y)
+    # Don't consider z error
+    dx = robot_pose.pose.position.x - last_pose.position.x
+    dy = robot_pose.pose.position.y - last_pose.position.y
+    distance_to_last_point = np.sqrt(dx**2 + dy**2)
+
+    # Calculate yaw difference
+    robot_orientation = robot_pose.pose.orientation
+    _, _, robot_yaw = euler_from_quaternion(
+        [
+            robot_orientation.x,
+            robot_orientation.y,
+            robot_orientation.z,
+            robot_orientation.w,
+        ]
+    )
+
+    last_orientation = last_pose.orientation
+    _, _, last_yaw = euler_from_quaternion(
+        [last_orientation.x, last_orientation.y, last_orientation.z, last_orientation.w]
+    )
+
+    yaw_difference = abs(robot_yaw - last_yaw)
+    # Normalize yaw difference to be within [0, pi]
+    if yaw_difference > np.pi:
+        yaw_difference = 2 * np.pi - yaw_difference
+
     return (
-        closest_index >= len(path.poses) - 4
-    )  # if we are at the last or second to last point
+        distance_to_last_point <= completion_distance_threshold
+        and yaw_difference <= completion_yaw_threshold
+    )
 
 
 def combine_segments(paths: List[Path]) -> Tuple[Path, List[int]]:
