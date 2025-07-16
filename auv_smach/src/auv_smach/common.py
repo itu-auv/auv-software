@@ -610,7 +610,7 @@ class SetDetectionState(smach_ros.ServiceState):
         )
 
 
-class ExecutePlannedPathsState(smach.State):
+class ExecutePathState(smach.State):
     """
     Uses the follow path action client to follow a set of planned paths.
     """
@@ -628,31 +628,25 @@ class ExecutePlannedPathsState(smach.State):
             str: "succeeded" if execution was successful, otherwise "aborted" or "preempted".
         """
         if self._client is None:
-            rospy.logdebug(
-                "[ExecutePlannedPathsState] Initializing the FollowPathActionClient"
-            )
+            rospy.logdebug("[ExecutePathState] Initializing the FollowPathActionClient")
             self._client = follow_path_client.FollowPathActionClient()
 
         # Check for preemption before proceeding
         if self.preempt_requested():
-            rospy.logwarn("[ExecutePlannedPathsState] Preempt requested")
+            rospy.logwarn("[ExecutePathState] Preempt requested")
             return "preempted"
         try:
             # We send an empty goal, as the action server now listens to a topic
             success = self._client.execute_paths([])
             if success:
-                rospy.logdebug(
-                    "[ExecutePlannedPathsState] Planned paths executed successfully"
-                )
+                rospy.logdebug("[ExecutePathState] Planned paths executed successfully")
                 return "succeeded"
             else:
-                rospy.logwarn(
-                    "[ExecutePlannedPathsState] Execution of planned paths failed"
-                )
+                rospy.logwarn("[ExecutePathState] Execution of planned paths failed")
                 return "aborted"
 
         except Exception as e:
-            rospy.logerr("[ExecutePlannedPathsState] Exception occurred: %s", str(e))
+            rospy.logerr("[ExecutePathState] Exception occurred: %s", str(e))
             return "aborted"
 
 
