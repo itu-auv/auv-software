@@ -18,7 +18,7 @@ from auv_smach.initialize import DelayState
 
 from auv_smach.common import (
     DropBallState,
-    ExecutePlannedPathsState,
+    ExecutePathState,
     CancelAlignControllerState,
     PlanPathToSingleFrameState,
 )
@@ -181,7 +181,7 @@ class BinSecondTrialState(smach.StateMachine):
                     full_rotation=False,
                     set_frame_duration=5.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=0.2,
                 ),
                 transitions={
                     "succeeded": "DISABLE_BIN_FRAME_PUBLISHER_SECOND_TRIAL",
@@ -271,7 +271,7 @@ class BinTaskState(smach.State):
                     full_rotation=False,
                     set_frame_duration=7.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_BIN_FRAME_PUBLISHER",

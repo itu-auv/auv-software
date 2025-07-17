@@ -1,17 +1,45 @@
 from .initialize import *
 import smach
+import smach_ros
 import rospy
 import tf2_ros
-from std_srvs.srv import Trigger, TriggerRequest
+from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
+from auv_msgs.srv import PlanPath, PlanPathRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
-
+from geometry_msgs.msg import PoseStamped
 from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
-    ExecutePlannedPathsState,
+    ExecutePathState,
+    ClearObjectMapState,
     SearchForPropState,
+    AlignFrame,
 )
+
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import WrenchStamped
+from std_msgs.msg import Bool
+from std_srvs.srv import SetBool, SetBoolRequest
+from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryState
+from auv_smach.roll import TwoRollState
+
+
+class TransformServiceEnableState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "toggle_gate_trajectory",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
+class PublishGateAngleState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "publish_gate_angle", Trigger, request=TriggerRequest()
+        )
 
 
 class PlanGatePathsState(smach.State):
@@ -40,9 +68,35 @@ class PlanGatePathsState(smach.State):
 
             userdata.planned_paths = paths
             return "succeeded"
-
         except Exception as e:
             rospy.logerr("[PlanGatePathsState] Error: %s", str(e))
+            return "aborted"
+
+
+class SetPlanState(smach.State):
+    """State that calls the /set_plan service"""
+
+    def __init__(self, target_frame: str):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.target_frame = target_frame
+
+    def execute(self, userdata) -> str:
+        try:
+            if self.preempt_requested():
+                rospy.logwarn("[SetPlanState] Preempt requested")
+                return "preempted"
+
+            rospy.wait_for_service("/set_plan")
+            set_plan = rospy.ServiceProxy("/set_plan", PlanPath)
+
+            req = PlanPathRequest(
+                target_frame=self.target_frame,
+            )
+            set_plan(req)
+            return "succeeded"
+
+        except Exception as e:
+            rospy.logerr("[SetPlanState] Error: %s", str(e))
             return "aborted"
 
 
@@ -63,22 +117,33 @@ class PublishGateAngleState(smach_ros.ServiceState):
         )
 
 
+class SetPlanningNotActive(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "/stop_planning", Trigger, request=TriggerRequest()
+        )
+
+
 class NavigateThroughGateState(smach.State):
     def __init__(self, gate_depth: float, gate_search_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.sim_mode = rospy.get_param("~sim", False)
 
-        # Initialize the state machine
-
+        # Initialize the state machine container
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
+
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_GATE_SEARCH_DEPTH",
-                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
+                "SET_ROLL_DEPTH",
+                SetDepthState(
+                    depth=gate_search_depth,
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
+                ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
                     "preempted": "preempted",
@@ -88,13 +153,35 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_GATE",
                 SearchForPropState(
-                    look_at_frame="gate_blue_arrow_link",
+                    look_at_frame="gate_shark_link",
                     alignment_frame="gate_search",
                     full_rotation=True,
-                    set_frame_duration=7.0,
+                    set_frame_duration=8.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=0.2,
                 ),
+                transitions={
+                    "succeeded": (
+                        "TWO_ROLL_STATE"
+                        if not self.sim_mode
+                        else "SET_GATE_TRAJECTORY_DEPTH"
+                    ),
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TWO_ROLL_STATE",
+                TwoRollState(roll_torque=50.0),
+                transitions={
+                    "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_GATE_TRAJECTORY_DEPTH",
+                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
@@ -105,23 +192,30 @@ class NavigateThroughGateState(smach.State):
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
                 transitions={
-                    "succeeded": "PLAN_GATE_PATHS",
+                    "succeeded": "LOOK_AT_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "PLAN_GATE_PATHS",
-                PlanGatePathsState(self.tf_buffer),
+                "LOOK_AT_GATE",
+                SearchForPropState(
+                    look_at_frame="gate_shark_link",
+                    alignment_frame="gate_search",
+                    full_rotation=False,
+                    set_frame_duration=5.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.3,
+                ),
                 transitions={
-                    "succeeded": "PUBLISH_GATE_ANGLE",
+                    "succeeded": "START_PLANNING_TO_GATE_ENTRANCE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "PUBLISH_GATE_ANGLE",
-                PublishGateAngleState(),
+                "START_PLANNING_TO_GATE_ENTRANCE",
+                SetPlanState(target_frame="gate_entrance"),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
@@ -152,18 +246,63 @@ class NavigateThroughGateState(smach.State):
                     source_frame="taluy/base_link", target_frame="dynamic_target"
                 ),
                 transitions={
-                    "succeeded": "EXECUTE_GATE_PATHS",
+                    "succeeded": "EXECUTE_GATE_PATH_ENTRANCE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "EXECUTE_GATE_PATHS",
-                ExecutePlannedPathsState(),
+                "EXECUTE_GATE_PATH_ENTRANCE",
+                ExecutePathState(),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "START_PLANNING_TO_GATE_EXIT",
                     "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
                     "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
+                },
+            )
+            smach.StateMachine.add(
+                "START_PLANNING_TO_GATE_EXIT",
+                SetPlanState(target_frame="gate_exit"),
+                transitions={
+                    "succeeded": "EXECUTE_GATE_PATH_EXIT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "EXECUTE_GATE_PATH_EXIT",
+                ExecutePathState(),
+                transitions={
+                    "succeeded": "STOP_PLANNING",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
+                },
+            )
+            smach.StateMachine.add(
+                "STOP_PLANNING",
+                SetPlanningNotActive(),
+                transitions={
+                    "succeeded": "ALING_FRAME_REQUEST_AFTER_EXIT",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALING_FRAME_REQUEST_AFTER_EXIT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="gate_exit",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
@@ -179,11 +318,8 @@ class NavigateThroughGateState(smach.State):
     def execute(self, userdata):
         rospy.logdebug("[NavigateThroughGateState] Starting state machine execution.")
 
-        # Execute the state machine
-
         outcome = self.state_machine.execute()
 
-        if outcome is None:  # ctrl + c
+        if outcome is None:
             return "preempted"
-        # Return the outcome of the state machine
         return outcome

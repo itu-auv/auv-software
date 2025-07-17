@@ -19,6 +19,8 @@ from auv_msgs.srv import (
     SetObjectTransform,
     SetObjectTransformRequest,
     SetObjectTransformResponse,
+    SetDetectionFocus,
+    SetDetectionFocusRequest,
 )
 
 from auv_msgs.srv import SetDepth, SetDepthRequest
@@ -172,16 +174,6 @@ class SetDepthState(smach_ros.ServiceState):
         pub_thread.join()
 
         return result
-
-
-class LaunchTorpedoState(smach_ros.ServiceState):
-    def __init__(self, id: int):
-        smach_ros.ServiceState.__init__(
-            self,
-            f"torpedo_{id}/launch",
-            Trigger,
-            request=TriggerRequest(),
-        )
 
 
 class DropBallState(smach_ros.ServiceState):
@@ -342,7 +334,7 @@ class RotationState(smach.State):
         self,
         source_frame,
         look_at_frame,
-        rotation_speed=0.3,
+        rotation_speed=0.2,
         full_rotation=False,
         full_rotation_timeout=25.0,
         rate_hz=10,
@@ -610,7 +602,24 @@ class SetDetectionState(smach_ros.ServiceState):
         )
 
 
-class ExecutePlannedPathsState(smach.State):
+class SetDetectionFocusState(smach_ros.ServiceState):
+    """
+    Calls the service to set the focus for the front camera detections.
+    """
+
+    def __init__(self, focus_object: str):
+        service_name = "set_front_camera_focus"
+        request = SetDetectionFocusRequest(focus_object=focus_object)
+
+        super(SetDetectionFocusState, self).__init__(
+            service_name,
+            SetDetectionFocus,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
+class ExecutePathState(smach.State):
     """
     Uses the follow path action client to follow a set of planned paths.
     """
@@ -619,46 +628,34 @@ class ExecutePlannedPathsState(smach.State):
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
-            input_keys=[
-                "planned_paths"
-            ],  # expects the input value under the name "planned_paths"
         )
         self._client = None
 
     def execute(self, userdata) -> str:
         """
-        Args:
-            userdata (smach.UserData): Contains `planned_paths` from the planning state.
-
         Returns:
             str: "succeeded" if execution was successful, otherwise "aborted" or "preempted".
         """
         if self._client is None:
-            rospy.logdebug(
-                "[ExecutePlannedPathsState] Initializing the FollowPathActionClient"
-            )
+            rospy.logdebug("[ExecutePathState] Initializing the FollowPathActionClient")
             self._client = follow_path_client.FollowPathActionClient()
 
         # Check for preemption before proceeding
         if self.preempt_requested():
-            rospy.logwarn("[ExecutePlannedPathsState] Preempt requested")
+            rospy.logwarn("[ExecutePathState] Preempt requested")
             return "preempted"
         try:
-            planned_paths = userdata.planned_paths
-            success = self._client.execute_paths(planned_paths)
+            # We send an empty goal, as the action server now listens to a topic
+            success = self._client.execute_paths([])
             if success:
-                rospy.logdebug(
-                    "[ExecutePlannedPathsState] Planned paths executed successfully"
-                )
+                rospy.logdebug("[ExecutePathState] Planned paths executed successfully")
                 return "succeeded"
             else:
-                rospy.logwarn(
-                    "[ExecutePlannedPathsState] Execution of planned paths failed"
-                )
+                rospy.logwarn("[ExecutePathState] Execution of planned paths failed")
                 return "aborted"
 
         except Exception as e:
-            rospy.logerr("[ExecutePlannedPathsState] Exception occurred: %s", str(e))
+            rospy.logerr("[ExecutePathState] Exception occurred: %s", str(e))
             return "aborted"
 
 
