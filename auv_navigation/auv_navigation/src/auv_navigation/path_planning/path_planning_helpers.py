@@ -67,7 +67,9 @@ class PathPlanningHelper:
         Returns:
             float: The yaw difference (including extra turns) in radians.
         """
-        angular_diff = (target_euler[2] - source_euler[2]) + (TWO_PI * n_turns)
+        raw_diff = target_euler[2] - source_euler[2]
+        normalized_diff = (raw_diff + np.pi) % (2 * np.pi) - np.pi
+        angular_diff = normalized_diff + (TWO_PI * n_turns)
         return angular_diff
 
     @staticmethod
