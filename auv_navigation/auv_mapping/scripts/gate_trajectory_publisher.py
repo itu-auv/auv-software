@@ -70,9 +70,6 @@ class TransformServiceNode:
         self.toggle_rescuer_service = rospy.Service(
             "toggle_coin_flip_rescuer", SetBool, self.handle_toggle_rescuer_service
         )
-        rospy.loginfo(
-            "Coin Flip Rescuer servisi 'toggle_coin_flip_rescuer' adiyla kuruldu."
-        )
 
     def assign_selected_gate_translations(
         self,
@@ -312,8 +309,6 @@ class TransformServiceNode:
             rospy.logerr(
                 f"Failed to set transform for {transform.child_frame_id}: {response.message}"
             )
-        else:
-            rospy.loginfo(f"Transform başarıyla yayınlandı: {transform.child_frame_id}")
 
     def handle_enable_service(self, request: SetBool):
         self.is_enabled = request.data
@@ -334,7 +329,6 @@ class TransformServiceNode:
         rospy.loginfo(message)
 
         if self.coin_flip_enabled and self.coin_flip_rescuer_pose is None:
-            rospy.loginfo("Calculating coin_flip_rescuer pose for the first time...")
             try:
                 initial_transform = self.tf_buffer.lookup_transform(
                     self.odom_frame,
@@ -354,9 +348,6 @@ class TransformServiceNode:
                 rescuer_pose.orientation = Quaternion(*q)
 
                 self.coin_flip_rescuer_pose = rescuer_pose
-                rospy.loginfo(
-                    f"Coin flip rescuer pose calculated and stored: {self.coin_flip_rescuer_pose.position}"
-                )
                 return SetBoolResponse(success=True, message=message)
 
             except (
@@ -379,7 +370,7 @@ class TransformServiceNode:
             rospy.logdebug("Coin flip rescuer frame publishing is disabled.")
             return
         if self.latest_odom is None:
-            rospy.logwarn("Odometry mesajı alınmadı, rescue frame yayınlanamaz.")
+            rospy.logwarn("Coin flip rescuer frame odometry message not received.")
             return
 
         pos = self.latest_odom.pose.pose.position
@@ -403,9 +394,6 @@ class TransformServiceNode:
         transform.transform.rotation.y = rescuer_quat[1]
         transform.transform.rotation.z = rescuer_quat[2]
         transform.transform.rotation.w = rescuer_quat[3]
-        rospy.loginfo(
-            f"Rescuer frame yayınlanıyor: ({rescuer_x:.2f}, {rescuer_y:.2f}, {rescuer_z:.2f}), yaw: {reference_yaw:.2f}"
-        )
         self.send_transform(transform)
 
     def _publish_gate_angle_loop(self):
