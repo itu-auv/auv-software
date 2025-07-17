@@ -29,7 +29,7 @@ class SlalomTrajectoryPublisher(object):
         self.offset2 = 1.0
         self.offset3 = -1.0
         self.vertical_dist = 1.5
-        self.lane_angle_deg = 0.0
+        self.lane_angle_rad = 0.0
         self.parent_frame = "odom"
         self.gate_exit_frame = "gate_exit"
         self.slalom_white_frame = "slalom_white_link"
@@ -82,7 +82,7 @@ class SlalomTrajectoryPublisher(object):
         self.offset2 = config.second_slalom_offset
         self.offset3 = config.third_slalom_offset
         self.vertical_dist = config.vertical_distance_between_slalom_clusters
-        self.lane_angle_deg = config.forward_lane_angle
+        self.lane_angle_rad = config.forward_lane_angle_rad
         return config
 
     def trigger_callback(self, req):
@@ -103,15 +103,14 @@ class SlalomTrajectoryPublisher(object):
             return
 
         # --- Coordinate System Setup ---
-        lane_angle_rad = math.radians(self.lane_angle_deg)
         forward_vec = np.array(
-            [math.cos(lane_angle_rad), math.sin(lane_angle_rad), 0.0]
+            [math.cos(self.lane_angle_rad), math.sin(self.lane_angle_rad), 0.0]
         )
         pool_parallel_vec = np.array(
-            [-math.sin(lane_angle_rad), math.cos(lane_angle_rad), 0.0]
+            [-math.sin(self.lane_angle_rad), math.cos(self.lane_angle_rad), 0.0]
         )
         self.q_orientation = tf.transformations.quaternion_from_euler(
-            0.0, 0.0, lane_angle_rad
+            0.0, 0.0, self.lane_angle_rad
         )
 
         try:
