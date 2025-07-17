@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import rospy
@@ -11,6 +11,9 @@ from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
+from dynamic_reconfigure.server import Server
+from auv_mapping.cfg import SlalomTrajectoryConfig
+
 
 class SlalomTrajectoryPublisher(object):
     """
@@ -20,19 +23,22 @@ class SlalomTrajectoryPublisher(object):
 
     def __init__(self):
         rospy.loginfo("Starting Slalom Trajectory Publisher node...")
-        self.gate_dist = rospy.get_param("~gate_to_slalom_entrance_distance", 2.0)
-        self.offset2 = rospy.get_param("~second_slalom_offset", 1.0)
-        self.offset3 = rospy.get_param("~third_slalom_offset", -1.0)
-        self.vertical_dist = rospy.get_param(
-            "~vertical_distance_between_slalom_clusters", 1.5
+
+        # Initialize parameters with default values
+        self.gate_dist = 2.0
+        self.offset2 = 1.0
+        self.offset3 = -1.0
+        self.vertical_dist = 1.5
+        self.lane_angle_deg = 0.0
+        self.parent_frame = "odom"
+        self.gate_exit_frame = "gate_exit"
+        self.slalom_white_frame = "slalom_white_link"
+        self.slalom_red_frame = "slalom_red_link"
+
+        # Setup dynamic reconfigure server
+        self.reconfigure_server = Server(
+            SlalomTrajectoryConfig, self.reconfigure_callback
         )
-        self.lane_angle_deg = rospy.get_param("~forward_lane_angle", 0.0)
-        self.parent_frame = rospy.get_param("~parent_frame", "odom")
-        self.gate_exit_frame = rospy.get_param("~gate_exit_frame", "gate_exit")
-        self.slalom_white_frame = rospy.get_param(
-            "~slalom_white_frame", "slalom_white_link"
-        )
-        self.slalom_red_frame = rospy.get_param("~slalom_red_frame", "slalom_red_link")
 
         # Initialize TF broadcaster and listener
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
@@ -60,6 +66,18 @@ class SlalomTrajectoryPublisher(object):
         rospy.loginfo(
             "Slalom Trajectory Publisher is ready. Call the 'publish_slalom_waypoints' service."
         )
+
+    def reconfigure_callback(self, config, level):
+        """
+        The callback function for dynamic reconfigure server.
+        """
+        rospy.loginfo("Updating slalom trajectory parameters...")
+        self.gate_dist = config.gate_to_slalom_entrance_distance
+        self.offset2 = config.second_slalom_offset
+        self.offset3 = config.third_slalom_offset
+        self.vertical_dist = config.vertical_distance_between_slalom_clusters
+        self.lane_angle_deg = config.forward_lane_angle
+        return config
 
     def trigger_callback(self, req):
         """
@@ -154,6 +172,7 @@ class SlalomTrajectoryPublisher(object):
                 + pool_parallel_vec * self.offset3
             )
 
+            # Calculate slalom_exit
             self.pos_exit = self.pos_wp3 + forward_vec * 0.5
 
             # Broadcast all frames
@@ -221,15 +240,6 @@ class SlalomTrajectoryPublisher(object):
         t.transform.rotation.z = q[2]
         t.transform.rotation.w = q[3]
         self.tf_broadcaster.sendTransform(t)
-
-    def send_transform(self, transform: TransformStamped):
-        request = SetObjectTransformRequest()
-        request.transform = transform
-        response = self.set_object_transform_service.call(request)
-        if not response.success:
-            rospy.logerr(
-                f"Failed to set transform for {transform.child_frame_id}: {response.message}"
-            )
 
 
 if __name__ == "__main__":
