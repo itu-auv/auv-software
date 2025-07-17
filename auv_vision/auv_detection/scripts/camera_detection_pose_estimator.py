@@ -152,9 +152,9 @@ class CameraDetectionNode:
             "gate": [0, 1],
             "pipe": [2, 3],
             "torpedo": [4, 5],
-            "bin": [6, 9, 10, 11],
+            "bin": [6, 9],
             "octagon": [7],
-            "all": [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11],
+            "all": [0, 1, 2, 3, 4, 5, 6, 7, 9],
         }
 
         self.object_transform_pub = rospy.Publisher(
@@ -195,8 +195,8 @@ class CameraDetectionNode:
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
             "bin_whole_link": BinWhole(),
-            "bin/red_link": BinRed(),
-            "bin/blue_link": BinBlue(),
+            "bin_sawfish_link": BinRed(),
+            "bin_shark_link": BinBlue(),
             "torpedo_hole_upper_link": TorpedoHole(),
             "torpedo_hole_bottom_link": TorpedoHole(),
         }
@@ -214,8 +214,8 @@ class CameraDetectionNode:
             },
             "taluy/cameras/cam_bottom": {
                 9: "bin/whole",
-                10: "bin/red_link",
-                11: "bin/blue_link",
+                0: "bin_shark_link",
+                1: "bin_sawfish_link",
             },
         }
         # Subscribe to YOLO detections and altitude
