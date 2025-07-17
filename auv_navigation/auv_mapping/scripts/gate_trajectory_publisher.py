@@ -10,6 +10,7 @@ from geometry_msgs.msg import Pose, Point, Quaternion, TransformStamped
 from std_msgs.msg import Float64
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from nav_msgs.msg import Odometry
 
 
 class TransformServiceNode:
@@ -52,8 +53,26 @@ class TransformServiceNode:
             "~target_gate_frame", "gate_shark_link"
         )
 
+        self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
+        self.odom_sub = rospy.Subscriber("odometry", Odometry, self.odom_callback)
+        self.latest_odom = None
+
         # Threshold for gate link separation
         self.MIN_GATE_SEPARATION_THRESHOLD = 0.15
+
+        self.coin_flip_enabled = False
+        self.coin_flip_rescuer_pose = None
+        self.rescuer_frame_name = "coin_flip_rescuer"
+
+        self.wall_reference_yaw = rospy.get_param("~wall_reference_yaw", 3.0)
+        self.rescuer_distance = rospy.get_param("~rescuer_distance", 1.5)
+
+        self.toggle_rescuer_service = rospy.Service(
+            "toggle_coin_flip_rescuer", SetBool, self.handle_toggle_rescuer_service
+        )
+        rospy.loginfo(
+            "Coin Flip Rescuer servisi 'toggle_coin_flip_rescuer' adiyla kuruldu."
+        )
 
     def assign_selected_gate_translations(
         self,
@@ -293,6 +312,8 @@ class TransformServiceNode:
             rospy.logerr(
                 f"Failed to set transform for {transform.child_frame_id}: {response.message}"
             )
+        else:
+            rospy.loginfo(f"Transform başarıyla yayınlandı: {transform.child_frame_id}")
 
     def handle_enable_service(self, request: SetBool):
         self.is_enabled = request.data
@@ -305,6 +326,87 @@ class TransformServiceNode:
         message = "Gate angle publishing enabled."
         rospy.loginfo(message)
         return TriggerResponse(success=True, message=message)
+
+    def handle_toggle_rescuer_service(self, request: SetBool) -> SetBoolResponse:
+
+        self.coin_flip_enabled = request.data
+        message = f"Coin flip rescuer frame publishing set to: {self.coin_flip_enabled}"
+        rospy.loginfo(message)
+
+        if self.coin_flip_enabled and self.coin_flip_rescuer_pose is None:
+            rospy.loginfo("Calculating coin_flip_rescuer pose for the first time...")
+            try:
+                initial_transform = self.tf_buffer.lookup_transform(
+                    self.odom_frame,
+                    self.base_link_frame,
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+
+                initial_pos = initial_transform.transform.translation
+
+                rescuer_pose = Pose()
+                rescuer_pose.position.x = initial_pos.x + self.rescuer_distance
+                rescuer_pose.position.y = initial_pos.y
+                rescuer_pose.position.z = initial_pos.z
+
+                q = tf_conversions.transformations.quaternion_from_euler(0, 0, 0)
+                rescuer_pose.orientation = Quaternion(*q)
+
+                self.coin_flip_rescuer_pose = rescuer_pose
+                rospy.loginfo(
+                    f"Coin flip rescuer pose calculated and stored: {self.coin_flip_rescuer_pose.position}"
+                )
+                return SetBoolResponse(success=True, message=message)
+
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                error_message = f"Failed to get initial vehicle pose to calculate rescuer frame: {e}"
+                rospy.logerr(error_message)
+                self.coin_flip_enabled = False
+                return SetBoolResponse(success=False, message=error_message)
+
+        return SetBoolResponse(success=True, message=message)
+
+    def odom_callback(self, msg):
+        self.latest_odom = msg
+
+    def _publish_rescuer_frame(self):
+        if not self.coin_flip_enabled:
+            rospy.logdebug("Coin flip rescuer frame publishing is disabled.")
+            return
+        if self.latest_odom is None:
+            rospy.logwarn("Odometry mesajı alınmadı, rescue frame yayınlanamaz.")
+            return
+
+        pos = self.latest_odom.pose.pose.position
+        reference_yaw = self.wall_reference_yaw
+        dx = self.rescuer_distance * math.cos(reference_yaw)
+        dy = self.rescuer_distance * math.sin(reference_yaw)
+        rescuer_x = pos.x + dx
+        rescuer_y = pos.y + dy
+        rescuer_z = pos.z
+        rescuer_quat = tf_conversions.transformations.quaternion_from_euler(
+            0, 0, reference_yaw
+        )
+        transform = TransformStamped()
+        transform.header.stamp = rospy.Time.now()
+        transform.header.frame_id = self.odom_frame
+        transform.child_frame_id = self.rescuer_frame_name
+        transform.transform.translation.x = rescuer_x
+        transform.transform.translation.y = rescuer_y
+        transform.transform.translation.z = rescuer_z
+        transform.transform.rotation.x = rescuer_quat[0]
+        transform.transform.rotation.y = rescuer_quat[1]
+        transform.transform.rotation.z = rescuer_quat[2]
+        transform.transform.rotation.w = rescuer_quat[3]
+        rospy.loginfo(
+            f"Rescuer frame yayınlanıyor: ({rescuer_x:.2f}, {rescuer_y:.2f}, {rescuer_z:.2f}), yaw: {reference_yaw:.2f}"
+        )
+        self.send_transform(transform)
 
     def _publish_gate_angle_loop(self):
         rate = rospy.Rate(10.0)
@@ -322,6 +424,10 @@ class TransformServiceNode:
         while not rospy.is_shutdown():
             if self.is_enabled:
                 self.create_trajectory_frames()
+
+            if self.coin_flip_enabled:
+                self._publish_rescuer_frame()
+
             rate.sleep()
 
 
