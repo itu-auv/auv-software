@@ -216,14 +216,6 @@ class SlalomTrajectoryPublisher(object):
                     self.q_orientation,
                 )
             )
-            self.send_transform(
-                self.build_transform(
-                    "slalom_exit",
-                    self.parent_frame,
-                    self.pos_exit,
-                    self.q_orientation,
-                )
-            )
 
         except (
             tf2_ros.LookupException,
