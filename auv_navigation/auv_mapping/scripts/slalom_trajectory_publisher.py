@@ -32,8 +32,8 @@ class SlalomTrajectoryPublisher(object):
         self.lane_angle_rad = 0.0
         self.parent_frame = "odom"
         self.gate_exit_frame = "gate_exit"
-        self.slalom_white_frame = "slalom_white_link"
-        self.slalom_red_frame = "slalom_red_link"
+        self.slalom_white_frame = "white_pipe_link"
+        self.slalom_red_frame = "red_pipe_link"
 
         # Setup dynamic reconfigure server
         self.reconfigure_server = Server(
@@ -232,7 +232,7 @@ class SlalomTrajectoryPublisher(object):
     def build_transform(self, child_frame, parent_frame, pos, q):
         """Helper function to create and broadcast a TransformStamped message."""
         if pos is None or q is None:
-            return
+            return None
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
         t.header.frame_id = parent_frame
@@ -245,8 +245,11 @@ class SlalomTrajectoryPublisher(object):
         t.transform.rotation.z = q[2]
         t.transform.rotation.w = q[3]
         self.tf_broadcaster.sendTransform(t)
+        return t
 
     def send_transform(self, transform: TransformStamped):
+        if transform is None:
+            return
         request = SetObjectTransformRequest()
         request.transform = transform
         response = self.set_object_transform_service.call(request)
