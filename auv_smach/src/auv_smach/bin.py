@@ -40,7 +40,7 @@ class CheckForDropAreaState(smach.State):
         self.timeout = rospy.Duration(timeout)
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.target_frames = ["bin/blue_link", "bin/red_link"]
+        self.target_frames = ["bin_shark_link", "bin_sawfish_link"]
 
     def execute(self, userdata) -> str:
         start_time = rospy.Time.now()
