@@ -6,7 +6,7 @@
   <arg name="debug" default="false"/>
 
   <!-- Point cloud topic argument -->
-  <arg name="point_cloud_topic" default="/taluy/camera/depth/color/points"/>
+  <arg name="point_cloud_topic" default="/points_filtered"/>
 
   <!-- YOLOv8 result topic argument -->
   <arg name="yolo_result_topic_in" default="/yolo_result_realsense"/>
