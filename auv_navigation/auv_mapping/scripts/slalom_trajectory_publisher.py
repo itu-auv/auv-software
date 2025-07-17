@@ -41,7 +41,8 @@ class SlalomTrajectoryPublisher(object):
 
         self.active = False
         self.q_orientation = None
-        self.pos_entrance, self.pos_wp1, self.pos_wp2, self.pos_wp3 = (
+        self.pos_entrance, self.pos_wp1, self.pos_wp2, self.pos_wp3, self.pos_exit = (
+            None,
             None,
             None,
             None,
@@ -153,6 +154,8 @@ class SlalomTrajectoryPublisher(object):
                 + pool_parallel_vec * self.offset3
             )
 
+            self.pos_exit = self.pos_wp3 + forward_vec * 0.5
+
             # Broadcast all frames
             self.send_transform(
                 self.build_transform(
@@ -183,6 +186,14 @@ class SlalomTrajectoryPublisher(object):
                     "slalom_waypoint_3",
                     self.parent_frame,
                     self.pos_wp3,
+                    self.q_orientation,
+                )
+            )
+            self.send_transform(
+                self.build_transform(
+                    "slalom_exit",
+                    self.parent_frame,
+                    self.pos_exit,
                     self.q_orientation,
                 )
             )
