@@ -27,12 +27,9 @@ from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryS
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
-    def __init__(self, req: bool):
+    def __init__(self):
         smach_ros.ServiceState.__init__(
-            self,
-            "toggle_slalom_trajectory",
-            SetBool,
-            request=SetBoolRequest(data=req),
+            self, "publish_slalom_waypoints", Trigger, request=TriggerRequest()
         )
 
 
@@ -64,7 +61,7 @@ class NavigateThroughSlalomState(smach.State):
             )
             smach.StateMachine.add(
                 "ENABLE_SLALOM_TRAJECTORY_PUBLISHER",
-                TransformServiceEnableState(req=True),
+                TransformServiceEnableState(),
                 transitions={
                     "succeeded": "START_PLANNING_TO_SLALOM_ENTRANCE",
                     "preempted": "preempted",
