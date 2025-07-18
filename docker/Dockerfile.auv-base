@@ -27,5 +27,11 @@ RUN apt-get update && \
   ros-noetic-robot-state-publisher \
   ros-noetic-joint-state-publisher \
   ros-noetic-xacro \
+  ros-noetic-rosfmt \
+  ros-noetic-smach-ros \
+  ros-noetic-rosserial-python \
+  ros-noetic-move-base \
+  ros-noetic-pcl-ros \
+  ros-noetic-pcl-conversions \
   ros-noetic-robot-localization && \
   rm -rf /var/lib/apt/lists/*
