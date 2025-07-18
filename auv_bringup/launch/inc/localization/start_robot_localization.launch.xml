@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise"/>
+  <arg name="namespace" default="taluy"/>
   <arg name="control_rate" default="20.0"/>
   <group ns="$(arg namespace)">
     <node pkg="robot_localization" type="ekf_localization_node" name="auv_localization_node" clear_params="true">
