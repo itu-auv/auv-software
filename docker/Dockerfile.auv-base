@@ -1,5 +1,6 @@
 # ARG BASE_IMAGE=nvcr.io/nvidia/l4t-ml:r35.2.1-py3
 ARG BASE_IMAGE=dustynv/ros:noetic-ros-base-l4t-r35.2.1
+ARG HOST=desktop
 
 FROM ${BASE_IMAGE}
 
@@ -37,3 +38,20 @@ RUN apt-get update && \
   ros-noetic-pcl-conversions \
   ros-noetic-robot-localization && \
   rm -rf /var/lib/apt/lists/*
+
+RUN if [ "$HOST" = "tegra" ]; then \
+      set -e; \
+      echo "Building source overlay for tegra…"; \
+      mkdir -p src && cd src && \
+      git clone -b noetic --single-branch https://github.com/ros-perception/vision_opencv.git && \
+      cd /auv_ws; \
+      . /opt/ros/noetic/setup.sh && \
+      rosdep update && \
+      rosdep install --from-paths src --ignore-src -r -y; \
+      catkin config --extend /opt/ros/noetic --install --install-space /opt/ros/noetic && \
+      catkin build --no-status --continue-on-failure && \
+      catkin clean -y --log; \
+      echo 'source /opt/ros/noetic/setup.bash' >> /ros_entrypoint.sh; \
+    else \
+      echo "HOST=$HOST → skipping source overlay"; \
+    fi

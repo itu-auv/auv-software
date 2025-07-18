@@ -7,6 +7,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEBCONF_NONINTERACTIVE_SEEN=true \
     TZ=Etc/UTC
 
+WORKDIR /auv_ws
+
 COPY . ./src/auv_software
 
 # Install dependencies
@@ -21,13 +23,7 @@ RUN apt-get update && \
   else \
     rosdep install --from-paths src --ignore-src -r -y; \
   fi && \
-  rm -rf /var/lib/apt/lists/* && \
-  if [ "$HOST" = "tegra" ]; then \
-    cd src && \
-    git clone -b noetic --single-branch https://github.com/ros-perception/vision_opencv.git && \
-    cd ..; \
-  fi
+  rm -rf /var/lib/apt/lists/*
 
-# Build the workspace
 RUN . /opt/ros/noetic/setup.sh && \
   catkin build -- auv_software
