@@ -137,12 +137,8 @@ class PointCloudFilterNode {
          refraction_corrected_cloud->points) {  // Iterate over corrected points
       // Filter based on Y coordinate using altitude and depth
       // Keep points below altitude (+offset) and above depth (-offset)
-      // Filter based on Y coordinate for inverted camera
-      // Y-axis points upwards.
-      // Ground is at approx. y = -altitude_
-      // Water surface is at approx. y = depth_value_
-      // Keep points above ground and below water surface with some margins.
-      if (pt.y >= -altitude_ + 0.30 && pt.y <= depth_value_ - 0.45 &&
+      // Also check if AUV depth itself is less than 5.0m
+      if (pt.y <= altitude_ - 0.30 && pt.y >= depth_value_ + 0.45 &&
           pt.z < 5.0) {
         temp_cloud->points.push_back(pt);
       }
