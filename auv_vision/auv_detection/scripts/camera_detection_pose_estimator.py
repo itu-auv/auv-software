@@ -569,7 +569,7 @@ class CameraDetectionNode:
                 continue
 
             if detection_id not in self.id_tf_map[camera_ns]:
-                continue    
+                continue
             if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
                 skip_inside_image = True
                 # use altidude for bin
