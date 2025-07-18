@@ -7,16 +7,16 @@ FROM ${BASE_IMAGE}
 WORKDIR /auv_ws
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    DEBCONF_NONINTERACTIVE_SEEN=true \
-    TZ=Etc/UTC
+  DEBCONF_NONINTERACTIVE_SEEN=true \
+  TZ=Etc/UTC
 
 RUN find /etc/apt/ -type f -name '*.list' -exec grep -l 'packages.ros.org' {} \; | xargs -r mv -t /tmp || true && \
-    apt-get update && apt-get install -y curl gnupg debconf-utils && \
-    mkdir -p /etc/apt/keyrings && \
-    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-    -o /etc/apt/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros/ubuntu focal main" \
-    > /etc/apt/sources.list.d/ros-latest.list
+  apt-get update && apt-get install -y curl gnupg debconf-utils && \
+  mkdir -p /etc/apt/keyrings && \
+  curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+  -o /etc/apt/keyrings/ros-archive-keyring.gpg && \
+  echo "deb [signed-by=/etc/apt/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros/ubuntu focal main" \
+  > /etc/apt/sources.list.d/ros-latest.list
 
 RUN apt-get update && \
   apt-get install -yqq --no-install-recommends \
@@ -29,6 +29,7 @@ RUN apt-get update && \
   ros-noetic-ros-controllers \
   ros-noetic-robot-state-publisher \
   ros-noetic-joint-state-publisher \
+  ros-noetic-joy \
   ros-noetic-xacro \
   ros-noetic-rosfmt \
   ros-noetic-smach-ros \
@@ -40,18 +41,18 @@ RUN apt-get update && \
   rm -rf /var/lib/apt/lists/*
 
 RUN if [ "$HOST" = "tegra" ]; then \
-      set -e; \
-      echo "Building source overlay for tegra…"; \
-      mkdir -p src && cd src && \
-      git clone -b noetic --single-branch https://github.com/ros-perception/vision_opencv.git && \
-      cd /auv_ws; \
-      . /opt/ros/noetic/setup.sh && \
-      rosdep update && \
-      rosdep install --from-paths src --ignore-src -r -y; \
-      catkin config --extend /opt/ros/noetic --install --install-space /opt/ros/noetic && \
-      catkin build --no-status --continue-on-failure && \
-      catkin clean -y --log; \
-      echo 'source /opt/ros/noetic/setup.bash' >> /ros_entrypoint.sh; \
-    else \
-      echo "HOST=$HOST → skipping source overlay"; \
-    fi
+  set -e; \
+  echo "Building source overlay for tegra…"; \
+  mkdir -p src && cd src && \
+  git clone -b noetic --single-branch https://github.com/ros-perception/vision_opencv.git && \
+  cd /auv_ws; \
+  . /opt/ros/noetic/setup.sh && \
+  rosdep update && \
+  rosdep install --from-paths src --ignore-src -r -y; \
+  catkin config --extend /opt/ros/noetic --install --install-space /opt/ros/noetic && \
+  catkin build --no-status --continue-on-failure && \
+  catkin clean -y --log; \
+  echo 'source /opt/ros/noetic/setup.bash' >> /ros_entrypoint.sh; \
+  else \
+  echo "HOST=$HOST → skipping source overlay"; \
+  fi
