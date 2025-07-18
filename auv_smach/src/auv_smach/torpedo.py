@@ -236,7 +236,9 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH",
                 SetDepthState(
-                    depth=0.23, sleep_duration=7.0, frame_id="torpedo_map_link"
+                    depth=0.08,
+                    sleep_duration=7.0,
+                    frame_id=torpedo_realsense_target_frame,
                 ),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
@@ -259,8 +261,8 @@ class TorpedoTaskState(smach.State):
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=torpedo_fire_frame,
                     angle_offset=-math.pi / 2,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
+                    dist_threshold=0.05,
+                    yaw_threshold=0.05,
                     confirm_duration=10.0,
                     timeout=30.0,
                     cancel_on_success=False,
