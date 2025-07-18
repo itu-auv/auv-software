@@ -9,19 +9,19 @@
       <origin xyz="${position}" rpy="${orientation}"/>
     </joint>
 
-    <link name="${name}_depth_optical_link"/>
+    <link name="${name}_depth_optical_frame"/>
 
     <joint name="${name}_depth_optical_joint" type="fixed">
       <parent link="${name}"/>
-      <child link="${name}_depth_optical_link"/>
+      <child link="${name}_depth_optical_frame"/>
       <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
     </joint>
 
-    <link name="${name}_color_optical_link"/>
+    <link name="${name}_color_optical_frame"/>
 
     <joint name="${name}_color_optical_joint" type="fixed">
       <parent link="${name}"/>
-      <child link="${name}_color_optical_link"/>
+      <child link="${name}_color_optical_frame"/>
       <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
     </joint>
   </xacro:macro>
