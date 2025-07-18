@@ -6,24 +6,18 @@ import tf2_ros
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import PlanPath, PlanPathRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
-from geometry_msgs.msg import PoseStamped
 from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
     ExecutePathState,
-    ClearObjectMapState,
     SearchForPropState,
     AlignFrame,
     SetPlanState,
     SetPlanningNotActive,
 )
-
-from nav_msgs.msg import Odometry
-from geometry_msgs.msg import WrenchStamped
-from std_msgs.msg import Bool
 from std_srvs.srv import SetBool, SetBoolRequest
-from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryState
+from auv_smach.initialize import DelayState
 from auv_smach.roll import TwoRollState
 
 
@@ -32,6 +26,16 @@ class TransformServiceEnableState(smach_ros.ServiceState):
         smach_ros.ServiceState.__init__(
             self,
             "toggle_gate_trajectory",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
+class RescueCoinFlipServiceEnableState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "toggle_coin_flip_rescuer",
             SetBool,
             request=SetBoolRequest(data=req),
         )
@@ -107,10 +111,72 @@ class NavigateThroughGateState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "RESCUE_COIN_FLIP_SERVICE_ENABLE",
+                RescueCoinFlipServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "WAIT_FOR_RESCUE_COIN_FLIP_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_RESCUE_COIN_FLIP_FRAME",
+                DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "RESCUE_COIN_FLIP_SERVICE_DISABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESCUE_COIN_FLIP_SERVICE_DISABLE",
+                RescueCoinFlipServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "ALIGN_TO_RESCUE_COIN_FLIP_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_RESCUE_COIN_FLIP_FRAME",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="coin_flip_rescuer",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=1.0,
+                    timeout=15.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
+                transitions={
+                    "succeeded": "SET_ROLL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
-                SetDepthState(
-                    depth=gate_search_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
+                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
+                transitions={
+                    "succeeded": "ALIGN_ORIENTATION_TO_RESCUE_COIN_FLIP_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_ORIENTATION_TO_RESCUE_COIN_FLIP_FRAME",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="coin_flip_rescuer",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=1.0,
+                    timeout=15.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -123,8 +189,8 @@ class NavigateThroughGateState(smach.State):
                 SearchForPropState(
                     look_at_frame="gate_shark_link",
                     alignment_frame="gate_search",
-                    full_rotation=True,
-                    set_frame_duration=8.0,
+                    full_rotation=False,
+                    set_frame_duration=3.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -250,12 +316,12 @@ class NavigateThroughGateState(smach.State):
                 "STOP_PLANNING",
                 SetPlanningNotActive(),
                 transitions={
-                    "succeeded": "ALING_FRAME_REQUEST_AFTER_EXIT",
+                    "succeeded": "ALIGN_FRAME_REQUEST_AFTER_EXIT",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALING_FRAME_REQUEST_AFTER_EXIT",
+                "ALIGN_FRAME_REQUEST_AFTER_EXIT",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="gate_exit",
@@ -264,7 +330,7 @@ class NavigateThroughGateState(smach.State):
                     yaw_threshold=0.1,
                     confirm_duration=0.0,
                     timeout=10.0,
-                    cancel_on_success=False,
+                    cancel_on_success=True,
                     keep_orientation=False,
                 ),
                 transitions={
