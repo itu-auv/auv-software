@@ -209,7 +209,7 @@ class CameraDetectionNode:
                 3: "white_pipe_link",
                 4: "torpedo_map_link",
                 5: "torpedo_hole_link",
-                6: "bin_whole_link",
+                6: "bin/whole_link",
                 7: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {

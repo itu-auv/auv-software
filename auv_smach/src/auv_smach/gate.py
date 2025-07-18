@@ -4,7 +4,6 @@ import smach_ros
 import rospy
 import tf2_ros
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from auv_msgs.srv import PlanPath, PlanPathRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
 from auv_smach.common import (
     SetAlignControllerTargetState,
