@@ -47,14 +47,22 @@ class VisualServoingController:
 
     def _load_parameters(self):
         """Load parameters from the ROS parameter server."""
+        # These are now handled by dynamic_reconfigure, but we can set initial values.
         self.kp_gain = rospy.get_param("~kp_gain", 0.8)
         self.kd_gain = rospy.get_param("~kd_gain", 0.4)
         self.v_x_desired = rospy.get_param("~v_x_desired", 0.3)
-        self.navigation_timeout_after_prop_disappear_s = 12.0
+        self.navigation_timeout_after_prop_disappear_s = rospy.get_param(
+            "~navigation_timeout_after_prop_disappear_s", 12.0
+        )
         self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 1500.0)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
+        self.prop_history_s = rospy.get_param("~prop_history_s", 2.0)
+        prop_history_size = int(self.rate_hz * self.prop_history_s)
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
         self.imu_history_size = int(self.rate_hz * imu_history_secs)
+        self.navigation_mode = rospy.get_param("~navigation_mode", "left")
+        self.white_pipes_history = deque(maxlen=prop_history_size)
+        self.red_pipes_history = deque(maxlen=prop_history_size)
 
     def _setup_state(self):
         """Initialize the controller's state."""
@@ -67,6 +75,8 @@ class VisualServoingController:
         self.angular_velocity_z = 0.0
         self.target_yaw_in_world = 0.0
         self.imu_history = deque(maxlen=self.imu_history_size)
+        self.white_pipes_history.clear()
+        self.red_pipes_history.clear()
 
     def _setup_ros_communication(self):
         """Setup ROS publishers, subscribers, and services."""
@@ -83,7 +93,7 @@ class VisualServoingController:
 
         # Subscribers
         rospy.Subscriber("props_yaw", PropsYaw, self.prop_yaw_callback, queue_size=1)
-        rospy.Subscriber("imu/data", Imu, self.imu_callback, queue_size=1)
+        rospy.Subscriber("sensors/imu/data", Imu, self.imu_callback, queue_size=1)
 
         # Services
         rospy.Service(
@@ -118,27 +128,94 @@ class VisualServoingController:
 
     def prop_yaw_callback(self, msg: PropsYaw):
         """Handles incoming prop yaw messages to update the target yaw."""
-        if self.state == ControllerState.IDLE or msg.object != self.target_prop:
+        if self.state == ControllerState.IDLE:
             return
 
-        if not self.imu_history:
-            rospy.logwarn_throttle(
-                1.0, "IMU history is empty, skipping prop yaw callback."
+        is_slalom_mode = "slalom" in self.target_prop
+        if is_slalom_mode:
+            if "white_pipe" in msg.object:
+                self.white_pipes_history.append((msg.header.stamp, msg.angle))
+            elif "red_pipe" in msg.object:
+                self.red_pipes_history.append((msg.header.stamp, msg.angle))
+            else:
+                return
+            self._process_slalom_gate()
+        else:
+            if msg.object != self.target_prop:
+                return
+
+            if not self.imu_history:
+                rospy.logwarn_throttle(
+                    1.0, "IMU history is empty, skipping prop yaw callback."
+                )
+                return
+
+            prop_stamp = msg.header.stamp
+            self.last_prop_stamp_time = prop_stamp
+            angle_to_prop_from_robot = msg.angle
+
+            # delay = (rospy.Time.now() - prop_stamp).to_sec()
+            # rospy.loginfo_throttle(
+            #    1.0, f"Visual Servoing perception delay: {delay:.3f} seconds"
+            # )
+
+            yaw_at_prop_time = self._get_yaw_at_time(prop_stamp)
+            self.target_yaw_in_world = normalize_angle(
+                yaw_at_prop_time + angle_to_prop_from_robot
             )
+
+    def _process_slalom_gate(self):
+        """Processes the detected pipes for slalom task."""
+        now = rospy.Time.now()
+
+        def get_valid_angles(history):
+            return [
+                angle
+                for stamp, angle in history
+                if (now - stamp).to_sec() <= self.prop_history_s
+            ]
+
+        white_pipes_angles = sorted(get_valid_angles(self.white_pipes_history))
+        red_pipes_angles = sorted(get_valid_angles(self.red_pipes_history))
+
+        # rospy.loginfo(f"White pipes angles: {white_pipes_angles}")
+        # rospy.loginfo(f"Red pipes angles: {red_pipes_angles}")
+
+        if not red_pipes_angles or not white_pipes_angles:
             return
 
-        prop_stamp = msg.header.stamp
-        self.last_prop_stamp_time = prop_stamp
-        angle_to_prop_from_robot = msg.angle
+        angle_red_pipe = sum(red_pipes_angles) / len(red_pipes_angles)
+        rospy.loginfo(f"Red pipe angle: {angle_red_pipe:.3f} radians")
 
-        # delay = (rospy.Time.now() - prop_stamp).to_sec()
-        # rospy.loginfo_throttle(
-        #    1.0, f"Visual Servoing perception delay: {delay:.3f} seconds"
-        # )
+        if self.navigation_mode == "left":
+            candidate_white_pipes = [
+                angle for angle in white_pipes_angles if angle > angle_red_pipe
+            ]
+        else:
+            candidate_white_pipes = [
+                angle for angle in white_pipes_angles if angle < angle_red_pipe
+            ]
 
-        yaw_at_prop_time = self._get_yaw_at_time(prop_stamp)
+        if not candidate_white_pipes:
+            return
+
+        chosen_white_pipe_yaw = sum(candidate_white_pipes) / len(candidate_white_pipes)
+        rospy.loginfo(f"Chosen white pipe angle: {chosen_white_pipe_yaw:.3f} radians")
+
+        angle_to_center_of_pipes = (chosen_white_pipe_yaw + angle_red_pipe) / 2.0
+
+        # Use the most recent stamp from all detected pipes for yaw calculation
+        all_stamps = [stamp for stamp, _ in self.white_pipes_history] + [
+            stamp for stamp, _ in self.red_pipes_history
+        ]
+        if not all_stamps:
+            return
+
+        recent_stamp = max(all_stamps)
+        self.last_prop_stamp_time = recent_stamp
+        yaw_at_prop_time = self._get_yaw_at_time(recent_stamp)
         self.target_yaw_in_world = normalize_angle(
-            yaw_at_prop_time + angle_to_prop_from_robot
+            yaw_at_prop_time + angle_to_center_of_pipes
         )
 
     def _get_yaw_at_time(self, stamp: rospy.Time) -> float:
@@ -188,11 +265,14 @@ class VisualServoingController:
         """Handles dynamic reconfigure updates for controller gains."""
         self.kp_gain = config.kp_gain
         self.kd_gain = config.kd_gain
+        self.v_x_desired = config.v_x_desired
         self.navigation_timeout_after_prop_disappear_s = (
             config.navigation_timeout_after_prop_disappear_s
         )
         rospy.loginfo(
-            f"Updated gains: Kp={self.kp_gain}, kd={self.kd_gain}, NavTimeout={self.navigation_timeout_after_prop_disappear_s}"
+            f"Updated params: Kp={self.kp_gain}, Kd={self.kd_gain}, "
+            f"Vx={self.v_x_desired}, "
+            f"NavTimeout={self.navigation_timeout_after_prop_disappear_s}"
         )
         return config
 
@@ -209,6 +289,8 @@ class VisualServoingController:
         self.state = ControllerState.CENTERING
         self.service_start_time = rospy.Time.now()
         self.last_prop_stamp_time = None
+        self.white_pipes_history.clear()
+        self.red_pipes_history.clear()
         rospy.loginfo(f"Visual servoing started for target: {self.target_prop}")
         return VisualServoingResponse(
             success=True, message="Visual servoing activated."

@@ -5,6 +5,7 @@ import smach
 import auv_smach
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
+from auv_smach.slalom import SlalomState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
@@ -34,6 +35,8 @@ class MainStateMachineNode:
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -1.0
+
+        self.slalom_depth = -1.0
         # USER EDIT
 
         test_mode = rospy.get_param("~test_mode", False)
@@ -107,6 +110,12 @@ class MainStateMachineNode:
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
                 {"octagon_depth": self.octagon_depth},
+            ),
+            "SLALOM": (
+                SlalomState,
+                {
+                    "slalom_depth": self.slalom_depth,
+                },
             ),
         }
 
