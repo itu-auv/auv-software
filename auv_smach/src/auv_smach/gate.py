@@ -76,9 +76,10 @@ class PlanGatePathsState(smach.State):
 class SetPlanState(smach.State):
     """State that calls the /set_plan service"""
 
-    def __init__(self, target_frame: str):
+    def __init__(self, target_frame: str, angle_offset: float = 0.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.target_frame = target_frame
+        self.angle_offset = angle_offset
 
     def execute(self, userdata) -> str:
         try:
@@ -91,6 +92,7 @@ class SetPlanState(smach.State):
 
             req = PlanPathRequest(
                 target_frame=self.target_frame,
+                angle_offset=self.angle_offset,
             )
             set_plan(req)
             return "succeeded"
@@ -125,12 +127,15 @@ class SetPlanningNotActive(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float, gate_search_depth: float):
+    def __init__(
+        self, gate_depth: float, gate_search_depth: float, return_home: bool = False
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.sim_mode = rospy.get_param("~sim", False)
+        self.return_home = return_home
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -155,8 +160,8 @@ class NavigateThroughGateState(smach.State):
                 SearchForPropState(
                     look_at_frame="gate_shark_link",
                     alignment_frame="gate_search",
-                    full_rotation=True,
-                    set_frame_duration=8.0,
+                    full_rotation=False,
+                    set_frame_duration=3.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -215,7 +220,12 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "START_PLANNING_TO_GATE_ENTRANCE",
-                SetPlanState(target_frame="gate_entrance"),
+                SetPlanState(
+                    target_frame=(
+                        "gate_entrance" if not self.return_home else "gate_exit"
+                    ),
+                    angle_offset=3.14 if not self.return_home else 0.0,
+                ),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
@@ -262,7 +272,12 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "START_PLANNING_TO_GATE_EXIT",
-                SetPlanState(target_frame="gate_exit"),
+                SetPlanState(
+                    target_frame=(
+                        "gate_exit" if not self.return_home else "gate_entrance"
+                    ),
+                    angle_offset=3.14 if not self.return_home else 0.0,
+                ),
                 transitions={
                     "succeeded": "EXECUTE_GATE_PATH_EXIT",
                     "preempted": "preempted",
@@ -290,7 +305,9 @@ class NavigateThroughGateState(smach.State):
                 "ALING_FRAME_REQUEST_AFTER_EXIT",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame="gate_exit",
+                    target_frame=(
+                        "gate_exit" if not self.return_home else "gate_entrance"
+                    ),
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,

@@ -12,7 +12,8 @@
         buoy:NAVIGATE_AROUND_RED_BUOY,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
-        octagon:NAVIGATE_TO_OCTAGON_TASK
+        octagon:NAVIGATE_TO_OCTAGON_TASK,
+        return:RETURN_THROUGH_GATE
     "/>
 
     <!-- Test Mode Configuration -->
@@ -26,7 +27,8 @@
         'NAVIGATE_AROUND_RED_BUOY',
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
-        'NAVIGATE_TO_OCTAGON_TASK'
+        'NAVIGATE_TO_OCTAGON_TASK',
+        'RETURN_THROUGH_GATE'
     ]" doc="Full sequence of mission states"/>
 
     <!-- Test Mission States -->

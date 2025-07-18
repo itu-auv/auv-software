@@ -108,6 +108,14 @@ class MainStateMachineNode:
                 OctagonTaskState,
                 {"octagon_depth": self.octagon_depth},
             ),
+            "RETURN_THROUGH_GATE": (
+                NavigateThroughGateState,
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_search_depth": self.gate_search_depth,
+                    "return_home": True,
+                },
+            ),
         }
 
         # Validate and execute state machine

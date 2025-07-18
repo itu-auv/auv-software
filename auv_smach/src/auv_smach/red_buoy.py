@@ -26,6 +26,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
     SearchForPropState,
+    SetDetectionState,
 )
 
 from auv_smach.initialize import DelayState
@@ -242,7 +243,7 @@ class RotateAroundBuoyState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_RED_BUOY",
                 SearchForPropState(
-                    look_at_frame="red_buoy_link",
+                    look_at_frame="red_pipe_link",
                     alignment_frame="red_buoy_search",
                     full_rotation=False,
                     set_frame_duration=4.0,
@@ -259,7 +260,7 @@ class RotateAroundBuoyState(smach.State):
                 "SET_RED_BUOY_ROTATION_START_FRAME",
                 SetRedBuoyRotationStartFrame(
                     base_frame="taluy/base_link",
-                    center_frame="red_buoy_link",
+                    center_frame="red_pipe_link",
                     target_frame="red_buoy_rotation_start",
                     radius=radius,
                 ),
@@ -280,6 +281,7 @@ class RotateAroundBuoyState(smach.State):
                     "aborted": "aborted",
                 },
             )
+
             smach.StateMachine.add(
                 "NAVIGATE_TO_RED_BUOY_ROTATION_START",
                 NavigateToFrameState(
@@ -294,6 +296,15 @@ class RotateAroundBuoyState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNING_ROTATION_START",
                 DelayState(delay_time=4.0),
+                transitions={
+                    "succeeded": "CLOSE_FOCUS_ON_RED_BUOY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLOSE_FOCUS_ON_RED_BUOY",
+                SetDetectionState(camera_name="front", enable=False),
                 transitions={
                     "succeeded": "ROTATE_AROUND_BUOY",
                     "preempted": "preempted",
@@ -310,20 +321,20 @@ class RotateAroundBuoyState(smach.State):
                     direction=direction,
                 ),
                 transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
+                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # smach.StateMachine.add(
-            #     "CANCEL_ALIGN_CONTROLLER",
-            #     CancelAlignControllerState(),
-            #     transitions={
-            #         "succeeded": "succeeded",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
 
     def execute(self, userdata):
         # Execute the state machine
