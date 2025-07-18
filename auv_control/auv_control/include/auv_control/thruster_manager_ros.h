@@ -34,7 +34,8 @@ class ThrusterManagerROS {
     nh_private.getParam("mapping", mapping_);
     nh_private.getParam("max_thrust", max_wrench_);
     nh_private.getParam("min_thrust", min_wrench_);
-    nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
+    nh_private.param<std::string>("body_frame", body_frame_,
+                                  "taluy_mini/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
 
     for (size_t i = 0; i < kThrusterCount; ++i) {

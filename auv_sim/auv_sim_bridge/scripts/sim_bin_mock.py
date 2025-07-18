@@ -15,9 +15,9 @@ class DropBallServer:
         self.tf_buffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(self.tf_buffer)
 
-        self.base_frame = rospy.get_param("~base_frame", "taluy/base_link")
+        self.base_frame = rospy.get_param("~base_frame", "taluy_mini/base_link")
         self.drop_frame = rospy.get_param(
-            "~drop_frame", "taluy/base_link/ball_dropper_link"
+            "~drop_frame", "taluy_mini/base_link/ball_dropper_link"
         )
         self.model_pkg = rospy.get_param("~model_package", "auv_sim_description")
         self.model_dir = rospy.get_param("~model_subdir", "models/robosub_bin")

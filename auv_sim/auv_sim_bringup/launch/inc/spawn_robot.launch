@@ -17,6 +17,7 @@
     <arg name="imu_update_rate" default="20" />
     <arg name="dvl_update_rate" default="20" />
     <arg name="pressure_update_rate" default="20" />
+    <arg name="model" default="$(eval find(namespace + '_sim_description') + '/urdf/' + namespace + '_sim.urdf.xacro')" />
 
     <node pkg="tf2_ros" type="static_transform_publisher"
         name="$(arg reference_frame)_ned_frame_publisher"
@@ -33,7 +34,7 @@
 
     <group ns="$(arg namespace)">
         <param name="robot_description"
-            command="$(find xacro)/xacro '$(find taluy_sim_description)/urdf/taluy_sim.urdf.xacro' --inorder
+            command="$(find xacro)/xacro $(arg model)
             debug:=$(arg debug)
             namespace:=$(arg namespace)
             control_rate:=$(arg control_rate)
