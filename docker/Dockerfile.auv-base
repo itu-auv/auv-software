@@ -1,8 +1,9 @@
 # ARG BASE_IMAGE=nvcr.io/nvidia/l4t-ml:r35.2.1-py3
 ARG BASE_IMAGE=dustynv/ros:noetic-ros-base-l4t-r35.2.1
-ARG HOST=desktop
 
 FROM ${BASE_IMAGE}
+
+ARG HOST=desktop
 
 WORKDIR /auv_ws
 
