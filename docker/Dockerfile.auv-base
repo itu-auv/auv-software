@@ -9,7 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEBCONF_NONINTERACTIVE_SEEN=true \
     TZ=Etc/UTC
 
-RUN find /etc/apt/ -type f -name '*.list' -exec grep -l 'packages.ros.org' {} \; | xargs -r mv -t /tmp || true &&
+RUN find /etc/apt/ -type f -name '*.list' -exec grep -l 'packages.ros.org' {} \; | xargs -r mv -t /tmp || true && \
     apt-get update && apt-get install -y curl gnupg debconf-utils && \
     mkdir -p /etc/apt/keyrings && \
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
