@@ -153,7 +153,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_RESCUE_COIN_FLIP_FRAME",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=1.0),
                 transitions={
                     "succeeded": "RESCUE_COIN_FLIP_SERVICE_DISABLE",
                     "preempted": "preempted",
@@ -183,6 +183,15 @@ class NavigateThroughGateState(smach.State):
                     keep_orientation=True,
                 ),
                 transitions={
+                    "succeeded": "SET_ROLL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ROLL_DEPTH",
+                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
+                transitions={
                     "succeeded": "ALIGN_ORIENTATION_TO_RESCUE_COIN_FLIP_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -196,22 +205,10 @@ class NavigateThroughGateState(smach.State):
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=6.0,
+                    confirm_duration=1.0,
                     timeout=15.0,
                     cancel_on_success=False,
                     keep_orientation=False,
-                ),
-                transitions={
-                    "succeeded": "SET_ROLL_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ROLL_DEPTH",
-                SetDepthState(
-                    depth=gate_search_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -225,7 +222,7 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame="gate_shark_link",
                     alignment_frame="gate_search",
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    set_frame_duration=3.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -351,12 +348,12 @@ class NavigateThroughGateState(smach.State):
                 "STOP_PLANNING",
                 SetPlanningNotActive(),
                 transitions={
-                    "succeeded": "ALING_FRAME_REQUEST_AFTER_EXIT",
+                    "succeeded": "ALIGN_FRAME_REQUEST_AFTER_EXIT",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALING_FRAME_REQUEST_AFTER_EXIT",
+                "ALIGN_FRAME_REQUEST_AFTER_EXIT",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="gate_exit",
