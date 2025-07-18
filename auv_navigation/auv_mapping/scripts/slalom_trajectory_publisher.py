@@ -113,8 +113,10 @@ class SlalomTrajectoryPublisher(object):
             0.0, 0.0, self.lane_angle_rad
         )
 
+        # --- Frame Calculation and Publishing ---
+
+        # Calculate and publish slalom_entrance
         try:
-            # Get the initial `gate_exit` frame's position
             t_gate_exit = self.tf_buffer.lookup_transform(
                 self.parent_frame,
                 self.gate_exit_frame,
@@ -128,11 +130,24 @@ class SlalomTrajectoryPublisher(object):
                     t_gate_exit.transform.translation.z,
                 ]
             )
-
-            # Calculate slalom_entrance
             self.pos_entrance = gate_exit_pos + pool_parallel_vec * self.gate_dist
+            self.send_transform(
+                self.build_transform(
+                    "slalom_entrance",
+                    self.parent_frame,
+                    self.pos_entrance,
+                    self.q_orientation,
+                )
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logerr("Failed to calculate slalom_entrance: %s", e)
 
-            # Calculate slalom_waypoint_1
+        # Calculate and publish slalom_waypoint_1
+        try:
             t_white = self.tf_buffer.lookup_transform(
                 self.parent_frame,
                 self.slalom_white_frame,
@@ -146,7 +161,6 @@ class SlalomTrajectoryPublisher(object):
                     t_white.transform.translation.z,
                 ]
             )
-
             t_red = self.tf_buffer.lookup_transform(
                 self.parent_frame,
                 self.slalom_red_frame,
@@ -160,35 +174,7 @@ class SlalomTrajectoryPublisher(object):
                     t_red.transform.translation.z,
                 ]
             )
-
             self.pos_wp1 = (pos_white + pos_red) / 2.0
-
-            # Calculate slalom_waypoint_2
-            self.pos_wp2 = (
-                self.pos_wp1
-                + forward_vec * self.vertical_dist
-                + pool_parallel_vec * self.offset2
-            )
-
-            # Calculate slalom_waypoint_3
-            self.pos_wp3 = (
-                self.pos_wp2
-                + forward_vec * self.vertical_dist
-                + pool_parallel_vec * self.offset3
-            )
-
-            # Calculate slalom_exit
-            self.pos_exit = self.pos_wp3 + forward_vec * 0.5
-
-            # Broadcast all frames
-            self.send_transform(
-                self.build_transform(
-                    "slalom_entrance",
-                    self.parent_frame,
-                    self.pos_entrance,
-                    self.q_orientation,
-                )
-            )
             self.send_transform(
                 self.build_transform(
                     "slalom_waypoint_1",
@@ -197,32 +183,68 @@ class SlalomTrajectoryPublisher(object):
                     self.q_orientation,
                 )
             )
-            self.send_transform(
-                self.build_transform(
-                    "slalom_waypoint_2",
-                    self.parent_frame,
-                    self.pos_wp2,
-                    self.q_orientation,
-                )
-            )
-            self.send_transform(
-                self.build_transform(
-                    "slalom_waypoint_3",
-                    self.parent_frame,
-                    self.pos_wp3,
-                    self.q_orientation,
-                )
-            )
-            self.send_transform(
-                self.build_transform(
-                    "slalom_exit",
-                    self.parent_frame,
-                    self.pos_exit,
-                    self.q_orientation,
-                )
-            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logerr("Failed to calculate slalom_waypoint_1: %s", e)
 
-            # Broadcast the debug frame
+        # Calculate and publish slalom_waypoint_2
+        try:
+            if self.pos_wp1 is not None:
+                self.pos_wp2 = (
+                    self.pos_wp1
+                    + forward_vec * self.vertical_dist
+                    + pool_parallel_vec * self.offset2
+                )
+                self.send_transform(
+                    self.build_transform(
+                        "slalom_waypoint_2",
+                        self.parent_frame,
+                        self.pos_wp2,
+                        self.q_orientation,
+                    )
+                )
+        except Exception as e:
+            rospy.logerr("Failed to calculate slalom_waypoint_2: %s", e)
+
+        # Calculate and publish slalom_waypoint_3
+        try:
+            if self.pos_wp2 is not None:
+                self.pos_wp3 = (
+                    self.pos_wp2
+                    + forward_vec * self.vertical_dist
+                    + pool_parallel_vec * self.offset3
+                )
+                self.send_transform(
+                    self.build_transform(
+                        "slalom_waypoint_3",
+                        self.parent_frame,
+                        self.pos_wp3,
+                        self.q_orientation,
+                    )
+                )
+        except Exception as e:
+            rospy.logerr("Failed to calculate slalom_waypoint_3: %s", e)
+
+        # Calculate and publish slalom_exit
+        try:
+            if self.pos_wp3 is not None:
+                self.pos_exit = self.pos_wp3 + forward_vec * 0.5
+                self.send_transform(
+                    self.build_transform(
+                        "slalom_exit",
+                        self.parent_frame,
+                        self.pos_exit,
+                        self.q_orientation,
+                    )
+                )
+        except Exception as e:
+            rospy.logerr("Failed to calculate slalom_exit: %s", e)
+
+        # Broadcast the debug frame
+        try:
             self.send_transform(
                 self.build_transform(
                     "slalom_debug_frame",
@@ -231,13 +253,8 @@ class SlalomTrajectoryPublisher(object):
                     self.q_orientation,
                 )
             )
-
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            rospy.logerr("Could not perform transform or calculation: %s", e)
+        except Exception as e:
+            rospy.logerr("Failed to publish slalom_debug_frame: %s", e)
 
     def build_transform(self, child_frame, parent_frame, pos, q):
         """Helper function to create and broadcast a TransformStamped message."""
