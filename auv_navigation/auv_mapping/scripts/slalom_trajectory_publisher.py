@@ -222,6 +222,16 @@ class SlalomTrajectoryPublisher(object):
                 )
             )
 
+            # Broadcast the debug frame
+            self.send_transform(
+                self.build_transform(
+                    "slalom_debug_frame",
+                    self.parent_frame,
+                    np.array([0.5, 0.0, 0.0]),
+                    self.q_orientation,
+                )
+            )
+
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
