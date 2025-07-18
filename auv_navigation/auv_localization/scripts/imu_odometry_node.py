@@ -178,17 +178,6 @@ class ImuToOdom:
         t_offset.transform.rotation = self.odom_msg.pose.pose.orientation
         self.tf_broadcaster.sendTransform(t_offset)
 
-        # Publish the original transform for debugging
-        t_orig = TransformStamped()
-        t_orig.header.stamp = imu_msg.header.stamp
-        t_orig.header.frame_id = "odom"
-        t_orig.child_frame_id = "imu_odom_node"
-        t_orig.transform.translation.x = -0.3
-        t_orig.transform.translation.y = -0.3
-        t_orig.transform.translation.z = 0.0
-        t_orig.transform.rotation = imu_msg.orientation
-        self.tf_broadcaster.sendTransform(t_orig)
-
     def calibrate_imu(self, req):
         duration = req.duration
         rospy.loginfo(f"IMU Calibration started for {duration} seconds...")
