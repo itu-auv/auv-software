@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="taluy_mini">
+  <xacro:arg name="debug" default="0"/>
+  <xacro:arg name="namespace" default="taluy_mini"/>
+  <xacro:arg name="control_rate" default="20"/>
+  <xacro:arg name="inertial_reference_frame" default="world"/>
+  <xacro:include filename="$(find taluy_mini_sim_description)/urdf/base.urdf.xacro"/>
+  <xacro:include filename="$(find taluy_mini_sim_description)/urdf/dynamics.urdf.xacro"/>
+  <xacro:auv_sim_base namespace="$(arg namespace)" inertial_reference_frame="$(arg inertial_reference_frame)">
+    <gazebo>
+      <plugin name="uuv_plugin" filename="libuuv_underwater_object_ros_plugin.so">
+        <fluid_density>1028.0</fluid_density>
+        <flow_velocity_topic>hydrodynamics/current_velocity</flow_velocity_topic>
+        <debug>$(arg debug)</debug>
+        <xacro:auv_hydro_model namespace="$(arg namespace)"/>
+      </plugin>
+    </gazebo>
+  </xacro:auv_sim_base>
+  <!-- joint state publisher -->
+  <xacro:include filename="$(find uuv_gazebo_ros_plugins)/urdf/misc.xacro"/>
+  <xacro:include filename="$(find uuv_sensor_ros_plugins)/urdf/pose_3d_snippets.xacro"/>
+  <xacro:default_joint_state_publisher namespace="$(arg namespace)" update_rate="$(arg control_rate)"/>
+  <!-- ground truth odometry -->
+  <xacro:pose_3d_macro
+    namespace="$(arg namespace)"
+    parent_link="$(arg namespace)/base_link"
+    topic="odometry_gt"
+    update_rate="$(arg control_rate)"
+    noise_sigma="0.0"
+    noise_amplitude="0.0"
+    suffix="default"
+    reference_frame="odom"
+    publish_ned_odom="false"
+  >
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </xacro:pose_3d_macro>
+</robot>
