@@ -5,6 +5,7 @@ import smach
 import auv_smach
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
+from auv_smach.slalom import NavigateThroughSlalomState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
@@ -21,6 +22,8 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.gate_search_depth = -0.7
         self.target_gate_link = "gate_blue_arrow_link"
+
+        self.slalom_depth = -1.3
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -78,6 +81,12 @@ class MainStateMachineNode:
                 {
                     "gate_depth": self.gate_depth,
                     "gate_search_depth": self.gate_search_depth,
+                },
+            ),
+            "NAVIGATE_THROUGH_SLALOM": (
+                NavigateThroughSlalomState,
+                {
+                    "slalom_depth": self.slalom_depth,
                 },
             ),
             "NAVIGATE_AROUND_RED_BUOY": (
