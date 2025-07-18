@@ -52,7 +52,7 @@ RUN if [ "$HOST" = "tegra" ]; then \
   rosdep install --from-paths src --ignore-src -r \
   --skip-keys=libopencv-dev \
   --skip-keys=cv_bridge \
-  -y; && \
+  -y && \
   catkin config --extend /opt/ros/noetic --install --install-space /opt/ros/noetic && \
   catkin build --no-status --continue-on-failure && \
   catkin clean -y --log; \
