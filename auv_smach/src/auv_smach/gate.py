@@ -365,7 +365,7 @@ class NavigateThroughGateState(smach.State):
                     yaw_threshold=0.1,
                     confirm_duration=0.0,
                     timeout=10.0,
-                    cancel_on_success=False,
+                    cancel_on_success=True,
                     keep_orientation=False,
                 ),
                 transitions={
