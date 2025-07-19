@@ -9,11 +9,8 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
     SearchForPropState,
-    SetPlanState,
-    SetPlanningNotActive,
-    ExecutePathState,
+    DynamicPathState,
     SetDetectionFocusState,
-    SetAlignControllerTargetState,
     SetDetectionState,
 )
 from auv_smach.initialize import DelayState
@@ -123,43 +120,16 @@ class TorpedoTaskState(smach.State):
                     rotation_speed=0.3,
                 ),
                 transitions={
-                    "succeeded": "START_PATH_PLANNING",
+                    "succeeded": "PATH_TO_TORPEDO_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "START_PATH_PLANNING",
-                SetPlanState(target_frame=torpedo_target_frame),
-                transitions={
-                    "succeeded": "SET_ALIGN_TO_PATH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ALIGN_TO_PATH",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="dynamic_target"
+                "PATH_TO_TORPEDO_TARGET",
+                DynamicPathState(
+                    plan_target_frame="torpedo_target_frame",
                 ),
-                transitions={
-                    "succeeded": "EXECUTE_TORPEDO_PATH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "EXECUTE_TORPEDO_PATH",
-                ExecutePathState(),
-                transitions={
-                    "succeeded": "STOP_PLANNING",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "STOP_PLANNING",
-                SetPlanningNotActive(),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
                     "preempted": "preempted",
