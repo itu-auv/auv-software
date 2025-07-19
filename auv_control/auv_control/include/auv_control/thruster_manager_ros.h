@@ -60,12 +60,12 @@ class ThrusterManagerROS {
     reconfigure_server_ = std::make_unique<
         dynamic_reconfigure::Server<auv_control::ThrusterCoefficientsConfig>>(
         nh_private);
-    reconfigure_server_->setCallback(
-        boost::bind(&ThrusterManagerROS::reconfigure_callback, this, _1, _2));
+    reconfigure_server_->setCallback(boost::bind(
+        &auv::control::ThrusterManagerROS::reconfigure_callback, this, _1, _2));
   }
 
-  void reconfigure_callback(const ThrusterCoefficientsConfig &config,
-                            uint32_t level) {
+  void reconfigure_callback(
+      const auv_control::ThrusterCoefficientsConfig &config, uint32_t level) {
     (void)level;  // Unused
     std::vector<double> coefficients;
     coefficients.push_back(config.thruster_1_coeff);
@@ -202,7 +202,8 @@ class ThrusterManagerROS {
   ros::Publisher drive_pub_;
 
   // Dynamic reconfigure
-  std::unique_ptr<dynamic_reconfigure::Server<ThrusterCoefficientsConfig>>
+  std::unique_ptr<
+      dynamic_reconfigure::Server<auv_control::ThrusterCoefficientsConfig>>
       reconfigure_server_;
 
   // TF related members
