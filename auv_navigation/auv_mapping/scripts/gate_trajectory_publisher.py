@@ -38,8 +38,8 @@ class TransformServiceNode:
         self.exit_frame = "gate_exit"
 
         # Load gate frame parameters from YAML
-        self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_blue_arrow_link")
-        self.gate_frame_2 = rospy.get_param("~gate_frame_2", "gate_red_arrow_link")
+        self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_shark_link")
+        self.gate_frame_2 = rospy.get_param("~gate_frame_2", "gate_sawfish_link")
 
         # Verify that we have valid frame names
         if not all([self.gate_frame_1, self.gate_frame_2]):
@@ -50,13 +50,13 @@ class TransformServiceNode:
         mission_targets = rospy.get_param(
             "~mission_targets",
             {
-                "blue": {"gate_target_frame": "gate_blue_arrow_link"},
-                "red": {"gate_target_frame": "gate_red_arrow_link"},
+                "shark": {"gate_target_frame": "gate_shark_link"},
+                "sawfish": {"gate_target_frame": "gate_sawfish_link"},
             },
         )
 
         # Get target selection from YAML
-        target_selection = rospy.get_param("~target_selection", "blue")
+        target_selection = rospy.get_param("~target_selection", "shark")
 
         # Set gate target frame based on target selection
         self.target_gate_frame = mission_targets[target_selection]["gate_target_frame"]

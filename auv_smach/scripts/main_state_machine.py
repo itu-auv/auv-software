@@ -20,28 +20,31 @@ class MainStateMachineNode:
         # USER EDIT
         self.gate_depth = -1.5
         # Get target selection from YAML
-        self.target_selection = rospy.get_param("~target_selection", "blue")
+        self.target_selection = rospy.get_param("~target_selection", "shark")
         self.mission_targets = rospy.get_param(
             "~mission_targets",
             {
-                "blue": {
-                    "gate_target_frame": "gate_blue_arrow_link",
+                "shark": {
+                    "gate_target_frame": "gate_shark_link",
                     "red_buoy_direction": "ccw",
                     "slalom_direction": "left_side",
-                    "bin_target_frame": "bin/blue_link",
-                    "torpedo_target_frame": "torpedo_blue_link",
-                    "octagon_target_frame": "octagon_blue_link",
+                    "bin_target_frame": "bin_shark_link",
+                    "torpedo_target_frame": "torpedo_hole_shark_link",
+                    "octagon_target_frame": "octagon_shark_link",
                 },
-                "red": {
-                    "gate_target_frame": "gate_red_arrow_link",
+                "sawfish": {
+                    "gate_target_frame": "gate_sawfish_link",
                     "red_buoy_direction": "cw",
                     "slalom_direction": "right_side",
-                    "bin_target_frame": "bin/red_link",
-                    "torpedo_target_frame": "torpedo_red_link",
-                    "octagon_target_frame": "octagon_red_link",
+                    "bin_target_frame": "bin_sawfish_link",
+                    "torpedo_target_frame": "torpedo_hole_sawfish_link",
+                    "octagon_target_frame": "octagon_sawfish_link",
                 },
             },
         )
+
+        self.gate_search_depth = -0.7
+        self.gate_depth = -1.5
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -99,7 +102,7 @@ class MainStateMachineNode:
                 NavigateThroughGateState,
                 {
                     "gate_depth": self.gate_depth,
-                    "gate_target_frame": self.gate_target_frame,
+                    "gate_search_depth": self.gate_search_depth,
                 },
             ),
             "NAVIGATE_AROUND_RED_BUOY": (
@@ -124,6 +127,7 @@ class MainStateMachineNode:
                 {
                     "bin_front_look_depth": self.bin_front_look_depth,
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
+                    "target_selection": self.target_selection,
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
