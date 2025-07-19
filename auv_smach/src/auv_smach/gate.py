@@ -15,6 +15,7 @@ from auv_smach.common import (
     SearchForPropState,
     AlignFrame,
     DynamicPathState,
+)
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
