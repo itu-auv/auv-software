@@ -48,8 +48,8 @@ class ThrusterAllocator {
     inverted_allocation_matrix_ = pseudo_inverse(allocation_matrix.value());
 
     // Default thruster coefficients (1.0 for all)
-    ThrusterCoefficientMatrix coeff_matrix =
-        ThrusterCoefficientMatrix::Identity();
+    ThrusterCoefficientMatrix coeff_matrix;
+    coeff_matrix.setIdentity();
     thruster_coefficients_ = coeff_matrix;
 
     ROS_INFO("ThrusterAllocator initialized");
