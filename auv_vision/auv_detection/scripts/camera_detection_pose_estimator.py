@@ -101,12 +101,12 @@ class Shark(Prop):
 
 class RedPipe(Prop):
     def __init__(self):
-        super().__init__(2, "red_pipe", None, None)
+        super().__init__(2, "red_pipe", 0.900, None)
 
 
 class WhitePipe(Prop):
     def __init__(self):
-        super().__init__(3, "white_pipe", None, None)
+        super().__init__(3, "white_pipe", 0.900, None)
 
 
 class TorpedoMap(Prop):
@@ -129,14 +129,14 @@ class Octagon(Prop):
         super().__init__(7, "octagon", 0.92, 1.30)
 
 
-class BinRed(Prop):
+class BinShark(Prop):
     def __init__(self):
-        super().__init__(10, "bin_red", 0.30480, 0.30480)
+        super().__init__(10, "bin_shark", 0.30480, 0.30480)
 
 
-class BinBlue(Prop):
+class BinSawfish(Prop):
     def __init__(self):
-        super().__init__(11, "bin_blue", 0.30480, 0.30480)
+        super().__init__(11, "bin_sawfish", 0.30480, 0.30480)
 
 
 class CameraDetectionNode:
@@ -152,9 +152,9 @@ class CameraDetectionNode:
             "gate": [0, 1],
             "pipe": [2, 3],
             "torpedo": [4, 5],
-            "bin": [6, 9, 10, 11],
+            "bin": [6],
             "octagon": [7],
-            "all": [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11],
+            "all": [0, 1, 2, 3, 4, 5, 6, 7],
         }
 
         self.object_transform_pub = rospy.Publisher(
@@ -194,9 +194,8 @@ class CameraDetectionNode:
             "white_pipe_link": WhitePipe(),
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
-            "bin_whole_link": BinWhole(),
-            "bin/red_link": BinRed(),
-            "bin/blue_link": BinBlue(),
+            "bin_sawfish_link": BinShark(),
+            "bin_shark_link": BinSawfish(),
             "torpedo_hole_upper_link": TorpedoHole(),
             "torpedo_hole_bottom_link": TorpedoHole(),
         }
@@ -213,9 +212,8 @@ class CameraDetectionNode:
                 7: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {
-                9: "bin/whole",
-                10: "bin/red_link",
-                11: "bin/blue_link",
+                0: "bin_shark_link",
+                1: "bin_sawfish_link",
             },
         }
         # Subscribe to YOLO detections and altitude
@@ -572,12 +570,12 @@ class CameraDetectionNode:
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-            if detection_id == 10 or detection_id == 11:
+            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
                 skip_inside_image = True
                 # use altidude for bin
                 distance = self.altitude
 
-            if detection_id == 9:
+            if detection_id == 6:
                 self.process_altitude_projection(
                     detection, camera_ns, detection_msg.header.stamp
                 )
