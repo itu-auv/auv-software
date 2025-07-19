@@ -6,13 +6,8 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Vector3
 import numpy as np
 import yaml
-import tf.transformations
-import tf2_ros
-from geometry_msgs.msg import TransformStamped
 from auv_localization.srv import CalibrateIMU, CalibrateIMUResponse
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
-from dynamic_reconfigure.server import Server
-from auv_localization.cfg import ImuOdometryConfig
 
 
 HIGH_COVARIANCE = 1e6
@@ -21,10 +16,6 @@ HIGH_COVARIANCE = 1e6
 class ImuToOdom:
     def __init__(self):
         rospy.init_node("imu_to_odom_node", anonymous=True)
-
-        self.yaw_offset = 0.0
-        self.reconfigure_server = Server(ImuOdometryConfig, self.reconfigure_callback)
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
 
         self.imu_calibration_data_path = rospy.get_param(
             "~imu_calibration_path", "config/imu_calibration_data.yaml"
@@ -63,11 +54,6 @@ class ImuToOdom:
         self.calibration_service = rospy.Service(
             "calibrate_imu", CalibrateIMU, self.calibrate_imu
         )
-
-    def reconfigure_callback(self, config, level):
-        self.yaw_offset = config["yaw_offset"]
-        rospy.loginfo(f"Yaw offset updated to: {self.yaw_offset}")
-        return config
 
     def insert_covariance_block(
         self,
@@ -140,16 +126,7 @@ class ImuToOdom:
         )
 
         # Update orientation and orientation covariance
-        q_orig = [
-            imu_msg.orientation.x,
-            imu_msg.orientation.y,
-            imu_msg.orientation.z,
-            imu_msg.orientation.w,
-        ]
-        q_rot = tf.transformations.quaternion_from_euler(0, 0, self.yaw_offset)
-        q_new = tf.transformations.quaternion_multiply(q_orig, q_rot)
-
-        self.odom_msg.pose.pose.orientation = Quaternion(*q_new)
+        self.odom_msg.pose.pose.orientation = imu_msg.orientation
         self.odom_msg.pose.covariance = self.update_pose_covariance(
             imu_msg.orientation_covariance
         )
@@ -166,17 +143,6 @@ class ImuToOdom:
 
         # Publish the odometry message
         self.odom_publisher.publish(self.odom_msg)
-
-        # Publish the transform for debugging
-        t_offset = TransformStamped()
-        t_offset.header.stamp = self.odom_msg.header.stamp
-        t_offset.header.frame_id = "odom"
-        t_offset.child_frame_id = "imu_offseted"
-        t_offset.transform.translation.x = 0.3
-        t_offset.transform.translation.y = 0.3
-        t_offset.transform.translation.z = 0.0
-        t_offset.transform.rotation = self.odom_msg.pose.pose.orientation
-        self.tf_broadcaster.sendTransform(t_offset)
 
     def calibrate_imu(self, req):
         duration = req.duration
