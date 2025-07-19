@@ -47,7 +47,7 @@ class TorpedoTransformServiceNode:
         )
         target_selection = rospy.get_param("~target_selection", "shark")
         self.torpedo_hole_frame = mission_targets[target_selection][
-            "torpedo_hole_frame"
+            "torpedo_target_frame"
         ]
 
         self.torpedo_frame = rospy.get_param("~torpedo_frame", "torpedo_map_link")
