@@ -81,7 +81,7 @@ class BinTransformServiceNode:
                 self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(1)
             )
             transform_bin = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.bin_frame, rospy.Time(0), rospy.Duration(1)
+                self.odom_frame, self.bin_frame, rospy.Time.now(), rospy.Duration(1)
             )
 
         except (
