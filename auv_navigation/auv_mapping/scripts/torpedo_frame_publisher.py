@@ -189,6 +189,21 @@ class TorpedoTransformServiceNode:
                 rospy.Duration(1),
             )
             torpedo_pose = self.get_pose(torpedo_tf)
+
+            # Set the pitch and roll to zero
+            q = [
+                torpedo_pose.orientation.x,
+                torpedo_pose.orientation.y,
+                torpedo_pose.orientation.z,
+                torpedo_pose.orientation.w,
+            ]
+            (_, _, yaw) = tf.transformations.euler_from_quaternion(q)
+            q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+            torpedo_pose.orientation.x = q[0]
+            torpedo_pose.orientation.y = q[1]
+            torpedo_pose.orientation.z = q[2]
+            torpedo_pose.orientation.w = q[3]
+
             realsense_target_pose = self.apply_offsets(
                 torpedo_pose,
                 [
@@ -222,8 +237,17 @@ class TorpedoTransformServiceNode:
                 rospy.Time.now(),
                 rospy.Duration(1),
             )
+            torpedo_tf = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.torpedo_frame,
+                rospy.Time.now(),
+                rospy.Duration(1),
+            )
             torpedo_hole_pose = self.get_pose(torpedo_hole_tf)
             realsense_target_pose = self.get_pose(realsense_target_tf)
+            torpedo_pose = self.get_pose(torpedo_tf)
+
+            torpedo_hole_pose.position.z = torpedo_pose.position.z
             torpedo_hole_pose.orientation = realsense_target_pose.orientation
             fire_pose = self.apply_offsets(
                 torpedo_hole_pose,
