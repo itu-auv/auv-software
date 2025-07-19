@@ -186,6 +186,8 @@ class TorpedoTaskState(smach.State):
                     confirm_duration=10.0,
                     timeout=30.0,
                     cancel_on_success=False,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
                 ),
                 transitions={
                     "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
