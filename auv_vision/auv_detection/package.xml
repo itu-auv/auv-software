@@ -10,6 +10,5 @@
   <exec_depend>rospy</exec_depend>
   <exec_depend>ultralytics_ros</exec_depend>
   <exec_depend>vision_msgs</exec_depend>
-  <!--<depend>image_view</depend>-->
   <export/>
 </package>
