@@ -10,6 +10,11 @@
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
 
   <group ns="$(arg namespace)">
+    <node pkg="auv_detection" type="image_rotator.py" name="image_rotator" output="screen">
+      <param name="input_topic" value="camera/color/image_raw" />
+      <param name="output_topic" value="camera/color/image_rotated" />
+    </node>
+
     <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
       <param name="pool_depth" value="$(arg pool_depth)" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
