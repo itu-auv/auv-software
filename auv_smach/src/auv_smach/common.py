@@ -27,9 +27,10 @@ from auv_msgs.srv import SetDepth, SetDepthRequest
 from auv_msgs.srv import VisualServoing, VisualServoingRequest
 
 from auv_navigation.follow_path_action import follow_path_client
-
+from auv_msgs.srv import PlanPath, PlanPathRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
 
+from auv_msgs.srv import PlanPath, PlanPathRequest
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 
@@ -203,12 +204,18 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         target_frame: str,
         keep_orientation: bool = False,
         angle_offset: float = 0.0,
+        max_linear_velocity: float = None,
+        max_angular_velocity: float = None,
     ):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
         align_request.angle_offset = angle_offset
         align_request.keep_orientation = keep_orientation
+        if max_linear_velocity is not None:
+            align_request.max_linear_velocity = max_linear_velocity
+        if max_angular_velocity is not None:
+            align_request.max_angular_velocity = max_angular_velocity
 
         smach_ros.ServiceState.__init__(
             self,
@@ -897,6 +904,8 @@ class AlignFrame(smach.StateMachine):
         cancel_on_success=False,
         confirm_duration=0.0,
         keep_orientation=False,
+        max_linear_velocity=None,
+        max_angular_velocity=None,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
@@ -908,6 +917,8 @@ class AlignFrame(smach.StateMachine):
                     target_frame=target_frame,
                     angle_offset=angle_offset,
                     keep_orientation=keep_orientation,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
@@ -964,6 +975,90 @@ class AlignFrame(smach.StateMachine):
                 CancelAlignControllerState(),
                 transitions={
                     "succeeded": "preempted",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+
+class SetPlanState(smach.State):
+    """State that calls the /set_plan service"""
+
+    def __init__(self, target_frame: str):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.target_frame = target_frame
+
+    def execute(self, userdata) -> str:
+        try:
+            if self.preempt_requested():
+                rospy.logwarn("[SetPlanState] Preempt requested")
+                return "preempted"
+
+            rospy.wait_for_service("/set_plan")
+            set_plan = rospy.ServiceProxy("/set_plan", PlanPath)
+
+            req = PlanPathRequest(
+                target_frame=self.target_frame,
+            )
+            set_plan(req)
+            return "succeeded"
+
+        except Exception as e:
+            rospy.logerr("[SetPlanState] Error: %s", str(e))
+            return "aborted"
+
+
+class SetPlanningNotActive(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "/stop_planning", Trigger, request=TriggerRequest()
+        )
+
+
+class DynamicPathState(smach.StateMachine):
+    def __init__(
+        self,
+        plan_target_frame: str,
+        align_source_frame: str = "taluy/base_link",
+        align_target_frame: str = "dynamic_target",
+    ):
+        super().__init__(outcomes=["succeeded", "preempted", "aborted"])
+        with self:
+            smach.StateMachine.add(
+                "SET_PATH_PLAN",
+                SetPlanState(target_frame=plan_target_frame),
+                transitions={
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_PATH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_CONTROLLER_TARGET_PATH",
+                SetAlignControllerTargetState(
+                    source_frame=align_source_frame,
+                    target_frame=align_target_frame,
+                ),
+                transitions={
+                    "succeeded": "EXECUTE_PATH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "EXECUTE_PATH",
+                ExecutePathState(),
+                transitions={
+                    "succeeded": "SET_PLANNING_NOT_ACTIVE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_PLANNING_NOT_ACTIVE",
+                SetPlanningNotActive(),
+                transitions={
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },

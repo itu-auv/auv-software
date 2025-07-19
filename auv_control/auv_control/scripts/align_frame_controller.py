@@ -29,7 +29,7 @@ class AlignFrameControllerNode:
         self.linear_kd = rospy.get_param("~linear_kd", 0.7)
         self.angular_kp = rospy.get_param("~angular_kp", 1.2)
         self.angular_kd = rospy.get_param("~angular_kd", 0.8)
-        self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.4)
+        self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.8)
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity", 0.4)
 
         self.srv = Server(AlignFrameConfig, self.reconfigure_callback)
@@ -39,6 +39,8 @@ class AlignFrameControllerNode:
         self.target_frame = ""
         self.angle_offset = 0.0
         self.keep_orientation = False
+        self.req_max_linear_velocity = None
+        self.req_max_angular_velocity = None
 
         self.prev_trans_error = None
         self.prev_yaw_error = None
@@ -76,12 +78,25 @@ class AlignFrameControllerNode:
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
         self.keep_orientation = req.keep_orientation
+        # Limit max velocities to default if request exceeds default or is not set
+        if hasattr(req, "max_linear_velocity") and req.max_linear_velocity > 0:
+            self.req_max_linear_velocity = min(
+                req.max_linear_velocity, self.max_linear_velocity
+            )
+        else:
+            self.req_max_linear_velocity = self.max_linear_velocity
+        if hasattr(req, "max_angular_velocity") and req.max_angular_velocity > 0:
+            self.req_max_angular_velocity = min(
+                req.max_angular_velocity, self.max_angular_velocity
+            )
+        else:
+            self.req_max_angular_velocity = self.max_angular_velocity
         self.active = True
         self.prev_trans_error = None
         self.prev_yaw_error = None
         self.last_step_time = None
         rospy.loginfo(
-            f"Aligning {self.source_frame} to {self.target_frame} with angle offset {self.angle_offset}"
+            f"Aligning {self.source_frame} to {self.target_frame} with angle offset {self.angle_offset}, max_linear_velocity {self.req_max_linear_velocity}, max_angular_velocity {self.req_max_angular_velocity}"
         )
         return AlignFrameControllerResponse(success=True, message="Alignment started")
 
@@ -152,17 +167,23 @@ class AlignFrameControllerNode:
         angular_d = yaw_error_deriv * self.angular_kd
 
         # Sum P and D terms
-        twist.linear.x = self.constrain(
-            linear_p[0] + linear_d[0], self.max_linear_velocity
+        max_lin = (
+            self.req_max_linear_velocity
+            if self.req_max_linear_velocity is not None
+            else self.max_linear_velocity
         )
-        twist.linear.y = self.constrain(
-            linear_p[1] + linear_d[1], self.max_linear_velocity
+        max_ang = (
+            self.req_max_angular_velocity
+            if self.req_max_angular_velocity is not None
+            else self.max_angular_velocity
         )
-        # twist.linear.z = self.constrain(linear_p[2] + linear_d[2], self.max_linear_velocity)
+        twist.linear.x = self.constrain(linear_p[0] + linear_d[0], max_lin)
+        twist.linear.y = self.constrain(linear_p[1] + linear_d[1], max_lin)
+        # twist.linear.z = self.constrain(linear_p[2] + linear_d[2], max_lin)
         twist.angular.z = (
             0.0
             if self.keep_orientation
-            else self.constrain(angular_p + angular_d, self.max_angular_velocity)
+            else self.constrain(angular_p + angular_d, max_ang)
         )
 
         return twist
