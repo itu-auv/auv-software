@@ -36,12 +36,23 @@ class TorpedoTransformServiceNode:
         self.target_frame = "torpedo_target"
         self.realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_fire_frame = "torpedo_fire_frame"
+
+        # --- Target selection for torpedo_hole_frame (like gate_trajectory_publisher) ---
+        mission_targets = rospy.get_param(
+            "~mission_targets",
+            {
+                "shark": {"torpedo_hole_frame": "torpedo_hole_shark_link"},
+                "sawfish": {"torpedo_hole_frame": "torpedo_hole_sawfish_link"},
+            },
+        )
+        target_selection = rospy.get_param("~target_selection", "shark")
+        self.torpedo_hole_frame = mission_targets[target_selection][
+            "torpedo_hole_frame"
+        ]
+
         self.torpedo_frame = rospy.get_param("~torpedo_frame", "torpedo_map_link")
         self.torpedo_realsense_frame = rospy.get_param(
             "~torpedo_realsense_frame", "torpedo_map_link_realsense"
-        )
-        self.torpedo_hole_frame = rospy.get_param(
-            "~torpedo_hole_frame", "torpedo_hole_shark_link"
         )
 
         self.initial_offset = rospy.get_param("~initial_offset", 3.0)
