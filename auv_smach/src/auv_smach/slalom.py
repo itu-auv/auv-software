@@ -54,7 +54,7 @@ class NavigateThroughSlalomState(smach.State):
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
-                    "succeeded": "ENABLE_SLALOM_TRAJECTORY_PUBLISHER",
+                    "succeeded": "ALIGN_WP_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -109,7 +109,7 @@ class NavigateThroughSlalomState(smach.State):
                 "ALIGN_WP_1",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame="slalom_wp_1",
+                    target_frame="slalom_waypoint_1",
                     dist_threshold=0.2,
                     yaw_threshold=0.1,
                     timeout=7.0,
@@ -124,7 +124,7 @@ class NavigateThroughSlalomState(smach.State):
                 "ALIGN_WP_2",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame="slalom_wp_2",
+                    target_frame="slalom_waypoint_2",
                     dist_threshold=0.2,
                     yaw_threshold=0.1,
                     timeout=7.0,
@@ -139,7 +139,7 @@ class NavigateThroughSlalomState(smach.State):
                 "ALIGN_WP_3",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame="slalom_wp_3",
+                    target_frame="slalom_waypoint_3",
                     dist_threshold=0.2,
                     yaw_threshold=0.1,
                     timeout=7.0,
