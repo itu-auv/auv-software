@@ -33,7 +33,9 @@
       <rosparam command="load" file="$(find auv_mapping)/config/gate_trajectory_publisher_params.yaml" />
       <param name="target_gate_frame" value="$(arg target_gate_frame)" />
       <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />
+      <remap from="toggle_coin_flip_rescuer" to="toggle_coin_flip_rescuer" />
       <remap from="set_object_transform" to="map/set_object_transform" />
+      <remap from="odometry" to="odometry" />
     </node>
 
     <node pkg="auv_mapping" type="bin_trajectory_publisher.py" name="bin_trajectory_publisher">

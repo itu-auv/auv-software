@@ -62,6 +62,7 @@
 
             <!-- gate.py -->
             <remap from="set_transform_gate_trajectory" to="toggle_gate_trajectory"/>
+            <remap from="toggle_coin_flip_rescuer" to="toggle_coin_flip_rescuer" />
             <remap from="odometry" to="odometry"/>
             <remap from="wrench" to="wrench"/>
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
