@@ -15,6 +15,7 @@ from auv_smach.common import (
     DynamicPathState,
     SetDetectionFocusState,
     DropBallState,
+    SetDetectionState,
 )
 
 from auv_smach.initialize import DelayState
@@ -249,6 +250,15 @@ class BinTaskState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "OPEN_FRONT_CAMERA",
+                SetDetectionState(camera_name="front", enable=True),
+                transitions={
+                    "succeeded": "FOCUS_ON_BIN",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "FOCUS_ON_BIN",
                 SetDetectionFocusState(focus_object="bin"),
                 transitions={
@@ -351,20 +361,31 @@ class BinTaskState(smach.State):
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
-                    "succeeded": "ALIGN_TO_BIN",
+                    "succeeded": "DYNAMIC_PATH_TO_BIN_WHOLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_TO_BIN",
+                "DYNAMIC_PATH_TO_BIN_WHOLE",
+                DynamicPathState(
+                    plan_target_frame="bin_whole_link",
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_BIN_WHOLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_BIN_WHOLE",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="bin_whole_link",
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=2.0,
+                    confirm_duration=1.0,
                     timeout=60.0,
                     cancel_on_success=False,
                     keep_orientation=True,
