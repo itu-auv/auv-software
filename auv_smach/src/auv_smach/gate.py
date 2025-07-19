@@ -14,9 +14,7 @@ from auv_smach.common import (
     ClearObjectMapState,
     SearchForPropState,
     AlignFrame,
-    SetPlanState,
-    SetPlanningNotActive,
-)
+    DynamicPathState,
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
@@ -175,15 +173,6 @@ class NavigateThroughGateState(smach.State):
                     rotation_speed=0.3,
                 ),
                 transitions={
-                    "succeeded": "START_PLANNING_TO_GATE_ENTRANCE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "START_PLANNING_TO_GATE_ENTRANCE",
-                SetPlanState(target_frame="gate_entrance"),
-                transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -202,59 +191,35 @@ class NavigateThroughGateState(smach.State):
                 "SET_GATE_DEPTH",
                 SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
+                    "succeeded": "DYNAMIC_PATH_TO_ENTRANCE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="dynamic_target"
+                "DYNAMIC_PATH_TO_ENTRANCE",
+                DynamicPathState(
+                    plan_target_frame="gate_entrance",
                 ),
                 transitions={
-                    "succeeded": "EXECUTE_GATE_PATH_ENTRANCE",
+                    "succeeded": "DYNAMIC_PATH_TO_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "EXECUTE_GATE_PATH_ENTRANCE",
-                ExecutePathState(),
+                "DYNAMIC_PATH_TO_EXIT",
+                DynamicPathState(
+                    plan_target_frame="gate_exit",
+                ),
                 transitions={
-                    "succeeded": "START_PLANNING_TO_GATE_EXIT",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
-                },
-            )
-            smach.StateMachine.add(
-                "START_PLANNING_TO_GATE_EXIT",
-                SetPlanState(target_frame="gate_exit"),
-                transitions={
-                    "succeeded": "EXECUTE_GATE_PATH_EXIT",
+                    "succeeded": "ALIGN_FRAME_REQUEST_AFTER_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "EXECUTE_GATE_PATH_EXIT",
-                ExecutePathState(),
-                transitions={
-                    "succeeded": "STOP_PLANNING",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",  # if aborted or preempted, cancel the alignment request
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",  # to disable the controllers.
-                },
-            )
-            smach.StateMachine.add(
-                "STOP_PLANNING",
-                SetPlanningNotActive(),
-                transitions={
-                    "succeeded": "ALING_FRAME_REQUEST_AFTER_EXIT",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALING_FRAME_REQUEST_AFTER_EXIT",
+                "ALIGN_FRAME_REQUEST_AFTER_EXIT",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="gate_exit",
@@ -263,7 +228,7 @@ class NavigateThroughGateState(smach.State):
                     yaw_threshold=0.1,
                     confirm_duration=0.0,
                     timeout=10.0,
-                    cancel_on_success=False,
+                    cancel_on_success=True,
                     keep_orientation=False,
                 ),
                 transitions={

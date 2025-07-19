@@ -30,6 +30,7 @@ from auv_navigation.follow_path_action import follow_path_client
 from auv_msgs.srv import PlanPath, PlanPathRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
 
+from auv_msgs.srv import PlanPath, PlanPathRequest
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 
@@ -1002,3 +1003,53 @@ class SetPlanningNotActive(smach_ros.ServiceState):
         smach_ros.ServiceState.__init__(
             self, "/stop_planning", Trigger, request=TriggerRequest()
         )
+
+
+class DynamicPathState(smach.StateMachine):
+    def __init__(
+        self,
+        plan_target_frame: str,
+        align_source_frame: str = "taluy/base_link",
+        align_target_frame: str = "dynamic_target",
+    ):
+        super().__init__(outcomes=["succeeded", "preempted", "aborted"])
+        with self:
+            smach.StateMachine.add(
+                "SET_PATH_PLAN",
+                SetPlanState(target_frame=plan_target_frame),
+                transitions={
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_PATH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_CONTROLLER_TARGET_PATH",
+                SetAlignControllerTargetState(
+                    source_frame=align_source_frame,
+                    target_frame=align_target_frame,
+                ),
+                transitions={
+                    "succeeded": "EXECUTE_PATH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "EXECUTE_PATH",
+                ExecutePathState(),
+                transitions={
+                    "succeeded": "SET_PLANNING_NOT_ACTIVE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_PLANNING_NOT_ACTIVE",
+                SetPlanningNotActive(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )

@@ -156,7 +156,7 @@ class TransformServiceNode:
             transform_selected_to_other = tf_buffer.lookup_transform(
                 selected_gate_frame_name,
                 other_gate_frame_name,
-                rospy.Time(0),
+                rospy.Time.now(),
                 rospy.Duration(0.5),
             )
         except (
@@ -197,10 +197,10 @@ class TransformServiceNode:
         """
         try:
             transform_gate_link_1 = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.gate_frame_1, rospy.Time(0), rospy.Duration(1)
+                self.odom_frame, self.gate_frame_1, rospy.Time.now(), rospy.Duration(1)
             )
             transform_gate_link_2 = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.gate_frame_2, rospy.Time(0), rospy.Duration(1)
+                self.odom_frame, self.gate_frame_2, rospy.Time.now(), rospy.Duration(1)
             )
         except (
             tf2_ros.LookupException,
