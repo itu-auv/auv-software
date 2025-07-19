@@ -259,7 +259,7 @@ class BinTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "FOCUS_ON_BIN",
-                SetDetectionFocusState(),
+                SetDetectionFocusState(focus_object="bin"),
                 transitions={
                     "succeeded": "SET_BIN_DEPTH",
                     "preempted": "preempted",
