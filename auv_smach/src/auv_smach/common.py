@@ -203,12 +203,18 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         target_frame: str,
         keep_orientation: bool = False,
         angle_offset: float = 0.0,
+        max_linear_velocity: float = None,
+        max_angular_velocity: float = None,
     ):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
         align_request.angle_offset = angle_offset
         align_request.keep_orientation = keep_orientation
+        if max_linear_velocity is not None:
+            align_request.max_linear_velocity = max_linear_velocity
+        if max_angular_velocity is not None:
+            align_request.max_angular_velocity = max_angular_velocity
 
         smach_ros.ServiceState.__init__(
             self,
@@ -897,6 +903,8 @@ class AlignFrame(smach.StateMachine):
         cancel_on_success=False,
         confirm_duration=0.0,
         keep_orientation=False,
+        max_linear_velocity=None,
+        max_angular_velocity=None,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
@@ -908,6 +916,8 @@ class AlignFrame(smach.StateMachine):
                     target_frame=target_frame,
                     angle_offset=angle_offset,
                     keep_orientation=keep_orientation,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
