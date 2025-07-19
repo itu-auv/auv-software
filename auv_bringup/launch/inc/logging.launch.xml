@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise"/>
+  <arg name="namespace" default="taluy"/>
   <arg name="prefix" default="log"/>
   <arg name="logging_directory" default="$(optenv PWD)"/>
   <arg name="include_pattern" default=".*"/>

@@ -26,7 +26,7 @@ class ThrusterAllocator {
       std::array<geometry_msgs::WrenchStamped, kThrusterCount>;
 
   ThrusterAllocator(const ros::NodeHandle &nh) : nh_{nh} {
-    nh_.param<std::string>("frame_prefix", frame_prefix_, "taluy");
+    nh_.param<std::string>("frame_prefix", frame_prefix_, "taluy_mini");
     nh_.param<std::string>("base_frame", base_frame_, "base_link");
     nh_.param<std::string>("thruster_frame", thruster_frame_,
                            "thruster_{}_link");

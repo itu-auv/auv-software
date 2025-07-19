@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise"/>
+  <arg name="namespace" default="taluy"/>
   <arg name="device_ip" default="192.168.7.151"/>
   <arg name="device_port" default="12345"/>
   <node pkg="tf" type="static_transform_publisher" name="transform_sonar_frame" args="0 0 0 0 0 0 1 $(arg namespace)/base_link/ping360_link sonar_frame 10"/>
