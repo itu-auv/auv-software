@@ -1,4 +1,6 @@
 #pragma once
+#include <auv_control/ThrusterCoefficientsConfig.h>
+
 #include <algorithm>
 #include <optional>
 #include <vector>
@@ -6,6 +8,7 @@
 #include "auv_control/thruster_allocation.h"
 #include "auv_msgs/MotorCommand.h"
 #include "auv_msgs/Power.h"
+#include "dynamic_reconfigure/server.h"
 #include "ros/ros.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "tf2_ros/buffer.h"
@@ -52,6 +55,28 @@ class ThrusterManagerROS {
         nh_.subscribe("power", 1, &ThrusterManagerROS::power_callback, this);
 
     drive_pub_ = nh_.advertise<auv_msgs::MotorCommand>("board/drive_pulse", 1);
+
+    // Dynamic reconfigure
+    reconfigure_server_ = std::make_unique<
+        dynamic_reconfigure::Server<auv_control::ThrusterCoefficientsConfig>>(
+        nh_private);
+    reconfigure_server_->setCallback(
+        boost::bind(&ThrusterManagerROS::reconfigure_callback, this, _1, _2));
+  }
+
+  void reconfigure_callback(const ThrusterCoefficientsConfig &config,
+                            uint32_t level) {
+    (void)level;  // Unused
+    std::vector<double> coefficients;
+    coefficients.push_back(config.thruster_1_coeff);
+    coefficients.push_back(config.thruster_2_coeff);
+    coefficients.push_back(config.thruster_3_coeff);
+    coefficients.push_back(config.thruster_4_coeff);
+    coefficients.push_back(config.thruster_5_coeff);
+    coefficients.push_back(config.thruster_6_coeff);
+    coefficients.push_back(config.thruster_7_coeff);
+    coefficients.push_back(config.thruster_8_coeff);
+    allocator_.set_coefficients(coefficients);
   }
 
   void spin() {
@@ -175,6 +200,10 @@ class ThrusterManagerROS {
   ros::Subscriber wrench_sub_;
   ros::Subscriber power_sub_;
   ros::Publisher drive_pub_;
+
+  // Dynamic reconfigure
+  std::unique_ptr<dynamic_reconfigure::Server<ThrusterCoefficientsConfig>>
+      reconfigure_server_;
 
   // TF related members
   tf2_ros::Buffer tf_buffer_;
