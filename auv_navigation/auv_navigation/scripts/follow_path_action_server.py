@@ -25,10 +25,20 @@ class FollowPathActionServer:
         self.dynamic_target_lookahead_distance: float = rospy.get_param(
             "~dynamic_target_lookahead_distance", 1.0
         )
+        self.completion_distance_threshold: float = rospy.get_param(
+            "~completion_distance_threshold", 0.5
+        )
+        self.completion_yaw_threshold: float = rospy.get_param(
+            "~completion_yaw_threshold", 0.4
+        )
         self.source_frame: str = rospy.get_param("~source_frame", "taluy/base_link")
         self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 20))
 
         self.path_pub = rospy.Publisher("target_path", Path, queue_size=1)
+        self.path_sub = rospy.Subscriber(
+            "/planned_path", Path, self.path_cb, queue_size=1
+        )
+        self.current_path = None
 
         self.server = actionlib.SimpleActionServer(
             "follow_path", FollowPathAction, self.execute, auto_start=False
@@ -36,34 +46,33 @@ class FollowPathActionServer:
         self.server.start()
         rospy.logdebug("[follow_path server] Action server started")
 
-    def do_path_following(self, path: Path, segment_endpoints: List[int]) -> bool:
+    def path_cb(self, msg: Path) -> None:
+        self.current_path = msg
+
+    def do_path_following(self) -> bool:
         """
         Performs dynamic target following while tracking path progress and segment completion.
             The function continuously:
             - computes the dynamic target ahead of the vehicle.
-            - tracks whether each segment of the path (that is, the individual paths before they were combined)
-            has been completed.
             - tracks the overall path completion.
-
-        Args:
-            path (Path): The combined path to be followed.
-            segment_endpoints (List[int]): Indices marking the endpoints of individual path segments.
 
         Returns:
             bool: True if the entire path is completed successfully, False if interrupted or failed.
         """
         try:
-            num_segments = len(segment_endpoints)
-            current_segment_index = 0
-
             while not rospy.is_shutdown():
                 if self.server.is_preempt_requested():
                     self.server.set_preempted()
                     rospy.logdebug("Path following preempted")
                     return False
 
+                if self.current_path is None:
+                    rospy.logdebug("No path received yet. Waiting for path...")
+                    self.loop_rate.sleep()
+                    continue
+
                 # Publish the target path for visualization
-                self.path_pub.publish(path)
+                self.path_pub.publish(self.current_path)
 
                 # get current pose of robot
                 robot_pose = follow_path_helpers.get_robot_pose(
@@ -75,7 +84,9 @@ class FollowPathActionServer:
                     continue
 
                 dynamic_target_pose = follow_path_helpers.calculate_dynamic_target(
-                    path, robot_pose, self.dynamic_target_lookahead_distance
+                    self.current_path,
+                    robot_pose,
+                    self.dynamic_target_lookahead_distance,
                 )
                 if dynamic_target_pose is None:
                     rospy.logwarn("Failed to calculate dynamic target. Retrying...")
@@ -90,28 +101,18 @@ class FollowPathActionServer:
                     dynamic_target_pose,
                 )
 
-                # Check progress along the current segment and overall path
-                current_segment_progress, overall_progress = (
-                    follow_path_helpers.check_segment_progress(
-                        path, robot_pose, current_segment_index, segment_endpoints
-                    )
-                )
+                if follow_path_helpers.is_path_completed(
+                    robot_pose,
+                    self.current_path,
+                    self.completion_distance_threshold,
+                    self.completion_yaw_threshold,
+                ):
+                    rospy.loginfo(" [FollowPathActionServer] Path completed!")
+                    return True
+
                 feedback = FollowPathFeedback()
-                feedback.current_segment_progress = current_segment_progress
-                feedback.overall_progress = overall_progress
-                feedback.current_segment_index = current_segment_index
                 self.server.publish_feedback(feedback)
 
-                # Check if current segment is completed
-                segment_end_index = segment_endpoints[current_segment_index]
-                if follow_path_helpers.is_segment_completed(
-                    robot_pose, path, segment_end_index
-                ):
-                    if current_segment_index < num_segments - 1:
-                        current_segment_index += 1
-                    else:  # was on the last path and it's completed
-                        rospy.logdebug("All paths completed")
-                        return True
                 self.loop_rate.sleep()
 
             return False
@@ -122,22 +123,9 @@ class FollowPathActionServer:
 
     def execute(self, goal: FollowPathActionGoal) -> None:
         rospy.logdebug("FollowPathActionServer: Received a new path following goal.")
+        self.current_path = None  # Clear the path on new goal
 
-        # Check if the goal contains valid paths
-        # 1. Abort if paths list is empty or none
-        # 2. Abort if all paths are empty
-        if goal.paths is None or not goal.paths or all(not p.poses for p in goal.paths):
-            rospy.logerr("Received empty paths list or paths with no poses")
-            self.server.set_aborted(FollowPathResult(success=False))
-            return
-
-        # Combine all paths and get endpoints
-        combined_path, segment_endpoints = follow_path_helpers.combine_segments(
-            goal.paths
-        )
-
-        # Perform path following
-        success = self.do_path_following(combined_path, segment_endpoints)
+        success = self.do_path_following()
         result = FollowPathResult(success=success)
 
         if success:

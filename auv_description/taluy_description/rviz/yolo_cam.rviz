@@ -339,6 +339,12 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        gate_shark_link:
+          Value: true
+        gate_middle_part_link:
+          Value: true
+        gate_sawfish_link:
+          Value: true
         odom:
           Value: true
         taluy/base_link:
@@ -456,16 +462,13 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        taluy/base_link:
-          taluy/base_link/back_camera:
-            taluy/base_link/back_camera_color_optical_link:
+        world:
+          odom:
+            gate_shark_link:
               {}
             taluy/base_link/back_camera_depth_optical_link:
               {}
-          taluy/base_link/ball_dropper_link:
-            {}
-          taluy/base_link/bottom_camera_link:
-            taluy/base_link/bottom_camera_optical_link:
+            gate_sawfish_link:
               {}
             taluy/base_link:
               taluy/base_link/bottom_camera_link:

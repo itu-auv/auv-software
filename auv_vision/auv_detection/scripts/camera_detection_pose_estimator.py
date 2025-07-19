@@ -89,59 +89,54 @@ class Prop:
             return None
 
 
-class GateRedArrow(Prop):
+class Sawfish(Prop):
     def __init__(self):
-        super().__init__(4, "gate_red_arrow", 0.3048, 0.3048)
+        super().__init__(0, "sawfish", 0.3048, 0.3048)
 
 
-class GateBlueArrow(Prop):
+class Shark(Prop):
     def __init__(self):
-        super().__init__(3, "gate_blue_arrow", 0.3048, 0.3048)
+        super().__init__(1, "shark", 0.3048, 0.3048)
 
 
-class GateMiddlePart(Prop):
+class RedPipe(Prop):
     def __init__(self):
-        super().__init__(5, "gate_middle_part", 0.6096, None)
+        super().__init__(2, "red_pipe", 0.900, None)
 
 
-class BuoyRed(Prop):
+class WhitePipe(Prop):
     def __init__(self):
-        super().__init__(8, "red_buoy", 0.292, 0.203)
+        super().__init__(3, "white_pipe", 0.900, None)
 
 
 class TorpedoMap(Prop):
     def __init__(self):
-        super().__init__(12, "torpedo_map", 0.6096, 0.6096)
+        super().__init__(4, "torpedo_map", 0.6096, 0.6096)
+
+
+class TorpedoHole(Prop):
+    def __init__(self):
+        super().__init__(5, "torpedo_hole", 0.115, 0.115)
 
 
 class BinWhole(Prop):
     def __init__(self):
-        super().__init__(9, "bin_whole", None, None)
+        super().__init__(6, "bin_whole", None, None)
 
 
 class Octagon(Prop):
     def __init__(self):
-        super().__init__(14, "octagon", 0.92, 1.30)
+        super().__init__(7, "octagon", 0.92, 1.30)
 
 
-class BinRed(Prop):
+class BinShark(Prop):
     def __init__(self):
-        super().__init__(10, "bin_red", 0.30480, 0.30480)
+        super().__init__(10, "bin_shark", 0.30480, 0.30480)
 
 
-class BinBlue(Prop):
+class BinSawfish(Prop):
     def __init__(self):
-        super().__init__(11, "bin_blue", 0.30480, 0.30480)
-
-
-class TorpedoHoleUpper(Prop):
-    def __init__(self):
-        super().__init__(13, "torpedo_hole_upper", 0.115, 0.115)
-
-
-class TorpedoHoleBottom(Prop):
-    def __init__(self):
-        super().__init__(13, "torpedo_hole_bottom", 0.115, 0.115)
+        super().__init__(11, "bin_sawfish", 0.30480, 0.30480)
 
 
 class CameraDetectionNode:
@@ -154,12 +149,12 @@ class CameraDetectionNode:
         self.active_front_camera_ids = list(range(15))  # Allow all by default
 
         self.object_id_map = {
-            "gate": [1, 2, 3, 4, 5],
-            "torpedo": [12, 13],
-            "buoy": [8],
-            "bin": [9, 10, 11],
-            "octagon": [14],
-            "all": list(range(15)),
+            "gate": [0, 1],
+            "pipe": [2, 3],
+            "torpedo": [4, 5],
+            "bin": [6],
+            "octagon": [7],
+            "all": [0, 1, 2, 3, 4, 5, 6, 7],
         }
 
         self.object_transform_pub = rospy.Publisher(
@@ -193,36 +188,32 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
         }
         self.props = {
-            "red_buoy_link": BuoyRed(),
-            "gate_red_arrow_link": GateRedArrow(),
-            "gate_blue_arrow_link": GateBlueArrow(),
-            "gate_middle_part_link": GateMiddlePart(),
+            "gate_sawfish_link": Sawfish(),
+            "gate_shark_link": Shark(),
+            "red_pipe_link": RedPipe(),
+            "white_pipe_link": WhitePipe(),
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
-            "bin/red_link": BinRed(),
-            "bin/blue_link": BinBlue(),
-            "torpedo_hole_upper_link": TorpedoHoleUpper(),
-            "torpedo_hole_bottom_link": TorpedoHoleBottom(),
+            "bin_sawfish_link": BinShark(),
+            "bin_shark_link": BinSawfish(),
+            "torpedo_hole_upper_link": TorpedoHole(),
+            "torpedo_hole_bottom_link": TorpedoHole(),
         }
 
         self.id_tf_map = {
             "taluy/cameras/cam_front": {
-                8: "red_buoy_link",
-                7: "path_link",
-                9: "bin_whole_link",
-                12: "torpedo_map_link",
-                13: "torpedo_hole_link",
-                1: "gate_left_link",
-                2: "gate_right_link",
-                3: "gate_blue_arrow_link",
-                4: "gate_red_arrow_link",
-                5: "gate_middle_part_link",
-                14: "octagon_link",
+                0: "gate_sawfish_link",
+                1: "gate_shark_link",
+                2: "red_pipe_link",
+                3: "white_pipe_link",
+                4: "torpedo_map_link",
+                5: "torpedo_hole_link",
+                6: "bin_whole_link",
+                7: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {
-                9: "bin/whole",
-                10: "bin/red_link",
-                11: "bin/blue_link",
+                0: "bin_shark_link",
+                1: "bin_sawfish_link",
             },
         }
         # Subscribe to YOLO detections and altitude
@@ -316,13 +307,13 @@ class CameraDetectionNode:
             rospy.logwarn("The line segment is parallel to the ground plane.")
             return None
 
-    def process_altitude_projection(self, detection, camera_ns: str):
+    def process_altitude_projection(self, detection, camera_ns: str, stamp):
         if self.altitude is None:
             rospy.logwarn("No altitude data available")
             return
 
         detection_id = detection.results[0].id
-        if detection_id != 9:
+        if detection_id != 6:
             return
 
         bbox_bottom_x = detection.bbox.center.x
@@ -353,7 +344,7 @@ class CameraDetectionNode:
             transform = self.tf_buffer.lookup_transform(
                 "odom",
                 self.camera_frames[camera_ns],
-                rospy.Time(0),
+                stamp,
                 rospy.Duration(1.0),
             )
             # Transform the ray points from the camera frame to the odom frame
@@ -371,7 +362,7 @@ class CameraDetectionNode:
             if intersection:
                 x, y, z = intersection
                 transform_stamped_msg = TransformStamped()
-                transform_stamped_msg.header.stamp = rospy.Time.now()
+                transform_stamped_msg.header.stamp = stamp
                 transform_stamped_msg.header.frame_id = "odom"
                 transform_stamped_msg.child_frame_id = self.id_tf_map[camera_ns][
                     detection_id
@@ -405,7 +396,7 @@ class CameraDetectionNode:
                 continue
             detection_id = detection.results[0].id
 
-            if detection_id == 13:  # Torpedo hole ID
+            if detection_id == 5:  # Torpedo hole ID
                 hole_center_x = detection.bbox.center.x
                 hole_center_y = detection.bbox.center.y
 
@@ -481,7 +472,7 @@ class CameraDetectionNode:
             camera_to_odom_transform = self.tf_buffer.lookup_transform(
                 camera_frame,
                 "odom",
-                rospy.Time(0),
+                stamp,
                 rospy.Duration(1.0),
             )
         except (
@@ -532,15 +523,11 @@ class CameraDetectionNode:
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return
-            camera_ns = (
-                "taluy/cameras/cam_front"  # Ensure this matches your actual namespace
-            )
+            camera_ns = "taluy/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
                 return
-            camera_ns = (
-                "taluy/cameras/cam_bottom"  # Ensure this matches your actual namespace
-            )
+            camera_ns = "taluy/cameras/cam_bottom"
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
@@ -553,7 +540,7 @@ class CameraDetectionNode:
             if len(detection.results) == 0:
                 continue
             detection_id = detection.results[0].id
-            if detection_id == 12:  # Torpedo map ID
+            if detection_id == 4:  # Torpedo map ID
                 torpedo_map_bbox = detection.bbox
                 break
 
@@ -578,17 +565,20 @@ class CameraDetectionNode:
                 if detection_id not in self.active_front_camera_ids:
                     continue
 
-            if detection_id == 13:
+            if detection_id == 5:
                 continue
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-            if detection_id == 10 or detection_id == 11:
+            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
                 skip_inside_image = True
                 # use altidude for bin
                 distance = self.altitude
-            if detection_id == 9:
-                self.process_altitude_projection(detection, camera_ns)
+
+            if detection_id == 6:
+                self.process_altitude_projection(
+                    detection, camera_ns, detection_msg.header.stamp
+                )
                 continue
             if not skip_inside_image:
                 if self.check_if_detection_is_inside_image(detection) is False:
@@ -609,7 +599,6 @@ class CameraDetectionNode:
             if distance is None:
                 continue
 
-            # Calculate angles from pixel coordinates
             angles = self.camera_calibrations[camera_ns].calculate_angles(
                 (detection.bbox.center.x, detection.bbox.center.y)
             )
@@ -623,7 +612,7 @@ class CameraDetectionNode:
                 camera_to_odom_transform = self.tf_buffer.lookup_transform(
                     camera_frame,
                     "odom",
-                    rospy.Time(0),
+                    detection_msg.header.stamp,
                     rospy.Duration(1.0),
                 )
             except (

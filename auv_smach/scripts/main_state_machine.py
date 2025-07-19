@@ -17,8 +17,6 @@ class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
 
-        # USER EDIT
-        self.gate_depth = -1.5
         # Get target selection from YAML
         self.target_selection = rospy.get_param("~target_selection", "blue")
         self.mission_targets = rospy.get_param(
@@ -42,13 +40,17 @@ class MainStateMachineNode:
                 },
             },
         )
-        self.gate_search_depth = -0.7
 
+        self.gate_search_depth = -0.7
+        self.gate_depth = -1.5
+        
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
 
-        self.torpedo_map_radius = 1.5
         self.torpedo_map_depth = -1.3
+        self.torpedo_target_frame = "torpedo_target"
+        self.torpedo_realsense_target_frame = "torpedo_target_realsense"
+        self.torpedo_fire_frame = "torpedo_fire_frame"
 
         self.bin_front_look_depth = -1.2
         self.bin_bottom_look_depth = -0.7
@@ -113,8 +115,10 @@ class MainStateMachineNode:
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,
                 {
-                    "torpedo_map_radius": self.torpedo_map_radius,
                     "torpedo_map_depth": self.torpedo_map_depth,
+                    "torpedo_target_frame": self.torpedo_target_frame,
+                    "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
+                    "torpedo_fire_frame": self.torpedo_fire_frame,
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (
