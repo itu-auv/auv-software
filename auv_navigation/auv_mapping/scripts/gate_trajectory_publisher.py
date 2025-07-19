@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Tuple
+from typing import Tuple, Optional
 import math
 import rospy
 import threading
@@ -34,6 +34,7 @@ class TransformServiceNode:
         )
 
         self.odom_frame = "odom"
+        self.robot_base_frame = rospy.get_param("~robot_base_frame", "taluy/base_link")
         self.entrance_frame = "gate_entrance"
         self.exit_frame = "gate_exit"
 
@@ -70,8 +71,217 @@ class TransformServiceNode:
         self.z_offset = rospy.get_param("~z_offset", 0.5)
         self.parallel_shift_offset = rospy.get_param("~parallel_shift_offset", 0.15)
 
-        # Threshold for gate link separation
-        self.MIN_GATE_SEPARATION_THRESHOLD = 0.15
+        # --- Parameters for fallback (single-frame) mode
+        self.fallback_entrance_offset = rospy.get_param(
+            "~fallback_entrance_offset", 1.0
+        )
+        self.fallback_exit_offset = rospy.get_param("~fallback_exit_offset", 1.0)
+        self.MIN_GATE_SEPARATION = rospy.get_param("~min_gate_separation", 0.2)
+        self.MAX_GATE_SEPARATION = rospy.get_param("~max_gate_separation", 2.5)
+        self.MIN_GATE_SEPARATION_THRESHOLD = 0.15  # For internal checks
+
+    def create_trajectory_frames(self) -> None:
+        """
+        Main logic to decide which method to use for creating gate frames.
+        It tries to use two frames, but switches to a fallback method if needed.
+        """
+        # --- Try to get transforms for both gate frames
+        try:
+            t_gate1 = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.gate_frame_1,
+                rospy.Time.now(),
+                rospy.Duration(0.5),
+            )
+        except tf2_ros.TransformException:
+            t_gate1 = None
+
+        try:
+            t_gate2 = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.gate_frame_2,
+                rospy.Time.now(),
+                rospy.Duration(0.5),
+            )
+        except tf2_ros.TransformException:
+            t_gate2 = None
+
+        poses = None
+        # --- Decision logic: Check which mode to use
+        if t_gate1 and t_gate2:
+            # Both frames are visible
+            p1 = t_gate1.transform.translation
+            p2 = t_gate2.transform.translation
+            distance = math.sqrt(
+                (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2
+            )
+
+            if self.MIN_GATE_SEPARATION < distance < self.MAX_GATE_SEPARATION:
+                # Distance is valid, use standard dual-frame method
+                rospy.loginfo_once("Using dual-frame mode for gate trajectory.")
+                poses = self._compute_frames_dual_mode(
+                    self.get_translation(t_gate1), self.get_translation(t_gate2)
+                )
+            else:
+                # Distance is out of bounds, use fallback method with the selected target
+                rospy.logwarn_once(
+                    f"Gate distance ({distance:.2f}m) is out of bounds. Using fallback mode."
+                )
+                target_transform = (
+                    t_gate1 if self.target_gate_frame == self.gate_frame_1 else t_gate2
+                )
+                poses = self._compute_frames_fallback_mode(target_transform)
+
+        elif t_gate1 or t_gate2:
+            # Only one frame is visible, use fallback method
+            rospy.logwarn_once("Only one gate frame is visible. Using fallback mode.")
+            visible_transform = t_gate1 if t_gate1 else t_gate2
+            poses = self._compute_frames_fallback_mode(visible_transform)
+
+        else:
+            # No frames are visible
+            rospy.logwarn("Neither gate frame is visible. Cannot create trajectory.")
+            return
+
+        if poses:
+            entrance_pose, exit_pose = poses
+            # Create and send transforms
+            entrance_transform = self.build_transform_message(
+                self.entrance_frame, entrance_pose
+            )
+            exit_transform = self.build_transform_message(self.exit_frame, exit_pose)
+            self.send_transform(entrance_transform)
+            self.send_transform(exit_transform)
+
+    def _compute_frames_fallback_mode(
+        self, gate_transform: TransformStamped
+    ) -> Optional[Tuple[Pose, Pose]]:
+        """
+        Fallback method: Creates entrance/exit frames on a line from the robot to a single gate frame.
+        """
+        try:
+            robot_transform = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.robot_base_frame,
+                rospy.Time(0),
+                rospy.Duration(0.5),
+            )
+        except tf2_ros.TransformException as e:
+            rospy.logwarn(
+                f"Fallback mode failed: Could not get robot transform '{self.robot_base_frame}': {e}"
+            )
+            return None
+
+        gate_pos = gate_transform.transform.translation
+        robot_pos = robot_transform.transform.translation
+
+        # Vector from robot to gate
+        dx = gate_pos.x - robot_pos.x
+        dy = gate_pos.y - robot_pos.y
+
+        length = math.sqrt(dx**2 + dy**2)
+        if length < self.MIN_GATE_SEPARATION_THRESHOLD:
+            rospy.logwarn(
+                "Robot is too close to the gate frame for fallback calculation."
+            )
+            return None
+
+        # Unit vector for the direction
+        unit_dx = dx / length
+        unit_dy = dy / length
+
+        # Position entrance before the gate, exit after the gate
+        entrance_position = Point(
+            gate_pos.x - unit_dx * self.fallback_entrance_offset,
+            gate_pos.y - unit_dy * self.fallback_entrance_offset,
+            gate_pos.z - self.z_offset,  # Apply Z-offset
+        )
+        exit_position = Point(
+            gate_pos.x + unit_dx * self.fallback_exit_offset,
+            gate_pos.y + unit_dy * self.fallback_exit_offset,
+            gate_pos.z - self.z_offset,  # Apply Z-offset
+        )
+
+        # Orientation should look along the line of approach
+        common_yaw = math.atan2(dy, dx)
+        common_quat = tf_conversions.transformations.quaternion_from_euler(
+            0, 0, common_yaw
+        )
+
+        entrance_pose = Pose(
+            position=entrance_position, orientation=Quaternion(*common_quat)
+        )
+        exit_pose = Pose(position=exit_position, orientation=Quaternion(*common_quat))
+
+        return entrance_pose, exit_pose
+
+    def _compute_frames_dual_mode(
+        self,
+        gate_link_1_translation: Tuple[float, float, float],
+        gate_link_2_translation: Tuple[float, float, float],
+    ) -> Optional[Tuple[Pose, Pose]]:
+        """
+        Original method: Computes entrance/exit frames based on two gate posts.
+        """
+        # Assign selected and other gate link translations
+        selected_gate_link_translation, other_gate_link_translation = (
+            self.assign_selected_gate_translations(
+                gate_link_1_translation, gate_link_2_translation
+            )
+        )
+
+        # Calculate and store the gate angle
+        dx = other_gate_link_translation[0] - selected_gate_link_translation[0]
+        dy = other_gate_link_translation[1] - selected_gate_link_translation[1]
+        self.gate_angle = math.atan2(dy, dx)
+
+        # Compute the entrance and exit frames relative to selected gate frame
+        try:
+            entrance_pose, exit_pose = self.compute_entrance_and_exit(
+                selected_gate_link_translation, other_gate_link_translation
+            )
+        except ValueError as e:
+            rospy.logwarn(f"Could not compute dual-mode frames: {e}")
+            return None
+
+        # Create TransformStamped messages for entrance and exit
+        entrance_transform = self.build_transform_message(
+            self.entrance_frame, entrance_pose
+        )
+        exit_transform = self.build_transform_message(self.exit_frame, exit_pose)
+
+        # Apply parallel shift if offset is significant
+        if abs(self.parallel_shift_offset) > 1e-6:
+            other_gate_frame = (
+                self.gate_frame_2
+                if self.target_gate_frame == self.gate_frame_1
+                else self.gate_frame_1
+            )
+
+            entrance_transform = self._shift_transform_parallel_to_gate_line(
+                entrance_transform,
+                self.target_gate_frame,
+                other_gate_frame,
+                self.parallel_shift_offset,
+            )
+            exit_transform = self._shift_transform_parallel_to_gate_line(
+                exit_transform,
+                self.target_gate_frame,
+                other_gate_frame,
+                self.parallel_shift_offset,
+            )
+
+        # Extract final poses from potentially shifted transforms
+        final_entrance_pose = Pose(
+            position=entrance_transform.transform.translation,
+            orientation=entrance_transform.transform.rotation,
+        )
+        final_exit_pose = Pose(
+            position=exit_transform.transform.translation,
+            orientation=exit_transform.transform.rotation,
+        )
+
+        return final_entrance_pose, final_exit_pose
 
     def assign_selected_gate_translations(
         self,
@@ -80,14 +290,11 @@ class TransformServiceNode:
     ) -> Tuple[Tuple[float, float, float], Tuple[float, float, float]]:
         """Determine selected and other gate link translations based on target frame."""
         if self.target_gate_frame == self.gate_frame_1:
-            selected_gate_link_translation = gate_link_1_translation
-            other_gate_link_translation = gate_link_2_translation
+            return gate_link_1_translation, gate_link_2_translation
         elif self.target_gate_frame == self.gate_frame_2:
-            selected_gate_link_translation = gate_link_2_translation
-            other_gate_link_translation = gate_link_1_translation
+            return gate_link_2_translation, gate_link_1_translation
         else:
             raise ValueError("Invalid selected gate frame")
-        return selected_gate_link_translation, other_gate_link_translation
 
     def compute_entrance_and_exit(
         self,
@@ -101,9 +308,7 @@ class TransformServiceNode:
         length = math.sqrt(dx**2 + dy**2)
 
         if length < self.MIN_GATE_SEPARATION_THRESHOLD:
-            raise ValueError(
-                "The gate links are almost identical or at the same position"
-            )
+            raise ValueError("The gate links are too close to each other.")
 
         unit_perpendicular_x = -dy / length
         unit_perpendicular_y = dx / length
@@ -113,14 +318,8 @@ class TransformServiceNode:
         # Dot product to determine which side of perpendicular line the odom origin is on
         dot_product = odom_dx * unit_perpendicular_x + odom_dy * unit_perpendicular_y
 
-        if dot_product > 0:
-            # Odom is on positive side, so entrance should be on positive side (odom's side)
-            entrance_direction = 1.0
-            exit_direction = -1.0
-        else:
-            # Odom is on negative side, so entrance should be on negative side (odom's side)
-            entrance_direction = -1.0
-            exit_direction = 1.0
+        entrance_direction = 1.0 if dot_product > 0 else -1.0
+        exit_direction = -1.0 * entrance_direction
 
         # Calculate new positions relative to selected_translation
         entrance_position = (
@@ -130,7 +329,6 @@ class TransformServiceNode:
             + entrance_direction * unit_perpendicular_y * self.entrance_offset,
             selected_gate_link_translation[2] - self.z_offset,
         )
-
         exit_position = (
             selected_gate_link_translation[0]
             + exit_direction * unit_perpendicular_x * self.exit_offset,
@@ -149,13 +347,12 @@ class TransformServiceNode:
             0, 0, common_yaw
         )
 
-        entrance_pose = Pose()
-        entrance_pose.position = Point(*entrance_position)
-        entrance_pose.orientation = Quaternion(*common_quat)
-
-        exit_pose = Pose()
-        exit_pose.position = Point(*exit_position)
-        exit_pose.orientation = Quaternion(*common_quat)
+        entrance_pose = Pose(
+            position=Point(*entrance_position), orientation=Quaternion(*common_quat)
+        )
+        exit_pose = Pose(
+            position=Point(*exit_position), orientation=Quaternion(*common_quat)
+        )
 
         return entrance_pose, exit_pose
 
@@ -165,119 +362,40 @@ class TransformServiceNode:
         selected_gate_frame_name: str,
         other_gate_frame_name: str,
         parallel_offset: float,
-        tf_buffer: tf2_ros.Buffer,
     ) -> TransformStamped:
-        """Shift transform parallel to gate line from selected to other frame."""
+        """Shift transform parallel to the line connecting the two gate frames."""
         try:
-            transform_selected_to_other = tf_buffer.lookup_transform(
+            # Transform from selected to other, gives the direction vector in the selected frame's coordinate system
+            transform_selected_to_other = self.tf_buffer.lookup_transform(
                 selected_gate_frame_name,
                 other_gate_frame_name,
                 rospy.Time.now(),
                 rospy.Duration(0.5),
             )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            rospy.logwarn(
-                f"Parallel shift for trajectory frames failed because of TF Error: {e}"
-            )
+        except tf2_ros.TransformException as e:
+            rospy.logwarn(f"Parallel shift failed due to TF Error: {e}")
             return transform_to_shift
 
-        dx_selected_frame = transform_selected_to_other.transform.translation.x
-        dy_selected_frame = transform_selected_to_other.transform.translation.y
-
-        length = math.sqrt(dx_selected_frame**2 + dy_selected_frame**2)
+        dx_sel = transform_selected_to_other.transform.translation.x
+        dy_sel = transform_selected_to_other.transform.translation.y
+        length = math.sqrt(dx_sel**2 + dy_sel**2)
 
         if length < self.MIN_GATE_SEPARATION_THRESHOLD:
-            rospy.logwarn(
-                f"Gate links are too close for parallel shift. Skipping shift."
-            )
+            rospy.logwarn("Gate links too close for parallel shift. Skipping.")
             return transform_to_shift
 
-        unit_dx = dx_selected_frame / length
-        unit_dy = dy_selected_frame / length
+        # Shift is applied in the odom frame, so we need the odom-frame direction vector
+        # (calculated from the dual-mode pose computation)
+        angle = self.gate_angle  # Angle of the gate line in the odom frame
+        unit_dx_odom = math.cos(angle)
+        unit_dy_odom = math.sin(angle)
 
-        shift_x = unit_dx * parallel_offset
-        shift_y = unit_dy * parallel_offset
+        shift_x = unit_dx_odom * parallel_offset
+        shift_y = unit_dy_odom * parallel_offset
 
         transform_to_shift.transform.translation.x += shift_x
         transform_to_shift.transform.translation.y += shift_y
         return transform_to_shift
-
-    def create_trajectory_frames(self) -> None:
-        """
-        Look up the current transforms, compute entrance and exit transforms,
-        and broadcast them relative to target_gate_frame.
-        """
-        try:
-            transform_gate_link_1 = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.gate_frame_1, rospy.Time.now(), rospy.Duration(1)
-            )
-            transform_gate_link_2 = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.gate_frame_2, rospy.Time.now(), rospy.Duration(1)
-            )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            rospy.logwarn(f"TF lookup failed: {e}")
-            return
-
-        # Extract the translations (still in odom frame)
-        gate_link_1_translation = self.get_translation(transform_gate_link_1)
-        gate_link_2_translation = self.get_translation(transform_gate_link_2)
-
-        # Assign selected and other gate link translations
-        selected_gate_link_translation, other_gate_link_translation = (
-            self.assign_selected_gate_translations(
-                gate_link_1_translation, gate_link_2_translation
-            )
-        )
-
-        # Calculate and store the gate angle
-        dx = other_gate_link_translation[0] - selected_gate_link_translation[0]
-        dy = other_gate_link_translation[1] - selected_gate_link_translation[1]
-        self.gate_angle = math.atan2(dy, dx)
-
-        # Compute the entrance and exit frames relative to selected gate frame
-        entrance_pose, exit_pose = self.compute_entrance_and_exit(
-            selected_gate_link_translation, other_gate_link_translation
-        )
-
-        # Create TransformStamped messages for entrance and exit
-        entrance_transform = self.build_transform_message(
-            self.entrance_frame, entrance_pose
-        )
-        exit_transform = self.build_transform_message(self.exit_frame, exit_pose)
-
-        # Apply parallel shift if offset is significant
-        if abs(self.parallel_shift_offset) > 1e-6:
-            other_gate_frame_for_shift_direction: str
-            if self.target_gate_frame == self.gate_frame_1:
-                other_gate_frame_for_shift_direction = self.gate_frame_2
-            else:
-                other_gate_frame_for_shift_direction = self.gate_frame_1
-
-            entrance_transform = self._shift_transform_parallel_to_gate_line(
-                entrance_transform,
-                self.target_gate_frame,  # Frame in which entrance_transform.transform is defined
-                other_gate_frame_for_shift_direction,
-                self.parallel_shift_offset,
-                self.tf_buffer,
-            )
-            exit_transform = self._shift_transform_parallel_to_gate_line(
-                exit_transform,
-                self.target_gate_frame,  # Frame in which exit_transform.transform is defined
-                other_gate_frame_for_shift_direction,
-                self.parallel_shift_offset,
-                self.tf_buffer,
-            )
-
-        self.send_transform(entrance_transform)
-        self.send_transform(exit_transform)
 
     def get_translation(
         self, transform: TransformStamped
@@ -295,9 +413,7 @@ class TransformServiceNode:
     ) -> TransformStamped:
         transform = geometry_msgs.msg.TransformStamped()
         transform.header.stamp = rospy.Time.now()
-        transform.header.frame_id = (
-            self.odom_frame
-        )  # Changed from self.target_gate_frame to self.odom_frame
+        transform.header.frame_id = self.odom_frame
         transform.child_frame_id = child_frame_id
         transform.transform.translation = pose.position
         transform.transform.rotation = pose.orientation
@@ -306,11 +422,14 @@ class TransformServiceNode:
     def send_transform(self, transform: TransformStamped):
         request = SetObjectTransformRequest()
         request.transform = transform
-        response = self.set_object_transform_service.call(request)
-        if not response.success:
-            rospy.logerr(
-                f"Failed to set transform for {transform.child_frame_id}: {response.message}"
-            )
+        try:
+            response = self.set_object_transform_service.call(request)
+            if not response.success:
+                rospy.logerr(
+                    f"Failed to set transform for {transform.child_frame_id}: {response.message}"
+                )
+        except rospy.ServiceException as e:
+            rospy.logerr(f"Service call failed: {e}")
 
     def handle_enable_service(self, request: SetBool):
         self.is_enabled = request.data
