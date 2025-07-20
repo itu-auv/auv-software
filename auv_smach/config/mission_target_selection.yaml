@@ -1,5 +1,5 @@
 ---
-target_selection: shark
+target_selection: sawfish
 mission_targets:
   shark:
     gate_target_frame: gate_shark_link

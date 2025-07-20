@@ -128,7 +128,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "PATH_TO_TORPEDO_TARGET",
                 DynamicPathState(
-                    plan_target_frame="torpedo_target_frame",
+                    plan_target_frame=torpedo_target_frame,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
@@ -236,7 +236,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_FIRE_FRAME",
-                DelayState(delay_time=1.0),
+                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
                     "preempted": "preempted",
