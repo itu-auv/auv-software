@@ -116,7 +116,7 @@ class TorpedoMap(Prop):
 
 class TorpedoHole(Prop):
     def __init__(self):
-        super().__init__(5, "torpedo_hole", 0.115, 0.115)
+        super().__init__(5, "torpedo_hole", 0.125, 0.125)
 
 
 class BinWhole(Prop):
