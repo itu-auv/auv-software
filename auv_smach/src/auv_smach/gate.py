@@ -122,7 +122,7 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame=gate_target_frame,
                     alignment_frame="gate_search",
                     full_rotation=False,
-                    set_frame_duration=7.0,
+                    set_frame_duration=8.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
