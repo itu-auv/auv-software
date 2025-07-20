@@ -15,6 +15,7 @@ from auv_smach.common import (
     SearchForPropState,
     AlignFrame,
     DynamicPathState,
+    SetDetectionFocusState,
 )
 
 from nav_msgs.msg import Odometry
@@ -182,6 +183,15 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "SET_DETECTION_TO_NONE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_TO_NONE",
+                SetDetectionFocusState(focus_object="none"),
                 transitions={
                     "succeeded": "SET_GATE_DEPTH",
                     "preempted": "preempted",
