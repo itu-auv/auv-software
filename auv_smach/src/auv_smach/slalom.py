@@ -17,6 +17,7 @@ from auv_smach.common import (
     AlignFrame,
     SetPlanState,
     SetPlanningNotActive,
+    DynamicPathState,
 )
 
 from nav_msgs.msg import Odometry
@@ -24,13 +25,6 @@ from geometry_msgs.msg import WrenchStamped
 from std_msgs.msg import Bool
 from std_srvs.srv import SetBool, SetBoolRequest
 from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryState
-
-
-class TransformServiceEnableState(smach_ros.ServiceState):
-    def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self, "publish_slalom_waypoints", Trigger, request=TriggerRequest()
-        )
 
 
 class NavigateThroughSlalomState(smach.State):
@@ -54,110 +48,59 @@ class NavigateThroughSlalomState(smach.State):
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
-                    "succeeded": "ALIGN_WP_1",
+                    "succeeded": "DYNAMIC_PATH_TO_WP_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ENABLE_SLALOM_TRAJECTORY_PUBLISHER",
-                TransformServiceEnableState(),
-                transitions={
-                    "succeeded": "START_PLANNING_TO_SLALOM_ENTRANCE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "START_PLANNING_TO_SLALOM_ENTRANCE",
-                SetPlanState(target_frame="slalom_entrance"),
-                transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="dynamic_target"
+                "DYNAMIC_PATH_TO_SLALOM_ENTRANCE",
+                DynamicPathState(
+                    plan_target_frame="slalom_entrance",
                 ),
                 transitions={
-                    "succeeded": "EXECUTE_SLALOM_PATH_ENTRANCE",
+                    "succeeded": "DYNAMIC_PATH_TO_WP_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "EXECUTE_SLALOM_PATH_ENTRANCE",
-                ExecutePathState(),
-                transitions={
-                    "succeeded": "STOP_PLANNING",
-                    "preempted": "CANCEL_ALIGN_CONTROLLER",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "STOP_PLANNING",
-                SetPlanningNotActive(),
-                transitions={
-                    "succeeded": "ALIGN_WP_1",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_WP_1",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_waypoint_1",
-                    dist_threshold=0.2,
-                    yaw_threshold=0.1,
-                    timeout=7.0,
+                "DYNAMIC_PATH_TO_WP_1",
+                DynamicPathState(
+                    plan_target_frame="slalom_waypoint_1",
                 ),
                 transitions={
-                    "succeeded": "ALIGN_WP_2",
+                    "succeeded": "DYNAMIC_PATH_TO_WP_2",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_WP_2",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_waypoint_2",
-                    dist_threshold=0.2,
-                    yaw_threshold=0.1,
-                    timeout=7.0,
+                "DYNAMIC_PATH_TO_WP_2",
+                DynamicPathState(
+                    plan_target_frame="slalom_waypoint_2",
                 ),
                 transitions={
-                    "succeeded": "ALIGN_WP_3",
+                    "succeeded": "DYNAMIC_PATH_TO_WP_3",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_WP_3",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_waypoint_3",
-                    dist_threshold=0.2,
-                    yaw_threshold=0.1,
-                    timeout=7.0,
+                "DYNAMIC_PATH_TO_WP_3",
+                DynamicPathState(
+                    plan_target_frame="slalom_waypoint_3",
                 ),
                 transitions={
-                    "succeeded": "ALIGN_EXIT",
+                    "succeeded": "DYNAMIC_PATH_TO_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_EXIT",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_exit",
-                    dist_threshold=0.2,
-                    yaw_threshold=0.1,
-                    timeout=7.0,
+                "DYNAMIC_PATH_TO_EXIT",
+                DynamicPathState(
+                    plan_target_frame="slalom_exit",
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
