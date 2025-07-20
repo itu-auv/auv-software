@@ -218,8 +218,6 @@ class TorpedoTaskState(smach.State):
                     confirm_duration=7.0,
                     timeout=30.0,
                     cancel_on_success=False,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.1,
                 ),
                 transitions={
                     "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
@@ -278,6 +276,8 @@ class TorpedoTaskState(smach.State):
                     confirm_duration=10.0,
                     timeout=30.0,
                     cancel_on_success=False,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
@@ -326,7 +326,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_realsense_target_frame,
-                    angle_offset=-math.pi,
+                    angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=0.0,
