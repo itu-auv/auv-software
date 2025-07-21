@@ -20,6 +20,7 @@ from auv_smach.common import (
     DynamicPathState,
     SetDetectionFocusState,
 )
+from auv_smach.initialize import DelayState
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
@@ -83,6 +84,24 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "SET_DETECTION_FOCUS_TO_SLALOM",
                 SetDetectionFocusState(focus_object="pipe"),
+                transitions={
+                    "succeeded": "WAIT_FOR_SLALOM_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_SLALOM_DETECTION",
+                DelayState(delay_time=rospy.get_param("~wait_for_slalom_waypoints_duration", 5.0)),
+                transitions={
+                    "succeeded": "SET_DETECTON_FOCUS_TO_NONE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTON_FOCUS_TO_NONE",
+                SetDetectionFocusState(focus_object="none"),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_WP_1",
                     "preempted": "preempted",
