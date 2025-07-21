@@ -18,9 +18,6 @@ generate_messages(
   std_msgs
 )
 
-generate_dynamic_reconfigure_options(
-  cfg/ImuOdometry.cfg
-)
 
 catkin_package(
   CATKIN_DEPENDS dynamic_reconfigure message_runtime std_msgs

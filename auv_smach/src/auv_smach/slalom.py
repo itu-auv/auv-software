@@ -28,6 +28,13 @@ from std_srvs.srv import SetBool, SetBoolRequest
 from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryState
 
 
+class PublishSlalomWaypointsState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "publish_slalom_waypoints", Trigger, request=TriggerRequest()
+        )
+
+
 class NavigateThroughSlalomState(smach.State):
     def __init__(self, slalom_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -42,22 +49,22 @@ class NavigateThroughSlalomState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_DETECTION_FOCUS_TO_SLALOM",
-                SetDetectionFocusState(focus_object="pipe"),
-                transitions={
-                    "succeeded": "ODOMETRY_ENABLE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "SET_SLALOM_DEPTH",
                 SetDepthState(
                     depth=slalom_depth,
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_WP_1",
+                    "succeeded": "PUBLISH_SLALOM_WAYPOINTS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PUBLISH_SLALOM_WAYPOINTS",
+                PublishSlalomWaypointsState(),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_SLALOM_ENTRANCE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -67,6 +74,15 @@ class NavigateThroughSlalomState(smach.State):
                 DynamicPathState(
                     plan_target_frame="slalom_entrance",
                 ),
+                transitions={
+                    "succeeded": "SET_DETECTION_FOCUS_TO_SLALOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_TO_SLALOM",
+                SetDetectionFocusState(focus_object="pipe"),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_WP_1",
                     "preempted": "preempted",
