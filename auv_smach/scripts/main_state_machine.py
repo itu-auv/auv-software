@@ -44,7 +44,7 @@ class MainStateMachineNode:
         )
 
         self.gate_search_depth = -0.7
-        self.gate_depth = -1.5
+        self.gate_depth = -1.35
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
