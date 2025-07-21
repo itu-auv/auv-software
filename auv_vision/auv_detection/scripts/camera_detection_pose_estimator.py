@@ -304,7 +304,7 @@ class CameraDetectionNode:
                 # Intersection is outside the defined segment
                 return None
         else:
-            rospy.logwarn("The line segment is parallel to the ground plane.")
+            rospy.logwarn("The line segment is parallel to the selected plane.")
             return None
 
     def process_altitude_projection(self, detection, camera_ns: str, stamp):
@@ -313,8 +313,12 @@ class CameraDetectionNode:
             return
 
         detection_id = detection.results[0].id
-        if detection_id != 6:
+        if detection_id not in [6, 7]:
             return
+
+        z_plane = 0.0
+        if detection_id == 6:
+            z_plane = -self.pool_depth
 
         bbox_bottom_x = detection.bbox.center.x
         bbox_bottom_y = detection.bbox.center.y + detection.bbox.size_y * 0.5
@@ -357,7 +361,7 @@ class CameraDetectionNode:
             # We do not add self.altitude here, as both the ray and the plane
             # are now correctly expressed in the same 'odom' frame.
             intersection = self.calculate_intersection_with_plane(
-                point1_odom, point2_odom, z_plane=-self.pool_depth
+                point1_odom, point2_odom, z_plane=z_plane
             )
             if intersection:
                 x, y, z = intersection
@@ -575,7 +579,7 @@ class CameraDetectionNode:
                 # use altidude for bin
                 distance = self.altitude
 
-            if detection_id == 6:
+            if detection_id in [6, 7]:
                 self.process_altitude_projection(
                     detection, camera_ns, detection_msg.header.stamp
                 )
