@@ -106,6 +106,15 @@ class NavigateThroughGateState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_GATE",
+                SetDetectionFocusState(focus_object="gate"),
+                transitions={
+                    "succeeded": "SET_ROLL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=gate_search_depth,
