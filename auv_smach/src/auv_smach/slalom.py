@@ -18,6 +18,7 @@ from auv_smach.common import (
     SetPlanState,
     SetPlanningNotActive,
     DynamicPathState,
+    SetDetectionFocusState,
 )
 
 from nav_msgs.msg import Odometry
@@ -40,6 +41,15 @@ class NavigateThroughSlalomState(smach.State):
         )
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_TO_SLALOM",
+                SetDetectionFocusState(focus_object="pipe"),
+                transitions={
+                    "succeeded": "ODOMETRY_ENABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_SLALOM_DEPTH",
                 SetDepthState(
