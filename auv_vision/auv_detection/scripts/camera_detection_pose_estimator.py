@@ -116,7 +116,7 @@ class TorpedoMap(Prop):
 
 class TorpedoHole(Prop):
     def __init__(self):
-        super().__init__(5, "torpedo_hole", 0.115, 0.115)
+        super().__init__(5, "torpedo_hole", 0.125, 0.125)
 
 
 class BinWhole(Prop):
@@ -196,8 +196,8 @@ class CameraDetectionNode:
             "octagon_link": Octagon(),
             "bin_sawfish_link": BinShark(),
             "bin_shark_link": BinSawfish(),
-            "torpedo_hole_upper_link": TorpedoHole(),
-            "torpedo_hole_bottom_link": TorpedoHole(),
+            "torpedo_hole_shark_link": TorpedoHole(),
+            "torpedo_hole_sawfish_link": TorpedoHole(),
         }
 
         self.id_tf_map = {
@@ -427,23 +427,34 @@ class CameraDetectionNode:
             upper_hole_detection = hole2
             bottom_hole_detection = hole1
 
-        # Publish transform for the upper hole
+        if upper_hole_detection.bbox.center.x > bottom_hole_detection.bbox.center.x:
+            upper_hole_child_frame_id = "torpedo_hole_sawfish_link"
+            bottom_hole_child_frame_id = "torpedo_hole_shark_link"
+        else:
+            upper_hole_child_frame_id = "torpedo_hole_shark_link"
+            bottom_hole_child_frame_id = "torpedo_hole_sawfish_link"
+
+        rospy.loginfo_once(
+            f"Upper hole assigned to {upper_hole_child_frame_id}, bottom to {bottom_hole_child_frame_id}"
+        )
+
+        # Publish transform for the upper hole with its new name
         self._publish_torpedo_hole_transform(
             upper_hole_detection,
             camera_ns,
             camera_frame,
-            "torpedo_hole_upper_link",
-            "torpedo_hole_upper_link",
+            upper_hole_child_frame_id,
+            upper_hole_child_frame_id,
             detection_msg.header.stamp,
         )
 
-        # Publish transform for the bottom hole
+        # Publish transform for the bottom hole with its new name
         self._publish_torpedo_hole_transform(
             bottom_hole_detection,
             camera_ns,
             camera_frame,
-            "torpedo_hole_bottom_link",
-            "torpedo_hole_bottom_link",
+            bottom_hole_child_frame_id,
+            bottom_hole_child_frame_id,
             detection_msg.header.stamp,
         )
 

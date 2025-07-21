@@ -22,7 +22,12 @@ from auv_smach.initialize import DelayState
 
 
 class CheckForDropAreaState(smach.State):
-    def __init__(self, source_frame: str = "odom", timeout: float = 2.0):
+    def __init__(
+        self,
+        source_frame: str = "odom",
+        timeout: float = 2.0,
+        target_selection: str = "shark",
+    ):
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
@@ -32,7 +37,13 @@ class CheckForDropAreaState(smach.State):
         self.timeout = rospy.Duration(timeout)
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.target_frames = ["bin_shark_link", "bin_sawfish_link"]
+        # Set frame order based on target_selection
+        if target_selection == "shark":
+            self.target_frames = ["bin_shark_link", "bin_sawfish_link"]
+        elif target_selection == "sawfish":
+            self.target_frames = ["bin_sawfish_link", "bin_shark_link"]
+        else:
+            self.target_frames = ["bin_shark_link", "bin_sawfish_link"]
 
     def execute(self, userdata) -> str:
         start_time = rospy.Time.now()
@@ -238,7 +249,9 @@ class BinSecondTrialState(smach.StateMachine):
 
 
 class BinTaskState(smach.State):
-    def __init__(self, bin_front_look_depth, bin_bottom_look_depth):
+    def __init__(
+        self, bin_front_look_depth, bin_bottom_look_depth, target_selection="shark"
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.state_machine = smach.StateMachine(
@@ -398,7 +411,9 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_AFTER_BIN_ALIGNMENT",
-                CheckForDropAreaState(source_frame="odom", timeout=1.0),
+                CheckForDropAreaState(
+                    source_frame="odom", timeout=1.0, target_selection=target_selection
+                ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
                     "preempted": "preempted",
