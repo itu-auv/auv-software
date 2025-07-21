@@ -98,6 +98,15 @@ class NavigateThroughGateState(smach.State):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.sim_mode = rospy.get_param("~sim", False)
 
+        # Get target_selection from ROS param (default: shark)
+        self.target_selection = rospy.get_param("~target_selection", "shark")
+        if self.target_selection == "shark":
+            self.gate_look_at_frame = "gate_shark_link"
+        elif self.target_selection == "sawfish":
+            self.gate_look_at_frame = "gate_sawfish_link"
+        else:
+            self.gate_look_at_frame = "gate_shark_link"  # fallback
+
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -119,7 +128,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_GATE",
                 SearchForPropState(
-                    look_at_frame=gate_target_frame,
+                    look_at_frame=self.gate_look_at_frame,
                     alignment_frame="gate_search",
                     full_rotation=False,
                     set_frame_duration=8.0,
@@ -166,7 +175,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "LOOK_AT_GATE",
                 SearchForPropState(
-                    look_at_frame="gate_shark_link",
+                    look_at_frame=self.gate_look_at_frame,
                     alignment_frame="gate_search",
                     full_rotation=False,
                     set_frame_duration=5.0,
