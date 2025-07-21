@@ -27,8 +27,10 @@ class SlalomTrajectoryPublisher(object):
         # Initialize parameters with default values
         self.gate_dist = 2.0
         self.offset2 = 1.0
+        self.exit_distance = 0.8
         self.offset3 = -1.0
         self.vertical_dist = 1.5
+        self.slalom_entrance_backed_distance = 1.0
         self.parent_frame = "odom"
         self.gate_exit_frame = "gate_exit"
         self.slalom_white_frame = "white_pipe_link"
@@ -81,6 +83,7 @@ class SlalomTrajectoryPublisher(object):
         self.offset2 = config.second_slalom_offset
         self.offset3 = config.third_slalom_offset
         self.vertical_dist = config.vertical_distance_between_slalom_clusters
+        self.slalom_entrance_backed_distance = config.slalom_entrance_backed_distance
         return config
 
     def trigger_callback(self, req):
@@ -193,7 +196,7 @@ class SlalomTrajectoryPublisher(object):
             )
 
             # Calculate and publish slalom_exit
-            self.pos_exit = self.pos_wp3 + forward_vec * 0.5
+            self.pos_exit = self.pos_wp3 + forward_vec * self.exit_distance
             self.send_transform(
                 self.build_transform(
                     "slalom_exit",
@@ -249,6 +252,24 @@ class SlalomTrajectoryPublisher(object):
                     "slalom_entrance",
                     self.parent_frame,
                     self.pos_entrance,
+                    gate_exit_q,
+                )
+            )
+
+            # The x-axis in the gate_exit frame is (1, 0, 0)
+            x_axis_in_gate_frame = np.array([1, 0, 0])
+            # Transform the x-axis vector to the parent_frame (odom)
+            x_axis_in_parent_frame = rotation_matrix.dot(x_axis_in_gate_frame)
+            # Calculate the new position for the backed frame
+            pos_entrance_backed = (
+                self.pos_entrance
+                - x_axis_in_parent_frame * self.slalom_entrance_backed_distance
+            )
+            self.send_transform(
+                self.build_transform(
+                    "slalom_entrance_backed",
+                    self.parent_frame,
+                    pos_entrance_backed,
                     gate_exit_q,
                 )
             )

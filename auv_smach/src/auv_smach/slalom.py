@@ -76,6 +76,43 @@ class NavigateThroughSlalomState(smach.State):
                     plan_target_frame="slalom_entrance",
                 ),
                 transitions={
+                    "succeeded": "ALIGN_TO_SLALOM_ENTRANCE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_SLALOM_ENTRANCE",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="slalom_entrance",
+                    confirm_duration= 5.0,
+                ),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_SLALOM_ENTRANCE_BACKED",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_SLALOM_ENTRANCE_BACKED",
+                DynamicPathState(
+                    plan_target_frame="slalom_entrance_backed",
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_SLALOM_ENTRANCE_BACKED",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_SLALOM_ENTRANCE_BACKED",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="slalom_entrance_backed",
+                    confirm_duration= 3.0,
+                ),
+                transitions={
                     "succeeded": "SET_DETECTION_FOCUS_TO_SLALOM",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -112,6 +149,7 @@ class NavigateThroughSlalomState(smach.State):
                 "DYNAMIC_PATH_TO_WP_1",
                 DynamicPathState(
                     plan_target_frame="slalom_waypoint_1",
+                    max_linear_velocity=0.4,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_WP_2",
@@ -122,7 +160,8 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_WP_2",
                 DynamicPathState(
-                    plan_target_frame="slalom_waypoint_2",
+                    plan_target_frame="slalom_waypoint_2", 
+                    max_linear_velocity=0.12,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_WP_3",
@@ -134,6 +173,7 @@ class NavigateThroughSlalomState(smach.State):
                 "DYNAMIC_PATH_TO_WP_3",
                 DynamicPathState(
                     plan_target_frame="slalom_waypoint_3",
+                    max_linear_velocity=0.12,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_EXIT",
@@ -145,6 +185,7 @@ class NavigateThroughSlalomState(smach.State):
                 "DYNAMIC_PATH_TO_EXIT",
                 DynamicPathState(
                     plan_target_frame="slalom_exit",
+                    max_linear_velocity=0.3,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
