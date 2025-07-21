@@ -53,6 +53,8 @@ class MainStateMachineNode:
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_fire_frame = "torpedo_fire_frame"
+        self.torpedo_shark_fire_frame = "torpedo_shark_fire_frame"
+        self.torpedo_sawfish_fire_frame = "torpedo_sawfish_fire_frame"
 
         self.bin_front_look_depth = -1.2
         self.bin_bottom_look_depth = -0.7
@@ -119,7 +121,17 @@ class MainStateMachineNode:
                     "torpedo_map_depth": self.torpedo_map_depth,
                     "torpedo_target_frame": self.torpedo_target_frame,
                     "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
-                    "torpedo_fire_frame": self.torpedo_fire_frame,
+                    "torpedo_fire_frames": (
+                        [
+                            self.torpedo_shark_fire_frame,
+                            self.torpedo_sawfish_fire_frame,
+                        ]
+                        if self.target_selection == "shark"
+                        else [
+                            self.torpedo_sawfish_fire_frame,
+                            self.torpedo_shark_fire_frame,
+                        ]
+                    ),
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (
