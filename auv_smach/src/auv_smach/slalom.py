@@ -33,7 +33,6 @@ class NavigateThroughSlalomState(smach.State):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.sim_mode = rospy.get_param("~sim", False)
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
