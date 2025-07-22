@@ -65,11 +65,11 @@ class MainStateMachineNode:
         # Set parameters based on target selection
         self.target_frames = self.mission_targets[self.target_selection]
         self.red_buoy_direction = self.target_frames["red_buoy_direction"]
-        self.slalom_direction = self.target_frames["slalom_direction"]
-        self.bin_target_frame = self.target_frames["bin_target_frame"]
-        self.torpedo_target_frame = self.target_frames["torpedo_target_frame"]
-        self.octagon_target_frame = self.target_frames["octagon_target_frame"]
-        self.gate_target_frame = self.target_frames["gate_target_frame"]
+        # self.slalom_direction = self.target_frames["slalom_direction"]
+        # self.bin_target_frame = self.target_frames["bin_target_frame"]
+        # self.torpedo_target_frame = self.target_frames["torpedo_target_frame"]
+        # self.octagon_target_frame = self.target_frames["octagon_target_frame"]
+        # self.gate_target_frame = self.target_frames["gate_target_frame"]
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
