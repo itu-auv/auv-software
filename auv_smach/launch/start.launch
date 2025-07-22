@@ -18,7 +18,7 @@
 
             <rosparam file="$(find auv_smach)/config/states.yaml" command="load"/>
             <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
-            <rosparam file="$(find auv_smach)/config/mission_target_selection.yaml" command="load" ns="mission_params"/>
+            <rosparam file="$(find auv_smach)/config/mission_target_selection.yaml" command="load" ns="mission_targets"/>
 
             <!--initialize.py-->
             <rosparam file="$(find auv_smach)/config/initialize.yaml" command="load" ns="initialize_task"/>
