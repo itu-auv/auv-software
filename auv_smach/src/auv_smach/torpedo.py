@@ -61,13 +61,6 @@ class TorpedoTaskState(smach.State):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         torpedo_task_params = rospy.get_param("~torpedo_task", {})
-        mission_params = rospy.get_param("~mission_params", {})
-        target_selection = mission_params.get("target_selection", "shark")
-        mission_targets = mission_params.get("mission_targets", {})
-        self.torpedo_fire_frames = mission_targets.get(target_selection, {}).get(
-            "torpedo_fire_frames",
-            ["torpedo_shark_fire_frame", "torpedo_sawfish_fire_frame"],
-        )
         set_torpedo_depth_params = torpedo_task_params.get("set_torpedo_depth", {})
         find_and_aim_torpedo_params = torpedo_task_params.get(
             "find_and_aim_torpedo", {}
@@ -100,6 +93,14 @@ class TorpedoTaskState(smach.State):
             "wait_for_torpedo_2_launch", {}
         )
         get_back_params = torpedo_task_params.get("get_back", {})
+
+        # Mission selection parameters
+        target_selection_params = rospy.get_param("target_selection", "sawfish")
+        mission_targets = rospy.get_param("mission_targets", {})
+        self.torpedo_fire_frames = mission_targets.get(target_selection_params, {}).get(
+            "torpedo_fire_frames",
+            ["torpedo_shark_fire_frame", "torpedo_sawfish_fire_frame"],
+        )
 
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
