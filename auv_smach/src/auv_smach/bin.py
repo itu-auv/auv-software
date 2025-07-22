@@ -342,7 +342,7 @@ class BinTaskState(smach.State):
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=3.0,
+                    confirm_duration=4.0,
                     timeout=60.0,
                     cancel_on_success=False,
                 ),
@@ -537,9 +537,30 @@ class BinTaskState(smach.State):
                 "DISABLE_BOTTOM_CAMERA",
                 SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "ALIGN_TO_BIN_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_BIN_EXIT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="bin_exit",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=2.0,
+                    timeout=15.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=0.2,
+                    max_angular_velocity=0.2,
+                ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
