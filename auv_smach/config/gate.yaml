@@ -1,7 +1,54 @@
 ---
-gate_search_depth_sleep: 3.0
-gate_depth_sleep: 3.0
-find_and_aim_gate:
-  full_rotation: true
-  set_frame_duration: 7.0
-  rotation_speed: 0.3
+# General parameters
+roll_mode: false
+target_selection: "shark" # "shark" or "sawfish"
+
+# Parameters for NavigateThroughGateState (TF-based)
+gate_task:
+  gate_depth: -1.5
+  gate_search_depth: -0.7
+  # State specific parameters
+  find_and_aim_gate:
+    full_rotation: true
+    rotation_speed: 0.3
+
+  look_at_gate:
+    full_rotation: false
+    rotation_speed: 0.3
+
+  two_roll_state:
+    roll_torque: 50.0
+
+  align_frame_after_exit:
+    angle_offset: 0.0
+    dist_threshold: 0.1
+    yaw_threshold: 0.1
+    confirm_duration: 0.0
+    cancel_on_success: true
+    keep_orientation: false
+
+# Parameters for NavigateThroughGateStateVS (Visual Servoing-based)
+gate_vs_task:
+  wait_duration: 6.0
+
+# Parameters for RollTask
+roll_task:
+  pitch_correction:
+    fixed_torque: 3.0
+    rate_hz: 20
+  roll_two_times:
+    roll_torque: 50.0
+    rate_hz: 20
+  wait_for_pitch_correction:
+    delay_time: 3.0
+  wait_for_stabilization:
+    delay_time: 2.0
+  wait_for_dvl_odom_enable:
+    delay_time: 3.0
+  wait_for_alignment:
+    delay_time: 3.0
+  delay_after_reset:
+    delay_time: 2.0
+  align_to_look_at_gate:
+    source_frame: "taluy/base_link"
+    target_frame: "gate_search"

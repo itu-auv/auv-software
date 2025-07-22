@@ -1,13 +1,35 @@
 ---
 red_buoy_task:
-  rotate_around_center:
-    linear_velocity: 0.8
-    angular_velocity: 0.8
+  radius: 2.2
+  depth: -0.7
   set_red_buoy_depth:
     sleep_duration: 3.0
+
   find_and_aim_red_buoy:
     full_rotation: false
     set_frame_duration: 4.0
-    rotation_speed: 0.3
+    rotation_speed: 0.2
+
+  set_red_buoy_rotation_start_frame:
+    base_frame: "taluy/base_link"
+    center_frame: "red_buoy_link"
+    target_frame: "red_buoy_rotation_start"
+
+  set_red_buoy_travel_align_controller_target:
+    source_frame: "taluy/base_link"
+    target_frame: "red_buoy_target"
+
+  navigate_to_red_buoy_rotation_start:
+    source_frame: "taluy/base_link"
+    target_frame: "red_buoy_rotation_start"
+    goal_frame: "red_buoy_target"
+
   wait_for_aligning_rotation_start:
     delay_time: 4.0
+
+  rotate_around_center:
+    base_frame: "taluy/base_link"
+    center_frame: "red_buoy_link"
+    target_frame: "red_buoy_target"
+    linear_velocity: 0.8
+    angular_velocity: 0.8

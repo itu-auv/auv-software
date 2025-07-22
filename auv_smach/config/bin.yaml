@@ -1,30 +1,75 @@
 ---
 bin_task:
-  set_bin_depth:
-    sleep_duration: 3.0
+  front_look_depth: -1.2
+  bottom_look_depth: -0.7
+  target_selection: "shark" # "shark" or "sawfish"
+
   find_and_aim_bin:
     full_rotation: false
-    set_frame_duration: 7.0
-    rotation_speed: 0.3
-  check_drop_area_found:
-    timeout: 2.0
+    rotation_speed: 0.2
+
+  wait_for_enable_bin_frame_publisher:
+    delay_time: 1.0
+
+  align_to_close_approach:
+    angle_offset: 0.0
+    dist_threshold: 0.1
+    yaw_threshold: 0.1
+    confirm_duration: 3.0
+    cancel_on_success: false
+
+  set_bin_drop_depth:
+    sleep_duration: 3.0
+
+  align_to_bin_whole:
+    angle_offset: 0.0
+    dist_threshold: 0.1
+    yaw_threshold: 0.1
+    confirm_duration: 1.0
+    cancel_on_success: false
+    keep_orientation: true
+
+  align_to_bin_estimated:
+    angle_offset: 0.0
+    dist_threshold: 0.1
+    yaw_threshold: 0.1
+    confirm_duration: 1.0
+    cancel_on_success: false
+    keep_orientation: false
+
+  align_to_far_trial:
+    angle_offset: 0.0
+    dist_threshold: 0.05
+    yaw_threshold: 0.1
+    confirm_duration: 2.0
+    cancel_on_success: false
+    keep_orientation: false
+
+  set_align_to_found_drop_area:
+    source_frame: "taluy/base_link/ball_dropper_link"
+
   wait_for_aligning_drop_area:
     delay_time: 15.0
   wait_for_ball_drop_1:
     delay_time: 5.0
   wait_for_ball_drop_2:
     delay_time: 3.0
-  set_align_to_found_drop_area:
-    source_frame: "taluy/base_link/ball_dropper_link"
-  check_for_drop_area:
-    timeout: 2.0
 
 bin_second_trial:
-  check_drop_area_found_to_second_trial:
-    timeout: 2.0
+  align_to_second_trial:
+    angle_offset: 0.0
+    dist_threshold: 0.1
+    yaw_threshold: 0.1
+    confirm_duration: 2.0
+    cancel_on_success: false
+
   find_and_aim_bin:
     full_rotation: true
-    set_frame_duration: 4.0
-    rotation_speed: 0.3
-  check_drop_area_found:
-    timeout: 2.0
+    rotation_speed: 0.2
+
+  align_to_second_far_trial:
+    angle_offset: 0.0
+    dist_threshold: 0.05
+    yaw_threshold: 0.1
+    confirm_duration: 3.0
+    cancel_on_success: false

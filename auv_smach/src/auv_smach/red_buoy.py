@@ -36,9 +36,16 @@ class RotateAroundCenterState(smach.State):
         self, base_frame, center_frame, target_frame, radius=0.2, direction="ccw"
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.base_frame = base_frame
-        self.center_frame = center_frame
-        self.target_frame = target_frame
+        rotate_around_center_params = rospy.get_param(
+            "~red_buoy_task/rotate_around_center", {}
+        )
+        self.base_frame = rotate_around_center_params.get("base_frame", base_frame)
+        self.center_frame = rotate_around_center_params.get(
+            "center_frame", center_frame
+        )
+        self.target_frame = rotate_around_center_params.get(
+            "target_frame", target_frame
+        )
         self.radius = radius
         self.direction = direction
         self.tf_buffer = tf2_ros.Buffer()
@@ -46,9 +53,6 @@ class RotateAroundCenterState(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
-        rotate_around_center_params = rospy.get_param(
-            "~red_buoy_task/rotate_around_center", {}
-        )
         self.linear_velocity = rotate_around_center_params.get("linear_velocity", 0.8)
         self.angular_velocity = rotate_around_center_params.get("angular_velocity", 0.8)
 
@@ -127,9 +131,18 @@ class RotateAroundCenterState(smach.State):
 class SetRedBuoyRotationStartFrame(smach.State):
     def __init__(self, base_frame, center_frame, target_frame, radius=0.2):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.base_frame = base_frame
-        self.center_frame = center_frame
-        self.target_frame = target_frame
+        set_red_buoy_rotation_start_frame_params = rospy.get_param(
+            "~red_buoy_task/set_red_buoy_rotation_start_frame", {}
+        )
+        self.base_frame = set_red_buoy_rotation_start_frame_params.get(
+            "base_frame", base_frame
+        )
+        self.center_frame = set_red_buoy_rotation_start_frame_params.get(
+            "center_frame", center_frame
+        )
+        self.target_frame = set_red_buoy_rotation_start_frame_params.get(
+            "target_frame", target_frame
+        )
         self.radius = radius
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -227,9 +240,14 @@ class RotateAroundBuoyState(smach.State):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         red_buoy_task_params = rospy.get_param("~red_buoy_task", {})
-        set_red_buoy_depth_params = red_buoy_task_params.get("set_red_buoy_depth", {})
         find_and_aim_red_buoy_params = red_buoy_task_params.get(
             "find_and_aim_red_buoy", {}
+        )
+        set_red_buoy_travel_align_controller_target_params = red_buoy_task_params.get(
+            "set_red_buoy_travel_align_controller_target", {}
+        )
+        navigate_to_red_buoy_rotation_start_params = red_buoy_task_params.get(
+            "navigate_to_red_buoy_rotation_start", {}
         )
         wait_for_aligning_rotation_start_params = red_buoy_task_params.get(
             "wait_for_aligning_rotation_start", {}
@@ -246,7 +264,7 @@ class RotateAroundBuoyState(smach.State):
                 "SET_RED_BUOY_DEPTH",
                 SetDepthState(
                     depth=red_buoy_depth,
-                    sleep_duration=set_red_buoy_depth_params.get("sleep_duration", 3.0),
+                    sleep_duration=3.0,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_RED_BUOY",
@@ -293,7 +311,12 @@ class RotateAroundBuoyState(smach.State):
             smach.StateMachine.add(
                 "SET_RED_BUOY_TRAVEL_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="red_buoy_target"
+                    source_frame=set_red_buoy_travel_align_controller_target_params.get(
+                        "source_frame", "taluy/base_link"
+                    ),
+                    target_frame=set_red_buoy_travel_align_controller_target_params.get(
+                        "target_frame", "red_buoy_target"
+                    ),
                 ),
                 transitions={
                     "succeeded": "NAVIGATE_TO_RED_BUOY_ROTATION_START",
@@ -304,7 +327,15 @@ class RotateAroundBuoyState(smach.State):
             smach.StateMachine.add(
                 "NAVIGATE_TO_RED_BUOY_ROTATION_START",
                 NavigateToFrameState(
-                    "taluy/base_link", "red_buoy_rotation_start", "red_buoy_target"
+                    source_frame=navigate_to_red_buoy_rotation_start_params.get(
+                        "source_frame", "taluy/base_link"
+                    ),
+                    target_frame=navigate_to_red_buoy_rotation_start_params.get(
+                        "target_frame", "red_buoy_rotation_start"
+                    ),
+                    goal_frame=navigate_to_red_buoy_rotation_start_params.get(
+                        "goal_frame", "red_buoy_target"
+                    ),
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNING_ROTATION_START",

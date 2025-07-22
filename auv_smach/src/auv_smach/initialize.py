@@ -107,6 +107,9 @@ class InitializeState(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        initialize_task_params = rospy.get_param("~initialize_task", {})
+        delay_for_dvl_enable = initialize_task_params.get("delay_for_dvl_enable", 4.4)
+
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -143,7 +146,7 @@ class InitializeState(smach.State):
             )
             smach.StateMachine.add(
                 "DELAY_FOR_DVL_ENABLE",
-                DelayState(delay_time=4.4),
+                DelayState(delay_time=delay_for_dvl_enable),
                 transitions={
                     "succeeded": "ODOMETRY_ENABLE",
                     "preempted": "preempted",

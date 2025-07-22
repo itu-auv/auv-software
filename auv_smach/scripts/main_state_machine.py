@@ -18,57 +18,44 @@ class MainStateMachineNode:
         self.previous_enabled = False
 
         # Parameters
-        self.gate_depth = rospy.get_param("~gate_depth", -1.5)
-        self.gate_search_depth = rospy.get_param("~gate_search_depth", -0.7)
+        self.gate_params = rospy.get_param("~gate_task", {})
+        self.red_buoy_params = rospy.get_param("~red_buoy_task", {})
+        self.torpedo_params = rospy.get_param("~torpedo_task", {})
+        self.bin_params = rospy.get_param("~bin_task", {})
+        self.octagon_params = rospy.get_param("~octagon_task", {})
+        self.mission_params = rospy.get_param("~mission_params", {})
+
+        self.gate_depth = self.gate_params.get("gate_depth", -1.5)
+        self.gate_search_depth = self.gate_params.get("gate_search_depth", -0.7)
 
         # Get target selection from YAML
-        self.target_selection = rospy.get_param("~target_selection", "shark")
-        self.mission_targets = rospy.get_param(
-            "~mission_targets",
-            {
-                "shark": {
-                    "gate_target_frame": "gate_shark_link",
-                    "red_buoy_direction": "ccw",
-                    "slalom_direction": "left_side",
-                    "bin_target_frame": "bin_shark_link",
-                    "torpedo_target_frame": "torpedo_hole_shark_link",
-                    "octagon_target_frame": "octagon_shark_link",
-                },
-                "sawfish": {
-                    "gate_target_frame": "gate_sawfish_link",
-                    "red_buoy_direction": "cw",
-                    "slalom_direction": "right_side",
-                    "bin_target_frame": "bin_sawfish_link",
-                    "torpedo_target_frame": "torpedo_hole_sawfish_link",
-                    "octagon_target_frame": "octagon_sawfish_link",
-                },
-            },
+        self.target_selection = self.mission_params.get("target_selection", "shark")
+        self.mission_targets = self.mission_params.get("mission_targets", {})
+
+        self.red_buoy_radius = self.red_buoy_params.get("radius", 2.2)
+        self.red_buoy_depth = self.red_buoy_params.get("depth", -0.7)
+        self.red_buoy_direction = self.mission_targets.get(
+            self.target_selection, {}
+        ).get("red_buoy_direction", "ccw")
+
+        self.torpedo_map_depth = self.torpedo_params.get("map_depth", -1.3)
+        self.torpedo_target_frame = self.torpedo_params.get(
+            "target_frame", "torpedo_target"
+        )
+        self.torpedo_realsense_target_frame = self.torpedo_params.get(
+            "realsense_target_frame", "torpedo_target_realsense"
+        )
+        self.torpedo_fire_frames = self.mission_targets.get(
+            self.target_selection, {}
+        ).get(
+            "torpedo_fire_frames",
+            ["torpedo_shark_fire_frame", "torpedo_sawfish_fire_frame"],
         )
 
-        self.red_buoy_radius = rospy.get_param("~red_buoy_radius", 2.2)
-        self.red_buoy_depth = rospy.get_param("~red_buoy_depth", -0.7)
+        self.bin_front_look_depth = self.bin_params.get("front_look_depth", -1.2)
+        self.bin_bottom_look_depth = self.bin_params.get("bottom_look_depth", -0.7)
 
-        self.torpedo_map_depth = -1.3
-        self.torpedo_target_frame = "torpedo_target"
-        self.torpedo_realsense_target_frame = "torpedo_target_realsense"
-        self.torpedo_fire_frame = "torpedo_fire_frame"
-        self.torpedo_shark_fire_frame = "torpedo_shark_fire_frame"
-        self.torpedo_sawfish_fire_frame = "torpedo_sawfish_fire_frame"
-
-        self.bin_front_look_depth = rospy.get_param("~bin_front_look_depth", -1.2)
-        self.bin_bottom_look_depth = rospy.get_param("~bin_bottom_look_depth", -0.7)
-        self.bin_task_depth = rospy.get_param("~bin_task_depth", -0.7)
-
-        self.octagon_depth = rospy.get_param("~octagon_depth", -1.0)
-
-        # Set parameters based on target selection
-        self.target_frames = self.mission_targets[self.target_selection]
-        self.red_buoy_direction = self.target_frames["red_buoy_direction"]
-        # self.slalom_direction = self.target_frames["slalom_direction"]
-        # self.bin_target_frame = self.target_frames["bin_target_frame"]
-        # self.torpedo_target_frame = self.target_frames["torpedo_target_frame"]
-        # self.octagon_target_frame = self.target_frames["octagon_target_frame"]
-        # self.gate_target_frame = self.target_frames["gate_target_frame"]
+        self.octagon_depth = self.octagon_params.get("depth", -1.0)
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -112,17 +99,7 @@ class MainStateMachineNode:
                     "torpedo_map_depth": self.torpedo_map_depth,
                     "torpedo_target_frame": self.torpedo_target_frame,
                     "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
-                    "torpedo_fire_frames": (
-                        [
-                            self.torpedo_shark_fire_frame,
-                            self.torpedo_sawfish_fire_frame,
-                        ]
-                        if self.target_selection == "shark"
-                        else [
-                            self.torpedo_sawfish_fire_frame,
-                            self.torpedo_shark_fire_frame,
-                        ]
-                    ),
+                    "torpedo_fire_frames": self.torpedo_fire_frames,
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (

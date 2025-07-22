@@ -1,9 +1,17 @@
 ---
 octagon_task:
-  set_octagon_depth:
-    sleep_duration: 4.0
+  depth: -1.0
+  set_octagon_align_controller_target:
+    source_frame: "taluy/base_link"
+    target_frame: "octagon_target"
+
+  approach_to_octagon:
+    source_frame: "taluy/base_link"
+    target_frame: "octagon_link"
+    goal_frame: "octagon_target"
+
   wait_for_surfacing:
     delay_time: 3.0
+
   surfacing:
     depth: 0.3
-    sleep_duration: 4.0

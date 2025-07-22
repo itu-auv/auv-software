@@ -34,6 +34,10 @@ class PitchCorrection(smach.State):
             outcomes=["succeeded", "preempted", "aborted"]
         )
 
+        pitch_correction_params = rospy.get_param("~roll_task/pitch_correction", {})
+        fixed_torque = pitch_correction_params.get("fixed_torque", fixed_torque)
+        rate_hz = pitch_correction_params.get("rate_hz", rate_hz)
+
         self.odometry_topic = "odometry"
         self.killswitch_topic = "propulsion_board/status"
         self.wrench_topic = "wrench"
@@ -152,6 +156,9 @@ class RollTwoTimes(smach.State):
         super(RollTwoTimes, self).__init__(
             outcomes=["succeeded", "preempted", "aborted"]
         )
+
+        roll_two_times_params = rospy.get_param("~roll_task/roll_two_times", {})
+        rate_hz = roll_two_times_params.get("rate_hz", rate_hz)
 
         self.odometry_topic = "odometry"
         self.killswitch_topic = "propulsion_board/status"
@@ -273,7 +280,21 @@ class TwoRollState(smach.StateMachine):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
-        self.roll_torque = roll_torque
+
+        roll_task_params = rospy.get_param("~roll_task", {})
+        roll_two_times_params = roll_task_params.get("roll_two_times", {})
+        wait_for_pitch_correction_params = roll_task_params.get(
+            "wait_for_pitch_correction", {}
+        )
+        wait_for_stabilization_params = roll_task_params.get(
+            "wait_for_stabilization", {}
+        )
+        wait_for_dvl_odom_enable_params = roll_task_params.get(
+            "wait_for_dvl_odom_enable", {}
+        )
+        wait_for_alignment_params = roll_task_params.get("wait_for_alignment", {})
+        delay_after_reset_params = roll_task_params.get("delay_after_reset", {})
+        align_to_look_at_gate_params = roll_task_params.get("align_to_look_at_gate", {})
 
         with self:
             smach.StateMachine.add(
@@ -287,7 +308,9 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_PITCH_CORRECTION",
-                DelayState(delay_time=3.0),
+                DelayState(
+                    delay_time=wait_for_pitch_correction_params.get("delay_time", 3.0)
+                ),
                 transitions={
                     "succeeded": "PITCH_CORRECTION",
                     "preempted": "preempted",
@@ -296,7 +319,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "PITCH_CORRECTION",
-                PitchCorrection(fixed_torque=3.0, rate_hz=20, timeout_s=10.0),
+                PitchCorrection(),
                 transitions={
                     "succeeded": "ROLL_TWO_TIMES",
                     "preempted": "preempted",
@@ -305,7 +328,9 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
-                RollTwoTimes(roll_torque=self.roll_torque, rate_hz=20, timeout_s=15.0),
+                RollTwoTimes(
+                    roll_torque=roll_two_times_params.get("roll_torque", roll_torque)
+                ),
                 transitions={
                     "succeeded": "WAIT_FOR_STABILIZATION",
                     "preempted": "preempted",
@@ -314,7 +339,9 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_STABILIZATION",
-                DelayState(delay_time=2.0),
+                DelayState(
+                    delay_time=wait_for_stabilization_params.get("delay_time", 2.0)
+                ),
                 transitions={
                     "succeeded": "ENABLE_DVL_ODOM",
                     "preempted": "preempted",
@@ -332,7 +359,9 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_DVL_ODOM_ENABLE",
-                DelayState(delay_time=3.0),
+                DelayState(
+                    delay_time=wait_for_dvl_odom_enable_params.get("delay_time", 3.0)
+                ),
                 transitions={
                     "succeeded": "ALIGN_TO_LOOK_AT_GATE",
                     "preempted": "preempted",
@@ -342,7 +371,12 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "ALIGN_TO_LOOK_AT_GATE",
                 SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="gate_search"
+                    source_frame=align_to_look_at_gate_params.get(
+                        "source_frame", "taluy/base_link"
+                    ),
+                    target_frame=align_to_look_at_gate_params.get(
+                        "target_frame", "gate_search"
+                    ),
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNMENT",
@@ -352,7 +386,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNMENT",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=wait_for_alignment_params.get("delay_time", 3.0)),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_BEFORE_ODOM_ENABLE",
                     "preempted": "preempted",
@@ -379,7 +413,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "DELAY_AFTER_RESET",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=delay_after_reset_params.get("delay_time", 2.0)),
                 transitions={
                     "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",

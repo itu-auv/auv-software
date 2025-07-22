@@ -1,25 +1,76 @@
 ---
 torpedo_task:
-  set_torpedo_depth:
-    sleep_duration: 3.0
+  map_radius: 1.5
+  map_depth: -1.3
   find_and_aim_torpedo:
     full_rotation: false
-    set_frame_duration: 4.0
     rotation_speed: 0.3
-  wait_for_aligning_start:
-    delay_time: 4.0
-  set_torpedo_close_approach_frame:
-    radius: 0.4
-  wait_for_close_approach_complete:
-    delay_time: 7.0
+
+  set_align_controller_target_to_torpedo_target:
+    dist_threshold: 0.1
+    yaw_threshold: 0.1
+    confirm_duration: 3.0
+    cancel_on_success: false
+
+  rotate_for_realsense:
+    angle_offset: 3.14159265359 # pi
+    dist_threshold: 0.1
+    yaw_threshold: 0.1
+    confirm_duration: 3.0
+    cancel_on_success: false
+
+  wait_for_frame:
+    delay_time: 10.0
+
+  turn_to_launch_torpedo:
+    angle_offset: -1.57079632679 # -pi/2
+    dist_threshold: 0.05
+    yaw_threshold: 0.05
+    confirm_duration: 7.0
+    cancel_on_success: false
+
+  wait_for_fire_frame:
+    delay_time: 3.0
+
+  set_fire_depth_1:
+    depth: 0.2
+
+  align_to_torpedo_fire_frame_1:
+    angle_offset: -1.57079632679 # -pi/2
+    dist_threshold: 0.05
+    yaw_threshold: 0.05
+    confirm_duration: 10.0
+    cancel_on_success: false
+    max_linear_velocity: 0.1
+    max_angular_velocity: 0.1
+
   launch_torpedo_1:
     id: 1
-  wait_for_torpedo_launch:
-    delay_time: 6.0
+
+  wait_for_torpedo_launch_1:
+    delay_time: 3.0
+
+  set_fire_depth_2:
+    depth: 0.2
+
+  align_to_torpedo_fire_frame_2:
+    angle_offset: -1.57079632679 # -pi/2
+    dist_threshold: 0.05
+    yaw_threshold: 0.05
+    confirm_duration: 10.0
+    cancel_on_success: false
+    max_linear_velocity: 0.1
+    max_angular_velocity: 0.1
+
   launch_torpedo_2:
     id: 2
+
   wait_for_torpedo_2_launch:
     delay_time: 3.0
-  set_torpedo_exit_depth:
-    depth: -0.7
-    sleep_duration: 3.0
+
+  get_back:
+    angle_offset: 0.0
+    dist_threshold: 0.1
+    yaw_threshold: 0.1
+    confirm_duration: 0.0
+    cancel_on_success: false

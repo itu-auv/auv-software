@@ -19,27 +19,28 @@
             <param name="sim" value="$(arg sim)"/>
 
             <!--initialize.py-->
+            <rosparam file="$(find auv_smach)/config/initialize.yaml" command="load" ns="initialize_task"/>
             <remap from="set_depth" to="set_depth"/>
             <remap from="set_pose" to="set_pose"/>
             <remap from="dvl/enable" to="sensors/dvl/enable"/>
             <remap from="localization_enable" to="auv_localization_node/enable"/>
 
             <!-- gate.py -->
-            <rosparam file="$(find auv_smach)/config/gate.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/gate.yaml" command="load" ns="gate_task"/>
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
 
             <!--red_buoy.py-->
-            <rosparam file="$(find auv_smach)/config/red_buoy.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/red_buoy.yaml" command="load" ns="red_buoy_task"/>
             <remap from="set_object_transform" to="map/set_object_transform"/>
 
             <!-- bin.py -->
-            <rosparam file="$(find auv_smach)/config/bin.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/bin.yaml" command="load" ns="bin_task"/>
 
             <!-- torpedo.py -->
-            <rosparam file="$(find auv_smach)/config/torpedo.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/torpedo.yaml" command="load" ns="torpedo_task"/>
 
             <!-- octagon.py -->
-            <rosparam file="$(find auv_smach)/config/octagon.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/octagon.yaml" command="load" ns="octagon_task"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -85,7 +86,7 @@
             <!-- Load path planner parameters in the node -->
             <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
             <!-- Load mission target selection parameters -->
-            <rosparam file="$(find auv_smach)/config/mission_target_selection.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/mission_target_selection.yaml" command="load" ns="mission_params"/>
         </node>
     </group>
 </launch>

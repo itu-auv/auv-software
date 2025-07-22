@@ -96,11 +96,15 @@ class NavigateThroughGateState(smach.State):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.sim_mode = rospy.get_param("~sim", False)
+        self.roll_mode = rospy.get_param("~roll_mode", False)
 
-        gate_search_depth_sleep = rospy.get_param("~gate_search_depth_sleep", 3.0)
-        gate_depth_sleep = rospy.get_param("~gate_depth_sleep", 3.0)
-        find_and_aim_gate_params = rospy.get_param("~find_and_aim_gate", {})
+        gate_task_params = rospy.get_param("~gate_task", {})
+        find_and_aim_gate_params = gate_task_params.get("find_and_aim_gate", {})
+        look_at_gate_params = gate_task_params.get("look_at_gate", {})
+        two_roll_state_params = gate_task_params.get("two_roll_state", {})
+        align_frame_after_exit_params = gate_task_params.get(
+            "align_frame_after_exit", {}
+        )
 
         # Get target_selection from ROS param (default: shark)
         self.target_selection = rospy.get_param("~target_selection", "shark")
@@ -121,7 +125,6 @@ class NavigateThroughGateState(smach.State):
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=gate_search_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -135,16 +138,14 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame="gate_search",
                     full_rotation=find_and_aim_gate_params.get("full_rotation", False),
-                    set_frame_duration=find_and_aim_gate_params.get(
-                        "set_frame_duration", 8.0
-                    ),
+                    set_frame_duration=7.0,
                     source_frame="taluy/base_link",
                     rotation_speed=find_and_aim_gate_params.get("rotation_speed", 0.2),
                 ),
                 transitions={
                     "succeeded": (
                         "TWO_ROLL_STATE"
-                        if not self.sim_mode
+                        if not self.roll_mode
                         else "SET_GATE_TRAJECTORY_DEPTH"
                     ),
                     "preempted": "preempted",
@@ -153,7 +154,9 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "TWO_ROLL_STATE",
-                TwoRollState(roll_torque=50.0),
+                TwoRollState(
+                    roll_torque=two_roll_state_params.get("roll_torque", 50.0)
+                ),
                 transitions={
                     "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
                     "preempted": "preempted",
@@ -162,7 +165,10 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_TRAJECTORY_DEPTH",
-                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=gate_search_depth,
+                    sleep_duration=3.0,
+                ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
@@ -183,10 +189,10 @@ class NavigateThroughGateState(smach.State):
                 SearchForPropState(
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame="gate_search",
-                    full_rotation=False,
+                    full_rotation=look_at_gate_params.get("full_rotation", False),
                     set_frame_duration=5.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=look_at_gate_params.get("rotation_speed", 0.3),
                 ),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -205,7 +211,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=gate_depth_sleep),
+                SetDepthState(depth=gate_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_ENTRANCE",
                     "preempted": "preempted",
@@ -239,13 +245,23 @@ class NavigateThroughGateState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="gate_exit",
-                    angle_offset=0.0,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=0.0,
+                    angle_offset=align_frame_after_exit_params.get("angle_offset", 0.0),
+                    dist_threshold=align_frame_after_exit_params.get(
+                        "dist_threshold", 0.1
+                    ),
+                    yaw_threshold=align_frame_after_exit_params.get(
+                        "yaw_threshold", 0.1
+                    ),
+                    confirm_duration=align_frame_after_exit_params.get(
+                        "confirm_duration", 0.0
+                    ),
                     timeout=10.0,
-                    cancel_on_success=True,
-                    keep_orientation=False,
+                    cancel_on_success=align_frame_after_exit_params.get(
+                        "cancel_on_success", True
+                    ),
+                    keep_orientation=align_frame_after_exit_params.get(
+                        "keep_orientation", False
+                    ),
                 ),
                 transitions={
                     "succeeded": "succeeded",

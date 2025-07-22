@@ -12,6 +12,9 @@ class NavigateThroughGateStateVS(smach.State):
     def __init__(self, gate_depth: float, target_prop: str, wait_duration: float = 6.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        gate_vs_params = rospy.get_param("~gate_vs_task", {})
+        wait_duration = gate_vs_params.get("wait_duration", wait_duration)
+
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -24,7 +27,7 @@ class NavigateThroughGateStateVS(smach.State):
                 "SET_GATE_DEPTH",
                 SetDepthState(
                     depth=gate_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
+                    sleep_duration=5.0,
                 ),
                 transitions={
                     "succeeded": "VISUAL_SERVOING_CENTERING",
