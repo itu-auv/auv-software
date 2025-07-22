@@ -8,15 +8,17 @@
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
     <arg name="test_states" default="[]" doc="States to execute in test mode"/>
-    <arg name="sim" default="false" doc="Enable simulation mode for state machine"/>
 
     <group ns="$(arg namespace)">
         <!-- Main State Machine Node -->
         <node name="main_state_machine" pkg="auv_smach" type="main_state_machine.py" output="screen">
+
+            <param name="test_mode" value="$(arg test_mode)"/>
+            <param name="test_states" value="$(arg test_states)"/>
+
             <rosparam file="$(find auv_smach)/config/states.yaml" command="load"/>
-            <remap from="propulsion_board/status" to="propulsion_board/status"/>
-            <param name="~base_link" value="$(arg namespace)/base_link"/>
-            <param name="sim" value="$(arg sim)"/>
+            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/mission_target_selection.yaml" command="load" ns="mission_params"/>
 
             <!--initialize.py-->
             <rosparam file="$(find auv_smach)/config/initialize.yaml" command="load" ns="initialize_task"/>
@@ -24,6 +26,7 @@
             <remap from="set_pose" to="set_pose"/>
             <remap from="dvl/enable" to="sensors/dvl/enable"/>
             <remap from="localization_enable" to="auv_localization_node/enable"/>
+            <remap from="propulsion_board/status" to="propulsion_board/status"/>
 
             <!-- gate.py -->
             <rosparam file="$(find auv_smach)/config/gate.yaml" command="load" ns="gate_task"/>
@@ -64,13 +67,6 @@
             <param name="enable_rate" value="$(arg enable_rate)"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
 
-            <param name="test_mode" value="$(arg test_mode)"/>
-            <param name="test_states" value="$(arg test_states)"/>
-
-            <!-- Load path planner parameters in the node -->
-            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
-            <!-- Load mission target selection parameters -->
-            <rosparam file="$(find auv_smach)/config/mission_target_selection.yaml" command="load" ns="mission_params"/>
         </node>
     </group>
 </launch>
