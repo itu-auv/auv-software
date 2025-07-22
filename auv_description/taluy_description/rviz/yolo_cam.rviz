@@ -73,6 +73,256 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        taluy/base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/bottom_camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/bottom_camera_optical_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/base_link/dvl_cog:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/base_link/dvl_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/base_link/dvl_mount_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/dvl_sensor_surface_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/base_link/dvl_sim_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/external_pressure_sensor_chasis_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/external_pressure_sensor_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/base_link/external_pressure_sensor_sim_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/front_camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/front_camera_optical_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/base_link/hydrophone_0_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/hydrophone_1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/hydrophone_2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/hydrophone_3_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/imu_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/imu_sim_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/left_torpedo_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/base_link/left_torpedo_lower_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/left_torpedo_upper_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/ping360_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/base_link/ping360_mount_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/right_torpedo_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/base_link/right_torpedo_lower_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/right_torpedo_upper_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/sonar_back_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/sonar_front_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/sonar_left_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/base_link/sonar_right_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/dvl_sonar0_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/dvl_sonar1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/dvl_sonar2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/dvl_sonar3_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/pose_sensor_link_default:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        taluy/thruster_0_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_0_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_1_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_2_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_3_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_3_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_4_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_4_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_5_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_5_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_6_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_6_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_7_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        taluy/thruster_7_propeller_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
       Name: RobotModel
       Robot Description: taluy/robot_description
       TF Prefix: ""
@@ -86,6 +336,12 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        gate_shark_link:
+          Value: true
+        gate_middle_part_link:
+          Value: true
+        gate_sawfish_link:
+          Value: true
         odom:
           Value: true
         taluy/base_link:
@@ -203,22 +459,77 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        taluy/base_link:
-          taluy/base_link/back_camera:
-            taluy/base_link/back_camera_color_optical_link:
+        world:
+          odom:
+            gate_shark_link:
               {}
             gate_middle_part_link:
               {}
-          taluy/base_link/ball_dropper_link:
-            {}
-          taluy/base_link/bottom_camera_link:
-            taluy/base_link/bottom_camera_optical_link:
+            gate_sawfish_link:
               {}
-          taluy/base_link/dvl_mount_link:
-            taluy/base_link/dvl_cog:
-              {}
-            taluy/base_link/dvl_sensor_surface_link:
-              taluy/base_link/dvl_link:
+            taluy/base_link:
+              taluy/base_link/bottom_camera_link:
+                taluy/base_link/bottom_camera_optical_link:
+                  {}
+              taluy/base_link/dvl_mount_link:
+                taluy/base_link/dvl_cog:
+                  {}
+                taluy/base_link/dvl_sensor_surface_link:
+                  taluy/base_link/dvl_link:
+                    {}
+                taluy/base_link/dvl_sim_link:
+                  {}
+                taluy/dvl_sonar0_link:
+                  {}
+                taluy/dvl_sonar1_link:
+                  {}
+                taluy/dvl_sonar2_link:
+                  {}
+                taluy/dvl_sonar3_link:
+                  {}
+              taluy/base_link/external_pressure_sensor_chasis_link:
+                taluy/base_link/external_pressure_sensor_link:
+                  {}
+                taluy/base_link/external_pressure_sensor_sim_link:
+                  {}
+              taluy/base_link/front_camera_link:
+                taluy/base_link/front_camera_optical_link:
+                  {}
+              taluy/base_link/hydrophone_0_link:
+                {}
+              taluy/base_link/hydrophone_1_link:
+                {}
+              taluy/base_link/hydrophone_2_link:
+                {}
+              taluy/base_link/hydrophone_3_link:
+                {}
+              taluy/base_link/imu_link:
+                taluy/base_link/imu_sim_link:
+                  {}
+              taluy/base_link/left_torpedo_link:
+                taluy/base_link/left_torpedo_lower_link:
+                  {}
+                taluy/base_link/left_torpedo_upper_link:
+                  {}
+              taluy/base_link/ping360_mount_link:
+                taluy/base_link/ping360_link:
+                  {}
+              taluy/base_link/right_torpedo_link:
+                taluy/base_link/right_torpedo_lower_link:
+                  {}
+                taluy/base_link/right_torpedo_upper_link:
+                  {}
+              taluy/base_link/sonar_back_link:
+                {}
+              taluy/base_link/sonar_front_link:
+                {}
+              taluy/base_link/sonar_left_link:
+                {}
+              taluy/base_link/sonar_right_link:
+                {}
+              taluy/base_link_ned:
+                {}
+              taluy/pose_sensor_link_default:
                 {}
               taluy/thruster_0_link:
                 taluy/thruster_0_propeller_link:
