@@ -1021,6 +1021,10 @@ class DynamicPathState(smach.StateMachine):
         plan_target_frame: str,
         align_source_frame: str = "taluy/base_link",
         align_target_frame: str = "dynamic_target",
+        max_linear_velocity: float = None,
+        max_angular_velocity: float = None,
+        angle_offset: float = 0.0,
+        keep_orientation: bool = False,
     ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
         with self:
@@ -1038,6 +1042,10 @@ class DynamicPathState(smach.StateMachine):
                 SetAlignControllerTargetState(
                     source_frame=align_source_frame,
                     target_frame=align_target_frame,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                    angle_offset=angle_offset,
+                    keep_orientation=keep_orientation,
                 ),
                 transitions={
                     "succeeded": "EXECUTE_PATH",
