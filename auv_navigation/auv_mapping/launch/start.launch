@@ -8,7 +8,7 @@
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
 
-  <rosparam file="$(find auv_bringup)/config/environment.yaml" command="load" ns="" />
+  <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch" />
 
   <group ns="$(arg namespace)">
     <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
