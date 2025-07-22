@@ -58,7 +58,6 @@ class MainStateMachineNode:
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -1.0
-        # USER EDIT
 
         # Set parameters based on target selection
         self.target_frames = self.mission_targets[self.target_selection]
