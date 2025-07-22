@@ -41,6 +41,7 @@ class BinTransformServiceNode:
         self.bin_whole_estimated_frame = rospy.get_param(
             "~bin_whole_estimated_frame", "bin_whole_estimated"
         )
+        self.bin_exit_frame = rospy.get_param("~bin_exit_frame", "bin_exit")
 
         self.set_enable_service = rospy.Service(
             "toggle_bin_trajectory", SetBool, self.handle_enable_service
@@ -83,7 +84,9 @@ class BinTransformServiceNode:
             transform_bin = self.tf_buffer.lookup_transform(
                 self.odom_frame, self.bin_frame, rospy.Time.now(), rospy.Duration(1)
             )
-
+            transform_gate_exit = self.tf_buffer.lookup_transform(
+                self.odom_frame, "gate_exit", rospy.Time.now(), rospy.Duration(1)
+            )
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
@@ -94,6 +97,7 @@ class BinTransformServiceNode:
 
         robot_pose = self.get_pose(transform_robot)
         bin_pose = self.get_pose(transform_bin)
+        gate_exit_pose = self.get_pose(transform_gate_exit)
 
         robot_pos = np.array(
             [robot_pose.position.x, robot_pose.position.y, robot_pose.position.z]
@@ -160,6 +164,17 @@ class BinTransformServiceNode:
             self.bin_whole_estimated_frame, bin_whole_estimated_pose
         )
         self.send_transform(bin_whole_estimated_transform)
+
+        # Yeni frame: bin_exit (x, y bin_whole_estimated, z ve orientation gate_exit)
+        bin_exit_pose = Pose()
+        bin_exit_pose.position.x = bin_whole_estimated_pose.position.x
+        bin_exit_pose.position.y = bin_whole_estimated_pose.position.y
+        bin_exit_pose.position.z = gate_exit_pose.position.z
+        bin_exit_pose.orientation = gate_exit_pose.orientation
+        bin_exit_transform = self.build_transform_message(
+            self.bin_exit_frame, bin_exit_pose
+        )
+        self.send_transform(bin_exit_transform)
 
         perp_direction_unit_2d = np.array([-direction_unit_2d[1], direction_unit_2d[0]])
 
