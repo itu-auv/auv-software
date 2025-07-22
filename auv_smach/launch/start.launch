@@ -13,7 +13,7 @@
     <group ns="$(arg namespace)">
         <!-- Main State Machine Node -->
         <node name="main_state_machine" pkg="auv_smach" type="main_state_machine.py" output="screen">
-            <rosparam file="$(find auv_smach)/config/main_state_machine.yaml" command="load"/>
+            <rosparam file="$(find auv_smach)/config/states.yaml" command="load"/>
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
             <param name="~base_link" value="$(arg namespace)/base_link"/>
             <param name="sim" value="$(arg sim)"/>
