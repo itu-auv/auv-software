@@ -37,6 +37,7 @@ class TransformServiceNode:
         self.robot_base_frame = rospy.get_param("~robot_base_frame", "taluy/base_link")
         self.entrance_frame = "gate_entrance"
         self.exit_frame = "gate_exit"
+        self.middle_frame = "gate_middle_part"
 
         # Load gate frame parameters from YAML
         self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_shark_link")
@@ -115,6 +116,22 @@ class TransformServiceNode:
             distance = math.sqrt(
                 (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2
             )
+
+            # --- Create gate_middle_part_link at the midpoint between gate_shark_link and gate_sawfish_link
+            middle_x = (p1.x + p2.x) / 2.0
+            middle_y = (p1.y + p2.y) / 2.0
+            middle_z = (p1.z + p2.z) / 2.0
+            # Orientation: same as gate line (yaw)
+            yaw = math.atan2(p2.y - p1.y, p2.x - p1.x)
+            quat = tf_conversions.transformations.quaternion_from_euler(0, 0, yaw)
+            middle_pose = Pose(
+                position=Point(middle_x, middle_y, middle_z),
+                orientation=Quaternion(*quat),
+            )
+            middle_transform = self.build_transform_message(
+                self.middle_frame, middle_pose
+            )
+            self.send_transform(middle_transform)
 
             if self.MIN_GATE_SEPARATION < distance < self.MAX_GATE_SEPARATION:
                 # Distance is valid, use standard dual-frame method
