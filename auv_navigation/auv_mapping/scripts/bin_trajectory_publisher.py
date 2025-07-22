@@ -154,7 +154,6 @@ class BinTransformServiceNode:
         self.send_transform(further_transform)
         self.send_transform(closer_transform)
 
-        # Yeni frame: bin_whole_estimated
         bin_whole_estimated_pose = Pose()
         bin_whole_estimated_pose.position.x = bin_pose.position.x
         bin_whole_estimated_pose.position.y = bin_pose.position.y
@@ -165,7 +164,6 @@ class BinTransformServiceNode:
         )
         self.send_transform(bin_whole_estimated_transform)
 
-        # Yeni frame: bin_exit (x, y bin_whole_estimated, z ve orientation gate_exit)
         bin_exit_pose = Pose()
         bin_exit_pose.position.x = bin_whole_estimated_pose.position.x
         bin_exit_pose.position.y = bin_whole_estimated_pose.position.y
