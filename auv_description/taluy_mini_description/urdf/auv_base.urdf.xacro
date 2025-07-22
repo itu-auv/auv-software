@@ -33,20 +33,20 @@
       <parent link="${namespace}/base_link_ned" />
       <child link="${namespace}/base_link" />
     </joint> -->
-    <xacro:t200_thruster name="${namespace}/thruster_0" parent="${namespace}/base_link" position="0.166012 0.235802 0.103472" orientation="0 ${-3*pi/4} ${pi/4}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_0" parent="${namespace}/base_link" position="0.166012 0.235802 0.103472" orientation="0 ${pi/4} ${pi/4}"/>
     <!-- on sol ust -->
     <xacro:t200_thruster name="${namespace}/thruster_1" parent="${namespace}/base_link" position="0.166012 -0.23582 0.103472" orientation="0 ${-3*pi/4} ${-pi/4}"/>
     <!-- on sag ust -->
-    <xacro:t200_thruster name="${namespace}/thruster_2" parent="${namespace}/base_link" position="0.166012 0.235802 -0.103472" orientation="0 ${-pi/4} ${pi/4}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_2" parent="${namespace}/base_link" position="0.166012 0.235802 -0.103472" orientation="0 ${3*pi/4} ${pi/4}"/>
     <!-- on sol alt -->
     <xacro:t200_thruster name="${namespace}/thruster_3" parent="${namespace}/base_link" position="0.166012 -0.235802 -0.103472" orientation="0 ${-pi/4} ${-pi/4}"/>
     <!-- on sag alt -->
 
-    <xacro:t200_thruster name="${namespace}/thruster_4" parent="${namespace}/base_link" position="-0.166012 0.235802 0.103472" orientation="0 ${3*pi/4} ${-pi/4}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_4" parent="${namespace}/base_link" position="-0.166012 0.235802 0.103472" orientation="0 ${-pi/4} ${-pi/4}"/>
     <!-- arka sol ust  -->
     <xacro:t200_thruster name="${namespace}/thruster_5" parent="${namespace}/base_link" position="-0.166012 -0.23582 0.103472" orientation="0 ${3*pi/4} ${pi/4}"/>
     <!-- arka sag ust -->
-    <xacro:t200_thruster name="${namespace}/thruster_6" parent="${namespace}/base_link" position="-0.166012 0.235802 -0.103472" orientation="0 ${pi/4} ${-pi/4}"/>
+    <xacro:t200_thruster name="${namespace}/thruster_6" parent="${namespace}/base_link" position="-0.166012 0.235802 -0.103472" orientation="0 ${-3*pi/4} ${-pi/4}"/>
     <!-- arka sol alt -->
     <xacro:t200_thruster name="${namespace}/thruster_7" parent="${namespace}/base_link" position="-0.166012 -0.235802 -0.103472" orientation="0 ${pi/4} ${pi/4}"/>
     <!-- arka sag alt -->
