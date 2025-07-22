@@ -153,6 +153,17 @@ class TransformServiceNode:
             # Only one frame is visible, use fallback method
             rospy.logwarn_once("Only one gate frame is visible. Using fallback mode.")
             visible_transform = t_gate1 if t_gate1 else t_gate2
+            # --- Place gate_middle_part at the visible frame's position
+            p = visible_transform.transform.translation
+            q = visible_transform.transform.rotation
+            middle_pose = Pose(
+                position=Point(p.x, p.y, p.z),
+                orientation=Quaternion(q.x, q.y, q.z, q.w),
+            )
+            middle_transform = self.build_transform_message(
+                self.middle_frame, middle_pose
+            )
+            self.send_transform(middle_transform)
             poses = self._compute_frames_fallback_mode(visible_transform)
 
         else:

@@ -379,7 +379,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "DELAY_AFTER_RESET",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=1.0),
                 transitions={
                     "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",
