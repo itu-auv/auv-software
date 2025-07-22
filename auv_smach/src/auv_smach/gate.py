@@ -98,6 +98,7 @@ class NavigateThroughGateState(smach.State):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.sim_mode = rospy.get_param("~sim", False)
         self.gate_look_at_frame = "gate_middle_part"
+        self.gate_search_frame = "gate_search"
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -105,6 +106,15 @@ class NavigateThroughGateState(smach.State):
         )
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
+                TransformServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "SET_ROLL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
                 SetDepthState(
@@ -121,9 +131,9 @@ class NavigateThroughGateState(smach.State):
                 "FIND_AND_AIM_GATE",
                 SearchForPropState(
                     look_at_frame=self.gate_look_at_frame,
-                    alignment_frame="gate_search",
+                    alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=8.0,
+                    set_frame_duration=5.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -150,15 +160,6 @@ class NavigateThroughGateState(smach.State):
                 "SET_GATE_TRAJECTORY_DEPTH",
                 SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
-                TransformServiceEnableState(req=True),
-                transitions={
                     "succeeded": "LOOK_AT_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -168,11 +169,11 @@ class NavigateThroughGateState(smach.State):
                 "LOOK_AT_GATE",
                 SearchForPropState(
                     look_at_frame=self.gate_look_at_frame,
-                    alignment_frame="gate_search",
+                    alignment_frame=self.gate_search_frame,
                     full_rotation=False,
                     set_frame_duration=5.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.3,
+                    rotation_speed=0.2,
                 ),
                 transitions={
                     "succeeded": "LOOK_LEFT",
@@ -184,7 +185,7 @@ class NavigateThroughGateState(smach.State):
                 "LOOK_LEFT",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame=self.gate_look_at_frame,
+                    target_frame=self.gate_search_frame,
                     angle_offset=0.5,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -193,7 +194,7 @@ class NavigateThroughGateState(smach.State):
                     cancel_on_success=False,
                     keep_orientation=False,
                     max_linear_velocity=0.1,
-                    max_angular_velocity=0.2,
+                    max_angular_velocity=0.15,
                 ),
                 transitions={
                     "succeeded": "LOOK_RIGHT",
@@ -205,7 +206,7 @@ class NavigateThroughGateState(smach.State):
                 "LOOK_RIGHT",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame=self.gate_look_at_frame,
+                    target_frame=self.gate_search_frame,
                     angle_offset=-0.5,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -213,6 +214,8 @@ class NavigateThroughGateState(smach.State):
                     timeout=10.0,
                     cancel_on_success=False,
                     keep_orientation=False,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.15,
                 ),
                 transitions={
                     "succeeded": "LOOK_AT_GATE_FOR_TRAJECTORY",
@@ -222,16 +225,13 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "LOOK_AT_GATE_FOR_TRAJECTORY",
-                AlignFrame(
+                SearchForPropState(
+                    look_at_frame=self.gate_look_at_frame,
+                    alignment_frame=self.gate_search_frame,
+                    full_rotation=False,
+                    set_frame_duration=7.0,
                     source_frame="taluy/base_link",
-                    target_frame=self.gate_look_at_frame,
-                    angle_offset=-0.5,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=5.0,
-                    timeout=60.0,
-                    cancel_on_success=False,
-                    keep_orientation=True,
+                    rotation_speed=0.2,
                 ),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
