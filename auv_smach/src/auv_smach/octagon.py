@@ -10,10 +10,11 @@ from auv_smach.initialize import DelayState
 
 
 class OctagonTaskState(smach.State):
-    def __init__(self, octagon_depth):
+    def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         octagon_task_params = rospy.get_param("~octagon_task", {})
+        set_octagon_depth_params = octagon_task_params.get("set_octagon_depth", {})
         set_octagon_align_controller_target_params = octagon_task_params.get(
             "set_octagon_align_controller_target", {}
         )
@@ -31,7 +32,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_OCTAGON_DEPTH",
                 SetDepthState(
-                    depth=octagon_depth,
+                    depth=set_octagon_depth_params.get("depth", -1.0),
                     sleep_duration=4.0,
                 ),
                 transitions={

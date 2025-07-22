@@ -120,24 +120,25 @@ class BinSecondTrialState(smach.StateMachine):
     def __init__(
         self,
         tf_buffer,
-        bin_front_look_depth,
-        bin_bottom_look_depth,
-        target_selection,
     ):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
         self.tf_buffer = tf_buffer
-        self.bin_front_look_depth = bin_front_look_depth
-        self.bin_bottom_look_depth = bin_bottom_look_depth
-        self.target_selection = target_selection
+        self.target_selection = bin_second_trial_params.get("target_selection", "shark")
 
         # Get params
         bin_second_trial_params = rospy.get_param("~bin_second_trial", {})
+        set_second_trial_search_depth_params = bin_second_trial_params.get(
+            "set_second_trial_search_depth", {}
+        )
         align_to_second_trial_params = bin_second_trial_params.get(
             "align_to_second_trial", {}
         )
         find_and_aim_bin_params = bin_second_trial_params.get("find_and_aim_bin", {})
+        set_second_trial_depth_params = bin_second_trial_params.get(
+            "set_second_trial_depth", {}
+        )
         align_to_second_far_trial_params = bin_second_trial_params.get(
             "align_to_second_far_trial", {}
         )
@@ -146,7 +147,7 @@ class BinSecondTrialState(smach.StateMachine):
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_SEARCH_DEPTH",
                 SetDepthState(
-                    depth=bin_front_look_depth,
+                    depth=set_second_trial_search_depth_params.get("depth", -1.2),
                     sleep_duration=3.0,
                 ),
                 transitions={
@@ -240,7 +241,7 @@ class BinSecondTrialState(smach.StateMachine):
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_DEPTH",
                 SetDepthState(
-                    depth=bin_bottom_look_depth,
+                    depth=set_second_trial_depth_params.get("depth", -1.2),
                     sleep_duration=3.0,
                 ),
                 transitions={
@@ -293,16 +294,13 @@ class BinSecondTrialState(smach.StateMachine):
 
 
 class BinTaskState(smach.State):
-    def __init__(
-        self, bin_front_look_depth, bin_bottom_look_depth, target_selection="shark"
-    ):
+    def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         # Get params
         bin_task_params = rospy.get_param("~bin_task", {})
-        self.target_selection = bin_task_params.get(
-            "target_selection", target_selection
-        )
+        self.target_selection = bin_task_params.get("target_selection", "shark")
+        set_bin_depth_params = bin_task_params.get("set_bin_depth", {})
         find_and_aim_bin_params = bin_task_params.get("find_and_aim_bin", {})
         wait_for_enable_bin_frame_publisher_params = bin_task_params.get(
             "wait_for_enable_bin_frame_publisher", {}
@@ -354,7 +352,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_BIN_DEPTH",
                 SetDepthState(
-                    depth=bin_front_look_depth,
+                    depth=set_bin_depth_params.get("depth", -1.2),
                     sleep_duration=3.0,
                 ),
                 transitions={
@@ -452,8 +450,8 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_BIN_DROP_DEPTH",
                 SetDepthState(
-                    depth=bin_bottom_look_depth,
-                    sleep_duration=set_bin_drop_depth_params.get("sleep_duration", 3.0),
+                    depth=set_bin_drop_depth_params.get("depth", -0.7),
+                    sleep_duration=3.0,
                 ),
                 transitions={
                     "succeeded": "ENABLE_BOTTOM_DETECTION",
@@ -689,9 +687,6 @@ class BinTaskState(smach.State):
                 "BIN_SECOND_TRIAL",
                 BinSecondTrialState(
                     self.tf_buffer,
-                    bin_front_look_depth,
-                    bin_bottom_look_depth,
-                    self.target_selection,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",

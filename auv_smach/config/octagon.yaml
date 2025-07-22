@@ -1,6 +1,8 @@
 ---
 octagon_task:
-  depth: -1.0
+  set_octagon_depth:
+    depth: -1.0
+
   set_octagon_align_controller_target:
     source_frame: "taluy/base_link"
     target_frame: "octagon_target"

@@ -1,8 +1,9 @@
 ---
 bin_task:
-  front_look_depth: -1.2
-  bottom_look_depth: -0.7
   target_selection: "shark" # "shark" or "sawfish"
+
+  set_bin_depth:
+    depth: -1.2
 
   find_and_aim_bin:
     full_rotation: false
@@ -19,7 +20,7 @@ bin_task:
     cancel_on_success: false
 
   set_bin_drop_depth:
-    sleep_duration: 3.0
+    depth: -0.7
 
   align_to_bin_whole:
     angle_offset: 0.0
@@ -56,6 +57,11 @@ bin_task:
     delay_time: 3.0
 
 bin_second_trial:
+  target_selection: "shark" # "shark" or "sawfish"
+
+  set_second_trial_search_depth:
+    depth: -1.2
+
   align_to_second_trial:
     angle_offset: 0.0
     dist_threshold: 0.1
@@ -66,6 +72,9 @@ bin_second_trial:
   find_and_aim_bin:
     full_rotation: true
     rotation_speed: 0.2
+
+  set_second_trial_depth:
+    depth: -0.7
 
   align_to_second_far_trial:
     angle_offset: 0.0

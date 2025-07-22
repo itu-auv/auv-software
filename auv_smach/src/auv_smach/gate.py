@@ -91,7 +91,7 @@ class PublishGateAngleState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float, gate_search_depth: float):
+    def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -99,9 +99,14 @@ class NavigateThroughGateState(smach.State):
         self.roll_mode = rospy.get_param("~roll_mode", False)
 
         gate_task_params = rospy.get_param("~gate_task", {})
+        set_roll_depth_params = gate_task_params.get("set_roll_depth", {})
         find_and_aim_gate_params = gate_task_params.get("find_and_aim_gate", {})
-        look_at_gate_params = gate_task_params.get("look_at_gate", {})
         two_roll_state_params = gate_task_params.get("two_roll_state", {})
+        set_gate_trajectory_depth_params = gate_task_params.get(
+            "set_gate_trajectory_depth", {}
+        )
+        look_at_gate_params = gate_task_params.get("look_at_gate", {})
+        set_gate_depth_params = gate_task_params.get("set_gate_depth", {})
         align_frame_after_exit_params = gate_task_params.get(
             "align_frame_after_exit", {}
         )
@@ -124,7 +129,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
                 SetDepthState(
-                    depth=gate_search_depth,
+                    depth=set_roll_depth_params.get("depth", -0.7),
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -145,7 +150,7 @@ class NavigateThroughGateState(smach.State):
                 transitions={
                     "succeeded": (
                         "TWO_ROLL_STATE"
-                        if not self.roll_mode
+                        if self.roll_mode
                         else "SET_GATE_TRAJECTORY_DEPTH"
                     ),
                     "preempted": "preempted",
@@ -166,7 +171,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_GATE_TRAJECTORY_DEPTH",
                 SetDepthState(
-                    depth=gate_search_depth,
+                    depth=set_gate_trajectory_depth_params.get("depth", -0.7),
                     sleep_duration=3.0,
                 ),
                 transitions={
@@ -211,7 +216,9 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=set_gate_depth_params.get("depth", -1.5), sleep_duration=3.0
+                ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_ENTRANCE",
                     "preempted": "preempted",

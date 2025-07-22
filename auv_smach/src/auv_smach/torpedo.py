@@ -57,17 +57,18 @@ class LaunchTorpedoState(smach_ros.ServiceState):
 
 
 class TorpedoTaskState(smach.State):
-    def __init__(
-        self,
-        torpedo_map_depth,
-        torpedo_target_frame,
-        torpedo_realsense_target_frame,
-        torpedo_fire_frames,
-    ):
+    def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.torpedo_fire_frames = torpedo_fire_frames
 
         torpedo_task_params = rospy.get_param("~torpedo_task", {})
+        mission_params = rospy.get_param("~mission_params", {})
+        target_selection = mission_params.get("target_selection", "shark")
+        mission_targets = mission_params.get("mission_targets", {})
+        self.torpedo_fire_frames = mission_targets.get(target_selection, {}).get(
+            "torpedo_fire_frames",
+            ["torpedo_shark_fire_frame", "torpedo_sawfish_fire_frame"],
+        )
+        set_torpedo_depth_params = torpedo_task_params.get("set_torpedo_depth", {})
         find_and_aim_torpedo_params = torpedo_task_params.get(
             "find_and_aim_torpedo", {}
         )
@@ -137,7 +138,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_TORPEDO_DEPTH",
                 SetDepthState(
-                    depth=torpedo_map_depth,
+                    depth=set_torpedo_depth_params.get("depth", -1.3),
                     sleep_duration=3.0,
                 ),
                 transitions={
@@ -169,7 +170,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "PATH_TO_TORPEDO_TARGET",
                 DynamicPathState(
-                    plan_target_frame=torpedo_target_frame,
+                    plan_target_frame=self.torpedo_target_frame,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
@@ -181,7 +182,7 @@ class TorpedoTaskState(smach.State):
                 "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame=torpedo_target_frame,
+                    target_frame="torpedo_target",
                     dist_threshold=set_align_controller_target_to_torpedo_target_params.get(
                         "dist_threshold", 0.1
                     ),
@@ -215,7 +216,7 @@ class TorpedoTaskState(smach.State):
                 "ROTATE_FOR_REALSENSE",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame=torpedo_target_frame,
+                    target_frame=self.torpedo_target_frame,
                     angle_offset=rotate_for_realsense_params.get(
                         "angle_offset", math.pi
                     ),
@@ -268,7 +269,7 @@ class TorpedoTaskState(smach.State):
                 "TURN_TO_LAUNCH_TORPEDO",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame=torpedo_realsense_target_frame,
+                    target_frame="torpedo_target_realsense",
                     angle_offset=turn_to_launch_torpedo_params.get(
                         "angle_offset", -math.pi / 2
                     ),
@@ -459,7 +460,7 @@ class TorpedoTaskState(smach.State):
                 "GET_BACK",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame=torpedo_realsense_target_frame,
+                    target_frame="torpedo_target_realsense",
                     angle_offset=get_back_params.get("angle_offset", 0.0),
                     dist_threshold=get_back_params.get("dist_threshold", 0.1),
                     yaw_threshold=get_back_params.get("yaw_threshold", 0.1),

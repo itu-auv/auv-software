@@ -78,13 +78,7 @@ class MainStateMachineNode:
         # Map state names to their corresponding classes and parameters
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
-            "NAVIGATE_THROUGH_GATE": (
-                NavigateThroughGateState,
-                {
-                    "gate_depth": self.gate_depth,
-                    "gate_search_depth": self.gate_search_depth,
-                },
-            ),
+            "NAVIGATE_THROUGH_GATE": (NavigateThroughGateState, {}),
             "NAVIGATE_AROUND_RED_BUOY": (
                 RotateAroundBuoyState,
                 {
@@ -93,26 +87,14 @@ class MainStateMachineNode:
                     "red_buoy_depth": self.red_buoy_depth,
                 },
             ),
-            "NAVIGATE_TO_TORPEDO_TASK": (
-                TorpedoTaskState,
-                {
-                    "torpedo_map_depth": self.torpedo_map_depth,
-                    "torpedo_target_frame": self.torpedo_target_frame,
-                    "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
-                    "torpedo_fire_frames": self.torpedo_fire_frames,
-                },
-            ),
+            "NAVIGATE_TO_TORPEDO_TASK": (TorpedoTaskState, {}),
             "NAVIGATE_TO_BIN_TASK": (
                 BinTaskState,
-                {
-                    "bin_front_look_depth": self.bin_front_look_depth,
-                    "bin_bottom_look_depth": self.bin_bottom_look_depth,
-                    "target_selection": self.target_selection,
-                },
+                {},
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
-                {"octagon_depth": self.octagon_depth},
+                {},
             ),
         }
 
