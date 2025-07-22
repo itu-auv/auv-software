@@ -102,6 +102,14 @@ class TorpedoTaskState(smach.State):
             ["torpedo_shark_fire_frame", "torpedo_sawfish_fire_frame"],
         )
 
+        self.target_selection = rospy.get_param("~target_selection", "shark")
+        if self.target_selection == "shark":
+            self.torpedo_target_frame = "torpedo_hole_shark_link"
+        elif self.target_selection == "sawfish":
+            self.torpedo_target_frame = "torpedo_hole_sawfish_link"
+        else:
+            self.torpedo_target_frame = "torpedo_hole_shark_link"  # fallback
+
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]

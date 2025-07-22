@@ -15,10 +15,6 @@ class OctagonTaskState(smach.State):
 
         octagon_task_params = rospy.get_param("~octagon_task", {})
         set_octagon_depth_params = octagon_task_params.get("set_octagon_depth", {})
-        set_octagon_align_controller_target_params = octagon_task_params.get(
-            "set_octagon_align_controller_target", {}
-        )
-        approach_to_octagon_params = octagon_task_params.get("approach_to_octagon", {})
         wait_for_surfacing_params = octagon_task_params.get("wait_for_surfacing", {})
         surfacing_params = octagon_task_params.get("surfacing", {})
 
@@ -44,12 +40,8 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_OCTAGON_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
-                    source_frame=set_octagon_align_controller_target_params.get(
-                        "source_frame", "taluy/base_link"
-                    ),
-                    target_frame=set_octagon_align_controller_target_params.get(
-                        "target_frame", "octagon_target"
-                    ),
+                    source_frame="taluy/base_link",
+                    target_frame="octagon_target",
                 ),
                 transitions={
                     "succeeded": "APPROACH_TO_OCTAGON",
@@ -60,15 +52,9 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "APPROACH_TO_OCTAGON",
                 NavigateToFrameState(
-                    source_frame=approach_to_octagon_params.get(
-                        "source_frame", "taluy/base_link"
-                    ),
-                    target_frame=approach_to_octagon_params.get(
-                        "target_frame", "octagon_link"
-                    ),
-                    goal_frame=approach_to_octagon_params.get(
-                        "goal_frame", "octagon_target"
-                    ),
+                    start_frame="taluy/base_link",
+                    end_frame="octagon_link",
+                    target_frame="octagon_target",
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_SURFACING",
