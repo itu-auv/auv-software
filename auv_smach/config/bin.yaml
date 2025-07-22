@@ -1,7 +1,5 @@
 ---
 bin_task:
-  target_selection: "shark" # "shark" or "sawfish"
-
   set_bin_depth:
     depth: -1.2
 

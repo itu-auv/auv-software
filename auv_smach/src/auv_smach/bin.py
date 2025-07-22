@@ -125,7 +125,7 @@ class BinSecondTrialState(smach.StateMachine):
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
         self.tf_buffer = tf_buffer
-        self.target_selection = bin_second_trial_params.get("target_selection", "shark")
+        self.target_selection = rospy.get_param("~target_selection", "shark")
 
         # Get params
         bin_second_trial_params = rospy.get_param("~bin_second_trial", {})
@@ -299,7 +299,7 @@ class BinTaskState(smach.State):
 
         # Get params
         bin_task_params = rospy.get_param("~bin_task", {})
-        self.target_selection = bin_task_params.get("target_selection", "shark")
+        self.target_selection = rospy.get_param("~target_selection", "shark")
         set_bin_depth_params = bin_task_params.get("set_bin_depth", {})
         find_and_aim_bin_params = bin_task_params.get("find_and_aim_bin", {})
         wait_for_enable_bin_frame_publisher_params = bin_task_params.get(
