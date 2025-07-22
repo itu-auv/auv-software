@@ -27,7 +27,10 @@
 
             <!-- gate.py -->
             <rosparam file="$(find auv_smach)/config/gate.yaml" command="load" ns="gate_task"/>
+            <remap from="odometry" to="odometry"/>
+            <remap from="wrench" to="wrench"/>
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
+            <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable"/>
 
             <!--red_buoy.py-->
             <rosparam file="$(find auv_smach)/config/red_buoy.yaml" command="load" ns="red_buoy_task"/>
@@ -35,6 +38,7 @@
 
             <!-- bin.py -->
             <rosparam file="$(find auv_smach)/config/bin.yaml" command="load" ns="bin_task"/>
+            <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
             <!-- torpedo.py -->
             <rosparam file="$(find auv_smach)/config/torpedo.yaml" command="load" ns="torpedo_task"/>
@@ -59,26 +63,6 @@
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
             <param name="enable_rate" value="$(arg enable_rate)"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
-
-            <!-- gate.py -->
-            <remap from="set_transform_gate_trajectory" to="toggle_gate_trajectory"/>
-            <remap from="odometry" to="odometry"/>
-            <remap from="wrench" to="wrench"/>
-            <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
-            <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable"/>
-
-            <!--initialize.py-->
-            <remap from="set_depth" to="set_depth"/>
-            <remap from="set_pose" to="set_pose"/>
-            <remap from="reset_odometry" to="reset_odometry"/>
-            <remap from="dvl/enable" to="sensors/dvl/enable"/>
-            <remap from="localization_enable" to="auv_localization_node/enable"/>
-
-            <!--red_buoy.py-->
-            <remap from="set_object_transform" to="map/set_object_transform"/>
-
-            <!--bin.py-->
-            <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <param name="test_states" value="$(arg test_states)"/>

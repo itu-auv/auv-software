@@ -25,38 +25,6 @@ class MainStateMachineNode:
         self.octagon_params = rospy.get_param("~octagon_task", {})
         self.mission_params = rospy.get_param("~mission_params", {})
 
-        self.gate_depth = self.gate_params.get("gate_depth", -1.5)
-        self.gate_search_depth = self.gate_params.get("gate_search_depth", -0.7)
-
-        # Get target selection from YAML
-        self.target_selection = self.mission_params.get("target_selection", "shark")
-        self.mission_targets = self.mission_params.get("mission_targets", {})
-
-        self.red_buoy_radius = self.red_buoy_params.get("radius", 2.2)
-        self.red_buoy_depth = self.red_buoy_params.get("depth", -0.7)
-        self.red_buoy_direction = self.mission_targets.get(
-            self.target_selection, {}
-        ).get("red_buoy_direction", "ccw")
-
-        self.torpedo_map_depth = self.torpedo_params.get("map_depth", -1.3)
-        self.torpedo_target_frame = self.torpedo_params.get(
-            "target_frame", "torpedo_target"
-        )
-        self.torpedo_realsense_target_frame = self.torpedo_params.get(
-            "realsense_target_frame", "torpedo_target_realsense"
-        )
-        self.torpedo_fire_frames = self.mission_targets.get(
-            self.target_selection, {}
-        ).get(
-            "torpedo_fire_frames",
-            ["torpedo_shark_fire_frame", "torpedo_sawfish_fire_frame"],
-        )
-
-        self.bin_front_look_depth = self.bin_params.get("front_look_depth", -1.2)
-        self.bin_bottom_look_depth = self.bin_params.get("bottom_look_depth", -0.7)
-
-        self.octagon_depth = self.octagon_params.get("depth", -1.0)
-
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
         if test_mode:
@@ -79,14 +47,6 @@ class MainStateMachineNode:
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
             "NAVIGATE_THROUGH_GATE": (NavigateThroughGateState, {}),
-            "NAVIGATE_AROUND_RED_BUOY": (
-                RotateAroundBuoyState,
-                {
-                    "radius": self.red_buoy_radius,
-                    "direction": self.red_buoy_direction,
-                    "red_buoy_depth": self.red_buoy_depth,
-                },
-            ),
             "NAVIGATE_TO_TORPEDO_TASK": (TorpedoTaskState, {}),
             "NAVIGATE_TO_BIN_TASK": (
                 BinTaskState,
