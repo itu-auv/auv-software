@@ -17,8 +17,6 @@ class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
 
-        # USER EDIT
-        self.gate_depth = -1.5
         # Get target selection from YAML
         self.target_selection = rospy.get_param("~target_selection", "shark")
         self.mission_targets = rospy.get_param(
