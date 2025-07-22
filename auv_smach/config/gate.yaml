@@ -1,7 +1,6 @@
 ---
 # General parameters
 roll_mode: true
-target_selection: "shark" # "shark" or "sawfish"
 
 # Parameters for NavigateThroughGateState (TF-based)
 gate_task:

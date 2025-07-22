@@ -98,6 +98,7 @@ class NavigateThroughGateState(smach.State):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.roll_mode = rospy.get_param("~roll_mode", False)
 
+        # Gate task parameters
         gate_task_params = rospy.get_param("~gate_task", {})
         set_roll_depth_params = gate_task_params.get("set_roll_depth", {})
         find_and_aim_gate_params = gate_task_params.get("find_and_aim_gate", {})
@@ -111,7 +112,7 @@ class NavigateThroughGateState(smach.State):
             "align_frame_after_exit", {}
         )
 
-        # Get target_selection from ROS param (default: shark)
+        # Mission selection parameters
         self.target_selection = rospy.get_param("~target_selection", "shark")
         if self.target_selection == "shark":
             self.gate_look_at_frame = "gate_shark_link"
