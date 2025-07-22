@@ -18,10 +18,32 @@ class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
 
-        # USER EDIT
-        self.gate_depth = -1.35
+        # Get target selection from YAML
+        self.target_selection = rospy.get_param("~target_selection", "shark")
+        self.mission_targets = rospy.get_param(
+            "~mission_targets",
+            {
+                "shark": {
+                    "gate_target_frame": "gate_shark_link",
+                    "red_buoy_direction": "ccw",
+                    "slalom_direction": "left_side",
+                    "bin_target_frame": "bin_shark_link",
+                    "torpedo_target_frame": "torpedo_hole_shark_link",
+                    "octagon_target_frame": "octagon_shark_link",
+                },
+                "sawfish": {
+                    "gate_target_frame": "gate_sawfish_link",
+                    "red_buoy_direction": "cw",
+                    "slalom_direction": "right_side",
+                    "bin_target_frame": "bin_sawfish_link",
+                    "torpedo_target_frame": "torpedo_hole_sawfish_link",
+                    "octagon_target_frame": "octagon_sawfish_link",
+                },
+            },
+        )
+
         self.gate_search_depth = -0.7
-        self.target_gate_link = "gate_blue_arrow_link"
+        self.gate_depth = -1.35
 
         self.slalom_depth = -1.3
 
@@ -32,12 +54,22 @@ class MainStateMachineNode:
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_fire_frame = "torpedo_fire_frame"
+        self.torpedo_shark_fire_frame = "torpedo_shark_fire_frame"
+        self.torpedo_sawfish_fire_frame = "torpedo_sawfish_fire_frame"
 
         self.bin_front_look_depth = -1.2
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -1.0
-        # USER EDIT
+
+        # Set parameters based on target selection
+        self.target_frames = self.mission_targets[self.target_selection]
+        self.red_buoy_direction = self.target_frames["red_buoy_direction"]
+        # self.slalom_direction = self.target_frames["slalom_direction"]
+        # self.bin_target_frame = self.target_frames["bin_target_frame"]
+        # self.torpedo_target_frame = self.target_frames["torpedo_target_frame"]
+        # self.octagon_target_frame = self.target_frames["octagon_target_frame"]
+        # self.gate_target_frame = self.target_frames["gate_target_frame"]
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -61,14 +93,6 @@ class MainStateMachineNode:
         else:
             self.state_list = rospy.get_param("~full_mission_states")
 
-        # automatically select other params
-        mission_selection_map = {
-            "gate_red_arrow_link": {"red_buoy": "cw"},
-            "gate_blue_arrow_link": {"red_buoy": "ccw"},
-        }
-        self.red_buoy_direction = mission_selection_map[self.target_gate_link][
-            "red_buoy"
-        ]
         # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
 
@@ -103,7 +127,17 @@ class MainStateMachineNode:
                     "torpedo_map_depth": self.torpedo_map_depth,
                     "torpedo_target_frame": self.torpedo_target_frame,
                     "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
-                    "torpedo_fire_frame": self.torpedo_fire_frame,
+                    "torpedo_fire_frames": (
+                        [
+                            self.torpedo_shark_fire_frame,
+                            self.torpedo_sawfish_fire_frame,
+                        ]
+                        if self.target_selection == "shark"
+                        else [
+                            self.torpedo_sawfish_fire_frame,
+                            self.torpedo_shark_fire_frame,
+                        ]
+                    ),
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (
@@ -111,6 +145,7 @@ class MainStateMachineNode:
                 {
                     "bin_front_look_depth": self.bin_front_look_depth,
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
+                    "target_selection": self.target_selection,
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
