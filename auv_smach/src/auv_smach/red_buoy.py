@@ -267,7 +267,7 @@ class RotateAroundBuoyState(smach.State):
                     ),
                     source_frame="taluy/base_link",
                     rotation_speed=find_and_aim_red_buoy_params.get(
-                        "rotation_speed", 0.3
+                        "rotation_speed", 0.2
                     ),
                 ),
                 transitions={

@@ -10,9 +10,19 @@ find_package(catkin REQUIRED COMPONENTS
   auv_msgs
   geometry_msgs
   roscpp
-  tf2
+  rospy
+  std_msgs
   tf2_ros
+  sensor_msgs
+  message_filters
+  pcl_ros
+  pcl_conversions
+  vision_msgs
+  visualization_msgs
+  cv_bridge
 )
+
+find_package(PCL REQUIRED)
 
 find_package(OpenCV 4 QUIET COMPONENTS
   opencv_core
@@ -36,20 +46,30 @@ endif()
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp tf2 tf2_ros geometry_msgs auv_msgs
-  DEPENDS OpenCV
+  CATKIN_DEPENDS roscpp rospy std_msgs tf2_ros geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs cv_bridge
+  DEPENDS OpenCV PCL
 )
 
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
+)
+
+link_directories(
+  ${PCL_LIBRARY_DIRS}
+)
+
+add_definitions(
+  ${PCL_DEFINITIONS}
 )
 
 catkin_install_python(PROGRAMS
   scripts/prop_transform_publisher.py
   scripts/gate_trajectory_publisher.py
   scripts/bin_trajectory_publisher.py
+  scripts/torpedo_frame_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -62,17 +82,38 @@ target_link_libraries(object_position_filter
   ${OpenCV_LIBRARIES}
 )
 
+# Executables
 add_executable(object_map_tf_server_node
   src/object_map_tf_server_ros.cpp
   src/object_map_tf_server_node.cpp
 )
 
+add_executable(process_tracker_with_cloud
+  src/process_tracker_with_cloud.cpp
+)
+
+add_executable(realsense_filter_node
+  src/realsense_filter.cpp
+)
+
+# Link libraries
 target_link_libraries(object_map_tf_server_node
   ${catkin_LIBRARIES}
   object_position_filter
 )
 
-install(TARGETS object_map_tf_server_node object_position_filter
+target_link_libraries(process_tracker_with_cloud
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
+
+target_link_libraries(realsense_filter_node
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+)
+
+install(TARGETS object_map_tf_server_node object_position_filter process_tracker_with_cloud realsense_filter_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

@@ -8,13 +8,19 @@ from PyQt5.QtWidgets import (
     QTextEdit,
     QGridLayout,
     QCheckBox,
+    QLabel,
+    QMessageBox,
+    QApplication,
+    QHBoxLayout,
 )
-from PyQt5.QtCore import QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
+from PyQt5.QtGui import QFont
 import subprocess
 import rospy
 from std_msgs.msg import Bool
 import auv_msgs.msg
 import threading
+from auv_msgs.msg import Power
 
 
 class CommandThread(QThread):
@@ -81,6 +87,25 @@ class DryTestTab(QWidget):
             "drive_pulse", auv_msgs.msg.MotorCommand, queue_size=10
         )
 
+        self.voltage = None
+        # Voltage display with status label in a horizontal layout
+        self.voltage_label = QLabel("Voltage: 0.0V")
+        self.voltage_label.setFont(QFont("Arial", 12, QFont.Bold))
+        self.voltage_status_label = QLabel("")
+        self.voltage_status_label.setFont(QFont("Arial", 12, QFont.Bold))
+        self.voltage_hbox = QHBoxLayout()
+        self.voltage_hbox.addWidget(self.voltage_label)
+        self.voltage_hbox.addWidget(self.voltage_status_label)
+        self.voltage_hbox.addStretch(1)
+        self.voltage_timer = QTimer()
+        self.voltage_timer.timeout.connect(self.update_voltage_display)
+        self.voltage_timer.start(1000)  # Update every second
+        self.power_sub = rospy.Subscriber("power", Power, self.power_callback)
+
+        # Warning thresholds
+        self.warning_threshold = 15.2
+        self.critical_threshold = 14.8
+
         self.init_ui()
         self.imu_thread = None
         self.bar30_thread = None
@@ -101,10 +126,11 @@ class DryTestTab(QWidget):
         self.bar30_start_btn = QPushButton("Echo Bar30")
         self.bar30_stop_btn = QPushButton("Stop Echo Bar30")
 
-        sensor_layout.addWidget(self.imu_start_btn, 0, 0)
-        sensor_layout.addWidget(self.imu_stop_btn, 0, 1)
-        sensor_layout.addWidget(self.bar30_start_btn, 1, 0)
-        sensor_layout.addWidget(self.bar30_stop_btn, 1, 1)
+        sensor_layout.addLayout(self.voltage_hbox, 0, 0, 1, 2)
+        sensor_layout.addWidget(self.imu_start_btn, 1, 0)
+        sensor_layout.addWidget(self.imu_stop_btn, 1, 1)
+        sensor_layout.addWidget(self.bar30_start_btn, 2, 0)
+        sensor_layout.addWidget(self.bar30_stop_btn, 2, 1)
         sensor_group.setLayout(sensor_layout)
 
         self.output = QTextEdit()
@@ -314,3 +340,26 @@ class DryTestTab(QWidget):
         while self.thruster_publishing and not rospy.is_shutdown():
             self.thruster_pub.publish(motor_cmd)
             rate.sleep()
+
+    def power_callback(self, msg):
+        self.voltage = msg.voltage
+
+    def update_voltage_display(self):
+        if self.voltage is not None:
+            self.voltage_label.setText(f"Voltage: {self.voltage:.2f}V")
+            if self.voltage < self.critical_threshold:
+                self.voltage_label.setStyleSheet("color: red;")
+                self.voltage_status_label.setText("Immediate Recharge Required")
+                self.voltage_status_label.setStyleSheet("color: red;")
+            elif self.voltage < self.warning_threshold:
+                self.voltage_label.setStyleSheet("color: orange;")
+                self.voltage_status_label.setText("Recharge Batteries")
+                self.voltage_status_label.setStyleSheet("color: orange;")
+            else:
+                self.voltage_label.setStyleSheet("color: black;")
+                self.voltage_status_label.setText("")
+                self.voltage_status_label.setStyleSheet("")
+        else:
+            self.voltage_label.setText("Voltage: N/A")
+            self.voltage_status_label.setText("")
+            self.voltage_status_label.setStyleSheet("color: gray;")

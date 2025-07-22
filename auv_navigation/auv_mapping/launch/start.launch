@@ -3,16 +3,19 @@
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
   <arg name="static_frame" default="odom" />
-  <arg name="target_gate_frame" default="gate_blue_arrow_link" />
-  <arg name="pool_depth" default="2.2" />
+  <arg name="target_gate_frame" default="gate_shark_link" />
+  <arg name="torpedo_frame" default="torpedo_map_link" />
+  <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
+  <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
 
   <group ns="$(arg namespace)">
     <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
-      <param name="pool_depth" value="$(arg pool_depth)" />
+      <rosparam command="load" file="$(find auv_bringup)/config/environment.yaml" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
       <remap from="odom_pressure" to="localization/odom_pressure" />
       <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
       <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+      <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
     </node>
 
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
@@ -27,7 +30,7 @@
 
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
       <rosparam command="load" file="$(find auv_mapping)/config/gate_trajectory_publisher_params.yaml" />
-      <param name="target_gate_frame" value="$(arg target_gate_frame)" />
+      <rosparam command="load" file="$(find auv_smach)/config/mission_target_selection.yaml" />
       <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
@@ -38,5 +41,23 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen">
+      <remap from="camera/depth/color/points" to="camera/depth/color/points" />
+      <remap from="dvl/altitude" to="sensors/dvl/altitude" />
+      <remap from="pressure_sensor/depth" to="sensors/external_pressure_sensor/depth" />
+      <remap from="points_filtered" to="points_filtered" />
+    </node>
+
+    <node pkg="auv_mapping" type="torpedo_frame_publisher.py" name="torpedo_frame_publisher" output="screen">
+      <rosparam command="load" file="$(find auv_mapping)/config/torpedo_frame_publisher_params.yaml" />
+      <rosparam command="load" file="$(find auv_smach)/config/mission_target_selection.yaml" />
+      <param name="torpedo_frame" value="$(arg torpedo_frame)" />
+      <param name="torpedo_realsense_frame" value="$(arg torpedo_realsense_frame)" />
+      <param name="torpedo_hole_frame" value="$(arg torpedo_hole_frame)" />
+      <remap from="set_transform_torpedo_target_frame" to="set_transform_torpedo_target_frame" />
+      <remap from="set_transform_torpedo_realsense_target_frame" to="set_transform_torpedo_realsense_target_frame" />
+      <remap from="set_transform_torpedo_hole_target_frame" to="set_transform_torpedo_hole_target_frame" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
   </group>
 </launch>

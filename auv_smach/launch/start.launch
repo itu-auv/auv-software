@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="namespace" default="taluy" />
-    <arg name="torpedo_id" default="1" />
     <arg name="enable_rate" default="20" />
     <param name="/smach/max_linear_velocity" value="0.3" />
     <param name="/smach/max_angular_velocity" value="0.45" />
@@ -9,6 +8,7 @@
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
     <arg name="test_states" default="[]" doc="States to execute in test mode"/>
+    <arg name="sim" default="false" doc="Enable simulation mode for state machine"/>
 
     <group ns="$(arg namespace)">
         <!-- Main State Machine Node -->
@@ -16,6 +16,7 @@
             <rosparam file="$(find auv_smach)/config/main_state_machine.yaml" command="load"/>
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
             <param name="~base_link" value="$(arg namespace)/base_link"/>
+            <param name="sim" value="$(arg sim)"/>
 
             <!--initialize.py-->
             <remap from="set_depth" to="set_depth"/>
@@ -42,7 +43,8 @@
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
-            <remap from="torpedo_$(arg torpedo_id)/launch" to="actuators/torpedo_$(arg torpedo_id)/launch"/>
+            <remap from="torpedo_1/launch" to="actuators/torpedo_1/launch"/>
+            <remap from="torpedo_2/launch" to="actuators/torpedo_2/launch"/>
             <remap from="ball_dropper/drop" to="actuators/ball_dropper/drop"/>
             <remap from="align_frame/cancel" to="control/align_frame/cancel"/>
             <remap from="align_frame/start" to="control/align_frame/start"/>
@@ -55,15 +57,35 @@
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
             <param name="enable_rate" value="$(arg enable_rate)"/>
+            <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
 
-            <!-- Load path planner parameters in the node -->
-            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
+            <!-- gate.py -->
+            <remap from="set_transform_gate_trajectory" to="toggle_gate_trajectory"/>
+            <remap from="odometry" to="odometry"/>
+            <remap from="wrench" to="wrench"/>
+            <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
+            <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable"/>
+
+            <!--initialize.py-->
+            <remap from="set_depth" to="set_depth"/>
+            <remap from="set_pose" to="set_pose"/>
+            <remap from="reset_odometry" to="reset_odometry"/>
+            <remap from="dvl/enable" to="sensors/dvl/enable"/>
+            <remap from="localization_enable" to="auv_localization_node/enable"/>
+
+            <!--red_buoy.py-->
+            <remap from="set_object_transform" to="map/set_object_transform"/>
 
             <!--bin.py-->
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <param name="test_states" value="$(arg test_states)"/>
+
+            <!-- Load path planner parameters in the node -->
+            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
+            <!-- Load mission target selection parameters -->
+            <rosparam file="$(find auv_smach)/config/mission_target_selection.yaml" command="load"/>
         </node>
     </group>
 </launch>
