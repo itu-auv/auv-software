@@ -139,7 +139,7 @@ class NavigateThroughGateState(smach.State):
                 ),
                 transitions={
                     "succeeded": (
-                        "TWO_ROLL_STATE"
+                        "CALIFORNIA_ROLL"
                         if not self.sim_mode
                         else "SET_GATE_TRAJECTORY_DEPTH"
                     ),
@@ -148,7 +148,7 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "TWO_ROLL_STATE",
+                "CALIFORNIA_ROLL",
                 TwoRollState(roll_torque=50.0),
                 transitions={
                     "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
