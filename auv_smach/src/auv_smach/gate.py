@@ -97,15 +97,7 @@ class NavigateThroughGateState(smach.State):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.sim_mode = rospy.get_param("~sim", False)
-
-        # Get target_selection from ROS param (default: shark)
-        self.target_selection = rospy.get_param("~target_selection", "shark")
-        if self.target_selection == "shark":
-            self.gate_look_at_frame = "gate_shark_link"
-        elif self.target_selection == "sawfish":
-            self.gate_look_at_frame = "gate_sawfish_link"
-        else:
-            self.gate_look_at_frame = "gate_shark_link"  # fallback
+        self.gate_look_at_frame = "gate_middle_part"
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -181,6 +173,65 @@ class NavigateThroughGateState(smach.State):
                     set_frame_duration=5.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
+                ),
+                transitions={
+                    "succeeded": "LOOK_LEFT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_LEFT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.gate_look_at_frame,
+                    angle_offset=0.5,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.2,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.2,
+                ),
+                transitions={
+                    "succeeded": "LOOK_RIGHT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_RIGHT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.gate_look_at_frame,
+                    angle_offset=-0.5,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.2,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "LOOK_AT_GATE_FOR_TRAJECTORY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_AT_GATE_FOR_TRAJECTORY",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.gate_look_at_frame,
+                    angle_offset=-0.5,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=5.0,
+                    timeout=60.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
                 ),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
