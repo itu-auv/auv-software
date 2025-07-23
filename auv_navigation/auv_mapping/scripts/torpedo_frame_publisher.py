@@ -36,7 +36,7 @@ class TorpedoTransformServiceNode:
         self.target_frame = "torpedo_target"
         self.realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_fire_frame = "torpedo_fire_frame"
-
+        self.realsense_hole_frame = "torpedo_realsense_hole_frame"
         self.torpedo_frame = rospy.get_param("~torpedo_frame", "torpedo_map_link")
         self.torpedo_realsense_frame = rospy.get_param(
             "~torpedo_realsense_frame", "torpedo_map_link_realsense"
@@ -55,6 +55,8 @@ class TorpedoTransformServiceNode:
         )
         self.initial_offset = rospy.get_param("~initial_offset", 3.0)
         self.realsense_offset = rospy.get_param("~realsense_offset", 1.5)
+        self.realsense_hole_x_offset = rospy.get_param("~realsense_hole_x_offset", 0.1)
+        self.realsense_hole_z_offset = rospy.get_param("~realsense_hole_z_offset", 0.1)
         self.fire_offset = rospy.get_param("~fire_offset", 1.0)
 
         self.set_enable_service = rospy.Service(
@@ -207,9 +209,21 @@ class TorpedoTransformServiceNode:
                     0.0,
                 ],
             )
+            realsense_hole_frame_pose = self.apply_offsets(
+                torpedo_pose,
+                [
+                    self.realsense_hole_x_offset,
+                    0.0,
+                    self.realsense_hole_z_offset,
+                ],
+            )
             realsense_target_transform = self.build_transform_message(
                 self.realsense_target_frame, realsense_target_pose
             )
+            realsense_hole_frame_transform = self.build_transform_message(
+                self.realsense_hole_frame, realsense_hole_frame_pose
+            )
+            self.send_transform(realsense_hole_frame_transform)
             self.send_transform(realsense_target_transform)
         except (
             tf2_ros.LookupException,
