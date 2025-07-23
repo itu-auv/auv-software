@@ -59,8 +59,7 @@ class ControllerROS {
     const auto rate = nh_private.param("rate", 10.0);
     rate_ = ros::Rate{rate};
 
-    nh_private.param<std::string>("body_frame", body_frame_,
-                                  "taluy_mini/base_link");
+    nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
 
     ROS_INFO_STREAM("kp: \n" << kp_.transpose());

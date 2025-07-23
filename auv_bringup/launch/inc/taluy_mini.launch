@@ -11,7 +11,7 @@
     <include file="$(find auv_bringup)/launch/inc/boards/start_expansion_board_bridge.launch.xml">
       <arg name="namespace" value="$(arg namespace)" />
       <arg name="baudrate" value="921600" />
-      <arg name="port" value="/dev/auv_expansion_board" />
+      <arg name="port" value="/dev/auv_taluymini_board" />
       <arg name="virtual_port" value="$(arg dvl_virtual_port)" />
     </include>
 </launch>

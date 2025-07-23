@@ -34,4 +34,11 @@
       <arg name="namespace" value="$(arg namespace)" />
       <arg name="port" value="$(arg dvl_virtual_port)" />
     </include>
+
+    <!-- launch cameras -->
+    <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras.launch.xml">
+      <arg name="namespace" value="$(arg namespace)" />
+      <arg name="cam_front_name" value="cam_front" />
+      <arg name="cam_bottom_name" value="cam_bottom" />
+    </include>
 </launch>

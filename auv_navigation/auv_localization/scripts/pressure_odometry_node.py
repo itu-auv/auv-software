@@ -14,6 +14,8 @@ from auv_common_lib.logging.terminal_color_utils import TerminalColors
 class PressureToOdom:
     def __init__(self):
         rospy.init_node("pressure_to_odom_node", anonymous=True)
+        
+        self.namespace = rospy.get_namespace().strip("/")
 
         # Initialize class variables
         self.imu_data = None
@@ -83,7 +85,7 @@ class PressureToOdom:
         """Initialize and configure the odometry message"""
         odom_msg = Odometry()
         odom_msg.header.frame_id = "odom"
-        odom_msg.child_frame_id = "taluy/base_link"
+        odom_msg.child_frame_id = f"{self.namespace}/base_link"
 
         # Initialize covariances
         odom_msg.pose.covariance = np.zeros(36).tolist()

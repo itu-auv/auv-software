@@ -24,11 +24,6 @@
     <arg name="logging_directory" value="$(arg logging_directory)" />
   </include>
 
-  <!-- launch cameras -->
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras.launch.xml">
-    <arg name="namespace" value="$(arg namespace)" />
-  </include>
-
   <include file="$(find auv_bringup)/launch/inc/start_navigation.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />

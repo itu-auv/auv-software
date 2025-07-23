@@ -11,33 +11,33 @@
   <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch" />
 
   <group ns="$(arg namespace)">
-    <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
-      <rosparam command="load" file="$(find auv_bringup)/config/environment.yaml" />
-      <remap from="object_transform_updates" to="map/object_transform_updates" />
-      <remap from="odom_pressure" to="localization/odom_pressure" />
-      <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
-      <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
-      <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
-    </node>
-
-    <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
-      <param name="rate" value="$(arg control_rate)" />
-      <param name="static_frame" value="$(arg static_frame)" />
-      <param name="distance_threshold" value="4.0" />
-
-      <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="clear_object_transforms" to="map/clear_object_transforms" />
-      <remap from="object_transform_updates" to="map/object_transform_updates" />
-    </node>
-
-    <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
-      <rosparam command="load" file="$(find auv_bringup)/config/$(arg namespace)/gate_trajectory_publisher_params.yaml" />
-      <rosparam command="load" file="$(find auv_smach)/config/mission_target_selection.yaml" />
-      <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-    </node>
-
     <group if="$(eval arg('namespace') == 'taluy')">
+      <node pkg="auv_detection" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
+        <rosparam command="load" file="$(find auv_bringup)/config/environment.yaml" />
+        <remap from="object_transform_updates" to="map/object_transform_updates" />
+        <remap from="odom_pressure" to="localization/odom_pressure" />
+        <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
+        <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+        <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
+      </node>
+
+      <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
+        <param name="rate" value="$(arg control_rate)" />
+        <param name="static_frame" value="$(arg static_frame)" />
+        <param name="distance_threshold" value="4.0" />
+
+        <remap from="set_object_transform" to="map/set_object_transform" />
+        <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+        <remap from="object_transform_updates" to="map/object_transform_updates" />
+      </node>
+
+      <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
+        <rosparam command="load" file="$(find auv_bringup)/config/$(arg namespace)/gate_trajectory_publisher_params.yaml" />
+        <rosparam command="load" file="$(find auv_smach)/config/mission_target_selection.yaml" />
+        <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />
+        <remap from="set_object_transform" to="map/set_object_transform" />
+      </node>
+
       <node pkg="auv_mapping" type="bin_trajectory_publisher.py" name="bin_trajectory_publisher">
         <rosparam command="load" file="$(find auv_bringup)/config/$(arg namespace)/bin_trajectory_publisher_params.yaml" />
         <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory" />
