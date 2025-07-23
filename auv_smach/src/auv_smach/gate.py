@@ -117,14 +117,14 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-               "ENABLE_GATE_TRAJECTORY_PUBLISHER",
-               TransformServiceEnableState(req=True),
-               transitions={
-                   "succeeded": "SET_ROLL_DEPTH",
-                   "preempted": "preempted",
-                   "aborted": "aborted",
-               },
-            )           
+                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
+                TransformServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "SET_ROLL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
                 SetDepthState(
