@@ -9,3 +9,4 @@ closer_frame_distance: 2.0
 further_frame_distance: 2.5
 second_trial_distance: 3.0
 bin_whole_estimated_frame: "bin_whole_estimated"
+bin_exit_frame: "bin_exit"
