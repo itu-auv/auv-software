@@ -20,6 +20,7 @@
     <arg name="enable_logging" default="false" />
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
     <arg name="start_bridge" default="true" />
+    <arg name="rviz_file" default="$(eval find(namespace + '_description') + '/rviz/default.rviz')"/>
 
 
     <!-- Run RViz -->
@@ -27,7 +28,7 @@
         name="rviz"
         pkg="rviz"
         type="rviz"
-        args="-d $(find taluy_description)/rviz/yolo_cam.rviz"
+        args="-d $(arg rviz_file)"
         if="$(arg use_gui)"
     />
 

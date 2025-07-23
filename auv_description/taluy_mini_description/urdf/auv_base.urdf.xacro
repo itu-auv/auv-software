@@ -17,7 +17,7 @@
         <geometry>
           <mesh filename="package://taluy_mini_description/meshes/body/body.stl" scale="0.001 0.001 0.001"/>
         </geometry>
-        <material name="black"/>
+        <material name="gray"/>
       </visual>
       <collision>
         <origin xyz="0.2 0.0 0.0" rpy="0 0 ${math.pi/2}"/>

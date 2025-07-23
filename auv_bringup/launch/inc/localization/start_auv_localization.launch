@@ -13,7 +13,7 @@
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
       output="screen">
-      <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" command="load" />
+      <rosparam file="$(find auv_bringup)/config/$(arg namespace)/sensor_calibration_data.yaml" command="load" />
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="odom_pressure" to="localization/odom_pressure" />
       <remap from="imu/data" to="sensors/imu/data" />

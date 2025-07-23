@@ -8,7 +8,9 @@
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
 
-  <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch" />
+  <group if="$(eval arg('namespace') == 'taluy')">
+    <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch" />
+  </group>
 
   <group ns="$(arg namespace)">
     <group if="$(eval arg('namespace') == 'taluy')">
