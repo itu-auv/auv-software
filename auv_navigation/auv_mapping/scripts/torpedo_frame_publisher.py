@@ -243,7 +243,7 @@ class TorpedoTransformServiceNode:
             realsense_target_pose = self.get_pose(realsense_target_tf)
             torpedo_pose = self.get_pose(torpedo_tf)
 
-            torpedo_hole_shark_pose.position.z = torpedo_pose.position.z
+            # torpedo_hole_shark_pose.position.z = torpedo_pose.position.z
             torpedo_hole_shark_pose.orientation = realsense_target_pose.orientation
             shark_fire_pose = self.apply_offsets(
                 torpedo_hole_shark_pose,
@@ -283,7 +283,7 @@ class TorpedoTransformServiceNode:
             realsense_target_pose = self.get_pose(realsense_target_tf)
             torpedo_pose = self.get_pose(torpedo_tf)
 
-            torpedo_hole_sawfish_pose.position.z = torpedo_pose.position.z
+            # torpedo_hole_sawfish_pose.position.z = torpedo_pose.position.z
             torpedo_hole_sawfish_pose.orientation = realsense_target_pose.orientation
             sawfish_fire_pose = self.apply_offsets(
                 torpedo_hole_sawfish_pose,

@@ -86,7 +86,7 @@ class NavigateThroughSlalomState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="slalom_entrance",
-                    confirm_duration= 5.0,
+                    confirm_duration= 1.0,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_SLALOM_ENTRANCE_BACKED",
@@ -185,7 +185,20 @@ class NavigateThroughSlalomState(smach.State):
                 "DYNAMIC_PATH_TO_EXIT",
                 DynamicPathState(
                     plan_target_frame="slalom_exit",
-                    angle_offset= -1.57
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_SLALOM_eXIT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_SLALOM_eXIT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="slalom_exit",
+                    confirm_duration=0.0,
+                    angle_offset=-1.5,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
