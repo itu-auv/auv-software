@@ -53,6 +53,9 @@ class TorpedoTransformServiceNode:
         self.torpedo_sawfish_fire_frame = rospy.get_param(
             "~torpedo_sawfish_fire_frame", "torpedo_sawfish_fire_frame"
         )
+        self.torpedo_upper_link_frame = rospy.get_param(
+            "~torpedo_upper_link", "taluy/base_link/torpedo_upper_link"
+        )
         self.initial_offset = rospy.get_param("~initial_offset", 3.0)
         self.realsense_offset = rospy.get_param("~realsense_offset", 1.5)
         self.fire_offset = rospy.get_param("~fire_offset", 1.0)
@@ -227,32 +230,54 @@ class TorpedoTransformServiceNode:
                 rospy.Time.now(),
                 rospy.Duration(1),
             )
-            realsense_target_tf = self.tf_buffer.lookup_transform(
+            torpedo_upper_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
-                self.realsense_target_frame,
-                rospy.Time.now(),
-                rospy.Duration(1),
-            )
-            torpedo_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame,
-                self.torpedo_frame,
+                self.torpedo_upper_link_frame,
                 rospy.Time.now(),
                 rospy.Duration(1),
             )
             torpedo_hole_shark_pose = self.get_pose(torpedo_hole_shark_tf)
-            realsense_target_pose = self.get_pose(realsense_target_tf)
-            torpedo_pose = self.get_pose(torpedo_tf)
+            torpedo_upper_pose = self.get_pose(torpedo_upper_tf)
 
-            torpedo_hole_shark_pose.position.z = torpedo_pose.position.z
-            torpedo_hole_shark_pose.orientation = realsense_target_pose.orientation
-            shark_fire_pose = self.apply_offsets(
-                torpedo_hole_shark_pose,
-                [0.0, self.fire_offset, 0.0],
+            p_hole = np.array(
+                [
+                    torpedo_hole_shark_pose.position.x,
+                    torpedo_hole_shark_pose.position.y,
+                    torpedo_hole_shark_pose.position.z,
+                ]
             )
-            shark_fire_transform = self.build_transform_message(
-                self.torpedo_shark_fire_frame, shark_fire_pose
+            p_upper = np.array(
+                [
+                    torpedo_upper_pose.position.x,
+                    torpedo_upper_pose.position.y,
+                    torpedo_upper_pose.position.z,
+                ]
             )
-            self.send_transform(shark_fire_transform)
+            direction = p_hole - p_upper
+            norm = np.linalg.norm(direction)
+            if norm == 0:
+                rospy.logwarn("torpedo_upper_link and hole are at the same position!")
+                return
+            direction_unit = direction / norm
+            fire_pos = p_hole - direction_unit * self.fire_offset
+            fire_pos[2] = p_hole[2]
+
+            yaw = np.arctan2(direction_unit[1], direction_unit[0])
+            q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+            orientation = Pose().orientation
+            orientation.x = q[0]
+            orientation.y = q[1]
+            orientation.z = q[2]
+            orientation.w = q[3]
+
+            fire_pose = Pose()
+            fire_pose.position.x, fire_pose.position.y, fire_pose.position.z = fire_pos
+            fire_pose.orientation = orientation
+
+            fire_transform = self.build_transform_message(
+                self.torpedo_shark_fire_frame, fire_pose
+            )
+            self.send_transform(fire_transform)
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
@@ -267,32 +292,54 @@ class TorpedoTransformServiceNode:
                 rospy.Time.now(),
                 rospy.Duration(1),
             )
-            realsense_target_tf = self.tf_buffer.lookup_transform(
+            torpedo_upper_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
-                self.realsense_target_frame,
-                rospy.Time.now(),
-                rospy.Duration(1),
-            )
-            torpedo_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame,
-                self.torpedo_frame,
+                self.torpedo_upper_link_frame,
                 rospy.Time.now(),
                 rospy.Duration(1),
             )
             torpedo_hole_sawfish_pose = self.get_pose(torpedo_hole_sawfish_tf)
-            realsense_target_pose = self.get_pose(realsense_target_tf)
-            torpedo_pose = self.get_pose(torpedo_tf)
+            torpedo_upper_pose = self.get_pose(torpedo_upper_tf)
 
-            torpedo_hole_sawfish_pose.position.z = torpedo_pose.position.z
-            torpedo_hole_sawfish_pose.orientation = realsense_target_pose.orientation
-            sawfish_fire_pose = self.apply_offsets(
-                torpedo_hole_sawfish_pose,
-                [0.0, self.fire_offset, 0.0],
+            p_hole = np.array(
+                [
+                    torpedo_hole_sawfish_pose.position.x,
+                    torpedo_hole_sawfish_pose.position.y,
+                    torpedo_hole_sawfish_pose.position.z,
+                ]
             )
-            sawfish_fire_transform = self.build_transform_message(
-                self.torpedo_sawfish_fire_frame, sawfish_fire_pose
+            p_upper = np.array(
+                [
+                    torpedo_upper_pose.position.x,
+                    torpedo_upper_pose.position.y,
+                    torpedo_upper_pose.position.z,
+                ]
             )
-            self.send_transform(sawfish_fire_transform)
+            direction = p_hole - p_upper
+            norm = np.linalg.norm(direction)
+            if norm == 0:
+                rospy.logwarn("torpedo_upper_link and hole are at the same position!")
+                return
+            direction_unit = direction / norm
+            fire_pos = p_hole - direction_unit * self.fire_offset
+            fire_pos[2] = p_hole[2]
+
+            yaw = np.arctan2(direction_unit[1], direction_unit[0])
+            q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+            orientation = Pose().orientation
+            orientation.x = q[0]
+            orientation.y = q[1]
+            orientation.z = q[2]
+            orientation.w = q[3]
+
+            fire_pose = Pose()
+            fire_pose.position.x, fire_pose.position.y, fire_pose.position.z = fire_pos
+            fire_pose.orientation = orientation
+
+            fire_transform = self.build_transform_message(
+                self.torpedo_sawfish_fire_frame, fire_pose
+            )
+            self.send_transform(fire_transform)
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
@@ -303,20 +350,20 @@ class TorpedoTransformServiceNode:
     def handle_enable_target_service(self, req):
         self.enable_target = req.data
         message = (
-            f"Torpido target frame transform publish is set to: {self.enable_target}"
+            f"Torpedo target frame transform publish is set to: {self.enable_target}"
         )
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
     def handle_enable_realsense_target_service(self, req):
         self.enable_realsense_target = req.data
-        message = f"Torpido realsense target frame transform publish is set to: {self.enable_realsense_target}"
+        message = f"Torpedo realsense target frame transform publish is set to: {self.enable_realsense_target}"
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
     def handle_enable_torpedo_hole_target_service(self, req):
         self.enable_torpedo_hole_target = req.data
-        message = f"Torpido hole target frame transform publish is set to: {self.enable_torpedo_hole_target}"
+        message = f"Torpedo hole target frame transform publish is set to: {self.enable_torpedo_hole_target}"
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
