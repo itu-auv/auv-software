@@ -43,10 +43,6 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <node pkg="auv_mapping" type="slalom_trajectory_publisher.py" name="slalom_trajectory_publisher">
-      <remap from="set_object_transform" to="map/set_object_transform" />
-    </node>
-
     <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen">
       <remap from="camera/depth/color/points" to="camera/depth/color/points" />
       <remap from="dvl/altitude" to="sensors/dvl/altitude" />

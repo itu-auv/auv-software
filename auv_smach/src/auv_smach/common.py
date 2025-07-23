@@ -14,8 +14,6 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
 
 from auv_msgs.srv import (
-    PlanPath,
-    PlanPathRequest,
     SetDepth,
     SetDepthRequest,
     SetObjectTransform,

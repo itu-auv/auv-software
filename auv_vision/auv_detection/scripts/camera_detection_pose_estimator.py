@@ -101,12 +101,12 @@ class Shark(Prop):
 
 class RedPipe(Prop):
     def __init__(self):
-        super().__init__(2, "red_pipe", 0.90, None)
+        super().__init__(2, "red_pipe", 0.900, None)
 
 
 class WhitePipe(Prop):
     def __init__(self):
-        super().__init__(3, "white_pipe", 0.90, None)
+        super().__init__(3, "white_pipe", 0.900, None)
 
 
 class TorpedoMap(Prop):
@@ -143,7 +143,7 @@ class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
         rospy.loginfo("Camera detection node started")
-        self.selected_side = rospy.get_param("~selected_side", "left")
+
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
         self.active_front_camera_ids = list(range(15))  # Allow all by default
@@ -579,16 +579,6 @@ class CameraDetectionNode:
                 detection_msg, camera_ns, torpedo_map_bbox
             )
 
-        red_pipe_x = None
-        red_pipes = [
-            d for d in detection_msg.detections.detections if d.results[0].id == 2
-        ]
-        if red_pipes:
-            largest_red_pipe = max(
-                red_pipes, key=lambda d: d.bbox.size_x * d.bbox.size_y
-            )
-            red_pipe_x = largest_red_pipe.bbox.center.x
-
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
@@ -601,13 +591,6 @@ class CameraDetectionNode:
 
             if detection_id == 5:
                 continue
-
-            if detection_id == 3 and red_pipe_x is not None:
-                white_x = detection.bbox.center.x
-                if self.selected_side == "left" and white_x > red_pipe_x:
-                    continue
-                if self.selected_side == "right" and white_x < red_pipe_x:
-                    continue
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
