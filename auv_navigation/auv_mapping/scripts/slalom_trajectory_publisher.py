@@ -61,6 +61,7 @@ class SlalomTrajectoryPublisher(object):
             None,
             None,
         )
+        self.navigation_mode = "left"  # TODO: connect the parameters later
 
         # Create a service that will trigger the frame publishing
         self.srv = rospy.Service(
@@ -131,7 +132,14 @@ class SlalomTrajectoryPublisher(object):
                     t_red.transform.translation.z,
                 ]
             )
-            slalom_parallel_vector = pos_red - pos_white
+            if self.navigation_mode == "right":
+                slalom_parallel_vector = pos_white - pos_red
+            elif self.navigation_mode == "left":
+                slalom_parallel_vector = pos_red - pos_white
+            else:
+                rospy.logwarn("Invalid navigation mode. Defaulting to 'left'.")
+                slalom_parallel_vector = pos_red - pos_white
+
             slalom_parallel_vector = slalom_parallel_vector / np.linalg.norm(
                 slalom_parallel_vector
             )
