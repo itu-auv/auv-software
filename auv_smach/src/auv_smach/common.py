@@ -986,9 +986,10 @@ class AlignFrame(smach.StateMachine):
 class SetPlanState(smach.State):
     """State that calls the /set_plan service"""
 
-    def __init__(self, target_frame: str):
+    def __init__(self, target_frame: str, angle_offset: float = 0.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.target_frame = target_frame
+        self.angle_offset = angle_offset
 
     def execute(self, userdata) -> str:
         try:
@@ -1001,6 +1002,7 @@ class SetPlanState(smach.State):
 
             req = PlanPathRequest(
                 target_frame=self.target_frame,
+                angle_offset=self.angle_offset,
             )
             set_plan(req)
             return "succeeded"
@@ -1032,7 +1034,7 @@ class DynamicPathState(smach.StateMachine):
         with self:
             smach.StateMachine.add(
                 "SET_PATH_PLAN",
-                SetPlanState(target_frame=plan_target_frame),
+                SetPlanState(target_frame=plan_target_frame, angle_offset=angle_offset),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_PATH",
                     "preempted": "preempted",
@@ -1046,7 +1048,6 @@ class DynamicPathState(smach.StateMachine):
                     target_frame=align_target_frame,
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
-                    angle_offset=angle_offset,
                     keep_orientation=keep_orientation,
                 ),
                 transitions={
