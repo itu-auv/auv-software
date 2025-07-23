@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="id" default="0" />
+  <arg name="control_rate" default="25.0" />
+  <arg name="controller" default="wrench" />
+
+  <group ns="$(arg namespace)">
+
+    <node pkg="joy" type="joy_node" name="joy_node" args=" --num $(arg id)" output="screen" />
+
+    <node pkg="auv_teleop" type="wrench_manager.py" name="joystick_node" output="screen">
+      <rosparam command="load" file="$(find auv_teleop)/config/$(arg controller).yaml" />
+    </node>
+  </group>
+</launch>

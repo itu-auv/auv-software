@@ -5,24 +5,47 @@
   <arg name="use_gui" default="false" />
   <arg name="command_timeout" default="0.1" />
   <arg name="config_file" default="$(find auv_bringup)/config/$(arg namespace)/control.yaml" />
-  <arg name="start_visual_servoing" default="true" />
+  <arg name="start_visual_servoing" default="false" />
   <arg name="body_frame" default="$(arg namespace)/base_link" />
 
   <group ns="$(arg namespace)">
-    <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
-      <param name="rate" value="$(arg rate)" />
-      <param name="config_file" value="$(arg config_file)" />
-      <param name="body_frame" value="$(arg body_frame)" />
+    <group if="$(eval arg('namespace') == 'taluy')">
+      <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
+        <param name="rate" value="$(arg rate)" />
+        <param name="config_file" value="$(arg config_file)" />
+        <param name="body_frame" value="$(arg body_frame)" />
 
-      <remap from="odometry" to="odometry" />
-      <remap from="cmd_vel" to="cmd_vel" />
-      <remap from="cmd_pose" to="cmd_pose" />
-      <remap from="acceleration" to="acceleration" />
-      <remap from="enable" to="enable" />
+        <remap from="odometry" to="odometry" />
+        <remap from="cmd_vel" to="cmd_vel" />
+        <remap from="cmd_pose" to="cmd_pose" />
+        <remap from="acceleration" to="acceleration" />
+        <remap from="enable" to="enable" />
 
-      <remap from="wrench" to="wrench" />
-      <rosparam file="$(arg config_file)" command="load" ns="" />
-    </node>
+        <remap from="wrench" to="wrench" />
+        <rosparam file="$(arg config_file)" command="load" ns="" />
+      </node>
+
+      <node pkg="auv_control" type="align_frame_controller.py" name="align_frame_controller"
+        output="screen">
+        <param name="rate" value="$(arg rate)" />
+
+        <remap from="align_frame/start" to="control/align_frame/start" />
+        <remap from="propulsion_board/status" to="propulsion_board/status" />
+        <remap from="cancel_control" to="control/align_frame/cancel" />
+        <!-- <remap from="cmd_vel" to=""/> -->
+      </node>
+    </group>
+
+    <group if="$(eval arg('namespace') == 'taluy_mini')">
+      <node pkg="auv_control" type="z_axis_controller" name="z_axis_controller" output="screen">
+        <param name="body_frame" value="$(arg body_frame)" />
+        <remap from="odometry" to="odometry" />
+        <remap from="wrench_cmd" to="wrench_cmd" />
+        <remap from="desired_z" to="desired_z" />
+        <remap from="wrench" to="wrench" />
+        <rosparam file="$(arg config_file)" command="load" ns="z_axis_controller" />
+      </node>
+    </group>
 
     <node pkg="auv_control" type="thruster_manager_node" name="thruster_manager_node"
       output="screen">
@@ -45,17 +68,6 @@
       <remap from="enable" to="enable" />
       <remap from="set_pose" to="set_pose" />
       <remap from="reset_odometry" to="reset_odometry" />
-    </node>
-
-
-    <node pkg="auv_control" type="align_frame_controller.py" name="align_frame_controller"
-      output="screen">
-      <param name="rate" value="$(arg rate)" />
-
-      <remap from="align_frame/start" to="control/align_frame/start" />
-      <remap from="propulsion_board/status" to="propulsion_board/status" />
-      <remap from="cancel_control" to="control/align_frame/cancel" />
-      <!-- <remap from="cmd_vel" to=""/> -->
     </node>
 
     <node pkg="auv_control" type="battery_monitor_node.py" name="battery_monitor_node"

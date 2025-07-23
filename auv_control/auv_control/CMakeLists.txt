@@ -86,6 +86,19 @@ install(TARGETS thruster_manager_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
+add_executable(z_axis_controller
+  src/z_axis_controller_node.cpp
+  src/z_axis_controller.cpp
+)
+
+target_link_libraries(z_axis_controller
+  ${catkin_LIBRARIES}
+)
+
+install(TARGETS z_axis_controller
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
   FILES_MATCHING PATTERN "*.h"
