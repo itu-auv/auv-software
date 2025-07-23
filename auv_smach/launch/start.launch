@@ -19,6 +19,7 @@
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
     <arg name="sim" default="false" doc="Enable simulation mode for state machine"/>
+    <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -42,6 +43,7 @@
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
             <param name="~base_link" value="$(arg namespace)/base_link"/>
             <param name="sim" value="$(arg sim)"/>
+            <param name="coin_flip" value="$(arg coin_flip)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -64,6 +66,7 @@
 
             <!-- gate.py -->
             <remap from="set_transform_gate_trajectory" to="toggle_gate_trajectory"/>
+            <remap from="toggle_coin_flip_rescuer" to="toggle_coin_flip_rescuer" />
             <remap from="odometry" to="odometry"/>
             <remap from="wrench" to="wrench"/>
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
