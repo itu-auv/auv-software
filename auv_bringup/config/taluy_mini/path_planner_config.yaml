@@ -1,0 +1,7 @@
+---
+header_frame: "odom" # The default frame in which the path is defined
+gate_entrance_frame: "gate_entrance"
+gate_exit_frame: "gate_exit"
+bin_closer_frame: "bin_close_trial"
+bin_further_frame: "bin_far_trial"
+path_creation_timeout: 20.0

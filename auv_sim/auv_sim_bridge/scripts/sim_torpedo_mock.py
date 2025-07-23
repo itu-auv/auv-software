@@ -20,14 +20,14 @@ class TorpedoLauncherServer:
         self.tf_buffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(self.tf_buffer)
 
-        self.base_frame = rospy.get_param("~base_frame", "taluy/base_link")
+        self.base_frame = rospy.get_param("~base_frame", "taluy_mini/base_link")
 
         self.drop_frames = {
             1: rospy.get_param(
-                "~torpedo_1_frame", "taluy/base_link/torpedo_upper_link"
+                "~torpedo_1_frame", "taluy_mini/base_link/torpedo_upper_link"
             ),
             2: rospy.get_param(
-                "~torpedo_2_frame", "taluy/base_link/torpedo_bottom_link"
+                "~torpedo_2_frame", "taluy_mini/base_link/torpedo_bottom_link"
             ),
         }
 
@@ -85,7 +85,7 @@ class TorpedoLauncherServer:
         return pose
 
     def get_vehicle_state(self):
-        vehicle_state = self.get_model_state("taluy", "world")
+        vehicle_state = self.get_model_state("taluy_mini", "world")
         vehicle_orientation = vehicle_state.pose.orientation
         quat = [
             vehicle_orientation.x,

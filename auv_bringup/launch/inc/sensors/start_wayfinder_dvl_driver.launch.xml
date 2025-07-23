@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise"/>
+  <arg name="namespace" default="taluy"/>
   <arg name="port" default="ttyUSB0"/>
   <arg name="baudrate" default="115200"/>
   <group ns="$(arg namespace)">

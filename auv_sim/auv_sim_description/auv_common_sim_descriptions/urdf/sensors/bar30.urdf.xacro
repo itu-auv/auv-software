@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="bar30">
-  <xacro:macro name="bar30_sim" params="name update_rate">
+  <xacro:macro name="bar30_sim" params="name namespace update_rate">
     <link name="${name}_sim_link">
       <inertial>
         <mass value="0.001"/>
@@ -23,7 +23,7 @@
     </joint>
     <gazebo>
       <plugin filename="libuuv_gazebo_ros_subsea_pressure_plugin.so" name="${name}_pressure_plugin">
-        <robot_namespace>taluy</robot_namespace>
+        <robot_namespace>${namespace}</robot_namespace>
         <link_name>${name}_sim_link</link_name>
         <sensor_topic>sim/pressure</sensor_topic>
         <update_rate>${update_rate}</update_rate>
