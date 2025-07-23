@@ -9,6 +9,7 @@
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
+        slalom:NAVIGATE_THROUGH_SLALOM,
         buoy:NAVIGATE_AROUND_RED_BUOY,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
@@ -24,6 +25,7 @@
     <arg name="full_mission_states" default="[
         'INITIALIZE',
         'NAVIGATE_THROUGH_GATE',
+        'NAVIGATE_THROUGH_SLALOM',
         'NAVIGATE_AROUND_RED_BUOY',
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
