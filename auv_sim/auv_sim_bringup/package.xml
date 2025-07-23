@@ -8,6 +8,7 @@
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
   <exec_depend>auv_bringup</exec_depend>
+  <exec_depend>auv_cam</exec_depend>
   <exec_depend>auv_control</exec_depend>
   <exec_depend>auv_localization</exec_depend>
   <exec_depend>auv_sim_bridge</exec_depend>

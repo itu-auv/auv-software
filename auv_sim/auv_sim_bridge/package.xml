@@ -16,5 +16,9 @@
   <depend>std_msgs</depend>
   <depend>uuv_gazebo_ros_plugins_msgs</depend>
   <depend>uuv_sensor_ros_plugins_msgs</depend>
+  <build_depend>gazebo_msgs</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>std_srvs</build_depend>
+  <build_depend>tf</build_depend>
   <export/>
 </package>

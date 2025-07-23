@@ -7,9 +7,9 @@
   <maintainer email="t.ozanhakan@gmail.com">Ozan Hakan Tunca</maintainer>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
+  <exec_depend>image_view</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>ultralytics_ros</exec_depend>
   <exec_depend>vision_msgs</exec_depend>
-  <!--<depend>image_view</depend>-->
   <export/>
 </package>

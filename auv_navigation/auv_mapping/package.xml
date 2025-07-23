@@ -23,6 +23,8 @@
   <depend>tf2_ros</depend>
   <depend>vision_msgs</depend>
   <depend>visualization_msgs</depend>
+  <exec_depend>auv_detection</exec_depend>
+  <exec_depend>rviz</exec_depend>
   <exec_depend>ultralytics_ros</exec_depend>
 
   <export/>
