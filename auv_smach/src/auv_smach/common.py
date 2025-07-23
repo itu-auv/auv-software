@@ -684,6 +684,7 @@ class SearchForPropState(smach.StateMachine):
         set_frame_duration: float,
         source_frame: str = "taluy/base_link",
         rotation_speed: float = 0.3,
+        max_angular_velocity: float = 0.25,
     ):
         """
         Args:
@@ -695,6 +696,7 @@ class SearchForPropState(smach.StateMachine):
             set_frame_duration (float): Duration for the SetFrameLookingAtState.
             source_frame (str): The base frame of the vehicle (default: "taluy/base_link").
             rotation_speed (float): The angular velocity for rotation (default: 0.3).
+            max_angular_velocity (float): Max angular velocity for align controller (optional).
         """
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
 
@@ -716,7 +718,9 @@ class SearchForPropState(smach.StateMachine):
             smach.StateMachine.add(
                 "SET_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
-                    source_frame=source_frame, target_frame=alignment_frame
+                    source_frame=source_frame,
+                    target_frame=alignment_frame,
+                    max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
                     "succeeded": "BROADCAST_ALIGNMENT_FRAME",
