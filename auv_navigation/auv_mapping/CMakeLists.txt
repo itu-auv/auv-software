@@ -46,6 +46,7 @@ endif()
 
 generate_dynamic_reconfigure_options(
   cfg/SlalomTrajectory.cfg
+  cfg/GateTrajectory.cfg
 )
 
 catkin_package(

@@ -11,6 +11,8 @@ from std_msgs.msg import Float64
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from nav_msgs.msg import Odometry
+from dynamic_reconfigure.server import Server
+from auv_mapping.cfg import GateTrajectoryConfig
 
 
 class TransformServiceNode:
@@ -21,6 +23,20 @@ class TransformServiceNode:
         rospy.init_node("create_gate_frames_node")
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        # Dynamic reconfigure server for gate parameters
+        self.gate_frame_1 = "gate_shark_link"
+        self.gate_frame_2 = "gate_sawfish_link"
+        self.target_gate_frame = "gate_shark_link"
+        self.entrance_offset = 1.0
+        self.exit_offset = 1.4
+        self.z_offset = 0.5
+        self.parallel_shift_offset = 0.15
+        self.rescuer_distance = 1.5
+        self.wall_reference_yaw = -2.5
+        self.reconfigure_server = Server(
+            GateTrajectoryConfig, self.reconfigure_callback
+        )
 
         # Service to broadcast transforms
         self.set_object_transform_service = rospy.ServiceProxy(
@@ -39,10 +55,6 @@ class TransformServiceNode:
         self.entrance_frame = "gate_entrance"
         self.exit_frame = "gate_exit"
         self.middle_frame = "gate_middle_part"
-
-        # Load gate frame parameters from YAML
-        self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_shark_link")
-        self.gate_frame_2 = rospy.get_param("~gate_frame_2", "gate_sawfish_link")
 
         # Verify that we have valid frame names
         if not all([self.gate_frame_1, self.gate_frame_2]):
@@ -67,11 +79,6 @@ class TransformServiceNode:
         self.set_enable_service = rospy.Service(
             "toggle_gate_trajectory", SetBool, self.handle_enable_service
         )
-
-        self.entrance_offset = rospy.get_param("~entrance_offset", 1.0)
-        self.exit_offset = rospy.get_param("~exit_offset", 1.4)
-        self.z_offset = rospy.get_param("~z_offset", 0.5)
-        self.parallel_shift_offset = rospy.get_param("~parallel_shift_offset", 0.15)
 
         # --- Parameters for fallback (single-frame) mode
         self.fallback_entrance_offset = rospy.get_param(
@@ -584,6 +591,18 @@ class TransformServiceNode:
                 self._publish_rescuer_frame()
 
         rate.sleep()
+
+    def reconfigure_callback(self, config, level):
+        self.gate_frame_1 = config.gate_frame_1
+        self.gate_frame_2 = config.gate_frame_2
+        self.target_gate_frame = config.target_gate_frame
+        self.entrance_offset = config.entrance_offset
+        self.exit_offset = config.exit_offset
+        self.z_offset = config.z_offset
+        self.parallel_shift_offset = config.parallel_shift_offset
+        self.rescuer_distance = config.rescuer_distance
+        self.wall_reference_yaw = config.wall_reference_yaw
+        return config
 
 
 if __name__ == "__main__":
