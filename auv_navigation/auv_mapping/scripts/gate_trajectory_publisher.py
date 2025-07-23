@@ -597,7 +597,6 @@ class TransformServiceNode:
     def reconfigure_callback(self, config, level):
         self.gate_frame_1 = config.gate_frame_1
         self.gate_frame_2 = config.gate_frame_2
-        self.target_gate_frame = config.target_gate_frame
         self.entrance_offset = config.entrance_offset
         self.exit_offset = config.exit_offset
         self.z_offset = config.z_offset
