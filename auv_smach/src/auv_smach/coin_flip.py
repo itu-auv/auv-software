@@ -94,7 +94,7 @@ class CoinFlipState(smach.StateMachine):
                     keep_orientation=False,
                 ),
                 transitions={
-                    "succeeded": "FIND_AND_AIM_GATE",
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
