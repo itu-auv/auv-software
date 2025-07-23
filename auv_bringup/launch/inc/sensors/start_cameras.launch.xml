@@ -29,7 +29,9 @@
       <arg name="name" value="$(arg cam_bottom_name)"/>
       <arg name="pub_camera_info" value="$(arg pub_camera_info)"/>
     </include>
-  </group>  
+  </group>
   <!-- launch realsense camera -->
-  <include file="$(find auv_cam)/launch/realsense_camera.launch"/>
+  <group if="$(eval arg('namespace') == 'taluy')">
+    <include file="$(find auv_cam)/launch/realsense_camera.launch"/>
+  </group>
 </launch>

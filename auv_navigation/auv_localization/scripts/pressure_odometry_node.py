@@ -14,8 +14,9 @@ from auv_common_lib.logging.terminal_color_utils import TerminalColors
 class PressureToOdom:
     def __init__(self):
         rospy.init_node("pressure_to_odom_node", anonymous=True)
-        
+
         self.namespace = rospy.get_namespace().strip("/")
+        self.body_frame = f"{self.namespace}/base_link"
 
         # Initialize class variables
         self.imu_data = None
@@ -85,7 +86,7 @@ class PressureToOdom:
         """Initialize and configure the odometry message"""
         odom_msg = Odometry()
         odom_msg.header.frame_id = "odom"
-        odom_msg.child_frame_id = f"{self.namespace}/base_link"
+        odom_msg.child_frame_id = self.body_frame
 
         # Initialize covariances
         odom_msg.pose.covariance = np.zeros(36).tolist()
@@ -125,7 +126,7 @@ class PressureToOdom:
         # Try to fetch and cache the TF once
         if getattr(self, cache_attr) is None:
             try:
-                trans, _ = self.transformer.get_transform("taluy/base_link", frame_id)
+                trans, _ = self.transformer.get_transform(self.body_frame, frame_id)
                 arr = np.array(trans)
                 # flatten any nested structure to 1D [x, y, z]
                 setattr(self, cache_attr, arr.flatten())
@@ -158,14 +159,14 @@ class PressureToOdom:
     def get_base_to_pressure_height(self):
         """Get pressure sensor height with respect to base_link"""
         return self._get_sensor_height(
-            "taluy/base_link/external_pressure_sensor_link",
+            f"{self.body_frame}/external_pressure_sensor_link",
             "base_to_pressure_translation",
         )
 
     def get_base_to_dvl_height(self):
         """Get DVL height with respect to base_link"""
         return self._get_sensor_height(
-            "taluy/base_link/dvl_link", "base_to_dvl_translation"
+            f"{self.body_frame}/dvl_link", "base_to_dvl_translation"
         )
 
     def fused_depth_callback(self, depth_msg, dvl_msg):
