@@ -108,7 +108,7 @@ class SlalomTrajectoryPublisher(object):
             t_white = self.tf_buffer.lookup_transform(
                 self.parent_frame,
                 self.slalom_white_frame,
-                rospy.Time(0),
+                rospy.Time.now(),
                 rospy.Duration(1.0),
             )
             pos_white = np.array(
@@ -121,7 +121,7 @@ class SlalomTrajectoryPublisher(object):
             t_red = self.tf_buffer.lookup_transform(
                 self.parent_frame,
                 self.slalom_red_frame,
-                rospy.Time(0),
+                rospy.Time.now(),
                 rospy.Duration(1.0),
             )
             pos_red = np.array(
@@ -225,7 +225,7 @@ class SlalomTrajectoryPublisher(object):
             t_gate_exit = self.tf_buffer.lookup_transform(
                 self.parent_frame,
                 self.gate_exit_frame,
-                rospy.Time(0),
+                rospy.Time.now(),
                 rospy.Duration(1.0),
             )
             gate_exit_pos = np.array(
