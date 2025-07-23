@@ -61,7 +61,7 @@ class SlalomTrajectoryPublisher(object):
             None,
             None,
         )
-        self.navigation_mode = "left"
+        self.navigation_mode = "left"  # TODO: connect the parameters later
 
         # Create a service that will trigger the frame publishing
         self.srv = rospy.Service(
