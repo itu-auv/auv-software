@@ -66,13 +66,13 @@ class CoinFlipState(smach.StateMachine):
                     keep_orientation=True,
                 ),
                 transitions={
-                    "succeeded": "SET_ROLL_DEPTH",
+                    "succeeded": "SET_DEPTH_FOR_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_ROLL_DEPTH",
+                "SET_DEPTH_FOR_GATE",
                 SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "ALIGN_ORIENTATION_TO_RESCUE_COIN_FLIP_FRAME",
