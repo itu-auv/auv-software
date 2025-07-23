@@ -24,6 +24,7 @@ from std_msgs.msg import Bool
 from std_srvs.srv import SetBool, SetBoolRequest
 from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryState
 from auv_smach.roll import TwoRollState
+from auv_smach.coin_flip import CoinFlipState
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
@@ -98,6 +99,7 @@ class NavigateThroughGateState(smach.State):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.sim_mode = rospy.get_param("~sim", False)
+        self.coin_flip = rospy.get_param("~coin_flip", False)
         self.gate_look_at_frame = "gate_middle_part"
         self.gate_search_frame = "gate_search"
 
@@ -108,17 +110,30 @@ class NavigateThroughGateState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_DETECTION_FOCUS_GATE",
-                SetDetectionFocusState(focus_object="gate"),
+                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
+                TransformServiceEnableState(req=True),
                 transitions={
-                    "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
+                    "succeeded": (
+                        "COIN_FLIP_STATE"
+                        if self.coin_flip
+                        else "SET_DETECTION_FOCUS_GATE"
+                    ),
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
-                TransformServiceEnableState(req=True),
+                "COIN_FLIP_STATE",
+                CoinFlipState(gate_search_depth=gate_search_depth),
+                transitions={
+                    "succeeded": "SET_DETECTION_FOCUS_GATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_GATE",
+                SetDetectionFocusState(focus_object="gate"),
                 transitions={
                     "succeeded": "SET_ROLL_DEPTH",
                     "preempted": "preempted",
@@ -129,7 +144,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=gate_search_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 3.0),
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
