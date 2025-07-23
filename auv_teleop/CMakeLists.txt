@@ -40,6 +40,7 @@ install(PROGRAMS
   scripts/dry_test_tab.py
   scripts/vehicle_control_tab.py
   scripts/simulation_tab.py
+  scripts/wrench_manager.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
