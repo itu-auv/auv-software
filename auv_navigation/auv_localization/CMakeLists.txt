@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.10.2)
 project(auv_localization)
 
 find_package(catkin REQUIRED COMPONENTS
-  dynamic_reconfigure
   message_generation
   rospy
   std_msgs
@@ -20,7 +19,7 @@ generate_messages(
 
 
 catkin_package(
-  CATKIN_DEPENDS dynamic_reconfigure message_runtime std_msgs
+  CATKIN_DEPENDS message_runtime std_msgs
 )
 
 include_directories(
