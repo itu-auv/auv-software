@@ -289,10 +289,23 @@ class SlalomTrajectoryPublisher(object):
                 e,
             )
         try:
-            if pos_red is not None and x_axis_in_parent_frame is not None:
+            if x_axis_in_parent_frame is not None:
+                t_red_candidate = self.tf_buffer.lookup_transform(
+                    self.parent_frame,
+                    "slalom_red_pipe_candidate",
+                    rospy.Time.now(),
+                    rospy.Duration(1.0),
+                )
+                candidate_red_pose = np.array(
+                    [
+                        t_red_candidate.transform.translation.x,
+                        t_red_candidate.transform.translation.y,
+                        t_red_candidate.transform.translation.z,
+                    ]
+                )
                 # Calculate the new position for the slalom_enterance_red frame
                 pos_slalom_enterance_red = (
-                    pos_red
+                    candidate_red_pose
                     - x_axis_in_parent_frame * self.slalom_entrance_backed_distance
                 )
                 self.send_transform(
