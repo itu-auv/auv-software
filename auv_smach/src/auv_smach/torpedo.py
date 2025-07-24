@@ -237,7 +237,7 @@ class TorpedoTaskState(smach.State):
                     rotation_speed=0.1,
                 ),
                 transitions={
-                    "succeeded": "ALIGN_TO_FINAL",
+                    "succeeded": "ALIGN_TO_LOOKUP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
