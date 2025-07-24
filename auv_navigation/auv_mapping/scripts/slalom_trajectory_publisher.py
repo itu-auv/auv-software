@@ -223,6 +223,36 @@ class SlalomTrajectoryPublisher(object):
                     self.q_orientation,
                 )
             )
+
+            # Calculate and publish intermediate frames
+            if self.pos_wp1 is not None and self.pos_wp2 is not None:
+                dir_vec1 = self.pos_wp2 - self.pos_wp1
+                dir_vec1 = dir_vec1 / np.linalg.norm(dir_vec1)
+                angle1 = math.atan2(dir_vec1[1], dir_vec1[0])
+                q1 = tf.transformations.quaternion_from_euler(0, 0, angle1)
+                self.send_transform(
+                    self.build_transform(
+                        "slalom_waypoint_1_inter",
+                        self.parent_frame,
+                        self.pos_wp1,
+                        q1,
+                    )
+                )
+
+            if self.pos_wp2 is not None and self.pos_wp3 is not None:
+                dir_vec2 = self.pos_wp3 - self.pos_wp2
+                dir_vec2 = dir_vec2 / np.linalg.norm(dir_vec2)
+                angle2 = math.atan2(dir_vec2[1], dir_vec2[0])
+                q2 = tf.transformations.quaternion_from_euler(0, 0, angle2)
+                self.send_transform(
+                    self.build_transform(
+                        "slalom_waypoint_2_inter",
+                        self.parent_frame,
+                        self.pos_wp2,
+                        q2,
+                    )
+                )
+
         except Exception as e:
             rospy.logwarn_throttle(
                 8, "Failed to get pipe locations and publish slalom waypoints: %s", e
