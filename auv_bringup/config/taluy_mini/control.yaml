@@ -41,14 +41,15 @@ mapping: [0, 1, 2, 3, 4, 5, 6, 7]
 
 
 # Thruster coefficients for scaling effort. Set to -1.0 to reverse a thruster.
-thruster_1_coeff: 1.0
-thruster_2_coeff: 1.0
+thruster_1_coeff: -1.0
+thruster_2_coeff: -1.0
 thruster_3_coeff: 1.0
 thruster_4_coeff: 1.0
 thruster_5_coeff: 1.0
-thruster_6_coeff: 1.0
+thruster_6_coeff: -1.0
 thruster_7_coeff: 1.0
-thruster_8_coeff: 1.0
+thruster_8_coeff: -1.0
+
 
 z_axis_controller:
   p_gain: 0.0
