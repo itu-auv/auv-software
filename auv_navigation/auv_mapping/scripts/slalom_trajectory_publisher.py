@@ -297,7 +297,7 @@ class SlalomTrajectoryPublisher(object):
                 )
                 self.send_transform(
                     self.build_transform(
-                        "slalom_enterance_red",
+                        "slalom_entrance_red",
                         self.parent_frame,
                         pos_slalom_enterance_red,
                         gate_exit_q,
