@@ -37,9 +37,12 @@ class PublishSlalomWaypointsState(smach_ros.ServiceState):
 
 
 class SlalomDetectionToWAYpointsState(smach_ros.ServiceState):
-    def __init__(self):
+    def __init__(self, enabled: bool):
         smach_ros.ServiceState.__init__(
-            self, "slalom_detection_to_waypoints", Trigger, request=TriggerRequest()
+            self,
+            "slalom_detection_to_waypoints",
+            SetBool,
+            request=SetBoolRequest(data=enabled),
         )
 
 
@@ -141,7 +144,9 @@ class NavigateThroughSlalomState(smach.State):
             )
             smach.StateMachine.add(
                 "RED_PIPE_RELALOCATE_SERVICE",
-                SlalomDetectionToWAYpointsState(),  # This service will handle the detection and reallocation of the red pipe
+                SlalomDetectionToWAYpointsState(
+                    enabled=True
+                ),  # This service will handle the detection and reallocation of the red pipe
                 transitions={
                     "succeeded": "DELAY_FOR_RED_PIPE_RELALOCATE",
                     "preempted": "preempted",

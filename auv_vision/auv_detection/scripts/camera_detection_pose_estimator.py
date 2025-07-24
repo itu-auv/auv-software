@@ -241,7 +241,7 @@ class CameraDetectionNode:
         )
         rospy.Service(
             "slalom_detection_to_waypoints",
-            Trigger,
+            SetBool,
             self.handle_slalom_detection_to_waypoints,
         )
 
@@ -249,10 +249,10 @@ class CameraDetectionNode:
         """
         Service callback to trigger slalom detection and waypoint calculation.
         """
-        rospy.loginfo("Slalom detection to waypoints service called.")
-        self.slalom_mode_active = True
-        return TriggerResponse(
-            success=True, message="Slalom waypoint generation triggered."
+        rospy.loginfo(f"Slalom mode active set to {req.data}")
+        self.slalom_mode_active = req.data
+        return SetBoolResponse(
+            success=True, message=f"Slalom mode active set to {req.data}"
         )
 
     def handle_set_front_camera_focus(self, req):
