@@ -212,6 +212,7 @@ class AlignFrameControllerNode:
             self.source_frame, self.target_frame, self.angle_offset
         )
         if trans_error is None or yaw_error is None:
+            self.cmd_vel_pub.publish(Twist())  # zero twist if error cannot be computed
             return
 
         self.enable_pub.publish(Bool(data=True))
