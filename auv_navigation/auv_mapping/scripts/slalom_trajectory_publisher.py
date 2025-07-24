@@ -227,7 +227,6 @@ class SlalomTrajectoryPublisher(object):
             rospy.logwarn_throttle(
                 8, "Failed to get pipe locations and publish slalom waypoints: %s", e
             )
-
         # Calculate and publish slalom_entrance
         try:
             t_gate_exit = self.tf_buffer.lookup_transform(
@@ -288,6 +287,25 @@ class SlalomTrajectoryPublisher(object):
                 8,
                 "Failed to get gate exit transform and publish slalom entrance: %s",
                 e,
+            )
+        try:
+            if pos_red is not None and x_axis_in_parent_frame is not None:
+                # Calculate the new position for the slalom_enterance_red frame
+                pos_slalom_enterance_red = (
+                    pos_red
+                    - x_axis_in_parent_frame * self.slalom_entrance_backed_distance
+                )
+                self.send_transform(
+                    self.build_transform(
+                        "slalom_entrance_red",
+                        self.parent_frame,
+                        pos_slalom_enterance_red,
+                        gate_exit_q,
+                    )
+                )
+        except Exception as e:
+            rospy.logwarn_throttle(
+                8, "Failed to publish slalom_enterance_red waypoint: %s", e
             )
 
     def build_transform(self, child_frame, parent_frame, pos, q):

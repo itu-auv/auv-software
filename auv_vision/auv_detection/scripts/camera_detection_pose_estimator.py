@@ -17,7 +17,7 @@ from auv_msgs.msg import PropsYaw
 from sensor_msgs.msg import Range
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
-from std_srvs.srv import SetBool, SetBoolResponse
+from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
@@ -146,6 +146,7 @@ class CameraDetectionNode:
         self.selected_side = rospy.get_param("~selected_side", "left")
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
+        self.slalom_mode_active = False
         self.active_front_camera_ids = list(range(15))  # Allow all by default
 
         self.object_id_map = {
@@ -237,6 +238,21 @@ class CameraDetectionNode:
             "set_front_camera_focus",
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
+        )
+        rospy.Service(
+            "slalom_detection_to_waypoints",
+            Trigger,
+            self.handle_slalom_detection_to_waypoints,
+        )
+
+    def handle_slalom_detection_to_waypoints(self, req):
+        """
+        Service callback to trigger slalom detection and waypoint calculation.
+        """
+        rospy.loginfo("Slalom detection to waypoints service called.")
+        self.slalom_mode_active = True
+        return TriggerResponse(
+            success=True, message="Slalom waypoint generation triggered."
         )
 
     def handle_set_front_camera_focus(self, req):
@@ -579,16 +595,20 @@ class CameraDetectionNode:
                 detection_msg, camera_ns, torpedo_map_bbox
             )
 
+        # Red pipe pre-processing
         red_pipe_x = None
-        red_pipes = [
-            d for d in detection_msg.detections.detections if d.results[0].id == 2
+        all_red_pipes = [
+            d
+            for d in detection_msg.detections.detections
+            if len(d.results) > 0 and d.results[0].id == 2
         ]
-        if red_pipes:
+        if all_red_pipes:
             largest_red_pipe = max(
-                red_pipes, key=lambda d: d.bbox.size_x * d.bbox.size_y
+                all_red_pipes, key=lambda d: d.bbox.size_x * d.bbox.size_y
             )
             red_pipe_x = largest_red_pipe.bbox.center.x
 
+        # Main detection loop
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
@@ -602,12 +622,22 @@ class CameraDetectionNode:
             if detection_id == 5:
                 continue
 
-            if detection_id == 3 and red_pipe_x is not None:
-                white_x = detection.bbox.center.x
-                if self.selected_side == "left" and white_x > red_pipe_x:
+            # Slalom candidate logic for red pipe
+            is_red_pipe = detection_id == 2
+            if is_red_pipe and not self.slalom_mode_active:
+                # In candidate mode, only process the largest red pipe.
+                if detection != largest_red_pipe:
+                    continue  # Skip non-largest red pipes
+
+            if detection_id == 3:  # White pipe
+                if not self.slalom_mode_active:
                     continue
-                if self.selected_side == "right" and white_x < red_pipe_x:
-                    continue
+                if red_pipe_x is not None:
+                    white_x = detection.bbox.center.x
+                    if self.selected_side == "left" and white_x > red_pipe_x:
+                        continue
+                    if self.selected_side == "right" and white_x < red_pipe_x:
+                        continue
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
@@ -624,11 +654,16 @@ class CameraDetectionNode:
             if not skip_inside_image:
                 if self.check_if_detection_is_inside_image(detection) is False:
                     continue
-            prop_name = self.id_tf_map[camera_ns][detection_id]
-            if prop_name not in self.props:
-                continue
 
-            prop = self.props[prop_name]
+            # Determine prop_name based on slalom mode
+            if is_red_pipe and not self.slalom_mode_active:
+                prop_name = "slalom_red_pipe_candidate"
+                prop = self.props["red_pipe_link"]  # Use original for calculations
+            else:
+                prop_name = self.id_tf_map[camera_ns][detection_id]
+                if prop_name not in self.props:
+                    continue
+                prop = self.props[prop_name]
 
             if not skip_inside_image:  # Calculate distance using object dimensions
                 distance = prop.estimate_distance(
