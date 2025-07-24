@@ -34,7 +34,11 @@ class PublishSlalomWaypointsState(smach_ros.ServiceState):
         smach_ros.ServiceState.__init__(
             self, "publish_slalom_waypoints", Trigger, request=TriggerRequest()
         )
-
+class SlalomDetectionToWAYpointsState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "slalom_detection_to_waypoints", Trigger, request=TriggerRequest()
+        )
 
 class NavigateThroughSlalomState(smach.State):
     def __init__(self, slalom_depth: float):
@@ -81,7 +85,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "LOOK_AT_RED_PIPE",
                 SearchForPropState(
-                    look_at_frame="red_pipe_link",
+                    look_at_frame="slalom_red_pipe_candidate",
                     alignment_frame="red_pipe_search_frame",
                     full_rotation=False,
                     set_frame_duration=5.0,
@@ -126,6 +130,24 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "RED_PIPE_RELALOCATE",
                 SetDetectionFocusState(focus_object="pipe"),
+                transitions={
+                    "succeeded": "RED_PIPE_RELALOCATE_SERVICE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RED_PIPE_RELALOCATE_SERVICE",
+                SlalomDetectionToWAYpointsState(),  # This service will handle the detection and reallocation of the red pipe  
+                transitions={
+                    "succeeded": "DELAY_FOR_RED_PIPE_RELALOCATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_FOR_RED_PIPE_RELALOCATE",
+                DelayState(delay_time=3.0),
                 transitions={
                     "succeeded": "LOOK_LEFT",
                     "preempted": "preempted",
