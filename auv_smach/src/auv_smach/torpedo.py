@@ -243,7 +243,7 @@ class TorpedoTaskState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_TO_FINAL",
+                "ALIGN_TO_LOOKUP",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="torpedo_map_lookup",
