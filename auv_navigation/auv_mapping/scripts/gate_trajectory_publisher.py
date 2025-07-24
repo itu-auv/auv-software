@@ -14,7 +14,9 @@ from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from nav_msgs.msg import Odometry
 from dynamic_reconfigure.server import Server
+from dynamic_reconfigure.client import Client as DynamicReconfigureClient
 from auv_mapping.cfg import GateTrajectoryConfig
+from auv_smach.cfg import SmachParametersConfig
 
 
 class TransformServiceNode:
@@ -40,6 +42,16 @@ class TransformServiceNode:
             GateTrajectoryConfig, self.reconfigure_callback
         )
 
+        # Client for auv_smach parameters
+        if SmachParametersConfig is not None:
+            self.smach_params_client = DynamicReconfigureClient(
+                "main_state_machine",
+                timeout=30,
+                config_callback=self.smach_params_callback,
+            )
+        else:
+            rospy.logerr("Smach dynamic reconfigure client not started.")
+
         # Service to broadcast transforms
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
@@ -62,21 +74,6 @@ class TransformServiceNode:
         if not all([self.gate_frame_1, self.gate_frame_2]):
             rospy.logerr("Missing required gate frame parameters")
             rospy.signal_shutdown("Missing required parameters")
-
-        # Get mission targets from YAML
-        mission_targets = rospy.get_param(
-            "~mission_targets",
-            {
-                "shark": {"gate_target_frame": "gate_shark_link"},
-                "sawfish": {"gate_target_frame": "gate_sawfish_link"},
-            },
-        )
-
-        # Get target selection from YAML
-        target_selection = rospy.get_param("~target_selection", "shark")
-
-        # Set gate target frame based on target selection
-        self.target_gate_frame = mission_targets[target_selection]["gate_target_frame"]
 
         self.set_enable_service = rospy.Service(
             "toggle_gate_trajectory", SetBool, self.handle_enable_service
@@ -101,12 +98,20 @@ class TransformServiceNode:
         self.coin_flip_rescuer_pose = None
         self.rescuer_frame_name = "coin_flip_rescuer"
 
-        self.wall_reference_yaw = rospy.get_param("~wall_reference_yaw", 3.0)
-        self.rescuer_distance = rospy.get_param("~rescuer_distance", 1.5)
-
         self.toggle_rescuer_service = rospy.Service(
             "toggle_coin_flip_rescuer", SetBool, self.handle_toggle_rescuer_service
         )
+
+    def smach_params_callback(self, config):
+        """Callback for receiving parameters from the auv_smach node."""
+        rospy.loginfo("Received smach parameters update: %s", config)
+        if "wall_reference_yaw" in config:
+            self.wall_reference_yaw = config["wall_reference_yaw"]
+        if "selected_animal" in config:
+            if config["selected_animal"] == "shark":
+                self.target_gate_frame = "gate_shark_link"
+            elif config["selected_animal"] == "sawfish":
+                self.target_gate_frame = "gate_sawfish_link"
 
     def handle_toggle_rescuer_service(self, request: SetBool) -> SetBoolResponse:
 
@@ -600,7 +605,6 @@ class TransformServiceNode:
         self.z_offset = config.z_offset
         self.parallel_shift_offset = config.parallel_shift_offset
         self.rescuer_distance = config.rescuer_distance
-        self.wall_reference_yaw = config.wall_reference_yaw
         return config
 
 

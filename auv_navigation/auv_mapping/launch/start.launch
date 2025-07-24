@@ -31,7 +31,6 @@
     </node>
 
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
-      <rosparam command="load" file="$(find auv_smach)/config/mission_target_selection.yaml" />
       <remap from="toggle_coin_flip_rescuer" to="toggle_coin_flip_rescuer" />
       <remap from="odometry" to="odometry" />
       <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />

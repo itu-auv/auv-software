@@ -12,35 +12,26 @@ from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
 from std_msgs.msg import Bool
 import threading
+from dynamic_reconfigure.server import Server
+from auv_smach.cfg import SmachParametersConfig
 
 
 class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
 
-        # Get target selection from YAML
-        self.target_selection = rospy.get_param("~target_selection", "shark")
-        self.mission_targets = rospy.get_param(
-            "~mission_targets",
-            {
-                "shark": {
-                    "gate_target_frame": "gate_shark_link",
-                    "red_buoy_direction": "ccw",
-                    "slalom_direction": "left_side",
-                    "bin_target_frame": "bin_shark_link",
-                    "torpedo_target_frame": "torpedo_hole_shark_link",
-                    "octagon_target_frame": "octagon_shark_link",
-                },
-                "sawfish": {
-                    "gate_target_frame": "gate_sawfish_link",
-                    "red_buoy_direction": "cw",
-                    "slalom_direction": "right_side",
-                    "bin_target_frame": "bin_sawfish_link",
-                    "torpedo_target_frame": "torpedo_hole_sawfish_link",
-                    "octagon_target_frame": "octagon_sawfish_link",
-                },
-            },
-        )
+        # Initialize dynamic reconfigure server
+        if SmachParametersConfig is not None:
+            self.dynamic_reconfigure_server = Server(
+                SmachParametersConfig, self.dynamic_reconfigure_callback
+            )
+        else:
+            rospy.logwarn(
+                "Dynamic reconfigure server not initialized due to missing config"
+            )
+
+        # Get initial values from dynamic reconfigure
+        self.selected_animal = "shark"  # Default to shark
 
         self.gate_search_depth = -0.7
         self.gate_depth = -1.35
@@ -61,15 +52,6 @@ class MainStateMachineNode:
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -1.0
-
-        # Set parameters based on target selection
-        self.target_frames = self.mission_targets[self.target_selection]
-        self.red_buoy_direction = self.target_frames["red_buoy_direction"]
-        # self.slalom_direction = self.target_frames["slalom_direction"]
-        # self.bin_target_frame = self.target_frames["bin_target_frame"]
-        # self.torpedo_target_frame = self.target_frames["torpedo_target_frame"]
-        # self.octagon_target_frame = self.target_frames["octagon_target_frame"]
-        # self.gate_target_frame = self.target_frames["gate_target_frame"]
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -96,6 +78,18 @@ class MainStateMachineNode:
         # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
 
+    def dynamic_reconfigure_callback(self, config, level):
+        """
+        Dynamic reconfigure callback for updating mission parameters
+        """
+        rospy.loginfo(
+            "Received reconfigure request: selected_animal=%s", config.selected_animal
+        )
+
+        # Update parameters
+        self.selected_animal = config.selected_animal
+        return config
+
     def execute_state_machine(self):
         # Map state names to their corresponding classes and parameters
         state_mapping = {
@@ -113,14 +107,6 @@ class MainStateMachineNode:
                     "slalom_depth": self.slalom_depth,
                 },
             ),
-            "NAVIGATE_AROUND_RED_BUOY": (
-                RotateAroundBuoyState,
-                {
-                    "radius": self.red_buoy_radius,
-                    "direction": self.red_buoy_direction,
-                    "red_buoy_depth": self.red_buoy_depth,
-                },
-            ),
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,
                 {
@@ -132,7 +118,7 @@ class MainStateMachineNode:
                             self.torpedo_shark_fire_frame,
                             self.torpedo_sawfish_fire_frame,
                         ]
-                        if self.target_selection == "shark"
+                        if self.selected_animal == "shark"
                         else [
                             self.torpedo_sawfish_fire_frame,
                             self.torpedo_shark_fire_frame,
@@ -145,7 +131,7 @@ class MainStateMachineNode:
                 {
                     "bin_front_look_depth": self.bin_front_look_depth,
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
-                    "target_selection": self.target_selection,
+                    "target_selection": self.selected_animal,
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
