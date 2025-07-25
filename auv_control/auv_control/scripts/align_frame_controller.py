@@ -125,7 +125,7 @@ class AlignFrameControllerNode:
         source_frame: str,
         target_frame: str,
         angle_offset: float,
-        time: rospy.Time = rospy.Time.now(),
+        time: rospy.Time = rospy.Time(0),
     ) -> Tuple[Optional[Tuple[float, float, float]], Optional[float]]:
         try:
             transform = self.tf_buffer.lookup_transform(
