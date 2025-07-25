@@ -78,7 +78,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "ALIGN_TO_SLALOM_ENTRANCE",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -91,7 +91,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_SLALOM_ENTRANCE_BACKED",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -102,7 +102,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "ALIGN_TO_SLALOM_ENTRANCE_BACKED",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -115,22 +115,22 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "SET_DETECTION_FOCUS_TO_SLALOM",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
                 "SET_DETECTION_FOCUS_TO_SLALOM",
                 SetDetectionFocusState(focus_object="pipe"),
                 transitions={
-                    "succeeded": "LOOK_AT_RED_PIPE",
+                    "succeeded": "SEARCH_FOR_RED_PIPE",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
-                "LOOK_AT_RED_PIPE",
+                "SEARCH_FOR_RED_PIPE",
                 SearchForPropState(
-                    look_at_frame="red_pipe_line",
+                    look_at_frame="red_pipe_link",
                     alignment_frame="slalom_entrance_backed",
                     full_rotation=False,
                     set_frame_duration=5.0,
@@ -140,7 +140,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "LOOK_LEFT",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -161,7 +161,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "LOOK_RIGHT",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -180,13 +180,13 @@ class NavigateThroughSlalomState(smach.State):
                     max_angular_velocity=0.15,
                 ),
                 transitions={
-                    "succeeded": "LOOK_AT_RED_PIPE",
+                    "succeeded": "LOCK_ON_RED_PIPE",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
-                "LOOK_AT_RED_PIPE",
+                "LOCK_ON_RED_PIPE",
                 SearchForPropState(
                     look_at_frame="red_pipe_link",
                     alignment_frame="slalom_entrance_backed",
@@ -198,16 +198,16 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "SET_DETECTION_FOCUS_TO_NONE",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
-                "SET_DETECTON_FOCUS_TO_NONE",
+                "SET_DETECTION_FOCUS_TO_NONE",
                 SetDetectionFocusState(focus_object="none"),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_WP_1",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -219,7 +219,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "ALIGN_TO_WP_1_INTER",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -235,7 +235,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_WP_2",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -247,7 +247,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "ALIGN_TO_WP_2_INTER",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -263,7 +263,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_WP_3",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -275,7 +275,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_EXIT",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
@@ -284,13 +284,13 @@ class NavigateThroughSlalomState(smach.State):
                     plan_target_frame="slalom_exit",
                 ),
                 transitions={
-                    "succeeded": "ALIGN_TO_SLALOM_eXIT",
+                    "succeeded": "ALIGN_TO_SLALOM_EXIT",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_TO_SLALOM_eXIT",
+                "ALIGN_TO_SLALOM_EXIT",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="slalom_exit",
@@ -300,7 +300,7 @@ class NavigateThroughSlalomState(smach.State):
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
