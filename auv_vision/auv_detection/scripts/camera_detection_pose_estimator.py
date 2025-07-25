@@ -585,7 +585,7 @@ class CameraDetectionNode:
         ]
         if red_pipes:
             largest_red_pipe = max(
-                red_pipes, key=lambda d: d.bbox.size_x * d.bbox.size_y
+                red_pipes, key=lambda d: d.bbox.size_y
             )
             red_pipe_x = largest_red_pipe.bbox.center.x
 
