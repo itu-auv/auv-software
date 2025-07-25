@@ -74,6 +74,18 @@ class AlignFrameControllerNode:
     def handle_align_request(
         self, req: AlignFrameController
     ) -> AlignFrameControllerResponse:
+        # Check if the transform exists before starting
+        if not self.tf_buffer.can_transform(
+            req.source_frame, req.target_frame, rospy.Time.now(), rospy.Duration(1.0)
+        ):
+            rospy.logwarn(
+                f"Align request aborted: Transform from '{req.target_frame}' to '{req.source_frame}' not available."
+            )
+            return AlignFrameControllerResponse(
+                success=False,
+                message=f"Transform from '{req.target_frame}' to '{req.source_frame}' not available.",
+            )
+
         self.source_frame = req.source_frame
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
@@ -113,7 +125,7 @@ class AlignFrameControllerNode:
         source_frame: str,
         target_frame: str,
         angle_offset: float,
-        time: rospy.Time = rospy.Time(0),
+        time: rospy.Time = rospy.Time.now(),
     ) -> Tuple[Optional[Tuple[float, float, float]], Optional[float]]:
         try:
             transform = self.tf_buffer.lookup_transform(
@@ -200,6 +212,7 @@ class AlignFrameControllerNode:
             self.source_frame, self.target_frame, self.angle_offset
         )
         if trans_error is None or yaw_error is None:
+            self.cmd_vel_pub.publish(Twist())  # zero twist if error cannot be computed
             return
 
         self.enable_pub.publish(Bool(data=True))
