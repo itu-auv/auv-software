@@ -603,9 +603,7 @@ class CameraDetectionNode:
             if len(d.results) > 0 and d.results[0].id == 2
         ]
         if all_red_pipes:
-            largest_red_pipe = max(
-                all_red_pipes, key=lambda d: d.bbox.size_x * d.bbox.size_y
-            )
+            largest_red_pipe = max(all_red_pipes, key=lambda d: d.bbox.size_y)
             red_pipe_x = largest_red_pipe.bbox.center.x
 
         # Main detection loop
