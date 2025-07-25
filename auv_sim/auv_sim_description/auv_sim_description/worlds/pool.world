@@ -331,6 +331,167 @@
         <kinematic>0</kinematic>
       </link>
     </model>
+    <model name='robosub_octagon_table'>
+      <static>1</static>
+      <pose>3.5 -19 -2 0 -0 0</pose>
+      <link name='robosub_octagon_table_link'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_octagon_table_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table/model.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='robosub_octagon_table_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table/model.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name='robosub_octagon_basket_yellow'>
+      <static>1</static>
+      <pose>3.0 -19.2 -1.5 0 -0 0</pose>
+      <link name='robosub_octagon_basket_yellow_link'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_octagon_basket_yellow_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_basket_yellow/model.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='robosub_octagon_basket_yellow_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_basket_yellow/model.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name='robosub_octagon_bottle_yellow'>
+      <static>1</static>
+      <pose>3.0 -18.8 -1.5 0 -0 0</pose>
+      <link name='robosub_octagon_bottle_yellow_link'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_octagon_bottle_yellow_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_bottle_yellow/model.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='robosub_octagon_bottle_yellow_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_bottle_yellow/model.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name='robosub_octagon_spoon_yellow'>
+      <static>1</static>
+      <pose>3.0 -19.0 -1.5 0 -0 0</pose>
+      <link name='robosub_octagon_spoon_yellow_link'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_octagon_spoon_yellow_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_spoon_yellow/model.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='robosub_octagon_spoon_yellow_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_spoon_yellow/model.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name='robosub_octagon_basket_pink'>
+      <static>1</static>
+      <pose>4.0 -19.2 -1.5 0 -0 0</pose>
+      <link name='robosub_octagon_basket_pink_link'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_octagon_basket_pink_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_basket_pink/model.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='robosub_octagon_basket_pink_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_basket_pink/model.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name='robosub_octagon_bottle_pink'>
+      <static>1</static>
+      <pose>4.0 -18.8 -1.5 0 -0 0</pose>
+      <link name='robosub_octagon_bottle_pink_link'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_octagon_bottle_pink_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_bottle_pink/model.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='robosub_octagon_bottle_pink_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_bottle_pink/model.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
+    <model name='robosub_octagon_spoon_pink'>
+      <static>1</static>
+      <pose>4.0 -19.0 -1.5 0 -0 0</pose>
+      <link name='robosub_octagon_spoon_pink_link'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_octagon_spoon_pink_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_spoon_pink/model.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='robosub_octagon_spoon_pink_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_octagon/meshes/table_spoon_pink/model.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+      </link>
+    </model>
     <!-- Pool overhead camera model -->
     <model name="pool_camera">
       <static>true</static>
