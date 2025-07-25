@@ -12,23 +12,20 @@ from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
 from std_msgs.msg import Bool
 import threading
-from dynamic_reconfigure.server import Server
-from auv_smach.cfg import SmachParametersConfig
+from dynamic_reconfigure.client import Client
+from auv_bringup.cfg import SmachParametersConfig
 
 
 class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
 
-        # Initialize dynamic reconfigure server
-        if SmachParametersConfig is not None:
-            self.dynamic_reconfigure_server = Server(
-                SmachParametersConfig, self.dynamic_reconfigure_callback
-            )
-        else:
-            rospy.logwarn(
-                "Dynamic reconfigure server not initialized due to missing config"
-            )
+        # Initialize dynamic reconfigure client
+        self.dynamic_reconfigure_client = Client(
+            "smach_parameters_server",
+            timeout=10,
+            config_callback=self.dynamic_reconfigure_callback,
+        )
 
         # Get initial values from dynamic reconfigure
         self.selected_animal = "shark"  # Default to shark
@@ -78,17 +75,20 @@ class MainStateMachineNode:
         # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
 
-    def dynamic_reconfigure_callback(self, config, level):
+    def dynamic_reconfigure_callback(self, config):
         """
         Dynamic reconfigure callback for updating mission parameters
         """
+        if config is None:
+            rospy.logwarn("Could not get parameters from server")
+            return
+
         rospy.loginfo(
             "Received reconfigure request: selected_animal=%s", config.selected_animal
         )
 
         # Update parameters
         self.selected_animal = config.selected_animal
-        return config
 
     def execute_state_machine(self):
         # Map state names to their corresponding classes and parameters

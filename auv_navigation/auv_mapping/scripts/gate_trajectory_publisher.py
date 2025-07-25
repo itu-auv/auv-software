@@ -16,7 +16,7 @@ from nav_msgs.msg import Odometry
 from dynamic_reconfigure.server import Server
 from dynamic_reconfigure.client import Client as DynamicReconfigureClient
 from auv_mapping.cfg import GateTrajectoryConfig
-from auv_smach.cfg import SmachParametersConfig
+from auv_bringup.cfg import SmachParametersConfig
 
 
 class TransformServiceNode:
@@ -45,8 +45,8 @@ class TransformServiceNode:
         # Client for auv_smach parameters
         if SmachParametersConfig is not None:
             self.smach_params_client = DynamicReconfigureClient(
-                "main_state_machine",
-                timeout=30,
+                "smach_parameters_server",
+                timeout=10,
                 config_callback=self.smach_params_callback,
             )
         else:
