@@ -1,5 +1,6 @@
 #pragma once
 
+#include <dynamic_reconfigure/server.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Wrench.h>
 #include <geometry_msgs/WrenchStamped.h>
@@ -8,6 +9,7 @@
 #include <std_msgs/Bool.h>
 
 #include "auv_common_lib/ros/subscriber_with_timeout.h"
+#include "auv_control/ZAxisControllerConfig.h"
 
 namespace auv {
 namespace control {
@@ -26,6 +28,8 @@ class ZAxisController {
   void odometryCallback(const nav_msgs::Odometry::ConstPtr& msg);
   void wrenchCallback(const geometry_msgs::Wrench::ConstPtr& msg);
   void cmdPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
+  void reconfigureCallback(const auv_control::ZAxisControllerConfig& config,
+                           uint32_t level);
 
   // A simple PID controller implementation
   class PID {
@@ -60,6 +64,9 @@ class ZAxisController {
 
   PID z_pid_;
   std::string body_frame_;
+
+  dynamic_reconfigure::Server<auv_control::ZAxisControllerConfig>
+      reconfigure_server_;
 };
 
 }  // namespace control

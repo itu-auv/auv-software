@@ -25,6 +25,7 @@ generate_dynamic_reconfigure_options(
   cfg/Controller.cfg
   cfg/VisualServoing.cfg
   cfg/AlignFrame.cfg
+  cfg/ZAxisController.cfg
 )
 
 find_package(Eigen3 REQUIRED)
@@ -90,6 +91,8 @@ add_executable(z_axis_controller
   src/z_axis_controller_node.cpp
   src/z_axis_controller.cpp
 )
+
+add_dependencies(z_axis_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
 
 target_link_libraries(z_axis_controller
   ${catkin_LIBRARIES}

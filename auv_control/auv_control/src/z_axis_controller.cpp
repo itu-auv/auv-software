@@ -4,14 +4,14 @@ namespace auv {
 namespace control {
 
 ZAxisController::ZAxisController(const ros::NodeHandle& nh)
-    : nh_(nh), rate_(20.0), z_pid_(0.0, 0.0, 0.0), control_enable_sub_{nh_} {
+    : nh_(nh),
+      rate_(20.0),
+      z_pid_(0.0, 0.0, 0.0),
+      control_enable_sub_{nh_},
+      reconfigure_server_{ros::NodeHandle("~")} {
   ros::NodeHandle nh_private("~");
-
-  double p, i, d;
-  nh_private.param("p_gain", p, 0.0);
-  nh_private.param("i_gain", i, 0.0);
-  nh_private.param("d_gain", d, 0.0);
-  z_pid_.setGains(p, i, d);
+  reconfigure_server_.setCallback(
+      boost::bind(&ZAxisController::reconfigureCallback, this, _1, _2));
 
   nh_private.param<std::string>("body_frame", body_frame_,
                                 "taluy_mini/base_link");
@@ -45,6 +45,11 @@ void ZAxisController::cmdPoseCallback(
     const geometry_msgs::PoseStamped::ConstPtr& msg) {
   desired_z_ = msg->pose.position.z;
   latest_command_time_ = ros::Time::now();
+}
+
+void ZAxisController::reconfigureCallback(
+    const auv_control::ZAxisControllerConfig& config, uint32_t level) {
+  z_pid_.setGains(config.p_gain, config.i_gain, config.d_gain);
 }
 
 bool ZAxisController::is_control_enabled() {
