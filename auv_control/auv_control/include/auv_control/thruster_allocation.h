@@ -22,8 +22,6 @@ class ThrusterAllocator {
   using Transform = std::pair<Eigen::Vector3d, Eigen::Quaterniond>;
   using WrenchVector = Eigen::Matrix<double, kDOF, 1>;
   using ThrusterEffortVector = Eigen::Matrix<double, kThrusterCount, 1>;
-  using ThrusterCoefficientMatrix =
-      Eigen::DiagonalMatrix<double, kThrusterCount>;
   using WrenchStampedVector =
       std::array<geometry_msgs::WrenchStamped, kThrusterCount>;
 
@@ -46,33 +44,9 @@ class ThrusterAllocator {
     }
 
     inverted_allocation_matrix_ = pseudo_inverse(allocation_matrix.value());
-
-    // Default thruster coefficients (1.0 for all)
-    ThrusterCoefficientMatrix coeff_matrix;
-    coeff_matrix.setIdentity();
-    thruster_coefficients_ = coeff_matrix;
-
     ROS_INFO("ThrusterAllocator initialized");
     ROS_INFO_STREAM("Inverted allocation matrix:\n"
                     << inverted_allocation_matrix_.value());
-  }
-
-  void set_coefficients(const std::vector<double> &coefficients) {
-    if (coefficients.size() != kThrusterCount) {
-      ROS_ERROR(
-          "Coefficient vector size mismatch. Expected %d, got %zu. Not "
-          "updating coefficients.",
-          kThrusterCount, coefficients.size());
-      return;
-    }
-
-    ThrusterCoefficientMatrix coeff_matrix;
-    for (int i = 0; i < kThrusterCount; ++i) {
-      coeff_matrix.diagonal()[i] = coefficients[i];
-    }
-    thruster_coefficients_ = coeff_matrix;
-    ROS_DEBUG_STREAM("Thruster coefficients updated:\n"
-                     << thruster_coefficients_->diagonal().transpose());
   }
 
   std::optional<ThrusterEffortVector> allocate(const WrenchVector &wrench) {
@@ -80,15 +54,7 @@ class ThrusterAllocator {
       ROS_ERROR("Failed to allocate thruster forces");
       return std::nullopt;
     }
-
-    ThrusterEffortVector effort = inverted_allocation_matrix_.value() * wrench;
-    if (thruster_coefficients_) {
-      effort = thruster_coefficients_.value() * effort;
-    } else {
-      ROS_WARN_THROTTLE(5.0, "Thruster coefficients not set, using identity.");
-      effort = effort;  // no scaling
-    }
-    return effort;
+    return inverted_allocation_matrix_.value() * wrench;
   }
 
   void get_wrench_stamped_vector(const ThrusterEffortVector &effort,
@@ -175,7 +141,6 @@ class ThrusterAllocator {
   tf2_ros::TransformListener tf_listener_{tf_buffer_};
 
   std::optional<TransposedAllocationMatrix> inverted_allocation_matrix_;
-  std::optional<ThrusterCoefficientMatrix> thruster_coefficients_;
 
   std::string frame_prefix_;
   std::string base_frame_;
