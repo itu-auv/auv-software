@@ -76,6 +76,7 @@ catkin_install_python(PROGRAMS
   scripts/bin_trajectory_publisher.py
   scripts/torpedo_frame_publisher.py
   scripts/slalom_trajectory_publisher.py
+  scripts/pipeline_trajectory_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
