@@ -584,9 +584,7 @@ class CameraDetectionNode:
             d for d in detection_msg.detections.detections if d.results[0].id == 2
         ]
         if red_pipes:
-            largest_red_pipe = max(
-                red_pipes, key=lambda d: d.bbox.size_y
-            )
+            largest_red_pipe = max(red_pipes, key=lambda d: d.bbox.size_y)
             red_pipe_x = largest_red_pipe.bbox.center.x
 
         for detection in detection_msg.detections.detections:
