@@ -8,6 +8,7 @@
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
   <depend>actionlib</depend>
+  <depend>dynamic_reconfigure</depend>
   <depend>nav_msgs</depend>
   <depend>rospy</depend>
   <depend>tf2_ros</depend>
