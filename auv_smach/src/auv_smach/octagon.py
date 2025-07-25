@@ -51,22 +51,22 @@ class OctagonTaskState(smach.State):
                 "SET_OCTAGON_DEPTH",
                 SetDepthState(depth=octagon_depth, sleep_duration=4.0),
                 transitions={
-                    "succeeded": "FOCUS_ON_BIN",
+                    "succeeded": "FOCUS_ON_OCTAGON",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FOCUS_ON_BIN",
-                SetDetectionFocusState(focus_object="octagon_link"),
+                "FOCUS_ON_OCTAGON",
+                SetDetectionFocusState(focus_object="octagon"),
                 transitions={
-                    "succeeded": "DISABLE_OCTAGON_FRAME_PUBLISHER_ON_SUCCESS",
-                    "preempted": "prteempted",
+                    "succeeded": "FIND_AIM_OCTAGON",
+                    "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FIND_AND_AIM_BIN",
+                "FIND_AIM_OCTAGON",
                 SearchForPropState(
                     look_at_frame="octagon_link",
                     alignment_frame="octagon_search_frame",
@@ -76,7 +76,7 @@ class OctagonTaskState(smach.State):
                     rotation_speed=0.2,
                 ),
                 transitions={
-                    "succeeded": "ENABLE_BIN_FRAME_PUBLISHER",
+                    "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -85,16 +85,7 @@ class OctagonTaskState(smach.State):
                 "ENABLE_OCTAGON_FRAME_PUBLISHER",
                 OctagonFramePublisherServiceState(req=True),
                 transitions={
-                    "succeeded": "SET_OCTAGON_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_OCTAGON_DEPTH",
-                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
-                transitions={
-                    "succeeded": "FOCUS_ON_BIN",
+                    "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -123,7 +114,7 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "DISABLE_BIN_FRAME_PUBLISHER",
+                    "succeeded": "ENABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -132,24 +123,24 @@ class OctagonTaskState(smach.State):
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_BIN_WHOLE",
+                    "succeeded": "DYNAMIC_PATH_TO_OCTAGON_WHOLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_CLOSE_APPROACH",
+                "DYNAMIC_PATH_TO_OCTAGON_WHOLE",
                 DynamicPathState(
                     plan_target_frame="octagon_link",
                 ),
                 transitions={
-                    "succeeded": "ALIGN_TO_CLOSE_APPROACH",
+                    "succeeded": "GO_TO_OCTAGON_LINK",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_TO_CLOSE_APPROACH",
+                "GO_TO_OCTAGON_LINK",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="octagon_link",
@@ -161,12 +152,33 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "SURFACE_START"
+                    "succeeded": (
+                        "SURFACE"
+                        if not self.griper_mode
+                        else "MOVE_GRIPPER"
+                    ),
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
+            smach.StateMachine.add(
+                "MOVE_GRIPPER",
+                MoveGripperServiceState(id=0),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SURFACE",
+                SetDepthState(depth=0.0, sleep_duration=4.0),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             
     def execute(self, userdata):
         # Execute the state machine

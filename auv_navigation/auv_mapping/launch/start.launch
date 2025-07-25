@@ -64,5 +64,10 @@
       <remap from="set_transform_torpedo_hole_target_frame" to="set_transform_torpedo_hole_target_frame" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
+
+    <node pkg="auv_mapping" type="octagon_trajectory_publisher.py" name="octagon_trajectory_publisher">
+      <remap from="set_transform_octagon_frame" to="set_transform_octagon_frame" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
   </group>
 </launch>
