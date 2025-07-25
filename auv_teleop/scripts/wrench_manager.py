@@ -11,7 +11,7 @@ class JoystickNode:
     def __init__(self):
         rospy.init_node("joystick_node", anonymous=True)
 
-        self.cmd_vel_pub = rospy.Publisher("wrench", Wrench, queue_size=10)
+        self.cmd_vel_pub = rospy.Publisher("wrench_cmd", Wrench, queue_size=10)
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
 
         self.joy_data = None
