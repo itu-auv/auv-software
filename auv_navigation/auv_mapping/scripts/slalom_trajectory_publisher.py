@@ -173,33 +173,61 @@ class SlalomTrajectoryPublisher(object):
                 )
             )
 
-            # Calculate and publish slalom_waypoint_2
+            # Calculate intermediate frame orientations
             self.pos_wp2 = (
                 self.pos_wp1
                 + forward_vec * self.vertical_dist
                 + slalom_parallel_vector * self.offset2
             )
+            self.pos_wp3 = (
+                self.pos_wp1
+                + forward_vec * (self.vertical_dist + self.vertical_dist)
+                + slalom_parallel_vector * self.offset3
+            )
+
+            dir_vec1 = self.pos_wp2 - self.pos_wp1
+            dir_vec1 = dir_vec1 / np.linalg.norm(dir_vec1)
+            angle1 = math.atan2(dir_vec1[1], dir_vec1[0])
+            q1 = tf.transformations.quaternion_from_euler(0, 0, angle1)
+
+            dir_vec2 = self.pos_wp3 - self.pos_wp2
+            dir_vec2 = dir_vec2 / np.linalg.norm(dir_vec2)
+            angle2 = math.atan2(dir_vec2[1], dir_vec2[0])
+            q2 = tf.transformations.quaternion_from_euler(0, 0, angle2)
+
+            # Publish intermediate frames
+            self.send_transform(
+                self.build_transform(
+                    "slalom_waypoint_1_inter",
+                    self.parent_frame,
+                    self.pos_wp1,
+                    q1,
+                )
+            )
+            self.send_transform(
+                self.build_transform(
+                    "slalom_waypoint_2_inter",
+                    self.parent_frame,
+                    self.pos_wp2,
+                    q2,
+                )
+            )
+
+            # Publish main waypoints with updated orientations
             self.send_transform(
                 self.build_transform(
                     "slalom_waypoint_2",
                     self.parent_frame,
                     self.pos_wp2,
-                    self.q_orientation,
+                    q1,
                 )
-            )
-
-            # Calculate and publish slalom_waypoint_3
-            self.pos_wp3 = (
-                self.pos_wp1
-                + forward_vec * (self.vertical_dist + self.vertical_dist)
-                + slalom_parallel_vector * self.offset3
             )
             self.send_transform(
                 self.build_transform(
                     "slalom_waypoint_3",
                     self.parent_frame,
                     self.pos_wp3,
-                    self.q_orientation,
+                    q2,
                 )
             )
 
@@ -223,11 +251,11 @@ class SlalomTrajectoryPublisher(object):
                     self.q_orientation,
                 )
             )
+
         except Exception as e:
             rospy.logwarn_throttle(
                 8, "Failed to get pipe locations and publish slalom waypoints: %s", e
             )
-
         # Calculate and publish slalom_entrance
         try:
             t_gate_exit = self.tf_buffer.lookup_transform(
@@ -288,6 +316,38 @@ class SlalomTrajectoryPublisher(object):
                 8,
                 "Failed to get gate exit transform and publish slalom entrance: %s",
                 e,
+            )
+        try:
+            if x_axis_in_parent_frame is not None:
+                t_red_candidate = self.tf_buffer.lookup_transform(
+                    self.parent_frame,
+                    "slalom_red_pipe_candidate",
+                    rospy.Time.now(),
+                    rospy.Duration(1.0),
+                )
+                candidate_red_pose = np.array(
+                    [
+                        t_red_candidate.transform.translation.x,
+                        t_red_candidate.transform.translation.y,
+                        t_red_candidate.transform.translation.z,
+                    ]
+                )
+                # Calculate the new position for the slalom_enterance_red frame
+                pos_slalom_enterance_red = (
+                    candidate_red_pose
+                    - x_axis_in_parent_frame * self.slalom_entrance_backed_distance
+                )
+                self.send_transform(
+                    self.build_transform(
+                        "slalom_entrance_red",
+                        self.parent_frame,
+                        pos_slalom_enterance_red,
+                        gate_exit_q,
+                    )
+                )
+        except Exception as e:
+            rospy.logwarn_throttle(
+                8, "Failed to publish slalom_enterance_red waypoint: %s", e
             )
 
     def build_transform(self, child_frame, parent_frame, pos, q):
