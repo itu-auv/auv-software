@@ -2,6 +2,7 @@
 #include <array>
 
 #include "auv_canbus_bridge/modules/module_base.hpp"
+#include "auv_canbus_msgs/Bool.h"
 #include "ros/ros.h"
 #include "std_srvs/Trigger.h"
 
@@ -22,6 +23,12 @@ class LaunchTorpedoModule : public ModuleBase {
           auv_hardware::canbus::Function::Write,
           auv_hardware::canbus::Endpoint::SetHSS2OutputCommand);
 
+  constexpr static auto kLaunchTorpedo3ExtendedId =
+      auv_hardware::canbus::make_extended_id(
+          0x00, auv_hardware::canbus::NodeID::Mainboard,
+          auv_hardware::canbus::Function::Write,
+          auv_hardware::canbus::Endpoint::SetHSS3OutputCommand);
+
  public:
   LaunchTorpedoModule(const ros::NodeHandle &node_handle, CanbusSocket &socket)
       : ModuleBase(node_handle, socket) {
@@ -32,6 +39,10 @@ class LaunchTorpedoModule : public ModuleBase {
     launch_torpedo_2_service_ = ModuleBase::node_handle().advertiseService(
         "actuators/torpedo_2/launch",
         &LaunchTorpedoModule::launch_torpedo_2_handler, this);
+
+    launch_torpedo_3_service_ = ModuleBase::node_handle().advertiseService(
+        "actuators/torpedo_3/launch",
+        &LaunchTorpedoModule::launch_torpedo_3_handler, this);
 
     ROS_INFO_STREAM("Initialized LaunchTorpedoModule for CANBUS");
   }
@@ -52,6 +63,14 @@ class LaunchTorpedoModule : public ModuleBase {
     return true;
   }
 
+  bool launch_torpedo_3_handler(std_srvs::Trigger::Request &req,
+                                std_srvs::Trigger::Response &res) {
+    res.success = send_hss_pulse(kLaunchTorpedo3ExtendedId);
+    res.message =
+        res.success ? "Torpedo 3 launched" : "Failed to launch torpedo 3";
+    return true;
+  }
+
   virtual void on_received_message(auv_hardware::canbus::Identifier id,
                                    const std::vector<uint8_t> &data) override{
       //
@@ -59,21 +78,19 @@ class LaunchTorpedoModule : public ModuleBase {
 
  protected:
   bool send_hss_pulse(auv_hardware::canbus::Identifier id) {
-    bool success = true;
-    std::array<uint8_t, 1> data = {1};
+    auto success = true;
+    auto data = auv_canbus_msgs::Bool{
+        .data = true,
+    };
 
     success = dispatch_message(id, data);
-    // ros::Duration(1.0).sleep();
-
-    // data[0] = 0;
-    // success &= dispatch_message(id, data);
-
     return success;
   }
 
  private:
   ros::ServiceServer launch_torpedo_1_service_;
   ros::ServiceServer launch_torpedo_2_service_;
+  ros::ServiceServer launch_torpedo_3_service_;
 };
 
 }  // namespace modules

@@ -33,8 +33,6 @@ class CanbusBridgeROS {
 
     socket_.initialize(interface_name_);
 
-    // modules_.reserve(6);
-
     modules_.emplace_back(
         std::make_unique<DrivePulseModule>(node_handle_, socket_));
     modules_.emplace_back(
@@ -47,8 +45,8 @@ class CanbusBridgeROS {
         std::make_unique<PingSonarModule>(node_handle_, socket_));
     modules_.emplace_back(
         std::make_unique<MarkerDropperModule>(node_handle_, socket_));
-    modules_.emplace_back(
-        std::make_unique<PressureReportModule>(node_handle_, socket_));
+    // modules_.emplace_back(
+    //     std::make_unique<PressureReportModule>(node_handle_, socket_));
     modules_.emplace_back(
         std::make_unique<IMUReportModule>(node_handle_, socket_));
 

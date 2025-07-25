@@ -21,7 +21,7 @@ enum class Endpoint : uint16_t {
   OrientationReport,
   AngularVelocityReport,
   LinearAccelerationReport,
-  PressureSensorReport,
+  // PressureSensorReport,
   Count
 };
 }  // namespace canbus

@@ -33,7 +33,7 @@ class IMUReportModule : public ModuleBase {
       : ModuleBase(node_handle, socket) {
     imu_report_publisher =
         ModuleBase::node_handle().advertise<sensor_msgs::Imu>(
-            "mainboard/imu/data", 10);
+            "sensors/imu_mainboard/data", 10);
     ROS_INFO_STREAM("Initialized IMUReportModule for CANBUS");
   }
 
@@ -51,51 +51,6 @@ class IMUReportModule : public ModuleBase {
     const auto geometry_msg = deserialize_message<auv_canbus_msgs::Geometry>(
         data.data(), data.size());  // ??
 
-    // switch (id) {
-    //   case kOrientationReportIdentifier: {
-    //     imu_ros_msg.header.stamp = ros::Time::now();
-    //     imu_ros_msg.header.seq++;
-
-    //     imu_ros_msg.orientation.x =
-    //         auv::math::from_float16(geometry_msg.x);
-    //     imu_ros_msg.orientation.y =
-    //         auv::math::from_float16(geometry_msg.y);
-    //     imu_ros_msg.orientation.z =
-    //         auv::math::from_float16(geometry_msg.z);
-    //     imu_ros_msg.orientation.w =
-    //         auv::math::from_float16(geometry_msg.w);
-
-    //     imu_report_publisher.publish(imu_ros_msg);
-    //     break;
-    //   }
-    //   case kAngularVelocityReportIdentifier: {
-    //     imu_ros_msg.header.stamp = ros::Time::now();
-    //     imu_ros_msg.header.seq++;
-
-    //     imu_ros_msg.angular_velocity.x =
-    //         auv::math::from_float16(geometry_msg.x);
-    //     imu_ros_msg.angular_velocity.y =
-    //         auv::math::from_float16(geometry_msg.y);
-    //     imu_ros_msg.angular_velocity.z =
-    //         auv::math::from_float16(geometry_msg.z);
-    //     imu_report_publisher.publish(imu_ros_msg);
-
-    //     break;
-    //   }
-    //   case kLinearAccelerationReportIdentifier: {
-    //     imu_ros_msg.header.stamp = ros::Time::now();
-    //     imu_ros_msg.header.seq++;
-    //     imu_ros_msg.linear_acceleration.x =
-    //         auv::math::from_float16(geometry_msg.x);
-    //     imu_ros_msg.linear_acceleration.y =
-    //         auv::math::from_float16(geometry_msg.y);
-    //     imu_ros_msg.linear_acceleration.z =
-    //         auv::math::from_float16(geometry_msg.z);
-    //     imu_report_publisher.publish(imu_ros_msg);
-    //     break;
-    //   }
-    //   default:
-    // }
     if (id == kOrientationReportIdentifier) {
       imu_ros_msg.orientation.x = auv::math::from_float16(geometry_msg.x);
       imu_ros_msg.orientation.y = auv::math::from_float16(geometry_msg.y);

@@ -23,7 +23,7 @@ class PowerReportModule : public ModuleBase {
     power_report_publisher_ =
         ModuleBase::node_handle().advertise<auv_msgs::Power>(
             "mainboard/power_sensor/power", 10);
-    ROS_INFO_STREAM("Initialized PowerReportModule for CANBUS");
+    ROS_INFO_STREAM("Initialized PowerReport Module for CANBUS");
   }
 
   virtual void on_received_message(auv_hardware::canbus::Identifier id,

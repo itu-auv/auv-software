@@ -13,12 +13,12 @@ add_message_files(
   FILES
   Bool.msg
   DistanceMeasurement.msg
-  Power.msg
-  QuadDrivePulse.msg
-  LatchedServo.msg
-  SonarActivation.msg
-  Pressure.msg
   Geometry.msg
+  LatchedServo.msg
+  Power.msg
+  Pressure.msg
+  QuadDrivePulse.msg
+  SonarActivation.msg
 )
 
 # add_service_files(

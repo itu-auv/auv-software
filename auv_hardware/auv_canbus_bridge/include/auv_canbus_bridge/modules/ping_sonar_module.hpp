@@ -56,7 +56,7 @@ class PingSonarModule : public ModuleBase {
         ModuleBase::node_handle().advertise<sensor_msgs::Range>(
             "sensors/sonar_right/range", 10);
     ModuleBase::node_handle().advertiseService(
-        "sensors/sonar_activation", &PingSonarModule::activate_sonar, this);
+        "acoustics/sonars/enable_disable", &PingSonarModule::activate_sonar, this);
 
     ROS_INFO_STREAM("Initialized PingSonarModule for CANBUS");
   }
@@ -97,7 +97,6 @@ class PingSonarModule : public ModuleBase {
   bool activate_sonar(std_srvs::Trigger::Request &,
                       std_srvs::Trigger::Response &res) {
     const auto activation = []() {
-      // hardcodded activation for all sonars
       auto i = 0;
       for (i = 0; i < 4; i++) {
         i |= 1 << i;  // Set the first 4 bits to 1
