@@ -5,6 +5,7 @@ import smach
 import auv_smach
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
+from auv_smach.slalom import NavigateThroughSlalomState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
@@ -24,6 +25,7 @@ class MainStateMachineNode:
         self.bin_params = rospy.get_param("~bin_task", {})
         self.octagon_params = rospy.get_param("~octagon_task", {})
         self.mission_params = rospy.get_param("~mission_params", {})
+
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -47,6 +49,12 @@ class MainStateMachineNode:
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
             "NAVIGATE_THROUGH_GATE": (NavigateThroughGateState, {}),
+            "NAVIGATE_THROUGH_SLALOM": (
+                NavigateThroughSlalomState,
+                {
+                    "slalom_depth": self.slalom_depth,
+                },
+            ),
             "NAVIGATE_TO_TORPEDO_TASK": (TorpedoTaskState, {}),
             "NAVIGATE_TO_BIN_TASK": (
                 BinTaskState,

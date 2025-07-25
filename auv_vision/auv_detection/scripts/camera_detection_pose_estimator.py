@@ -101,12 +101,12 @@ class Shark(Prop):
 
 class RedPipe(Prop):
     def __init__(self):
-        super().__init__(2, "red_pipe", 0.900, None)
+        super().__init__(2, "red_pipe", 0.90, None)
 
 
 class WhitePipe(Prop):
     def __init__(self):
-        super().__init__(3, "white_pipe", 0.900, None)
+        super().__init__(3, "white_pipe", 0.90, None)
 
 
 class TorpedoMap(Prop):
@@ -143,7 +143,7 @@ class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
         rospy.loginfo("Camera detection node started")
-
+        self.selected_side = rospy.get_param("~selected_side", "left")
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
         self.active_front_camera_ids = list(range(15))  # Allow all by default
@@ -155,6 +155,7 @@ class CameraDetectionNode:
             "bin": [6],
             "octagon": [7],
             "all": [0, 1, 2, 3, 4, 5, 6, 7],
+            "none": [],
         }
 
         self.object_transform_pub = rospy.Publisher(
@@ -239,27 +240,39 @@ class CameraDetectionNode:
         )
 
     def handle_set_front_camera_focus(self, req):
-        focus_objects = [obj.strip() for obj in req.focus_object.split(",")]
-        all_target_ids = []
-        unfound_objects = []
+        focus_objects = [
+            obj.strip() for obj in req.focus_object.split(",") if obj.strip()
+        ]
 
-        for focus_object in focus_objects:
-            target_ids = self.object_id_map.get(focus_object)
-            if target_ids is not None:
-                all_target_ids.extend(target_ids)
-            else:
-                unfound_objects.append(focus_object)
-
-        if not all_target_ids:
-            message = f"Unknown focus object(s): '{req.focus_object}'. Available options: {list(self.object_id_map.keys())}"
+        if not focus_objects:
+            message = f"Empty focus object provided. No changes made. Available options: {list(self.object_id_map.keys())}"
             rospy.logwarn(message)
             return SetDetectionFocusResponse(success=False, message=message)
 
-        self.active_front_camera_ids = list(set(all_target_ids))
-        message = f"Front camera focus set to IDs: {self.active_front_camera_ids}"
+        unfound_objects = [
+            obj for obj in focus_objects if obj not in self.object_id_map
+        ]
 
         if unfound_objects:
-            message += f". Could not find: {unfound_objects}"
+            message = f"Unknown focus object(s): '{', '.join(unfound_objects)}'. Available options: {list(self.object_id_map.keys())}"
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        if "none" in focus_objects and len(focus_objects) > 1:
+            message = "Cannot specify 'none' with other focus objects."
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        all_target_ids = []
+        for focus_object in focus_objects:
+            all_target_ids.extend(self.object_id_map[focus_object])
+
+        self.active_front_camera_ids = list(set(all_target_ids))
+
+        if "none" in focus_objects:
+            message = "Front camera focus set to none. Detections will be ignored."
+        else:
+            message = f"Front camera focus set to IDs: {self.active_front_camera_ids}"
 
         rospy.loginfo(message)
         return SetDetectionFocusResponse(success=True, message=message)
@@ -566,6 +579,16 @@ class CameraDetectionNode:
                 detection_msg, camera_ns, torpedo_map_bbox
             )
 
+        red_pipe_x = None
+        red_pipes = [
+            d for d in detection_msg.detections.detections if d.results[0].id == 2
+        ]
+        if red_pipes:
+            largest_red_pipe = max(
+                red_pipes, key=lambda d: d.bbox.size_x * d.bbox.size_y
+            )
+            red_pipe_x = largest_red_pipe.bbox.center.x
+
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
@@ -578,6 +601,13 @@ class CameraDetectionNode:
 
             if detection_id == 5:
                 continue
+
+            if detection_id == 3 and red_pipe_x is not None:
+                white_x = detection.bbox.center.x
+                if self.selected_side == "left" and white_x > red_pipe_x:
+                    continue
+                if self.selected_side == "right" and white_x < red_pipe_x:
+                    continue
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue

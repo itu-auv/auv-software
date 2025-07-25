@@ -37,6 +37,7 @@ class TransformServiceNode:
         self.robot_base_frame = rospy.get_param("~robot_base_frame", "taluy/base_link")
         self.entrance_frame = "gate_entrance"
         self.exit_frame = "gate_exit"
+        self.middle_frame = "gate_middle_part"
 
         # Load gate frame parameters from YAML
         self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_shark_link")
@@ -116,6 +117,22 @@ class TransformServiceNode:
                 (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2
             )
 
+            # --- Create gate_middle_part_link at the midpoint between gate_shark_link and gate_sawfish_link
+            middle_x = (p1.x + p2.x) / 2.0
+            middle_y = (p1.y + p2.y) / 2.0
+            middle_z = (p1.z + p2.z) / 2.0
+            # Orientation: same as gate line (yaw)
+            yaw = math.atan2(p2.y - p1.y, p2.x - p1.x)
+            quat = tf_conversions.transformations.quaternion_from_euler(0, 0, yaw)
+            middle_pose = Pose(
+                position=Point(middle_x, middle_y, middle_z),
+                orientation=Quaternion(*quat),
+            )
+            middle_transform = self.build_transform_message(
+                self.middle_frame, middle_pose
+            )
+            self.send_transform(middle_transform)
+
             if self.MIN_GATE_SEPARATION < distance < self.MAX_GATE_SEPARATION:
                 # Distance is valid, use standard dual-frame method
                 rospy.loginfo_once("Using dual-frame mode for gate trajectory.")
@@ -136,6 +153,17 @@ class TransformServiceNode:
             # Only one frame is visible, use fallback method
             rospy.logwarn_once("Only one gate frame is visible. Using fallback mode.")
             visible_transform = t_gate1 if t_gate1 else t_gate2
+            # --- Place gate_middle_part at the visible frame's position
+            p = visible_transform.transform.translation
+            q = visible_transform.transform.rotation
+            middle_pose = Pose(
+                position=Point(p.x, p.y, p.z),
+                orientation=Quaternion(q.x, q.y, q.z, q.w),
+            )
+            middle_transform = self.build_transform_message(
+                self.middle_frame, middle_pose
+            )
+            self.send_transform(middle_transform)
             poses = self._compute_frames_fallback_mode(visible_transform)
 
         else:

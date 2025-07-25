@@ -15,6 +15,7 @@ from auv_smach.common import (
     SearchForPropState,
     AlignFrame,
     DynamicPathState,
+    SetDetectionFocusState,
 )
 
 from nav_msgs.msg import Odometry
@@ -128,6 +129,24 @@ class NavigateThroughGateState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_GATE",
+                SetDetectionFocusState(focus_object="gate"),
+                transitions={
+                    "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
+                TransformServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "SET_ROLL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=set_roll_depth_params.get("depth", -0.7),
@@ -141,16 +160,16 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_GATE",
                 SearchForPropState(
-                    look_at_frame=self.gate_look_at_frame,
+                    look_at_frame="gate_middle_part,
                     alignment_frame="gate_search",
                     full_rotation=find_and_aim_gate_params.get("full_rotation", False),
-                    set_frame_duration=7.0,
+                    set_frame_duration=5.0,
                     source_frame="taluy/base_link",
                     rotation_speed=find_and_aim_gate_params.get("rotation_speed", 0.2),
                 ),
                 transitions={
                     "succeeded": (
-                        "TWO_ROLL_STATE"
+                        "CALIFORNIA_ROLL"
                         if self.roll_mode
                         else "SET_GATE_TRAJECTORY_DEPTH"
                     ),
@@ -159,10 +178,8 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "TWO_ROLL_STATE",
-                TwoRollState(
-                    roll_torque=two_roll_state_params.get("roll_torque", 50.0)
-                ),
+                "CALIFORNIA_ROLL",
+                TwoRollState(roll_torque=50.0),
                 transitions={
                     "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
                     "preempted": "preempted",
@@ -176,15 +193,6 @@ class NavigateThroughGateState(smach.State):
                     sleep_duration=3.0,
                 ),
                 transitions={
-                    "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ENABLE_GATE_TRAJECTORY_PUBLISHER",
-                TransformServiceEnableState(req=True),
-                transitions={
                     "succeeded": "LOOK_AT_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -194,11 +202,69 @@ class NavigateThroughGateState(smach.State):
                 "LOOK_AT_GATE",
                 SearchForPropState(
                     look_at_frame=self.gate_look_at_frame,
-                    alignment_frame="gate_search",
-                    full_rotation=look_at_gate_params.get("full_rotation", False),
+                    alignment_frame=self.gate_search_frame,
+                    full_rotation=False,
                     set_frame_duration=5.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=look_at_gate_params.get("rotation_speed", 0.3),
+                    rotation_speed=0.2,
+                ),
+                transitions={
+                    "succeeded": "LOOK_LEFT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_LEFT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.gate_search_frame,
+                    angle_offset=0.5,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.2,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.15,
+                ),
+                transitions={
+                    "succeeded": "LOOK_RIGHT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_RIGHT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.gate_search_frame,
+                    angle_offset=-0.5,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.2,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.15,
+                ),
+                transitions={
+                    "succeeded": "LOOK_AT_GATE_FOR_TRAJECTORY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_AT_GATE_FOR_TRAJECTORY",
+                SearchForPropState(
+                    look_at_frame=self.gate_look_at_frame,
+                    alignment_frame="gate_search",
+                    full_rotation=look_at_gate_params.get("full_rotation", False),
+                    set_frame_duration=7.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=look_at_gate_params.get("rotation_speed", 0.2),
                 ),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -209,6 +275,15 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "SET_DETECTION_TO_NONE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_TO_NONE",
+                SetDetectionFocusState(focus_object="none"),
                 transitions={
                     "succeeded": "SET_GATE_DEPTH",
                     "preempted": "preempted",

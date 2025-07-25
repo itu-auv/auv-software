@@ -17,6 +17,7 @@ class PathPlannerNode:
         # -- States --
         self.planning_active = False
         self.target_frame = None
+        self.angle_offset = 0.0
 
         self.path_pub = rospy.Publisher("/planned_path", Path, queue_size=1)
         self.set_plan_service = rospy.Service("/set_plan", PlanPath, self.set_plan_cb)
@@ -31,7 +32,11 @@ class PathPlannerNode:
         rospy.loginfo("[path_planner_node] Planning activated.")
 
         self.target_frame = req.target_frame
-        rospy.loginfo(f"[path_planner_node] New plan set. Target: {self.target_frame}")
+        self.angle_offset = req.angle_offset
+
+        rospy.loginfo(
+            f"[path_planner_node] New plan set. Target: {self.target_frame}, Angle offset: {self.angle_offset}"
+        )
         return PlanPathResponse(success=True)
 
     def stop_planning_cb(self, req):
@@ -47,6 +52,7 @@ class PathPlannerNode:
                     path = self.path_planners.straight_path_to_frame(
                         source_frame=self.robot_frame,
                         target_frame=self.target_frame,
+                        angle_offset=self.angle_offset,
                     )
                     if path:
                         self.path_pub.publish(path)

@@ -25,10 +25,10 @@ class AlignFrameControllerNode:
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
         self.rate = rospy.get_param("~rate", 20)
-        self.linear_kp = rospy.get_param("~linear_kp", 1.4)
+        self.linear_kp = rospy.get_param("~linear_kp", 1.0)
         self.linear_kd = rospy.get_param("~linear_kd", 0.7)
-        self.angular_kp = rospy.get_param("~angular_kp", 1.2)
-        self.angular_kd = rospy.get_param("~angular_kd", 0.8)
+        self.angular_kp = rospy.get_param("~angular_kp", 0.8)
+        self.angular_kd = rospy.get_param("~angular_kd", 0.3)
         self.max_linear_velocity = rospy.get_param("~max_linear_velocity", 0.6)
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity", 0.4)
 
@@ -74,6 +74,18 @@ class AlignFrameControllerNode:
     def handle_align_request(
         self, req: AlignFrameController
     ) -> AlignFrameControllerResponse:
+        # Check if the transform exists before starting
+        if not self.tf_buffer.can_transform(
+            req.source_frame, req.target_frame, rospy.Time.now(), rospy.Duration(1.0)
+        ):
+            rospy.logwarn(
+                f"Align request aborted: Transform from '{req.target_frame}' to '{req.source_frame}' not available."
+            )
+            return AlignFrameControllerResponse(
+                success=False,
+                message=f"Transform from '{req.target_frame}' to '{req.source_frame}' not available.",
+            )
+
         self.source_frame = req.source_frame
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
@@ -113,7 +125,7 @@ class AlignFrameControllerNode:
         source_frame: str,
         target_frame: str,
         angle_offset: float,
-        time: rospy.Time = rospy.Time(0),
+        time: rospy.Time = rospy.Time.now(),
     ) -> Tuple[Optional[Tuple[float, float, float]], Optional[float]]:
         try:
             transform = self.tf_buffer.lookup_transform(
@@ -200,6 +212,7 @@ class AlignFrameControllerNode:
             self.source_frame, self.target_frame, self.angle_offset
         )
         if trans_error is None or yaw_error is None:
+            self.cmd_vel_pub.publish(Twist())  # zero twist if error cannot be computed
             return
 
         self.enable_pub.publish(Bool(data=True))

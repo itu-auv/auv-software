@@ -223,7 +223,7 @@ class RollTwoTimes(smach.State):
         self.total_roll = 0.0
         self.last_time = rospy.Time.now()
         self.start_time = rospy.Time.now()
-        target = math.radians(675.0)
+        target = math.radians(660.0)
         rospy.loginfo(
             "ROLL_TWO_TIMES: starting roll with torque %.2f Nm, target = %.2f rad",
             self.roll_torque,
@@ -413,7 +413,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "DELAY_AFTER_RESET",
-                DelayState(delay_time=delay_after_reset_params.get("delay_time", 2.0)),
+                DelayState(delay_time=delay_after_reset_params.get("delay_time", 1.0)),
                 transitions={
                     "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",

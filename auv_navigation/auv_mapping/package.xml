@@ -11,6 +11,7 @@
 
   <depend>auv_msgs</depend>
   <depend>cv_bridge</depend>
+  <depend>dynamic_reconfigure</depend>
   <depend>geometry_msgs</depend>
   <depend>message_filters</depend>
   <depend>pcl_conversions</depend>

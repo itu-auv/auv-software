@@ -14,6 +14,8 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
 
 from auv_msgs.srv import (
+    PlanPath,
+    PlanPathRequest,
     SetDepth,
     SetDepthRequest,
     SetObjectTransform,
@@ -682,6 +684,7 @@ class SearchForPropState(smach.StateMachine):
         set_frame_duration: float,
         source_frame: str = "taluy/base_link",
         rotation_speed: float = 0.3,
+        max_angular_velocity: float = 0.25,
     ):
         """
         Args:
@@ -693,6 +696,7 @@ class SearchForPropState(smach.StateMachine):
             set_frame_duration (float): Duration for the SetFrameLookingAtState.
             source_frame (str): The base frame of the vehicle (default: "taluy/base_link").
             rotation_speed (float): The angular velocity for rotation (default: 0.3).
+            max_angular_velocity (float): Max angular velocity for align controller (optional).
         """
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
 
@@ -714,7 +718,9 @@ class SearchForPropState(smach.StateMachine):
             smach.StateMachine.add(
                 "SET_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
-                    source_frame=source_frame, target_frame=alignment_frame
+                    source_frame=source_frame,
+                    target_frame=alignment_frame,
+                    max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
                     "succeeded": "BROADCAST_ALIGNMENT_FRAME",
@@ -984,9 +990,10 @@ class AlignFrame(smach.StateMachine):
 class SetPlanState(smach.State):
     """State that calls the /set_plan service"""
 
-    def __init__(self, target_frame: str):
+    def __init__(self, target_frame: str, angle_offset: float = 0.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.target_frame = target_frame
+        self.angle_offset = angle_offset
 
     def execute(self, userdata) -> str:
         try:
@@ -999,6 +1006,7 @@ class SetPlanState(smach.State):
 
             req = PlanPathRequest(
                 target_frame=self.target_frame,
+                angle_offset=self.angle_offset,
             )
             set_plan(req)
             return "succeeded"
@@ -1030,7 +1038,7 @@ class DynamicPathState(smach.StateMachine):
         with self:
             smach.StateMachine.add(
                 "SET_PATH_PLAN",
-                SetPlanState(target_frame=plan_target_frame),
+                SetPlanState(target_frame=plan_target_frame, angle_offset=angle_offset),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_PATH",
                     "preempted": "preempted",
@@ -1044,7 +1052,6 @@ class DynamicPathState(smach.StateMachine):
                     target_frame=align_target_frame,
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
-                    angle_offset=angle_offset,
                     keep_orientation=keep_orientation,
                 ),
                 transitions={
