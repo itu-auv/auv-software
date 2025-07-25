@@ -33,6 +33,7 @@ find_package(Eigen3 REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
   CATKIN_DEPENDS
+    auv_common_lib
     auv_msgs
     dynamic_reconfigure
     geometry_msgs

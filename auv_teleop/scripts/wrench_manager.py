@@ -2,7 +2,7 @@
 
 import rospy
 from sensor_msgs.msg import Joy
-from geometry_msgs.msg import WrenchStamped
+from geometry_msgs.msg import Wrench
 from std_msgs.msg import Bool
 import threading
 
@@ -11,8 +11,8 @@ class JoystickNode:
     def __init__(self):
         rospy.init_node("joystick_node", anonymous=True)
 
-        self.cmd_vel_pub = rospy.Publisher("wrench", WrenchStamped, queue_size=10)
-        # self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
+        self.cmd_vel_pub = rospy.Publisher("wrench", Wrench, queue_size=10)
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
 
         self.joy_data = None
         self.lock = threading.Lock()
@@ -60,41 +60,39 @@ class JoystickNode:
 
     def run(self):
         while not rospy.is_shutdown():
-            wrench_stamped = WrenchStamped()
-            wrench_stamped.header.stamp = rospy.Time.now()
-            wrench_stamped.header.frame_id = ""
+            wrench = Wrench()
 
             with self.lock:
                 if self.joy_data:
                     # Get z-axis value based on controller type
-                    wrench_stamped.wrench.force.z = self.get_z_axis_value()
+                    wrench.force.z = self.get_z_axis_value()
 
                     # Set x-axis value
                     if (
                         "z_control" in self.buttons
                         and self.joy_data.buttons[self.buttons["z_control"]]
                     ):
-                        wrench_stamped.wrench.force.x = 0.0
+                        wrench.force.x = 0.0
                     else:
-                        wrench_stamped.wrench.force.x = (
+                        wrench.force.x = (
                             self.get_axis_value(self.axes["x_axis"]["index"])
                             * self.axes["x_axis"]["gain"]
                         )
 
-                    wrench_stamped.wrench.force.y = (
+                    wrench.force.y = (
                         self.get_axis_value(self.axes["y_axis"]["index"])
                         * self.axes["y_axis"]["gain"]
                     )
-                    wrench_stamped.wrench.torque.z = (
+                    wrench.torque.z = (
                         self.get_axis_value(self.axes["yaw_axis"]["index"])
                         * self.axes["yaw_axis"]["gain"]
                     )
                 else:
-                    wrench_stamped.wrench.force.x = 0.0
-                    wrench_stamped.wrench.torque.z = 0.0
+                    wrench.force.x = 0.0
+                    wrench.torque.z = 0.0
 
-            # self.enable_pub.publish(Bool(True))
-            self.cmd_vel_pub.publish(wrench_stamped)
+            self.enable_pub.publish(Bool(True))
+            self.cmd_vel_pub.publish(wrench)
             self.rate.sleep()
 
 
