@@ -8,7 +8,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from dynamic_reconfigure.server import Server
-from auv_navigation.cfg import CableFollowerConfig
+from auv_navigation.cfg import PipeFollower as ConfigType
 
 
 class PipeFollower:
@@ -33,7 +33,6 @@ class PipeFollower:
 
         # Kontrol değişkenleri
         self.twist_msg = Twist()
-        self.threshold = 40  # Varsayılan siyah boru eşik değeri
         self.min_contour_area = 100  # Gürültü filtreleme için minimum kontur alanı
 
         # PID benzeri kontrol katsayıları
@@ -41,16 +40,25 @@ class PipeFollower:
         self.kp_position = 0.005
         self.base_speed = 0.3
 
+        # HSV Thresholds
+        self.lower_h = 20
+        self.lower_s = 100
+        self.lower_v = 100
+        self.upper_h = 30
+        self.upper_s = 255
+        self.upper_v = 255
+
         # Dinamik reconfig ayarları
-        self.reconfig_server = Server(PipeFollowerConfig, self.reconfigure_cb)
+        self.reconfig_server = Server(ConfigType, self.reconfigure_cb)
         rospy.loginfo("Pipe Follower node başlatıldı")
 
     def reconfigure_cb(self, config, level):
-        self.threshold = config.threshold
-        self.min_contour_area = config.min_contour_area
-        self.kp_angle = config.kp_angle
-        self.kp_position = config.kp_position
-        self.base_speed = config.base_speed
+        self.lower_h = config.lower_h
+        self.lower_s = config.lower_s
+        self.lower_v = config.lower_v
+        self.upper_h = config.upper_h
+        self.upper_s = config.upper_s
+        self.upper_v = config.upper_v
         return config
 
     def estimate_pipe_direction(self, contour):
@@ -94,9 +102,11 @@ class PipeFollower:
             roi = cv_image[int(h * 0.4) : h, :]
             roi_h, roi_w = roi.shape[:2]
 
-            # Gri tonlamaya çevir ve threshold uygula
-            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-            _, thresh = cv2.threshold(gray, self.threshold, 255, cv2.THRESH_BINARY_INV)
+            # HSV'ye çevir ve threshold uygula
+            hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+            lower_bound = np.array([self.lower_h, self.lower_s, self.lower_v])
+            upper_bound = np.array([self.upper_h, self.upper_s, self.upper_v])
+            thresh = cv2.inRange(hsv, lower_bound, upper_bound)
 
             # Morfolojik işlemler (gürültüyü azaltmak için)
             kernel = np.ones((5, 5), np.uint8)

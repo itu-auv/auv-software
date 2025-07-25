@@ -10,7 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 generate_dynamic_reconfigure_options(
-  cfg/CableFollowerConfig.cfg
+  cfg/PipeFollower.cfg
 )
 
 catkin_package(
