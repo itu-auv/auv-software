@@ -1078,3 +1078,150 @@ class DynamicPathState(smach.StateMachine):
                     "aborted": "aborted",
                 },
             )
+
+
+class LookAroundState(smach.StateMachine):
+    def __init__(
+        self,
+        source_frame: str = "taluy/base_link",
+        angle_offset: float = 0.5,
+        confirm_duration: float = 0.1,
+        timeout: float = 10.0,
+        max_linear_velocity: float = 0.1,
+        max_angular_velocity: float = 0.15,
+        current_pose_frame: str = "selam_frame",
+    ):
+        super().__init__(outcomes=["succeeded", "preempted", "aborted"])
+
+        with self:
+            smach.StateMachine.add(
+                "CREATE_START_FRAME",
+                CreateFrameAtCurrentPositionState(
+                    current_pose_frame=current_pose_frame
+                ),
+                transitions={
+                    "succeeded": "LOOK_LEFT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_LEFT",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=current_pose_frame,
+                    angle_offset=angle_offset,
+                    confirm_duration=confirm_duration,
+                    timeout=timeout,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                ),
+                transitions={
+                    "succeeded": "LOOK_RIGHT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_RIGHT",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=current_pose_frame,
+                    angle_offset=-angle_offset,
+                    confirm_duration=confirm_duration,
+                    timeout=timeout,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                ),
+                transitions={
+                    "succeeded": "LOOK_STRAIGHT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_STRAIGHT",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=current_pose_frame,
+                    angle_offset=0.0,
+                    confirm_duration=confirm_duration,
+                    timeout=timeout,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                ),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+
+class CreateFrameAtCurrentPositionState(smach.State):
+    def __init__(
+        self,
+        source_frame: str = "taluy/base_link",
+        current_pose_frame: str = "selam_frame",
+        reference_frame: str = "odom",
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.source_frame = source_frame
+        self.current_pose_frame = current_pose_frame
+        self.reference_frame = reference_frame
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.set_object_transform_service = rospy.ServiceProxy(
+            "set_object_transform", SetObjectTransform
+        )
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+        try:
+            current_transform = self.tf_buffer.lookup_transform(
+                self.reference_frame,
+                self.source_frame,
+                rospy.Time(0),
+                rospy.Duration(2.0),
+            )
+            new_transform = TransformStamped()
+            new_transform.header.stamp = rospy.Time.now()
+            new_transform.header.frame_id = self.reference_frame
+            new_transform.child_frame_id = self.current_pose_frame
+
+            new_transform.transform.translation = (
+                current_transform.transform.translation
+            )
+            new_transform.transform.rotation = current_transform.transform.rotation
+
+            req = SetObjectTransformRequest()
+            req.transform = new_transform
+            res = self.set_object_transform_service(req)
+
+            if not res.success:
+                rospy.logerr(
+                    f"CreateFrameAtCurrentPositionState: Failed to create frame '{self.current_pose_frame}': {res.message}"
+                )
+                return "aborted"
+
+            return "succeeded"
+
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logerr(f"CreateFrameAtCurrentPositionState: TF lookup failed: {e}")
+            return "aborted"
+
+        except rospy.ServiceException as e:
+            rospy.logerr(f"CreateFrameAtCurrentPositionState: Service call failed: {e}")
+            return "aborted"
