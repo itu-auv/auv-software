@@ -18,77 +18,25 @@ class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
 
-        # Get target selection from YAML
-        self.target_selection = rospy.get_param("~target_selection", "shark")
-        self.mission_targets = rospy.get_param(
-            "~mission_targets",
-            {
-                "shark": {
-                    "gate_target_frame": "gate_shark_link",
-                    "red_buoy_direction": "ccw",
-                    "slalom_direction": "left_side",
-                    "bin_target_frame": "bin_shark_link",
-                    "torpedo_target_frame": "torpedo_hole_shark_link",
-                    "octagon_target_frame": "octagon_shark_link",
-                },
-                "sawfish": {
-                    "gate_target_frame": "gate_sawfish_link",
-                    "red_buoy_direction": "cw",
-                    "slalom_direction": "right_side",
-                    "bin_target_frame": "bin_sawfish_link",
-                    "torpedo_target_frame": "torpedo_hole_sawfish_link",
-                    "octagon_target_frame": "octagon_sawfish_link",
-                },
-            },
-        )
+        # Parameters
+        self.gate_params = rospy.get_param("~gate_task", {})
+        self.red_buoy_params = rospy.get_param("~red_buoy_task", {})
+        self.torpedo_params = rospy.get_param("~torpedo_task", {})
+        self.bin_params = rospy.get_param("~bin_task", {})
+        self.octagon_params = rospy.get_param("~octagon_task", {})
+        self.mission_params = rospy.get_param("~mission_params", {})
 
-        self.gate_search_depth = -0.7
-        self.gate_depth = -1.35
-
-        self.slalom_depth = -1.3
-
-        self.red_buoy_radius = 2.2
-        self.red_buoy_depth = -0.7
-
-        self.torpedo_map_depth = -1.45
-        self.torpedo_target_frame = "torpedo_target"
-        self.torpedo_realsense_target_frame = "torpedo_target_realsense"
-        self.torpedo_fire_frame = "torpedo_fire_frame"
-        self.torpedo_shark_fire_frame = "torpedo_shark_fire_frame"
-        self.torpedo_sawfish_fire_frame = "torpedo_sawfish_fire_frame"
-
-        self.bin_front_look_depth = -0.9
-        self.bin_bottom_look_depth = -0.7
-
-        self.octagon_depth = -1.0
-
-        # Set parameters based on target selection
-        self.target_frames = self.mission_targets[self.target_selection]
-        self.red_buoy_direction = self.target_frames["red_buoy_direction"]
-        # self.slalom_direction = self.target_frames["slalom_direction"]
-        # self.bin_target_frame = self.target_frames["bin_target_frame"]
-        # self.torpedo_target_frame = self.target_frames["torpedo_target_frame"]
-        # self.octagon_target_frame = self.target_frames["octagon_target_frame"]
-        # self.gate_target_frame = self.target_frames["gate_target_frame"]
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
         if test_mode:
-            state_map = rospy.get_param("~state_map")
-
-            short_state_list = rospy.get_param("~test_states", "").split(",")
-
-            # Parse state mapping
-            state_mapping = {
-                item.split(":")[0].strip(): item.split(":")[1].strip()
-                for item in state_map.strip().split(",")
-            }
+            state_map = rospy.get_param("~state_map", {})
+            test_states_str = rospy.get_param("~test_states", "")
+            short_state_list = [state.strip() for state in test_states_str.split(",")]
 
             # Map test states to full names
             self.state_list = [
-                state_mapping[state.strip()]
-                for state in short_state_list
-                if state.strip() in state_mapping
+                state_map[state] for state in short_state_list if state in state_map
             ]
         else:
             self.state_list = rospy.get_param("~full_mission_states")
@@ -100,57 +48,21 @@ class MainStateMachineNode:
         # Map state names to their corresponding classes and parameters
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
-            "NAVIGATE_THROUGH_GATE": (
-                NavigateThroughGateState,
-                {
-                    "gate_depth": self.gate_depth,
-                    "gate_search_depth": self.gate_search_depth,
-                },
-            ),
+            "NAVIGATE_THROUGH_GATE": (NavigateThroughGateState, {}),
             "NAVIGATE_THROUGH_SLALOM": (
                 NavigateThroughSlalomState,
                 {
                     "slalom_depth": self.slalom_depth,
                 },
             ),
-            "NAVIGATE_AROUND_RED_BUOY": (
-                RotateAroundBuoyState,
-                {
-                    "radius": self.red_buoy_radius,
-                    "direction": self.red_buoy_direction,
-                    "red_buoy_depth": self.red_buoy_depth,
-                },
-            ),
-            "NAVIGATE_TO_TORPEDO_TASK": (
-                TorpedoTaskState,
-                {
-                    "torpedo_map_depth": self.torpedo_map_depth,
-                    "torpedo_target_frame": self.torpedo_target_frame,
-                    "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
-                    "torpedo_fire_frames": (
-                        [
-                            self.torpedo_shark_fire_frame,
-                            self.torpedo_sawfish_fire_frame,
-                        ]
-                        if self.target_selection == "shark"
-                        else [
-                            self.torpedo_sawfish_fire_frame,
-                            self.torpedo_shark_fire_frame,
-                        ]
-                    ),
-                },
-            ),
+            "NAVIGATE_TO_TORPEDO_TASK": (TorpedoTaskState, {}),
             "NAVIGATE_TO_BIN_TASK": (
                 BinTaskState,
-                {
-                    "bin_front_look_depth": self.bin_front_look_depth,
-                    "bin_bottom_look_depth": self.bin_bottom_look_depth,
-                    "target_selection": self.target_selection,
-                },
+                {},
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
-                {"octagon_depth": self.octagon_depth},
+                {},
             ),
         }
 

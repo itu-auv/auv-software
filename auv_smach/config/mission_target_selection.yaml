@@ -7,6 +7,9 @@ mission_targets:
     slalom_direction: left_side
     bin_target_frame: bin_shark_link   # The frame where robot drops the ball
     torpedo_target_frame: torpedo_hole_shark_link # The frame where torpedo is launched
+    torpedo_fire_frames:
+      - torpedo_shark_fire_frame
+      - torpedo_sawfish_fire_frame
     octagon_target_frame: octagon_shark_link # The frame where robot is facing in octagon task
   sawfish:
     gate_target_frame: gate_sawfish_link
@@ -14,4 +17,7 @@ mission_targets:
     slalom_direction: right_side
     bin_target_frame: bin_sawfish_link   # The frame where robot drops the ball
     torpedo_target_frame: torpedo_hole_sawfish_link  # The frame where torpedo is launched
+    torpedo_fire_frames:
+      - torpedo_sawfish_fire_frame
+      - torpedo_shark_fire_frame
     octagon_target_frame: octagon_sawfish_link  # The frame where robot is facing in octagon task

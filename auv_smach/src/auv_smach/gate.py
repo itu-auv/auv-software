@@ -92,14 +92,35 @@ class PublishGateAngleState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float, gate_search_depth: float):
+    def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.sim_mode = rospy.get_param("~sim", False)
-        self.gate_look_at_frame = "gate_middle_part"
-        self.gate_search_frame = "gate_search"
+        self.roll_mode = rospy.get_param("~roll_mode", False)
+
+        # Gate task parameters
+        gate_task_params = rospy.get_param("~gate_task", {})
+        set_roll_depth_params = gate_task_params.get("set_roll_depth", {})
+        find_and_aim_gate_params = gate_task_params.get("find_and_aim_gate", {})
+        two_roll_state_params = gate_task_params.get("two_roll_state", {})
+        set_gate_trajectory_depth_params = gate_task_params.get(
+            "set_gate_trajectory_depth", {}
+        )
+        look_at_gate_params = gate_task_params.get("look_at_gate", {})
+        set_gate_depth_params = gate_task_params.get("set_gate_depth", {})
+        align_frame_after_exit_params = gate_task_params.get(
+            "align_frame_after_exit", {}
+        )
+
+        # Mission selection parameters
+        self.target_selection = rospy.get_param("~target_selection", "shark")
+        if self.target_selection == "shark":
+            self.gate_look_at_frame = "gate_shark_link"
+        elif self.target_selection == "sawfish":
+            self.gate_look_at_frame = "gate_sawfish_link"
+        else:
+            self.gate_look_at_frame = "gate_shark_link"  # fallback
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -128,8 +149,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
                 SetDepthState(
-                    depth=gate_search_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
+                    depth=set_roll_depth_params.get("depth", -0.7),
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -140,17 +160,17 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_GATE",
                 SearchForPropState(
-                    look_at_frame=self.gate_look_at_frame,
-                    alignment_frame=self.gate_search_frame,
-                    full_rotation=False,
+                    look_at_frame="gate_middle_part,
+                    alignment_frame="gate_search",
+                    full_rotation=find_and_aim_gate_params.get("full_rotation", False),
                     set_frame_duration=5.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.2,
+                    rotation_speed=find_and_aim_gate_params.get("rotation_speed", 0.2),
                 ),
                 transitions={
                     "succeeded": (
                         "CALIFORNIA_ROLL"
-                        if not self.sim_mode
+                        if self.roll_mode
                         else "SET_GATE_TRAJECTORY_DEPTH"
                     ),
                     "preempted": "preempted",
@@ -168,7 +188,10 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_TRAJECTORY_DEPTH",
-                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=set_gate_trajectory_depth_params.get("depth", -0.7),
+                    sleep_duration=3.0,
+                ),
                 transitions={
                     "succeeded": "LOOK_AT_GATE",
                     "preempted": "preempted",
@@ -237,11 +260,11 @@ class NavigateThroughGateState(smach.State):
                 "LOOK_AT_GATE_FOR_TRAJECTORY",
                 SearchForPropState(
                     look_at_frame=self.gate_look_at_frame,
-                    alignment_frame=self.gate_search_frame,
-                    full_rotation=False,
+                    alignment_frame="gate_search",
+                    full_rotation=look_at_gate_params.get("full_rotation", False),
                     set_frame_duration=7.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.2,
+                    rotation_speed=look_at_gate_params.get("rotation_speed", 0.2),
                 ),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -269,7 +292,9 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                SetDepthState(
+                    depth=set_gate_depth_params.get("depth", -1.5), sleep_duration=3.0
+                ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_ENTRANCE",
                     "preempted": "preempted",
@@ -303,13 +328,23 @@ class NavigateThroughGateState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="gate_exit",
-                    angle_offset=0.0,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=0.0,
+                    angle_offset=align_frame_after_exit_params.get("angle_offset", 0.0),
+                    dist_threshold=align_frame_after_exit_params.get(
+                        "dist_threshold", 0.1
+                    ),
+                    yaw_threshold=align_frame_after_exit_params.get(
+                        "yaw_threshold", 0.1
+                    ),
+                    confirm_duration=align_frame_after_exit_params.get(
+                        "confirm_duration", 0.0
+                    ),
                     timeout=10.0,
-                    cancel_on_success=True,
-                    keep_orientation=False,
+                    cancel_on_success=align_frame_after_exit_params.get(
+                        "cancel_on_success", True
+                    ),
+                    keep_orientation=align_frame_after_exit_params.get(
+                        "keep_orientation", False
+                    ),
                 ),
                 transitions={
                     "succeeded": "succeeded",

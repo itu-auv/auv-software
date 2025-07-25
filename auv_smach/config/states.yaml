@@ -1,0 +1,14 @@
+---
+
+state_map:
+  init: INITIALIZE
+  gate: NAVIGATE_THROUGH_GATE
+  torpedo: NAVIGATE_TO_TORPEDO_TASK
+  bin: NAVIGATE_TO_BIN_TASK
+  octagon: NAVIGATE_TO_OCTAGON_TASK
+
+full_mission_states: ['INITIALIZE', 'NAVIGATE_THROUGH_GATE', 'NAVIGATE_TO_TORPEDO_TASK', 'NAVIGATE_TO_BIN_TASK', 'NAVIGATE_TO_OCTAGON_TASK']
+
+test_states: ['init']
+
+test_mode: false

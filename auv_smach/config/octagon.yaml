@@ -1,0 +1,10 @@
+---
+octagon_task:
+  set_octagon_depth:
+    depth: -1.0
+
+  wait_for_surfacing:
+    delay_time: 3.0
+
+  surfacing:
+    depth: 0.3
