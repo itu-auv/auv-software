@@ -10,6 +10,7 @@ from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
+from auv_smach.pipeline import NavigateThroughPipelineState
 from std_msgs.msg import Bool
 import threading
 
@@ -61,6 +62,7 @@ class MainStateMachineNode:
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -1.0
+        self.pipeline_depth = -1.2
 
         # Set parameters based on target selection
         self.target_frames = self.mission_targets[self.target_selection]
@@ -151,6 +153,10 @@ class MainStateMachineNode:
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
                 {"octagon_depth": self.octagon_depth},
+            ),
+            "NAVIGATE_THROUGH_PIPELINE": (
+                NavigateThroughPipelineState,
+                {"pipeline_depth": self.pipeline_depth},
             ),
         }
 

@@ -13,7 +13,8 @@
         buoy:NAVIGATE_AROUND_RED_BUOY,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
-        octagon:NAVIGATE_TO_OCTAGON_TASK
+        octagon:NAVIGATE_TO_OCTAGON_TASK,
+        pipeline:NAVIGATE_THROUGH_PIPELINE
     "/>
 
     <!-- Test Mode Configuration -->
@@ -28,7 +29,8 @@
         'NAVIGATE_AROUND_RED_BUOY',
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
-        'NAVIGATE_TO_OCTAGON_TASK'
+        'NAVIGATE_TO_OCTAGON_TASK',
+        'NAVIGATE_THROUGH_PIPELINE'
     ]" doc="Full sequence of mission states"/>
 
     <!-- Test Mission States -->
@@ -81,6 +83,9 @@
 
             <!--bin.py-->
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
+
+            <!--pipeline.py-->
+            <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>
