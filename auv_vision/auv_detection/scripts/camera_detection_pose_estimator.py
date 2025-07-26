@@ -649,7 +649,7 @@ class CameraDetectionNode:
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
-
+        rospy.loginfo_throttle(4, f"Processing detections from {camera_source}")
         camera_frame = self.camera_frames[camera_ns]
 
         detections = detection_msg.detections.detections
