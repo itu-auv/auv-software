@@ -17,7 +17,7 @@ from geometry_msgs.msg import (
 )
 from ultralytics_ros.msg import YoloResult
 from auv_msgs.msg import PropsYaw
-from sensor_msgs.msg import Range
+from sensor_msgs.msg import Range, Image
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
@@ -25,6 +25,7 @@ from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
+import message_filters
 
 
 class CameraCalibration:
@@ -174,21 +175,38 @@ class CameraDetectionNode:
             "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
-        # Use lambda to pass camera source information to the callback
-        rospy.Subscriber(
-            "/yolo_result",
-            YoloResult,
-            lambda msg: self.detection_callback(msg, camera_source="front_camera"),
-        )
-        rospy.Subscriber(
-            "/yolo_result_2",
-            YoloResult,
-            lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
-        )
+
         self.frame_id_to_camera_ns = {
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
         }
+
+        # Front camera subscribers
+        front_result_sub = message_filters.Subscriber("/yolo_result", YoloResult)
+        front_image_sub = message_filters.Subscriber("/yolo_image", Image)
+
+        # Bottom camera subscribers
+        bottom_result_sub = message_filters.Subscriber("/yolo_result_2", YoloResult)
+        bottom_image_sub = message_filters.Subscriber("/yolo_image_2", Image)
+
+        # Time synchronizers
+        self.ts_front = message_filters.TimeSynchronizer(
+            [front_result_sub, front_image_sub], 10
+        )
+        self.ts_front.registerCallback(
+            lambda result_msg, image_msg: self.detection_callback(
+                result_msg, image_msg, camera_source="front_camera"
+            )
+        )
+
+        self.ts_bottom = message_filters.TimeSynchronizer(
+            [bottom_result_sub, bottom_image_sub], 10
+        )
+        self.ts_bottom.registerCallback(
+            lambda result_msg, image_msg: self.detection_callback(
+                result_msg, image_msg, camera_source="bottom_camera"
+            )
+        )
         self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
@@ -616,7 +634,9 @@ class CameraDetectionNode:
             return False
         return True
 
-    def detection_callback(self, detection_msg: YoloResult, camera_source: str):
+    def detection_callback(
+        self, detection_msg: YoloResult, image_msg: Image, camera_source: str
+    ):
         # Determine camera_ns based on the source passed by the subscriber
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
@@ -651,7 +671,7 @@ class CameraDetectionNode:
         cv_image = None
         if pipe_detected:
             try:
-                cv_image = self.bridge.imgmsg_to_cv2(detection_msg.image, "bgr8")
+                cv_image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
             except CvBridgeError as e:
                 rospy.logerr(f"CvBridge Error: {e}")
                 return
@@ -681,8 +701,11 @@ class CameraDetectionNode:
 
             if detection_id in [2, 3]:
                 # cv_image is guaranteed to exist because of the initial check
-                detection_id = self.verify_pipe_color(detection, cv_image)
-
+                try:
+                    detection_id = self.verify_pipe_color(detection, cv_image)
+                except Exception as e:
+                    rospy.logerr(f"Error verifying pipe color: {e}")
+                    continue
             if camera_source == "front_camera":
                 if detection_id not in self.active_front_camera_ids:
                     continue
