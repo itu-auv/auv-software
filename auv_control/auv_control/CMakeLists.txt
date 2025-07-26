@@ -25,7 +25,7 @@ generate_dynamic_reconfigure_options(
   cfg/Controller.cfg
   cfg/VisualServoing.cfg
   cfg/AlignFrame.cfg
-  cfg/ZAxisController.cfg
+  cfg/WrenchController.cfg
 )
 
 find_package(Eigen3 REQUIRED)
@@ -87,18 +87,18 @@ install(TARGETS thruster_manager_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
-add_executable(z_axis_controller
-  src/z_axis_controller_node.cpp
-  src/z_axis_controller.cpp
+add_executable(wrench_controller
+  src/wrench_controller_node.cpp
+  src/wrench_controller.cpp
 )
 
-add_dependencies(z_axis_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
+add_dependencies(wrench_controller ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} ${PROJECT_NAME}_gencfg)
 
-target_link_libraries(z_axis_controller
+target_link_libraries(wrench_controller
   ${catkin_LIBRARIES}
 )
 
-install(TARGETS z_axis_controller
+install(TARGETS wrench_controller
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

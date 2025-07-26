@@ -1,27 +1,28 @@
-#include "auv_control/z_axis_controller.h"
+#include "auv_control/wrench_controller.h"
 
 namespace auv {
 namespace control {
 
-ZAxisController::ZAxisController(const ros::NodeHandle& nh)
+WrenchController::WrenchController(const ros::NodeHandle& nh)
     : nh_(nh),
       rate_(20.0),
       z_pid_(0.0, 0.0, 0.0),
+      yaw_pid_(0.0, 0.0, 0.0),
       control_enable_sub_{nh_},
       reconfigure_server_{ros::NodeHandle("~")} {
   ros::NodeHandle nh_private("~");
   reconfigure_server_.setCallback(
-      boost::bind(&ZAxisController::reconfigureCallback, this, _1, _2));
+      boost::bind(&WrenchController::reconfigureCallback, this, _1, _2));
 
   nh_private.param<std::string>("body_frame", body_frame_,
                                 "taluy_mini/base_link");
 
   odom_sub_ =
-      nh_.subscribe("odometry", 1, &ZAxisController::odometryCallback, this);
+      nh_.subscribe("odometry", 1, &WrenchController::odometryCallback, this);
   wrench_sub_ =
-      nh_.subscribe("wrench_cmd", 1, &ZAxisController::wrenchCallback, this);
+      nh_.subscribe("wrench_cmd", 1, &WrenchController::wrenchCallback, this);
   cmd_pose_sub_ =
-      nh_.subscribe("cmd_pose", 1, &ZAxisController::cmdPoseCallback, this);
+      nh_.subscribe("cmd_pose", 1, &WrenchController::cmdPoseCallback, this);
   wrench_pub_ = nh_.advertise<geometry_msgs::WrenchStamped>("wrench", 1);
   control_enable_sub_.subscribe(
       "enable", 1, nullptr,
@@ -30,38 +31,54 @@ ZAxisController::ZAxisController(const ros::NodeHandle& nh)
   control_enable_sub_.set_default_message(std_msgs::Bool{});
 }
 
-void ZAxisController::odometryCallback(
+void WrenchController::odometryCallback(
     const nav_msgs::Odometry::ConstPtr& msg) {
   current_z_ = msg->pose.pose.position.z;
+  tf2::Quaternion q(msg->pose.pose.orientation.x, msg->pose.pose.orientation.y,
+                    msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
+  tf2::Matrix3x3 m(q);
+  double roll, pitch;
+  m.getRPY(roll, pitch, current_yaw_);
 }
 
-void ZAxisController::wrenchCallback(
+void WrenchController::wrenchCallback(
     const geometry_msgs::Wrench::ConstPtr& msg) {
   latest_wrench_ = *msg;
   latest_command_time_ = ros::Time::now();
 }
 
-void ZAxisController::cmdPoseCallback(
+void WrenchController::cmdPoseCallback(
     const geometry_msgs::PoseStamped::ConstPtr& msg) {
   desired_z_ = msg->pose.position.z;
+  tf2::Quaternion q(msg->pose.orientation.x, msg->pose.orientation.y,
+                    msg->pose.orientation.z, msg->pose.orientation.w);
+  tf2::Matrix3x3 m(q);
+  double roll, pitch;
+  m.getRPY(roll, pitch, desired_yaw_);
   latest_command_time_ = ros::Time::now();
 }
 
-void ZAxisController::reconfigureCallback(
-    const auv_control::ZAxisControllerConfig& config, uint32_t level) {
-  z_pid_.setGains(config.p_gain, config.i_gain, config.d_gain);
+void WrenchController::reconfigureCallback(
+    const auv_control::WrenchControllerConfig& config, uint32_t level) {
+  z_pid_.setGains(config.z_p_gain, config.z_i_gain, config.z_d_gain);
+  yaw_pid_.setGains(config.yaw_p_gain, config.yaw_i_gain, config.yaw_d_gain);
 }
 
-bool ZAxisController::is_control_enabled() {
-  return control_enable_sub_.get_message().data;
+bool WrenchController::is_control_enabled() {
+  bool enabled = control_enable_sub_.get_message().data;
+  if (!enabled) {
+    z_pid_.reset();
+    yaw_pid_.reset();
+  }
+  return enabled;
 }
 
-bool ZAxisController::is_timeouted() const {
+bool WrenchController::is_timeouted() const {
   return (ros::Time::now() - latest_command_time_).toSec() > 1.0;
 }
 
-double ZAxisController::PID::control(double current, double desired,
-                                     double dt) {
+double WrenchController::PID::control(double current, double desired,
+                                      double dt) {
   double error = desired - current;
   integral_ += error * dt;
   double derivative = (error - prev_error_) / dt;
@@ -69,19 +86,22 @@ double ZAxisController::PID::control(double current, double desired,
   return kp_ * error + ki_ * integral_ + kd_ * derivative;
 }
 
-void ZAxisController::spin() {
+void WrenchController::spin() {
   while (ros::ok()) {
     ros::spinOnce();
 
     if (is_control_enabled() && !is_timeouted()) {
       double z_force = z_pid_.control(current_z_, desired_z_,
                                       rate_.expectedCycleTime().toSec());
+      double yaw_torque = yaw_pid_.control(current_yaw_, desired_yaw_,
+                                           rate_.expectedCycleTime().toSec());
 
       geometry_msgs::WrenchStamped wrench_msg;
       wrench_msg.header.stamp = ros::Time::now();
       wrench_msg.header.frame_id = body_frame_;
       wrench_msg.wrench = latest_wrench_;
       wrench_msg.wrench.force.z = z_force;
+      wrench_msg.wrench.torque.z = yaw_torque;
 
       wrench_pub_.publish(wrench_msg);
     }

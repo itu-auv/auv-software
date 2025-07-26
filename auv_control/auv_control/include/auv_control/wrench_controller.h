@@ -7,16 +7,17 @@
 #include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 #include "auv_common_lib/ros/subscriber_with_timeout.h"
-#include "auv_control/ZAxisControllerConfig.h"
+#include "auv_control/WrenchControllerConfig.h"
 
 namespace auv {
 namespace control {
 
-class ZAxisController {
+class WrenchController {
  public:
-  ZAxisController(const ros::NodeHandle& nh);
+  WrenchController(const ros::NodeHandle& nh);
   void spin();
 
  private:
@@ -28,7 +29,7 @@ class ZAxisController {
   void odometryCallback(const nav_msgs::Odometry::ConstPtr& msg);
   void wrenchCallback(const geometry_msgs::Wrench::ConstPtr& msg);
   void cmdPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg);
-  void reconfigureCallback(const auv_control::ZAxisControllerConfig& config,
+  void reconfigureCallback(const auv_control::WrenchControllerConfig& config,
                            uint32_t level);
 
   // A simple PID controller implementation
@@ -36,6 +37,10 @@ class ZAxisController {
    public:
     PID(double p, double i, double d)
         : kp_(p), ki_(i), kd_(d), integral_(0), prev_error_(0) {}
+    void reset() {
+      integral_ = 0.0;
+      prev_error_ = 0.0;
+    }
     double control(double current, double desired, double dt);
     void setGains(double p, double i, double d) {
       kp_ = p;
@@ -60,12 +65,15 @@ class ZAxisController {
 
   double current_z_ = 0.0;
   double desired_z_ = 0.0;
+  double current_yaw_ = 0.0;
+  double desired_yaw_ = 0.0;
   geometry_msgs::Wrench latest_wrench_;
 
   PID z_pid_;
+  PID yaw_pid_;
   std::string body_frame_;
 
-  dynamic_reconfigure::Server<auv_control::ZAxisControllerConfig>
+  dynamic_reconfigure::Server<auv_control::WrenchControllerConfig>
       reconfigure_server_;
 };
 

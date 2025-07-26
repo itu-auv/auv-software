@@ -40,7 +40,11 @@ coeffs_cw: [-7.65890867108129, -2.272619267631361, 1.5070809906898863, 140.79738
 mapping: [0, 1, 2, 3, 4, 5, 6, 7]
 
 
-z_axis_controller:
-  p_gain: 0.0
-  i_gain: 0.0
-  d_gain: 0.0
+heading_control_mode: "set_heading"
+
+z_p_gain: 100.0
+z_i_gain: 0.0
+z_d_gain: 75.0
+yaw_p_gain: 0.0
+yaw_i_gain: 0.0
+yaw_d_gain: 0.0

@@ -37,13 +37,15 @@
     </group>
 
     <group if="$(eval arg('namespace') == 'taluy_mini')">
-      <node pkg="auv_control" type="z_axis_controller" name="z_axis_controller" output="screen">
+      <node pkg="auv_control" type="wrench_controller" name="wrench_controller" output="screen">
         <param name="body_frame" value="$(arg body_frame)" />
         <remap from="odometry" to="odometry" />
-        <remap from="wrench_cmd" to="wrench_cmd" />
-        <remap from="desired_z" to="desired_z" />
+        <remap from="cmd_wrench" to="cmd_wrench" />
+        <remap from="cmd_pose" to="cmd_pose"/>
         <remap from="wrench" to="wrench" />
-        <rosparam file="$(arg config_file)" command="load" ns="z_axis_controller" />
+        <remap from="enable" to="enable" />
+
+        <rosparam file="$(arg config_file)" command="load" ns="" />
       </node>
     </group>
 
@@ -60,6 +62,7 @@
       output="screen">
       <param name="update_rate" value="$(arg rate)" />
       <param name="command_timeout" value="$(arg command_timeout)" />
+      <rosparam file="$(arg config_file)" command="load" ns="" />
 
       <remap from="odometry" to="odometry" />
       <remap from="set_depth" to="set_depth" />

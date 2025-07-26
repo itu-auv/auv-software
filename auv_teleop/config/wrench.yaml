@@ -19,4 +19,4 @@ axes:
     gain: 40.0
   yaw_axis:
     index: [3]
-    gain: 10.0
+    gain: 5.0
