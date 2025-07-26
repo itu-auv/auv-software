@@ -38,7 +38,7 @@ class MainStateMachineNode:
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
 
-        self.torpedo_map_depth = -1.45
+        self.torpedo_map_depth = -1.25
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_fire_frame = "torpedo_fire_frame"
