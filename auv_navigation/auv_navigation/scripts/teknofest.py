@@ -7,21 +7,37 @@ import numpy as np
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image, CompressedImage
 from geometry_msgs.msg import WrenchStamped
-from collections import deque
 
 
-class PipeFollower:
+class RobustPipeFollower:
     def __init__(self):
-        rospy.init_node("pipe_follower_node")
+        rospy.init_node("robust_pipe_follower")
 
-        # ROS iletişim kurulumu
+        # ROS setup
         self.bridge = CvBridge()
         self.wrench_pub = rospy.Publisher("/taluy/wrench", WrenchStamped, queue_size=10)
-        self.debug_pub = rospy.Publisher(
-            "/pipe_follower/debug_image", Image, queue_size=10
-        )
+        self.debug_pub = rospy.Publisher("/pipe_follower/debug", Image, queue_size=10)
 
-        # Görüntü aboneliği (compressed image için)
+        # Parameters
+        self.num_segments = 5
+        self.min_contour_area = 150
+        self.base_speed = 8.0
+        self.kp = 0.35
+        self.ki = 0.01
+        self.kd = 0.04
+        self.weights = [0.1, 0.2, 0.3, 0.4]  # Bottom segments have more weight
+
+        # Image processing
+        self.lower_black = np.array([0, 0, 0])
+        self.upper_black = np.array([180, 255, 40])
+
+        # Control variables
+        self.integral = 0
+        self.last_error = 0
+        self.filtered_angle = 0
+        self.last_time = rospy.Time.now()
+
+        # Subscriber
         self.image_sub = rospy.Subscriber(
             "/taluy/cameras/cam_front/image_rect_color/compressed",
             CompressedImage,
@@ -30,181 +46,194 @@ class PipeFollower:
             buff_size=2**24,
         )
 
-        # Kontrol değişkenleri
-        self.wrench_msg = WrenchStamped()
-        self.min_contour_area = 100  # Gürültü filtreleme için minimum kontur alanı
+        rospy.loginfo("Robust Pipe Follower initialized")
 
-        # PID benzeri kontrol katsayıları
-        self.kp_angle = 0.08
-        self.kp_position = 0.1
-        self.base_speed = 5.0
+    def segment_pipeline(self, mask):
+        """Divide pipeline into horizontal segments"""
+        height, width = mask.shape
+        segment_height = height // self.num_segments
+        segments = []
 
-        # HSV Thresholds for Black
-        self.lower_h = 0
-        self.lower_s = 0
-        self.lower_v = 0
-        self.upper_h = 180
-        self.upper_s = 255
-        self.upper_v = 50
+        for i in range(self.num_segments):
+            y_start = i * segment_height
+            y_end = (i + 1) * segment_height
+            segment = mask[y_start:y_end, :]
+            segments.append(segment)
 
-        # Köşe tespiti ve dönüş durumu için değişkenler
-        self.last_angles = deque(maxlen=5)
-        self.turning_state = None  # None, 'turning'
-        self.turn_start_time = None
-        self.turn_duration = rospy.Duration(2.5)  # Saniye
-        self.turn_torque = 0.8
-        self.turn_forward_speed = 1.0
+        return segments
 
-        rospy.loginfo("Pipe Follower node başlatıldı")
-
-    def estimate_pipe_direction(self, contour):
-        """Borunun yön açısını tahmin et"""
-        rect = cv2.minAreaRect(contour)
-        angle = rect[2]
-
-        # minAreaRect açıları 0-90 arasında döner, düzeltme yapıyoruz
-        if angle < -45:
-            angle += 90
-        elif angle > 45:
-            angle -= 90
-
-        return angle
-
-    def calculate_control(self, angle_error, position_error, img_width):
-        """Hata değerlerine göre kontrol komutlarını hesapla"""
-        # Normalize hatalar
-        norm_angle_error = angle_error / 90.0  # -1 ile 1 arasında
-        norm_position_error = position_error / (img_width / 2.0)  # -1 ile 1 arasında
-
-        # PID benzeri kontrol
-        angular_z = -(
-            self.kp_position * norm_position_error + self.kp_angle * norm_angle_error
+    def find_segment_midpoint(self, segment):
+        """Find center point of a pipe segment with contour filtering"""
+        contours, _ = cv2.findContours(
+            segment, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
         )
-        # Her zaman sabit bir ileri hız uygula
-        linear_x = self.base_speed
+        if not contours:
+            return None
 
-        return linear_x, angular_z
+        # Filter small contours
+        valid_contours = [
+            c for c in contours if cv2.contourArea(c) > self.min_contour_area
+        ]
+        if not valid_contours:
+            return None
+
+        # Find most central contour
+        width = segment.shape[1]
+        best_contour = min(
+            valid_contours,
+            key=lambda c: abs(
+                cv2.moments(c)["m10"] / cv2.moments(c)["m00"] - width / 2
+            ),
+        )
+
+        M = cv2.moments(best_contour)
+        return (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+
+    def calculate_pipe_direction(self, midpoints, img_width):
+        """Improved direction calculation using weighted vector sum"""
+        if len(midpoints) < 2:
+            return 0.0, 0.0  # angle_error, position_error
+
+        # Use weighted segments (bottom segments have more influence)
+        used_points = midpoints[-min(4, len(midpoints)) :]  # Use max 4 segments
+        weights = self.weights[-len(used_points) :]  # Apply corresponding weights
+
+        total_vector = np.zeros(2)
+        total_weight = 0.0
+
+        for i in range(len(used_points) - 1):
+            dx = used_points[i + 1][0] - used_points[i][0]
+            dy = used_points[i + 1][1] - used_points[i][1]
+            weight = weights[i]
+
+            total_vector += weight * np.array([dx, dy])
+            total_weight += weight
+
+        if total_weight == 0:
+            return 0.0, 0.0
+
+        avg_vector = total_vector / total_weight
+        angle_error = np.degrees(np.arctan2(avg_vector[1], avg_vector[0]))
+        position_error = midpoints[-1][0] - (img_width // 2)
+
+        return angle_error, position_error
+
+    def pid_control(self, angle_error, position_error, dt):
+        """Enhanced PID controller with smoothing"""
+        self.integral += angle_error * dt
+        derivative = (angle_error - self.last_error) / dt if dt > 0 else 0
+
+        # Smooth angle error
+        self.filtered_angle = 0.7 * self.filtered_angle + 0.3 * angle_error
+
+        # Combined error with position compensation
+        total_error = self.filtered_angle + (position_error / 100.0)
+
+        output = self.kp * total_error + self.ki * self.integral + self.kd * derivative
+
+        self.last_error = angle_error
+        return np.clip(output, -1.5, 1.5)
 
     def image_callback(self, msg):
         try:
-            # Header'ı her zaman güncelle
-            self.wrench_msg.header.stamp = rospy.Time.now()
-            self.wrench_msg.header.frame_id = "taluy/base_link"
+            # Timing
+            now = rospy.Time.now()
+            dt = (now - self.last_time).to_sec()
+            self.last_time = now
 
-            # Dönüş durumunu kontrol et
-            if self.turning_state == "turning":
-                if rospy.Time.now() - self.turn_start_time < self.turn_duration:
-                    # Dönüş komutlarını yayınlamaya devam et
-                    self.wrench_pub.publish(self.wrench_msg)
-                    # Görüntü işlemeyi atla
-                    return
-                else:
-                    # Dönüş tamamlandı, normal moda dön
-                    self.turning_state = None
-                    self.turn_start_time = None
-                    self.last_angles.clear()
+            # Convert image
+            cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
+            height, width = cv_image.shape[:2]
+            roi = cv_image[int(height * 0.4) :, :]  # Lower 60% of image
 
-            # Görüntüyü işle
-            cv_image = self.bridge.compressed_imgmsg_to_cv2(
-                msg, desired_encoding="bgr8"
-            )
-            h, w = cv_image.shape[:2]
-            roi = cv_image[int(h * 0.4) : h, :]
-            roi_h, roi_w = roi.shape[:2]
+            # Preprocessing
             hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-            lower_bound = np.array([self.lower_h, self.lower_s, self.lower_v])
-            upper_bound = np.array([self.upper_h, self.upper_s, self.upper_v])
-            thresh = cv2.inRange(hsv, lower_bound, upper_bound)
-            kernel = np.ones((5, 5), np.uint8)
-            thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-            contours, _ = cv2.findContours(
-                thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
+            mask = cv2.inRange(hsv, self.lower_black, self.upper_black)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+
+            # Segment analysis
+            segments = self.segment_pipeline(mask)
+            midpoints = []
+
+            for i, seg in enumerate(segments):
+                if mp := self.find_segment_midpoint(seg):
+                    midpoints.append(mp)
+
+            # Create debug image
             debug_img = roi.copy()
+            cv2.line(debug_img, (width // 2, 0), (width // 2, height), (0, 0, 255), 2)
 
-            if len(contours) > 0:
-                main_contour = max(contours, key=cv2.contourArea)
-                if cv2.contourArea(main_contour) > self.min_contour_area:
-                    angle = self.estimate_pipe_direction(main_contour)
-                    self.last_angles.append(angle)
+            if len(midpoints) >= 2:
+                # Calculate direction
+                angle_error, pos_error = self.calculate_pipe_direction(midpoints, width)
+                torque = self.pid_control(angle_error, pos_error, dt)
 
-                    # Köşe tespiti
-                    if len(self.last_angles) == self.last_angles.maxlen:
-                        angle_diff = abs(self.last_angles[0] - self.last_angles[-1])
-                        if angle_diff > 75:  # 90 dereceye yakın bir köşe
-                            self.turning_state = "turning"
-                            self.turn_start_time = rospy.Time.now()
-                            # Dönüş yönünü belirle
-                            turn_direction = 1 if angle > 0 else -1
-                            self.wrench_msg.wrench.force.x = self.turn_forward_speed
-                            self.wrench_msg.wrench.torque.z = (
-                                self.turn_torque * turn_direction
-                            )
-                            rospy.loginfo(
-                                f"Köşe tespit edildi! Dönüş başlatılıyor. Yön: {turn_direction}"
-                            )
-                            # Hemen yayınla ve çık
-                            self.wrench_pub.publish(self.wrench_msg)
-                            return
+                # Draw debug info
+                for i in range(len(midpoints) - 1):
+                    cv2.line(debug_img, midpoints[i], midpoints[i + 1], (0, 255, 0), 2)
 
-                    # Normal merkezleme kontrolü
-                    M = cv2.moments(main_contour)
-                    cx = int(M["m10"] / M["m00"]) if M["m00"] > 0 else roi_w // 2
-                    position_error = cx - roi_w // 2
-                    angle_error = np.mean(
-                        self.last_angles
-                    )  # Daha kararlı bir açı kullan
-                    linear_x, angular_z = self.calculate_control(
-                        angle_error, position_error, roi_w
-                    )
-                    self.wrench_msg.wrench.force.x = linear_x
-                    self.wrench_msg.wrench.torque.z = angular_z
+                cv2.circle(debug_img, midpoints[-1], 7, (255, 0, 0), -1)
 
-                    # Debug çizimleri
-                    cv2.drawContours(debug_img, [main_contour], -1, (0, 255, 0), 2)
+                # Apply control
+                wrench = WrenchStamped()
+                wrench.header.stamp = now
+                wrench.header.frame_id = "taluy/base_link"
+                wrench.wrench.force.x = self.base_speed * (1 - 0.3 * abs(torque))
+                wrench.wrench.torque.z = torque
+
+                # Debug text
+                texts = [
+                    f"Angle: {angle_error:.1f}°",
+                    f"Position: {pos_error:.1f}px",
+                    f"Torque: {torque:.2f}",
+                    f"Segments: {len(midpoints)}/{self.num_segments}",
+                ]
+
+                for i, text in enumerate(texts):
                     cv2.putText(
                         debug_img,
-                        f"Angle: {angle:.1f}",
-                        (10, 30),
+                        text,
+                        (10, 30 + i * 30),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.7,
                         (255, 255, 255),
                         2,
                     )
-                    cv2.putText(
-                        debug_img,
-                        f"PosErr: {position_error}",
-                        (10, 60),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (255, 255, 255),
-                        2,
-                    )
-
-                else:
-                    # Arama modu
-                    self.wrench_msg.wrench.force.x = 1.0
-                    self.wrench_msg.wrench.torque.z = 0.5
             else:
-                # Arama modu
-                self.wrench_msg.wrench.force.x = 1.0
-                self.wrench_msg.wrench.torque.z = 0.5
+                wrench = self.create_search_wrench()
+                cv2.putText(
+                    debug_img,
+                    "SEARCHING...",
+                    (width // 2 - 100, height // 2),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 0, 255),
+                    2,
+                )
 
-            # Debug görüntüsünü ve kontrol komutlarını yayınla
-            debug_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding="bgr8")
-            self.debug_pub.publish(debug_msg)
-            self.wrench_pub.publish(self.wrench_msg)
+            # Publish results
+            self.wrench_pub.publish(wrench)
+            self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug_img, "bgr8"))
 
         except Exception as e:
-            rospy.logerr(f"Görüntü işleme hatası: {str(e)}")
-            self.wrench_msg.wrench.force.x = 0.0
-            self.wrench_msg.wrench.torque.z = 0.0
-            self.wrench_pub.publish(self.wrench_msg)
+            rospy.logerr(f"Processing error: {str(e)}")
+            wrench = WrenchStamped()
+            wrench.header.stamp = rospy.Time.now()
+            self.wrench_pub.publish(wrench)
+
+    def create_search_wrench(self):
+        """Create gentle search pattern"""
+        wrench = WrenchStamped()
+        wrench.header.stamp = rospy.Time.now()
+        wrench.header.frame_id = "taluy/base_link"
+        wrench.wrench.force.x = self.base_speed * 0.4
+        wrench.wrench.torque.z = 0.8
+        return wrench
 
 
 if __name__ == "__main__":
     try:
-        PipeFollower()
+        follower = RobustPipeFollower()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
