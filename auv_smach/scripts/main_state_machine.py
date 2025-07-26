@@ -10,6 +10,7 @@ from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
+from auv_smach.return_home import NavigateReturnThroughGateState
 from std_msgs.msg import Bool
 import threading
 
@@ -41,6 +42,8 @@ class MainStateMachineNode:
                 },
             },
         )
+
+        self.return_home_station = "bin_whole_link"
 
         self.gate_search_depth = -0.7
         self.gate_depth = -1.35
@@ -151,6 +154,10 @@ class MainStateMachineNode:
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
                 {"octagon_depth": self.octagon_depth},
+            ),
+            "NAVIGATE_RETURN_THROUGH_GATE": (
+                NavigateReturnThroughGateState,
+                {"station_frame": self.return_home_station},
             ),
         }
 
