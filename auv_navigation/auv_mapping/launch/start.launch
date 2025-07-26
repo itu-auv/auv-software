@@ -31,8 +31,8 @@
     </node>
 
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
-      <rosparam command="load" file="$(find auv_mapping)/config/gate_trajectory_publisher_params.yaml" />
-      <rosparam command="load" file="$(find auv_smach)/config/mission_target_selection.yaml" />
+      <remap from="toggle_coin_flip_rescuer" to="toggle_coin_flip_rescuer" />
+      <remap from="odometry" to="odometry" />
       <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
@@ -56,7 +56,6 @@
 
     <node pkg="auv_mapping" type="torpedo_frame_publisher.py" name="torpedo_frame_publisher" output="screen">
       <rosparam command="load" file="$(find auv_mapping)/config/torpedo_frame_publisher_params.yaml" />
-      <rosparam command="load" file="$(find auv_smach)/config/mission_target_selection.yaml" />
       <param name="torpedo_frame" value="$(arg torpedo_frame)" />
       <param name="torpedo_realsense_frame" value="$(arg torpedo_realsense_frame)" />
       <param name="torpedo_hole_frame" value="$(arg torpedo_hole_frame)" />
