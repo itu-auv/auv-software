@@ -22,6 +22,7 @@ add_message_files(
   MotorCommand.msg
   Power.msg
   PropsYaw.msg
+  TDOA.msg
 )
 
 add_service_files(
