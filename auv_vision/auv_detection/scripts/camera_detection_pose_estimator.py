@@ -147,6 +147,7 @@ class CameraDetectionNode:
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
         self.active_front_camera_ids = list(range(15))  # Allow all by default
+        self.red_pipe_x = None
 
         self.object_id_map = {
             "gate": [0, 1],
@@ -578,14 +579,14 @@ class CameraDetectionNode:
             self.process_torpedo_holes_on_map(
                 detection_msg, camera_ns, torpedo_map_bbox
             )
-
-        red_pipe_x = None
+        red_pipe_x = self.red_pipe_x
         red_pipes = [
             d for d in detection_msg.detections.detections if d.results[0].id == 2
         ]
         if red_pipes:
             largest_red_pipe = max(red_pipes, key=lambda d: d.bbox.size_y)
             red_pipe_x = largest_red_pipe.bbox.center.x
+            self.red_pipe_x = red_pipe_x
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
