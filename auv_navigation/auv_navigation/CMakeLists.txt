@@ -6,15 +6,10 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib
   nav_msgs
   tf2_ros
-  dynamic_reconfigure
-)
-
-generate_dynamic_reconfigure_options(
-  cfg/PipeFollower.cfg
 )
 
 catkin_package(
-  CATKIN_DEPENDS rospy actionlib nav_msgs tf2_ros dynamic_reconfigure
+  CATKIN_DEPENDS rospy actionlib nav_msgs tf2_ros
 )
 
 

@@ -5,10 +5,9 @@ import rospy
 import cv2
 import numpy as np
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from geometry_msgs.msg import Twist
-from dynamic_reconfigure.server import Server
-from auv_navigation.cfg import PipeFollower as ConfigType
+from sensor_msgs.msg import Image, CompressedImage
+from geometry_msgs.msg import WrenchStamped
+from collections import deque
 
 
 class PipeFollower:
@@ -17,7 +16,7 @@ class PipeFollower:
 
         # ROS iletişim kurulumu
         self.bridge = CvBridge()
-        self.twist_pub = rospy.Publisher("/taluy/cmd_vel", Twist, queue_size=10)
+        self.wrench_pub = rospy.Publisher("/taluy/wrench", WrenchStamped, queue_size=10)
         self.debug_pub = rospy.Publisher(
             "/pipe_follower/debug_image", Image, queue_size=10
         )
@@ -25,41 +24,38 @@ class PipeFollower:
         # Görüntü aboneliği (compressed image için)
         self.image_sub = rospy.Subscriber(
             "/taluy/cameras/cam_front/image_rect_color/compressed",
-            Image,
+            CompressedImage,
             self.image_callback,
             queue_size=1,
             buff_size=2**24,
         )
 
         # Kontrol değişkenleri
-        self.twist_msg = Twist()
+        self.wrench_msg = WrenchStamped()
         self.min_contour_area = 100  # Gürültü filtreleme için minimum kontur alanı
 
         # PID benzeri kontrol katsayıları
-        self.kp_angle = 0.01
-        self.kp_position = 0.005
-        self.base_speed = 0.3
+        self.kp_angle = 0.08
+        self.kp_position = 0.1
+        self.base_speed = 5.0
 
-        # HSV Thresholds
-        self.lower_h = 20
-        self.lower_s = 100
-        self.lower_v = 100
-        self.upper_h = 30
+        # HSV Thresholds for Black
+        self.lower_h = 0
+        self.lower_s = 0
+        self.lower_v = 0
+        self.upper_h = 180
         self.upper_s = 255
-        self.upper_v = 255
+        self.upper_v = 50
 
-        # Dinamik reconfig ayarları
-        self.reconfig_server = Server(ConfigType, self.reconfigure_cb)
+        # Köşe tespiti ve dönüş durumu için değişkenler
+        self.last_angles = deque(maxlen=5)
+        self.turning_state = None  # None, 'turning'
+        self.turn_start_time = None
+        self.turn_duration = rospy.Duration(2.5)  # Saniye
+        self.turn_torque = 0.8
+        self.turn_forward_speed = 1.0
+
         rospy.loginfo("Pipe Follower node başlatıldı")
-
-    def reconfigure_cb(self, config, level):
-        self.lower_h = config.lower_h
-        self.lower_s = config.lower_s
-        self.lower_v = config.lower_v
-        self.upper_h = config.upper_h
-        self.upper_s = config.upper_s
-        self.upper_v = config.upper_v
-        return config
 
     def estimate_pipe_direction(self, contour):
         """Borunun yön açısını tahmin et"""
@@ -84,74 +80,91 @@ class PipeFollower:
         angular_z = -(
             self.kp_position * norm_position_error + self.kp_angle * norm_angle_error
         )
-        linear_x = self.base_speed * (
-            1.0 - min(abs(norm_angle_error), 0.5)
-        )  # Büyük açı hatasında yavaşla
+        # Her zaman sabit bir ileri hız uygula
+        linear_x = self.base_speed
 
         return linear_x, angular_z
 
     def image_callback(self, msg):
         try:
-            # Compressed image decode
+            # Header'ı her zaman güncelle
+            self.wrench_msg.header.stamp = rospy.Time.now()
+            self.wrench_msg.header.frame_id = "taluy/base_link"
+
+            # Dönüş durumunu kontrol et
+            if self.turning_state == "turning":
+                if rospy.Time.now() - self.turn_start_time < self.turn_duration:
+                    # Dönüş komutlarını yayınlamaya devam et
+                    self.wrench_pub.publish(self.wrench_msg)
+                    # Görüntü işlemeyi atla
+                    return
+                else:
+                    # Dönüş tamamlandı, normal moda dön
+                    self.turning_state = None
+                    self.turn_start_time = None
+                    self.last_angles.clear()
+
+            # Görüntüyü işle
             cv_image = self.bridge.compressed_imgmsg_to_cv2(
                 msg, desired_encoding="bgr8"
             )
             h, w = cv_image.shape[:2]
-
-            # ROI (Region of Interest) belirle - Görüntünün alt %60'ını al, üst kısmı gözardı et
             roi = cv_image[int(h * 0.4) : h, :]
             roi_h, roi_w = roi.shape[:2]
-
-            # HSV'ye çevir ve threshold uygula
             hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
             lower_bound = np.array([self.lower_h, self.lower_s, self.lower_v])
             upper_bound = np.array([self.upper_h, self.upper_s, self.upper_v])
             thresh = cv2.inRange(hsv, lower_bound, upper_bound)
-
-            # Morfolojik işlemler (gürültüyü azaltmak için)
             kernel = np.ones((5, 5), np.uint8)
             thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-
-            # Kontur bulma
             contours, _ = cv2.findContours(
                 thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
-
-            # Debug görüntüsü oluştur
             debug_img = roi.copy()
 
             if len(contours) > 0:
-                # En büyük konturu seç
                 main_contour = max(contours, key=cv2.contourArea)
-
                 if cv2.contourArea(main_contour) > self.min_contour_area:
-                    # Boru yönünü tahmin et
                     angle = self.estimate_pipe_direction(main_contour)
+                    self.last_angles.append(angle)
 
-                    # Boru merkezini bul
+                    # Köşe tespiti
+                    if len(self.last_angles) == self.last_angles.maxlen:
+                        angle_diff = abs(self.last_angles[0] - self.last_angles[-1])
+                        if angle_diff > 75:  # 90 dereceye yakın bir köşe
+                            self.turning_state = "turning"
+                            self.turn_start_time = rospy.Time.now()
+                            # Dönüş yönünü belirle
+                            turn_direction = 1 if angle > 0 else -1
+                            self.wrench_msg.wrench.force.x = self.turn_forward_speed
+                            self.wrench_msg.wrench.torque.z = (
+                                self.turn_torque * turn_direction
+                            )
+                            rospy.loginfo(
+                                f"Köşe tespit edildi! Dönüş başlatılıyor. Yön: {turn_direction}"
+                            )
+                            # Hemen yayınla ve çık
+                            self.wrench_pub.publish(self.wrench_msg)
+                            return
+
+                    # Normal merkezleme kontrolü
                     M = cv2.moments(main_contour)
                     cx = int(M["m10"] / M["m00"]) if M["m00"] > 0 else roi_w // 2
-                    cy = int(M["m01"] / M["m00"]) if M["m00"] > 0 else 0
-
-                    # Hataları hesapla
                     position_error = cx - roi_w // 2
-                    angle_error = angle
-
-                    # Kontrol komutlarını hesapla
+                    angle_error = np.mean(
+                        self.last_angles
+                    )  # Daha kararlı bir açı kullan
                     linear_x, angular_z = self.calculate_control(
                         angle_error, position_error, roi_w
                     )
-
-                    # Twist mesajını güncelle
-                    self.twist_msg.linear.x = linear_x
-                    self.twist_msg.angular.z = angular_z
+                    self.wrench_msg.wrench.force.x = linear_x
+                    self.wrench_msg.wrench.torque.z = angular_z
 
                     # Debug çizimleri
                     cv2.drawContours(debug_img, [main_contour], -1, (0, 255, 0), 2)
-                    cv2.circle(debug_img, (cx, cy), 5, (255, 0, 0), -1)
                     cv2.putText(
                         debug_img,
-                        f"Angle: {angle:.1f}deg",
+                        f"Angle: {angle:.1f}",
                         (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.7,
@@ -167,44 +180,26 @@ class PipeFollower:
                         (255, 255, 255),
                         2,
                     )
-                else:
-                    # Boru çok küçük, arama modu
-                    self.twist_msg.linear.x = 0.1
-                    self.twist_msg.angular.z = 0.3
-                    cv2.putText(
-                        debug_img,
-                        "SEARCHING...",
-                        (roi_w // 2 - 100, roi_h // 2),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1,
-                        (0, 0, 255),
-                        2,
-                    )
-            else:
-                # Boru bulunamadı, arama modu
-                self.twist_msg.linear.x = 0.1
-                self.twist_msg.angular.z = 0.3
-                cv2.putText(
-                    debug_img,
-                    "NO PIPE DETECTED",
-                    (roi_w // 2 - 150, roi_h // 2),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (0, 0, 255),
-                    2,
-                )
 
-            # Debug görüntüsünü yayınla
+                else:
+                    # Arama modu
+                    self.wrench_msg.wrench.force.x = 1.0
+                    self.wrench_msg.wrench.torque.z = 0.5
+            else:
+                # Arama modu
+                self.wrench_msg.wrench.force.x = 1.0
+                self.wrench_msg.wrench.torque.z = 0.5
+
+            # Debug görüntüsünü ve kontrol komutlarını yayınla
             debug_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding="bgr8")
             self.debug_pub.publish(debug_msg)
+            self.wrench_pub.publish(self.wrench_msg)
 
         except Exception as e:
             rospy.logerr(f"Görüntü işleme hatası: {str(e)}")
-            self.twist_msg.linear.x = 0.0
-            self.twist_msg.angular.z = 0.0
-
-        # Kontrol komutlarını yayınla
-        self.twist_pub.publish(self.twist_msg)
+            self.wrench_msg.wrench.force.x = 0.0
+            self.wrench_msg.wrench.torque.z = 0.0
+            self.wrench_pub.publish(self.wrench_msg)
 
 
 if __name__ == "__main__":
