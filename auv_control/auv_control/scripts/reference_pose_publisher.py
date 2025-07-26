@@ -56,7 +56,7 @@ class ReferencePosePublisherNode:
 
         # Dynamic reconfigure client
         self.dyn_client = dynamic_reconfigure.client.Client(
-            "controller_node", timeout=30  #! This might not be the correct name.
+            "/taluy/auv_control_node", timeout=30
         )
         # Initialize stored PID parameters
         self.stored_kp_5 = 0.0
