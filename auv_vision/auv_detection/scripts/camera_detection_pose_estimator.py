@@ -2,6 +2,9 @@
 
 import rospy
 import math
+import numpy as np
+import cv2
+from cv_bridge import CvBridge, CvBridgeError
 from geometry_msgs.msg import (
     PointStamped,
     PoseArray,
@@ -14,7 +17,7 @@ from geometry_msgs.msg import (
 )
 from ultralytics_ros.msg import YoloResult
 from auv_msgs.msg import PropsYaw
-from sensor_msgs.msg import Range
+from sensor_msgs.msg import Range, Image
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
@@ -22,6 +25,7 @@ from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
+import message_filters
 
 
 class CameraCalibration:
@@ -162,6 +166,8 @@ class CameraDetectionNode:
             "object_transform_updates", TransformStamped, queue_size=10
         )
         self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
+
+        self.bridge = CvBridge()
         # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -169,21 +175,38 @@ class CameraDetectionNode:
             "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
-        # Use lambda to pass camera source information to the callback
-        rospy.Subscriber(
-            "/yolo_result",
-            YoloResult,
-            lambda msg: self.detection_callback(msg, camera_source="front_camera"),
-        )
-        rospy.Subscriber(
-            "/yolo_result_2",
-            YoloResult,
-            lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
-        )
+
         self.frame_id_to_camera_ns = {
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
         }
+
+        # Front camera subscribers
+        front_result_sub = message_filters.Subscriber("/yolo_result", YoloResult)
+        front_image_sub = message_filters.Subscriber("/yolo_image", Image)
+
+        # Bottom camera subscribers
+        bottom_result_sub = message_filters.Subscriber("/yolo_result_2", YoloResult)
+        bottom_image_sub = message_filters.Subscriber("/yolo_image_2", Image)
+
+        # Time synchronizers
+        self.ts_front = message_filters.TimeSynchronizer(
+            [front_result_sub, front_image_sub], 10
+        )
+        self.ts_front.registerCallback(
+            lambda result_msg, image_msg: self.detection_callback(
+                result_msg, image_msg, camera_source="front_camera"
+            )
+        )
+
+        self.ts_bottom = message_filters.TimeSynchronizer(
+            [bottom_result_sub, bottom_image_sub], 10
+        )
+        self.ts_bottom.registerCallback(
+            lambda result_msg, image_msg: self.detection_callback(
+                result_msg, image_msg, camera_source="bottom_camera"
+            )
+        )
         self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
@@ -238,6 +261,75 @@ class CameraDetectionNode:
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
         )
+
+    def verify_pipe_color(self, detection, cv_image):
+        """
+        Analyze the pixels in a bounding box of a pipe detection to verify its color.
+
+        Args:
+            detection: detection object from the YoloResult message.
+            cv_image: Full image in OpenCV format (BGR)
+
+        Returns:
+            int: The corrected class ID (2 for red, 3 for white)
+        """
+        original_id = detection.results[0].id
+
+        # Crop the image to the bounding box
+        img_h, img_w, _ = cv_image.shape
+        bbox = detection.bbox
+
+        x_center, y_center = int(bbox.center.x), int(bbox.center.y)
+        width, height = int(bbox.size_x), int(bbox.size_y)
+        # Top left, bottom right coordinates
+        x1 = max(0, x_center - width // 2)
+        y1 = max(0, y_center - height // 2)
+        x2 = min(img_w, x_center + width // 2)
+        y2 = min(img_h, y_center + height // 2)
+
+        # Slice the region of interest
+        region_of_interest = cv_image[y1:y2, x1:x2]
+        # Is valid region?
+        if region_of_interest.size == 0:
+            rospy.logwarn("Invalid region of interest for color verification.")
+            return original_id
+
+        # Convert to HSV color space
+        hsv_region_of_interest = cv2.cvtColor(region_of_interest, cv2.COLOR_BGR2HSV)
+
+        # Define color ranges
+        # Red range
+        lower_red1 = np.array([0, 70, 50])
+        upper_red1 = np.array([10, 255, 255])
+        lower_red2 = np.array([170, 70, 50])
+        upper_red2 = np.array([180, 255, 255])
+        # White range
+        lower_white = np.array([0, 0, 180])
+        upper_white = np.array([180, 40, 255])
+
+        # Create masks for red and white colors
+        red_mask1 = cv2.inRange(hsv_region_of_interest, lower_red1, upper_red1)
+        red_mask2 = cv2.inRange(hsv_region_of_interest, lower_red2, upper_red2)
+        red_mask = cv2.bitwise_or(red_mask1, red_mask2)
+
+        white_mask = cv2.inRange(hsv_region_of_interest, lower_white, upper_white)
+
+        red_pixel_count = cv2.countNonZero(red_mask)
+        white_pixel_count = cv2.countNonZero(white_mask)
+
+        # The decision
+        if red_pixel_count > white_pixel_count:
+            if original_id != 2:
+                rospy.logwarn("Detected white pipe but is a red pipe")
+            if original_id == 2:
+                rospy.loginfo("Correct red pipe detection")
+            return 2  # Red pipe
+        else:
+            if original_id != 3:
+                rospy.loginfo("Detected red pipe but is a white pipe")
+            if original_id == 3:
+                rospy.loginfo("Correct white pipe detection")
+            return 3  # White pipe
 
     def handle_set_front_camera_focus(self, req):
         focus_objects = [
@@ -542,7 +634,9 @@ class CameraDetectionNode:
             return False
         return True
 
-    def detection_callback(self, detection_msg: YoloResult, camera_source: str):
+    def detection_callback(
+        self, detection_msg: YoloResult, image_msg: Image, camera_source: str
+    ):
         # Determine camera_ns based on the source passed by the subscriber
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
@@ -555,18 +649,32 @@ class CameraDetectionNode:
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
-
+        rospy.loginfo_throttle(4, f"Processing detections from {camera_source}")
         camera_frame = self.camera_frames[camera_ns]
 
-        # Search for torpedo map
+        detections = detection_msg.detections.detections
+        pipe_detected = False
         torpedo_map_bbox = None
-        for detection in detection_msg.detections.detections:
-            if len(detection.results) == 0:
+        for detection in detections:
+            if not detection.results:
                 continue
+
             detection_id = detection.results[0].id
-            if detection_id == 4:  # Torpedo map ID
+            if detection_id in [2, 3]:
+                pipe_detected = True
+            elif detection_id == 4:  # Torpedo map ID
                 torpedo_map_bbox = detection.bbox
+
+            if pipe_detected and torpedo_map_bbox:
                 break
+
+        cv_image = None
+        if pipe_detected:
+            try:
+                cv_image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
+            except CvBridgeError as e:
+                rospy.logerr(f"CvBridge Error: {e}")
+                return
 
         torpedo_ids = set(self.object_id_map.get("torpedo", []))
         process_torpedo = True
@@ -580,21 +688,24 @@ class CameraDetectionNode:
             )
 
         red_pipe_x = None
-        red_pipes = [
-            d for d in detection_msg.detections.detections if d.results[0].id == 2
-        ]
+        red_pipes = [d for d in detections if d.results and d.results[0].id == 2]
         if red_pipes:
-            largest_red_pipe = max(
-                red_pipes, key=lambda d: d.bbox.size_x * d.bbox.size_y
-            )
+            largest_red_pipe = max(red_pipes, key=lambda d: d.bbox.size_y)
             red_pipe_x = largest_red_pipe.bbox.center.x
 
-        for detection in detection_msg.detections.detections:
+        for detection in detections:
             if len(detection.results) == 0:
                 continue
             skip_inside_image = False
             detection_id = detection.results[0].id
 
+            if detection_id in [2, 3]:
+                # cv_image is guaranteed to exist because of the initial check
+                try:
+                    detection_id = self.verify_pipe_color(detection, cv_image)
+                except Exception as e:
+                    rospy.logerr(f"Error verifying pipe color: {e}")
+                    continue
             if camera_source == "front_camera":
                 if detection_id not in self.active_front_camera_ids:
                     continue
