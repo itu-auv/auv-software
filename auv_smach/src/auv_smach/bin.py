@@ -250,7 +250,11 @@ class BinSecondTrialState(smach.StateMachine):
 
 class BinTaskState(smach.State):
     def __init__(
-        self, bin_front_look_depth, bin_bottom_look_depth, target_selection="shark"
+        self,
+        bin_front_look_depth,
+        bin_bottom_look_depth,
+        target_selection="shark",
+        bin_exit_angle=0.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -260,6 +264,7 @@ class BinTaskState(smach.State):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.bin_exit_angle = bin_exit_angle
 
         with self.state_machine:
             smach.StateMachine.add(
@@ -547,7 +552,7 @@ class BinTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="bin_exit",
-                    angle_offset=0.0,
+                    angle_offset=self.bin_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=2.0,

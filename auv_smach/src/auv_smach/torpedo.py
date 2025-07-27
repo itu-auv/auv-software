@@ -63,9 +63,11 @@ class TorpedoTaskState(smach.State):
         torpedo_target_frame,
         torpedo_realsense_target_frame,
         torpedo_fire_frames,
+        torpedo_exit_angle: float = 0.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.torpedo_fire_frames = torpedo_fire_frames
+        self.torpedo_exit_angle = torpedo_exit_angle
 
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
@@ -393,7 +395,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_realsense_target_frame,
-                    angle_offset=0.0,
+                    angle_offset=self.torpedo_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=0.0,
