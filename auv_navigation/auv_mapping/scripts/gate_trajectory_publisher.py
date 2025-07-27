@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 from typing import Tuple, Optional
 import math
 import rospy
@@ -10,6 +12,11 @@ from geometry_msgs.msg import Pose, Point, Quaternion, TransformStamped
 from std_msgs.msg import Float64
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from nav_msgs.msg import Odometry
+from dynamic_reconfigure.server import Server
+from dynamic_reconfigure.client import Client as DynamicReconfigureClient
+from auv_mapping.cfg import GateTrajectoryConfig
+from auv_bringup.cfg import SmachParametersConfig
 
 
 class TransformServiceNode:
@@ -20,6 +27,30 @@ class TransformServiceNode:
         rospy.init_node("create_gate_frames_node")
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        # Dynamic reconfigure server for gate parameters
+        self.gate_frame_1 = "gate_shark_link"
+        self.gate_frame_2 = "gate_sawfish_link"
+        self.target_gate_frame = "gate_shark_link"
+        self.entrance_offset = 1.0
+        self.exit_offset = 1.4
+        self.z_offset = 0.5
+        self.parallel_shift_offset = 0.15
+        self.rescuer_distance = 1.5
+        self.wall_reference_yaw = -2.5
+        self.reconfigure_server = Server(
+            GateTrajectoryConfig, self.reconfigure_callback
+        )
+
+        # Client for auv_smach parameters
+        if SmachParametersConfig is not None:
+            self.smach_params_client = DynamicReconfigureClient(
+                "smach_parameters_server",
+                timeout=10,
+                config_callback=self.smach_params_callback,
+            )
+        else:
+            rospy.logerr("Smach dynamic reconfigure client not started.")
 
         # Service to broadcast transforms
         self.set_object_transform_service = rospy.ServiceProxy(
@@ -39,38 +70,14 @@ class TransformServiceNode:
         self.exit_frame = "gate_exit"
         self.middle_frame = "gate_middle_part"
 
-        # Load gate frame parameters from YAML
-        self.gate_frame_1 = rospy.get_param("~gate_frame_1", "gate_shark_link")
-        self.gate_frame_2 = rospy.get_param("~gate_frame_2", "gate_sawfish_link")
-
         # Verify that we have valid frame names
         if not all([self.gate_frame_1, self.gate_frame_2]):
             rospy.logerr("Missing required gate frame parameters")
             rospy.signal_shutdown("Missing required parameters")
 
-        # Get mission targets from YAML
-        mission_targets = rospy.get_param(
-            "~mission_targets",
-            {
-                "shark": {"gate_target_frame": "gate_shark_link"},
-                "sawfish": {"gate_target_frame": "gate_sawfish_link"},
-            },
-        )
-
-        # Get target selection from YAML
-        target_selection = rospy.get_param("~target_selection", "shark")
-
-        # Set gate target frame based on target selection
-        self.target_gate_frame = mission_targets[target_selection]["gate_target_frame"]
-
         self.set_enable_service = rospy.Service(
             "toggle_gate_trajectory", SetBool, self.handle_enable_service
         )
-
-        self.entrance_offset = rospy.get_param("~entrance_offset", 1.0)
-        self.exit_offset = rospy.get_param("~exit_offset", 1.4)
-        self.z_offset = rospy.get_param("~z_offset", 0.5)
-        self.parallel_shift_offset = rospy.get_param("~parallel_shift_offset", 0.15)
 
         # --- Parameters for fallback (single-frame) mode
         self.fallback_entrance_offset = rospy.get_param(
@@ -80,6 +87,105 @@ class TransformServiceNode:
         self.MIN_GATE_SEPARATION = rospy.get_param("~min_gate_separation", 0.2)
         self.MAX_GATE_SEPARATION = rospy.get_param("~max_gate_separation", 2.5)
         self.MIN_GATE_SEPARATION_THRESHOLD = 0.15  # For internal checks
+
+        self.odom_sub = rospy.Subscriber("odometry", Odometry, self.odom_callback)
+        self.latest_odom = None
+
+        # Threshold for gate link separation
+        self.MIN_GATE_SEPARATION_THRESHOLD = 0.15
+
+        self.coin_flip_enabled = False
+        self.coin_flip_rescuer_pose = None
+        self.rescuer_frame_name = "coin_flip_rescuer"
+
+        self.toggle_rescuer_service = rospy.Service(
+            "toggle_coin_flip_rescuer", SetBool, self.handle_toggle_rescuer_service
+        )
+
+    def smach_params_callback(self, config):
+        """Callback for receiving parameters from the auv_smach node."""
+        rospy.loginfo("Received smach parameters update: %s", config)
+        if "wall_reference_yaw" in config:
+            self.wall_reference_yaw = config["wall_reference_yaw"]
+        if "selected_animal" in config:
+            if config["selected_animal"] == "shark":
+                self.target_gate_frame = "gate_shark_link"
+            elif config["selected_animal"] == "sawfish":
+                self.target_gate_frame = "gate_sawfish_link"
+
+    def handle_toggle_rescuer_service(self, request: SetBool) -> SetBoolResponse:
+
+        self.coin_flip_enabled = request.data
+        message = f"Coin flip rescuer frame publishing set to: {self.coin_flip_enabled}"
+        rospy.loginfo(message)
+
+        if self.coin_flip_enabled and self.coin_flip_rescuer_pose is None:
+            try:
+                initial_transform = self.tf_buffer.lookup_transform(
+                    self.odom_frame,
+                    self.robot_base_frame,
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+
+                initial_pos = initial_transform.transform.translation
+
+                rescuer_pose = Pose()
+                rescuer_pose.position.x = initial_pos.x + self.rescuer_distance
+                rescuer_pose.position.y = initial_pos.y
+                rescuer_pose.position.z = initial_pos.z
+
+                q = tf_conversions.transformations.quaternion_from_euler(0, 0, 0)
+                rescuer_pose.orientation = Quaternion(*q)
+
+                self.coin_flip_rescuer_pose = rescuer_pose
+                return SetBoolResponse(success=True, message=message)
+
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                error_message = f"Failed to get initial vehicle pose to calculate rescuer frame: {e}"
+                rospy.logerr(error_message)
+                self.coin_flip_enabled = False
+                return SetBoolResponse(success=False, message=error_message)
+
+        return SetBoolResponse(success=True, message=message)
+
+    def odom_callback(self, msg):
+        self.latest_odom = msg
+
+    def _publish_rescuer_frame(self):
+        if not self.coin_flip_enabled:
+            rospy.logdebug("Coin flip rescuer frame publishing is disabled.")
+            return
+        if self.latest_odom is None:
+            rospy.logwarn("Coin flip rescuer frame odometry message not received.")
+            return
+
+        pos = self.latest_odom.pose.pose.position
+        reference_yaw = self.wall_reference_yaw
+        dx = self.rescuer_distance * math.cos(reference_yaw)
+        dy = self.rescuer_distance * math.sin(reference_yaw)
+        rescuer_x = pos.x + dx
+        rescuer_y = pos.y + dy
+        rescuer_z = pos.z
+        rescuer_quat = tf_conversions.transformations.quaternion_from_euler(
+            0, 0, reference_yaw
+        )
+        transform = TransformStamped()
+        transform.header.stamp = rospy.Time.now()
+        transform.header.frame_id = self.odom_frame
+        transform.child_frame_id = self.rescuer_frame_name
+        transform.transform.translation.x = rescuer_x
+        transform.transform.translation.y = rescuer_y
+        transform.transform.translation.z = rescuer_z
+        transform.transform.rotation.x = rescuer_quat[0]
+        transform.transform.rotation.y = rescuer_quat[1]
+        transform.transform.rotation.z = rescuer_quat[2]
+        transform.transform.rotation.w = rescuer_quat[3]
+        self.send_transform(transform)
 
     def create_trajectory_frames(self) -> None:
         """
@@ -487,7 +593,19 @@ class TransformServiceNode:
         while not rospy.is_shutdown():
             if self.is_enabled:
                 self.create_trajectory_frames()
-            rate.sleep()
+
+            if self.coin_flip_enabled:
+                self._publish_rescuer_frame()
+
+        rate.sleep()
+
+    def reconfigure_callback(self, config, level):
+        self.entrance_offset = config.entrance_offset
+        self.exit_offset = config.exit_offset
+        self.z_offset = config.z_offset
+        self.parallel_shift_offset = config.parallel_shift_offset
+        self.rescuer_distance = config.rescuer_distance
+        return config
 
 
 if __name__ == "__main__":

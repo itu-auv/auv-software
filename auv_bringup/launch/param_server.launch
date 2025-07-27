@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy"/>
+
+  <group ns="$(arg namespace)">
+    <node name="smach_parameters_server" pkg="auv_bringup" type="smach_params_server.py" output="screen"/>
+  </group>
+</launch>
