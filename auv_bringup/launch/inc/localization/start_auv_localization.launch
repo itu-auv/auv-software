@@ -6,6 +6,15 @@
   <group ns="$(arg namespace)">
     <rosparam file="$(find auv_bringup)/config/$(arg namespace)/sensor_calibration_data.yaml" />
 
+    <group if="$(eval arg('namespace') == 'taluy_mini')">
+      <!-- TODO: ADD DEPENDENCY -->
+      <node name="imu_transformer" pkg="imu_transformer" type="imu_transformer_node" output="screen">
+        <remap from="imu_in" to="sensors/imu_raw"/>
+        <remap from="imu_out" to="sensors/imu"/>
+        <param name="target_frame" value="taluy_mini/base_link"/>
+      </node>
+    </group>
+
     <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
       <remap from="imu/data" to="sensors/imu/data" />
       <remap from="odom_imu" to="localization/odom_imu" />
