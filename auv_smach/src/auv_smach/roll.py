@@ -29,7 +29,7 @@ class DvlOdometryServiceEnableState(smach_ros.ServiceState):
 
 
 class PitchCorrection(smach.State):
-    def __init__(self, fixed_torque=2.0, rate_hz=20, timeout_s=10.0):
+    def __init__(self, fixed_torque=2.0, rate_hz=20, timeout_s=5.0):
         super(PitchCorrection, self).__init__(
             outcomes=["succeeded", "preempted", "aborted"]
         )
@@ -104,10 +104,11 @@ class PitchCorrection(smach.State):
                 if self.preempt_requested():
                     return self._stop_and("preempted")
                 if (rospy.Time.now() - self.start_time) > self.timeout:
-                    rospy.logerr(
-                        "PITCH_CORRECTION: Timeout after %.1f s", self.timeout.to_sec()
+                    rospy.logwarn(
+                        "PITCH_CORRECTION: Timeout after %.1f s. Continuing as if succeeded.",
+                        self.timeout.to_sec(),
                     )
-                    return self._stop_and("aborted")
+                    return self._stop_and("succeeded")
 
                 if self.current_pitch <= 0:
                     rospy.loginfo(
