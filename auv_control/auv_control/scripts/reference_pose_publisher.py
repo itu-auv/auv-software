@@ -62,6 +62,7 @@ class ReferencePosePublisherNode:
         self.stored_kp_5 = 0.0
         self.stored_ki_5 = 0.0
         self.stored_kd_5 = 0.0
+        self.heading_gains_stored = False
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         self.target_depth = req.target_depth
@@ -109,22 +110,24 @@ class ReferencePosePublisherNode:
 
     def set_heading_control_handler(self, req):
         with self.state_lock:  # Only process one request at a time
-            try:
-                # Retrieve current gains
-                current_config = self.dyn_client.get_configuration(timeout=5)
-                self.stored_kp_5 = current_config["kp_5"]
-                self.stored_ki_5 = current_config["ki_5"]
-                self.stored_kd_5 = current_config["kd_5"]
-            except (
-                rospy.ServiceException,
-                rospy.ROSException,
-                dynamic_reconfigure.client.DynamicReconfigureTimeout,
-            ) as e:
-                rospy.logerr(f"Failed to get current controller config: {e}")
-                return SetBoolResponse(
-                    success=False,
-                    message="Failed to get current controller config.",
-                )
+            if not self.heading_gains_stored:
+                try:
+                    # Retrieve current gains once
+                    current_config = self.dyn_client.get_configuration(timeout=5)
+                    self.stored_kp_5 = current_config["kp_5"]
+                    self.stored_ki_5 = current_config["ki_5"]
+                    self.stored_kd_5 = current_config["kd_5"]
+                    self.heading_gains_stored = True
+                except (
+                    rospy.ServiceException,
+                    rospy.ROSException,
+                    dynamic_reconfigure.client.DynamicReconfigureTimeout,
+                ) as e:
+                    rospy.logerr(f"Failed to get current controller config: {e}")
+                    return SetBoolResponse(
+                        success=False,
+                        message="Failed to get current controller config.",
+                    )
 
             if req.data:  # Enable heading control
                 # Enable heading control with stored gains
