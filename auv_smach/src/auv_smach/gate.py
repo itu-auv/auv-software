@@ -16,6 +16,7 @@ from auv_smach.common import (
     AlignFrame,
     DynamicPathState,
     SetDetectionFocusState,
+    LookAroundState,
 )
 
 from nav_msgs.msg import Odometry
@@ -196,50 +197,20 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    set_frame_duration=3.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
                 transitions={
-                    "succeeded": "LOOK_LEFT",
+                    "succeeded": "SELAM_TO_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "LOOK_LEFT",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame=self.gate_search_frame,
+                "SELAM_TO_GATE",
+                LookAroundState(
                     angle_offset=0.5,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=0.2,
-                    timeout=10.0,
-                    cancel_on_success=False,
-                    keep_orientation=False,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.15,
-                ),
-                transitions={
-                    "succeeded": "LOOK_RIGHT",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "LOOK_RIGHT",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame=self.gate_search_frame,
-                    angle_offset=-0.5,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=0.2,
-                    timeout=10.0,
-                    cancel_on_success=False,
-                    keep_orientation=False,
-                    max_linear_velocity=0.1,
                     max_angular_velocity=0.15,
                 ),
                 transitions={
