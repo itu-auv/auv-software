@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
+  <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
   <arg name="dvl_virtual_port" default="/tmp/vcom0" />
   <arg name="use_gui" default="false" />
@@ -8,6 +8,11 @@
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
 
   <rosparam file="$(find auv_bringup)/config/environment.yaml" command="load" ns="" />
+
+  <!-- launch parameter server -->
+  <include file="$(find auv_bringup)/launch/param_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
 
   <!-- launch state publisher  -->
   <include file="$(find auv_bringup)/launch/inc/localization/start_state_publisher.launch.xml">
