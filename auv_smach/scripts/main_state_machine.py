@@ -3,6 +3,7 @@
 import rospy
 import smach
 import auv_smach
+import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.slalom import NavigateThroughSlalomState
@@ -31,6 +32,12 @@ class MainStateMachineNode:
         self.return_home_station = "bin_whole_link"
         # Get initial values from dynamic reconfigure
         self.selected_animal = "shark"  # Default to shark
+
+        # Exit angles in degrees (will be converted to radians)
+        self.gate_exit_angle_deg = 0.0
+        self.slalom_exit_angle_deg = 0.0
+        self.bin_exit_angle_deg = 0.0
+        self.torpedo_exit_angle_deg = 0.0
 
         self.gate_search_depth = -0.7
         self.gate_depth = -1.35
@@ -86,13 +93,28 @@ class MainStateMachineNode:
             return
 
         rospy.loginfo(
-            "Received reconfigure request: selected_animal=%s", config.selected_animal
+            "Received reconfigure request: selected_animal=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            config.selected_animal,
+            config.gate_exit_angle,
+            config.slalom_exit_angle,
+            config.bin_exit_angle,
+            config.torpedo_exit_angle,
         )
 
         # Update parameters
         self.selected_animal = config.selected_animal
+        self.gate_exit_angle_deg = config.gate_exit_angle
+        self.slalom_exit_angle_deg = config.slalom_exit_angle
+        self.bin_exit_angle_deg = config.bin_exit_angle
+        self.torpedo_exit_angle_deg = config.torpedo_exit_angle
 
     def execute_state_machine(self):
+        # Convert degrees to radians
+        gate_exit_angle_rad = math.radians(self.gate_exit_angle_deg)
+        slalom_exit_angle_rad = math.radians(self.slalom_exit_angle_deg)
+        bin_exit_angle_rad = math.radians(self.bin_exit_angle_deg)
+        torpedo_exit_angle_rad = math.radians(self.torpedo_exit_angle_deg)
+
         # Map state names to their corresponding classes and parameters
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
@@ -101,12 +123,14 @@ class MainStateMachineNode:
                 {
                     "gate_depth": self.gate_depth,
                     "gate_search_depth": self.gate_search_depth,
+                    "gate_exit_angle": gate_exit_angle_rad,
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (
                 NavigateThroughSlalomState,
                 {
                     "slalom_depth": self.slalom_depth,
+                    "slalom_exit_angle": slalom_exit_angle_rad,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
@@ -115,6 +139,7 @@ class MainStateMachineNode:
                     "torpedo_map_depth": self.torpedo_map_depth,
                     "torpedo_target_frame": self.torpedo_target_frame,
                     "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
+                    "torpedo_exit_angle": torpedo_exit_angle_rad,
                     "torpedo_fire_frames": (
                         [
                             self.torpedo_shark_fire_frame,
@@ -134,6 +159,7 @@ class MainStateMachineNode:
                     "bin_front_look_depth": self.bin_front_look_depth,
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
                     "target_selection": self.selected_animal,
+                    "bin_exit_angle": bin_exit_angle_rad,
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (

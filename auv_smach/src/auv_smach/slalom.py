@@ -37,11 +37,12 @@ class PublishSlalomWaypointsState(smach_ros.ServiceState):
 
 
 class NavigateThroughSlalomState(smach.State):
-    def __init__(self, slalom_depth: float):
+    def __init__(self, slalom_depth: float, slalom_exit_angle: float = 0.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.slalom_exit_angle = slalom_exit_angle
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -295,7 +296,7 @@ class NavigateThroughSlalomState(smach.State):
                     source_frame="taluy/base_link",
                     target_frame="slalom_exit",
                     confirm_duration=0.0,
-                    angle_offset=-1.5,
+                    angle_offset=self.slalom_exit_angle,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",

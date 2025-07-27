@@ -86,7 +86,9 @@ class PublishGateAngleState(smach_ros.ServiceState):
 
 
 class NavigateThroughGateState(smach.State):
-    def __init__(self, gate_depth: float, gate_search_depth: float):
+    def __init__(
+        self, gate_depth: float, gate_search_depth: float, gate_exit_angle: float = 0.0
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -95,6 +97,7 @@ class NavigateThroughGateState(smach.State):
         self.coin_flip = rospy.get_param("~coin_flip", False)
         self.gate_look_at_frame = "gate_middle_part"
         self.gate_search_frame = "gate_search"
+        self.gate_exit_angle = gate_exit_angle
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -281,7 +284,7 @@ class NavigateThroughGateState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="gate_exit",
-                    angle_offset=0.0,
+                    angle_offset=self.gate_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=0.0,
