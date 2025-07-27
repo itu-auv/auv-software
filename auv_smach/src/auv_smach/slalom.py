@@ -188,7 +188,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "LOCK_ON_RED_PIPE",
                 SearchForPropState(
-                    look_at_frame="red_pipe_link",
+                    look_at_frame="slalom_waypoint_1",
                     alignment_frame="slalom_entrance_backed",
                     full_rotation=False,
                     set_frame_duration=5.0,
