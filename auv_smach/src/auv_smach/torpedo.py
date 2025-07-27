@@ -310,6 +310,7 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
+                    heading_control=False,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
@@ -361,6 +362,7 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
+                    heading_control=False,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",

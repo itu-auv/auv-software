@@ -3,11 +3,13 @@
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped, Twist, PoseWithCovarianceStamped
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import Trigger, TriggerResponse, SetBool, SetBoolResponse
 from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
 from robot_localization.srv import SetPose, SetPoseRequest
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from auv_common_lib.control.enable_state import ControlEnableHandler
+import dynamic_reconfigure.client
+from threading import Lock
 
 
 class ReferencePosePublisherNode:
@@ -26,6 +28,9 @@ class ReferencePosePublisherNode:
             "reset_odometry", Trigger, self.reset_odometry_handler
         )
         self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
+        self.set_heading_control_service = rospy.Service(
+            "set_heading_control", SetBool, self.set_heading_control_handler
+        )
 
         # Initialize publisher
         self.cmd_pose_pub = rospy.Publisher("cmd_pose", PoseStamped, queue_size=10)
@@ -38,6 +43,7 @@ class ReferencePosePublisherNode:
         self.last_cmd_time = rospy.Time.now()
         self.target_frame_id = ""
         self.is_resetting = False
+        self.state_lock = Lock()  # To protect shared state
 
         self.set_pose_req = SetPoseRequest()
         self.set_pose_req.pose = PoseWithCovarianceStamped()
@@ -47,6 +53,16 @@ class ReferencePosePublisherNode:
         # Parameters
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
+
+        # Dynamic reconfigure client
+        self.dyn_client = dynamic_reconfigure.client.Client(
+            "/taluy/auv_control_node", timeout=30
+        )
+        # Initialize stored PID parameters
+        self.stored_kp_5 = 0.0
+        self.stored_ki_5 = 0.0
+        self.stored_kd_5 = 0.0
+        self.heading_gains_stored = False
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         self.target_depth = req.target_depth
@@ -91,6 +107,43 @@ class ReferencePosePublisherNode:
             msg.pose.pose.orientation.w,
         ]
         _, _, self.target_heading = euler_from_quaternion(quaternion)
+
+    def set_heading_control_handler(self, req):
+        with self.state_lock:  # Only process one request at a time
+            if not self.heading_gains_stored:
+                try:
+                    # Retrieve current gains once
+                    current_config = self.dyn_client.get_configuration(timeout=5)
+                    self.stored_kp_5 = current_config["kp_5"]
+                    self.stored_ki_5 = current_config["ki_5"]
+                    self.stored_kd_5 = current_config["kd_5"]
+                    self.heading_gains_stored = True
+                except (
+                    rospy.ServiceException,
+                    rospy.ROSException,
+                    dynamic_reconfigure.client.DynamicReconfigureTimeout,
+                ) as e:
+                    rospy.logerr(f"Failed to get current controller config: {e}")
+                    return SetBoolResponse(
+                        success=False,
+                        message="Failed to get current controller config.",
+                    )
+
+            if req.data:  # Enable heading control
+                # Enable heading control with stored gains
+                params = {
+                    "kp_5": self.stored_kp_5,
+                    "ki_5": self.stored_ki_5,
+                    "kd_5": self.stored_kd_5,
+                }
+                self.dyn_client.update_configuration(params)
+                return SetBoolResponse(success=True, message="Heading control enabled.")
+            else:  # Disable heading control (set cmd_pose.yaw gains to zero)
+                params = {"kp_5": 0.0, "ki_5": 0.0, "kd_5": 0.0}
+                self.dyn_client.update_configuration(params)
+                return SetBoolResponse(
+                    success=True, message="Heading control disabled."
+                )
 
     def cmd_vel_callback(self, msg):
         if (not self.control_enable_handler.is_enabled()) or self.is_resetting:

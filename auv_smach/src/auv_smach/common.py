@@ -199,6 +199,17 @@ class CancelAlignControllerState(smach_ros.ServiceState):
         )
 
 
+class SetHeadingControlState(smach_ros.ServiceState):
+    def __init__(self, enable: bool):
+        request = SetBoolRequest(data=enable)
+        super(SetHeadingControlState, self).__init__(
+            "set_heading_control",
+            SetBool,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
 class SetAlignControllerTargetState(smach_ros.ServiceState):
     def __init__(
         self,
@@ -912,10 +923,42 @@ class AlignFrame(smach.StateMachine):
         keep_orientation=False,
         max_linear_velocity=None,
         max_angular_velocity=None,
+        heading_control=True,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
         with self:
+            watch_succeeded_transition = (
+                "CANCEL_ALIGNMENT_ON_SUCCESS" if cancel_on_success else "succeeded"
+            )
+            cancel_on_success_succeeded_transition = "succeeded"
+            cancel_on_fail_succeeded_transition = "aborted"
+            cancel_on_preempt_succeeded_transition = "preempted"
+
+            if not heading_control:  # If heading control will not be used
+                watch_succeeded_transition = (
+                    "CANCEL_ALIGNMENT_ON_SUCCESS"
+                    if cancel_on_success
+                    else "ENABLE_HEADING_CONTROL_ON_SUCCESS"
+                )
+                cancel_on_success_succeeded_transition = (
+                    "ENABLE_HEADING_CONTROL_ON_SUCCESS"
+                )
+                cancel_on_fail_succeeded_transition = "ENABLE_HEADING_CONTROL_ON_FAIL"
+                cancel_on_preempt_succeeded_transition = (
+                    "ENABLE_HEADING_CONTROL_ON_PREEMPT"
+                )
+
+                smach.StateMachine.add(
+                    "DISABLE_HEADING_CONTROL",
+                    SetHeadingControlState(enable=False),
+                    transitions={
+                        "succeeded": "REQUEST_ALIGNMENT",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
             smach.StateMachine.add(
                 "REQUEST_ALIGNMENT",
                 SetAlignControllerTargetState(
@@ -946,11 +989,7 @@ class AlignFrame(smach.StateMachine):
                     keep_orientation=keep_orientation,
                 ),
                 transitions={
-                    "succeeded": (
-                        "CANCEL_ALIGNMENT_ON_SUCCESS"
-                        if cancel_on_success
-                        else "succeeded"
-                    ),
+                    "succeeded": watch_succeeded_transition,
                     "aborted": "CANCEL_ALIGNMENT_ON_FAIL",
                     "preempted": "CANCEL_ALIGNMENT_ON_PREEMPT",
                 },
@@ -960,7 +999,7 @@ class AlignFrame(smach.StateMachine):
                 "CANCEL_ALIGNMENT_ON_SUCCESS",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": cancel_on_success_succeeded_transition,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -970,7 +1009,7 @@ class AlignFrame(smach.StateMachine):
                 "CANCEL_ALIGNMENT_ON_FAIL",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": "aborted",
+                    "succeeded": cancel_on_fail_succeeded_transition,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -980,11 +1019,40 @@ class AlignFrame(smach.StateMachine):
                 "CANCEL_ALIGNMENT_ON_PREEMPT",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": "preempted",
+                    "succeeded": cancel_on_preempt_succeeded_transition,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
+            if not heading_control:
+                smach.StateMachine.add(
+                    "ENABLE_HEADING_CONTROL_ON_SUCCESS",
+                    SetHeadingControlState(enable=True),
+                    transitions={
+                        "succeeded": "succeeded",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                smach.StateMachine.add(
+                    "ENABLE_HEADING_CONTROL_ON_FAIL",
+                    SetHeadingControlState(enable=True),
+                    transitions={
+                        "succeeded": "aborted",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                smach.StateMachine.add(
+                    "ENABLE_HEADING_CONTROL_ON_PREEMPT",
+                    SetHeadingControlState(enable=True),
+                    transitions={
+                        "succeeded": "preempted",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
 
 
 class SetPlanState(smach.State):
