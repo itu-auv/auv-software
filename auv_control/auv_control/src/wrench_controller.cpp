@@ -20,7 +20,7 @@ WrenchController::WrenchController(const ros::NodeHandle& nh)
   odom_sub_ =
       nh_.subscribe("odometry", 1, &WrenchController::odometryCallback, this);
   wrench_sub_ =
-      nh_.subscribe("wrench_cmd", 1, &WrenchController::wrenchCallback, this);
+      nh_.subscribe("cmd_wrench", 1, &WrenchController::wrenchCallback, this);
   cmd_pose_sub_ =
       nh_.subscribe("cmd_pose", 1, &WrenchController::cmdPoseCallback, this);
   wrench_pub_ = nh_.advertise<geometry_msgs::WrenchStamped>("wrench", 1);
