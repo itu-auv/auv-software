@@ -12,7 +12,8 @@
         slalom:NAVIGATE_THROUGH_SLALOM,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
-        octagon:NAVIGATE_TO_OCTAGON_TASK
+        octagon:NAVIGATE_TO_OCTAGON_TASK,
+        return:NAVIGATE_RETURN_THROUGH_GATE
     "/>
 
     <!-- Test Mode Configuration -->
@@ -27,7 +28,8 @@
         'NAVIGATE_THROUGH_SLALOM',
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
-        'NAVIGATE_TO_OCTAGON_TASK'
+        'NAVIGATE_TO_OCTAGON_TASK',
+        'NAVIGATE_RETURN_THROUGH_GATE'
     ]" doc="Full sequence of mission states"/>
 
     <!-- Test Mission States -->

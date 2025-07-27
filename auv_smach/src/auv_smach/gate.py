@@ -5,13 +5,9 @@ import rospy
 import tf2_ros
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
-from geometry_msgs.msg import PoseStamped
 from auv_smach.common import (
-    SetAlignControllerTargetState,
     CancelAlignControllerState,
     SetDepthState,
-    ExecutePathState,
-    ClearObjectMapState,
     SearchForPropState,
     AlignFrame,
     DynamicPathState,
@@ -19,11 +15,7 @@ from auv_smach.common import (
     LookAroundState,
 )
 
-from nav_msgs.msg import Odometry
-from geometry_msgs.msg import WrenchStamped
-from std_msgs.msg import Bool
 from std_srvs.srv import SetBool, SetBoolRequest
-from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryState
 from auv_smach.roll import TwoRollState
 from auv_smach.coin_flip import CoinFlipState
 
