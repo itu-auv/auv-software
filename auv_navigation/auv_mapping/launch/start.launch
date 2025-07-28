@@ -64,5 +64,11 @@
       <remap from="set_transform_torpedo_hole_target_frame" to="set_transform_torpedo_hole_target_frame" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
+
+    <!-- pinger localization -->
+    <node pkg="auv_mapping" type="tdoa_calculator_node" name="tdoa_calculator_node" output="screen">
+      <rosparam command="load" file="$(find auv_mapping)/config/tdoa_calculator_params.yaml" />
+    </node>
+
   </group>
 </launch>
