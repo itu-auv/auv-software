@@ -22,7 +22,6 @@ from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
-from dynamic_reconfigure.client import Client
 
 
 class CameraCalibration:
@@ -144,16 +143,10 @@ class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
         rospy.loginfo("Camera detection node started")
-        self.selected_side = "left"  # Default value
-        self.dynamic_reconfigure_client = Client(
-            "smach_parameters_server",
-            timeout=10,
-            config_callback=self.dynamic_reconfigure_callback,
-        )
+        self.selected_side = rospy.get_param("~selected_side", "left")
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
         self.active_front_camera_ids = list(range(15))  # Allow all by default
-        self.red_pipe_x = None
 
         self.object_id_map = {
             "gate": [0, 1],
@@ -245,13 +238,6 @@ class CameraDetectionNode:
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
         )
-
-    def dynamic_reconfigure_callback(self, config):
-        if config is None:
-            rospy.logwarn("Could not get parameters from server for camera detection")
-            return
-        self.selected_side = config.slalom_direction
-        rospy.loginfo(f"Slalom direction updated to: {self.selected_side}")
 
     def handle_set_front_camera_focus(self, req):
         focus_objects = [
@@ -592,14 +578,16 @@ class CameraDetectionNode:
             self.process_torpedo_holes_on_map(
                 detection_msg, camera_ns, torpedo_map_bbox
             )
-        red_pipe_x = self.red_pipe_x
+
+        red_pipe_x = None
         red_pipes = [
             d for d in detection_msg.detections.detections if d.results[0].id == 2
         ]
         if red_pipes:
-            largest_red_pipe = max(red_pipes, key=lambda d: d.bbox.size_y)
+            largest_red_pipe = max(
+                red_pipes, key=lambda d: d.bbox.size_x * d.bbox.size_y
+            )
             red_pipe_x = largest_red_pipe.bbox.center.x
-            self.red_pipe_x = red_pipe_x
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
