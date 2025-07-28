@@ -13,6 +13,7 @@ from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 from dynamic_reconfigure.server import Server
 from auv_mapping.cfg import SlalomTrajectoryConfig
+from dynamic_reconfigure.client import Client
 
 
 class SlalomTrajectoryPublisher(object):
@@ -61,7 +62,12 @@ class SlalomTrajectoryPublisher(object):
             None,
             None,
         )
-        self.navigation_mode = "left"  # TODO: connect the parameters later
+        self.navigation_mode = "left"  # Default value
+        self.smach_params_client = Client(
+            "smach_parameters_server",
+            timeout=10,
+            config_callback=self.smach_params_callback,
+        )
 
         # Create a service that will trigger the frame publishing
         self.srv = rospy.Service(
@@ -86,6 +92,16 @@ class SlalomTrajectoryPublisher(object):
         self.vertical_dist = config.vertical_distance_between_slalom_clusters
         self.slalom_entrance_backed_distance = config.slalom_entrance_backed_distance
         return config
+
+    def smach_params_callback(self, config):
+        """
+        Callback for the smach parameters server.
+        """
+        if config is None:
+            rospy.logwarn("Could not get parameters from smach_parameters_server")
+            return
+        self.navigation_mode = config.slalom_direction
+        rospy.loginfo(f"Slalom navigation_mode updated to: {self.navigation_mode}")
 
     def trigger_callback(self, req):
         """
