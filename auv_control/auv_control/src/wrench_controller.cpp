@@ -7,6 +7,8 @@ WrenchController::WrenchController(const ros::NodeHandle& nh)
     : nh_(nh),
       rate_(20.0),
       z_pid_(0.0, 0.0, 0.0),
+      roll_pid_(0.0, 0.0, 0.0),
+      pitch_pid_(0.0, 0.0, 0.0),
       yaw_pid_(0.0, 0.0, 0.0),
       control_enable_sub_{nh_},
       reconfigure_server_{ros::NodeHandle("~")} {
@@ -37,8 +39,7 @@ void WrenchController::odometryCallback(
   tf2::Quaternion q(msg->pose.pose.orientation.x, msg->pose.pose.orientation.y,
                     msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
   tf2::Matrix3x3 m(q);
-  double roll, pitch;
-  m.getRPY(roll, pitch, current_yaw_);
+  m.getRPY(current_roll_, current_pitch_, current_yaw_);
 }
 
 void WrenchController::wrenchCallback(
@@ -53,14 +54,17 @@ void WrenchController::cmdPoseCallback(
   tf2::Quaternion q(msg->pose.orientation.x, msg->pose.orientation.y,
                     msg->pose.orientation.z, msg->pose.orientation.w);
   tf2::Matrix3x3 m(q);
-  double roll, pitch;
-  m.getRPY(roll, pitch, desired_yaw_);
+  m.getRPY(desired_roll_, desired_pitch_, desired_yaw_);
   latest_command_time_ = ros::Time::now();
 }
 
 void WrenchController::reconfigureCallback(
     const auv_control::WrenchControllerConfig& config, uint32_t level) {
   z_pid_.setGains(config.z_p_gain, config.z_i_gain, config.z_d_gain);
+  roll_pid_.setGains(config.roll_p_gain, config.roll_i_gain,
+                     config.roll_d_gain);
+  pitch_pid_.setGains(config.pitch_p_gain, config.pitch_i_gain,
+                      config.pitch_d_gain);
   yaw_pid_.setGains(config.yaw_p_gain, config.yaw_i_gain, config.yaw_d_gain);
 }
 
@@ -68,6 +72,8 @@ bool WrenchController::is_control_enabled() {
   bool enabled = control_enable_sub_.get_message().data;
   if (!enabled) {
     z_pid_.reset();
+    roll_pid_.reset();
+    pitch_pid_.reset();
     yaw_pid_.reset();
   }
   return enabled;
@@ -93,6 +99,10 @@ void WrenchController::spin() {
     if (is_control_enabled() && !is_timeouted()) {
       double z_force = z_pid_.control(current_z_, desired_z_,
                                       rate_.expectedCycleTime().toSec());
+      double roll_torque = roll_pid_.control(current_roll_, desired_roll_,
+                                             rate_.expectedCycleTime().toSec());
+      double pitch_torque = pitch_pid_.control(
+          current_pitch_, desired_pitch_, rate_.expectedCycleTime().toSec());
       double yaw_torque = yaw_pid_.control(current_yaw_, desired_yaw_,
                                            rate_.expectedCycleTime().toSec());
 
@@ -101,6 +111,8 @@ void WrenchController::spin() {
       wrench_msg.header.frame_id = body_frame_;
       wrench_msg.wrench = latest_wrench_;
       wrench_msg.wrench.force.z = z_force;
+      wrench_msg.wrench.torque.x = roll_torque;
+      wrench_msg.wrench.torque.y = pitch_torque;
       wrench_msg.wrench.torque.z = yaw_torque;
 
       wrench_pub_.publish(wrench_msg);

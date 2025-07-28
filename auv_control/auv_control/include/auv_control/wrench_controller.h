@@ -65,11 +65,17 @@ class WrenchController {
 
   double current_z_ = 0.0;
   double desired_z_ = 0.0;
+  double current_roll_ = 0.0;
+  double desired_roll_ = 0.0;
+  double current_pitch_ = 0.0;
+  double desired_pitch_ = 0.0;
   double current_yaw_ = 0.0;
   double desired_yaw_ = 0.0;
   geometry_msgs::Wrench latest_wrench_;
 
   PID z_pid_;
+  PID roll_pid_;
+  PID pitch_pid_;
   PID yaw_pid_;
   std::string body_frame_;
 
