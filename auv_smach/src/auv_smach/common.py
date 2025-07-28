@@ -713,6 +713,15 @@ class SearchForPropState(smach.StateMachine):
 
         with self:
             smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_TARGET_FIRST",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "ROTATE_TO_FIND_PROP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "ROTATE_TO_FIND_PROP",
                 RotationState(
                     source_frame=source_frame,
