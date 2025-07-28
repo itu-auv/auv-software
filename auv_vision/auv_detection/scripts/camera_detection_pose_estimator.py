@@ -22,6 +22,7 @@ from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
+from dynamic_reconfigure.client import Client
 
 
 class CameraCalibration:
@@ -143,7 +144,12 @@ class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
         rospy.loginfo("Camera detection node started")
-        self.selected_side = rospy.get_param("~selected_side", "left")
+        self.selected_side = "left"  # Default value
+        self.dynamic_reconfigure_client = Client(
+            "smach_parameters_server",
+            timeout=10,
+            config_callback=self.dynamic_reconfigure_callback,
+        )
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
         self.active_front_camera_ids = list(range(15))  # Allow all by default
@@ -239,6 +245,13 @@ class CameraDetectionNode:
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
         )
+
+    def dynamic_reconfigure_callback(self, config):
+        if config is None:
+            rospy.logwarn("Could not get parameters from server for camera detection")
+            return
+        self.selected_side = config.slalom_direction
+        rospy.loginfo(f"Slalom direction updated to: {self.selected_side}")
 
     def handle_set_front_camera_focus(self, req):
         focus_objects = [
