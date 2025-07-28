@@ -233,8 +233,8 @@ class ControllerROS {
         return;
       }
     }
-    ROS_DEBUG_THROTTLE(
-        3, "Final transformed z command pose: " << transformed_pose.position.z);
+    ROS_DEBUG_STREAM(
+        "Final transformed z command pose: " << transformed_pose.position.z);
     // update desired state
     desired_state_.head(6) = auv::common::conversions::convert<
         geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
