@@ -1,325 +1,110 @@
-#!/usr/bin/env python3
-from .initialize import *
-import smach
-import smach_ros
+#!/usr/bin/env python
+
 import rospy
-import tf2_ros
-from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from auv_msgs.srv import PlanPath, PlanPathRequest
-from auv_navigation.path_planning.path_planners import PathPlanners
-from geometry_msgs.msg import PoseStamped
-from auv_smach.common import (
-    SetAlignControllerTargetState,
-    CancelAlignControllerState,
-    SetDepthState,
-    ExecutePathState,
-    ClearObjectMapState,
-    SearchForPropState,
-    AlignFrame,
-    SetPlanState,
-    SetPlanningNotActive,
-    DynamicPathState,
-    SetDetectionFocusState,
-)
-from auv_smach.initialize import DelayState
-
-from nav_msgs.msg import Odometry
-from geometry_msgs.msg import WrenchStamped
-from std_msgs.msg import Bool
-from std_srvs.srv import SetBool, SetBoolRequest
-from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryState
+import rosnode
+import os
+from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerRequest
+from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusRequest
 
 
-class PublishSlalomWaypointsState(smach_ros.ServiceState):
+class SmachMonitor:
     def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self, "publish_slalom_waypoints", Trigger, request=TriggerRequest()
+        rospy.init_node("smach_monitor_node", anonymous=True)
+
+        self.main_sm_node_name = "main_state_machine"
+        self.teleop_node_name = "joystick_node"
+
+        self.align_frame_service_name = "control/align_frame/cancel"
+        self.heading_control_service_name = "set_heading_control"
+        self.detection_focus_service_name = "vision/set_front_camera_focus"
+
+        self.align_frame_service = rospy.ServiceProxy(
+            self.align_frame_service_name, Trigger
+        )
+        self.heading_control_service = rospy.ServiceProxy(
+            self.heading_control_service_name, SetBool
+        )
+        self.detection_focus_service = rospy.ServiceProxy(
+            self.detection_focus_service_name, SetDetectionFocus
         )
 
+        self.smach_is_active = False
+        self.rate = rospy.Rate(1)  # 1hz
 
-class NavigateThroughSlalomState(smach.State):
-    def __init__(self, slalom_depth: float, slalom_exit_angle: float = 0.0):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+    def run(self):
+        while not rospy.is_shutdown():
+            if self.is_node_active(self.main_sm_node_name):
+                if not self.smach_is_active:
+                    rospy.loginfo("Main state machine has started.")
+                    self.smach_is_active = True
+                    if self.is_node_active(self.teleop_node_name):
+                        rospy.loginfo("Teleop node is running. Killing it.")
+                        os.system("rosnode kill " + self.teleop_node_name)
+            else:
+                if self.smach_is_active:
+                    rospy.loginfo("Main state machine has died.")
+                    self.smach_is_active = False
+                    self.on_smach_death()
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.slalom_exit_angle = slalom_exit_angle
+            self.rate.sleep()
 
-        # Initialize the state machine container
-        self.state_machine = smach.StateMachine(
-            outcomes=["succeeded", "preempted", "aborted"]
-        )
+    def is_node_active(self, node_name):
+        nodes = rosnode.get_node_names()
+        for node in nodes:
+            if node.endswith(node_name):
+                try:
+                    rosnode.rosnode_ping(node, max_count=1)
+                    return True
+                except rosnode.ROSNodeUnreachable:
+                    continue
+        return False
 
-        with self.state_machine:
-            smach.StateMachine.add(
-                "SET_SLALOM_DEPTH",
-                SetDepthState(
-                    depth=slalom_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
-                ),
-                transitions={
-                    "succeeded": "PUBLISH_SLALOM_WAYPOINTS",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "PUBLISH_SLALOM_WAYPOINTS",
-                PublishSlalomWaypointsState(),
-                transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_SLALOM_ENTRANCE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_SLALOM_ENTRANCE",
-                DynamicPathState(
-                    plan_target_frame="slalom_entrance",
-                ),
-                transitions={
-                    "succeeded": "ALIGN_TO_SLALOM_ENTRANCE",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_SLALOM_ENTRANCE",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_entrance",
-                    confirm_duration=1.0,
-                ),
-                transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_SLALOM_ENTRANCE_BACKED",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_SLALOM_ENTRANCE_BACKED",
-                DynamicPathState(
-                    plan_target_frame="slalom_entrance_backed",
-                ),
-                transitions={
-                    "succeeded": "ALIGN_TO_SLALOM_ENTRANCE_BACKED",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_SLALOM_ENTRANCE_BACKED",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_entrance_backed",
-                    confirm_duration=3.0,
-                ),
-                transitions={
-                    "succeeded": "SET_DETECTION_FOCUS_TO_SLALOM",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_DETECTION_FOCUS_TO_SLALOM",
-                SetDetectionFocusState(focus_object="pipe"),
-                transitions={
-                    "succeeded": "SEARCH_FOR_RED_PIPE",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "SEARCH_FOR_RED_PIPE",
-                SearchForPropState(
-                    look_at_frame="red_pipe_link",
-                    alignment_frame="slalom_entrance_backed",
-                    full_rotation=False,
-                    set_frame_duration=5.0,
-                    source_frame="taluy/base_link",
-                    rotation_speed=0.2,
-                ),
-                transitions={
-                    "succeeded": "LOOK_LEFT",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "LOOK_LEFT",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_entrance_backed",
-                    angle_offset=0.5,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=0.2,
-                    timeout=10.0,
-                    cancel_on_success=False,
-                    keep_orientation=False,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.15,
-                ),
-                transitions={
-                    "succeeded": "LOOK_RIGHT",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "LOOK_RIGHT",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_entrance_backed",
-                    angle_offset=-0.5,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=0.2,
-                    timeout=10.0,
-                    cancel_on_success=False,
-                    keep_orientation=False,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.15,
-                ),
-                transitions={
-                    "succeeded": "LOCK_ON_WAYPOINT_1",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "LOCK_ON_RED_PIPE",
-                SearchForPropState(
-                    look_at_frame="slalom_waypoint_1",
-                    alignment_frame="slalom_entrance_backed",
-                    full_rotation=False,
-                    set_frame_duration=5.0,
-                    source_frame="taluy/base_link",
-                    rotation_speed=0.2,
-                ),
-                transitions={
-                    "succeeded": "SET_DETECTION_FOCUS_TO_NONE",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_DETECTION_FOCUS_TO_NONE",
-                SetDetectionFocusState(focus_object="none"),
-                transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_WP_1",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_WP_1",
-                DynamicPathState(
-                    plan_target_frame="slalom_waypoint_1",
-                    max_linear_velocity=0.4,
-                ),
-                transitions={
-                    "succeeded": "ALIGN_TO_WP_1_INTER",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_WP_1_INTER",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_waypoint_1_inter",
-                    dist_threshold=0.2,
-                    yaw_threshold=0.1,
-                    confirm_duration=1.0,
-                    timeout=10.0,
-                ),
-                transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_WP_2",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_WP_2",
-                DynamicPathState(
-                    plan_target_frame="slalom_waypoint_2",
-                    max_linear_velocity=0.12,
-                ),
-                transitions={
-                    "succeeded": "ALIGN_TO_WP_2_INTER",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_WP_2_INTER",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_waypoint_2_inter",
-                    dist_threshold=0.2,
-                    yaw_threshold=0.1,
-                    confirm_duration=1.0,
-                    timeout=10.0,
-                ),
-                transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_WP_3",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_WP_3",
-                DynamicPathState(
-                    plan_target_frame="slalom_waypoint_3",
-                    max_linear_velocity=0.12,
-                ),
-                transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_EXIT",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_EXIT",
-                DynamicPathState(
-                    plan_target_frame="slalom_exit",
-                ),
-                transitions={
-                    "succeeded": "ALIGN_TO_SLALOM_EXIT",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_SLALOM_EXIT",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="slalom_exit",
-                    confirm_duration=0.0,
-                    angle_offset=self.slalom_exit_angle,
-                ),
-                transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER",
-                CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+    def on_smach_death(self):
+        rospy.loginfo("Executing recovery actions.")
 
-    def execute(self, userdata):
-        rospy.logdebug("[NavigateThroughSlalomState] Starting state machine execution.")
+        # 1. Cancel align frame controller
+        try:
+            rospy.wait_for_service(self.align_frame_service_name, timeout=2.0)
+            req = TriggerRequest()
+            self.align_frame_service(req)
+            rospy.loginfo("Cancelled align frame controller.")
+        except (
+            rospy.ServiceException,
+            rospy.ROSException,
+            rospy.ROSInterruptException,
+        ) as e:
+            rospy.logerr("Service call to cancel align frame controller failed: %s" % e)
 
-        outcome = self.state_machine.execute()
+        # 2. Enable heading control
+        try:
+            rospy.wait_for_service(self.heading_control_service_name, timeout=2.0)
+            req = SetBoolRequest(data=True)
+            self.heading_control_service(req)
+            rospy.loginfo("Enabled heading control.")
+        except (
+            rospy.ServiceException,
+            rospy.ROSException,
+            rospy.ROSInterruptException,
+        ) as e:
+            rospy.logerr("Service call to enable heading control failed: %s" % e)
 
-        if outcome is None:
-            return "preempted"
-        return outcome
+        # 3. Set DetectionFocus to all
+        try:
+            rospy.wait_for_service(self.detection_focus_service_name, timeout=2.0)
+            req = SetDetectionFocusRequest(focus_object="all")
+            self.detection_focus_service(req)
+            rospy.loginfo("Set DetectionFocus to 'all'.")
+        except (
+            rospy.ServiceException,
+            rospy.ROSException,
+            rospy.ROSInterruptException,
+        ) as e:
+            rospy.logerr("Service call to set detection focus failed: %s" % e)
+
+
+if __name__ == "__main__":
+    try:
+        monitor = SmachMonitor()
+        monitor.run()
+    except rospy.ROSInterruptException:
+        pass
