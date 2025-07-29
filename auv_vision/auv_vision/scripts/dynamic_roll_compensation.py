@@ -60,7 +60,7 @@ class DynamicRollCompensationNode:
         roll, pitch, yaw = euler_from_quaternion(q)
 
         # Compute correction angle (in radians) as the shortest angular distance from roll to 0.
-        correction_rad = angles.shortest_angular_distance(roll, 0.0)
+        correction_rad = angles.shortest_angular_distance(0.0, roll)
 
         with self.lock:
             self.roll_angle_deg = math.degrees(correction_rad)
