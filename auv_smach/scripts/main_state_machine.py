@@ -30,14 +30,35 @@ class MainStateMachineNode:
         )
 
         self.return_home_station = "bin_whole_link"
+
         # Get initial values from dynamic reconfigure
-        self.selected_animal = "shark"  # Default to shark
+        self.selected_animal = "sawfish"
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
         self.slalom_exit_angle_deg = 0.0
         self.bin_exit_angle_deg = 0.0
         self.torpedo_exit_angle_deg = 0.0
+
+        # Get current configuration from server
+        try:
+            current_config = self.dynamic_reconfigure_client.get_configuration()
+            if current_config:
+                self.selected_animal = current_config.get("selected_animal", "sawfish")
+                self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
+                self.slalom_exit_angle_deg = current_config.get(
+                    "slalom_exit_angle", 0.0
+                )
+                self.bin_exit_angle_deg = current_config.get("bin_exit_angle", 0.0)
+                self.torpedo_exit_angle_deg = current_config.get(
+                    "torpedo_exit_angle", 0.0
+                )
+                rospy.loginfo(
+                    f"Loaded current config: selected_animal={self.selected_animal}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
+                )
+        except Exception as e:
+            rospy.logwarn(f"Could not get current configuration: {e}")
+            rospy.loginfo("Using default values")
 
         self.gate_search_depth = -0.7
         self.gate_depth = -1.35
@@ -115,6 +136,21 @@ class MainStateMachineNode:
         bin_exit_angle_rad = math.radians(self.bin_exit_angle_deg)
         torpedo_exit_angle_rad = math.radians(self.torpedo_exit_angle_deg)
 
+        rospy.loginfo(
+            f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
+        )
+
+        # Create torpedo fire frames based on selected animal
+        torpedo_fire_frames = (
+            [self.torpedo_shark_fire_frame, self.torpedo_sawfish_fire_frame]
+            if self.selected_animal == "shark"
+            else [self.torpedo_sawfish_fire_frame, self.torpedo_shark_fire_frame]
+        )
+        rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
+        rospy.loginfo(
+            f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
+        )
+
         # Map state names to their corresponding classes and parameters
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
@@ -140,17 +176,7 @@ class MainStateMachineNode:
                     "torpedo_target_frame": self.torpedo_target_frame,
                     "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
                     "torpedo_exit_angle": torpedo_exit_angle_rad,
-                    "torpedo_fire_frames": (
-                        [
-                            self.torpedo_shark_fire_frame,
-                            self.torpedo_sawfish_fire_frame,
-                        ]
-                        if self.selected_animal == "shark"
-                        else [
-                            self.torpedo_sawfish_fire_frame,
-                            self.torpedo_shark_fire_frame,
-                        ]
-                    ),
+                    "torpedo_fire_frames": torpedo_fire_frames,
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (
@@ -225,6 +251,8 @@ if __name__ == "__main__":
     rospy.init_node("main_state_machine")
     try:
         node = MainStateMachineNode()
+        rospy.sleep(1.0)
+        rospy.loginfo(f"Final selected animal before execution: {node.selected_animal}")
         node.execute_state_machine()
     except KeyboardInterrupt:
         rospy.loginfo("State machine node interrupted")
