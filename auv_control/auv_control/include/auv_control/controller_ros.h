@@ -121,22 +121,21 @@ class ControllerROS {
   }
 
   void spin() {
-    const auto dt = 1.0 / rate_.expectedCycleTime().toSec();
-
     while (ros::ok()) {
       ros::spinOnce();
       rate_.sleep();
 
-      if (!controller_) {
+      if (!controller_ || dt_ == 0.0) {  // If controller is not loaded or dt_
+                                         // is zero, skip control
         continue;
       }
 
       const auto control_output =
-          controller_->control(state_, desired_state_, d_state_, dt);
+          controller_->control(state_, desired_state_, d_state_, dt_);
 
       geometry_msgs::WrenchStamped wrench_msg;
       if (is_control_enabled() && !is_timeouted()) {
-        wrench_msg.header.stamp = ros::Time::now();
+        wrench_msg.header.stamp = last_odom_stamp_;
         wrench_msg.header.frame_id = body_frame_;
         wrench_msg.wrench =
             auv::common::conversions::convert<ControllerBase::WrenchVector,
@@ -159,6 +158,10 @@ class ControllerROS {
   }
 
   void odometry_callback(const nav_msgs::Odometry::ConstPtr& msg) {
+    if (!last_odom_stamp_.is_zero()) {
+      dt_ = (msg->header.stamp - last_odom_stamp_).toSec();
+    }
+    last_odom_stamp_ = msg->header.stamp;
     state_ =
         auv::common::conversions::convert<nav_msgs::Odometry,
                                           ControllerBase::StateVector>(*msg);
@@ -370,6 +373,8 @@ class ControllerROS {
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;
   ros::Time latest_command_time_{ros::Time(0)};
+  ros::Time last_odom_stamp_{ros::Time(0)};
+  double dt_{0.0};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
   ControllerBase::StateVector desired_state_{
