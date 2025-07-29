@@ -73,11 +73,27 @@ class CheckForDropAreaState(smach.State):
 
 
 class SetAlignToFoundState(smach.State):
-    def __init__(self, source_frame: str):
+    def __init__(
+        self,
+        source_frame: str = "taluy/base_link/ball_dropper_link",
+        dist_threshold: float = 0.05,
+        yaw_threshold: float = 0.1,
+        confirm_duration: float = 5.0,
+        timeout: float = 0.0,
+        cancel_on_success: bool = False,
+        keep_orientation: bool = False,
+    ):
         super().__init__(
-            outcomes=["succeeded", "preempted", "aborted"], input_keys=["found_frame"]
+            outcomes=["succeeded", "preempted", "aborted"],
+            input_keys=["found_frame"],
         )
         self.source_frame = source_frame
+        self.dist_threshold = dist_threshold
+        self.yaw_threshold = yaw_threshold
+        self.confirm_duration = confirm_duration
+        self.timeout = timeout
+        self.cancel_on_success = cancel_on_success
+        self.keep_orientation = keep_orientation
 
     def execute(self, userdata):
         if self.preempt_requested():
@@ -87,14 +103,18 @@ class SetAlignToFoundState(smach.State):
             rospy.logerr("[SetAlignToFoundState] No found_frame in userdata")
             return "aborted"
 
-        rospy.loginfo(
-            f"[SetAlignToFoundState] Setting align target to {userdata.found_frame}"
-        )
+        target_frame = userdata.found_frame
+        rospy.loginfo(f"[SetAlignToFoundState] Setting align target to {target_frame}")
 
-        align_state = SetAlignControllerTargetState(
+        align_state = AlignFrame(
             source_frame=self.source_frame,
-            target_frame=userdata.found_frame,
-            keep_orientation=True,
+            target_frame=target_frame,
+            dist_threshold=self.dist_threshold,
+            yaw_threshold=self.yaw_threshold,
+            confirm_duration=self.confirm_duration,
+            timeout=self.timeout,
+            cancel_on_success=self.cancel_on_success,
+            keep_orientation=self.keep_orientation,
         )
         return align_state.execute(userdata)
 
@@ -486,16 +506,41 @@ class BinTaskState(smach.State):
             ############################
             smach.StateMachine.add(
                 "SET_ALIGN_TO_FOUND_DROP_AREA",
-                SetAlignToFoundState(source_frame="taluy/base_link/ball_dropper_link"),
+                SetAlignToFoundState(
+                    source_frame="taluy/base_link/ball_dropper_link",
+                    dist_threshold=0.05,
+                    yaw_threshold=0.1,
+                    confirm_duration=2.0,
+                    timeout=45.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
                 transitions={
-                    "succeeded": "WAIT_FOR_DROP_AREA_ALIGNMENT",
+                    "succeeded": "CHECK_DROP_AREA_FOR_FINAL",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_DROP_AREA_ALIGNMENT",
-                DelayState(delay_time=15.0),
+                "CHECK_DROP_AREA_FOR_FINAL",
+                CheckForDropAreaState(source_frame="odom", timeout=1.0),
+                transitions={
+                    "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_FINAL",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER",
+                    "aborted": "BIN_SECOND_TRIAL",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_TO_FOUND_DROP_AREA_FINAL",
+                SetAlignToFoundState(
+                    source_frame="taluy/base_link/ball_dropper_link",
+                    dist_threshold=0.05,
+                    yaw_threshold=0.1,
+                    confirm_duration=7.0,
+                    timeout=45.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "preempted": "preempted",
