@@ -36,6 +36,7 @@ target_link_libraries(serial_to_ros_bridge_node
 catkin_install_python(PROGRAMS
   scripts/wayfinder_dvl_node.py
   scripts/expansion_bridge_remapper_node.py
+  scripts/modem_to_ros_bridge_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
