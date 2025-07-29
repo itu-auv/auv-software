@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from .initialize import *
 import smach
 import smach_ros
