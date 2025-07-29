@@ -39,7 +39,7 @@ class OctagonFramePublisherServiceState(smach_ros.ServiceState):
 class OctagonTaskState(smach.State):
     def __init__(self, octagon_depth):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.griper_mode=False
+        self.griper_mode = False
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -153,9 +153,7 @@ class OctagonTaskState(smach.State):
                 ),
                 transitions={
                     "succeeded": (
-                        "SURFACE"
-                        if not self.griper_mode
-                        else "MOVE_GRIPPER"
+                        "SURFACE" if not self.griper_mode else "MOVE_GRIPPER"
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -179,7 +177,7 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            
+
     def execute(self, userdata):
         # Execute the state machine
         outcome = self.state_machine.execute()
