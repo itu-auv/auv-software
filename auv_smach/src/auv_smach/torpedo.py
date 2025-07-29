@@ -290,7 +290,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_1",
                 SetDepthState(
-                    depth=0.02,
+                    depth=-0.1,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[0],
                 ),
@@ -332,7 +332,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_LAUNCH_1",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "SET_FIRE_DEPTH_2",
                     "preempted": "preempted",
@@ -342,7 +342,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_2",
                 SetDepthState(
-                    depth=0.05,
+                    depth=-0.1,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[1],
                 ),
