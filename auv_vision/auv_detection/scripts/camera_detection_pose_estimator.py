@@ -22,6 +22,7 @@ from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
+from dynamic_reconfigure.client import Client
 
 
 class CameraCalibration:
@@ -101,12 +102,12 @@ class Shark(Prop):
 
 class RedPipe(Prop):
     def __init__(self):
-        super().__init__(2, "red_pipe", None, None)
+        super().__init__(2, "red_pipe", 0.90, None)
 
 
 class WhitePipe(Prop):
     def __init__(self):
-        super().__init__(3, "white_pipe", None, None)
+        super().__init__(3, "white_pipe", 0.90, None)
 
 
 class TorpedoMap(Prop):
@@ -116,7 +117,7 @@ class TorpedoMap(Prop):
 
 class TorpedoHole(Prop):
     def __init__(self):
-        super().__init__(5, "torpedo_hole", 0.115, 0.115)
+        super().__init__(5, "torpedo_hole", 0.125, 0.125)
 
 
 class BinWhole(Prop):
@@ -129,32 +130,40 @@ class Octagon(Prop):
         super().__init__(7, "octagon", 0.92, 1.30)
 
 
-class BinRed(Prop):
+class BinShark(Prop):
     def __init__(self):
-        super().__init__(10, "bin_red", 0.30480, 0.30480)
+        super().__init__(10, "bin_shark", 0.30480, 0.30480)
 
 
-class BinBlue(Prop):
+class BinSawfish(Prop):
     def __init__(self):
-        super().__init__(11, "bin_blue", 0.30480, 0.30480)
+        super().__init__(11, "bin_sawfish", 0.30480, 0.30480)
 
 
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
         rospy.loginfo("Camera detection node started")
-
+        self.selected_side = "left"  # Default value
+        self.dynamic_reconfigure_client = Client(
+            "smach_parameters_server",
+            timeout=10,
+            config_callback=self.dynamic_reconfigure_callback,
+        )
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
         self.active_front_camera_ids = list(range(15))  # Allow all by default
+        self.red_pipe_x = None
 
         self.object_id_map = {
             "gate": [0, 1],
             "pipe": [2, 3],
-            "torpedo": [4, 5],
-            "bin": [6, 9, 10, 11],
+            "torpedo": [4],
+            "torpedo_holes": [5],
+            "bin": [6],
             "octagon": [7],
-            "all": [0, 1, 2, 3, 4, 5, 6, 7, 9, 10, 11],
+            "all": [0, 1, 2, 3, 4, 5, 6, 7],
+            "none": [],
         }
 
         self.object_transform_pub = rospy.Publisher(
@@ -194,11 +203,10 @@ class CameraDetectionNode:
             "white_pipe_link": WhitePipe(),
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
-            "bin_whole_link": BinWhole(),
-            "bin/red_link": BinRed(),
-            "bin/blue_link": BinBlue(),
-            "torpedo_hole_upper_link": TorpedoHole(),
-            "torpedo_hole_bottom_link": TorpedoHole(),
+            "bin_sawfish_link": BinShark(),
+            "bin_shark_link": BinSawfish(),
+            "torpedo_hole_shark_link": TorpedoHole(),
+            "torpedo_hole_sawfish_link": TorpedoHole(),
         }
 
         self.id_tf_map = {
@@ -213,14 +221,13 @@ class CameraDetectionNode:
                 7: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {
-                9: "bin/whole",
-                10: "bin/red_link",
-                11: "bin/blue_link",
+                0: "bin_shark_link",
+                1: "bin_sawfish_link",
             },
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
-        self.pool_depth = rospy.get_param("~pool_depth", 2.2)
+        self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
         # Services to enable/disable cameras
@@ -240,28 +247,47 @@ class CameraDetectionNode:
             self.handle_set_front_camera_focus,
         )
 
+    def dynamic_reconfigure_callback(self, config):
+        if config is None:
+            rospy.logwarn("Could not get parameters from server for camera detection")
+            return
+        self.selected_side = config.slalom_direction
+        rospy.loginfo(f"Slalom direction updated to: {self.selected_side}")
+
     def handle_set_front_camera_focus(self, req):
-        focus_objects = [obj.strip() for obj in req.focus_object.split(",")]
-        all_target_ids = []
-        unfound_objects = []
+        focus_objects = [
+            obj.strip() for obj in req.focus_object.split(",") if obj.strip()
+        ]
 
-        for focus_object in focus_objects:
-            target_ids = self.object_id_map.get(focus_object)
-            if target_ids is not None:
-                all_target_ids.extend(target_ids)
-            else:
-                unfound_objects.append(focus_object)
-
-        if not all_target_ids:
-            message = f"Unknown focus object(s): '{req.focus_object}'. Available options: {list(self.object_id_map.keys())}"
+        if not focus_objects:
+            message = f"Empty focus object provided. No changes made. Available options: {list(self.object_id_map.keys())}"
             rospy.logwarn(message)
             return SetDetectionFocusResponse(success=False, message=message)
 
-        self.active_front_camera_ids = list(set(all_target_ids))
-        message = f"Front camera focus set to IDs: {self.active_front_camera_ids}"
+        unfound_objects = [
+            obj for obj in focus_objects if obj not in self.object_id_map
+        ]
 
         if unfound_objects:
-            message += f". Could not find: {unfound_objects}"
+            message = f"Unknown focus object(s): '{', '.join(unfound_objects)}'. Available options: {list(self.object_id_map.keys())}"
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        if "none" in focus_objects and len(focus_objects) > 1:
+            message = "Cannot specify 'none' with other focus objects."
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        all_target_ids = []
+        for focus_object in focus_objects:
+            all_target_ids.extend(self.object_id_map[focus_object])
+
+        self.active_front_camera_ids = list(set(all_target_ids))
+
+        if "none" in focus_objects:
+            message = "Front camera focus set to none. Detections will be ignored."
+        else:
+            message = f"Front camera focus set to IDs: {self.active_front_camera_ids}"
 
         rospy.loginfo(message)
         return SetDetectionFocusResponse(success=True, message=message)
@@ -429,23 +455,34 @@ class CameraDetectionNode:
             upper_hole_detection = hole2
             bottom_hole_detection = hole1
 
-        # Publish transform for the upper hole
+        if upper_hole_detection.bbox.center.x > bottom_hole_detection.bbox.center.x:
+            upper_hole_child_frame_id = "torpedo_hole_sawfish_link"
+            bottom_hole_child_frame_id = "torpedo_hole_shark_link"
+        else:
+            upper_hole_child_frame_id = "torpedo_hole_shark_link"
+            bottom_hole_child_frame_id = "torpedo_hole_sawfish_link"
+
+        rospy.loginfo_once(
+            f"Upper hole assigned to {upper_hole_child_frame_id}, bottom to {bottom_hole_child_frame_id}"
+        )
+
+        # Publish transform for the upper hole with its new name
         self._publish_torpedo_hole_transform(
             upper_hole_detection,
             camera_ns,
             camera_frame,
-            "torpedo_hole_upper_link",
-            "torpedo_hole_upper_link",
+            upper_hole_child_frame_id,
+            upper_hole_child_frame_id,
             detection_msg.header.stamp,
         )
 
-        # Publish transform for the bottom hole
+        # Publish transform for the bottom hole with its new name
         self._publish_torpedo_hole_transform(
             bottom_hole_detection,
             camera_ns,
             camera_frame,
-            "torpedo_hole_bottom_link",
-            "torpedo_hole_bottom_link",
+            bottom_hole_child_frame_id,
+            bottom_hole_child_frame_id,
             detection_msg.header.stamp,
         )
 
@@ -547,15 +584,27 @@ class CameraDetectionNode:
                 break
 
         torpedo_ids = set(self.object_id_map.get("torpedo", []))
+        torpedo_holes_ids = set(self.object_id_map.get("torpedo_holes", []))
         process_torpedo = True
+        process_torpedo_holes = True
         if camera_source == "front_camera":
             if not torpedo_ids.intersection(self.active_front_camera_ids):
                 process_torpedo = False
+            if not torpedo_holes_ids.intersection(self.active_front_camera_ids):
+                process_torpedo_holes = False
 
-        if torpedo_map_bbox and process_torpedo:
+        if torpedo_map_bbox and process_torpedo and process_torpedo_holes:
             self.process_torpedo_holes_on_map(
                 detection_msg, camera_ns, torpedo_map_bbox
             )
+        red_pipe_x = self.red_pipe_x
+        red_pipes = [
+            d for d in detection_msg.detections.detections if d.results[0].id == 2
+        ]
+        if red_pipes:
+            largest_red_pipe = max(red_pipes, key=lambda d: d.bbox.size_y)
+            red_pipe_x = largest_red_pipe.bbox.center.x
+            self.red_pipe_x = red_pipe_x
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
@@ -570,14 +619,21 @@ class CameraDetectionNode:
             if detection_id == 5:
                 continue
 
+            if detection_id == 3 and red_pipe_x is not None:
+                white_x = detection.bbox.center.x
+                if self.selected_side == "left" and white_x > red_pipe_x:
+                    continue
+                if self.selected_side == "right" and white_x < red_pipe_x:
+                    continue
+
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-            if detection_id == 10 or detection_id == 11:
+            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
                 skip_inside_image = True
                 # use altidude for bin
                 distance = self.altitude
 
-            if detection_id == 9:
+            if detection_id == 6:
                 self.process_altitude_projection(
                     detection, camera_ns, detection_msg.header.stamp
                 )

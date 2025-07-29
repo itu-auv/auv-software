@@ -14,6 +14,8 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped
 
 from auv_msgs.srv import (
+    PlanPath,
+    PlanPathRequest,
     SetDepth,
     SetDepthRequest,
     SetObjectTransform,
@@ -27,9 +29,10 @@ from auv_msgs.srv import SetDepth, SetDepthRequest
 from auv_msgs.srv import VisualServoing, VisualServoingRequest
 
 from auv_navigation.follow_path_action import follow_path_client
-
+from auv_msgs.srv import PlanPath, PlanPathRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
 
+from auv_msgs.srv import PlanPath, PlanPathRequest
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Twist
 
@@ -196,6 +199,17 @@ class CancelAlignControllerState(smach_ros.ServiceState):
         )
 
 
+class SetHeadingControlState(smach_ros.ServiceState):
+    def __init__(self, enable: bool):
+        request = SetBoolRequest(data=enable)
+        super(SetHeadingControlState, self).__init__(
+            "set_heading_control",
+            SetBool,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
 class SetAlignControllerTargetState(smach_ros.ServiceState):
     def __init__(
         self,
@@ -203,12 +217,18 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         target_frame: str,
         keep_orientation: bool = False,
         angle_offset: float = 0.0,
+        max_linear_velocity: float = None,
+        max_angular_velocity: float = None,
     ):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
         align_request.angle_offset = angle_offset
         align_request.keep_orientation = keep_orientation
+        if max_linear_velocity is not None:
+            align_request.max_linear_velocity = max_linear_velocity
+        if max_angular_velocity is not None:
+            align_request.max_angular_velocity = max_angular_velocity
 
         smach_ros.ServiceState.__init__(
             self,
@@ -675,6 +695,7 @@ class SearchForPropState(smach.StateMachine):
         set_frame_duration: float,
         source_frame: str = "taluy/base_link",
         rotation_speed: float = 0.3,
+        max_angular_velocity: float = 0.25,
     ):
         """
         Args:
@@ -686,10 +707,20 @@ class SearchForPropState(smach.StateMachine):
             set_frame_duration (float): Duration for the SetFrameLookingAtState.
             source_frame (str): The base frame of the vehicle (default: "taluy/base_link").
             rotation_speed (float): The angular velocity for rotation (default: 0.3).
+            max_angular_velocity (float): Max angular velocity for align controller (optional).
         """
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
 
         with self:
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_TARGET_FIRST",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "ROTATE_TO_FIND_PROP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "ROTATE_TO_FIND_PROP",
                 RotationState(
@@ -707,7 +738,9 @@ class SearchForPropState(smach.StateMachine):
             smach.StateMachine.add(
                 "SET_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
-                    source_frame=source_frame, target_frame=alignment_frame
+                    source_frame=source_frame,
+                    target_frame=alignment_frame,
+                    max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
                     "succeeded": "BROADCAST_ALIGNMENT_FRAME",
@@ -897,10 +930,44 @@ class AlignFrame(smach.StateMachine):
         cancel_on_success=False,
         confirm_duration=0.0,
         keep_orientation=False,
+        max_linear_velocity=None,
+        max_angular_velocity=None,
+        heading_control=True,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
         with self:
+            watch_succeeded_transition = (
+                "CANCEL_ALIGNMENT_ON_SUCCESS" if cancel_on_success else "succeeded"
+            )
+            cancel_on_success_succeeded_transition = "succeeded"
+            cancel_on_fail_succeeded_transition = "aborted"
+            cancel_on_preempt_succeeded_transition = "preempted"
+
+            if not heading_control:  # If heading control will not be used
+                watch_succeeded_transition = (
+                    "CANCEL_ALIGNMENT_ON_SUCCESS"
+                    if cancel_on_success
+                    else "ENABLE_HEADING_CONTROL_ON_SUCCESS"
+                )
+                cancel_on_success_succeeded_transition = (
+                    "ENABLE_HEADING_CONTROL_ON_SUCCESS"
+                )
+                cancel_on_fail_succeeded_transition = "ENABLE_HEADING_CONTROL_ON_FAIL"
+                cancel_on_preempt_succeeded_transition = (
+                    "ENABLE_HEADING_CONTROL_ON_PREEMPT"
+                )
+
+                smach.StateMachine.add(
+                    "DISABLE_HEADING_CONTROL",
+                    SetHeadingControlState(enable=False),
+                    transitions={
+                        "succeeded": "REQUEST_ALIGNMENT",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
             smach.StateMachine.add(
                 "REQUEST_ALIGNMENT",
                 SetAlignControllerTargetState(
@@ -908,6 +975,8 @@ class AlignFrame(smach.StateMachine):
                     target_frame=target_frame,
                     angle_offset=angle_offset,
                     keep_orientation=keep_orientation,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
@@ -929,11 +998,7 @@ class AlignFrame(smach.StateMachine):
                     keep_orientation=keep_orientation,
                 ),
                 transitions={
-                    "succeeded": (
-                        "CANCEL_ALIGNMENT_ON_SUCCESS"
-                        if cancel_on_success
-                        else "succeeded"
-                    ),
+                    "succeeded": watch_succeeded_transition,
                     "aborted": "CANCEL_ALIGNMENT_ON_FAIL",
                     "preempted": "CANCEL_ALIGNMENT_ON_PREEMPT",
                 },
@@ -943,7 +1008,7 @@ class AlignFrame(smach.StateMachine):
                 "CANCEL_ALIGNMENT_ON_SUCCESS",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": cancel_on_success_succeeded_transition,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -953,7 +1018,7 @@ class AlignFrame(smach.StateMachine):
                 "CANCEL_ALIGNMENT_ON_FAIL",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": "aborted",
+                    "succeeded": cancel_on_fail_succeeded_transition,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -963,8 +1028,277 @@ class AlignFrame(smach.StateMachine):
                 "CANCEL_ALIGNMENT_ON_PREEMPT",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": "preempted",
+                    "succeeded": cancel_on_preempt_succeeded_transition,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
+            if not heading_control:
+                smach.StateMachine.add(
+                    "ENABLE_HEADING_CONTROL_ON_SUCCESS",
+                    SetHeadingControlState(enable=True),
+                    transitions={
+                        "succeeded": "succeeded",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                smach.StateMachine.add(
+                    "ENABLE_HEADING_CONTROL_ON_FAIL",
+                    SetHeadingControlState(enable=True),
+                    transitions={
+                        "succeeded": "aborted",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                smach.StateMachine.add(
+                    "ENABLE_HEADING_CONTROL_ON_PREEMPT",
+                    SetHeadingControlState(enable=True),
+                    transitions={
+                        "succeeded": "preempted",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
+
+class SetPlanState(smach.State):
+    """State that calls the /set_plan service"""
+
+    def __init__(self, target_frame: str, angle_offset: float = 0.0):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.target_frame = target_frame
+        self.angle_offset = angle_offset
+
+    def execute(self, userdata) -> str:
+        try:
+            if self.preempt_requested():
+                rospy.logwarn("[SetPlanState] Preempt requested")
+                return "preempted"
+
+            rospy.wait_for_service("/set_plan")
+            set_plan = rospy.ServiceProxy("/set_plan", PlanPath)
+
+            req = PlanPathRequest(
+                target_frame=self.target_frame,
+                angle_offset=self.angle_offset,
+            )
+            set_plan(req)
+            return "succeeded"
+
+        except Exception as e:
+            rospy.logerr("[SetPlanState] Error: %s", str(e))
+            return "aborted"
+
+
+class SetPlanningNotActive(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "/stop_planning", Trigger, request=TriggerRequest()
+        )
+
+
+class DynamicPathState(smach.StateMachine):
+    def __init__(
+        self,
+        plan_target_frame: str,
+        align_source_frame: str = "taluy/base_link",
+        align_target_frame: str = "dynamic_target",
+        max_linear_velocity: float = None,
+        max_angular_velocity: float = None,
+        angle_offset: float = 0.0,
+        keep_orientation: bool = False,
+    ):
+        super().__init__(outcomes=["succeeded", "preempted", "aborted"])
+        with self:
+            smach.StateMachine.add(
+                "SET_PATH_PLAN",
+                SetPlanState(target_frame=plan_target_frame, angle_offset=angle_offset),
+                transitions={
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_PATH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_CONTROLLER_TARGET_PATH",
+                SetAlignControllerTargetState(
+                    source_frame=align_source_frame,
+                    target_frame=align_target_frame,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                    keep_orientation=keep_orientation,
+                ),
+                transitions={
+                    "succeeded": "EXECUTE_PATH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "EXECUTE_PATH",
+                ExecutePathState(),
+                transitions={
+                    "succeeded": "SET_PLANNING_NOT_ACTIVE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_PLANNING_NOT_ACTIVE",
+                SetPlanningNotActive(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+
+class LookAroundState(smach.StateMachine):
+    def __init__(
+        self,
+        source_frame: str = "taluy/base_link",
+        angle_offset: float = 0.5,
+        confirm_duration: float = 0.1,
+        timeout: float = 10.0,
+        max_linear_velocity: float = 0.1,
+        max_angular_velocity: float = 0.15,
+        current_pose_frame: str = "selam_frame",
+    ):
+        super().__init__(outcomes=["succeeded", "preempted", "aborted"])
+
+        with self:
+            smach.StateMachine.add(
+                "CREATE_START_FRAME",
+                CreateFrameAtCurrentPositionState(
+                    current_pose_frame=current_pose_frame
+                ),
+                transitions={
+                    "succeeded": "LOOK_LEFT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_LEFT",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=current_pose_frame,
+                    angle_offset=angle_offset,
+                    confirm_duration=confirm_duration,
+                    timeout=timeout,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                ),
+                transitions={
+                    "succeeded": "LOOK_RIGHT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_RIGHT",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=current_pose_frame,
+                    angle_offset=-angle_offset,
+                    confirm_duration=confirm_duration,
+                    timeout=timeout,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                ),
+                transitions={
+                    "succeeded": "LOOK_STRAIGHT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_STRAIGHT",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=current_pose_frame,
+                    angle_offset=0.0,
+                    confirm_duration=confirm_duration,
+                    timeout=timeout,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                ),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+
+class CreateFrameAtCurrentPositionState(smach.State):
+    def __init__(
+        self,
+        source_frame: str = "taluy/base_link",
+        current_pose_frame: str = "selam_frame",
+        reference_frame: str = "odom",
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.source_frame = source_frame
+        self.current_pose_frame = current_pose_frame
+        self.reference_frame = reference_frame
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.set_object_transform_service = rospy.ServiceProxy(
+            "set_object_transform", SetObjectTransform
+        )
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+        try:
+            current_transform = self.tf_buffer.lookup_transform(
+                self.reference_frame,
+                self.source_frame,
+                rospy.Time(0),
+                rospy.Duration(2.0),
+            )
+            new_transform = TransformStamped()
+            new_transform.header.stamp = rospy.Time.now()
+            new_transform.header.frame_id = self.reference_frame
+            new_transform.child_frame_id = self.current_pose_frame
+
+            new_transform.transform.translation = (
+                current_transform.transform.translation
+            )
+            new_transform.transform.rotation = current_transform.transform.rotation
+
+            req = SetObjectTransformRequest()
+            req.transform = new_transform
+            res = self.set_object_transform_service(req)
+
+            if not res.success:
+                rospy.logerr(
+                    f"CreateFrameAtCurrentPositionState: Failed to create frame '{self.current_pose_frame}': {res.message}"
+                )
+                return "aborted"
+
+            return "succeeded"
+
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logerr(f"CreateFrameAtCurrentPositionState: TF lookup failed: {e}")
+            return "aborted"
+
+        except rospy.ServiceException as e:
+            rospy.logerr(f"CreateFrameAtCurrentPositionState: Service call failed: {e}")
+            return "aborted"

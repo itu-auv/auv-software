@@ -9,24 +9,27 @@
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
-        buoy:NAVIGATE_AROUND_RED_BUOY,
+        slalom:NAVIGATE_THROUGH_SLALOM,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
-        octagon:NAVIGATE_TO_OCTAGON_TASK
+        octagon:NAVIGATE_TO_OCTAGON_TASK,
+        return:NAVIGATE_RETURN_THROUGH_GATE
     "/>
 
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
     <arg name="sim" default="false" doc="Enable simulation mode for state machine"/>
+    <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
         'INITIALIZE',
         'NAVIGATE_THROUGH_GATE',
-        'NAVIGATE_AROUND_RED_BUOY',
+        'NAVIGATE_THROUGH_SLALOM',
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
-        'NAVIGATE_TO_OCTAGON_TASK'
+        'NAVIGATE_TO_OCTAGON_TASK',
+        'NAVIGATE_RETURN_THROUGH_GATE'
     ]" doc="Full sequence of mission states"/>
 
     <!-- Test Mission States -->
@@ -40,6 +43,7 @@
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
             <param name="~base_link" value="$(arg namespace)/base_link"/>
             <param name="sim" value="$(arg sim)"/>
+            <param name="coin_flip" value="$(arg coin_flip)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -62,6 +66,7 @@
 
             <!-- gate.py -->
             <remap from="set_transform_gate_trajectory" to="toggle_gate_trajectory"/>
+            <remap from="toggle_coin_flip_rescuer" to="toggle_coin_flip_rescuer" />
             <remap from="odometry" to="odometry"/>
             <remap from="wrench" to="wrench"/>
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>

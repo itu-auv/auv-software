@@ -29,7 +29,7 @@ class DvlOdometryServiceEnableState(smach_ros.ServiceState):
 
 
 class PitchCorrection(smach.State):
-    def __init__(self, fixed_torque=2.0, rate_hz=20, timeout_s=10.0):
+    def __init__(self, fixed_torque=2.0, rate_hz=20, timeout_s=5.0):
         super(PitchCorrection, self).__init__(
             outcomes=["succeeded", "preempted", "aborted"]
         )
@@ -104,10 +104,11 @@ class PitchCorrection(smach.State):
                 if self.preempt_requested():
                     return self._stop_and("preempted")
                 if (rospy.Time.now() - self.start_time) > self.timeout:
-                    rospy.logerr(
-                        "PITCH_CORRECTION: Timeout after %.1f s", self.timeout.to_sec()
+                    rospy.logwarn(
+                        "PITCH_CORRECTION: Timeout after %.1f s. Continuing as if succeeded.",
+                        self.timeout.to_sec(),
                     )
-                    return self._stop_and("aborted")
+                    return self._stop_and("succeeded")
 
                 if self.current_pitch <= 0:
                     rospy.loginfo(
@@ -216,7 +217,7 @@ class RollTwoTimes(smach.State):
         self.total_roll = 0.0
         self.last_time = rospy.Time.now()
         self.start_time = rospy.Time.now()
-        target = math.radians(675.0)
+        target = math.radians(660.0)
         rospy.loginfo(
             "ROLL_TWO_TIMES: starting roll with torque %.2f Nm, target = %.2f rad",
             self.roll_torque,
@@ -305,7 +306,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
-                RollTwoTimes(roll_torque=self.roll_torque, rate_hz=20, timeout_s=15.0),
+                RollTwoTimes(roll_torque=self.roll_torque, rate_hz=20, timeout_s=3.0),
                 transitions={
                     "succeeded": "WAIT_FOR_STABILIZATION",
                     "preempted": "preempted",
@@ -379,7 +380,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "DELAY_AFTER_RESET",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=1.0),
                 transitions={
                     "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",

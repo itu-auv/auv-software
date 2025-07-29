@@ -13,6 +13,7 @@ from auv_smach.common import (
 )
 from typing import Optional, Literal
 from dataclasses import dataclass
+from auv_smach.common import SetDetectionFocusState
 
 
 class ResetOdometryState(smach_ros.ServiceState):
@@ -153,6 +154,15 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "ODOMETRY_ENABLE",
                 OdometryEnableState(),
+                transitions={
+                    "succeeded": "SET_DETECTION_TO_NONE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_TO_NONE",
+                SetDetectionFocusState(focus_object="none"),
                 transitions={
                     "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",

@@ -12,22 +12,22 @@ from auv_smach.common import (
     SearchForPropState,
     AlignFrame,
     SetDetectionState,
+    DynamicPathState,
+    SetDetectionFocusState,
+    DropBallState,
+    SetDetectionState,
 )
 
 from auv_smach.initialize import DelayState
 
-from auv_smach.common import (
-    DropBallState,
-    ExecutePathState,
-    CancelAlignControllerState,
-    PlanPathToSingleFrameState,
-)
-
-from auv_navigation.path_planning.path_planners import PathPlanners
-
 
 class CheckForDropAreaState(smach.State):
-    def __init__(self, source_frame: str = "odom", timeout: float = 2.0):
+    def __init__(
+        self,
+        source_frame: str = "odom",
+        timeout: float = 2.0,
+        target_selection: str = "shark",
+    ):
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
@@ -37,7 +37,13 @@ class CheckForDropAreaState(smach.State):
         self.timeout = rospy.Duration(timeout)
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.target_frames = ["bin/blue_link", "bin/red_link"]
+        # Set frame order based on target_selection
+        if target_selection == "shark":
+            self.target_frames = ["bin_shark_link", "bin_sawfish_link"]
+        elif target_selection == "sawfish":
+            self.target_frames = ["bin_sawfish_link", "bin_shark_link"]
+        else:
+            self.target_frames = ["bin_shark_link", "bin_sawfish_link"]
 
     def execute(self, userdata) -> str:
         start_time = rospy.Time.now()
@@ -67,11 +73,27 @@ class CheckForDropAreaState(smach.State):
 
 
 class SetAlignToFoundState(smach.State):
-    def __init__(self, source_frame: str):
+    def __init__(
+        self,
+        source_frame: str = "taluy/base_link/ball_dropper_link",
+        dist_threshold: float = 0.05,
+        yaw_threshold: float = 0.1,
+        confirm_duration: float = 5.0,
+        timeout: float = 0.0,
+        cancel_on_success: bool = False,
+        keep_orientation: bool = False,
+    ):
         super().__init__(
-            outcomes=["succeeded", "preempted", "aborted"], input_keys=["found_frame"]
+            outcomes=["succeeded", "preempted", "aborted"],
+            input_keys=["found_frame"],
         )
         self.source_frame = source_frame
+        self.dist_threshold = dist_threshold
+        self.yaw_threshold = yaw_threshold
+        self.confirm_duration = confirm_duration
+        self.timeout = timeout
+        self.cancel_on_success = cancel_on_success
+        self.keep_orientation = keep_orientation
 
     def execute(self, userdata):
         if self.preempt_requested():
@@ -81,14 +103,18 @@ class SetAlignToFoundState(smach.State):
             rospy.logerr("[SetAlignToFoundState] No found_frame in userdata")
             return "aborted"
 
-        rospy.loginfo(
-            f"[SetAlignToFoundState] Setting align target to {userdata.found_frame}"
-        )
+        target_frame = userdata.found_frame
+        rospy.loginfo(f"[SetAlignToFoundState] Setting align target to {target_frame}")
 
-        align_state = SetAlignControllerTargetState(
+        align_state = AlignFrame(
             source_frame=self.source_frame,
-            target_frame=userdata.found_frame,
-            keep_orientation=True,
+            target_frame=target_frame,
+            dist_threshold=self.dist_threshold,
+            yaw_threshold=self.yaw_threshold,
+            confirm_duration=self.confirm_duration,
+            timeout=self.timeout,
+            cancel_on_success=self.cancel_on_success,
+            keep_orientation=self.keep_orientation,
         )
         return align_state.execute(userdata)
 
@@ -243,7 +269,13 @@ class BinSecondTrialState(smach.StateMachine):
 
 
 class BinTaskState(smach.State):
-    def __init__(self, bin_front_look_depth, bin_bottom_look_depth):
+    def __init__(
+        self,
+        bin_front_look_depth,
+        bin_bottom_look_depth,
+        target_selection="shark",
+        bin_exit_angle=0.0,
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.state_machine = smach.StateMachine(
@@ -252,8 +284,27 @@ class BinTaskState(smach.State):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.bin_exit_angle = bin_exit_angle
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "OPEN_FRONT_CAMERA",
+                SetDetectionState(camera_name="front", enable=True),
+                transitions={
+                    "succeeded": "FOCUS_ON_BIN",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FOCUS_ON_BIN",
+                SetDetectionFocusState(focus_object="bin"),
+                transitions={
+                    "succeeded": "SET_BIN_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_BIN_DEPTH",
                 SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
@@ -292,6 +343,17 @@ class BinTaskState(smach.State):
                 "WAIT_FOR_ENABLE_BIN_FRAME_PUBLISHER",
                 DelayState(delay_time=1.0),
                 transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_CLOSE_APPROACH",
+                DynamicPathState(
+                    plan_target_frame="bin_close_approach",
+                ),
+                transitions={
                     "succeeded": "ALIGN_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -305,7 +367,7 @@ class BinTaskState(smach.State):
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=10.0,
+                    confirm_duration=4.0,
                     timeout=60.0,
                     cancel_on_success=False,
                 ),
@@ -337,20 +399,31 @@ class BinTaskState(smach.State):
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
-                    "succeeded": "ALIGN_TO_BIN",
+                    "succeeded": "DYNAMIC_PATH_TO_BIN_WHOLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_TO_BIN",
+                "DYNAMIC_PATH_TO_BIN_WHOLE",
+                DynamicPathState(
+                    plan_target_frame="bin_whole_link",
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_BIN_WHOLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_BIN_WHOLE",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="bin_whole_link",
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=2.0,
+                    confirm_duration=1.0,
                     timeout=60.0,
                     cancel_on_success=False,
                     keep_orientation=True,
@@ -363,7 +436,9 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_DROP_AREA_AFTER_BIN_ALIGNMENT",
-                CheckForDropAreaState(source_frame="odom", timeout=1.0),
+                CheckForDropAreaState(
+                    source_frame="odom", timeout=1.0, target_selection=target_selection
+                ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
                     "preempted": "preempted",
@@ -431,16 +506,41 @@ class BinTaskState(smach.State):
             ############################
             smach.StateMachine.add(
                 "SET_ALIGN_TO_FOUND_DROP_AREA",
-                SetAlignToFoundState(source_frame="taluy/base_link/ball_dropper_link"),
+                SetAlignToFoundState(
+                    source_frame="taluy/base_link/ball_dropper_link",
+                    dist_threshold=0.05,
+                    yaw_threshold=0.1,
+                    confirm_duration=2.0,
+                    timeout=45.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
                 transitions={
-                    "succeeded": "WAIT_FOR_DROP_AREA_ALIGNMENT",
+                    "succeeded": "CHECK_DROP_AREA_FOR_FINAL",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_DROP_AREA_ALIGNMENT",
-                DelayState(delay_time=15.0),
+                "CHECK_DROP_AREA_FOR_FINAL",
+                CheckForDropAreaState(source_frame="odom", timeout=1.0),
+                transitions={
+                    "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_FINAL",
+                    "preempted": "CANCEL_ALIGN_CONTROLLER",
+                    "aborted": "BIN_SECOND_TRIAL",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_TO_FOUND_DROP_AREA_FINAL",
+                SetAlignToFoundState(
+                    source_frame="taluy/base_link/ball_dropper_link",
+                    dist_threshold=0.05,
+                    yaw_threshold=0.1,
+                    confirm_duration=7.0,
+                    timeout=45.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
                 transitions={
                     "succeeded": "DROP_BALL_1",
                     "preempted": "preempted",
@@ -487,9 +587,30 @@ class BinTaskState(smach.State):
                 "DISABLE_BOTTOM_CAMERA",
                 SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "ALIGN_TO_BIN_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_BIN_EXIT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="bin_exit",
+                    angle_offset=self.bin_exit_angle,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=2.0,
+                    timeout=15.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=0.2,
+                    max_angular_velocity=0.2,
+                ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(

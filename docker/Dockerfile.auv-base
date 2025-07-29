@@ -1,8 +1,9 @@
 # ARG BASE_IMAGE=nvcr.io/nvidia/l4t-ml:r35.2.1-py3
 ARG BASE_IMAGE=dustynv/ros:noetic-ros-base-l4t-r35.2.1
-ARG HOST=desktop
 
 FROM ${BASE_IMAGE}
+
+ARG HOST=desktop
 
 WORKDIR /auv_ws
 
@@ -48,7 +49,11 @@ RUN if [ "$HOST" = "tegra" ]; then \
   cd /auv_ws; \
   . /opt/ros/noetic/setup.sh && \
   rosdep update && \
-  rosdep install --from-paths src --ignore-src -r -y; \
+  rosdep install --from-paths src --ignore-src -r \
+  --skip-keys=libopencv-dev \
+  --skip-keys=cv_bridge \
+  --skip-keys=python3-opencv \
+  -y && \
   catkin config --extend /opt/ros/noetic --install --install-space /opt/ros/noetic && \
   catkin build --no-status --continue-on-failure && \
   catkin clean -y --log; \

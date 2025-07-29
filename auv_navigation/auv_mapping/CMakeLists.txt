@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   vision_msgs
   visualization_msgs
   cv_bridge
+  dynamic_reconfigure
 )
 
 find_package(PCL REQUIRED)
@@ -43,10 +44,15 @@ if(NOT OpenCV_FOUND)
     CONFIG)
 endif()
 
+generate_dynamic_reconfigure_options(
+  cfg/SlalomTrajectory.cfg
+  cfg/GateTrajectory.cfg
+)
+
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp rospy std_msgs tf2_ros geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs cv_bridge
+  CATKIN_DEPENDS roscpp rospy std_msgs tf2_ros geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs cv_bridge dynamic_reconfigure
   DEPENDS OpenCV PCL
 )
 
@@ -70,6 +76,7 @@ catkin_install_python(PROGRAMS
   scripts/gate_trajectory_publisher.py
   scripts/bin_trajectory_publisher.py
   scripts/torpedo_frame_publisher.py
+  scripts/slalom_trajectory_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

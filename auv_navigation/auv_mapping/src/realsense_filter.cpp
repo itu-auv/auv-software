@@ -61,7 +61,6 @@ class PointCloudFilterNode {
 
   void cloudCallback(const sensor_msgs::PointCloud2::ConstPtr& cloud_msg) {
     if (!alt_received_ || !depth_received_) {
-      ROS_WARN_THROTTLE(5.0, "Waiting for altitude and depth data...");
       return;
     }
 

@@ -47,4 +47,10 @@
     <arg name="start_state_publisher" value="false" />
     <arg name="config_file" value="$(find auv_sim_bridge)/config/control_config.yaml"/>
   </include>
+
+  <!-- launch parameter server -->
+  <include file="$(find auv_bringup)/launch/param_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
 </launch>
