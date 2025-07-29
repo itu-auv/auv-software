@@ -157,7 +157,7 @@ class NavigateThroughSlalomState(smach.State):
                     cancel_on_success=False,
                     keep_orientation=False,
                     max_linear_velocity=0.1,
-                    max_angular_velocity=0.15,
+                    max_angular_velocity=0.1,
                 ),
                 transitions={
                     "succeeded": "LOOK_RIGHT",
@@ -178,10 +178,10 @@ class NavigateThroughSlalomState(smach.State):
                     cancel_on_success=False,
                     keep_orientation=False,
                     max_linear_velocity=0.1,
-                    max_angular_velocity=0.15,
+                    max_angular_velocity=0.1,
                 ),
                 transitions={
-                    "succeeded": "LOCK_ON_WAYPOINT_1",
+                    "succeeded": "LOCK_ON_RED_PIPE",
                     "preempted": "preempted",
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
