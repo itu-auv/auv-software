@@ -181,13 +181,13 @@ class NavigateThroughSlalomState(smach.State):
                     max_angular_velocity=0.1,
                 ),
                 transitions={
-                    "succeeded": "LOCK_ON_RED_PIPE",
+                    "succeeded": "LOCK_ON_WAYPOINT_1",
                     "preempted": "preempted",
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
-                "LOCK_ON_RED_PIPE",
+                "LOCK_ON_WAYPOINT_1",
                 SearchForPropState(
                     look_at_frame="slalom_waypoint_1",
                     alignment_frame="slalom_entrance_backed",
