@@ -221,6 +221,7 @@ class TorpedoTaskState(smach.State):
                     confirm_duration=2.0,
                     timeout=30.0,
                     cancel_on_success=False,
+                    heading_control=False,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
