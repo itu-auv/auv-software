@@ -133,7 +133,7 @@ class ThrusterManagerROS {
 
   void wrench_callback(const geometry_msgs::WrenchStamped &msg) {
     latest_wrench_ = msg;
-    latest_wrench_time_ = ros::Time::now();
+    latest_wrench_time_ = msg.header.stamp;
   }
 
   void power_callback(const auv_msgs::Power &msg) { latest_power_ = msg; }
