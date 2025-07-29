@@ -26,6 +26,7 @@ generate_dynamic_reconfigure_options(
   cfg/VisualServoing.cfg
   cfg/AlignFrame.cfg
   cfg/WrenchController.cfg
+  cfg/ThrusterCoefficients.cfg
 )
 
 find_package(Eigen3 REQUIRED)
