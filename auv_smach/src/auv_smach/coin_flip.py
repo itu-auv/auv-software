@@ -64,6 +64,7 @@ class CoinFlipState(smach.StateMachine):
                     timeout=15.0,
                     cancel_on_success=False,
                     keep_orientation=True,
+                    max_linear_velocity=0.3,
                 ),
                 transitions={
                     "succeeded": "SET_DEPTH_FOR_GATE",
