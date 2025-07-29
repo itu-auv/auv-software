@@ -61,6 +61,7 @@ class ControllerROS {
 
     nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
+    nh_private.param<double>("buoyancy_offset_z", buoyancy_offset_z_, 0.0);
 
     ROS_INFO_STREAM("kp: \n" << kp_.transpose());
     ROS_INFO_STREAM("ki: \n" << ki_.transpose());
@@ -131,8 +132,12 @@ class ControllerROS {
         continue;
       }
 
-      const auto control_output =
+      auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
+
+      if (is_control_enabled()) {
+        control_output(2) += buoyancy_offset_z_;
+      }
 
       geometry_msgs::WrenchStamped wrench_msg;
       if (is_control_enabled() && !is_timeouted()) {
@@ -384,6 +389,7 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;                   // Parameters to be dynamically reconfigured
   std::string config_file_;  // Path to the config file
+  double buoyancy_offset_z_{0.0};
 
   std::string depth_control_reference_frame_;
 };
