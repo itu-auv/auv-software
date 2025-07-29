@@ -68,6 +68,7 @@ class ThrusterManagerROS {
       const auv_control::ThrusterCoefficientsConfig &config, uint32_t level) {
     (void)level;  // Unused
     std::vector<double> coefficients;
+    coefficients.push_back(config.thruster_0_coeff);
     coefficients.push_back(config.thruster_1_coeff);
     coefficients.push_back(config.thruster_2_coeff);
     coefficients.push_back(config.thruster_3_coeff);
@@ -75,7 +76,6 @@ class ThrusterManagerROS {
     coefficients.push_back(config.thruster_5_coeff);
     coefficients.push_back(config.thruster_6_coeff);
     coefficients.push_back(config.thruster_7_coeff);
-    coefficients.push_back(config.thruster_8_coeff);
     allocator_.set_coefficients(coefficients);
   }
 
