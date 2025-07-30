@@ -30,8 +30,8 @@ class SlalomTrajectoryPublisher(object):
         self.offset2 = 1.0
         self.exit_distance = 0.8
         self.offset3 = -1.0
-        self.vertical_dist = 1.5
-        self.slalom_entrance_backed_distance = 1.0
+        self.vertical_dist = 2.0
+        self.slalom_entrance_backed_distance = 2.0
         self.parent_frame = "odom"
         self.gate_exit_frame = "gate_exit"
         self.slalom_white_frame = "white_pipe_link"
