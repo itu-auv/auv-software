@@ -177,7 +177,7 @@ class ImuToOdom:
         t_offset.transform.translation.y = 0.3
         t_offset.transform.translation.z = 0.0
         t_offset.transform.rotation = self.odom_msg.pose.pose.orientation
-        self.tf_broadcaster.sendTransform(t_offset)
+        # self.tf_broadcaster.sendTransform(t_offset)
 
     def calibrate_imu(self, req):
         duration = req.duration
