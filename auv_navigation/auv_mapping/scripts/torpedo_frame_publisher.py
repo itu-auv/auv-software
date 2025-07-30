@@ -8,6 +8,8 @@ import rospy
 import tf2_ros
 from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
+from dynamic_reconfigure.server import Server
+from auv_mapping.cfg import TorpedoTrajectoryConfig
 
 from auv_msgs.srv import (
     SetObjectTransform,
@@ -56,6 +58,18 @@ class TorpedoTransformServiceNode:
         self.initial_offset = rospy.get_param("~initial_offset", 3.0)
         self.realsense_offset = rospy.get_param("~realsense_offset", 1.5)
         self.fire_offset = rospy.get_param("~fire_offset", 1.0)
+
+        # load shark and sawfish fire frame offsets (x, y, yaw)
+        self.shark_fire_x_offset = 0
+        self.shark_fire_y_offset = 0
+        self.shark_fire_yaw_offset = 0
+        self.sawfish_fire_x_offset = 0
+        self.sawfish_fire_y_offset = 0
+        self.sawfish_fire_yaw_offset = 0
+        # Setup dynamic reconfigure server for torpedo fire frame offsets
+        self.reconfigure_server = Server(
+            TorpedoTrajectoryConfig, self.reconfigure_callback
+        )
 
         self.set_enable_service = rospy.Service(
             "set_transform_torpedo_target_frame",
@@ -250,10 +264,25 @@ class TorpedoTransformServiceNode:
             torpedo_hole_shark_pose = self.get_pose(torpedo_hole_shark_tf)
             realsense_target_pose = self.get_pose(realsense_target_tf)
 
-            torpedo_hole_shark_pose.orientation = realsense_target_pose.orientation
+            # compute orientation with yaw offset
+            q_base = [
+                realsense_target_pose.orientation.x,
+                realsense_target_pose.orientation.y,
+                realsense_target_pose.orientation.z,
+                realsense_target_pose.orientation.w,
+            ]
+            (_, _, base_yaw) = tf.transformations.euler_from_quaternion(q_base)
+            new_q = tf.transformations.quaternion_from_euler(
+                0, 0, base_yaw + self.shark_fire_yaw_offset
+            )
+            torpedo_hole_shark_pose.orientation.x = new_q[0]
+            torpedo_hole_shark_pose.orientation.y = new_q[1]
+            torpedo_hole_shark_pose.orientation.z = new_q[2]
+            torpedo_hole_shark_pose.orientation.w = new_q[3]
+
             shark_fire_pose = self.apply_offsets(
                 torpedo_hole_shark_pose,
-                [0.0, self.fire_offset, 0.0],
+                [self.shark_fire_x_offset, self.shark_fire_y_offset, 0.0],
             )
             shark_fire_transform = self.build_transform_message(
                 self.torpedo_shark_fire_frame, shark_fire_pose
@@ -282,10 +311,25 @@ class TorpedoTransformServiceNode:
             torpedo_hole_sawfish_pose = self.get_pose(torpedo_hole_sawfish_tf)
             realsense_target_pose = self.get_pose(realsense_target_tf)
 
-            torpedo_hole_sawfish_pose.orientation = realsense_target_pose.orientation
+            # compute orientation with yaw offset
+            q_base = [
+                realsense_target_pose.orientation.x,
+                realsense_target_pose.orientation.y,
+                realsense_target_pose.orientation.z,
+                realsense_target_pose.orientation.w,
+            ]
+            (_, _, base_yaw) = tf.transformations.euler_from_quaternion(q_base)
+            new_q = tf.transformations.quaternion_from_euler(
+                0, 0, base_yaw + self.sawfish_fire_yaw_offset
+            )
+            torpedo_hole_sawfish_pose.orientation.x = new_q[0]
+            torpedo_hole_sawfish_pose.orientation.y = new_q[1]
+            torpedo_hole_sawfish_pose.orientation.z = new_q[2]
+            torpedo_hole_sawfish_pose.orientation.w = new_q[3]
+
             sawfish_fire_pose = self.apply_offsets(
                 torpedo_hole_sawfish_pose,
-                [0.0, self.fire_offset, 0.0],
+                [self.sawfish_fire_x_offset, self.sawfish_fire_y_offset, 0.0],
             )
             sawfish_fire_transform = self.build_transform_message(
                 self.torpedo_sawfish_fire_frame, sawfish_fire_pose
@@ -317,6 +361,17 @@ class TorpedoTransformServiceNode:
         message = f"Torpido hole target frame transform publish is set to: {self.enable_torpedo_hole_target}"
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
+
+    def reconfigure_callback(self, config, level):
+        """Dynamic reconfigure callback for torpedo fire frame offsets"""
+        rospy.loginfo(f"Reconfigure TorpedoTrajectory: {config}")
+        self.shark_fire_x_offset = config.shark_fire_x_offset
+        self.shark_fire_y_offset = config.shark_fire_y_offset
+        self.shark_fire_yaw_offset = config.shark_fire_yaw_offset
+        self.sawfish_fire_x_offset = config.sawfish_fire_x_offset
+        self.sawfish_fire_y_offset = config.sawfish_fire_y_offset
+        self.sawfish_fire_yaw_offset = config.sawfish_fire_yaw_offset
+        return config
 
     def spin(self):
         rate = rospy.Rate(20)
