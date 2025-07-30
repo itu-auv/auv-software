@@ -315,7 +315,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=self.torpedo_fire_frames[0],
-                    angle_offset=-math.pi / 2,
+                    angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=10.0,
@@ -367,7 +367,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[1],
-                    angle_offset=-math.pi / 2,
+                    angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=10.0,
