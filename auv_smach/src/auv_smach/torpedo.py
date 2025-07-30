@@ -244,9 +244,10 @@ class TorpedoTaskState(smach.State):
                     look_at_frame="torpedo_map_link",
                     alignment_frame="torpedo_map_lookup",
                     full_rotation=False,
-                    set_frame_duration=1.0,
+                    set_frame_duration=3.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.1,
+                    max_angular_velocity=0.1,
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_LOOKUP",
@@ -299,7 +300,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_1",
                 SetDepthState(
-                    depth=-0.1,
+                    depth=-0.07,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[0],
                 ),
@@ -351,7 +352,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_2",
                 SetDepthState(
-                    depth=-0.1,
+                    depth=-0.06,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[1],
                 ),

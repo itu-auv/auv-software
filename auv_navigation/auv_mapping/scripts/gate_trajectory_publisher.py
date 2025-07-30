@@ -33,11 +33,11 @@ class TransformServiceNode:
         self.gate_frame_2 = "gate_sawfish_link"
         self.target_gate_frame = "gate_shark_link"
         self.entrance_offset = 1.0
-        self.exit_offset = 1.4
+        self.exit_offset = 1.0
         self.z_offset = 0.5
-        self.parallel_shift_offset = 0.15
-        self.rescuer_distance = 1.5
-        self.wall_reference_yaw = -2.5
+        self.parallel_shift_offset = 0.20
+        self.rescuer_distance = 1.0
+        self.wall_reference_yaw = 0.0
         self.reconfigure_server = Server(
             GateTrajectoryConfig, self.reconfigure_callback
         )
@@ -86,13 +86,10 @@ class TransformServiceNode:
         self.fallback_exit_offset = rospy.get_param("~fallback_exit_offset", 1.0)
         self.MIN_GATE_SEPARATION = rospy.get_param("~min_gate_separation", 0.2)
         self.MAX_GATE_SEPARATION = rospy.get_param("~max_gate_separation", 2.5)
-        self.MIN_GATE_SEPARATION_THRESHOLD = 0.15  # For internal checks
+        self.MIN_GATE_SEPARATION_THRESHOLD = 0.3
 
         self.odom_sub = rospy.Subscriber("odometry", Odometry, self.odom_callback)
         self.latest_odom = None
-
-        # Threshold for gate link separation
-        self.MIN_GATE_SEPARATION_THRESHOLD = 0.15
 
         self.coin_flip_enabled = False
         self.coin_flip_rescuer_pose = None
