@@ -32,4 +32,7 @@
     <arg name="namespace" value="$(arg namespace)" />
   </include>
 
+  <include file="$(find auv_vision)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
 </launch>
