@@ -2,10 +2,10 @@
 buttons:
   z_axis_pos:
     index: 5
-    gain: 40.0
+    gain: 10.0
   z_axis_neg:
     index: 4
-    gain: 40.0
+    gain: 10.0
   yaw_left:
     index: 2
   yaw_right:

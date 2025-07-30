@@ -110,7 +110,7 @@ void WrenchController::spin() {
       wrench_msg.header.stamp = ros::Time::now();
       wrench_msg.header.frame_id = body_frame_;
       wrench_msg.wrench = latest_wrench_;
-      wrench_msg.wrench.force.z = z_force;
+      // wrench_msg.wrench.force.z = z_force;
       wrench_msg.wrench.torque.x = roll_torque;
       wrench_msg.wrench.torque.y = pitch_torque;
       wrench_msg.wrench.torque.z = yaw_torque;

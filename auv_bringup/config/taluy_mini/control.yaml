@@ -42,7 +42,7 @@ thruster_0_coeff: 1.0
 thruster_1_coeff: -1.0
 thruster_2_coeff: -1.0
 thruster_3_coeff: -1.0
-thruster_4_coeff: 1.0
+thruster_4_coeff: -1.0
 thruster_5_coeff: -1.0
 thruster_6_coeff: 1.0
 thruster_7_coeff: -1.0
