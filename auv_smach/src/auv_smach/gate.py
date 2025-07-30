@@ -87,7 +87,11 @@ class PublishGateAngleState(smach_ros.ServiceState):
 
 class NavigateThroughGateState(smach.State):
     def __init__(
-        self, gate_depth: float, gate_search_depth: float, gate_exit_angle: float = 0.0
+        self,
+        gate_depth: float,
+        gate_search_depth: float,
+        gate_exit_angle: float = 0.0,
+        roll_depth: float = -0.8,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -98,6 +102,7 @@ class NavigateThroughGateState(smach.State):
         self.gate_look_at_frame = "gate_middle_part"
         self.gate_search_frame = "gate_search"
         self.gate_exit_angle = gate_exit_angle
+        self.roll_depth = roll_depth
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -108,7 +113,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
-                    depth=gate_search_depth,
+                    depth=-0.5,
                     sleep_duration=3.0,
                 ),
                 transitions={
@@ -132,7 +137,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "COIN_FLIP_STATE",
-                CoinFlipState(gate_search_depth=gate_search_depth),
+                CoinFlipState(coin_flip_depth=-0.5),
                 transitions={
                     "succeeded": "SET_DETECTION_FOCUS_GATE",
                     "preempted": "preempted",
@@ -151,7 +156,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
                 SetDepthState(
-                    depth=gate_search_depth,
+                    depth=self.roll_depth,
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 3.0),
                 ),
                 transitions={
