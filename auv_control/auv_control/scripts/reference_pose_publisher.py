@@ -3,13 +3,12 @@
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped, Twist, PoseWithCovarianceStamped
+from std_msgs.msg import Float64
 from std_srvs.srv import Trigger, TriggerResponse
 from auv_msgs.srv import (
     SetDepth,
     SetDepthRequest,
     SetDepthResponse,
-    SetHeading,
-    SetHeadingResponse,
 )
 from robot_localization.srv import SetPose, SetPoseRequest
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
@@ -32,8 +31,8 @@ class ReferencePosePublisherNode:
                 "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
             )
         elif self.heading_control_mode == "set_heading":
-            self.set_heading_service = rospy.Service(
-                "set_heading", SetHeading, self.target_heading_handler
+            self.set_heading_sub = rospy.Subscriber(
+                "set_heading", Float64, self.target_heading_handler, tcp_nodelay=True
             )
         self.reset_odometry_service = rospy.Service(
             "reset_odometry", Trigger, self.reset_odometry_handler
@@ -69,12 +68,8 @@ class ReferencePosePublisherNode:
             message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
         )
 
-    def target_heading_handler(self, req: SetHeading):
-        self.target_heading = req.heading
-        return SetHeadingResponse(
-            success=True,
-            message=f"Target heading set to {self.target_heading}",
-        )
+    def target_heading_handler(self, req: Float64):
+        self.target_heading = req.data
 
     def reset_odometry_handler(self, req):
         if self.is_resetting:

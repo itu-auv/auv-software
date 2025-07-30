@@ -3,8 +3,9 @@
 import rospy
 from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Wrench
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float64
 import threading
+import math
 
 
 class JoystickNode:
@@ -13,8 +14,11 @@ class JoystickNode:
 
         self.cmd_vel_pub = rospy.Publisher("cmd_wrench", Wrench, queue_size=10)
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
+        self.set_heading_pub = rospy.Publisher("set_heading", Float64, queue_size=10)
 
         self.joy_data = None
+        self.prev_joy_data = None
+        self.target_heading = 0.0
         self.lock = threading.Lock()
 
         self.publish_rate = 50  # 50 Hz
@@ -83,15 +87,43 @@ class JoystickNode:
                         self.get_axis_value(self.axes["y_axis"]["index"])
                         * self.axes["y_axis"]["gain"]
                     )
-                    wrench.torque.z = (
-                        self.get_axis_value(self.axes["yaw_axis"]["index"])
-                        * self.axes["yaw_axis"]["gain"]
-                    )
+                    wrench.torque.z = 0.0  # Disabled axis-based yaw
+
+                    # Button-based heading control
+                    if (
+                        self.prev_joy_data
+                        and "yaw_left" in self.buttons
+                        and "yaw_right" in self.buttons
+                    ):
+                        yaw_left_pressed = self.joy_data.buttons[
+                            self.buttons["yaw_left"]["index"]
+                        ]
+                        prev_yaw_left_pressed = self.prev_joy_data.buttons[
+                            self.buttons["yaw_left"]["index"]
+                        ]
+
+                        yaw_right_pressed = self.joy_data.buttons[
+                            self.buttons["yaw_right"]["index"]
+                        ]
+                        prev_yaw_right_pressed = self.prev_joy_data.buttons[
+                            self.buttons["yaw_right"]["index"]
+                        ]
+
+                        if yaw_left_pressed and not prev_yaw_left_pressed:
+                            self.target_heading -= math.pi / 2
+                            # rospy.loginfo(f"Setting new heading: {self.target_heading}")
+
+                        if yaw_right_pressed and not prev_yaw_right_pressed:
+                            self.target_heading += math.pi / 2
+                            # rospy.loginfo(f"Setting new heading: {self.target_heading}")
+
+                    self.prev_joy_data = self.joy_data
                 else:
                     wrench.force.x = 0.0
                     wrench.torque.z = 0.0
 
             self.enable_pub.publish(Bool(True))
+            self.set_heading_pub.publish(Float64(self.target_heading))
             self.cmd_vel_pub.publish(wrench)
             self.rate.sleep()
 
