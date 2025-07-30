@@ -13,6 +13,7 @@ from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 from dynamic_reconfigure.server import Server
 from auv_mapping.cfg import SlalomTrajectoryConfig
+from dynamic_reconfigure.client import Client
 
 
 class SlalomTrajectoryPublisher(object):
@@ -61,7 +62,12 @@ class SlalomTrajectoryPublisher(object):
             None,
             None,
         )
-        self.navigation_mode = "left"  # TODO: connect the parameters later
+        self.navigation_mode = "left"  # Default value
+        self.smach_params_client = Client(
+            "smach_parameters_server",
+            timeout=10,
+            config_callback=self.smach_params_callback,
+        )
 
         # Create a service that will trigger the frame publishing
         self.srv = rospy.Service(
@@ -86,6 +92,16 @@ class SlalomTrajectoryPublisher(object):
         self.vertical_dist = config.vertical_distance_between_slalom_clusters
         self.slalom_entrance_backed_distance = config.slalom_entrance_backed_distance
         return config
+
+    def smach_params_callback(self, config):
+        """
+        Callback for the smach parameters server.
+        """
+        if config is None:
+            rospy.logwarn("Could not get parameters from smach_parameters_server")
+            return
+        self.navigation_mode = config.slalom_direction
+        rospy.loginfo(f"Slalom navigation_mode updated to: {self.navigation_mode}")
 
     def trigger_callback(self, req):
         """
@@ -251,11 +267,11 @@ class SlalomTrajectoryPublisher(object):
                     self.q_orientation,
                 )
             )
-
         except Exception as e:
             rospy.logwarn_throttle(
                 8, "Failed to get pipe locations and publish slalom waypoints: %s", e
             )
+
         # Calculate and publish slalom_entrance
         try:
             t_gate_exit = self.tf_buffer.lookup_transform(
@@ -316,38 +332,6 @@ class SlalomTrajectoryPublisher(object):
                 8,
                 "Failed to get gate exit transform and publish slalom entrance: %s",
                 e,
-            )
-        try:
-            if x_axis_in_parent_frame is not None:
-                t_red_candidate = self.tf_buffer.lookup_transform(
-                    self.parent_frame,
-                    "slalom_red_pipe_candidate",
-                    rospy.Time.now(),
-                    rospy.Duration(1.0),
-                )
-                candidate_red_pose = np.array(
-                    [
-                        t_red_candidate.transform.translation.x,
-                        t_red_candidate.transform.translation.y,
-                        t_red_candidate.transform.translation.z,
-                    ]
-                )
-                # Calculate the new position for the slalom_enterance_red frame
-                pos_slalom_enterance_red = (
-                    candidate_red_pose
-                    - x_axis_in_parent_frame * self.slalom_entrance_backed_distance
-                )
-                self.send_transform(
-                    self.build_transform(
-                        "slalom_entrance_red",
-                        self.parent_frame,
-                        pos_slalom_enterance_red,
-                        gate_exit_q,
-                    )
-                )
-        except Exception as e:
-            rospy.logwarn_throttle(
-                8, "Failed to publish slalom_enterance_red waypoint: %s", e
             )
 
     def build_transform(self, child_frame, parent_frame, pos, q):
