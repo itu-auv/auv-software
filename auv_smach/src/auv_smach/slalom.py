@@ -132,7 +132,7 @@ class NavigateThroughSlalomState(smach.State):
                 "SEARCH_FOR_RED_PIPE",
                 SearchForPropState(
                     look_at_frame="red_pipe_link",
-                    alignment_frame="slalom_entrance_backed",
+                    alignment_frame="search_for_red_pipe",
                     full_rotation=False,
                     set_frame_duration=5.0,
                     source_frame="taluy/base_link",
@@ -148,7 +148,7 @@ class NavigateThroughSlalomState(smach.State):
                 "LOOK_LEFT",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame="slalom_entrance_backed",
+                    target_frame="search_for_red_pipe",
                     angle_offset=0.5,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -169,7 +169,7 @@ class NavigateThroughSlalomState(smach.State):
                 "LOOK_RIGHT",
                 AlignFrame(
                     source_frame="taluy/base_link",
-                    target_frame="slalom_entrance_backed",
+                    target_frame="search_for_red_pipe",
                     angle_offset=-0.5,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -190,7 +190,7 @@ class NavigateThroughSlalomState(smach.State):
                 "LOCK_ON_WAYPOINT_1",
                 SearchForPropState(
                     look_at_frame="slalom_waypoint_1",
-                    alignment_frame="slalom_entrance_backed",
+                    alignment_frame="look_at_waypoint_1",
                     full_rotation=False,
                     set_frame_duration=5.0,
                     source_frame="taluy/base_link",
