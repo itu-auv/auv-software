@@ -61,6 +61,7 @@
     <arg name="config_file" value="$(find auv_control)/config/default.yaml" />
   </include>
 
+  <!-- launch logging -->
   <group if="$(arg enable_logging)">
       <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
           <arg name="namespace" value="$(arg namespace)" />

@@ -224,6 +224,15 @@ class TorpedoTaskState(smach.State):
                     heading_control=False,
                 ),
                 transitions={
+                    "succeeded": "SET_TORPEDO_HOLES_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_TORPEDO_HOLES_DETECTION",
+                SetDetectionFocusState(focus_object="torpedo,torpedo_holes"),
+                transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
                     "preempted": "preempted",
                     "aborted": "aborted",

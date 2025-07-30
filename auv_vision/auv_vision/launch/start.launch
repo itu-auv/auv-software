@@ -1,0 +1,15 @@
+<launch>
+  <arg name="namespace" default="taluy" />
+
+  <group ns="$(arg namespace)">
+    <node
+      pkg="auv_vision"
+      type="dynamic_roll_compensation.py"
+      name="dynamic_roll_compensation_node"
+      output="screen">
+      <remap from="odometry" to="odometry" />
+      <remap from="camera/image_rect_color" to="cameras/cam_front/image_rect_color" />
+      <remap from="camera/image_corrected" to="cameras/cam_front/image_corrected" />
+    </node>
+  </group>
+</launch>

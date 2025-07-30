@@ -74,6 +74,17 @@ class AlignFrameControllerNode:
     def handle_align_request(
         self, req: AlignFrameController
     ) -> AlignFrameControllerResponse:
+        # Check if the transform exists before starting
+        if not self.tf_buffer.can_transform(
+            req.source_frame, req.target_frame, rospy.Time.now(), rospy.Duration(1.0)
+        ):
+            rospy.logwarn(
+                f"Align request aborted: Transform from '{req.target_frame}' to '{req.source_frame}' not available."
+            )
+            return AlignFrameControllerResponse(
+                success=False,
+                message=f"Transform from '{req.target_frame}' to '{req.source_frame}' not available.",
+            )
 
         self.source_frame = req.source_frame
         self.target_frame = req.target_frame
@@ -102,6 +113,7 @@ class AlignFrameControllerNode:
         return AlignFrameControllerResponse(success=True, message="Alignment started")
 
     def handle_cancel_request(self, req) -> TriggerResponse:
+        self.cmd_vel_pub.publish(Twist())
         rospy.sleep(1.0)  # Allow time for the command to be processed
         self.active = False
         rospy.loginfo("Control canceled")
@@ -113,8 +125,10 @@ class AlignFrameControllerNode:
         source_frame: str,
         target_frame: str,
         angle_offset: float,
-        time: rospy.Time = rospy.Time(0),
+        time: Optional[rospy.Time] = None,
     ) -> Tuple[Optional[Tuple[float, float, float]], Optional[float]]:
+        if time is None:
+            time = rospy.Time.now()
         try:
             transform = self.tf_buffer.lookup_transform(
                 source_frame, target_frame, time, rospy.Duration(2.0)
