@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise"/>
+  <arg name="namespace" default="taluy"/>
   <arg name="compressed" default="true"/>
   <arg name="verbose" default="false"/>
   <arg name="pub_camera_info" default="true"/>
