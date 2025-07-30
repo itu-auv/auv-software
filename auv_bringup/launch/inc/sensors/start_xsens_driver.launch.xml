@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise"/>
+  <arg name="namespace" default="taluy"/>
   <arg name="control_rate" default="20.0"/>
   <arg name="imu_topic" default="data"/>
   <arg name="port" default="/dev/ttyUSB0"/>
