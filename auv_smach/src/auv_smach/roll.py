@@ -12,6 +12,7 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     ClearObjectMapState,
+    AlignFrame,
 )
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
@@ -392,6 +393,166 @@ class TwoRollState(smach.StateMachine):
                 ClearObjectMapState(),
                 transitions={
                     "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+
+class TwoYawState(smach.StateMachine):
+    def __init__(self, yaw_frame):
+        smach.StateMachine.__init__(
+            self, outcomes=["succeeded", "preempted", "aborted"]
+        )
+        self.yaw_frame = yaw_frame
+
+        with self:
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_NONE_DURING_YAW",
+                SetDetectionFocusState(focus_object="none"),
+                transitions={
+                    "succeeded": "YAW_120_DEGREES",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_120_DEGREES",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.yaw_frame,
+                    angle_offset=2 * math.pi / 3,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "YAW_240_DEGREES",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_240_DEGREES",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.yaw_frame,
+                    angle_offset=4 * math.pi / 3,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "YAW_360_DEGREES",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_360_DEGREES",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.yaw_frame,
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "YAW_120_DEGREES_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_120_DEGREES_2",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.yaw_frame,
+                    angle_offset=2 * math.pi / 3,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "YAW_240_DEGREES_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_240_DEGREES_2",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.yaw_frame,
+                    angle_offset=4 * math.pi / 3,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "YAW_360_DEGREES_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_360_DEGREES_2",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=self.yaw_frame,
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_BEFORE_RESET_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_BEFORE_RESET_POSE",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSE_AFTER_YAW",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSE_AFTER_YAW",
+                ResetOdometryState(),
+                transitions={
+                    "succeeded": "DELAY_AFTER_RESET_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_AFTER_RESET_POSE",
+                DelayState(delay_time=2.0),
+                transitions={
+                    "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
