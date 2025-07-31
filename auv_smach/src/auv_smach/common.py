@@ -933,6 +933,7 @@ class AlignFrame(smach.StateMachine):
         max_linear_velocity=None,
         max_angular_velocity=None,
         heading_control=True,
+        enable_heading_control_afterwards=True,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
@@ -945,18 +946,21 @@ class AlignFrame(smach.StateMachine):
             cancel_on_preempt_succeeded_transition = "preempted"
 
             if not heading_control:  # If heading control will not be used
-                watch_succeeded_transition = (
-                    "CANCEL_ALIGNMENT_ON_SUCCESS"
-                    if cancel_on_success
-                    else "ENABLE_HEADING_CONTROL_ON_SUCCESS"
-                )
-                cancel_on_success_succeeded_transition = (
-                    "ENABLE_HEADING_CONTROL_ON_SUCCESS"
-                )
-                cancel_on_fail_succeeded_transition = "ENABLE_HEADING_CONTROL_ON_FAIL"
-                cancel_on_preempt_succeeded_transition = (
-                    "ENABLE_HEADING_CONTROL_ON_PREEMPT"
-                )
+                if enable_heading_control_afterwards:
+                    watch_succeeded_transition = (
+                        "CANCEL_ALIGNMENT_ON_SUCCESS"
+                        if cancel_on_success
+                        else "ENABLE_HEADING_CONTROL_ON_SUCCESS"
+                    )
+                    cancel_on_success_succeeded_transition = (
+                        "ENABLE_HEADING_CONTROL_ON_SUCCESS"
+                    )
+                    cancel_on_fail_succeeded_transition = (
+                        "ENABLE_HEADING_CONTROL_ON_FAIL"
+                    )
+                    cancel_on_preempt_succeeded_transition = (
+                        "ENABLE_HEADING_CONTROL_ON_PREEMPT"
+                    )
 
                 smach.StateMachine.add(
                     "DISABLE_HEADING_CONTROL",
@@ -1034,7 +1038,7 @@ class AlignFrame(smach.StateMachine):
                 },
             )
 
-            if not heading_control:
+            if not heading_control and enable_heading_control_afterwards:
                 smach.StateMachine.add(
                     "ENABLE_HEADING_CONTROL_ON_SUCCESS",
                     SetHeadingControlState(enable=True),
