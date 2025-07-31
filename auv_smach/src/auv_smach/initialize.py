@@ -13,7 +13,7 @@ from auv_smach.common import (
 )
 from typing import Optional, Literal
 from dataclasses import dataclass
-from auv_smach.common import SetDetectionFocusState
+from auv_smach.common import SetDetectionFocusState, SetDetectionState
 
 
 class ResetOdometryState(smach_ros.ServiceState):
@@ -154,6 +154,15 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "ODOMETRY_ENABLE",
                 OdometryEnableState(),
+                transitions={
+                    "succeeded": "DISABLE_BOTTOM_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_BOTTOM_DETECTION",
+                SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
                     "succeeded": "SET_DETECTION_TO_NONE",
                     "preempted": "preempted",
