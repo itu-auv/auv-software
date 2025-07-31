@@ -297,7 +297,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "PITCH_CORRECTION",
-                PitchCorrection(fixed_torque=3.0, rate_hz=20, timeout_s=10.0),
+                PitchCorrection(fixed_torque=3.0, rate_hz=20, timeout_s=3.0),
                 transitions={
                     "succeeded": "ROLL_TWO_TIMES",
                     "preempted": "preempted",
@@ -306,7 +306,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ROLL_TWO_TIMES",
-                RollTwoTimes(roll_torque=self.roll_torque, rate_hz=20, timeout_s=3.0),
+                RollTwoTimes(roll_torque=self.roll_torque, rate_hz=20, timeout_s=15.0),
                 transitions={
                     "succeeded": "WAIT_FOR_STABILIZATION",
                     "preempted": "preempted",
