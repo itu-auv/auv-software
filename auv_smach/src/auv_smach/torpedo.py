@@ -222,6 +222,7 @@ class TorpedoTaskState(smach.State):
                     timeout=30.0,
                     cancel_on_success=False,
                     heading_control=False,
+                    enable_heading_control_afterwards=False,
                 ),
                 transitions={
                     "succeeded": "SET_TORPEDO_HOLES_DETECTION",
@@ -315,7 +316,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=self.torpedo_fire_frames[0],
-                    angle_offset=-math.pi / 2,
+                    angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=10.0,
@@ -324,6 +325,7 @@ class TorpedoTaskState(smach.State):
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     heading_control=False,
+                    enable_heading_control_afterwards=False,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
@@ -367,7 +369,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[1],
-                    angle_offset=-math.pi / 2,
+                    angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=10.0,
@@ -376,6 +378,7 @@ class TorpedoTaskState(smach.State):
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     heading_control=False,
+                    enable_heading_control_afterwards=False,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",
@@ -412,6 +415,8 @@ class TorpedoTaskState(smach.State):
                     confirm_duration=0.0,
                     timeout=10.0,
                     cancel_on_success=False,
+                    heading_control=False,
+                    enable_heading_control_afterwards=True,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",

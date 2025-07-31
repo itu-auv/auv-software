@@ -407,42 +407,12 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_BIN_WHOLE",
                 DynamicPathState(
-                    plan_target_frame="bin_whole_link",
+                    plan_target_frame="bin_whole_estimated",
                 ),
                 transitions={
-                    "succeeded": "ALIGN_TO_BIN_WHOLE",
+                    "succeeded": "ALIGN_TO_BIN_ESTIMATED",
                     "preempted": "preempted",
                     "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_BIN_WHOLE",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="bin_whole_link",
-                    angle_offset=0.0,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=1.0,
-                    timeout=60.0,
-                    cancel_on_success=False,
-                    keep_orientation=True,
-                ),
-                transitions={
-                    "succeeded": "CHECK_DROP_AREA_AFTER_BIN_ALIGNMENT",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CHECK_DROP_AREA_AFTER_BIN_ALIGNMENT",
-                CheckForDropAreaState(
-                    source_frame="odom", timeout=1.0, target_selection=target_selection
-                ),
-                transitions={
-                    "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
-                    "preempted": "preempted",
-                    "aborted": "ALIGN_TO_BIN_ESTIMATED",
                 },
             )
             smach.StateMachine.add(
@@ -511,7 +481,7 @@ class BinTaskState(smach.State):
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
                     confirm_duration=2.0,
-                    timeout=45.0,
+                    timeout=15.0,
                     cancel_on_success=False,
                     keep_orientation=True,
                 ),
@@ -537,7 +507,7 @@ class BinTaskState(smach.State):
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
                     confirm_duration=7.0,
-                    timeout=45.0,
+                    timeout=20.0,
                     cancel_on_success=False,
                     keep_orientation=True,
                 ),

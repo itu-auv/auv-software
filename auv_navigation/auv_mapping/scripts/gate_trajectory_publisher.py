@@ -441,13 +441,30 @@ class TransformServiceNode:
         if length < self.MIN_GATE_SEPARATION_THRESHOLD:
             raise ValueError("The gate links are too close to each other.")
 
+        # Get robot's current position
+        try:
+            robot_transform = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.robot_base_frame,
+                rospy.Time(0),
+                rospy.Duration(0.5),
+            )
+            robot_pos = robot_transform.transform.translation
+        except tf2_ros.TransformException as e:
+            rospy.logwarn(
+                f"Could not get robot transform for entrance/exit calculation: {e}"
+            )
+            raise ValueError(
+                "Failed to get robot position for entrance/exit calculation"
+            )
+
         unit_perpendicular_x = -dy / length
         unit_perpendicular_y = dx / length
-        odom_dx = 0.0 - selected_gate_link_translation[0]
-        odom_dy = 0.0 - selected_gate_link_translation[1]
+        robot_dx = robot_pos.x - selected_gate_link_translation[0]
+        robot_dy = robot_pos.y - selected_gate_link_translation[1]
 
-        # Dot product to determine which side of perpendicular line the odom origin is on
-        dot_product = odom_dx * unit_perpendicular_x + odom_dy * unit_perpendicular_y
+        # Dot product to determine which side of perpendicular line the robot is on
+        dot_product = robot_dx * unit_perpendicular_x + robot_dy * unit_perpendicular_y
 
         entrance_direction = 1.0 if dot_product > 0 else -1.0
         exit_direction = -1.0 * entrance_direction

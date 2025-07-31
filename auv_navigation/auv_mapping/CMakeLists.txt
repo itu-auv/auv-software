@@ -47,6 +47,7 @@ endif()
 generate_dynamic_reconfigure_options(
   cfg/SlalomTrajectory.cfg
   cfg/GateTrajectory.cfg
+  cfg/TorpedoTrajectory.cfg
 )
 
 catkin_package(
