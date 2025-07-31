@@ -7,14 +7,16 @@
   <maintainer email="batuhanozer52@gmail.com">Batuhan Ozer</maintainer>
   <license>BSD-3-Clause</license>
   <build_depend>message_generation</build_depend>
+  <depend>angles</depend>
+  <depend>auv_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
   <depend>rospy</depend>
   <depend>std_msgs</depend>
+  <depend>tf</depend>
   <exec_depend>auv_common_lib</exec_depend>
   <exec_depend>auv_controllers</exec_depend>
-  <exec_depend>auv_msgs</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>message_runtime</exec_depend>
-  <exec_depend>nav_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <buildtool_depend>catkin</buildtool_depend>
 </package>

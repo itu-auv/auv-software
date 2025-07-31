@@ -28,5 +28,11 @@
       <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable" />
       <param name="cmdvel_tau" value="0.2" />
     </node>
+
+    <!-- Euler Orientation Publisher Node -->
+    <node pkg="auv_localization" type="euler_orientation_publisher.py" name="euler_orientation_publisher" output="screen">
+      <remap from="odometry" to="odometry" />
+      <remap from="euler_orientation" to="localization/euler_orientation" />
+    </node>
   </group>
 </launch>
