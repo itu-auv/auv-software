@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10.2)
 project(auv_localization)
 
 find_package(catkin REQUIRED COMPONENTS
+  angles
   auv_msgs
   geometry_msgs
   message_generation
@@ -22,7 +23,7 @@ generate_messages(
 )
 
 catkin_package(
-  CATKIN_DEPENDS auv_msgs geometry_msgs message_runtime nav_msgs std_msgs tf
+  CATKIN_DEPENDS angles auv_msgs geometry_msgs message_runtime nav_msgs std_msgs tf
 )
 
 include_directories(

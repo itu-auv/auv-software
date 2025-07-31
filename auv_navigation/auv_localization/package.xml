@@ -7,6 +7,7 @@
   <maintainer email="batuhanozer52@gmail.com">Batuhan Ozer</maintainer>
   <license>BSD-3-Clause</license>
   <build_depend>message_generation</build_depend>
+  <depend>angles</depend>
   <depend>auv_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
