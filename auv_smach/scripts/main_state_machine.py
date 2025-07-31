@@ -16,6 +16,7 @@ from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
 from auv_bringup.cfg import SmachParametersConfig
+from auv_smach.pipeline import NavigateThroughPipelineState
 
 
 class MainStateMachineNode:
@@ -39,6 +40,7 @@ class MainStateMachineNode:
         self.slalom_exit_angle_deg = 0.0
         self.bin_exit_angle_deg = 0.0
         self.torpedo_exit_angle_deg = 0.0
+        self.pipeline_depth = -0.5
 
         # Get current configuration from server
         try:
@@ -193,6 +195,10 @@ class MainStateMachineNode:
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
                 {"octagon_depth": self.octagon_depth},
+            ),
+            "NAVIGATE_THROUGH_PIPELINE": (
+                NavigateThroughPipelineState,
+                {"pipeline_depth": self.pipeline_depth},
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (
                 NavigateReturnThroughGateState,
