@@ -16,7 +16,7 @@ from auv_smach.common import (
 )
 
 from std_srvs.srv import SetBool, SetBoolRequest
-from auv_smach.roll import TwoRollState
+from auv_smach.roll import TwoRollState, TwoYawState
 from auv_smach.coin_flip import CoinFlipState
 
 
@@ -177,9 +177,7 @@ class NavigateThroughGateState(smach.State):
                 ),
                 transitions={
                     "succeeded": (
-                        "CALIFORNIA_ROLL"
-                        if not self.sim_mode
-                        else "SET_GATE_TRAJECTORY_DEPTH"
+                        "CALIFORNIA_ROLL" if not self.sim_mode else "TWO_YAW_STATE"
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -188,6 +186,15 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "CALIFORNIA_ROLL",
                 TwoRollState(roll_torque=50.0),
+                transitions={
+                    "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TWO_YAW_STATE",
+                TwoYawState(yaw_frame=self.gate_search_frame),
                 transitions={
                     "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
                     "preempted": "preempted",
