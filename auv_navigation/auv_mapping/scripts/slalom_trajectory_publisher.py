@@ -36,7 +36,9 @@ class SlalomTrajectoryPublisher(object):
             )
             self.config_file = rospy.get_param("~config_file", default_path)
         except rospkg.common.ResourceNotFound:
-            rospy.logerr("auv_mapping package not found. Could not set default config file path.")
+            rospy.logerr(
+                "auv_mapping package not found. Could not set default config file path."
+            )
             self.config_file = ""
 
         # Parameters will be loaded by the launch file.
@@ -45,9 +47,15 @@ class SlalomTrajectoryPublisher(object):
         self.gate_dist = rospy.get_param("~gate_to_slalom_entrance_distance", 2.5)
         self.offset2 = rospy.get_param("~second_slalom_offset", 0.5)
         self.offset3 = rospy.get_param("~third_slalom_offset", 0.0)
-        self.vertical_dist = rospy.get_param("~vertical_distance_between_slalom_clusters", 2.0)
-        self.slalom_entrance_backed_distance = rospy.get_param("~slalom_entrance_backed_distance", 2.0)
-        self.exit_distance = 0.5 # This parameter is not part of the dynamic reconfigure config
+        self.vertical_dist = rospy.get_param(
+            "~vertical_distance_between_slalom_clusters", 2.0
+        )
+        self.slalom_entrance_backed_distance = rospy.get_param(
+            "~slalom_entrance_backed_distance", 2.0
+        )
+        self.exit_distance = (
+            0.5  # This parameter is not part of the dynamic reconfigure config
+        )
 
         self.parent_frame = "odom"
         self.gate_exit_frame = "gate_exit"
@@ -57,8 +65,9 @@ class SlalomTrajectoryPublisher(object):
         # Setup dynamic reconfigure server.
         # The server will automatically use the parameters from the ROS Parameter Server
         # for its initial values. The callback will be called only on subsequent changes.
-        self.reconfigure_server = Server(SlalomTrajectoryConfig, self.reconfigure_callback)
-
+        self.reconfigure_server = Server(
+            SlalomTrajectoryConfig, self.reconfigure_callback
+        )
 
         # Initialize TF broadcaster and listener
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
@@ -110,10 +119,10 @@ class SlalomTrajectoryPublisher(object):
         self.offset3 = config.third_slalom_offset
         self.vertical_dist = config.vertical_distance_between_slalom_clusters
         self.slalom_entrance_backed_distance = config.slalom_entrance_backed_distance
-        
+
         # Save the updated parameters to the YAML file
         self.save_parameters()
-        
+
         return config
 
     def smach_params_callback(self, config):
