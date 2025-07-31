@@ -43,7 +43,7 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <node pkg="auv_mapping" type="slalom_trajectory_publisher.py" name="slalom_trajectory_publisher">
+    <node pkg="auv_mapping" type="slalom_trajectory_publisher_2.py" name="slalom_trajectory_publisher_2">
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 

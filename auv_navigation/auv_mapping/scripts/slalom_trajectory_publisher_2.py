@@ -13,28 +13,31 @@ from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 from dynamic_reconfigure.server import Server
 from auv_mapping.cfg import SlalomTrajectoryConfig
+from dynamic_reconfigure.client import Client
 
 
 class SlalomTrajectoryPublisher(object):
     """
     This node publishes four TF frames for slalom waypoints when triggered by a ROS 1 service.
     The frame calculations are based entirely on parameters loaded from the ROS parameter server.
+    Modified version that uses wall_reference_yaw from smach parameters to define forward direction.
     """
 
     def __init__(self):
-        rospy.loginfo("Starting Slalom Trajectory Publisher node...")
+        rospy.loginfo("Starting Slalom Trajectory Publisher 2 node...")
 
         # Initialize parameters with default values
         self.gate_dist = 2.0
         self.offset2 = 1.0
         self.exit_distance = 0.8
         self.offset3 = -1.0
-        self.vertical_dist = 2.0
-        self.slalom_entrance_backed_distance = 2.0
+        self.vertical_dist = 1.5
+        self.slalom_entrance_backed_distance = 1.0
         self.parent_frame = "odom"
         self.gate_exit_frame = "gate_exit"
         self.slalom_white_frame = "white_pipe_link"
         self.slalom_red_frame = "red_pipe_link"
+        self.wall_reference_yaw = 0.0  # Wall reference yaw from smach parameters
 
         # Setup dynamic reconfigure server
         self.reconfigure_server = Server(
@@ -61,18 +64,23 @@ class SlalomTrajectoryPublisher(object):
             None,
             None,
         )
-        self.navigation_mode = "left"  # TODO: connect the parameters later
+        self.navigation_mode = "left"  # Default value
+        self.smach_params_client = Client(
+            "smach_parameters_server",
+            timeout=10,
+            config_callback=self.smach_params_callback,
+        )
 
         # Create a service that will trigger the frame publishing
         self.srv = rospy.Service(
-            "publish_slalom_waypoints", Trigger, self.trigger_callback
+            "publish_slalom_waypoints_2", Trigger, self.trigger_callback
         )
 
         # Create a timer to publish the frames at 4 Hz
         rospy.Timer(rospy.Duration(1.0 / 4.0), self.publish_loop)
 
         rospy.loginfo(
-            "Slalom Trajectory Publisher is ready. Call the 'publish_slalom_waypoints' service."
+            "Slalom Trajectory Publisher 2 is ready. Call the 'publish_slalom_waypoints_2' service."
         )
 
     def reconfigure_callback(self, config, level):
@@ -86,6 +94,18 @@ class SlalomTrajectoryPublisher(object):
         self.vertical_dist = config.vertical_distance_between_slalom_clusters
         self.slalom_entrance_backed_distance = config.slalom_entrance_backed_distance
         return config
+
+    def smach_params_callback(self, config):
+        """
+        Callback for the smach parameters server.
+        """
+        if config is None:
+            rospy.logwarn("Could not get parameters from smach_parameters_server")
+            return
+        self.navigation_mode = config.slalom_direction
+        self.wall_reference_yaw = config.wall_reference_yaw
+        rospy.loginfo(f"Slalom navigation_mode updated to: {self.navigation_mode}")
+        rospy.loginfo(f"Wall reference yaw updated to: {self.wall_reference_yaw}")
 
     def trigger_callback(self, req):
         """
@@ -143,23 +163,20 @@ class SlalomTrajectoryPublisher(object):
             slalom_parallel_vector = slalom_parallel_vector / np.linalg.norm(
                 slalom_parallel_vector
             )
-            # Forward vector is the normal of the vector between pipes
+
+            # Forward vector is defined by wall_reference_yaw + pi/2
+            forward_angle = self.wall_reference_yaw
             forward_vec = np.array(
-                [-slalom_parallel_vector[1], slalom_parallel_vector[0], 0.0]
+                [math.cos(forward_angle), math.sin(forward_angle), 0.0]
             )
-            forward_vec = forward_vec / np.linalg.norm(forward_vec)
 
             # --- Frame Calculation and Publishing ---
 
             # Calculate slalom_waypoint_1 (midpoint of the pipes)
             self.pos_wp1 = (pos_white + pos_red) / 2.0
 
-            # Ensure the forward vector points away from the odom frame origin
-            if np.dot(forward_vec, self.pos_wp1) < 0:
-                forward_vec = -forward_vec
-
             # Angle for orientation
-            slalom_forward_angle = math.atan2(forward_vec[1], forward_vec[0])
+            slalom_forward_angle = forward_angle
             self.q_orientation = tf.transformations.quaternion_from_euler(
                 0.0, 0.0, slalom_forward_angle
             )
@@ -251,11 +268,11 @@ class SlalomTrajectoryPublisher(object):
                     self.q_orientation,
                 )
             )
-
         except Exception as e:
             rospy.logwarn_throttle(
                 8, "Failed to get pipe locations and publish slalom waypoints: %s", e
             )
+
         # Calculate and publish slalom_entrance
         try:
             t_gate_exit = self.tf_buffer.lookup_transform(
@@ -317,38 +334,6 @@ class SlalomTrajectoryPublisher(object):
                 "Failed to get gate exit transform and publish slalom entrance: %s",
                 e,
             )
-        try:
-            if x_axis_in_parent_frame is not None:
-                t_red_candidate = self.tf_buffer.lookup_transform(
-                    self.parent_frame,
-                    "slalom_red_pipe_candidate",
-                    rospy.Time.now(),
-                    rospy.Duration(1.0),
-                )
-                candidate_red_pose = np.array(
-                    [
-                        t_red_candidate.transform.translation.x,
-                        t_red_candidate.transform.translation.y,
-                        t_red_candidate.transform.translation.z,
-                    ]
-                )
-                # Calculate the new position for the slalom_enterance_red frame
-                pos_slalom_enterance_red = (
-                    candidate_red_pose
-                    - x_axis_in_parent_frame * self.slalom_entrance_backed_distance
-                )
-                self.send_transform(
-                    self.build_transform(
-                        "slalom_entrance_red",
-                        self.parent_frame,
-                        pos_slalom_enterance_red,
-                        gate_exit_q,
-                    )
-                )
-        except Exception as e:
-            rospy.logwarn_throttle(
-                8, "Failed to publish slalom_enterance_red waypoint: %s", e
-            )
 
     def build_transform(self, child_frame, parent_frame, pos, q):
         """Helper function to create and broadcast a TransformStamped message."""
@@ -382,7 +367,7 @@ class SlalomTrajectoryPublisher(object):
 
 if __name__ == "__main__":
     try:
-        rospy.init_node("slalom_trajectory_publisher", anonymous=True)
+        rospy.init_node("slalom_trajectory_publisher_2", anonymous=True)
         node = SlalomTrajectoryPublisher()
         rospy.spin()
     except rospy.ROSInterruptException:
