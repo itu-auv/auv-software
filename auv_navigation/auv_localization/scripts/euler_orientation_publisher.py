@@ -5,6 +5,7 @@ This script subscribes to the odometry topic and publishes the Euler orientation
 
 import rospy
 import math
+import angles
 from nav_msgs.msg import Odometry
 from auv_msgs.msg import EulerOrientation
 from tf.transformations import euler_from_quaternion
@@ -36,12 +37,15 @@ class EulerOrientationPublisher:
         # Convert quaternion to Euler angles
         roll, pitch, yaw = euler_from_quaternion(quaternion)
 
+        # Normalize yaw to the range [-pi, pi]
+        yaw_normalized = angles.normalize_angle(yaw)
+
         # Create and populate Euler orientation message
         euler_msg = EulerOrientation()
-        euler_msg.roll = roll
-        euler_msg.pitch = pitch
-        euler_msg.yaw = yaw
-        euler_msg.yaw_degrees = math.degrees(yaw)
+        euler_msg.roll = round(roll, 3)
+        euler_msg.pitch = round(pitch, 3)
+        euler_msg.yaw = round(yaw_normalized, 3)
+        euler_msg.yaw_degrees = round(math.degrees(yaw_normalized), 3)
 
         # Publish the message
         self.euler_pub.publish(euler_msg)
