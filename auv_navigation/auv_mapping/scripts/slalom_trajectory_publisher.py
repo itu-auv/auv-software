@@ -113,7 +113,6 @@ class SlalomTrajectoryPublisher(object):
         The callback function for dynamic reconfigure server.
         This function is called when a parameter is changed in the dynamic_reconfigure GUI.
         """
-        # We don't need to log here, the server already does.
         self.gate_dist = config.gate_to_slalom_entrance_distance
         self.offset2 = config.second_slalom_offset
         self.offset3 = config.third_slalom_offset
