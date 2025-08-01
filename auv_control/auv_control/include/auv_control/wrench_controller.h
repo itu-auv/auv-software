@@ -1,5 +1,6 @@
 #pragma once
 
+#include <angles/angles.h>
 #include <dynamic_reconfigure/server.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Wrench.h>
@@ -42,6 +43,7 @@ class WrenchController {
       prev_error_ = 0.0;
     }
     double control(double current, double desired, double dt);
+    double controlFromError(double error, double dt);
     void setGains(double p, double i, double d) {
       kp_ = p;
       ki_ = i;

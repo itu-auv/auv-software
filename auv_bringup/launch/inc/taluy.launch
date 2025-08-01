@@ -7,7 +7,7 @@
   <arg name="enable_logging" default="true" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
 
-      <!-- launch xsens driver -->
+    <!-- launch xsens driver -->
     <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
       <arg name="namespace" value="$(arg namespace)" />
       <arg name="control_rate" value="$(arg control_rate)" />

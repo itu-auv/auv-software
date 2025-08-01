@@ -92,6 +92,13 @@ double WrenchController::PID::control(double current, double desired,
   return kp_ * error + ki_ * integral_ + kd_ * derivative;
 }
 
+double WrenchController::PID::controlFromError(double error, double dt) {
+  integral_ += error * dt;
+  double derivative = (error - prev_error_) / dt;
+  prev_error_ = error;
+  return kp_ * error + ki_ * integral_ + kd_ * derivative;
+}
+
 void WrenchController::spin() {
   while (ros::ok()) {
     ros::spinOnce();
@@ -103,8 +110,11 @@ void WrenchController::spin() {
                                              rate_.expectedCycleTime().toSec());
       double pitch_torque = pitch_pid_.control(
           current_pitch_, desired_pitch_, rate_.expectedCycleTime().toSec());
-      double yaw_torque = yaw_pid_.control(current_yaw_, desired_yaw_,
-                                           rate_.expectedCycleTime().toSec());
+
+      double yaw_error =
+          angles::shortest_angular_distance(current_yaw_, desired_yaw_);
+      double yaw_torque = yaw_pid_.controlFromError(
+          yaw_error, rate_.expectedCycleTime().toSec());
 
       geometry_msgs::WrenchStamped wrench_msg;
       wrench_msg.header.stamp = ros::Time::now();

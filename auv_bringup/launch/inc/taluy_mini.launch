@@ -15,6 +15,13 @@
       <arg name="virtual_port" value="$(arg dvl_virtual_port)" />
     </include>
 
+      <!-- launch xsens driver -->
+    <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
+      <arg name="namespace" value="$(arg namespace)" />
+      <arg name="control_rate" value="$(arg control_rate)" />
+      <arg name="port" value="/dev/auv_imu" />
+    </include>
+
     <!-- launch modem serial bridge -->
     <!-- <include file="$(find auv_bringup)/launch/inc/boards/start_modem_serial_bridge.launch.xml">
       <arg name="namespace" value="$(arg namespace)" />
