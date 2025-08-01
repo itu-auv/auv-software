@@ -33,11 +33,11 @@ class TransformServiceNode:
         self.gate_frame_2 = "gate_sawfish_link"
         self.target_gate_frame = "gate_shark_link"
         self.entrance_offset = 1.0
-        self.exit_offset = 1.4
+        self.exit_offset = 1.0
         self.z_offset = 0.5
-        self.parallel_shift_offset = 0.15
-        self.rescuer_distance = 1.5
-        self.wall_reference_yaw = -2.5
+        self.parallel_shift_offset = 0.20
+        self.rescuer_distance = 1.0
+        self.wall_reference_yaw = 0.0
         self.reconfigure_server = Server(
             GateTrajectoryConfig, self.reconfigure_callback
         )
@@ -86,13 +86,10 @@ class TransformServiceNode:
         self.fallback_exit_offset = rospy.get_param("~fallback_exit_offset", 1.0)
         self.MIN_GATE_SEPARATION = rospy.get_param("~min_gate_separation", 0.2)
         self.MAX_GATE_SEPARATION = rospy.get_param("~max_gate_separation", 2.5)
-        self.MIN_GATE_SEPARATION_THRESHOLD = 0.15  # For internal checks
+        self.MIN_GATE_SEPARATION_THRESHOLD = 0.3
 
         self.odom_sub = rospy.Subscriber("odometry", Odometry, self.odom_callback)
         self.latest_odom = None
-
-        # Threshold for gate link separation
-        self.MIN_GATE_SEPARATION_THRESHOLD = 0.15
 
         self.coin_flip_enabled = False
         self.coin_flip_rescuer_pose = None
@@ -444,13 +441,30 @@ class TransformServiceNode:
         if length < self.MIN_GATE_SEPARATION_THRESHOLD:
             raise ValueError("The gate links are too close to each other.")
 
+        # Get robot's current position
+        try:
+            robot_transform = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.robot_base_frame,
+                rospy.Time(0),
+                rospy.Duration(0.5),
+            )
+            robot_pos = robot_transform.transform.translation
+        except tf2_ros.TransformException as e:
+            rospy.logwarn(
+                f"Could not get robot transform for entrance/exit calculation: {e}"
+            )
+            raise ValueError(
+                "Failed to get robot position for entrance/exit calculation"
+            )
+
         unit_perpendicular_x = -dy / length
         unit_perpendicular_y = dx / length
-        odom_dx = 0.0 - selected_gate_link_translation[0]
-        odom_dy = 0.0 - selected_gate_link_translation[1]
+        robot_dx = robot_pos.x - selected_gate_link_translation[0]
+        robot_dy = robot_pos.y - selected_gate_link_translation[1]
 
-        # Dot product to determine which side of perpendicular line the odom origin is on
-        dot_product = odom_dx * unit_perpendicular_x + odom_dy * unit_perpendicular_y
+        # Dot product to determine which side of perpendicular line the robot is on
+        dot_product = robot_dx * unit_perpendicular_x + robot_dy * unit_perpendicular_y
 
         entrance_direction = 1.0 if dot_product > 0 else -1.0
         exit_direction = -1.0 * entrance_direction

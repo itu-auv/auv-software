@@ -158,7 +158,8 @@ class CameraDetectionNode:
         self.object_id_map = {
             "gate": [0, 1],
             "pipe": [2, 3],
-            "torpedo": [4, 5],
+            "torpedo": [4],
+            "torpedo_holes": [5],
             "bin": [6],
             "octagon": [7],
             "all": [0, 1, 2, 3, 4, 5, 6, 7],
@@ -583,12 +584,16 @@ class CameraDetectionNode:
                 break
 
         torpedo_ids = set(self.object_id_map.get("torpedo", []))
+        torpedo_holes_ids = set(self.object_id_map.get("torpedo_holes", []))
         process_torpedo = True
+        process_torpedo_holes = True
         if camera_source == "front_camera":
             if not torpedo_ids.intersection(self.active_front_camera_ids):
                 process_torpedo = False
+            if not torpedo_holes_ids.intersection(self.active_front_camera_ids):
+                process_torpedo_holes = False
 
-        if torpedo_map_bbox and process_torpedo:
+        if torpedo_map_bbox and process_torpedo and process_torpedo_holes:
             self.process_torpedo_holes_on_map(
                 detection_msg, camera_ns, torpedo_map_bbox
             )

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-  <arg name="namespace" default="turquoise" />
+  <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
@@ -32,4 +32,7 @@
     <arg name="namespace" value="$(arg namespace)" />
   </include>
 
+  <include file="$(find auv_vision)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
 </launch>

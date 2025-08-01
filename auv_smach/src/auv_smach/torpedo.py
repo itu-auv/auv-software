@@ -77,16 +77,16 @@ class TorpedoTaskState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
-                "ENABLE_FRONT_CAMERA",
+                "ENABLE_FRONT_CAMERA_FOCUS",
                 SetDetectionState(camera_name="front", enable=True),
                 transitions={
-                    "succeeded": "SET_CAMERA_FOCUS",
+                    "succeeded": "FOCUS_ON_TORPEDO",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_CAMERA_FOCUS",
+                "FOCUS_ON_TORPEDO",
                 SetDetectionFocusState(focus_object="torpedo"),
                 transitions={
                     "succeeded": "ENABLE_TORPEDO_FRAME_PUBLISHER",
@@ -98,22 +98,22 @@ class TorpedoTaskState(smach.State):
                 "ENABLE_TORPEDO_FRAME_PUBLISHER",
                 TorpedoTargetFramePublisherServiceState(req=True),
                 transitions={
-                    "succeeded": "SET_TORPEDO_DEPTH",
+                    "succeeded": "SET_TORPEDO_MAP_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_TORPEDO_DEPTH",
+                "SET_TORPEDO_MAP_DEPTH",
                 SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
                 transitions={
-                    "succeeded": "FIND_AND_AIM_TORPEDO",
+                    "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FIND_AND_AIM_TORPEDO",
+                "FIND_AND_AIM_TORPEDO_MAP",
                 SearchForPropState(
                     look_at_frame="torpedo_map_link",
                     alignment_frame="torpedo_map_travel_start",
@@ -123,24 +123,24 @@ class TorpedoTaskState(smach.State):
                     rotation_speed=0.3,
                 ),
                 transitions={
-                    "succeeded": "PATH_TO_TORPEDO_TARGET",
+                    "succeeded": "PATH_TO_TORPEDO_CLOSE_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "PATH_TO_TORPEDO_TARGET",
+                "PATH_TO_TORPEDO_CLOSE_APPROACH",
                 DynamicPathState(
                     plan_target_frame=torpedo_target_frame,
                 ),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
+                    "succeeded": "ALIGN_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET_TO_TORPEDO_TARGET",
+                "ALIGN_TO_CLOSE_APPROACH",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_target_frame,
@@ -187,13 +187,13 @@ class TorpedoTaskState(smach.State):
                 "ENABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
                 TorpedoRealsenseTargetFramePublisherServiceState(req=True),
                 transitions={
-                    "succeeded": "WAIT_FOR_FRAME",
+                    "succeeded": "WAIT_FOR_REALSENSE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_FRAME",
+                "WAIT_FOR_REALSENSE",
                 DelayState(delay_time=10.0),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
@@ -205,13 +205,13 @@ class TorpedoTaskState(smach.State):
                 "DISABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
                 TorpedoRealsenseTargetFramePublisherServiceState(req=False),
                 transitions={
-                    "succeeded": "TURN_TO_LAUNCH_TORPEDO",
+                    "succeeded": "ALIGN_TO_ORIENTED_TORPEDO_MAP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "TURN_TO_LAUNCH_TORPEDO",
+                "ALIGN_TO_ORIENTED_TORPEDO_MAP",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_realsense_target_frame,
@@ -222,31 +222,42 @@ class TorpedoTaskState(smach.State):
                     timeout=30.0,
                     cancel_on_success=False,
                     heading_control=False,
+                    enable_heading_control_afterwards=False,
                 ),
                 transitions={
-                    "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
+                    "succeeded": "SET_TORPEDO_HOLES_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FIND_AND_AIM_TORPEDO_MAP",
+                "SET_TORPEDO_HOLES_DETECTION",
+                SetDetectionFocusState(focus_object="torpedo,torpedo_holes"),
+                transitions={
+                    "succeeded": "LOOK_AT_TORPEDO_MAP_CENTER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_AT_TORPEDO_MAP_CENTER",
                 SearchForPropState(
                     look_at_frame="torpedo_map_link",
                     alignment_frame="torpedo_map_lookup",
                     full_rotation=False,
-                    set_frame_duration=1.0,
+                    set_frame_duration=3.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.1,
+                    max_angular_velocity=0.1,
                 ),
                 transitions={
-                    "succeeded": "ALIGN_TO_LOOKUP",
+                    "succeeded": "ALIGN_TO_TORPEDO_MAP_LOOKUP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_TO_LOOKUP",
+                "ALIGN_TO_TORPEDO_MAP_LOOKUP",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="torpedo_map_lookup",
@@ -290,7 +301,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_1",
                 SetDepthState(
-                    depth=-0.1,
+                    depth=-0.05,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[0],
                 ),
@@ -305,7 +316,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=self.torpedo_fire_frames[0],
-                    angle_offset=-math.pi / 2,
+                    angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=10.0,
@@ -314,6 +325,7 @@ class TorpedoTaskState(smach.State):
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     heading_control=False,
+                    enable_heading_control_afterwards=False,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
@@ -342,7 +354,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_2",
                 SetDepthState(
-                    depth=-0.1,
+                    depth=-0.03,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[1],
                 ),
@@ -357,7 +369,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[1],
-                    angle_offset=-math.pi / 2,
+                    angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=10.0,
@@ -366,6 +378,7 @@ class TorpedoTaskState(smach.State):
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     heading_control=False,
+                    enable_heading_control_afterwards=False,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",
@@ -386,13 +399,13 @@ class TorpedoTaskState(smach.State):
                 "WAIT_FOR_TORPEDO_2_LAUNCH",
                 DelayState(delay_time=3.0),
                 transitions={
-                    "succeeded": "GET_BACK",
+                    "succeeded": "ALIGN_TO_TORPEDO_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "GET_BACK",
+                "ALIGN_TO_TORPEDO_EXIT",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=torpedo_realsense_target_frame,
@@ -402,6 +415,8 @@ class TorpedoTaskState(smach.State):
                     confirm_duration=0.0,
                     timeout=10.0,
                     cancel_on_success=False,
+                    heading_control=False,
+                    enable_heading_control_afterwards=True,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",

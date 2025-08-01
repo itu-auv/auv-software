@@ -61,10 +61,18 @@
     <arg name="config_file" value="$(find auv_control)/config/default.yaml" />
   </include>
 
+  <!-- launch logging -->
   <group if="$(arg enable_logging)">
       <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
           <arg name="namespace" value="$(arg namespace)" />
           <arg name="logging_directory" value="$(arg logging_directory)" />
       </include>
   </group>
+
+  <!-- Smach Monitor Node -->
+  <node name="smach_monitor_node" pkg="auv_smach" type="smach_monitor_node.py" output="screen" ns="$(arg namespace)">
+      <remap from="vision/set_front_camera_focus" to="vision/set_front_camera_focus"/>
+      <remap from="control/align_frame/cancel" to="control/align_frame/cancel"/>
+      <remap from="set_heading_control" to="set_heading_control"/>
+  </node>
 </launch>
