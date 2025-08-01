@@ -6,6 +6,9 @@ import tf2_ros
 import tf
 import numpy as np
 import math
+import yaml
+import os
+import rospkg
 
 from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import Trigger, TriggerResponse
@@ -25,19 +28,43 @@ class SlalomTrajectoryPublisher(object):
     def __init__(self):
         rospy.loginfo("Starting Slalom Trajectory Publisher node...")
 
-        # Initialize parameters with default values
-        self.gate_dist = 2.0
-        self.offset2 = 1.0
-        self.exit_distance = 0.8
-        self.offset3 = -1.0
-        self.vertical_dist = 2.0
-        self.slalom_entrance_backed_distance = 2.0
+        # Get config file path from parameter server
+        try:
+            rospack = rospkg.RosPack()
+            default_path = os.path.join(
+                rospack.get_path("auv_mapping"), "config", "slalom.yaml"
+            )
+            self.config_file = rospy.get_param("~config_file", default_path)
+        except rospkg.common.ResourceNotFound:
+            rospy.logerr(
+                "auv_mapping package not found. Could not set default config file path."
+            )
+            self.config_file = ""
+
+        # Parameters will be loaded by the launch file.
+        # We read them here using rospy.get_param.
+        # The default values in the get_param calls serve as fallbacks.
+        self.gate_dist = rospy.get_param("~gate_to_slalom_entrance_distance", 2.5)
+        self.offset2 = rospy.get_param("~second_slalom_offset", 0.5)
+        self.offset3 = rospy.get_param("~third_slalom_offset", 0.0)
+        self.vertical_dist = rospy.get_param(
+            "~vertical_distance_between_slalom_clusters", 2.0
+        )
+        self.slalom_entrance_backed_distance = rospy.get_param(
+            "~slalom_entrance_backed_distance", 2.0
+        )
+        self.exit_distance = (
+            0.5  # This parameter is not part of the dynamic reconfigure config
+        )
+
         self.parent_frame = "odom"
         self.gate_exit_frame = "gate_exit"
         self.slalom_white_frame = "white_pipe_link"
         self.slalom_red_frame = "red_pipe_link"
 
-        # Setup dynamic reconfigure server
+        # Setup dynamic reconfigure server.
+        # The server will automatically use the parameters from the ROS Parameter Server
+        # for its initial values. The callback will be called only on subsequent changes.
         self.reconfigure_server = Server(
             SlalomTrajectoryConfig, self.reconfigure_callback
         )
@@ -84,13 +111,17 @@ class SlalomTrajectoryPublisher(object):
     def reconfigure_callback(self, config, level):
         """
         The callback function for dynamic reconfigure server.
+        This function is called when a parameter is changed in the dynamic_reconfigure GUI.
         """
-        rospy.loginfo("Updating slalom trajectory parameters...")
         self.gate_dist = config.gate_to_slalom_entrance_distance
         self.offset2 = config.second_slalom_offset
         self.offset3 = config.third_slalom_offset
         self.vertical_dist = config.vertical_distance_between_slalom_clusters
         self.slalom_entrance_backed_distance = config.slalom_entrance_backed_distance
+
+        # Save the updated parameters to the YAML file
+        self.save_parameters()
+
         return config
 
     def smach_params_callback(self, config):
@@ -362,6 +393,22 @@ class SlalomTrajectoryPublisher(object):
             rospy.logerr(
                 f"Failed to set transform for {transform.child_frame_id}: {response.message}"
             )
+
+    def save_parameters(self):
+        """Save parameters to the YAML file."""
+        params = {
+            "gate_to_slalom_entrance_distance": self.gate_dist,
+            "second_slalom_offset": self.offset2,
+            "third_slalom_offset": self.offset3,
+            "vertical_distance_between_slalom_clusters": self.vertical_dist,
+            "slalom_entrance_backed_distance": self.slalom_entrance_backed_distance,
+        }
+        try:
+            with open(self.config_file, "w") as f:
+                yaml.dump(params, f, default_flow_style=False)
+            rospy.loginfo(f"Parameters saved to {self.config_file}")
+        except IOError as e:
+            rospy.logerr(f"Failed to save parameters to {self.config_file}: {e}")
 
 
 if __name__ == "__main__":

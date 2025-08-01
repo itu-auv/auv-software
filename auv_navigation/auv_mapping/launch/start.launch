@@ -43,8 +43,10 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <node pkg="auv_mapping" type="slalom_trajectory_publisher.py" name="slalom_trajectory_publisher">
+    <node pkg="auv_mapping" type="slalom_trajectory_publisher.py" name="slalom_trajectory_publisher" output="screen">
+      <rosparam command="load" file="$(find auv_mapping)/config/slalom.yaml" />
       <remap from="set_object_transform" to="map/set_object_transform" />
+      <param name="config_file" value="$(find auv_mapping)/config/slalom.yaml" />
     </node>
 
     <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen">
