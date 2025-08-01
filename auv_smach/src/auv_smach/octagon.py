@@ -120,19 +120,17 @@ class OctagonTaskState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "ENABLE_BOTTOM_DETECTION",
-                SetDetectionState(camera_name="bottom", enable=True),
+                "ENABLE_OCTAGON_FRAME_PUBLISHER",
+                OctagonFramePublisherServiceState(req=False),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_OCTAGON_WHOLE",
+                    "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_OCTAGON_WHOLE",
-                DynamicPathState(
-                    plan_target_frame="octagon_link",
-                ),
+                "ENABLE_BOTTOM_DETECTION",
+                SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
                     "succeeded": "GO_TO_OCTAGON_LINK",
                     "preempted": "preempted",
