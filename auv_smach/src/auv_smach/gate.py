@@ -97,7 +97,8 @@ class NavigateThroughGateState(smach.State):
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.sim_mode = rospy.get_param("~sim", False)
+        self.roll = rospy.get_param("~roll", True)
+        self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip = rospy.get_param("~coin_flip", False)
         self.gate_look_at_frame = "gate_middle_part"
         self.gate_search_frame = "gate_search"
@@ -177,7 +178,11 @@ class NavigateThroughGateState(smach.State):
                 ),
                 transitions={
                     "succeeded": (
-                        "CALIFORNIA_ROLL" if not self.sim_mode else "TWO_YAW_STATE"
+                        "CALIFORNIA_ROLL"
+                        if self.roll
+                        else (
+                            "TWO_YAW_STATE" if self.yaw else "SET_GATE_TRAJECTORY_DEPTH"
+                        )
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
