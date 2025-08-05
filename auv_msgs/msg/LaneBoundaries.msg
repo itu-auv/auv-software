@@ -1,4 +1,4 @@
-# Represents the two lane boundaries
+# Represents the two lane boundaries as vectors
 
 std_msgs/Header header
 
