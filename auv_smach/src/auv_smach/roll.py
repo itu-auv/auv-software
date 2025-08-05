@@ -550,7 +550,25 @@ class TwoYawState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "DELAY_AFTER_RESET_POSE",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "CLEAR_OBJECT_MAP_AFTER_YAW",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_OBJECT_MAP_AFTER_YAW",
+                ClearObjectMapState(),
+                transitions={
+                    "succeeded": "SET_DETECTION_FOCUS_GATE_AFTER_YAW",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_GATE_AFTER_YAW",
+                SetDetectionFocusState(focus_object="gate"),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
