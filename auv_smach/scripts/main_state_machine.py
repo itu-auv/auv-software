@@ -3,35 +3,83 @@
 import rospy
 import smach
 import auv_smach
+import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
+from auv_smach.slalom import NavigateThroughSlalomState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
+from auv_smach.return_home import NavigateReturnThroughGateState
 from std_msgs.msg import Bool
 import threading
+from dynamic_reconfigure.client import Client
+from auv_bringup.cfg import SmachParametersConfig
 
 
 class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
 
-        # USER EDIT
-        self.gate_depth = -1.5
+        # Initialize dynamic reconfigure client
+        self.dynamic_reconfigure_client = Client(
+            "smach_parameters_server",
+            timeout=10,
+            config_callback=self.dynamic_reconfigure_callback,
+        )
+
+        self.return_home_station = "bin_whole_link"
+
+        # Get initial values from dynamic reconfigure
+        self.selected_animal = "sawfish"
+
+        # Exit angles in degrees (will be converted to radians)
+        self.gate_exit_angle_deg = 0.0
+        self.slalom_exit_angle_deg = 0.0
+        self.bin_exit_angle_deg = 0.0
+        self.torpedo_exit_angle_deg = 0.0
+
+        # Get current configuration from server
+        try:
+            current_config = self.dynamic_reconfigure_client.get_configuration()
+            if current_config:
+                self.selected_animal = current_config.get("selected_animal", "sawfish")
+                self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
+                self.slalom_exit_angle_deg = current_config.get(
+                    "slalom_exit_angle", 0.0
+                )
+                self.bin_exit_angle_deg = current_config.get("bin_exit_angle", 0.0)
+                self.torpedo_exit_angle_deg = current_config.get(
+                    "torpedo_exit_angle", 0.0
+                )
+                rospy.loginfo(
+                    f"Loaded current config: selected_animal={self.selected_animal}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
+                )
+        except Exception as e:
+            rospy.logwarn(f"Could not get current configuration: {e}")
+            rospy.loginfo("Using default values")
+
         self.gate_search_depth = -0.7
-        self.target_gate_link = "gate_blue_arrow_link"
+        self.gate_depth = -1.35
+        self.roll_depth = -0.8
+
+        self.slalom_depth = -1.3
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
 
-        self.torpedo_map_radius = 1.5
-        self.torpedo_map_depth = -1.3
+        self.torpedo_map_depth = -1.25
+        self.torpedo_target_frame = "torpedo_target"
+        self.torpedo_realsense_target_frame = "torpedo_target_realsense"
+        self.torpedo_fire_frame = "torpedo_fire_frame"
+        self.torpedo_shark_fire_frame = "torpedo_shark_fire_frame"
+        self.torpedo_sawfish_fire_frame = "torpedo_sawfish_fire_frame"
 
-        self.bin_task_depth = -0.7
+        self.bin_front_look_depth = -0.9
+        self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -1.0
-        # USER EDIT
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -55,18 +103,55 @@ class MainStateMachineNode:
         else:
             self.state_list = rospy.get_param("~full_mission_states")
 
-        # automatically select other params
-        mission_selection_map = {
-            "gate_red_arrow_link": {"red_buoy": "cw"},
-            "gate_blue_arrow_link": {"red_buoy": "ccw"},
-        }
-        self.red_buoy_direction = mission_selection_map[self.target_gate_link][
-            "red_buoy"
-        ]
         # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
 
+    def dynamic_reconfigure_callback(self, config):
+        """
+        Dynamic reconfigure callback for updating mission parameters
+        """
+        if config is None:
+            rospy.logwarn("Could not get parameters from server")
+            return
+
+        rospy.loginfo(
+            "Received reconfigure request: selected_animal=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            config.selected_animal,
+            config.gate_exit_angle,
+            config.slalom_exit_angle,
+            config.bin_exit_angle,
+            config.torpedo_exit_angle,
+        )
+
+        # Update parameters
+        self.selected_animal = config.selected_animal
+        self.gate_exit_angle_deg = config.gate_exit_angle
+        self.slalom_exit_angle_deg = config.slalom_exit_angle
+        self.bin_exit_angle_deg = config.bin_exit_angle
+        self.torpedo_exit_angle_deg = config.torpedo_exit_angle
+
     def execute_state_machine(self):
+        # Convert degrees to radians
+        gate_exit_angle_rad = math.radians(self.gate_exit_angle_deg)
+        slalom_exit_angle_rad = math.radians(self.slalom_exit_angle_deg)
+        bin_exit_angle_rad = math.radians(self.bin_exit_angle_deg)
+        torpedo_exit_angle_rad = math.radians(self.torpedo_exit_angle_deg)
+
+        rospy.loginfo(
+            f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
+        )
+
+        # Create torpedo fire frames based on selected animal
+        torpedo_fire_frames = (
+            [self.torpedo_shark_fire_frame, self.torpedo_sawfish_fire_frame]
+            if self.selected_animal == "shark"
+            else [self.torpedo_sawfish_fire_frame, self.torpedo_shark_fire_frame]
+        )
+        rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
+        rospy.loginfo(
+            f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
+        )
+
         # Map state names to their corresponding classes and parameters
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
@@ -75,30 +160,43 @@ class MainStateMachineNode:
                 {
                     "gate_depth": self.gate_depth,
                     "gate_search_depth": self.gate_search_depth,
+                    "roll_depth": self.roll_depth,
+                    "gate_exit_angle": gate_exit_angle_rad,
                 },
             ),
-            "NAVIGATE_AROUND_RED_BUOY": (
-                RotateAroundBuoyState,
+            "NAVIGATE_THROUGH_SLALOM": (
+                NavigateThroughSlalomState,
                 {
-                    "radius": self.red_buoy_radius,
-                    "direction": self.red_buoy_direction,
-                    "red_buoy_depth": self.red_buoy_depth,
+                    "slalom_depth": self.slalom_depth,
+                    "slalom_exit_angle": slalom_exit_angle_rad,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,
                 {
-                    "torpedo_map_radius": self.torpedo_map_radius,
                     "torpedo_map_depth": self.torpedo_map_depth,
+                    "torpedo_target_frame": self.torpedo_target_frame,
+                    "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
+                    "torpedo_exit_angle": torpedo_exit_angle_rad,
+                    "torpedo_fire_frames": torpedo_fire_frames,
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (
                 BinTaskState,
-                {"bin_task_depth": self.bin_task_depth},
+                {
+                    "bin_front_look_depth": self.bin_front_look_depth,
+                    "bin_bottom_look_depth": self.bin_bottom_look_depth,
+                    "target_selection": self.selected_animal,
+                    "bin_exit_angle": bin_exit_angle_rad,
+                },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
                 {"octagon_depth": self.octagon_depth},
+            ),
+            "NAVIGATE_RETURN_THROUGH_GATE": (
+                NavigateReturnThroughGateState,
+                {"station_frame": self.return_home_station},
             ),
         }
 
@@ -155,6 +253,8 @@ if __name__ == "__main__":
     rospy.init_node("main_state_machine")
     try:
         node = MainStateMachineNode()
+        rospy.sleep(1.0)
+        rospy.loginfo(f"Final selected animal before execution: {node.selected_animal}")
         node.execute_state_machine()
     except KeyboardInterrupt:
         rospy.loginfo("State machine node interrupted")

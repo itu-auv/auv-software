@@ -33,18 +33,20 @@
 
     <node pkg="auv_smach" type="environment_params_node.py" name="auv_environment" output="screen" />
 
-    4<!-- Initial robot position and orientation -->
-    <arg name="x" default="-0.6" if="$(eval arg('world') == 'pool')" />
+    <!-- Initial robot position and orientation -->
+    <arg name="x" default="4.0" if="$(eval arg('world') == 'pool')" />
     <arg name="x" default="-0.6" if="$(eval arg('world') == 'seabed')" />
     <arg name="x" default="-9.5" if="$(eval arg('world') == 'semi_final_pool')" />
-    <arg name="y" default="-3" />
+    <arg name="y" default="3" if="$(eval arg('world') == 'pool')" />
+    <arg name="y" default="-3" if="$(eval arg('world') == 'seabed')" />
+    <arg name="y" default="-3" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'pool')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="z" default="-87.0" if="$(eval arg('world') == 'seabed')" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="0" if="$(eval arg('world') == 'seabed')" />
-    <arg name="yaw" value="-1.6" if="$(eval arg('world') == 'pool')" />
+    <arg name="yaw" value="-1.57" if="$(eval arg('world') == 'pool')" />
     <arg name="yaw" default="0" if="$(eval arg('world') == 'semi_final_pool')" />
 
     <!-- Start world launch -->
@@ -97,4 +99,11 @@
 
     <node pkg="rostopic" type="rostopic" name="propulsion_board_status_publisher"
           args="pub /$(arg namespace)/propulsion_board/status std_msgs/Bool 'data: true' -r 1" />
+
+    <!-- Smach Monitor Node -->
+    <node name="smach_monitor_node" pkg="auv_smach" type="smach_monitor_node.py" output="screen" ns="$(arg namespace)">
+        <remap from="vision/set_front_camera_focus" to="vision/set_front_camera_focus"/>
+        <remap from="control/align_frame/cancel" to="control/align_frame/cancel"/>
+        <remap from="set_heading_control" to="set_heading_control"/>
+    </node>
 </launch>

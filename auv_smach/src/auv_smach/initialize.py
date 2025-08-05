@@ -3,12 +3,27 @@ import smach_ros
 import rospy
 from std_srvs.srv import SetBool, SetBoolRequest
 from std_srvs.srv import Empty, EmptyRequest
+from std_srvs.srv import Trigger, TriggerRequest
 from robot_localization.srv import SetPose, SetPoseRequest
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
-from auv_smach.common import CancelAlignControllerState, ClearObjectMapState
+from auv_smach.common import (
+    CancelAlignControllerState,
+    ClearObjectMapState,
+)
 from typing import Optional, Literal
 from dataclasses import dataclass
+from auv_smach.common import SetDetectionFocusState, SetDetectionState
+
+
+class ResetOdometryState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "reset_odometry",
+            Trigger,
+            request=TriggerRequest(),
+        )
 
 
 class WaitForKillswitchEnabledState(smach.State):
@@ -139,6 +154,24 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "ODOMETRY_ENABLE",
                 OdometryEnableState(),
+                transitions={
+                    "succeeded": "DISABLE_BOTTOM_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_BOTTOM_DETECTION",
+                SetDetectionState(camera_name="bottom", enable=False),
+                transitions={
+                    "succeeded": "SET_DETECTION_TO_NONE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_TO_NONE",
+                SetDetectionFocusState(focus_object="none"),
                 transitions={
                     "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",

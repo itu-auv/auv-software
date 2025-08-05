@@ -2,16 +2,28 @@
 <package format="2">
   <name>auv_mapping</name>
   <version>0.1.0</version>
-  <description>Mapping and map server package</description>
-  <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
-  <author email="senceryazici@gmail.com">Sencer Yazici</author>
+  <description>AUV Mapping package for 3D object detection and tracking</description>
+
+  <maintainer email="user@example.com">Your Name</maintainer>
   <license>BSD-3-Clause</license>
+
   <buildtool_depend>catkin</buildtool_depend>
+
   <depend>auv_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>dynamic_reconfigure</depend>
   <depend>geometry_msgs</depend>
+  <depend>message_filters</depend>
+  <depend>pcl_conversions</depend>
+  <depend>pcl_ros</depend>
   <depend>roscpp</depend>
-  <depend>tf2</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
   <depend>tf2_ros</depend>
-  <exec_depend>auv_control</exec_depend>
+  <depend>vision_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <exec_depend>ultralytics_ros</exec_depend>
+
   <export/>
 </package>
