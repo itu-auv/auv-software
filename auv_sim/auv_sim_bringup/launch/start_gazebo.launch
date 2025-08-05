@@ -31,8 +31,6 @@
         if="$(arg use_gui)"
     />
 
-    <node pkg="auv_smach" type="environment_params_node.py" name="auv_environment" output="screen" />
-
     <!-- Initial robot position and orientation -->
     <arg name="x" default="4.0" if="$(eval arg('world') == 'pool')" />
     <arg name="x" default="-0.6" if="$(eval arg('world') == 'seabed')" />

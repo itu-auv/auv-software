@@ -1,4 +1,3 @@
 ---
-forward_lane_angle: 1.57     # Radians
 lane_distance_to_left: 0.1  # Meters
 lane_distance_to_right: 2  # Meters
