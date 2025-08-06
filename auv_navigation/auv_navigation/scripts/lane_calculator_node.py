@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+"""
+Responsible for calculating and publishing spatial lane boundaries.
+The lanes are defined as two parallel lines, in odom frame.
+"""
+import rospy
+import math
+import tf2_ros
+import tf2_geometry_msgs
+import yaml
+import os
+import rospkg
+from typing import Optional
+from geometry_msgs.msg import Point, Vector3, Vector3Stamped
+from std_srvs.srv import Trigger, TriggerResponse
+from visualization_msgs.msg import Marker, MarkerArray
+from auv_msgs.msg import LaneBoundaries
+from dynamic_reconfigure.server import Server
+from auv_navigation.cfg import LaneCalculatorConfig
+
+
+class LaneCalculatorNode:
+
+    def __init__(self) -> None:
+        rospy.init_node("lane_calculator_node")
+        rospy.loginfo("Lane Calculator Node Started")
+
+        try:
+            rospack = rospkg.RosPack()
+            default_path = os.path.join(
+                rospack.get_path("auv_navigation"), "config", "lane_calculator.yaml"
+            )
+            self.config_file = rospy.get_param("~config_file", default_path)
+        except rospkg.common.ResourceNotFound:
+            rospy.logerr(
+                "auv_navigation package not found. Could not set default config file path."
+            )
+            self.config_file = ""
+
+        self.forward_frame: str = rospy.get_param("~forward_frame", "forward_frame")
+        self.lane_distance_to_left: float = rospy.get_param(
+            "~lane_distance_to_left", 2.5
+        )
+        self.lane_distance_to_right: float = rospy.get_param(
+            "~lane_distance_to_right", 2.5
+        )
+
+        self.reconfigure_server = Server(
+            LaneCalculatorConfig, self.reconfigure_callback
+        )
+
+        self.lane_boundaries_pub: rospy.Publisher = rospy.Publisher(
+            "lane_boundaries", LaneBoundaries, queue_size=10, latch=True
+        )
+        self.marker_pub: rospy.Publisher = rospy.Publisher(
+            "visualization/lane_markers", MarkerArray, queue_size=10, latch=True
+        )
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        self.lane_boundaries: Optional[LaneBoundaries] = None
+        rospy.Service("calculate_lanes", Trigger, self.calculate_lanes_service)
+
+        # Timer to continuously publish markers for RViz
+        rospy.Timer(rospy.Duration(4.0), self.publish_lane_markers_callback)
+
+    def reconfigure_callback(self, config, level):
+        self.lane_distance_to_left = config.lane_distance_to_left
+        self.lane_distance_to_right = config.lane_distance_to_right
+        self.save_parameters()
+        return config
+
+    def save_parameters(self):
+        """Save parameters to the YAML file."""
+        params = {
+            "lane_distance_to_left": self.lane_distance_to_left,
+            "lane_distance_to_right": self.lane_distance_to_right,
+        }
+        try:
+            with open(self.config_file, "w") as f:
+                yaml.dump(params, f, default_flow_style=False)
+            rospy.loginfo(f"Parameters saved to {self.config_file}")
+        except IOError as e:
+            rospy.logerr(f"Failed to save parameters to {self.config_file}: {e}")
+
+    def publish_lane_markers_callback(self, event=None):
+        if self.lane_boundaries is not None:
+            self.publish_lane_markers()
+
+    def calculate_lanes_service(self, req: Trigger) -> TriggerResponse:
+        """
+        This service callback calculates the lane boundaries. The calculation is
+        static and relative to the odom frame's origin (0,0,0).
+        """
+        if self.lane_distance_to_left == 0.0 and self.lane_distance_to_right == 0.0:
+            rospy.logwarn("Lane distances are both 0.0, not calculating lanes.")
+            self.lane_boundaries = None
+            self.lane_boundaries_pub.publish(LaneBoundaries())  # Publish empty
+            self.marker_pub.publish(MarkerArray())  # Clear markers
+            return TriggerResponse(
+                success=False, message="Lane distances are zero, lanes cleared."
+            )
+        if self.lane_distance_to_left < 0 or self.lane_distance_to_right < 0:
+            rospy.logerr("Lane distances must be non-negative. Not calculating lanes.")
+            return TriggerResponse(
+                success=False, message="Lane distances must be non-negative."
+            )
+
+        # 1. Define the direction vector of the lanes
+        # The lane direction is parallel to the x-axis of the frame "forward_frame"
+        # Then, transform a unit vector in the x direction from the forward_frame to the odom frame.
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                "odom", self.forward_frame, rospy.Time(0), rospy.Duration(1.0)
+            )
+
+            v_stamped = Vector3Stamped()
+            v_stamped.header.frame_id = self.forward_frame
+            v_stamped.vector.x = 1.0
+            v_stamped.vector.y = 0.0
+            v_stamped.vector.z = 0.0
+
+            # Transform the vector to the odom frame
+            transformed_v = tf2_geometry_msgs.do_transform_vector3(v_stamped, transform)
+            lane_direction = transformed_v.vector
+
+            # Normalize the direction vector (only in XY plane)
+            norm = math.sqrt(lane_direction.x**2 + lane_direction.y**2)
+            if norm > 1e-6:
+                lane_direction.x /= norm
+                lane_direction.y /= norm
+            lane_direction.z = 0
+
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+            tf2_ros.TransformException,
+        ) as e:
+            rospy.logerr(
+                f"Failed to transform lane direction from {self.forward_frame} to odom: {e}"
+            )
+            return TriggerResponse(success=False, message=str(e))
+
+        # 2. perpendicular vector to shift the boundaries.
+        perp_direction = Vector3(x=-lane_direction.y, y=lane_direction.x, z=0)
+
+        # 3. Calculate a point on each lane boundary
+        # New point = origin + distance × perp direction
+        left_lane_point = Point(
+            x=self.lane_distance_to_left * perp_direction.x,
+            y=self.lane_distance_to_left * perp_direction.y,
+            z=0,
+        )
+
+        right_lane_point = Point(
+            x=-self.lane_distance_to_right * perp_direction.x,
+            y=-self.lane_distance_to_right * perp_direction.y,
+            z=0,
+        )
+
+        self.lane_boundaries = LaneBoundaries()
+        self.lane_boundaries.header.stamp = rospy.Time.now()
+        self.lane_boundaries.header.frame_id = "odom"
+        self.lane_boundaries.left_lane_point = left_lane_point
+        self.lane_boundaries.left_lane_direction = lane_direction
+        self.lane_boundaries.right_lane_point = right_lane_point
+        self.lane_boundaries.right_lane_direction = lane_direction
+
+        self.lane_boundaries_pub.publish(self.lane_boundaries)
+        self.publish_lane_markers()
+
+        rospy.loginfo("Lane boundaries published.")  #! Remove this log in production
+        return TriggerResponse(
+            success=True, message="Lane boundaries calculated and published."
+        )
+
+    def publish_lane_markers(self) -> None:
+        if self.lane_boundaries is None:
+            return
+
+        marker_array = MarkerArray()
+
+        boundaries = [
+            (
+                self.lane_boundaries.left_lane_point,
+                self.lane_boundaries.left_lane_direction,
+            ),
+            (
+                self.lane_boundaries.right_lane_point,
+                self.lane_boundaries.right_lane_direction,
+            ),
+        ]
+
+        for i, (point, direction) in enumerate(boundaries):
+            marker = Marker()
+            marker.header.frame_id = "odom"
+            marker.header.stamp = rospy.Time.now()
+            marker.ns = "lanes"
+            marker.id = i
+            marker.type = Marker.LINE_STRIP
+            marker.action = Marker.ADD
+            marker.scale.x = 0.1
+
+            marker.color.a = 1.0
+            marker.color.r = 0.0
+            marker.color.g = 1.0
+            marker.color.b = 0.0
+
+            start_point = Point()
+            start_point.x = point.x - direction.x * 100
+            start_point.y = point.y - direction.y * 100
+            start_point.z = point.z
+
+            end_point = Point()
+            end_point.x = point.x + direction.x * 100
+            end_point.y = point.y + direction.y * 100
+            end_point.z = point.z
+
+            marker.points.append(start_point)
+            marker.points.append(end_point)
+
+            marker_array.markers.append(marker)
+
+        self.marker_pub.publish(marker_array)
+
+    def run(self) -> None:
+        rospy.spin()
+
+
+if __name__ == "__main__":
+    try:
+        node = LaneCalculatorNode()
+        node.run()
+    except rospy.ROSInterruptException:
+        pass
