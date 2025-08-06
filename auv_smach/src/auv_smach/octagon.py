@@ -37,9 +37,10 @@ class OctagonFramePublisherServiceState(smach_ros.ServiceState):
 
 
 class OctagonTaskState(smach.State):
-    def __init__(self, octagon_depth):
+    def __init__(self, octagon_depth: float, animal: str):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.griper_mode = False
+        self.animal_frame = f"{animal}_link"
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -114,16 +115,16 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "ENABLE_BOTTOM_DETECTION",
+                    "succeeded": "CLOSE_OCTAGON_PUBLİSHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ENABLE_OCTAGON_FRAME_PUBLISHER",
+                "CLOSE_OCTAGON_PUBLİSHER",
                 OctagonFramePublisherServiceState(req=False),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
+                    "succeeded": "ENABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -151,7 +152,7 @@ class OctagonTaskState(smach.State):
                 ),
                 transitions={
                     "succeeded": (
-                        "SURFACE" if not self.griper_mode else "MOVE_GRIPPER"
+                        "SURFACE_TO_ANIMAL_DEPTH" if not self.griper_mode else "MOVE_GRIPPER"
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -167,14 +168,48 @@ class OctagonTaskState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "SURFACE",
-                SetDepthState(depth=0.0, sleep_duration=4.0),
+                "SURFACE_TO_ANIMAL_DEPTH",
+                SetDepthState(depth=-0.2, sleep_duration=4.0),
+                transitions={
+                    "succeeded": "SEARCH_FOR_ANIMAL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SEARCH_FOR_ANIMAL",
+                SetDetectionFocusState(focus_object="gate"),
+                transitions={
+                    "succeeded": "FIND_AIM_ANIMAL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FIND_AIM_ANIMAL",
+                SearchForPropState(
+                    look_at_frame=self.animal_frame,
+                    alignment_frame="animal_search_frame",
+                    full_rotation=True,
+                    set_frame_duration=4.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.2,
+                ),
+                transitions={
+                    "succeeded": "SURFACE_TO_SURFACE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SURFACE_TO_SURFACE",
+                SetDepthState(depth=-0.2, sleep_duration=4.0),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )
+            )     
 
     def execute(self, userdata):
         # Execute the state machine
