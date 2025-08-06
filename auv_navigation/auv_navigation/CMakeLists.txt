@@ -6,13 +6,22 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib
   nav_msgs
   tf2_ros
+  dynamic_reconfigure
 )
 
-catkin_package(
-  CATKIN_DEPENDS rospy actionlib nav_msgs tf2_ros
-)
+
 
 catkin_python_setup()
+
+
+generate_dynamic_reconfigure_options(
+  cfg/LaneCalculator.cfg
+)
+
+
+catkin_package(
+  CATKIN_DEPENDS rospy actionlib nav_msgs tf2_ros dynamic_reconfigure
+)
 
 catkin_install_python(PROGRAMS
   scripts/follow_path_action_server.py
