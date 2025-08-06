@@ -93,9 +93,14 @@ class LaneCalculatorNode:
         This service callback calculates the lane boundaries. The calculation is
         static and relative to the odom frame's origin (0,0,0).
         """
-        rospy.loginfo(
-            "Calculating static lane boundaries..."
-        )  #! Remove this log in production
+        if self.lane_distance_to_left == 0.0 and self.lane_distance_to_right == 0.0:
+            rospy.logwarn("Lane distances are both 0.0, not calculating lanes.")
+            self.lane_boundaries = None
+            self.lane_boundaries_pub.publish(LaneBoundaries())  # Publish empty
+            self.marker_pub.publish(MarkerArray())  # Clear markers
+            return TriggerResponse(
+                success=True, message="Lane distances are zero, lanes cleared."
+            )
 
         # 1. Define the direction vector of the lanes
         # The lane direction is parallel to the x-axis of the frame "forward_frame"
