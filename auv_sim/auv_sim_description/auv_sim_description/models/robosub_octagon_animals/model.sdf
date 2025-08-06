@@ -5,7 +5,8 @@
 
     <!-- First Hanging -->
     <link name="hanging1">
-      <visual name="visual1">
+      <!-- Front face -->
+      <visual name="visual1_front">
         <geometry>
           <plane>
             <normal>1 0 0</normal>  <!-- Faces +X direction -->
@@ -20,12 +21,29 @@
         </material>
         <pose>0 0 0.1525 1.5708 0 1.5708</pose>  <!-- 90° clockwise rotation -->
       </visual>
+      <!-- Back face -->
+      <visual name="visual1_back">
+        <geometry>
+          <plane>
+            <normal>-1 0 0</normal>  <!-- Faces -X direction -->
+            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <name>ReefSharkBackMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0.1525 1.5708 0 1.5708</pose>  <!-- 90° clockwise rotation -->
+      </visual>
       <pose>0 0 0 0 0 0</pose>  <!-- Ground level -->
     </link>
 
     <!-- Second Hanging -->
     <link name="hanging2">
-      <visual name="visual2">
+      <!-- Front face -->
+      <visual name="visual2_front">
         <geometry>
           <plane>
             <normal>-1 0 0</normal>  <!-- Faces -X direction (towards first hanging) -->
@@ -36,6 +54,22 @@
           <script>
             <uri>model://robosub_octagon_animals/materials/scripts</uri>
             <name>SawfishMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>  <!-- 90° clockwise rotation -->
+      </visual>
+      <!-- Back face -->
+      <visual name="visual2_back">
+        <geometry>
+          <plane>
+            <normal>1 0 0</normal>  <!-- Faces +X direction -->
+            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <name>SawfishBackMaterial</name>
           </script>
         </material>
         <pose>0 0 0.1525 1.5708 0 -1.5708</pose>  <!-- 90° clockwise rotation -->
