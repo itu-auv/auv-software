@@ -5,8 +5,10 @@ The lanes are defined as two parallel lines, in odom frame.
 """
 import rospy
 import math
+import tf2_ros
+import tf2_geometry_msgs
 from typing import Optional
-from geometry_msgs.msg import Point, Vector3
+from geometry_msgs.msg import Point, Vector3, Vector3Stamped
 from std_srvs.srv import Trigger, TriggerResponse
 from visualization_msgs.msg import Marker, MarkerArray
 from auv_msgs.msg import LaneBoundaries
@@ -18,7 +20,7 @@ class LaneCalculatorNode:
         rospy.init_node("lane_calculator_node")
         rospy.loginfo("Lane Calculator Node Started")
 
-        self.forward_lane_angle: float = rospy.get_param("~forward_lane_angle", 0.0)
+        self.forward_frame: str = rospy.get_param("~forward_frame", "forward_frame")
         self.lane_distance_to_left: float = rospy.get_param(
             "~lane_distance_to_left", 2.5
         )
@@ -32,6 +34,9 @@ class LaneCalculatorNode:
         self.marker_pub: rospy.Publisher = rospy.Publisher(
             "visualization/lane_markers", MarkerArray, queue_size=10, latch=True
         )
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.lane_boundaries: Optional[LaneBoundaries] = None
         rospy.Service("calculate_lanes", Trigger, self.calculate_lanes_service)
@@ -52,18 +57,47 @@ class LaneCalculatorNode:
             "Calculating static lane boundaries..."
         )  #! Remove this log in production
 
-        # 1. Define the direction vector of the lane's center line.
-        lane_direction = Vector3(
-            x=math.cos(self.forward_lane_angle),
-            y=math.sin(self.forward_lane_angle),
-            z=0,
-        )
+        # 1. Define the direction vector of the lanes
+        # The lane direction is parallel to the x-axis of the frame "forward_frame"
+        # Then, transform a unit vector in the x direction from the forward_frame to the odom frame.
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                "odom", self.forward_frame, rospy.Time(0), rospy.Duration(1.0)
+            )
 
-        # 2. Calculate the perpendicular vector to shift the boundaries.
+            v_stamped = Vector3Stamped()
+            v_stamped.header.frame_id = self.forward_frame
+            v_stamped.vector.x = 1.0
+            v_stamped.vector.y = 0.0
+            v_stamped.vector.z = 0.0
+
+            # Transform the vector to the odom frame
+            transformed_v = tf2_geometry_msgs.do_transform_vector3(v_stamped, transform)
+            lane_direction = transformed_v.vector
+
+            # Normalize the direction vector (only in XY plane)
+            norm = math.sqrt(lane_direction.x**2 + lane_direction.y**2)
+            if norm > 1e-6:
+                lane_direction.x /= norm
+                lane_direction.y /= norm
+            lane_direction.z = 0
+
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+            tf2_ros.TransformException,
+        ) as e:
+            rospy.logerr(
+                f"Failed to transform lane direction from {self.forward_frame} to odom: {e}"
+            )
+            return TriggerResponse(success=False, message=str(e))
+
+        # 2. perpendicular vector to shift the boundaries.
         perp_direction = Vector3(x=-lane_direction.y, y=lane_direction.x, z=0)
 
         # 3. Calculate a point on each lane boundary
-        # New point = (origin) + distance × (direction)
+        # New point = origin + distance × perp direction
         left_lane_point = Point(
             x=self.lane_distance_to_left * perp_direction.x,
             y=self.lane_distance_to_left * perp_direction.y,
