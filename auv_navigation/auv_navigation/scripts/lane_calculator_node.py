@@ -7,11 +7,16 @@ import rospy
 import math
 import tf2_ros
 import tf2_geometry_msgs
+import yaml
+import os
+import rospkg
 from typing import Optional
 from geometry_msgs.msg import Point, Vector3, Vector3Stamped
 from std_srvs.srv import Trigger, TriggerResponse
 from visualization_msgs.msg import Marker, MarkerArray
 from auv_msgs.msg import LaneBoundaries
+from dynamic_reconfigure.server import Server
+from auv_navigation.cfg import LaneCalculatorConfig
 
 
 class LaneCalculatorNode:
@@ -20,12 +25,28 @@ class LaneCalculatorNode:
         rospy.init_node("lane_calculator_node")
         rospy.loginfo("Lane Calculator Node Started")
 
+        try:
+            rospack = rospkg.RosPack()
+            default_path = os.path.join(
+                rospack.get_path("auv_navigation"), "config", "lane_calculator.yaml"
+            )
+            self.config_file = rospy.get_param("~config_file", default_path)
+        except rospkg.common.ResourceNotFound:
+            rospy.logerr(
+                "auv_navigation package not found. Could not set default config file path."
+            )
+            self.config_file = ""
+
         self.forward_frame: str = rospy.get_param("~forward_frame", "forward_frame")
         self.lane_distance_to_left: float = rospy.get_param(
             "~lane_distance_to_left", 2.5
         )
         self.lane_distance_to_right: float = rospy.get_param(
             "~lane_distance_to_right", 2.5
+        )
+
+        self.reconfigure_server = Server(
+            LaneCalculatorConfig, self.reconfigure_callback
         )
 
         self.lane_boundaries_pub: rospy.Publisher = rospy.Publisher(
@@ -43,6 +64,25 @@ class LaneCalculatorNode:
 
         # Timer to continuously publish markers for RViz
         rospy.Timer(rospy.Duration(4.0), self.publish_lane_markers_callback)
+
+    def reconfigure_callback(self, config, level):
+        self.lane_distance_to_left = config.lane_distance_to_left
+        self.lane_distance_to_right = config.lane_distance_to_right
+        self.save_parameters()
+        return config
+
+    def save_parameters(self):
+        """Save parameters to the YAML file."""
+        params = {
+            "lane_distance_to_left": self.lane_distance_to_left,
+            "lane_distance_to_right": self.lane_distance_to_right,
+        }
+        try:
+            with open(self.config_file, "w") as f:
+                yaml.dump(params, f, default_flow_style=False)
+            rospy.loginfo(f"Parameters saved to {self.config_file}")
+        except IOError as e:
+            rospy.logerr(f"Failed to save parameters to {self.config_file}: {e}")
 
     def publish_lane_markers_callback(self, event=None):
         if self.lane_boundaries is not None:

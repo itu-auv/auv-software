@@ -721,12 +721,12 @@ class CameraDetectionNode:
             )
             return True
 
-        def is_left(p: Point, d: Vector3, x: float, y: float) -> bool:
+        def is_left(p_: Point, d: Vector3, x: float, y: float) -> bool:
             """
             Is a point (x, y) to the left of the line defined by point p and direction d?
             positive result: the point is to the left of the line
             """
-            return (x - p.x) * d.y - (y - p.y) * d.x > 0
+            return d.x * (y - p_.y) - d.y * (x - p_.x) > 0
 
         x = point_in_odom.x
         y = point_in_odom.y
