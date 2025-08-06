@@ -99,7 +99,12 @@ class LaneCalculatorNode:
             self.lane_boundaries_pub.publish(LaneBoundaries())  # Publish empty
             self.marker_pub.publish(MarkerArray())  # Clear markers
             return TriggerResponse(
-                success=True, message="Lane distances are zero, lanes cleared."
+                success=False, message="Lane distances are zero, lanes cleared."
+            )
+        if self.lane_distance_to_left < 0 or self.lane_distance_to_right < 0:
+            rospy.logerr("Lane distances must be non-negative. Not calculating lanes.")
+            return TriggerResponse(
+                success=False, message="Lane distances must be non-negative."
             )
 
         # 1. Define the direction vector of the lanes
