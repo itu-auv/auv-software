@@ -1,0 +1,31 @@
+material ReefSharkMaterial
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture reefshark.png
+        filtering none
+      }
+    }
+  }
+}
+
+material SawfishMaterial
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture sawfish.png
+        filtering none
+      }
+    }
+  }
+}

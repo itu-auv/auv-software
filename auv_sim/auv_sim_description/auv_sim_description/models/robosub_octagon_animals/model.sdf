@@ -1,0 +1,46 @@
+<?xml version='1.0'?>
+<sdf version="1.7">
+  <model name="two_hangings">
+    <static>true</static>  <!-- Static for stability -->
+
+    <!-- First Hanging -->
+    <link name="hanging1">
+      <visual name="visual1">
+        <geometry>
+          <plane>
+            <normal>1 0 0</normal>  <!-- Faces +X direction -->
+            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <name>ReefSharkMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0.1525 1.5708 0 1.5708</pose>  <!-- 90° clockwise rotation -->
+      </visual>
+      <pose>0 0 0 0 0 0</pose>  <!-- Ground level -->
+    </link>
+
+    <!-- Second Hanging -->
+    <link name="hanging2">
+      <visual name="visual2">
+        <geometry>
+          <plane>
+            <normal>-1 0 0</normal>  <!-- Faces -X direction (towards first hanging) -->
+            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <name>SawfishMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>  <!-- 90° clockwise rotation -->
+      </visual>
+      <pose>2.7 0 0 0 0 0</pose>  <!-- 2.7m away from first hanging -->
+    </link>
+  </model>
+</sdf>
