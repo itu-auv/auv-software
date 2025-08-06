@@ -28,5 +28,7 @@
       <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable" />
       <param name="cmdvel_tau" value="0.2" />
     </node>
+    <node pkg="auv_localization" type="forward_frame_broadcaster.py" name="forward_frame_broadcaster" output="screen">
+    </node>
   </group>
 </launch>
