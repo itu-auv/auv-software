@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import rospy
-import tf2_ros
 import tf_conversions
 from geometry_msgs.msg import Quaternion, TransformStamped
 from dynamic_reconfigure.client import Client as DynamicReconfigureClient
+import tf2_ros
 from auv_bringup.cfg import SmachParametersConfig
 
 
@@ -19,12 +19,14 @@ class ForwardFrameBroadcaster:
         """Initializes the ForwardFrameBroadcaster node."""
         rospy.init_node("forward_frame_broadcaster_node")
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.wall_reference_yaw = 0.0
+        self.transform = TransformStamped()
 
-        # Dynamic reconfigure client
+        self.odom_frame = rospy.get_param("~odom_frame", "odom")
+        self.forward_frame = rospy.get_param("~forward_frame", "forward_frame")
+        self.publish_rate = rospy.get_param("~publish_rate", 10.0)
+
         try:
             self.smach_params_client = DynamicReconfigureClient(
                 "smach_parameters_server",
@@ -35,11 +37,6 @@ class ForwardFrameBroadcaster:
             rospy.logerr(f"Failed to connect to dynamic reconfigure server: {e}")
             self.smach_params_client = None
 
-        # Parameters
-        self.odom_frame = rospy.get_param("~odom_frame", "odom")
-        self.forward_frame = rospy.get_param("~forward_frame", "forward_frame")
-        self.publish_rate = rospy.Rate(rospy.get_param("~publish_rate", 10.0))
-
     def smach_params_callback(self, config):
         if "wall_reference_yaw" in config:
             rospy.loginfo_once(
@@ -47,36 +44,26 @@ class ForwardFrameBroadcaster:
             )
             self.wall_reference_yaw = config["wall_reference_yaw"]
 
-    def broadcast_forward_frame(self):
-        if not self.tf_buffer.can_transform(
-            self.odom_frame, self.odom_frame, rospy.Time(0), rospy.Duration(0.1)
-        ):
-            return
-        # The orientation is determined solely by the wall_reference_yaw
-        quat = tf_conversions.transformations.quaternion_from_euler(
-            0, 0, self.wall_reference_yaw
-        )
-
-        # Create and populate the TransformStamped message
-        transform = TransformStamped()
-        transform.header.stamp = (
-            rospy.Time.now()
-        )  # Almost instant timestamp, not a problem to set to now
-        transform.header.frame_id = self.odom_frame
-        transform.child_frame_id = self.forward_frame
-        transform.transform.translation.x = 0.0
-        transform.transform.translation.y = 0.0
-        transform.transform.translation.z = 0.0
-        transform.transform.rotation = Quaternion(*quat)
-
-        # Broadcast the transform
-        self.tf_broadcaster.sendTransform(transform)
-
     def spin(self):
-        rospy.loginfo("Forward Frame Broadcaster node started.")
+        rospy.loginfo(
+            "Forward Frame Broadcaster node started. Waiting for parameters..."
+        )
+        rate = rospy.Rate(self.publish_rate)
         while not rospy.is_shutdown():
-            self.broadcast_forward_frame()
-            self.publish_rate.sleep()
+            quat = tf_conversions.transformations.quaternion_from_euler(
+                0, 0, self.wall_reference_yaw
+            )
+
+            self.transform.header.stamp = rospy.Time.now()
+            self.transform.header.frame_id = self.odom_frame
+            self.transform.child_frame_id = self.forward_frame
+            self.transform.transform.translation.x = 0.0
+            self.transform.transform.translation.y = 0.0
+            self.transform.transform.translation.z = 0.0
+            self.transform.transform.rotation = Quaternion(*quat)
+
+            self.tf_broadcaster.sendTransform(self.transform)
+            rate.sleep()
 
 
 if __name__ == "__main__":
