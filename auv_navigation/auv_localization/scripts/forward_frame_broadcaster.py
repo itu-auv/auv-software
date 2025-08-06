@@ -6,6 +6,7 @@ import tf2_ros
 import tf_conversions
 from geometry_msgs.msg import Quaternion, TransformStamped
 from dynamic_reconfigure.client import Client as DynamicReconfigureClient
+from auv_bringup.cfg import SmachParametersConfig
 
 
 class ForwardFrameBroadcaster:
@@ -18,6 +19,8 @@ class ForwardFrameBroadcaster:
         """Initializes the ForwardFrameBroadcaster node."""
         rospy.init_node("forward_frame_broadcaster_node")
 
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.wall_reference_yaw = 0.0
 
@@ -45,6 +48,10 @@ class ForwardFrameBroadcaster:
             self.wall_reference_yaw = config["wall_reference_yaw"]
 
     def broadcast_forward_frame(self):
+        if not self.tf_buffer.can_transform(
+            self.odom_frame, self.odom_frame, rospy.Time(0), rospy.Duration(0.1)
+        ):
+            return
         # The orientation is determined solely by the wall_reference_yaw
         quat = tf_conversions.transformations.quaternion_from_euler(
             0, 0, self.wall_reference_yaw
