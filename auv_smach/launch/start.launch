@@ -13,6 +13,8 @@
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
+        acoustic1:ACOUSTIC_STATE_1,
+        acoustic2:ACOUSTIC_STATE_2,
         return:NAVIGATE_RETURN_THROUGH_GATE
     "/>
 
@@ -29,6 +31,8 @@
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
         'NAVIGATE_TO_OCTAGON_TASK',
+        'ACOUSTIC_STATE_1',
+        'ACOUSTIC_STATE_2',
         'NAVIGATE_RETURN_THROUGH_GATE'
     ]" doc="Full sequence of mission states"/>
 
