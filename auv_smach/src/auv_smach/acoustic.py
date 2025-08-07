@@ -5,75 +5,115 @@ import smach
 from std_msgs.msg import UInt8
 
 
-class AcousticState(smach.State):
-    """
-    State for sending acoustic modem data at specified rate and duration
-    """
+class AcousticTransmitter(smach.State):
 
-    def __init__(self, data_value, publish_rate, duration):
-        """
-        Initialize the acoustic state
-
-        Args:
-            data_value (int): The data value to publish (0-255)
-            publish_rate (float): Rate in Hz at which to publish the message
-            duration (float): Duration in seconds for how long to publish
-        """
+    def __init__(self, data_value):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.data_value = data_value
-        self.publish_rate = publish_rate
-        self.duration = duration
 
         # Create publisher for acoustic modem
         self.acoustic_pub = rospy.Publisher(
             "/taluy/modem/data/tx", UInt8, queue_size=10
         )
 
-        rospy.loginfo(
-            f"AcousticState initialized - data: {data_value}, rate: {publish_rate} Hz, duration: {duration}s"
-        )
+        rospy.loginfo(f"AcousticTransmitter initialized - data: {data_value}")
 
     def execute(self, userdata):
-        """
-        Execute the acoustic state - publish data at specified rate for given duration
-        """
-        rospy.loginfo(f"Starting acoustic transmission - data: {self.data_value}")
+        rospy.loginfo(f"Publishing acoustic data: {self.data_value}")
 
-        # Create rate object
-        rate = rospy.Rate(self.publish_rate)
-
-        # Calculate end time
-        start_time = rospy.Time.now()
-        end_time = start_time + rospy.Duration(self.duration)
-
-        # Create message
+        # Create and publish message
         msg = UInt8()
         msg.data = self.data_value
 
         try:
-            while rospy.Time.now() < end_time:
-                # Check for preemption
-                if self.preempt_requested():
-                    self.service_preempt()
-                    rospy.loginfo("Acoustic transmission preempted")
-                    return "preempted"
+            self.acoustic_pub.publish(msg)
+            rospy.loginfo(f"Acoustic transmission completed - data: {self.data_value}")
+            return "succeeded"
 
-                # Publish the message
-                self.acoustic_pub.publish(msg)
-                rospy.logdebug(f"Published acoustic data: {self.data_value}")
-
-                # Sleep according to rate
-                rate.sleep()
-
-        except rospy.ROSInterruptException:
-            rospy.loginfo("Acoustic transmission interrupted")
-            return "aborted"
         except Exception as e:
             rospy.logerr(f"Error during acoustic transmission: {e}")
             return "aborted"
 
-        rospy.loginfo(
-            f"Acoustic transmission completed - published {self.data_value} for {self.duration}s at {self.publish_rate} Hz"
+
+class AcousticReceiver(smach.State):
+
+    def __init__(self, expected_data=None, timeout=None):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        self.expected_data = expected_data
+        self.timeout = timeout
+        self.data_received = False
+
+        # Create subscriber for acoustic modem
+        self.acoustic_sub = rospy.Subscriber(
+            "/taluy/modem/data/rx", UInt8, self.acoustic_callback
         )
+
+        rospy.loginfo(
+            f"AcousticReceiver initialized - expected: {expected_data}, timeout: {timeout}s"
+        )
+
+    def acoustic_callback(self, msg):
+        rospy.logdebug(f"Received acoustic data: {msg.data}")
+
+        # Check if this is the expected data
+        if self.expected_data is None:
+            # Accept any data
+            self.data_received = True
+            rospy.loginfo(f"Acoustic data received: {msg.data}")
+        elif isinstance(self.expected_data, list):
+            # Check if data is in the expected list
+            if msg.data in self.expected_data:
+                self.data_received = True
+                rospy.loginfo(f"Expected acoustic data received: {msg.data}")
+        else:
+            # Check if data matches expected value
+            if msg.data == self.expected_data:
+                self.data_received = True
+                rospy.loginfo(f"Expected acoustic data received: {msg.data}")
+
+    def execute(self, userdata):
+        rospy.loginfo(
+            f"Starting acoustic reception - waiting for: {self.expected_data}"
+        )
+
+        # Reset state
+        self.data_received = False
+
+        # Calculate timeout
+        if self.timeout is not None:
+            start_time = rospy.Time.now()
+            timeout_time = start_time + rospy.Duration(self.timeout)
+        else:
+            timeout_time = None
+
+        rate = rospy.Rate(10)
+
+        try:
+            while not self.data_received:
+                # Check for preemption
+                if self.preempt_requested():
+                    self.service_preempt()
+                    rospy.loginfo("Acoustic reception preempted")
+                    return "preempted"
+
+                # Check for timeout
+                if timeout_time is not None and rospy.Time.now() >= timeout_time:
+                    rospy.loginfo(
+                        f"Acoustic reception timeout after {self.timeout}s - continuing mission"
+                    )
+                    return "succeeded"
+
+                # Sleep and continue waiting
+                rate.sleep()
+
+        except rospy.ROSInterruptException:
+            rospy.loginfo("Acoustic reception interrupted")
+            return "aborted"
+        except Exception as e:
+            rospy.logerr(f"Error during acoustic reception: {e}")
+            return "aborted"
+
+        rospy.loginfo("Acoustic reception completed - expected data received")
         return "succeeded"

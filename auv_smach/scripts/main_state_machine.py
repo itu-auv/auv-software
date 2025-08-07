@@ -12,7 +12,7 @@ from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
-from auv_smach.acoustic import AcousticState
+from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
@@ -82,15 +82,14 @@ class MainStateMachineNode:
 
         self.octagon_depth = -1.0
 
-        # Acoustic parameters for state 1
-        self.acoustic1_data_value = 1
-        self.acoustic1_publish_rate = 1.0  # Hz
-        self.acoustic1_duration = 5.0  # seconds
+        # Acoustic transmitter parameters
+        self.acoustic_tx_data_value = 1
+        self.acoustic_tx_publish_rate = 1.0  # Hz
+        self.acoustic_tx_duration = 5.0  # seconds
 
-        # Acoustic parameters for state 2
-        self.acoustic2_data_value = 2
-        self.acoustic2_publish_rate = 2.0  # Hz
-        self.acoustic2_duration = 3.0  # seconds
+        # Acoustic receiver parameters
+        self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
+        self.acoustic_rx_timeout = 30.0  # seconds
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -205,20 +204,17 @@ class MainStateMachineNode:
                 OctagonTaskState,
                 {"octagon_depth": self.octagon_depth},
             ),
-            "ACOUSTIC_STATE_1": (
-                AcousticState,
+            "ACOUSTIC_TRANSMITTER": (
+                AcousticTransmitter,
                 {
-                    "data_value": self.acoustic1_data_value,
-                    "publish_rate": self.acoustic1_publish_rate,
-                    "duration": self.acoustic1_duration,
+                    "data_value": self.acoustic_tx_data_value,
                 },
             ),
-            "ACOUSTIC_STATE_2": (
-                AcousticState,
+            "ACOUSTIC_RECEIVER": (
+                AcousticReceiver,
                 {
-                    "data_value": self.acoustic2_data_value,
-                    "publish_rate": self.acoustic2_publish_rate,
-                    "duration": self.acoustic2_duration,
+                    "expected_data": self.acoustic_rx_expected_data,
+                    "timeout": self.acoustic_rx_timeout,
                 },
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (
