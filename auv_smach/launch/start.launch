@@ -16,7 +16,7 @@
         bin:NAVIGATE_TO_BIN_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
         acoustic_tx:ACOUSTIC_TRANSMITTER,
-        acoustic_rx:ACOUSTIC_RECEIVER,
+        acoustic_rx:ACOUSTIC_RECEIVER
     "/>
 
     <!-- Test Mode Configuration -->
@@ -34,7 +34,7 @@
         'NAVIGATE_TO_BIN_TASK',
         'NAVIGATE_TO_OCTAGON_TASK',
         'ACOUSTIC_TRANSMITTER',
-        'ACOUSTIC_RECEIVER',
+        'ACOUSTIC_RECEIVER'
     ]" doc="Full sequence of mission states"/>
 
     <!-- Test Mission States -->
