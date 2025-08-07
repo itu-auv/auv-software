@@ -90,6 +90,47 @@ class Prop:
             return None
 
 
+class SlalomPipe(Prop):
+    def __init__(
+        self,
+        id: int,
+        name: str,
+        real_length: float,
+        aspect_ratio_threshold: float = 4.0,
+    ):
+        super().__init__(id, name, real_length, None)
+        self.aspect_ratio_threshold = aspect_ratio_threshold
+
+    def estimate_distance(
+        self,
+        measured_height: float,
+        measured_width: float,
+        calibration: CameraCalibration,
+    ):
+        # if measured_height is 0, this will cause a division by zero error.
+        if measured_height == 0:
+            return super().estimate_distance(
+                measured_height, measured_width, calibration
+            )
+
+        aspect_ratio = measured_width / measured_height
+
+        measured_hypotenus = measured_height
+        if aspect_ratio > self.aspect_ratio_threshold:
+            rospy.loginfo_once(
+                "Aspect ratio is over threshold, using hypotenuse for pipe length"
+            )
+            measured_hypotenus = math.sqrt(measured_height**2 + measured_width**2)
+
+        if self.real_height is not None:
+            return calibration.distance_from_height(
+                self.real_height, measured_hypotenus
+            )
+        else:
+            rospy.logerr(f"Could not estimate distance for prop {self.name}")
+            return None
+
+
 class Sawfish(Prop):
     def __init__(self):
         super().__init__(0, "sawfish", 0.3048, 0.3048)
@@ -100,14 +141,14 @@ class Shark(Prop):
         super().__init__(1, "shark", 0.3048, 0.3048)
 
 
-class RedPipe(Prop):
+class RedPipe(SlalomPipe):
     def __init__(self):
-        super().__init__(2, "red_pipe", 0.90, None)
+        super().__init__(2, "red_pipe", 0.90)
 
 
-class WhitePipe(Prop):
+class WhitePipe(SlalomPipe):
     def __init__(self):
-        super().__init__(3, "white_pipe", 0.90, None)
+        super().__init__(3, "white_pipe", 0.90)
 
 
 class TorpedoMap(Prop):
