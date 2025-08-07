@@ -114,38 +114,9 @@ class InitializeState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
-            """
-            smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER",
-                CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "WAIT_FOR_KILLSWITCH_ENABLED",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            ),
-            """
             smach.StateMachine.add(
                 "WAIT_FOR_KILLSWITCH_ENABLED",
                 WaitForKillswitchEnabledState(),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DVL_ENABLE",
-                DVLEnableState(),
-                transitions={
-                    "succeeded": "DELAY_FOR_DVL_ENABLE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DELAY_FOR_DVL_ENABLE",
-                DelayState(delay_time=4.4),
                 transitions={
                     "succeeded": "ODOMETRY_ENABLE",
                     "preempted": "preempted",
@@ -155,24 +126,6 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "ODOMETRY_ENABLE",
                 OdometryEnableState(),
-                transitions={
-                    "succeeded": "CLEAR_OBJECT_MAP",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CLEAR_OBJECT_MAP",
-                ClearObjectMapState(),
-                transitions={
-                    "succeeded": "SET_START_FRAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_START_FRAME",
-                SetStartFrameState(frame_name="mission_start_link"),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

@@ -33,7 +33,7 @@ class NavigateThroughGateStateVS(smach.State):
             )
             smach.StateMachine.add(
                 "VISUAL_SERVOING_CENTERING",
-                VisualServoingCentering(target_prop="shark"),
+                VisualServoingCentering(target_prop=target_prop),
                 transitions={
                     "succeeded": "WAIT_FOR_CENTERING",
                     "preempted": "preempted",

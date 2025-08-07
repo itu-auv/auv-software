@@ -112,7 +112,7 @@ class MainStateMachineNode:
                 NavigateThroughGateStateVS,
                 {
                     "gate_depth": self.gate_depth,
-                    "target_prop": self.gate_target_frame,
+                    "target_prop": self.target_selection,
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (
