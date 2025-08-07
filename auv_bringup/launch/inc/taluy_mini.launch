@@ -22,6 +22,10 @@
       <arg name="port" value="/dev/auv_imu" />
     </include>
 
+  <group ns="$(arg namespace)">
+    <include file="$(find auv_detection)/launch/camera_pose.launch" />
+  </group>
+
     <!-- launch modem serial bridge -->
     <!-- <include file="$(find auv_bringup)/launch/inc/boards/start_modem_serial_bridge.launch.xml">
       <arg name="namespace" value="$(arg namespace)" />

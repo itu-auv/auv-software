@@ -166,8 +166,7 @@ class CameraDetectionNode:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.camera_calibrations = {
-            "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
-            "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
+            "taluy_mini/cameras/cam_front": CameraCalibration("cameras/cam_front"),
         }
         # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
@@ -181,12 +180,10 @@ class CameraDetectionNode:
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
         )
         self.frame_id_to_camera_ns = {
-            "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
-            "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
+            "taluy_mini/base_link/front_camera_link": "taluy_mini/cameras/cam_front",
         }
         self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
-            "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
-            "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
+            "taluy_mini/cameras/cam_front": "taluy_mini/base_link/front_camera_optical_link",
         }
         self.props = {
             "gate_sawfish_link": Sawfish(),
@@ -202,7 +199,7 @@ class CameraDetectionNode:
         }
 
         self.id_tf_map = {
-            "taluy/cameras/cam_front": {
+            "taluy_mini/cameras/cam_front": {
                 0: "gate_sawfish_link",
                 1: "gate_shark_link",
                 2: "red_pipe_link",
@@ -211,27 +208,17 @@ class CameraDetectionNode:
                 5: "torpedo_hole_link",
                 6: "bin_whole_link",
                 7: "octagon_link",
-            },
-            "taluy/cameras/cam_bottom": {
-                0: "bin_shark_link",
-                1: "bin_sawfish_link",
-            },
+            }
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
-        self.pool_depth = rospy.get_param("/env/pool_depth")
-        rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
+        #rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
         # Services to enable/disable cameras
         rospy.Service(
             "enable_front_camera_detections",
             SetBool,
             self.handle_enable_front_camera,
-        )
-        rospy.Service(
-            "enable_bottom_camera_detections",
-            SetBool,
-            self.handle_enable_bottom_camera,
         )
         rospy.Service(
             "set_front_camera_focus",
@@ -282,13 +269,6 @@ class CameraDetectionNode:
         message = "Front camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
-
-    def handle_enable_bottom_camera(self, req):
-        self.bottom_camera_enabled = req.data
-        message = "Bottom camera detections " + ("enabled" if req.data else "disabled")
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
-
     def altitude_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
         self.altitude = self.pool_depth - depth
@@ -544,14 +524,15 @@ class CameraDetectionNode:
 
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
         # Determine camera_ns based on the source passed by the subscriber
+        print(f"resived messages")
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return
-            camera_ns = "taluy/cameras/cam_front"
+            camera_ns = "taluy_mini/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
                 return
-            camera_ns = "taluy/cameras/cam_bottom"
+            camera_ns = "taluy_mini/cameras/cam_bottom"
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
@@ -611,16 +592,19 @@ class CameraDetectionNode:
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
+            if camera_ns == "taluy_mini/cameras/cam_bottom" and detection_id in [0, 1]:
                 skip_inside_image = True
                 # use altidude for bin
                 distance = self.altitude
 
             if detection_id == 6:
+                continue
+            """
                 self.process_altitude_projection(
                     detection, camera_ns, detection_msg.header.stamp
                 )
                 continue
+            """
             if not skip_inside_image:
                 if self.check_if_detection_is_inside_image(detection) is False:
                     continue
@@ -649,6 +633,7 @@ class CameraDetectionNode:
             props_yaw_msg.object = prop.name
             props_yaw_msg.angle = -angles[0]
             self.props_yaw_pub.publish(props_yaw_msg)
+            """
             try:
                 camera_to_odom_transform = self.tf_buffer.lookup_transform(
                     camera_frame,
@@ -679,6 +664,7 @@ class CameraDetectionNode:
             )
             # Calculate the rotation based on odom
             self.object_transform_pub.publish(transform_stamped_msg)
+            """
 
     def run(self):
         rospy.spin()

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-    <arg name="namespace" default="taluy" />
+    <arg name="namespace" default="taluy_mini" />
     <arg name="enable_rate" default="20" />
     <param name="/smach/max_linear_velocity" value="0.3" />
     <param name="/smach/max_angular_velocity" value="0.45" />
@@ -9,6 +9,7 @@
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
+        gate_vs:NAVIGATE_THROUGH_GATE_VS,
         slalom:NAVIGATE_THROUGH_SLALOM,
         buoy:NAVIGATE_AROUND_RED_BUOY,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
@@ -24,6 +25,7 @@
     <arg name="full_mission_states" default="[
         'INITIALIZE',
         'NAVIGATE_THROUGH_GATE',
+        'NAVIGATE_THROUGH_GATE_VS',
         'NAVIGATE_THROUGH_SLALOM',
         'NAVIGATE_AROUND_RED_BUOY',
         'NAVIGATE_TO_TORPEDO_TASK',

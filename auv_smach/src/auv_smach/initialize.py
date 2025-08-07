@@ -114,6 +114,7 @@ class InitializeState(smach.State):
 
         # Open the container for adding states
         with self.state_machine:
+            """
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
@@ -122,12 +123,13 @@ class InitializeState(smach.State):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )
+            ),
+            """
             smach.StateMachine.add(
                 "WAIT_FOR_KILLSWITCH_ENABLED",
                 WaitForKillswitchEnabledState(),
                 transitions={
-                    "succeeded": "DVL_ENABLE",
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
