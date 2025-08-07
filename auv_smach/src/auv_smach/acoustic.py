@@ -47,7 +47,7 @@ class AcousticReceiver(smach.State):
 
         # Create subscriber for acoustic modem
         self.acoustic_sub = rospy.Subscriber(
-            "/modem/data/rx", UInt8, self.acoustic_callback
+            "modem/data/rx", UInt8, self.acoustic_callback
         )
 
         rospy.loginfo(
