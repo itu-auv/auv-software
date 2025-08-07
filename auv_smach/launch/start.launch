@@ -14,7 +14,7 @@
         buoy:NAVIGATE_AROUND_RED_BUOY,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
-        octagon:NAVIGATE_TO_OCTAGON_TASK
+        octagon:NAVIGATE_TO_OCTAGON_TASK,
         acoustic_tx:ACOUSTIC_TRANSMITTER,
         acoustic_rx:ACOUSTIC_RECEIVER,
     "/>
