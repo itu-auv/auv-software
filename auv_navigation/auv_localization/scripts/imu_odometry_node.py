@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
 from sensor_msgs.msg import Imu
@@ -119,11 +119,11 @@ class ImuToOdom:
 
     def xsens_imu_callback(self, imu_msg):
         self.last_xsens_imu_time = rospy.Time.now()
-        self.publish_odom(imu_msg, self.xsens_odom_publisher)
+        self.publish_odom(imu_msg, "xsens")
 
     def bno_imu_callback(self, imu_msg):
         if self.last_xsens_imu_time is None:
-            self.publish_odom(imu_msg, self.bno_odom_publisher)
+            self.publish_odom(imu_msg, "bno")
 
     def publish_odom(self, imu_msg, publisher):
         if self.calibrating:
@@ -166,8 +166,10 @@ class ImuToOdom:
         self.odom_msg.twist.twist.linear.y = 0.0
         self.odom_msg.twist.twist.linear.z = 0.0
 
-        # Publish the odometry message
-        publisher.publish(self.odom_msg)
+        if publisher == "xsens":
+            self.xsens_odom_publisher.publish(self.odom_msg)
+        elif publisher == "bno":
+            self.bno_odom_publisher.publish(self.odom_msg)
 
     def calibrate_imu(self, req):
         duration = req.duration
