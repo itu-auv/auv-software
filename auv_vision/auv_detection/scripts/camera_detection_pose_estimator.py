@@ -212,7 +212,7 @@ class CameraDetectionNode:
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
-        #rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
+        # rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
         # Services to enable/disable cameras
         rospy.Service(
@@ -269,6 +269,7 @@ class CameraDetectionNode:
         message = "Front camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
+
     def altitude_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
         self.altitude = self.pool_depth - depth
@@ -524,7 +525,6 @@ class CameraDetectionNode:
 
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
         # Determine camera_ns based on the source passed by the subscriber
-        print(f"resived messages")
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return

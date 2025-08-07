@@ -24,7 +24,19 @@
 
   <group ns="$(arg namespace)">
     <include file="$(find auv_detection)/launch/camera_pose.launch" />
+
+    <node pkg="auv_control" type="visual_servoing_controller.py" name="visual_servoing_controller" output="screen">
+      <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="props_yaw" to="props_yaw" />
+      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="enable" to="enable" />
+      <remap from="visual_servoing/error" to="visual_servoing/error" />
+      <remap from="visual_servoing/current_yaw" to="visual_servoing/current_yaw" />
+      <remap from="visual_servoing/target_yaw" to="visual_servoing/target_yaw" />
+    </node>
+
   </group>
+
 
     <!-- launch modem serial bridge -->
     <!-- <include file="$(find auv_bringup)/launch/inc/boards/start_modem_serial_bridge.launch.xml">

@@ -16,7 +16,6 @@ class NavigateThroughGateStateVS(smach.State):
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
-
         # Open the container for adding states
         with self.state_machine:
 
@@ -34,7 +33,7 @@ class NavigateThroughGateStateVS(smach.State):
             )
             smach.StateMachine.add(
                 "VISUAL_SERVOING_CENTERING",
-                VisualServoingCentering(target_prop=target_prop),
+                VisualServoingCentering(target_prop="shark"),
                 transitions={
                     "succeeded": "WAIT_FOR_CENTERING",
                     "preempted": "preempted",
