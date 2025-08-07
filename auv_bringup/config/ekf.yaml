@@ -60,6 +60,17 @@ odom2_nodelay: false
 odom2_differential: false
 odom2_relative: false
 
+odom3: /taluy/localization/odom_bno_imu
+odom3_config: [false, false, false,
+               true, true, false,
+               false, false, false,
+               true, true, false,
+               false, false, false]
+odom3_queue_size: 10
+odom3_nodelay: false
+odom3_differential: false
+odom3_relative: false
+
 # imu0: /taluy/sensors/imu/data
 # imu0_config: [false, false, false,
 #               false, false, false,
