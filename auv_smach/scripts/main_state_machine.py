@@ -4,6 +4,7 @@ import rospy
 import smach
 import auv_smach
 from auv_smach.initialize import InitializeState
+from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.gate_vs import NavigateThroughGateStateVS
 from auv_smach.slalom import NavigateThroughSlalomState
@@ -73,6 +74,13 @@ class MainStateMachineNode:
         # self.octagon_target_frame = self.target_frames["octagon_target_frame"]
 
         test_mode = rospy.get_param("~test_mode", False)
+
+        # Acoustic transmitter parameters
+        self.acoustic_tx_data_value = 1
+
+        # Acoustic receiver parameters
+        self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
+        self.acoustic_rx_timeout = 60.0  # seconds
         # Get test states from ROS param
         if test_mode:
             state_map = rospy.get_param("~state_map")
@@ -159,6 +167,19 @@ class MainStateMachineNode:
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
                 {"octagon_depth": self.octagon_depth},
+            ),
+            "ACOUSTIC_TRANSMITTER": (
+                AcousticTransmitter,
+                {
+                    "data_value": self.acoustic_tx_data_value,
+                },
+            ),
+            "ACOUSTIC_RECEIVER": (
+                AcousticReceiver,
+                {
+                    "expected_data": self.acoustic_rx_expected_data,
+                    "timeout": self.acoustic_rx_timeout,
+                },
             ),
         }
 
