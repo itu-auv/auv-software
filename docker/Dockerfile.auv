@@ -24,6 +24,6 @@ RUN apt-get update && \
     rosdep install --from-paths src --ignore-src -r -y; \
   fi && \
   rm -rf /var/lib/apt/lists/*
-
+ENV PYTHON_INSTALL_ARGS=""
 RUN . /opt/ros/noetic/setup.sh && \
   catkin build -- auv_software
