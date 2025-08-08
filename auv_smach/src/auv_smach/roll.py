@@ -12,6 +12,7 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     ClearObjectMapState,
+    SearchForPropState,
 )
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
@@ -270,11 +271,12 @@ class RollTwoTimes(smach.State):
 
 
 class TwoRollState(smach.StateMachine):
-    def __init__(self, roll_torque=50.0):
+    def __init__(self, gate_look_at_frame, roll_torque=50.0):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
         self.roll_torque = roll_torque
+        self.gate_look_at_frame = gate_look_at_frame
 
         with self:
             smach.StateMachine.add(
@@ -342,8 +344,13 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ALIGN_TO_LOOK_AT_GATE",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="gate_search"
+                SearchForPropState(
+                    look_at_frame=self.gate_look_at_frame,
+                    alignment_frame="gate_searcher_after_roll",
+                    full_rotation=True,
+                    set_frame_duration=7.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.25,
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNMENT",
@@ -353,7 +360,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNMENT",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=1.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_BEFORE_ODOM_ENABLE",
                     "preempted": "preempted",
