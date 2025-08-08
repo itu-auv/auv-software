@@ -5,7 +5,7 @@
   <arg name="imu_topic" default="data"/>
   <arg name="port" default="/dev/ttyUSB0"/>
   <group ns="$(arg namespace)">
-    <node name="auv_imu_node" pkg="xsens_mti_driver" type="xsens_mti_node" output="screen">
+    <node name="auv_imu_node" pkg="xsens_driver" type="mtnode.py" output="screen">
       <!-- Topic Remappings -->
       <remap from="temperature" to="sensors/imu/temperature"/>
       <remap from="imu/data" to="sensors/imu/$(arg imu_topic)"/>
