@@ -425,6 +425,7 @@ class TwoYawState(smach.StateMachine):
                     rotation_speed=0.3,
                     full_rotation=True,
                     full_rotation_timeout=45.0,
+                    rotation_radian=2 * math.pi,
                 ),
                 transitions={
                     "succeeded": "YAW_SECOND_360_DEGREES",
@@ -440,6 +441,7 @@ class TwoYawState(smach.StateMachine):
                     rotation_speed=0.3,
                     full_rotation=True,
                     full_rotation_timeout=45.0,
+                    rotation_radian=2 * math.pi,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_BEFORE_RESET_POSE",
