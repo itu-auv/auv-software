@@ -4,6 +4,7 @@ import rospy
 import smach
 import auv_smach
 from auv_smach.initialize import InitializeState
+from auv_smach.return_home import ReturnHomeState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.gate_vs import NavigateThroughGateStateVS
@@ -179,6 +180,13 @@ class MainStateMachineNode:
                 {
                     "expected_data": self.acoustic_rx_expected_data,
                     "timeout": self.acoustic_rx_timeout,
+                },
+            ),
+            "RETURN_HOME": (
+                ReturnHomeState,
+                {
+                    "gate_depth": self.gate_depth,
+                    "target_prop": self.target_selection,
                 },
             ),
         }
