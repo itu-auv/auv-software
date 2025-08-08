@@ -67,7 +67,6 @@
 
     <!-- pinger localization -->
     <node pkg="auv_mapping" type="tdoa_calculator_node" name="tdoa_calculator_node" output="screen">
-      <rosparam command="load" file="$(find auv_mapping)/config/tdoa_calculator_params.yaml" />
     </node>
 
   </group>

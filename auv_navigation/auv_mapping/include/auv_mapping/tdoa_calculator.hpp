@@ -3,18 +3,26 @@
 #include <auv_msgs/TDOA.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <ros/ros.h>
+#include <tf2/exceptions.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include <array>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <vector>
 
 class TDOALocalizer {
   static constexpr auto c = 1500.0f;  // Speed of sound (m/s)
+
  public:
-  TDOALocalizer(ros::NodeHandle& nh) {
-    if (!load_hydrophone_pos(nh)) {
-      ROS_ERROR("Failed to load hydrophone positions.");
+  TDOALocalizer(ros::NodeHandle& nh)
+      : tf_buffer_(),
+        tf_listener_(std::make_unique<tf2_ros::TransformListener>(tf_buffer_)) {
+    if (!loadHydrophonePos()) {
+      ROS_ERROR("Failed to load hydrophone positions from TF.");
       ros::shutdown();
     }
 
@@ -22,35 +30,47 @@ class TDOALocalizer {
                         &TDOALocalizer::callback, this);
     pub_ = nh.advertise<geometry_msgs::TransformStamped>("mapping/pinger", 1);
 
-    transform.header.frame_id = "map";
-    transform.child_frame_id = "pinger";
-    transform.transform.rotation.x = 0.0;
-    transform.transform.rotation.y = 0.0;
-    transform.transform.rotation.z = 0.0;
-    transform.transform.rotation.w = 1.0;
+    transform_.header.frame_id = "odom";
+    transform_.child_frame_id = "pinger";
+    transform_.transform.rotation.x = 0.0;
+    transform_.transform.rotation.y = 0.0;
+    transform_.transform.rotation.z = 0.0;
+    transform_.transform.rotation.w = 1.0;
   }
 
  private:
   ros::Subscriber sub_;
   ros::Publisher pub_;
-  geometry_msgs::TransformStamped transform;
+  tf2_ros::Buffer tf_buffer_;
+  std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
+
+  geometry_msgs::TransformStamped transform_;
+
   std::array<std::array<double, 3>, 4> sensors_;
 
-  bool load_hydrophone_pos(ros::NodeHandle& nh) {
-    std::vector<std::vector<double>> positions;
-    if (!nh.getParam("~hydrophones", positions) || positions.size() != 4) {
-      ROS_ERROR("Invalid or missing 'hydrophones' param.");
-      return false;
-    }
+  // Read hydrophone positions from TF
+  bool loadHydrophonePos() {
+    const std::string parent = "taluy/base_link";
+    const std::vector<std::string> names = {"hydrophone_1", "hydrophone_2",
+                                            "hydrophone_3", "hydrophone_4"};
 
-    for (std::size_t i = 0; i < 4; ++i) {
-      if (positions[i].size() != 3) {
-        ROS_ERROR("Hydrophone %zu does not have 3 coordinates.", i);
+    for (size_t i = 0; i < names.size(); ++i) {
+      geometry_msgs::TransformStamped tfst;
+      try {
+        tfst = tf_buffer_.lookupTransform(parent, names[i], ros::Time(0),
+                                          ros::Duration(1.0)  // 1 saniye bekle
+        );
+      } catch (tf2::TransformException& ex) {
+        ROS_ERROR("TF lookup for %s failed: %s", names[i].c_str(), ex.what());
         return false;
       }
-      sensors_[i] = {positions[i][0], positions[i][1], positions[i][2]};
-    }
 
+      sensors_[i][0] = tfst.transform.translation.x;
+      sensors_[i][1] = tfst.transform.translation.y;
+      sensors_[i][2] = tfst.transform.translation.z;
+      ROS_INFO("Hydrophone %zu at [%.2f, %.2f, %.2f]", i, sensors_[i][0],
+               sensors_[i][1], sensors_[i][2]);
+    }
     return true;
   }
 
@@ -110,11 +130,34 @@ class TDOALocalizer {
       }
     }
 
-    transform.header.stamp = ros::Time::now();
-    transform.transform.translation.x = best_pos[0];
-    transform.transform.translation.y = best_pos[1];
-    transform.transform.translation.z = best_pos[2];
+    // 8) Transform Odom → Base_link
+    geometry_msgs::TransformStamped tf_odom_base;
+    try {
+      tf_odom_base = tf_buffer_.lookupTransform(
+          "odom", "taluy/base_link", ros::Time(0), ros::Duration(1.0));
+    } catch (tf2::TransformException& ex) {
+      ROS_ERROR("TF lookup (odom→base_link) failed: %s", ex.what());
+      return;
+    }
 
-    pub_.publish(transform);
+    // 9) Transform Base_link → Pinger
+    geometry_msgs::TransformStamped tf_base_pinger;
+    tf_base_pinger.header.stamp = tf_odom_base.header.stamp;
+    tf_base_pinger.header.frame_id = "taluy/base_link";
+    tf_base_pinger.child_frame_id = "pinger";
+    tf_base_pinger.transform.translation.x = best_pos[0];
+    tf_base_pinger.transform.translation.y = best_pos[1];
+    tf_base_pinger.transform.translation.z = best_pos[2];
+    tf_base_pinger.transform.rotation.x = 0.0;
+    tf_base_pinger.transform.rotation.y = 0.0;
+    tf_base_pinger.transform.rotation.z = 0.0;
+    tf_base_pinger.transform.rotation.w = 1.0;
+
+    // 10) Odom → pinger dönüşümünü oluştur
+    geometry_msgs::TransformStamped tf_odom_pinger;
+    tf2::doTransform(tf_base_pinger, tf_odom_pinger, tf_odom_base);
+
+    // 11) Publish et (odom çerçevesine göre)
+    pub_.publish(tf_odom_pinger);
   }
 };
