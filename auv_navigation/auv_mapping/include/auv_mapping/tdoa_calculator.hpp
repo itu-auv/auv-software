@@ -140,7 +140,6 @@ class TDOALocalizer {
       return;
     }
 
-    // 9) Transform Base_link → Pinger
     geometry_msgs::TransformStamped tf_base_pinger;
     tf_base_pinger.header.stamp = tf_odom_base.header.stamp;
     tf_base_pinger.header.frame_id = "taluy/base_link";
@@ -153,11 +152,9 @@ class TDOALocalizer {
     tf_base_pinger.transform.rotation.z = 0.0;
     tf_base_pinger.transform.rotation.w = 1.0;
 
-    // 10) Odom → pinger dönüşümünü oluştur
     geometry_msgs::TransformStamped tf_odom_pinger;
     tf2::doTransform(tf_base_pinger, tf_odom_pinger, tf_odom_base);
 
-    // 11) Publish et (odom çerçevesine göre)
     pub_.publish(tf_odom_pinger);
   }
 };
