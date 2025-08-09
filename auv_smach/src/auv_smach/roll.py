@@ -12,6 +12,8 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
     ClearObjectMapState,
+    AlignFrame,
+    RotationState,
 )
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
@@ -390,6 +392,102 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "CLEAR_OBJECT_MAP",
                 ClearObjectMapState(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+
+class TwoYawState(smach.StateMachine):
+    def __init__(self, yaw_frame):
+        smach.StateMachine.__init__(
+            self, outcomes=["succeeded", "preempted", "aborted"]
+        )
+        self.yaw_frame = yaw_frame
+
+        with self:
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_NONE_DURING_YAW",
+                SetDetectionFocusState(focus_object="none"),
+                transitions={
+                    "succeeded": "YAW_FIRST_360_DEGREES",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_FIRST_360_DEGREES",
+                RotationState(
+                    source_frame="taluy/base_link",
+                    look_at_frame=self.yaw_frame,
+                    rotation_speed=0.3,
+                    full_rotation=True,
+                    full_rotation_timeout=45.0,
+                    rotation_radian=2 * math.pi,
+                ),
+                transitions={
+                    "succeeded": "YAW_SECOND_360_DEGREES",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "YAW_SECOND_360_DEGREES",
+                RotationState(
+                    source_frame="taluy/base_link",
+                    look_at_frame=self.yaw_frame,
+                    rotation_speed=0.3,
+                    full_rotation=True,
+                    full_rotation_timeout=45.0,
+                    rotation_radian=2 * math.pi,
+                ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_BEFORE_RESET_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_BEFORE_RESET_POSE",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSE_AFTER_YAW",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSE_AFTER_YAW",
+                ResetOdometryState(),
+                transitions={
+                    "succeeded": "DELAY_AFTER_RESET_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_AFTER_RESET_POSE",
+                DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "CLEAR_OBJECT_MAP_AFTER_YAW",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_OBJECT_MAP_AFTER_YAW",
+                ClearObjectMapState(),
+                transitions={
+                    "succeeded": "SET_DETECTION_FOCUS_GATE_AFTER_YAW",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_GATE_AFTER_YAW",
+                SetDetectionFocusState(focus_object="gate"),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

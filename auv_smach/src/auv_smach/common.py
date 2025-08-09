@@ -358,11 +358,13 @@ class RotationState(smach.State):
         full_rotation=False,
         full_rotation_timeout=25.0,
         rate_hz=10,
+        rotation_radian=2 * math.pi,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.odom_topic = "odometry"
         self.cmd_vel_topic = "cmd_vel"
         self.rotation_speed = rotation_speed
+        self.rotation_radian = rotation_radian
         self.odom_data = False
         self.yaw = None
         self.yaw_prev = None
@@ -374,7 +376,6 @@ class RotationState(smach.State):
         self.look_at_frame = look_at_frame
         self.full_rotation = full_rotation
         self.full_rotation_timeout = full_rotation_timeout
-
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
@@ -446,7 +447,11 @@ class RotationState(smach.State):
             )
             return "succeeded"
 
-        while not rospy.is_shutdown() and self.total_yaw < 2 * math.pi and self.active:
+        while (
+            not rospy.is_shutdown()
+            and self.total_yaw < self.rotation_radian
+            and self.active
+        ):
             if self.preempt_requested():
                 twist.angular.z = 0.0
                 self.pub.publish(twist)
