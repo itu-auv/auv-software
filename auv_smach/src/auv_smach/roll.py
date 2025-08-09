@@ -14,6 +14,8 @@ from auv_smach.common import (
     ClearObjectMapState,
     AlignFrame,
     RotationState,
+    SearchForPropState,
+    SetDepthState,
 )
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import WrenchStamped
@@ -272,11 +274,12 @@ class RollTwoTimes(smach.State):
 
 
 class TwoRollState(smach.StateMachine):
-    def __init__(self, roll_torque=50.0):
+    def __init__(self, gate_look_at_frame, roll_torque=50.0):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
         self.roll_torque = roll_torque
+        self.gate_look_at_frame = gate_look_at_frame
 
         with self:
             smach.StateMachine.add(
@@ -337,6 +340,18 @@ class TwoRollState(smach.StateMachine):
                 "WAIT_FOR_DVL_ODOM_ENABLE",
                 DelayState(delay_time=3.0),
                 transitions={
+                    "succeeded": "SET_ROLL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ROLL_DEPTH",
+                SetDepthState(
+                    depth=-0.8,
+                    sleep_duration=5.0,
+                ),
+                transitions={
                     "succeeded": "ALIGN_TO_LOOK_AT_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -344,8 +359,13 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "ALIGN_TO_LOOK_AT_GATE",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="gate_search"
+                SearchForPropState(
+                    look_at_frame=self.gate_look_at_frame,
+                    alignment_frame="gate_search_after_roll",
+                    full_rotation=True,
+                    set_frame_duration=7.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.25,
                 ),
                 transitions={
                     "succeeded": "WAIT_FOR_ALIGNMENT",
@@ -355,7 +375,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ALIGNMENT",
-                DelayState(delay_time=3.0),
+                DelayState(delay_time=1.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_BEFORE_ODOM_ENABLE",
                     "preempted": "preempted",
@@ -422,7 +442,7 @@ class TwoYawState(smach.StateMachine):
                 RotationState(
                     source_frame="taluy/base_link",
                     look_at_frame=self.yaw_frame,
-                    rotation_speed=0.3,
+                    rotation_speed=0.5,
                     full_rotation=True,
                     full_rotation_timeout=45.0,
                     rotation_radian=2 * math.pi,
@@ -438,7 +458,7 @@ class TwoYawState(smach.StateMachine):
                 RotationState(
                     source_frame="taluy/base_link",
                     look_at_frame=self.yaw_frame,
-                    rotation_speed=0.3,
+                    rotation_speed=0.5,
                     full_rotation=True,
                     full_rotation_timeout=45.0,
                     rotation_radian=2 * math.pi,
