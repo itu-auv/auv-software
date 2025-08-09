@@ -69,10 +69,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
       integral_.head(N) += error * dt;
 
-      // Apply integral clamping (anti-windup) for position controller only
-      if (integral_clamp_limits_.head(N).norm() >
-          0) {  // Check if limits are set
-        for (size_t i = 0; i < N; ++i) {
+      // Apply integral clamping (anti-windup)
+      if (integral_clamp_limits_.norm() > 0) {  // Check if limits are set
+        for (size_t i = 0; i < 2 * N; ++i) {
           const double limit = integral_clamp_limits_(i);
           if (limit > 0) {  // Only clamp if limit is positive
             double before_clamp = integral_(i);
