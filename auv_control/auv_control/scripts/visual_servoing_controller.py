@@ -51,8 +51,8 @@ class VisualServoingController:
         self.kp_gain = rospy.get_param("~kp_gain", 0.8)
         self.kd_gain = rospy.get_param("~kd_gain", 0.4)
         self.v_x_desired = rospy.get_param("~v_x_desired", 0.3)
-        self.navigation_timeout_after_prop_disappear_s = 12.0
-        self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 1500.0)
+        self.navigation_timeout_after_prop_disappear_s = 600.0
+        self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 60000.0)
         self.rate_hz = rospy.get_param("~rate_hz", 10.0)
         imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
         self.imu_history_size = int(self.rate_hz * imu_history_secs)
