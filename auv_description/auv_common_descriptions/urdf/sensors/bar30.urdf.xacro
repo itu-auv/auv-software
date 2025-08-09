@@ -30,7 +30,7 @@
       <axis rpy="0 0 0" xyz="0 0 1"/>
       <parent link="${name}_chasis_link"/>
       <child link="${name}_link"/>
-      <origin xyz="0 0 0.0075" rpy="0 0 0"/>
+      <origin xyz="0 0 0.0092" rpy="0 0 0"/>
     </joint>
   </xacro:macro>
 </robot>
