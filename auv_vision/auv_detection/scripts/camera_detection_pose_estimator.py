@@ -96,10 +96,8 @@ class SlalomPipe(Prop):
         id: int,
         name: str,
         real_length: float,
-        aspect_ratio_threshold: float = 4.0,
     ):
         super().__init__(id, name, real_length, None)
-        self.aspect_ratio_threshold = aspect_ratio_threshold
 
     def estimate_distance(
         self,
@@ -107,20 +105,13 @@ class SlalomPipe(Prop):
         measured_width: float,
         calibration: CameraCalibration,
     ):
-        # if measured_height is 0, this will cause a division by zero error.
-        if measured_height == 0:
-            return super().estimate_distance(
-                measured_height, measured_width, calibration
+        if measured_height <= 0:
+            rospy.logwarn(
+                f"{self.name}: measured_height is zero, skipping distance estimation"
             )
+            return None
 
-        aspect_ratio = measured_height / measured_width
-
-        length = measured_height
-        if aspect_ratio > self.aspect_ratio_threshold:
-            rospy.loginfo_once(
-                "Aspect ratio is over threshold, using hypotenuse for pipe length"
-            )
-            length = math.sqrt(measured_height**2 + measured_width**2)
+        length = math.sqrt(measured_height**2 + measured_width**2)
 
         if self.real_height is not None:
             return calibration.distance_from_height(self.real_height, length)
