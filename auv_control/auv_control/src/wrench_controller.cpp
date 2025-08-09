@@ -1,5 +1,7 @@
 #include "auv_control/wrench_controller.h"
 
+#include <Eigen/Dense>
+
 namespace auv {
 namespace control {
 
@@ -129,20 +131,40 @@ void WrenchController::spin() {
           current_yaw_vel_, desired_yaw_vel + latest_cmd_vel_.angular.z,
           rate_.expectedCycleTime().toSec());
 
+      Eigen::Matrix<double, 6, 1> wrench;
+      wrench.setZero();
+      wrench(0) = latest_cmd_vel_.linear.x * linear_xy_scalar_ +
+                  z_force * zx_multiplier_;
+      wrench(1) = latest_cmd_vel_.linear.y * linear_xy_scalar_ +
+                  z_force * zy_multiplier_;
+      wrench(2) = z_force;
+      wrench(3) = roll_torque;
+      wrench(4) = pitch_torque;
+      wrench(5) = yaw_torque;
+
+      {
+        Eigen::AngleAxisd roll_angle(current_roll_, Eigen::Vector3d::UnitX());
+        Eigen::AngleAxisd pitch_angle(current_pitch_, Eigen::Vector3d::UnitY());
+        Eigen::AngleAxisd yaw_angle(current_yaw_, Eigen::Vector3d::UnitZ());
+        Eigen::Quaterniond rotation = yaw_angle * pitch_angle * roll_angle;
+        Eigen::Matrix3d rotation_matrix = rotation.matrix();
+        // get the inverse wrench transformation matrix
+        Eigen::Matrix3d inverse_rotation_matrix = rotation_matrix.transpose();
+
+        Eigen::Vector3d f_z = Eigen::Vector3d::Zero();
+        f_z(2) = wrench(2);
+        wrench(2) = 0;
+
+        Eigen::Vector3d rotated_fz = inverse_rotation_matrix * f_z;
+        wrench.head(3) += rotated_fz;
+      }
+
       geometry_msgs::WrenchStamped wrench_msg;
       wrench_msg.header.stamp = ros::Time::now();
       wrench_msg.header.frame_id = body_frame_;
-
-      wrench_msg.wrench.force.z = z_force;
-      wrench_msg.wrench.force.x = latest_cmd_vel_.linear.x * linear_xy_scalar_ +
-                                  wrench_msg.wrench.force.z * zx_multiplier_;
-      wrench_msg.wrench.force.y = latest_cmd_vel_.linear.y * linear_xy_scalar_ +
-                                  wrench_msg.wrench.force.z * zy_multiplier_;
-
-      wrench_msg.wrench.torque.x = roll_torque;
-      wrench_msg.wrench.torque.y = pitch_torque;
-      wrench_msg.wrench.torque.z = yaw_torque;
-
+      wrench_msg.wrench =
+          auv::common::conversions::convert<Eigen::Matrix<double, 6, 1>,
+                                            geometry_msgs::Wrench>(wrench);
       wrench_pub_.publish(wrench_msg);
     }
 

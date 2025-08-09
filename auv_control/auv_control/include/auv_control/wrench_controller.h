@@ -10,6 +10,7 @@
 #include <std_msgs/Bool.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
+#include "auv_common_lib/ros/conversions.h"
 #include "auv_common_lib/ros/subscriber_with_timeout.h"
 #include "auv_control/WrenchControllerConfig.h"
 
