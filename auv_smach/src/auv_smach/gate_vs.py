@@ -16,7 +16,6 @@ class NavigateThroughGateStateVS(smach.State):
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
-
         # Open the container for adding states
         with self.state_machine:
 

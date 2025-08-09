@@ -1,0 +1,5 @@
+<launch>
+    <!-- Starts the camera detection pose estimator node -->
+    <node name="camera_detection_pose_estimator" pkg="auv_detection" type="camera_detection_pose_estimator.py" output="screen">
+    </node>
+</launch>
