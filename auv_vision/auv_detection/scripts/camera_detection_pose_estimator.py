@@ -113,19 +113,17 @@ class SlalomPipe(Prop):
                 measured_height, measured_width, calibration
             )
 
-        aspect_ratio = measured_width / measured_height
+        aspect_ratio = measured_height / measured_width
 
-        measured_hypotenus = measured_height
+        length = measured_height
         if aspect_ratio > self.aspect_ratio_threshold:
             rospy.loginfo_once(
                 "Aspect ratio is over threshold, using hypotenuse for pipe length"
             )
-            measured_hypotenus = math.sqrt(measured_height**2 + measured_width**2)
+            length = math.sqrt(measured_height**2 + measured_width**2)
 
         if self.real_height is not None:
-            return calibration.distance_from_height(
-                self.real_height, measured_hypotenus
-            )
+            return calibration.distance_from_height(self.real_height, length)
         else:
             rospy.logerr(f"Could not estimate distance for prop {self.name}")
             return None
