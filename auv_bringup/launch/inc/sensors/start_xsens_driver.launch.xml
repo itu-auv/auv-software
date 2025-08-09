@@ -45,7 +45,7 @@
       <param name="pub_positionLLA" value="true"/>
       <param name="pub_velocity" value="true"/>
       <param name="linear_acceleration_stddev" type="yaml" value="[0.004908039550431511,0.0070260067392083755,0.006481069334617469]"/>
-      <param name="angular_velocity_stddev" type="yaml" value="[0.0010349011225749835,0.0027708115247918187,0.0010211210420728483]"/>
+      <param name="angular_velocity_stddev" type="yaml" value="[0.002852498, 0.002849262, 0.002961204]"/>
       <param name="orientation_stddev" type="yaml" value="[0.0013421952371246086,0.0010453284302246418,2.4719462779466497]"/>
       <param name="magnetic_field_stddev" type="yaml" value="[0.02560214834735554,0.019545076106272905,0.025738104048278303]"/>
     </node>
