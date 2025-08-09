@@ -156,8 +156,9 @@ class VisualServoingController:
         twist.linear.x = self._calculate_linear_x()
         self.cmd_vel_pub.publish(twist)
 
+        # cmd vel to wrench conversion inserted here
         wrench = Wrench()
-        scale_linear = 40.0
+        scale_linear = 20.0
         scale_angular = 10.0
         wrench.force.x = twist.linear.x * scale_linear
         wrench.force.y = twist.linear.y * scale_linear
