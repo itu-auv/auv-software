@@ -2,8 +2,7 @@ from .initialize import *
 import smach
 import rospy
 import math
-import tf2_ros
-from geometry_msgs.msg import Twist, Wrench
+from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion
@@ -26,7 +25,7 @@ class TurnAroundState(smach.State):
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.odom_topic = "odometry"
-        self.cmd_wrench_topic = "cmd_wrench"
+        self.cmd_vel_topic = "cmd_vel"
         self.rotation_speed = rotation_speed
         self.timeout = timeout
         self.odom_data = False
@@ -37,9 +36,7 @@ class TurnAroundState(smach.State):
         self.active = True
 
         self.sub = rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb)
-        from geometry_msgs.msg import Wrench
-
-        self.pub = rospy.Publisher(self.cmd_wrench_topic, Wrench, queue_size=1)
+        self.pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
 
         self.enable_pub = rospy.Publisher(
             "enable",
@@ -82,16 +79,6 @@ class TurnAroundState(smach.State):
         self.total_yaw = 0.0
         twist = Twist()
         twist.angular.z = self.rotation_speed
-        # Wrench'e dönüştür
-        scale_linear = 20.0
-        scale_angular = 10.0
-        wrench = Wrench()
-        wrench.force.x = twist.linear.x * scale_linear
-        wrench.force.y = twist.linear.y * scale_linear
-        wrench.force.z = twist.linear.z * scale_linear
-        wrench.torque.x = twist.angular.x * scale_angular
-        wrench.torque.y = twist.angular.y * scale_angular
-        wrench.torque.z = twist.angular.z * scale_angular
         self.active = True
         rotation_start_time = rospy.Time.now()
 
@@ -101,8 +88,7 @@ class TurnAroundState(smach.State):
         while not rospy.is_shutdown() and self.total_yaw < math.pi and self.active:
             if self.preempt_requested():
                 twist.angular.z = 0.0
-                wrench.torque.z = 0.0
-                self.pub.publish(wrench)
+                self.pub.publish(twist)
                 self.service_preempt()
                 return "preempted"
 
@@ -112,13 +98,12 @@ class TurnAroundState(smach.State):
                     f"RotationState: Timeout reached after {self.timeout} seconds during rotation."
                 )
                 twist.angular.z = 0.0
-                wrench.torque.z = 0.0
-                self.pub.publish(wrench)
+                self.pub.publish(twist)
                 return "aborted"
 
             # Enable propulsion and publish rotation command
             self.enable_pub.publish(Bool(data=True))
-            self.pub.publish(wrench)
+            self.pub.publish(twist)
 
             # Calculate total rotation
             if self.yaw is not None and self.yaw_prev is not None:
@@ -130,8 +115,7 @@ class TurnAroundState(smach.State):
 
         # Stop rotation
         twist.angular.z = 0.0
-        wrench.torque.z = 0.0
-        self.pub.publish(wrench)
+        self.pub.publish(twist)
 
         if not self.active:
             rospy.loginfo("RotationState: rotation aborted by killswitch.")

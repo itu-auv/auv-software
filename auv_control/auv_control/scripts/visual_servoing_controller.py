@@ -14,7 +14,6 @@ from auv_msgs.srv import VisualServoing, VisualServoingResponse
 from dynamic_reconfigure.server import Server
 from auv_control.cfg import VisualServoingConfig
 from sensor_msgs.msg import Imu
-from geometry_msgs.msg import Wrench
 
 
 def normalize_angle(angle: float) -> float:
@@ -81,8 +80,6 @@ class VisualServoingController:
         self.target_yaw_pub = rospy.Publisher(
             "visual_servoing/target_yaw", Float64, queue_size=1
         )
-        # WrenchStamped publisher
-        self.wrench_pub = rospy.Publisher("cmd_wrench", Wrench, queue_size=10)
 
         # Subscribers
         rospy.Subscriber("props_yaw", PropsYaw, self.prop_yaw_callback, queue_size=1)
@@ -155,18 +152,6 @@ class VisualServoingController:
         twist.angular.z = self._calculate_angular_z()
         twist.linear.x = self._calculate_linear_x()
         self.cmd_vel_pub.publish(twist)
-
-        # cmd vel to wrench conversion inserted here
-        wrench = Wrench()
-        scale_linear = 20.0
-        scale_angular = 10.0
-        wrench.force.x = twist.linear.x * scale_linear
-        wrench.force.y = twist.linear.y * scale_linear
-        wrench.force.z = twist.linear.z * scale_linear
-        wrench.torque.x = twist.angular.x * scale_angular
-        wrench.torque.y = twist.angular.y * scale_angular
-        wrench.torque.z = twist.angular.z * scale_angular
-        self.wrench_pub.publish(wrench)
 
     def _calculate_angular_z(self) -> float:
         """Calculates the angular velocity command using a PD controller."""
