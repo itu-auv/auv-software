@@ -38,6 +38,7 @@ class TurnAroundState(smach.State):
 
         self.sub = rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb)
         from geometry_msgs.msg import Wrench
+
         self.pub = rospy.Publisher(self.cmd_wrench_topic, Wrench, queue_size=1)
 
         self.enable_pub = rospy.Publisher(
@@ -140,7 +141,7 @@ class TurnAroundState(smach.State):
             f"RotationState: completed 180 degree rotation. Total yaw: {self.total_yaw:.2f} radians"
         )
         return "succeeded"
-        
+
 
 class NavigateThroughGateStateVS(smach.State):
     def __init__(self, gate_depth: float, target_prop: str, wait_duration: float = 6.0):
@@ -200,7 +201,7 @@ class NavigateThroughGateStateVS(smach.State):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )      
+            )
             smach.StateMachine.add(
                 "CANCEL_NAVIGATION",
                 VisualServoingCancelNavigation(),
@@ -229,15 +230,14 @@ class NavigateThroughGateStateVS(smach.State):
                 },
             )
             smach.StateMachine.add(
-                 "FARUK",
-                 VisualServoingCentering(target_prop=target_prop),
-                 transitions={
-                     "succeeded": "WAIT_FOR_CENTERING",
-                     "preempted": "preempted",
-                     "aborted": "aborted",
-                 },
-             )       
-    
+                "FARUK",
+                VisualServoingCentering(target_prop=target_prop),
+                transitions={
+                    "succeeded": "WAIT_FOR_CENTERING",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
 
     def execute(self, userdata):
         rospy.logdebug("[NavigateThroughGateStateVS] Starting state machine execution.")

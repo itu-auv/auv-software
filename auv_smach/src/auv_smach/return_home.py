@@ -69,7 +69,7 @@ class ReturnHomeState(smach.State):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )      
+            )
             smach.StateMachine.add(
                 "RETURN_CANCEL_NAVIGATION",
                 VisualServoingCancelNavigation(),
@@ -87,8 +87,7 @@ class ReturnHomeState(smach.State):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )     
-    
+            )
 
     def execute(self, userdata):
         rospy.logdebug("[NavigateThroughGateStateVS] Starting state machine execution.")
