@@ -4,7 +4,7 @@ import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped, Twist, PoseWithCovarianceStamped
 from std_msgs.msg import Float64
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import Trigger, TriggerResponse, SetBool
 from auv_msgs.srv import (
     SetDepth,
     SetDepthRequest,
@@ -17,8 +17,6 @@ from auv_common_lib.control.enable_state import ControlEnableHandler
 
 class ReferencePosePublisherNode:
     def __init__(self):
-        self.heading_control_mode = rospy.get_param("~heading_control_mode", "cmd_vel")
-
         # Initialize subscribers
         self.odometry_sub = rospy.Subscriber(
             "odometry", Odometry, self.odometry_callback, tcp_nodelay=True
@@ -26,14 +24,15 @@ class ReferencePosePublisherNode:
         self.set_depth_service = rospy.Service(
             "set_depth", SetDepth, self.target_depth_handler
         )
-        if self.heading_control_mode == "cmd_vel":
-            self.cmd_vel_sub = rospy.Subscriber(
-                "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
-            )
-        elif self.heading_control_mode == "set_heading":
-            self.set_heading_sub = rospy.Subscriber(
-                "set_heading", Float64, self.target_heading_handler, tcp_nodelay=True
-            )
+        self.cmd_vel_sub = rospy.Subscriber(
+            "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
+        )
+        self.set_heading_sub = rospy.Subscriber(
+            "set_heading", Float64, self.target_heading_handler, tcp_nodelay=True
+        )
+        self.set_heading_mode_service = rospy.Service(
+            "enable_heading_integral_mode", SetBool, self.heading_mode_handler
+        )
         self.reset_odometry_service = rospy.Service(
             "reset_odometry", Trigger, self.reset_odometry_handler
         )
@@ -50,6 +49,7 @@ class ReferencePosePublisherNode:
         self.last_cmd_time = rospy.Time.now()
         self.target_frame_id = ""
         self.is_resetting = False
+        self.heading_integral_mode = True
 
         self.set_pose_req = SetPoseRequest()
         self.set_pose_req.pose = PoseWithCovarianceStamped()
@@ -68,8 +68,25 @@ class ReferencePosePublisherNode:
             message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
         )
 
+    def heading_mode_handler(self, req: SetBool):
+        if req.data is None:
+            rospy.loginfo("Received None for heading integral mode, setting to True")
+            self.heading_integral_mode = True
+            return SetBool(success=False, message="Integral mode enabled.")
+
+        self.heading_integral_mode = req.data
+        return SetBool(
+            success=True,
+            message=(
+                "Integral mode enabled."
+                if self.heading_integral_mode
+                else "Integral mode disabled."
+            ),
+        )
+
     def target_heading_handler(self, req: Float64):
-        self.target_heading = req.data
+        if not self.heading_integral_mode:
+            self.target_heading = req.data
 
     def reset_odometry_handler(self, req):
         if self.is_resetting:
@@ -114,8 +131,11 @@ class ReferencePosePublisherNode:
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
         dt = min(dt, self.command_timeout)
         self.target_depth += msg.linear.z * dt
-        self.target_heading += msg.angular.z * dt
         self.last_cmd_time = rospy.Time.now()
+
+        if not self.heading_integral_mode:
+            return
+        self.target_heading += msg.angular.z * dt
 
     def control_loop(self):
         # Create and publish the cmd_pose message

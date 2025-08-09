@@ -9,7 +9,8 @@ WrenchController::WrenchController(const ros::NodeHandle& nh)
       z_pid_(0.0, 0.0, 0.0),
       roll_pid_(0.0, 0.0, 0.0),
       pitch_pid_(0.0, 0.0, 0.0),
-      yaw_pid_(0.0, 0.0, 0.0),
+      yaw_pos_pid_(0.0, 0.0, 0.0),
+      yaw_vel_pid_(0.0, 0.0, 0.0),
       control_enable_sub_{nh_},
       reconfigure_server_{ros::NodeHandle("~")} {
   ros::NodeHandle nh_private("~");
@@ -21,8 +22,8 @@ WrenchController::WrenchController(const ros::NodeHandle& nh)
 
   odom_sub_ =
       nh_.subscribe("odometry", 1, &WrenchController::odometryCallback, this);
-  wrench_sub_ =
-      nh_.subscribe("cmd_wrench", 1, &WrenchController::wrenchCallback, this);
+  cmd_vel_sub_ =
+      nh_.subscribe("cmd_vel", 1, &WrenchController::twistCallback, this);
   cmd_pose_sub_ =
       nh_.subscribe("cmd_pose", 1, &WrenchController::cmdPoseCallback, this);
   wrench_pub_ = nh_.advertise<geometry_msgs::WrenchStamped>("wrench", 1);
@@ -40,11 +41,12 @@ void WrenchController::odometryCallback(
                     msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
   tf2::Matrix3x3 m(q);
   m.getRPY(current_roll_, current_pitch_, current_yaw_);
+  current_yaw_vel_ = msg->twist.twist.angular.z;
 }
 
-void WrenchController::wrenchCallback(
-    const geometry_msgs::Wrench::ConstPtr& msg) {
-  latest_wrench_ = *msg;
+void WrenchController::twistCallback(
+    const geometry_msgs::Twist::ConstPtr& msg) {
+  latest_cmd_vel_ = *msg;
   latest_command_time_ = ros::Time::now();
 }
 
@@ -65,7 +67,14 @@ void WrenchController::reconfigureCallback(
                      config.roll_d_gain);
   pitch_pid_.setGains(config.pitch_p_gain, config.pitch_i_gain,
                       config.pitch_d_gain);
-  yaw_pid_.setGains(config.yaw_p_gain, config.yaw_i_gain, config.yaw_d_gain);
+  yaw_pos_pid_.setGains(config.yaw_pos_p_gain, config.yaw_pos_i_gain,
+                        config.yaw_pos_d_gain);
+  yaw_vel_pid_.setGains(config.yaw_vel_p_gain, config.yaw_vel_i_gain,
+                        config.yaw_vel_d_gain);
+  zx_multiplier_ = config.zx_multiplier;
+  zy_multiplier_ = config.zy_multiplier;
+  linear_xy_scalar_ = config.linear_xy_scalar;
+  linear_z_scalar_ = config.linear_z_scalar;
 }
 
 bool WrenchController::is_control_enabled() {
@@ -74,7 +83,8 @@ bool WrenchController::is_control_enabled() {
     z_pid_.reset();
     roll_pid_.reset();
     pitch_pid_.reset();
-    yaw_pid_.reset();
+    yaw_pos_pid_.reset();
+    yaw_vel_pid_.reset();
   }
   return enabled;
 }
@@ -111,16 +121,24 @@ void WrenchController::spin() {
       double pitch_torque = pitch_pid_.control(
           current_pitch_, desired_pitch_, rate_.expectedCycleTime().toSec());
 
-      double yaw_error =
+      double yaw_pos_error =
           angles::shortest_angular_distance(current_yaw_, desired_yaw_);
-      double yaw_torque = yaw_pid_.controlFromError(
-          yaw_error, rate_.expectedCycleTime().toSec());
+      double desired_yaw_vel = yaw_pos_pid_.controlFromError(
+          yaw_pos_error, rate_.expectedCycleTime().toSec());
+      double yaw_torque = yaw_vel_pid_.control(
+          current_yaw_vel_, desired_yaw_vel + latest_cmd_vel_.angular.z,
+          rate_.expectedCycleTime().toSec());
 
       geometry_msgs::WrenchStamped wrench_msg;
       wrench_msg.header.stamp = ros::Time::now();
       wrench_msg.header.frame_id = body_frame_;
-      wrench_msg.wrench = latest_wrench_;
-      // wrench_msg.wrench.force.z = z_force;
+
+      wrench_msg.wrench.force.z = z_force;
+      wrench_msg.wrench.force.x = latest_cmd_vel_.linear.x * linear_xy_scalar_ +
+                                  wrench_msg.wrench.force.z * zx_multiplier_;
+      wrench_msg.wrench.force.y = latest_cmd_vel_.linear.y * linear_xy_scalar_ +
+                                  wrench_msg.wrench.force.z * zy_multiplier_;
+
       wrench_msg.wrench.torque.x = roll_torque;
       wrench_msg.wrench.torque.y = pitch_torque;
       wrench_msg.wrench.torque.z = yaw_torque;

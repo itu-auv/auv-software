@@ -13,9 +13,7 @@ class AcousticTransmitter(smach.State):
         self.data_value = data_value
 
         # Create publisher for acoustic modem
-        self.acoustic_pub = rospy.Publisher(
-            "modem/data/tx", UInt8, queue_size=10
-        )
+        self.acoustic_pub = rospy.Publisher("modem/data/tx", UInt8, queue_size=10)
 
         rospy.loginfo(f"AcousticTransmitter initialized - data: {data_value}")
 
