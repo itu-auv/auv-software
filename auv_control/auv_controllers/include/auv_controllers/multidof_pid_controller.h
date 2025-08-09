@@ -29,6 +29,16 @@ class MultiDOFPIDController : public ControllerBase<N> {
   void set_kd(const Vector2nd& kd) { kd_ = kd.asDiagonal(); }
 
   /**
+   * @brief Set the integral clamp limits for anti-windup
+   *
+   * @param limits Vector of integral limits
+   *               First N elements for position, last N for velocity
+   */
+  void set_integral_clamp_limits(const Vector2nd& limits) {
+    integral_clamp_limits_ = limits;
+  }
+
+  /**
    * @brief Calculate the control output, in the form of a wrench
    *
    * @param state current velocity vector
@@ -58,6 +68,24 @@ class MultiDOFPIDController : public ControllerBase<N> {
       const auto p_term = kp_.template block<N, N>(0, 0) * error;
 
       integral_.head(N) += error * dt;
+
+      // Apply integral clamping (anti-windup) for position controller only
+      if (integral_clamp_limits_.head(N).norm() >
+          0) {  // Check if limits are set
+        for (size_t i = 0; i < N; ++i) {
+          const double limit = integral_clamp_limits_(i);
+          if (limit > 0) {  // Only clamp if limit is positive
+            double before_clamp = integral_(i);
+            integral_(i) = std::max(-limit, std::min(limit, integral_(i)));
+            if (i == 2) {
+              ROS_INFO_STREAM_THROTTLE(
+                  1, "Integral_z: " << integral_(i) << ", Limit: " << limit
+                                    << ", Before: " << before_clamp);
+            }
+          }
+        }
+      }
+
       const auto i_term = ki_.template block<N, N>(0, 0) * integral_.head(N);
 
       // d/dt (desired) is considered to be zero
@@ -134,6 +162,8 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   // gains
   Vector2nd integral_{Vector2nd::Zero()};
+  Vector2nd integral_clamp_limits_{
+      Vector2nd::Zero()};  // Integral clamping limits
   Matrix2nd kp_;
   Matrix2nd ki_;
   Matrix2nd kd_;
