@@ -39,6 +39,16 @@ class MultiDOFPIDController : public ControllerBase<N> {
   }
 
   /**
+   * @brief Set the gravity compensation for z-axis
+   *
+   * @param compensation The gravity compensation value to be added to z-axis
+   * wrench
+   */
+  void set_gravity_compensation_z(double compensation) {
+    gravity_compensation_z_ = compensation;
+  }
+
+  /**
    * @brief Calculate the control output, in the form of a wrench
    *
    * @param state current velocity vector
@@ -118,6 +128,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto damping_force = damping_control(feedforward_state);
 
     WrenchVector wrench = pid_force + damping_force;
+
+    // Add gravity compensation to z-axis
+    wrench(2) += gravity_compensation_z_;
+
     {
       Eigen::AngleAxisd roll_angle(state[3], Eigen::Vector3d::UnitX());
       Eigen::AngleAxisd pitch_angle(state[4], Eigen::Vector3d::UnitY());
@@ -166,6 +180,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
   Matrix2nd kp_;
   Matrix2nd ki_;
   Matrix2nd kd_;
+  double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
 };
 
 using SixDOFPIDController = MultiDOFPIDController<6>;
