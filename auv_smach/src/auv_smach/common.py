@@ -4,6 +4,7 @@ import rospy
 import threading
 import numpy as np
 import tf2_ros
+import tf2_geometry_msgs
 import tf.transformations as transformations
 import math
 import angles
@@ -11,7 +12,7 @@ import angles
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, PoseStamped
 
 from auv_msgs.srv import (
     PlanPath,
@@ -920,6 +921,165 @@ class CheckAlignmentState(smach.State):
             self.rate.sleep()
 
         rospy.logwarn("CheckAlignmentState: Timeout reached.")
+        return "succeeded"
+
+
+class WaitDepthAlignment(smach.State):
+    """
+    State that monitors depth alignment between cmd_pose target and actual odometry.
+    Waits until the depth difference is within threshold for a specified duration.
+
+    Parameters:
+    - depth_threshold: Maximum allowed depth difference in meters (default: 0.05)
+    - confirm_duration: Time to maintain alignment before success in seconds (default: 0.0)
+    - timeout: Maximum time to wait for alignment in seconds (default: 10.0)
+    - rate_hz: Update rate for checking alignment in Hz (default: 10)
+    """
+
+    def __init__(
+        self, depth_threshold=0.05, confirm_duration=0.0, timeout=10.0, rate_hz=10
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
+        self.depth_threshold = depth_threshold
+        self.confirm_duration = confirm_duration
+        self.timeout = timeout
+        self.rate = rospy.Rate(rate_hz)
+
+        # TF buffer for frame transformations
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        # Storage of latest messages
+        self.cmd_pose = None
+        self.current_odom = None
+        self.cmd_pose_lock = threading.Lock()
+        self.odom_lock = threading.Lock()
+
+        # Subscribe to topics
+        self.cmd_pose_sub = rospy.Subscriber(
+            "cmd_pose", PoseStamped, self.cmd_pose_callback, queue_size=1
+        )
+        self.odom_sub = rospy.Subscriber(
+            "odometry", Odometry, self.odom_callback, queue_size=1
+        )
+
+    def cmd_pose_callback(self, msg):
+        with self.cmd_pose_lock:
+            self.cmd_pose = msg
+
+    def odom_callback(self, msg):
+        with self.odom_lock:
+            self.current_odom = msg
+
+    def get_target_depth_in_odom_frame(self):
+        """
+        Get the target depth from cmd_pose, transforming to odom frame if necessary.
+        Returns the target depth in odom frame, or None if transformation fails.
+        """
+        with self.cmd_pose_lock:
+            if self.cmd_pose is None:
+                return None
+
+            frame_id = self.cmd_pose.header.frame_id
+
+            # If frame_id is empty or already in odom frame, use depth directly
+            if not frame_id or frame_id == "odom":
+                return self.cmd_pose.pose.position.z
+
+            try:
+                # Transform the entire PoseStamped message to odom frame
+                cmd_pose_in_odom = self.tf_buffer.transform(
+                    self.cmd_pose, "odom", rospy.Duration(1.0)
+                )
+                return cmd_pose_in_odom.pose.position.z
+
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                rospy.logwarn(
+                    f"WaitDepthAlignment: Failed to transform pose from {frame_id} to odom: {e}"
+                )
+                return None
+
+    def get_current_depth(self):
+        """Get current depth from odometry in odom frame."""
+        with self.odom_lock:
+            if self.current_odom is None:
+                return None
+            return self.current_odom.pose.pose.position.z
+
+    def check_depth_alignment(self):
+        """
+        Check if current depth is aligned with target depth.
+        Returns (is_aligned, depth_error) or (False, None) if data unavailable.
+        """
+        target_depth = self.get_target_depth_in_odom_frame()
+        current_depth = self.get_current_depth()
+
+        if target_depth is None or current_depth is None:
+            return False, None
+
+        depth_error = abs(current_depth - target_depth)
+        is_aligned = depth_error < self.depth_threshold
+
+        return is_aligned, depth_error
+
+    def execute(self, userdata):
+        start_time = rospy.Time.now()
+        first_success_time = None
+
+        rospy.loginfo(
+            f"WaitDepthAlignment: Starting depth alignment check "
+            f"(threshold={self.depth_threshold}m, timeout={self.timeout}s)"
+        )
+
+        while (rospy.Time.now() - start_time).to_sec() < self.timeout:
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            is_aligned, depth_error = self.check_depth_alignment()
+
+            if depth_error is not None:
+                target_depth = self.get_target_depth_in_odom_frame()
+                current_depth = self.get_current_depth()
+
+                rospy.loginfo_throttle(
+                    1.0,
+                    f"Depth alignment check: current={current_depth:.3f}m, "
+                    f"target={target_depth:.3f}m, error={depth_error:.3f}m",
+                )
+
+                if is_aligned:
+                    if self.confirm_duration == 0.0:
+                        rospy.loginfo("WaitDepthAlignment: Depth alignment successful.")
+                        return "succeeded"
+
+                    if first_success_time is None:
+                        first_success_time = rospy.Time.now()
+                        rospy.loginfo(
+                            f"WaitDepthAlignment: Depth aligned, confirming for {self.confirm_duration}s"
+                        )
+
+                    if (
+                        rospy.Time.now() - first_success_time
+                    ).to_sec() >= self.confirm_duration:
+                        rospy.loginfo(
+                            f"WaitDepthAlignment: Depth alignment maintained for {self.confirm_duration}s"
+                        )
+                        return "succeeded"
+                else:
+                    first_success_time = None
+            else:
+                rospy.logwarn_throttle(
+                    5.0, "WaitDepthAlignment: Waiting for cmd_pose or odometry data..."
+                )
+
+            self.rate.sleep()
+
+        rospy.logwarn("WaitDepthAlignment: Timeout reached.")
         return "succeeded"
 
 
