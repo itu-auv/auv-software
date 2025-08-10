@@ -341,8 +341,6 @@ class CameraDetectionNode:
             return
 
         detection_id = detection.results[0].id
-        if detection_id != 6:
-            return
 
         bbox_bottom_x = detection.bbox.center.x
         bbox_bottom_y = detection.bbox.center.y + detection.bbox.size_y * 0.5
@@ -633,7 +631,7 @@ class CameraDetectionNode:
                 # use altidude for bin
                 distance = self.altitude
 
-            if detection_id == 6:
+            if detection_id in [6, 7]:
                 self.process_altitude_projection(
                     detection, camera_ns, detection_msg.header.stamp
                 )
