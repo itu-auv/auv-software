@@ -8,7 +8,9 @@
 
     <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
       <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="imu_mainboard/data" to="sensors/imu_mainboard/data" />
       <remap from="odom_imu" to="localization/odom_imu" />
+      <remap from="odom_bno_imu" to="localization/odom_bno_imu" />
       <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"

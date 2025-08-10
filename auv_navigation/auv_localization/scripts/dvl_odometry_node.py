@@ -85,6 +85,7 @@ class DvlToOdom:
         self.cmd_vel_twist = Twist()
         self.filtered_cmd_vel = Twist()
         self.last_update_time = rospy.Time.now()
+        self.is_dvl_enabled = False
 
     def enable_cb(self, req):
         """Service callback to enable/disable DVL->Odom processing"""
@@ -140,6 +141,8 @@ class DvlToOdom:
         self.last_update_time = current_time
 
     def dvl_callback(self, velocity_msg, is_valid_msg):
+        self.is_dvl_enabled = True
+
         if not self.enabled:
             return
 
@@ -171,7 +174,13 @@ class DvlToOdom:
         self.odom_publisher.publish(self.odom_msg)
 
     def run(self):
-        rospy.spin()
+        rate = rospy.Rate(20)
+        while not rospy.is_shutdown():
+            if not self.is_dvl_enabled:
+                self.odom_msg.header.stamp = rospy.Time.now()
+                self.odom_msg.twist.twist = Twist()
+                self.odom_publisher.publish(self.odom_msg)
+            rate.sleep()
 
 
 if __name__ == "__main__":

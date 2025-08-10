@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import rospy
 from sensor_msgs.msg import Imu
@@ -21,10 +21,16 @@ class ImuToOdom:
             "~imu_calibration_path", "config/imu_calibration_data.yaml"
         )
         # Subscribers and Publishers
-        self.imu_subscriber = rospy.Subscriber(
-            "imu/data", Imu, self.imu_callback, tcp_nodelay=True
+        self.xsens_imu_subscriber = rospy.Subscriber(
+            "imu/data", Imu, self.xsens_imu_callback, tcp_nodelay=True
         )
-        self.odom_publisher = rospy.Publisher("odom_imu", Odometry, queue_size=10)
+        self.bno_imu_subscriber = rospy.Subscriber(
+            "imu_mainboard/data", Imu, self.bno_imu_callback, tcp_nodelay=True
+        )
+        self.xsens_odom_publisher = rospy.Publisher("odom_imu", Odometry, queue_size=10)
+        self.bno_odom_publisher = rospy.Publisher(
+            "odom_bno_imu", Odometry, queue_size=10
+        )
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
@@ -54,6 +60,21 @@ class ImuToOdom:
         self.calibration_service = rospy.Service(
             "calibrate_imu", CalibrateIMU, self.calibrate_imu
         )
+
+        # Timeout and state management
+        self.last_xsens_imu_time = None
+        self.xsens_imu_timeout = rospy.Duration(1.0)  # 1 second timeout
+        self.timer = rospy.Timer(rospy.Duration(0.1), self.check_imu_timeouts)
+
+    def check_imu_timeouts(self, event):
+        if (
+            self.last_xsens_imu_time
+            and (rospy.Time.now() - self.last_xsens_imu_time) > self.xsens_imu_timeout
+        ):
+            rospy.logwarn_throttle(
+                5, "Xsens IMU data not received. BNO055 IMU will be used."
+            )
+            self.last_xsens_imu_time = None  # Prevent spamming
 
     def insert_covariance_block(
         self,
@@ -96,7 +117,15 @@ class ImuToOdom:
             self.default_twist_cov, imu_angular_velocity_covariance
         )
 
-    def imu_callback(self, imu_msg):
+    def xsens_imu_callback(self, imu_msg):
+        self.last_xsens_imu_time = rospy.Time.now()
+        self.publish_odom(imu_msg, "xsens")
+
+    def bno_imu_callback(self, imu_msg):
+        if self.last_xsens_imu_time is None:
+            self.publish_odom(imu_msg, "bno")
+
+    def publish_odom(self, imu_msg, publisher):
         if self.calibrating:
             self.calibration_data.append(
                 [
@@ -107,10 +136,6 @@ class ImuToOdom:
             )
 
         self.odom_msg.header.stamp = imu_msg.header.stamp
-
-        # Add proper timestamp logging for debugging
-        current_time = rospy.Time.now()
-        time_diff = (current_time - imu_msg.header.stamp).to_sec()
 
         # Correct angular velocity using the drift
         corrected_angular_velocity = Vector3(
@@ -141,8 +166,10 @@ class ImuToOdom:
         self.odom_msg.twist.twist.linear.y = 0.0
         self.odom_msg.twist.twist.linear.z = 0.0
 
-        # Publish the odometry message
-        self.odom_publisher.publish(self.odom_msg)
+        if publisher == "xsens":
+            self.xsens_odom_publisher.publish(self.odom_msg)
+        elif publisher == "bno":
+            self.bno_odom_publisher.publish(self.odom_msg)
 
     def calibrate_imu(self, req):
         duration = req.duration

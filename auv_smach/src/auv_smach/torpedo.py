@@ -26,6 +26,16 @@ class TorpedoTargetFramePublisherServiceState(smach_ros.ServiceState):
         )
 
 
+class EnableRealSensePublisherState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "enable_realsense_publisher",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
 class TorpedoRealsenseTargetFramePublisherServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
@@ -178,6 +188,15 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
+                    "succeeded": "ENABLE_REALSENSE_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_REALSENSE_PUBLISHER",
+                EnableRealSensePublisherState(req=True),
+                transitions={
                     "succeeded": "ENABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -204,6 +223,15 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
                 TorpedoRealsenseTargetFramePublisherServiceState(req=False),
+                transitions={
+                    "succeeded": "DISABLE_REALSENSE_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_REALSENSE_PUBLISHER",
+                EnableRealSensePublisherState(req=False),
                 transitions={
                     "succeeded": "ALIGN_TO_ORIENTED_TORPEDO_MAP",
                     "preempted": "preempted",
@@ -301,7 +329,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_1",
                 SetDepthState(
-                    depth=-0.05,
+                    depth=0.0,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[0],
                 ),
@@ -354,7 +382,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_2",
                 SetDepthState(
-                    depth=-0.03,
+                    depth=0.0,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[1],
                 ),

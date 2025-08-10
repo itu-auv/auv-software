@@ -45,22 +45,24 @@
     <xacro:wayfinder_dvl name="${namespace}/base_link/dvl" parent="${namespace}/base_link" position="0.2 0 -0.11" orientation="0 0 0"/>
     <xacro:xsens_mti_g710 name="${namespace}/base_link/imu" parent="${namespace}/base_link" position="-0.162 0 -0.0108" orientation="0 0 ${math.pi}"/>
     <xacro:xsens_mti_g710 name="${namespace}/base_link/imu_expansion" parent="${namespace}/base_link" position="-0.282 -0.1 -0.0108" orientation="0 0 ${math.pi}"/>
-    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_0" parent="${namespace}/base_link" position="0.325 0.205 -0.15" orientation="0 0 0"/>
-    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_1" parent="${namespace}/base_link" position="0.325 -0.205 -0.15" orientation="0 0 0"/>
-    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_2" parent="${namespace}/base_link" position="-0.325 0.205 -0.15" orientation="0 0 0"/>
-    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_3" parent="${namespace}/base_link" position="-0.325 -0.205 -0.15" orientation="0 0 0"/>
+    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_0" parent="${namespace}/base_link" position="0.315 0.1675 0.1715" orientation="0 0 0"/>
+    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_1" parent="${namespace}/base_link" position="0.315 -0.1675 0.1715" orientation="0 0 0"/>
+    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_2" parent="${namespace}/base_link" position="-0.315 0.1675 0.1715" orientation="0 0 0"/>
+    <xacro:h2c_hydrophone name="${namespace}/base_link/hydrophone_3" parent="${namespace}/base_link" position="-0.315 -0.1675 0.1715" orientation="0 0 0"/>
     <xacro:ping360 name="${namespace}/base_link/ping360" parent="${namespace}/base_link" position="0.2 0 0.134" orientation="0 0 0"/>
-    <xacro:bar30 name="${namespace}/base_link/external_pressure_sensor" parent="${namespace}/base_link" position="0 0 0.07" orientation="0 0 0"/>
-    <xacro:logitech_c920_camera name="${namespace}/base_link/front_camera" parent="${namespace}/base_link" position="0.35 0 0" orientation="0 0 0"/>
+    <xacro:bar30 name="${namespace}/base_link/external_pressure_sensor" parent="${namespace}/base_link" position="0 0 0.079" orientation="0 0 0"/>
+    <xacro:logitech_c920_camera name="${namespace}/base_link/front_camera" parent="${namespace}/base_link" position="0.35 0 0" orientation="0 0.1234 0"/>
     <xacro:logitech_c920_camera name="${namespace}/base_link/bottom_camera" parent="${namespace}/base_link" position="0 0 -0.07" orientation="0 ${math.pi/2} ${-math.pi/2}"/>
-    <xacro:torpedo_upper name="${namespace}/base_link/torpedo_upper" parent="${namespace}/base_link" position="0.3916 -0.11 -0.056" orientation="0 0 0"/>
-    <xacro:torpedo_bottom name="${namespace}/base_link/torpedo_bottom" parent="${namespace}/base_link" position="0.3916 -0.11 -0.091" orientation="0 0 0"/>
+    <xacro:torpedo_upper name="${namespace}/base_link/torpedo_upper" parent="${namespace}/base_link" position="0.4057 -0.1038 -0.049" orientation="0 0 0"/>
+    <xacro:torpedo_bottom name="${namespace}/base_link/torpedo_bottom" parent="${namespace}/base_link" position="0.4057 -0.1038 -0.084" orientation="0 0 0"/>
     <xacro:sonar name="${namespace}/base_link/sonar_front" parent="${namespace}/base_link" position="0.38 0.09 0.09" orientation="0 0 0"/>
     <xacro:sonar name="${namespace}/base_link/sonar_back" parent="${namespace}/base_link" position="-0.42 -0.09 0.09" orientation="0 0 ${math.pi}"/>
     <xacro:sonar name="${namespace}/base_link/sonar_right" parent="${namespace}/base_link" position="0.02 -0.21 -0.14" orientation="0 0 ${-math.pi/2}"/>
     <xacro:sonar name="${namespace}/base_link/sonar_left" parent="${namespace}/base_link" position="0.02 0.21 -0.14" orientation="0 0 ${math.pi/2}"/>
+    <!-- 0.0931 -->
     <xacro:ball_dropper name="${namespace}/base_link/ball_dropper" parent="${namespace}/base_link" position="0.1004 0.0745 -0.1953" orientation="0 0 0"/>
     <xacro:realsense_d435 name="${namespace}/camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 ${math.pi}"/>
+
     <!-- <link name="base_footprint">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
