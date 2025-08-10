@@ -132,12 +132,12 @@ class Shark(Prop):
 
 class RedPipe(SlalomPipe):
     def __init__(self):
-        super().__init__(2, "red_pipe", 0.90)
+        super().__init__(2, "red_pipe", 0.9004)
 
 
 class WhitePipe(SlalomPipe):
     def __init__(self):
-        super().__init__(3, "white_pipe", 0.90)
+        super().__init__(3, "white_pipe", 0.9004)
 
 
 class TorpedoMap(Prop):
