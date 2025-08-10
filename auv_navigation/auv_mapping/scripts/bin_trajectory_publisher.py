@@ -104,8 +104,9 @@ class BinTransformServiceNode:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(
-                f"gate_exit frame not found: {e}. Using default values for bin_exit frame."
+            rospy.logwarn_throttle(
+                10.0,
+                f"gate_exit frame not found: {e}. Using default values for bin_exit frame.",
             )
 
         robot_pose = self.get_pose(transform_robot)
