@@ -7,7 +7,7 @@
       <rosparam command="load" file="$(find auv_bringup)/config/$(arg namespace)/ekf.yaml"/>
       <remap from="odometry/filtered" to="odometry"/>
       <remap from="accel/filtered" to="acceleration"/>
-      <param name="disabled_at_startup" value="true" type="bool"/>
+      <param name="disabled_at_startup" value="false" type="bool"/>
       <param name="frequency" value="$(arg control_rate)" type="double"/>
     </node>
   </group>

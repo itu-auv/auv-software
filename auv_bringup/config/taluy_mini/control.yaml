@@ -45,14 +45,23 @@ thruster_3_coeff: -1.0
 thruster_4_coeff: -1.0
 thruster_5_coeff: -1.0
 thruster_6_coeff: 1.0
-thruster_7_coeff: -1.0
+thruster_7_coeff: 1.0
 
 
 heading_control_mode: "set_heading"
 
-z_p_gain: 100.0
+z_p_gain: 0.0
 z_i_gain: 0.0
-z_d_gain: 75.0
-yaw_p_gain: 0.0
-yaw_i_gain: 0.0
-yaw_d_gain: 0.0
+z_d_gain: 0.0
+yaw_pos_p_gain: 0.0
+yaw_pos_i_gain: 0.0
+yaw_pos_d_gain: 0.0
+yaw_vel_p_gain: 0.0
+yaw_vel_i_gain: 0.0
+yaw_vel_d_gain: 0.0
+pitch_p_gain: 8.0
+pitch_i_gain: 0.0
+pitch_d_gain: 3.0
+roll_p_gain: 5.0
+roll_i_gain: 0.0
+roll_d_gain: 2.0
