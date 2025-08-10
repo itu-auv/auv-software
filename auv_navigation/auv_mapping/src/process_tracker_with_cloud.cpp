@@ -11,6 +11,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <std_srvs/SetBool.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
@@ -48,6 +49,10 @@ class ProcessTrackerWithCloud {
   // Publishers
   ros::Publisher detection_cloud_pub_;
   ros::Publisher object_transform_pub_;
+
+  // Service Servers
+  ros::ServiceServer enable_service_;
+  bool enabled_;
 
   // Subscribers and synchronizers
   message_filters::Subscriber<sensor_msgs::CameraInfo> camera_info_sub_;
@@ -87,6 +92,7 @@ class ProcessTrackerWithCloud {
  public:
   ProcessTrackerWithCloud()
       : pnh_("~"),
+        enabled_(false),
         tf_buffer_(ros::Duration(10.0)),
         tf_listener_(std::make_unique<tf2_ros::TransformListener>(tf_buffer_)) {
     // Load parameters
@@ -119,6 +125,10 @@ class ProcessTrackerWithCloud {
     object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
         "update_object_transforms", 10);
 
+    // Initialize service server
+    enable_service_ = pnh_.advertiseService(
+        "enable", &ProcessTrackerWithCloud::enableCallback, this);
+
     // Initialize subscribers
     camera_info_sub_.subscribe(nh_, camera_info_topic_, 10);
     lidar_sub_.subscribe(nh_, lidar_topic_, 10);
@@ -137,11 +147,25 @@ class ProcessTrackerWithCloud {
     base_link_frame_ = "taluy/base_link";
   }
 
+  bool enableCallback(std_srvs::SetBool::Request& req,
+                      std_srvs::SetBool::Response& res) {
+    enabled_ = req.data;
+    res.success = true;
+    res.message = "Successfully set enabled  to " + std::to_string(enabled_);
+    ROS_INFO_STREAM(res.message);
+    return true;
+  }
+
+  // Callback for synchronized messages
   // Callback for synchronized messages
   void syncCallback(
       const sensor_msgs::CameraInfo::ConstPtr& camera_info_msg,
       const sensor_msgs::PointCloud2ConstPtr& cloud_msg,
       const vision_msgs::Detection2DArray::ConstPtr& yolo_result_msg) {
+    if (!enabled_) {
+      return;
+    }
+
     // Update camera model
     cam_info_ = *camera_info_msg;
 
