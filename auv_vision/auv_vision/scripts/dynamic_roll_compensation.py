@@ -1,159 +1,190 @@
-#!/usr/bin/env python
-import rospy
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import math
+import threading
+
 import cv2
 import numpy as np
-import math
-import angles  # ROS angles library
-from sensor_msgs.msg import Image
+import rospy
+import tf2_ros
+import message_filters
+
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import TransformStamped
 from cv_bridge import CvBridge, CvBridgeError
-from tf.transformations import euler_from_quaternion
-import threading
-import queue
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 
-class DynamicRollCompensationNode:
+class CameraRollStabilizer:
+    """
+    - Subscribes: Odometry + Rectified Color Image (time-synchronized)
+    - Publishes:  Corrected Image (+TF from camera optical -> stabilized optical)
+    - Correction: cancels camera roll, rotating image and broadcasting a Z-axis rotation in the optical frame.
+    """
+
     def __init__(self):
-        rospy.init_node("dynamic_roll_compensation", anonymous=True)
-        rospy.loginfo("Dynamic roll compensation node started.")
+        rospy.init_node("camera_roll_stabilizer", anonymous=True)
+        rospy.loginfo("Camera roll stabilizer node starting...")
 
-        # Initialize variables
+        # Message_filters sync tuning
+        self.sync_queue = int(rospy.get_param("~sync_queue_size", 10))
+        self.sync_slop = float(rospy.get_param("~sync_slop", 0.05))  # seconds
+
+        # Only recompute warp matrix if angle changes beyond this (degrees) or dims change
+        self.recalc_threshold_deg = float(rospy.get_param("~recalc_threshold_deg", 0.1))
+
+        # Border behavior for rotation (constant black)
+        self.border_mode = cv2.BORDER_CONSTANT
+
+        # -------- Publishers / TF --------
+        self.img_pub = rospy.Publisher("camera/image_corrected", Image, queue_size=2)
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+
+        # -------- Converters / State --------
         self.bridge = CvBridge()
-        self.roll_angle_deg = 0.0
-        self.lock = threading.Lock()
-        self.image_queue = queue.Queue(maxsize=1)  # Only keep the most recent image
-        self.processing = False
+        self.lock = threading.Lock()  # protect small shared state if needed later
 
-        # Pre-allocate rotation matrix
-        self.M = None
-        self.last_roll = None
-        self.last_dimensions = None
+        self.last_dimensions = None  # (w, h)
+        self.last_angle_deg = None
+        self.M = None  # cached 2x3 rotation matrix
 
-        # Set up subscribers with appropriate queue sizes
-        self.odom_subscriber = rospy.Subscriber(
-            "odometry", Odometry, self.odom_callback, queue_size=1, tcp_nodelay=True
+        img_sub = message_filters.Subscriber(
+            "camera/image_rect_color", Image, queue_size=1
         )
+        odom_sub = message_filters.Subscriber("odometry", Odometry, queue_size=1)
 
-        self.image_sub = rospy.Subscriber(
-            "camera/image_rect_color",
-            Image,
-            self.image_callback,
-            queue_size=1,
-            buff_size=2**24,  # Increase buffer size for large images
+        self.sync = message_filters.ApproximateTimeSynchronizer(
+            [img_sub, odom_sub], queue_size=self.sync_queue, slop=self.sync_slop
         )
+        self.sync.registerCallback(self.synced_callback)
 
-        self.image_pub = rospy.Publisher("camera/image_corrected", Image, queue_size=2)
-
-        # Start processing thread
-        self.processing_thread = threading.Thread(target=self.process_images)
-        self.processing_thread.daemon = True
-        self.processing_thread.start()
-
-    def odom_callback(self, odom_msg):
+    def synced_callback(self, img_msg: Image, odom_msg: Odometry):
+        """
+        Called with time-synchronized Image and Odometry.
+        We:
+          1) Compute roll from odometry quaternion.
+          2) Compute correction = -roll (cancel roll).
+          3) Broadcast TF rotation about Z in optical frame by correction.
+          4) Rotate image by correction (degrees) and publish.
+        """
+        # 1) Roll from odometry
         q = [
             odom_msg.pose.pose.orientation.x,
             odom_msg.pose.pose.orientation.y,
             odom_msg.pose.pose.orientation.z,
             odom_msg.pose.pose.orientation.w,
         ]
-        # Convert quaternion to Euler angles (roll, pitch, yaw)
-        roll, pitch, yaw = euler_from_quaternion(q)
 
-        # Compute correction angle (in radians) as the shortest angular distance from roll to 0.
-        correction_rad = angles.shortest_angular_distance(0.0, roll)
+        if not self._valid_quat(q):
+            rospy.logwarn_throttle(
+                5.0,
+                "[camera_roll_stabilizer] Received invalid quaternion; skipping frame.",
+            )
+            return
 
-        with self.lock:
-            self.roll_angle_deg = math.degrees(correction_rad)
-
-    def image_callback(self, img_msg):
-        # Just put the image in the queue and return immediately
-        # This prevents blocking in the callback
         try:
-            if not self.image_queue.full():
-                self.image_queue.put_nowait(img_msg)
-            else:
-                # If queue is full, replace the old image with the new one
-                try:
-                    self.image_queue.get_nowait()
-                    self.image_queue.put_nowait(img_msg)
-                except queue.Empty:
-                    pass  # Queue was emptied by processing thread
-        except queue.Full:
-            pass  # Queue is full, skip this frame
+            roll, pitch, yaw = euler_from_quaternion(q)
+        except Exception as e:
+            rospy.logwarn_throttle(
+                5.0, "[camera_roll_stabilizer] Euler conversion failed: %s", str(e)
+            )
+            return
 
-    def process_images(self):
-        while not rospy.is_shutdown():
-            try:
-                # Get the next image from the queue
-                img_msg = self.image_queue.get(timeout=0.1)
+        # 2) Correction angle (radians): we want to cancel roll -> rotate by -roll
+        correction_rad = -roll
+        correction_deg = math.degrees(correction_rad)
 
-                # Mark that we're processing an image
-                self.processing = True
+        # 3) Broadcast TF in optical frame: rotation about Z by correction
+        #    (Image rotation corresponds to spin around optical axis -> Z in optical frame)
+        self._broadcast_stabilized_tf(
+            img_msg.header.stamp, correction_rad, img_msg.header.frame_id
+        )
 
-                try:
-                    # Convert the ROS Image message to an OpenCV image
-                    cv_image = self.bridge.imgmsg_to_cv2(img_msg, "bgr8")
-                except CvBridgeError as e:
-                    rospy.logerr("CvBridge error: %s", e)
-                    self.processing = False
-                    continue
+        # 4) Rotate image and publish
+        try:
+            cv_image = self.bridge.imgmsg_to_cv2(img_msg, desired_encoding="bgr8")
+        except CvBridgeError as e:
+            rospy.logwarn_throttle(
+                5.0, "[camera_roll_stabilizer] CvBridge decode failed: %s", str(e)
+            )
+            return
 
-                # Get image dimensions
-                (h, w) = cv_image.shape[:2]
-                center = (w // 2, h // 2)
+        (h, w) = cv_image.shape[:2]
+        center = (w // 2, h // 2)
 
-                # Get current roll angle (thread-safe)
-                with self.lock:
-                    roll_angle = self.roll_angle_deg
+        # Cache / reuse warp matrix when angle/dimensions unchanged
+        if (
+            self.M is None
+            or self.last_dimensions != (w, h)
+            or self.last_angle_deg is None
+            or abs(self.last_angle_deg - correction_deg) > self.recalc_threshold_deg
+        ):
+            self.M = cv2.getRotationMatrix2D(center, correction_deg, 1.0)
+            self.last_angle_deg = correction_deg
+            self.last_dimensions = (w, h)
 
-                # Only recompute rotation matrix if roll changed or dimensions changed
-                if (
-                    self.last_roll is None
-                    or abs(self.last_roll - roll_angle) > 0.1
-                    or self.last_dimensions != (w, h)
-                ):
+        # Warp
+        rotated = cv2.warpAffine(
+            cv_image,
+            self.M,
+            (w, h),
+            flags=cv2.INTER_LINEAR,
+            borderMode=self.border_mode,
+        )
 
-                    self.M = cv2.getRotationMatrix2D(center, roll_angle, 1.0)
-                    self.last_roll = roll_angle
-                    self.last_dimensions = (w, h)
+        try:
+            out_msg = self.bridge.cv2_to_imgmsg(rotated, encoding="bgr8")
+            # Keep original header/time and frame
+            out_msg.header = img_msg.header
+            self.img_pub.publish(out_msg)
+        except CvBridgeError as e:
+            rospy.logwarn_throttle(
+                5.0, "[camera_roll_stabilizer] CvBridge encode failed: %s", str(e)
+            )
 
-                # Apply rotation - use INTER_LINEAR for better speed
-                rotated_image = cv2.warpAffine(
-                    cv_image,
-                    self.M,
-                    (w, h),
-                    flags=cv2.INTER_LINEAR,
-                    borderMode=cv2.BORDER_CONSTANT,
-                )
+    # ---------------- Helpers ----------------
+    def _broadcast_stabilized_tf(self, stamp, correction_rad: float, frame_id: str):
+        """
+        Publish a TransformStamped from parent optical frame to a stabilized optical frame
+        with rotation about Z by 'correction_rad' (cancelling roll in image space).
+        """
+        t = TransformStamped()
+        t.header.stamp = stamp
+        t.header.frame_id = frame_id
+        t.child_frame_id = f"{frame_id}_stabilized"
 
-                try:
-                    # Convert back to ROS Image message
-                    corrected_img_msg = self.bridge.cv2_to_imgmsg(rotated_image, "bgr8")
-                    corrected_img_msg.header = img_msg.header  # Keep original header
+        # No translation offset; pure spin around optical axis
+        t.transform.translation.x = 0.0
+        t.transform.translation.y = 0.0
+        t.transform.translation.z = 0.0
 
-                    # Publish the corrected image
-                    self.image_pub.publish(corrected_img_msg)
-                except CvBridgeError as e:
-                    rospy.logerr("CvBridge error while converting rotated image: %s", e)
+        # Rotate about Z in optical frame
+        q_rot = quaternion_from_euler(0.0, 0.0, correction_rad)
+        t.transform.rotation.x = q_rot[0]
+        t.transform.rotation.y = q_rot[1]
+        t.transform.rotation.z = q_rot[2]
+        t.transform.rotation.w = q_rot[3]
 
-                # Done processing
-                self.processing = False
+        self.tf_broadcaster.sendTransform(t)
 
-            except queue.Empty:
-                # No images in queue, just continue
-                pass
-            except Exception as e:
-                rospy.logerr("Error in image processing thread: %s", e)
-                self.processing = False
+    @staticmethod
+    def _valid_quat(q):
+        # reject NaNs and zero-length
+        if any((x != x) for x in q):  # NaN check
+            return False
+        norm = math.sqrt(q[0] ** 2 + q[1] ** 2 + q[2] ** 2 + q[3] ** 2)
+        return 0.5 < norm < 2.0  # loose sanity bounds
 
-
-def main():
-    try:
-        node = DynamicRollCompensationNode()
+    def spin(self):
+        rospy.loginfo("Camera roll stabilizer node is up.")
         rospy.spin()
-    except rospy.ROSInterruptException:
-        rospy.loginfo("Dynamic roll compensation node terminated.")
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        node = CameraRollStabilizer()
+        node.spin()
+    except rospy.ROSInterruptException:
+        pass
