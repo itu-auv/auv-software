@@ -6,9 +6,10 @@
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="true" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
-  <arg name="reconfigure" default="0" />
   <arg name="propulsion" default="0" />
   <arg name="localization" default="0" />
+  <arg name="reconfigure" default="0" />
+  <arg name="plotjuggler" default="0" />
 
   <!-- 1. Include start.launch -->
   <include file="$(find auv_bringup)/launch/start.launch">
@@ -42,6 +43,12 @@
   <!-- 5. Optional: Launch rqt_reconfigure if parameter is set to 1 -->
   <group if="$(eval arg('reconfigure') == 1)">
     <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure"
+          output="screen" />
+  </group>
+
+  <!-- 6. Optional: Launch PlotJuggler if parameter is set to 1 -->
+  <group if="$(eval arg('plotjuggler') == 1)">
+    <node name="plotjuggler" pkg="plotjuggler" type="plotjuggler"
           output="screen" />
   </group>
 
