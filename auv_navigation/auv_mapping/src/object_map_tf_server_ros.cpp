@@ -130,7 +130,8 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   last_time = current_time;
 
   const auto object_frame = msg->child_frame_id;
-  const auto static_transform = transform_to_static_frame(*msg, msg->header.stamp);
+  const auto static_transform =
+      transform_to_static_frame(*msg, msg->header.stamp);
   if (!static_transform.has_value()) {
     ROS_ERROR("Failed to capture transform");
     return;
