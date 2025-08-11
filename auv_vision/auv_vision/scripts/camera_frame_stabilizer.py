@@ -39,7 +39,7 @@ class CameraFrameStabilizer:
         ]
         roll, pitch, yaw = euler_from_quaternion(q)
 
-        correction_rad = angles.shortest_angular_distance(0.0, roll)
+        correction_rad = angles.shortest_angular_distance(roll, 0.0)
 
         t = TransformStamped()
 
