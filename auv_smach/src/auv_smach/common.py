@@ -130,6 +130,7 @@ class SetDepthState(smach_ros.ServiceState):
         - aborted: The service call failed.
     """
 
+    # TODO (someone) connect this state and WaitDepthAlignment state in a new state
     def __init__(self, depth: float, sleep_duration: float = 5.0, frame_id: str = ""):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
