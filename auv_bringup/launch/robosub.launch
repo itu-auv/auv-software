@@ -8,7 +8,6 @@
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
   <arg name="reconfigure" default="0" />
   <arg name="propulsion" default="0" />
-  <arg name="localization" default="0" />
 
   <!-- 1. Include start.launch -->
   <include file="$(find auv_bringup)/launch/start.launch">
@@ -27,12 +26,10 @@
           output="screen" />
   </group>
 
-  <!-- 3. Optional: Call auv_localization_node enable service -->
-  <group if="$(eval arg('localization') == 1)">
-    <node name="enable_localization_service" pkg="rosservice" type="rosservice"
-          args="call /$(arg namespace)/auv_localization_node/enable '{}'"
-          output="screen" />
-  </group>
+  <!-- 3. Call auv_localization_node enable service -->
+  <node name="enable_localization_service" pkg="rosservice" type="rosservice"
+        args="call /$(arg namespace)/auv_localization_node/enable '{}'"
+        output="screen" />
 
   <!-- 4. Launch tracker_all -->
   <include file="$(find auv_detection)/launch/tracker_all.launch">
