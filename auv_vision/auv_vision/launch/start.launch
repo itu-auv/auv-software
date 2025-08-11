@@ -11,5 +11,9 @@
       <remap from="camera/image_rect_color" to="cameras/cam_front/image_rect_color" />
       <remap from="camera/image_corrected" to="cameras/cam_front/image_corrected" />
     </node>
+    <node name="camera_frame_stabilizer" pkg="auv_vision" type="camera_frame_stabilizer.py" output="screen">
+        <param name="parent_frame" value="taluy/base_link/front_camera_optical_link" />
+        <param name="child_frame" value="camera_optical_link_stabilized" />
+    </node>
   </group>
 </launch>
