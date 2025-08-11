@@ -8,7 +8,7 @@
   <group ns="$(arg namespace)">
     <!-- start expansion board bridge -->
     <node pkg="rosserial_python" type="serial_node.py" name="expansion_board_bridge_node" args="$(arg port) _baud:=$(arg baudrate)" output="screen" respawn="$(arg respawn)">
-      <remap from="sensors/imu_sensor/data" to="sensors/imu_raw/data"/>
+      <remap from="sensors/imu_sensor/data" to="sensors/bno/data_raw"/>
       <remap from="sensors/power_sensor/data" to="mainboard/power_sensor/power"/>
     </node>
     <!-- start serial to ros bridge (dvl) -->
@@ -24,6 +24,9 @@
       <param name="pressure_sensor_position_covariance" value="0.1"/>
       <remap from="depth" to="sensors/external_pressure_sensor/depth"/>
       <remap from="pose" to="sensors/external_pressure_sensor/pose"/>
+      <remap from="bno/data" to="sensors/bno/data"/>
+      <remap from="bno/mag" to="sensors/bno/mag"/>
+      <remap from="bno_raw" to="sensors/bno/data_raw"/>
     </node>
   </group>
 </launch>
