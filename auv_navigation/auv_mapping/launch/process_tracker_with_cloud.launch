@@ -35,6 +35,7 @@
     <param name="roi_expansion_factor" value="0.90"/>
     <!-- Remaps -->
     <remap from="update_object_transforms" to="/$(arg namespace)/map/object_transform_updates"/>
+    <remap from="enable" to="/process_tracker_with_cloud/enable"/>
   </node>
 
   <!-- Start RViz Optionally-->

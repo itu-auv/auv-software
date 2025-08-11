@@ -2,13 +2,13 @@
 
 import rospy
 import numpy as np
-import message_filters
 import tf.transformations
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
 import auv_common_lib.transform.transformer
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
+import tf
 
 
 class PressureToOdom:
@@ -17,6 +17,8 @@ class PressureToOdom:
 
         # Initialize class variables
         self.imu_data = None
+        self.depth_data = None
+        self.dvl_data = None
         self.base_to_pressure_translation = None
         self.base_to_dvl_translation = None
 
@@ -61,23 +63,16 @@ class PressureToOdom:
         self.dvl_depth_publisher = rospy.Publisher("dvl_depth", Float32, queue_size=10)
 
     def _setup_subscribers(self):
-        """Initialize all subscribers and synchronizers"""
+        """Initialize all subscribers"""
         self.imu_subscriber = rospy.Subscriber(
             "imu/data", Imu, self.imu_callback, tcp_nodelay=True
         )
-
-        # Synchronized subscribers with time synchronization
-        depth_sub = message_filters.Subscriber("depth", Float32)
-        dvl_sub = message_filters.Subscriber("dvl/altitude", Float32)
-
-        # Approximate time synchronizer with 100ms time difference allowance
-        ts = message_filters.ApproximateTimeSynchronizer(
-            [depth_sub, dvl_sub],
-            queue_size=10,
-            slop=0.1,  # 100ms
-            allow_headerless=True,
+        self.depth_subscriber = rospy.Subscriber(
+            "depth", Float32, self.depth_callback, tcp_nodelay=True
         )
-        ts.registerCallback(self.fused_depth_callback)
+        self.dvl_subscriber = rospy.Subscriber(
+            "dvl/altitude", Float32, self.dvl_callback, tcp_nodelay=True
+        )
 
     def _initialize_odometry_message(self):
         """Initialize and configure the odometry message"""
@@ -166,53 +161,78 @@ class PressureToOdom:
             "taluy/base_link/dvl_link", "base_to_dvl_translation"
         )
 
-    def fused_depth_callback(self, depth_msg, dvl_msg):
-        """Callback for synchronized depth and DVL messages"""
+    def depth_callback(self, msg):
+        """Callback for depth messages"""
+        self.depth_data = msg.data
+        self.process_fused_depth()
+
+    def dvl_callback(self, msg):
+        """Callback for DVL altitude messages"""
+        self.dvl_data = msg.data
+        self.process_fused_depth()
+
+    def process_fused_depth(self):
+        """Process and fuse depth and DVL data"""
+        if self.depth_data is None and self.dvl_data is None:
+            rospy.logwarn_throttle(5.0, "Waiting for both depth and DVL data...")
+            return
+
         try:
-            # 1. Get calibrated pressure depth
-            pressure_depth_calibrated = depth_msg.data + self.depth_calibration_offset
-            pressure_depth = (
-                pressure_depth_calibrated + self.get_base_to_pressure_height()
-            )
+            final_depth = None
 
-            # 2. Convert DVL altitude to depth (altitude is positive up from seabed)
-            dvl_altitude = dvl_msg.data
-            dvl_depth = (dvl_altitude - self.pool_depth) + self.get_base_to_dvl_height()
-            self.dvl_depth_publisher.publish(dvl_depth)
+            pressure_depth = None
+            is_pressure_valid = False
+            if self.depth_data is not None:
+                pressure_depth_calibrated = (
+                    self.depth_data + self.depth_calibration_offset
+                )
+                pressure_depth = (
+                    pressure_depth_calibrated + self.get_base_to_pressure_height()
+                )
+                is_pressure_valid = (
+                    self.max_valid_depth <= pressure_depth <= self.min_valid_depth
+                )
+            else:
+                rospy.logwarn_throttle(
+                    5.0, "Depth (Bar30) missing; will rely on dvl/altitude."
+                )
 
-            # 3. Validate both sensor readings
-            is_pressure_valid = (
-                self.max_valid_depth <= pressure_depth <= self.min_valid_depth
-            )
-            is_dvl_valid = (
-                self.min_valid_altitude <= dvl_altitude <= self.max_valid_altitude
-            )
-
-            final_depth = 0.0
-            publish = False
+            dvl_depth = None
+            is_dvl_valid = False
+            if self.dvl_data is not None:
+                dvl_altitude = self.dvl_data
+                dvl_depth = (
+                    dvl_altitude - self.pool_depth
+                ) + self.get_base_to_dvl_height()
+                self.dvl_depth_publisher.publish(dvl_depth)
+                is_dvl_valid = (
+                    self.min_valid_altitude <= dvl_altitude <= self.max_valid_altitude
+                )
+            else:
+                rospy.logwarn_throttle(
+                    5.0, "DVL altitude missing; will rely on pressure sensor."
+                )
 
             if is_pressure_valid:
                 final_depth = pressure_depth
-                publish = True
                 rospy.logdebug_throttle(
                     1.0, f"Using valid pressure depth: {final_depth:.3f}"
                 )
             elif is_dvl_valid:
                 final_depth = dvl_depth
-                publish = True
                 rospy.logwarn_throttle(
-                    1.0, f"Pressure sensor invalid, using DVL depth: {final_depth:.3f}"
+                    1.0, f"Pressure invalid/missing, using DVL depth: {final_depth:.3f}"
                 )
             else:
                 rospy.logerr_throttle(
-                    1.0,
-                    "Both pressure and DVL depths are invalid! No odometry published.",
+                    1.0, "Available sensor(s) gave invalid depth; not publishing."
                 )
+                return
 
-            if publish:
-                self._publish_odometry(final_depth)
+            self._publish_odometry(final_depth)
+
         except Exception as e:
-            rospy.logerr(f"Error in fused_depth_callback: {str(e)}")
+            rospy.logerr(f"Error in process_fused_depth: {str(e)}")
 
     def _publish_odometry(self, depth):
         """Publish odometry message with the given depth"""

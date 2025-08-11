@@ -18,7 +18,8 @@
 
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
-    <arg name="sim" default="false" doc="Enable simulation mode for state machine"/>
+    <arg name="roll" default="true" doc="Enable roll mode for state machine"/>
+    <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
 
     <!-- Full Mission States -->
@@ -42,7 +43,8 @@
         <node name="main_state_machine" pkg="auv_smach" type="main_state_machine.py" output="screen">
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
             <param name="~base_link" value="$(arg namespace)/base_link"/>
-            <param name="sim" value="$(arg sim)"/>
+            <param name="roll" value="$(arg roll)"/>
+            <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
 
             <!-- common.py -->
@@ -61,6 +63,7 @@
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
+            <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable"/>
 
             <param name="enable_rate" value="$(arg enable_rate)"/>
 

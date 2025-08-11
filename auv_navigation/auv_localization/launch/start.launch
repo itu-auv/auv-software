@@ -8,7 +8,9 @@
 
     <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
       <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="imu_mainboard/data" to="sensors/imu_mainboard/data" />
       <remap from="odom_imu" to="localization/odom_imu" />
+      <remap from="odom_bno_imu" to="localization/odom_bno_imu" />
       <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
@@ -27,6 +29,12 @@
       <remap from="cmd_vel" to="cmd_vel" />
       <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable" />
       <param name="cmdvel_tau" value="0.2" />
+    </node>
+
+    <!-- Euler Orientation Publisher Node -->
+    <node pkg="auv_localization" type="euler_orientation_publisher.py" name="euler_orientation_publisher" output="screen">
+      <remap from="odometry" to="odometry" />
+      <remap from="euler_orientation" to="localization/euler_orientation" />
     </node>
   </group>
 </launch>
