@@ -1,12 +1,10 @@
 ---
 sensors/external_pressure_sensor:
-  depth_covariance: 7.864249821e-06
-  # inside morono valley pool: 7.864249821e-06
-  # on land: 4.777569474e-08
-  depth_offset: -0.594489776266890
+  depth_covariance: 4.5e-02
+  depth_offset: -0.75
 
 sensors/dvl:
   covariance:
     linear_x: 0.000015
     linear_y: 0.000015
-    linear_z: 0.05
+    linear_z: 0.000015
