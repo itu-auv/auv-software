@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="control_rate" default="20.0" />
+  <arg name="dvl_virtual_port" default="/tmp/vcom0" />
+  <arg name="use_gui" default="false" />
+  <arg name="enable_logging" default="true" />
+  <arg name="logging_directory" default="$(optenv HOME)/bags" />
+  <arg name="propulsion" default="0" />
+  <arg name="localization" default="0" />
+  <arg name="reconfigure" default="0" />
+  <arg name="plotjuggler" default="0" />
+
+  <!-- 1. Include start.launch -->
+  <include file="$(find auv_bringup)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="dvl_virtual_port" value="$(arg dvl_virtual_port)" />
+    <arg name="use_gui" value="$(arg use_gui)" />
+    <arg name="enable_logging" value="$(arg enable_logging)" />
+    <arg name="logging_directory" value="$(arg logging_directory)" />
+  </include>
+
+  <!-- 2. Optional: Publish propulsion board status message -->
+  <group if="$(eval arg('propulsion') == 1)">
+    <node name="propulsion_status_publisher" pkg="rostopic" type="rostopic"
+          args="pub /$(arg namespace)/propulsion_board/status std_msgs/Bool 'data: true' -r 20"
+          output="screen" />
+  </group>
+
+  <!-- 3. Optional: Call auv_localization_node enable service -->
+  <group if="$(eval arg('localization') == 1)">
+    <node name="enable_localization_service" pkg="rosservice" type="rosservice"
+          args="call /$(arg namespace)/auv_localization_node/enable '{}'"
+          output="screen" />
+  </group>
+
+  <!-- 4. Launch tracker_all -->
+  <include file="$(find auv_detection)/launch/tracker_all.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- 5. Optional: Launch rqt_reconfigure if parameter is set to 1 -->
+  <group if="$(eval arg('reconfigure') == 1)">
+    <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure"
+          output="screen" />
+  </group>
+
+  <!-- 6. Optional: Launch PlotJuggler if parameter is set to 1 -->
+  <group if="$(eval arg('plotjuggler') == 1)">
+    <node name="plotjuggler" pkg="plotjuggler" type="plotjuggler"
+          output="screen" />
+  </group>
+
+</launch>

@@ -84,9 +84,6 @@ class BinTransformServiceNode:
             transform_bin = self.tf_buffer.lookup_transform(
                 self.odom_frame, self.bin_frame, rospy.Time.now(), rospy.Duration(1)
             )
-            transform_gate_exit = self.tf_buffer.lookup_transform(
-                self.odom_frame, "gate_exit", rospy.Time.now(), rospy.Duration(1)
-            )
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
@@ -95,9 +92,25 @@ class BinTransformServiceNode:
             rospy.logwarn(f"TF lookup failed: {e}")
             return
 
+        # Try to get gate_exit transform, if not available use default values
+        gate_exit_pose = None
+        try:
+            transform_gate_exit = self.tf_buffer.lookup_transform(
+                self.odom_frame, "gate_exit", rospy.Time.now(), rospy.Duration(1)
+            )
+            gate_exit_pose = self.get_pose(transform_gate_exit)
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(
+                10.0,
+                f"gate_exit frame not found: {e}. Using default values for bin_exit frame.",
+            )
+
         robot_pose = self.get_pose(transform_robot)
         bin_pose = self.get_pose(transform_bin)
-        gate_exit_pose = self.get_pose(transform_gate_exit)
 
         robot_pos = np.array(
             [robot_pose.position.x, robot_pose.position.y, robot_pose.position.z]
@@ -167,8 +180,20 @@ class BinTransformServiceNode:
         bin_exit_pose = Pose()
         bin_exit_pose.position.x = bin_whole_estimated_pose.position.x
         bin_exit_pose.position.y = bin_whole_estimated_pose.position.y
-        bin_exit_pose.position.z = gate_exit_pose.position.z
-        bin_exit_pose.orientation = gate_exit_pose.orientation
+
+        # If gate_exit frame is available, use its Z position and orientation
+        # Otherwise, use robot's Z position and default (odom frame) orientation
+        if gate_exit_pose is not None:
+            bin_exit_pose.position.z = gate_exit_pose.position.z
+            bin_exit_pose.orientation = gate_exit_pose.orientation
+        else:
+            bin_exit_pose.position.z = robot_pose.position.z
+            # Default orientation (same as odom frame - no rotation)
+            bin_exit_pose.orientation.x = 0.0
+            bin_exit_pose.orientation.y = 0.0
+            bin_exit_pose.orientation.z = 0.0
+            bin_exit_pose.orientation.w = 1.0
+
         bin_exit_transform = self.build_transform_message(
             self.bin_exit_frame, bin_exit_pose
         )
