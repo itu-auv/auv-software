@@ -12,6 +12,7 @@ from auv_smach.common import (
     DynamicPathState,
     SetDetectionFocusState,
     SetDetectionState,
+    WaitDepthAlignment,
 )
 from auv_smach.initialize import DelayState
 
@@ -328,6 +329,17 @@ class TorpedoTaskState(smach.State):
                     enable_heading_control_afterwards=False,
                 ),
                 transitions={
+                    "succeeded": "WAIT_DEPTH_ALIGNMENT_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_DEPTH_ALIGNMENT_1",
+                WaitDepthAlignment(
+                    depth_threshold=0.05, confirm_duration=3.0, timeout=10.0
+                ),
+                transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -379,6 +391,17 @@ class TorpedoTaskState(smach.State):
                     max_angular_velocity=0.1,
                     heading_control=False,
                     enable_heading_control_afterwards=False,
+                ),
+                transitions={
+                    "succeeded": "WAIT_DEPTH_ALIGNMENT_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_DEPTH_ALIGNMENT_2",
+                WaitDepthAlignment(
+                    depth_threshold=0.05, confirm_duration=3.0, timeout=10.0
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",
