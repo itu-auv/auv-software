@@ -92,15 +92,13 @@ class CameraRollStabilizer:
             )
             return
 
-        # 2) Correction angle (radians): we want to cancel roll -> rotate by -roll
-        correction_rad = -roll
+        # 2) Correction angle (radians)
+        correction_rad = roll
         correction_deg = math.degrees(correction_rad)
 
         # 3) Broadcast TF in optical frame: rotation about Z by correction
         #    (Image rotation corresponds to spin around optical axis -> Z in optical frame)
-        self._broadcast_stabilized_tf(
-            img_msg.header.stamp, correction_rad, img_msg.header.frame_id
-        )
+        self._broadcast_stabilized_tf(img_msg.header.stamp, -correction_rad)
 
         # 4) Rotate image and publish
         try:
@@ -145,15 +143,15 @@ class CameraRollStabilizer:
             )
 
     # ---------------- Helpers ----------------
-    def _broadcast_stabilized_tf(self, stamp, correction_rad: float, frame_id: str):
+    def _broadcast_stabilized_tf(self, stamp, correction_rad: float):
         """
         Publish a TransformStamped from parent optical frame to a stabilized optical frame
         with rotation about Z by 'correction_rad' (cancelling roll in image space).
         """
         t = TransformStamped()
         t.header.stamp = stamp
-        t.header.frame_id = frame_id
-        t.child_frame_id = f"{frame_id}_stabilized"
+        t.header.frame_id = "taluy/base_link/front_camera_optical_link"
+        t.child_frame_id = "taluy/base_link/front_camera_optical_link_stabilized"
 
         # No translation offset; pure spin around optical axis
         t.transform.translation.x = 0.0
