@@ -1,10 +1,11 @@
+#include <nav_msgs/Odometry.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl_ros/point_cloud.h>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <std_msgs/Float32.h>  // Changed Float64 and Float32MultiArray to Float32
+#include <std_msgs/Float32.h>  // Still used for altitude
 
 #include <cmath>   // For std::sqrt, std::acos, M_PI, std::isfinite
 #include <limits>  // For std::numeric_limits
@@ -17,7 +18,7 @@ class PointCloudFilterNode {
     // Hardcoded topic names
     pc_topic_ = "camera/depth/color/points";
     alt_topic_ = "sensors/dvl/altitude";
-    depth_topic_ = "pressure_sensor/depth";
+    odom_topic_ = "odometry";  // Change to your odometry topic name
 
     ROS_INFO_ONCE("PointCloudFilterNode started.");  // Node start message
 
@@ -26,8 +27,8 @@ class PointCloudFilterNode {
         nh.subscribe(pc_topic_, 1, &PointCloudFilterNode::cloudCallback, this);
     alt_sub_ =
         nh.subscribe(alt_topic_, 1, &PointCloudFilterNode::altCallback, this);
-    depth_sub_ = nh.subscribe(depth_topic_, 1,
-                              &PointCloudFilterNode::depthCallback, this);
+    odom_sub_ =
+        nh.subscribe(odom_topic_, 1, &PointCloudFilterNode::odomCallback, this);
     pc_pub_ = nh.advertise<sensor_msgs::PointCloud2>("/points_filtered", 1);
 
     alt_received_ = false;
@@ -36,10 +37,10 @@ class PointCloudFilterNode {
 
  private:
   // topics
-  std::string pc_topic_, alt_topic_, depth_topic_;
+  std::string pc_topic_, alt_topic_, odom_topic_;
 
   // ros interfaces
-  ros::Subscriber pc_sub_, alt_sub_, depth_sub_;
+  ros::Subscriber pc_sub_, alt_sub_, odom_sub_;
   ros::Publisher pc_pub_;
 
   // latest sensor data
@@ -53,9 +54,10 @@ class PointCloudFilterNode {
     alt_received_ = true;
   }
 
-  void depthCallback(
-      const std_msgs::Float32::ConstPtr& msg) {  // Changed message type
-    depth_value_ = msg->data;                    // Assign to single value
+  void odomCallback(const nav_msgs::Odometry::ConstPtr& msg) {
+    // Use odometry pose z as depth
+    depth_value_ = msg->pose.pose.position.z;
+    // ROS_INFO("Depth value from odometry: %f", depth_value_);
     depth_received_ = true;
   }
 
