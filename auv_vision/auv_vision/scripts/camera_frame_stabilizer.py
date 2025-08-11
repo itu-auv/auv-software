@@ -51,7 +51,7 @@ class CameraFrameStabilizer:
         t.transform.translation.y = 0.0
         t.transform.translation.z = 0.0
 
-        q_rot = quaternion_from_euler(0, 0, correction_rad)
+        q_rot = quaternion_from_euler(correction_rad, 0, 0)
         t.transform.rotation.x = q_rot[0]
         t.transform.rotation.y = q_rot[1]
         t.transform.rotation.z = q_rot[2]
