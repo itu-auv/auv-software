@@ -188,6 +188,15 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
+                    "succeeded": "SET_DEPTH_FOR_REALSENSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DEPTH_FOR_REALSENSE",
+                SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
+                transitions={
                     "succeeded": "ENABLE_REALSENSE_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -232,6 +241,15 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_REALSENSE_PUBLISHER",
                 EnableRealSensePublisherState(req=False),
+                transitions={
+                    "succeeded": "SET_DEPTH_FOR_TORPEDO_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DEPTH_FOR_TORPEDO_MAP",
+                SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "ALIGN_TO_ORIENTED_TORPEDO_MAP",
                     "preempted": "preempted",
@@ -329,7 +347,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_1",
                 SetDepthState(
-                    depth=0.0,
+                    depth=0.1,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[0],
                 ),
@@ -382,7 +400,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_2",
                 SetDepthState(
-                    depth=0.0,
+                    depth=0.125,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[1],
                 ),
@@ -400,7 +418,7 @@ class TorpedoTaskState(smach.State):
                     angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
-                    confirm_duration=10.0,
+                    confirm_duration=7.0,
                     timeout=30.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.1,

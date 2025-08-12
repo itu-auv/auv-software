@@ -127,7 +127,7 @@ class BinWhole(Prop):
 
 class Octagon(Prop):
     def __init__(self):
-        super().__init__(7, "octagon", 0.92, 1.30)
+        super().__init__(7, "octagon", 0.74, 0.91)
 
 
 class BinShark(Prop):
@@ -182,18 +182,20 @@ class CameraDetectionNode:
             "/yolo_result",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="front_camera"),
+            queue_size=1,
         )
         rospy.Subscriber(
             "/yolo_result_2",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
+            queue_size=1,
         )
         self.frame_id_to_camera_ns = {
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
         }
         self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
-            "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
+            "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link_stabilized",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
         }
         self.props = {
@@ -572,6 +574,20 @@ class CameraDetectionNode:
             return  # Stop processing if the source is unknown
 
         camera_frame = self.camera_frames[camera_ns]
+        try:
+            camera_to_odom_transform = self.tf_buffer.lookup_transform(
+                camera_frame,
+                "odom",
+                detection_msg.header.stamp,
+                rospy.Duration(1.0),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(15, f"Transform error: {e}")
+            return
 
         # Search for torpedo map
         torpedo_map_bbox = None
@@ -666,20 +682,6 @@ class CameraDetectionNode:
             props_yaw_msg.object = prop.name
             props_yaw_msg.angle = -angles[0]
             self.props_yaw_pub.publish(props_yaw_msg)
-            try:
-                camera_to_odom_transform = self.tf_buffer.lookup_transform(
-                    camera_frame,
-                    "odom",
-                    detection_msg.header.stamp,
-                    rospy.Duration(1.0),
-                )
-            except (
-                tf2_ros.LookupException,
-                tf2_ros.ConnectivityException,
-                tf2_ros.ExtrapolationException,
-            ) as e:
-                rospy.logerr(f"Transform error: {e}")
-                return
 
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
