@@ -10,6 +10,10 @@
       <remap from="odometry" to="odometry" />
       <remap from="camera/image_rect_color" to="cameras/cam_front/image_rect_color" />
       <remap from="camera/image_corrected" to="cameras/cam_front/image_corrected" />
+
+      <param name="sync_queue_size" value="10"/>
+      <param name="sync_slop" value="0.05"/>
+      <param name="recalc_threshold_deg" value="0.1"/>
     </node>
   </group>
 </launch>
