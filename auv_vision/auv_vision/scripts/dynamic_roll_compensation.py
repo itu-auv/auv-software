@@ -93,12 +93,12 @@ class CameraRollStabilizer:
             return
 
         # 2) Correction angle (radians)
-        correction_rad = roll
+        correction_rad = -roll
         correction_deg = math.degrees(correction_rad)
 
         # 3) Broadcast TF in optical frame: rotation about Z by correction
         #    (Image rotation corresponds to spin around optical axis -> Z in optical frame)
-        self._broadcast_stabilized_tf(img_msg.header.stamp, -correction_rad)
+        self._broadcast_stabilized_tf(img_msg.header.stamp, correction_rad)
 
         # 4) Rotate image and publish
         try:
