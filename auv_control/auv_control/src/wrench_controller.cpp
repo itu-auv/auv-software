@@ -116,20 +116,17 @@ void WrenchController::spin() {
     ros::spinOnce();
 
     if (is_control_enabled() && !is_timeouted()) {
-      double z_force = z_pid_.control(current_z_, desired_z_,
-                                      rate_.expectedCycleTime().toSec());
-      double roll_torque = roll_pid_.control(current_roll_, desired_roll_,
-                                             rate_.expectedCycleTime().toSec());
-      double pitch_torque = pitch_pid_.control(
-          current_pitch_, desired_pitch_, rate_.expectedCycleTime().toSec());
+      const auto dt = rate_.expectedCycleTime().toSec();
 
-      double yaw_pos_error =
+      double z_force = z_pid_.control(current_z_, desired_z_, dt);
+      double roll_torque = roll_pid_.control(current_roll_, desired_roll_, dt);
+      double pitch_torque =
+          pitch_pid_.control(current_pitch_, desired_pitch_, dt);
+
+      double yaw_error =
           angles::shortest_angular_distance(current_yaw_, desired_yaw_);
-      double desired_yaw_vel = yaw_pos_pid_.controlFromError(
-          yaw_pos_error, rate_.expectedCycleTime().toSec());
-      double yaw_torque = yaw_vel_pid_.control(
-          current_yaw_vel_, desired_yaw_vel + latest_cmd_vel_.angular.z,
-          rate_.expectedCycleTime().toSec());
+      double yaw_torque = yaw_vel_pid_.controlFromError(
+          yaw_error, rate_.expectedCycleTime().toSec());
 
       Eigen::Matrix<double, 6, 1> wrench;
       wrench.setZero();
@@ -142,22 +139,24 @@ void WrenchController::spin() {
       wrench(4) = pitch_torque;
       wrench(5) = yaw_torque;
 
-      {
-        Eigen::AngleAxisd roll_angle(current_roll_, Eigen::Vector3d::UnitX());
-        Eigen::AngleAxisd pitch_angle(current_pitch_, Eigen::Vector3d::UnitY());
-        Eigen::AngleAxisd yaw_angle(current_yaw_, Eigen::Vector3d::UnitZ());
-        Eigen::Quaterniond rotation = yaw_angle * pitch_angle * roll_angle;
-        Eigen::Matrix3d rotation_matrix = rotation.matrix();
-        // get the inverse wrench transformation matrix
-        Eigen::Matrix3d inverse_rotation_matrix = rotation_matrix.transpose();
+      // {
+      //   Eigen::AngleAxisd roll_angle(current_roll_,
+      //   Eigen::Vector3d::UnitX()); Eigen::AngleAxisd
+      //   pitch_angle(current_pitch_, Eigen::Vector3d::UnitY());
+      //   Eigen::AngleAxisd yaw_angle(current_yaw_, Eigen::Vector3d::UnitZ());
+      //   Eigen::Quaterniond rotation = yaw_angle * pitch_angle * roll_angle;
+      //   Eigen::Matrix3d rotation_matrix = rotation.matrix();
+      //   // get the inverse wrench transformation matrix
+      //   Eigen::Matrix3d inverse_rotation_matrix =
+      //   rotation_matrix.transpose();
 
-        Eigen::Vector3d f_z = Eigen::Vector3d::Zero();
-        f_z(2) = wrench(2);
-        wrench(2) = 0;
+      //   Eigen::Vector3d f_z = Eigen::Vector3d::Zero();
+      //   f_z(2) = wrench(2);
+      //   wrench(2) = 0;
 
-        Eigen::Vector3d rotated_fz = inverse_rotation_matrix * f_z;
-        wrench.head(3) += rotated_fz;
-      }
+      //   Eigen::Vector3d rotated_fz = inverse_rotation_matrix * f_z;
+      //   wrench.head(3) += rotated_fz;
+      // }
 
       geometry_msgs::WrenchStamped wrench_msg;
       wrench_msg.header.stamp = ros::Time::now();

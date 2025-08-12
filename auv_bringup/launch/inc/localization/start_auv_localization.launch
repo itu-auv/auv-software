@@ -13,18 +13,16 @@
         <param name="target_frame" value="taluy_mini/base_link"/>
       </node> -->
 
-      <node pkg="imu_filter_madgwick" type="imu_filter_madgwick_node" name="imu_filter">
-      <!-- Required params -->
-      <param name="use_mag" value="true"/> <!-- false if no magnetometer -->
-      <param name="world_frame" value="enu"/> <!-- 'enu' for most robotics, 'ned' for marine -->
-      <param name="publish_tf" value="false"/>
-      <param name="gain" value="0.1"/> <!-- Tuning parameter -->
-      <param name="zeta" value="0.0"/> <!-- Drift correction rate -->
+      <!-- <node pkg="imu_filter_madgwick" type="imu_filter_madgwick_node" name="imu_filter">
+        <param name="use_mag" value="true"/>
+        <param name="world_frame" value="enu"/>
+        <param name="publish_tf" value="false"/>
+        <param name="gain" value="0.1"/>
+        <param name="zeta" value="0.0"/>
 
-      <!-- Topic remapping -->
-      <remap from="imu/data_raw" to="imu/data_raw"/>
-      <remap from="imu/mag" to="imu/mag"/>
-    </node>
+        <remap from="imu/data_raw" to="imu/data_raw"/>
+        <remap from="imu/mag" to="imu/mag"/>
+      </node> -->
     </group>
 
     <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">

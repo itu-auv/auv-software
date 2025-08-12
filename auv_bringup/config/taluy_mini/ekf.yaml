@@ -38,7 +38,7 @@ world_frame: odom
 # imu0_twist_rejection_threshold: 1.0
 
 odom0: /taluy_mini/localization/odom_pressure
-odom0_config: [false, false, true, false, false, false, false, false, false, false, false, false, false, false, false]
+odom0_config: [true, true, true, false, false, false, false, false, false, false, false, false, false, false, false]
 odom0_queue_size: 10
 odom0_nodelay: false
 odom0_differential: false
