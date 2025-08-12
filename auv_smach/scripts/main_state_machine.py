@@ -41,26 +41,6 @@ class MainStateMachineNode:
         self.bin_exit_angle_deg = 0.0
         self.torpedo_exit_angle_deg = 0.0
 
-        # Get current configuration from server
-        try:
-            current_config = self.dynamic_reconfigure_client.get_configuration()
-            if current_config:
-                self.selected_animal = current_config.get("selected_animal", "sawfish")
-                self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
-                self.slalom_exit_angle_deg = current_config.get(
-                    "slalom_exit_angle", 0.0
-                )
-                self.bin_exit_angle_deg = current_config.get("bin_exit_angle", 0.0)
-                self.torpedo_exit_angle_deg = current_config.get(
-                    "torpedo_exit_angle", 0.0
-                )
-                rospy.loginfo(
-                    f"Loaded current config: selected_animal={self.selected_animal}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
-                )
-        except Exception as e:
-            rospy.logwarn(f"Could not get current configuration: {e}")
-            rospy.loginfo("Using default values")
-
         self.gate_search_depth = -0.7
         self.gate_depth = -1.35
         self.roll_depth = -0.8
