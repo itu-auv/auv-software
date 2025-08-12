@@ -16,7 +16,7 @@ class ExpansionBridgeRemapperNode:
             "pose", geometry_msgs.msg.PoseWithCovarianceStamped, queue_size=1
         )
         self.imu_pub = rospy.Publisher("bno/data", Imu, queue_size=1)
-        self.mag_pub = rospy.Publisher("bno/mag", MagneticField, queue_size=1)
+        # self.mag_pub = rospy.Publisher("bno/mag", MagneticField, queue_size=1)
 
         rospy.Subscriber("depth", std_msgs.msg.Float32, self.depth_callback)
         rospy.Subscriber("bno_raw", AuvImu, self.imu_callback)
@@ -27,6 +27,10 @@ class ExpansionBridgeRemapperNode:
         imu_msg = Imu()
         imu_msg.header.stamp = now
         imu_msg.header.frame_id = "taluy_mini/base_link/imu_link"
+        imu_msg.orientation.x = msg.orientation[0]
+        imu_msg.orientation.y = msg.orientation[1]
+        imu_msg.orientation.z = msg.orientation[2]
+        imu_msg.orientation.w = msg.orientation[3]
         imu_msg.linear_acceleration.x = msg.linear_acceleration[0]
         imu_msg.linear_acceleration.y = msg.linear_acceleration[1]
         imu_msg.linear_acceleration.z = msg.linear_acceleration[2]
@@ -35,13 +39,13 @@ class ExpansionBridgeRemapperNode:
         imu_msg.angular_velocity.z = msg.angular_velocity[2]
         self.imu_pub.publish(imu_msg)
 
-        mag_msg = MagneticField()
-        mag_msg.header.stamp = now
-        mag_msg.header.frame_id = "taluy_mini/base_link/imu_link"
-        mag_msg.magnetic_field.x = msg.magnetic_field[0]
-        mag_msg.magnetic_field.y = msg.magnetic_field[1]
-        mag_msg.magnetic_field.z = msg.magnetic_field[2]
-        self.mag_pub.publish(mag_msg)
+        # mag_msg = MagneticField()
+        # mag_msg.header.stamp = now
+        # mag_msg.header.frame_id = "taluy_mini/base_link/imu_link"
+        # mag_msg.magnetic_field.x = msg.magnetic_field[0]
+        # mag_msg.magnetic_field.y = msg.magnetic_field[1]
+        # mag_msg.magnetic_field.z = msg.magnetic_field[2]
+        # self.mag_pub.publish(mag_msg)
 
     def depth_callback(self, msg: std_msgs.msg.Float32) -> None:
         pose = geometry_msgs.msg.PoseWithCovarianceStamped()
