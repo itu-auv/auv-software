@@ -127,7 +127,7 @@ class BinWhole(Prop):
 
 class Octagon(Prop):
     def __init__(self):
-        super().__init__(7, "octagon", 0.92, 1.30)
+        super().__init__(7, "octagon", 0.74, 0.91)
 
 
 class BinShark(Prop):
