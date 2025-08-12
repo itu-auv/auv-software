@@ -12,6 +12,7 @@ from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
+from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
@@ -80,6 +81,15 @@ class MainStateMachineNode:
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -1.0
+
+        # Acoustic transmitter parameters
+        self.acoustic_tx_data_value = 1
+        self.acoustic_tx_publish_rate = 1.0  # Hz
+        self.acoustic_tx_duration = 5.0  # seconds
+
+        # Acoustic receiver parameters
+        self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
+        self.acoustic_rx_timeout = 30.0  # seconds
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -195,6 +205,19 @@ class MainStateMachineNode:
                 {
                     "octagon_depth": self.octagon_depth,
                     "animal": self.selected_animal,
+                },
+            ),
+            "ACOUSTIC_TRANSMITTER": (
+                AcousticTransmitter,
+                {
+                    "data_value": self.acoustic_tx_data_value,
+                },
+            ),
+            "ACOUSTIC_RECEIVER": (
+                AcousticReceiver,
+                {
+                    "expected_data": self.acoustic_rx_expected_data,
+                    "timeout": self.acoustic_rx_timeout,
                 },
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (

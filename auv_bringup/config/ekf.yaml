@@ -1,4 +1,4 @@
-frequency: 20
+frequency: 100
 
 silent_tf_failure: false
 
@@ -52,7 +52,7 @@ odom1_relative: false
 odom2: /taluy/localization/odom_dvl
 odom2_config: [false, false, false,
                false, false, false,
-               true, true, true,
+               true, true, false,
                false, false, false,
                false, false, false]
 odom2_queue_size: 10
