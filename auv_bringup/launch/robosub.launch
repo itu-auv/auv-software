@@ -37,7 +37,6 @@
 
   <!-- 4. Launch tracker_all -->
   <include file="$(find auv_detection)/launch/tracker_all.launch">
-    <arg name="namespace" value="$(arg namespace)" />
   </include>
 
   <!-- 5. Optional: Launch rqt_reconfigure if parameter is set to 1 -->

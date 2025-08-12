@@ -190,7 +190,9 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "CALIFORNIA_ROLL",
-                TwoRollState(roll_torque=50.0),
+                TwoRollState(
+                    roll_torque=50.0, gate_look_at_frame=self.gate_look_at_frame
+                ),
                 transitions={
                     "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
                     "preempted": "preempted",
