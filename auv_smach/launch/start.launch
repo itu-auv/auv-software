@@ -13,6 +13,8 @@
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
+        acoustic_tx:ACOUSTIC_TRANSMITTER,
+        acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE
     "/>
 
@@ -30,6 +32,8 @@
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
         'NAVIGATE_TO_OCTAGON_TASK',
+        'ACOUSTIC_TRANSMITTER',
+        'ACOUSTIC_RECEIVER',
         'NAVIGATE_RETURN_THROUGH_GATE'
     ]" doc="Full sequence of mission states"/>
 
@@ -63,6 +67,7 @@
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
+            <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable"/>
 
             <param name="enable_rate" value="$(arg enable_rate)"/>
 
