@@ -87,7 +87,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
             double before_clamp = integral_(i);
             integral_(i) = std::max(-limit, std::min(limit, integral_(i)));
             if (i == 2) {
-              ROS_INFO_STREAM_THROTTLE(
+              ROS_DEBUG_STREAM_THROTTLE(
                   1, "Integral_z: " << integral_(i) << ", Limit: " << limit
                                     << ", Before: " << before_clamp);
             }
