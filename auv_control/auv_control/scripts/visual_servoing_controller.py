@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy
-import tf.transformations
 import math
-from collections import deque
 from enum import Enum
 
 from geometry_msgs.msg import Twist
@@ -13,12 +11,6 @@ from auv_msgs.msg import PropsYaw
 from auv_msgs.srv import VisualServoing, VisualServoingResponse
 from dynamic_reconfigure.server import Server
 from auv_control.cfg import VisualServoingConfig
-from sensor_msgs.msg import Imu
-
-
-def normalize_angle(angle: float) -> float:
-    """Normalize an angle to the range [-pi, pi]."""
-    return math.atan2(math.sin(angle), math.cos(angle))
 
 
 class ControllerState(Enum):
@@ -27,18 +19,19 @@ class ControllerState(Enum):
     IDLE = "idle"
     CENTERING = "centering"
     NAVIGATING = "navigating"
+    SEARCHING = "searching"
 
 
-class VisualServoingController:
+class VisualServoingControllerNoIMU:
     """
-    A controller for visual servoing towards a target prop.
-    It uses a PD controller to align the robot's yaw with the target.
+    A controller for visual servoing towards a target prop without using an IMU.
+    It uses a PD controller to align the robot with the target based on the angle to the prop.
     Navigate towards the target with a constant forward velocity.
     """
 
     def __init__(self):
-        rospy.init_node("visual_servoing_controller", anonymous=True)
-        rospy.loginfo("Visual Servoing Controller node started")
+        rospy.init_node("visual_servoing_controller_no_imu", anonymous=True)
+        rospy.loginfo("Visual Servoing Controller (No IMU) node started")
 
         self._load_parameters()
         self._setup_state()
@@ -47,14 +40,17 @@ class VisualServoingController:
 
     def _load_parameters(self):
         """Load parameters from the ROS parameter server."""
-        self.kp_gain = rospy.get_param("~kp_gain", 0.8)
-        self.kd_gain = rospy.get_param("~kd_gain", 0.4)
-        self.v_x_desired = rospy.get_param("~v_x_desired", 0.3)
-        self.navigation_timeout_after_prop_disappear_s = 600.0
-        self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 60000.0)
-        self.rate_hz = rospy.get_param("~rate_hz", 10.0)
-        imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
-        self.imu_history_size = int(self.rate_hz * imu_history_secs)
+        self.kp_gain = rospy.get_param("~kp_gain")
+        self.kd_gain = rospy.get_param("~kd_gain")
+        self.v_x_desired = rospy.get_param("~v_x_desired")
+        self.navigation_timeout_after_prop_disappear_s = rospy.get_param(
+            "~navigation_timeout_after_prop_disappear_s"
+        )
+        self.overall_timeout_s = rospy.get_param("~overall_timeout_s")
+        self.rate_hz = rospy.get_param("~rate_hz", 20.0)
+        self.prop_lost_timeout_s = rospy.get_param("~prop_lost_timeout_s")
+        self.search_angular_velocity = rospy.get_param("~search_angular_velocity")
+        self.max_angular_velocity = rospy.get_param("~max_angular_velocity")
 
     def _setup_state(self):
         """Initialize the controller's state."""
@@ -62,11 +58,11 @@ class VisualServoingController:
         self.target_prop = ""
         self.service_start_time = None
         self.last_prop_stamp_time = None
-        # Sensor-derived state
-        self.current_yaw = 0.0
-        self.angular_velocity_z = 0.0
-        self.target_yaw_in_world = 0.0
-        self.imu_history = deque(maxlen=self.imu_history_size)
+        # Controller state
+        self.error = 0.0
+        self.error_derivative = 0.0
+        self.last_error_stamp = None
+        self.last_known_error = 0.0
 
     def _setup_ros_communication(self):
         """Setup ROS publishers, subscribers, and services."""
@@ -74,16 +70,9 @@ class VisualServoingController:
         self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
         self.control_enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
         self.error_pub = rospy.Publisher("visual_servoing/error", Float64, queue_size=1)
-        self.current_yaw_pub = rospy.Publisher(
-            "visual_servoing/current_yaw", Float64, queue_size=1
-        )
-        self.target_yaw_pub = rospy.Publisher(
-            "visual_servoing/target_yaw", Float64, queue_size=1
-        )
 
         # Subscribers
         rospy.Subscriber("props_yaw", PropsYaw, self.prop_yaw_callback, queue_size=1)
-        rospy.Subscriber("imu/data", Imu, self.imu_callback, queue_size=1)
 
         # Services
         rospy.Service(
@@ -101,50 +90,30 @@ class VisualServoingController:
         """Setup dynamic reconfigure server."""
         self.srv = Server(VisualServoingConfig, self.reconfigure_callback)
 
-    def imu_callback(self, msg: Imu):
-        """Handles incoming IMU messages to update yaw and angular velocity."""
-        orientation_q = msg.orientation
-        orientation_list = [
-            orientation_q.x,
-            orientation_q.y,
-            orientation_q.z,
-            orientation_q.w,
-        ]
-        (_, _, yaw) = tf.transformations.euler_from_quaternion(orientation_list)
-
-        self.current_yaw = yaw
-        self.angular_velocity_z = msg.angular_velocity.z
-        self.imu_history.append((msg.header.stamp, yaw))
-
     def prop_yaw_callback(self, msg: PropsYaw):
-        """Handles incoming prop yaw messages to update the target yaw."""
+        """Handles incoming prop yaw messages to update the controller error."""
         if self.state == ControllerState.IDLE or msg.object != self.target_prop:
             return
 
-        if not self.imu_history:
-            rospy.logwarn_throttle(
-                1.0, "IMU history is empty, skipping prop yaw callback."
-            )
-            return
+        current_stamp = msg.header.stamp
+        self.last_prop_stamp_time = current_stamp
+        current_error = msg.angle
 
-        prop_stamp = msg.header.stamp
-        self.last_prop_stamp_time = prop_stamp
-        angle_to_prop_from_robot = msg.angle
+        if self.last_error_stamp is not None:
+            dt = (current_stamp - self.last_error_stamp).to_sec()
+            if dt > 0.001:  # Avoid division by zero and stale data
+                self.error_derivative = (current_error - self.error) / dt
 
-        # delay = (rospy.Time.now() - prop_stamp).to_sec()
-        # rospy.loginfo_throttle(
-        #    1.0, f"Visual Servoing perception delay: {delay:.3f} seconds"
-        # )
-
-        yaw_at_prop_time = self._get_yaw_at_time(prop_stamp)
-        self.target_yaw_in_world = normalize_angle(
-            yaw_at_prop_time + angle_to_prop_from_robot
+        self.error = current_error
+        self.last_known_error = current_error
+        self.last_error_stamp = current_stamp
+        rospy.loginfo(
+            f"Prop yaw callback. New error: {self.error:.4f} in state: {self.state}"
         )
 
-    def _get_yaw_at_time(self, stamp: rospy.Time) -> float:
-        """Finds the yaw from IMU history closest to the given timestamp."""
-        closest_imu_reading = min(self.imu_history, key=lambda x: abs(x[0] - stamp))
-        return closest_imu_reading[1]
+        if self.state == ControllerState.SEARCHING:
+            self.state = ControllerState.CENTERING
+            rospy.loginfo("Prop found, returning to centering.")
 
     def control_step(self):
         """Executes one iteration of the control loop."""
@@ -155,14 +124,30 @@ class VisualServoingController:
 
     def _calculate_angular_z(self) -> float:
         """Calculates the angular velocity command using a PD controller."""
-        error = normalize_angle(self.target_yaw_in_world - self.current_yaw)
-        self.error_pub.publish(Float64(error))
-        self.current_yaw_pub.publish(Float64(self.current_yaw))
-        self.target_yaw_pub.publish(Float64(self.target_yaw_in_world))
+        if self.state == ControllerState.SEARCHING:
+            if self.last_known_error != 0.0:
+                # Turn towards the side where the object was last seen.
+                # A positive error means the object is to the right (positive angle),
+                # so we need a negative (clockwise) angular velocity to turn right.
+                return -math.copysign(
+                    self.search_angular_velocity, self.last_known_error
+                )
+            else:
+                # If we have no last error (e.g., prop never seen after start), turn one way.
+                return -self.search_angular_velocity
 
-        p_signal = self.kp_gain * error
-        d_signal = self.kd_gain * self.angular_velocity_z
-        return p_signal - d_signal
+        self.error_pub.publish(Float64(self.error))
+
+        p_signal = self.kp_gain * self.error
+        d_signal = self.kd_gain * self.error_derivative
+
+        # We want to turn to reduce the error. If error is positive (prop on the right),
+        # we need a negative angular velocity (turn right).
+        # The damping term (d_signal) should oppose the motion.
+        angular_z = -(p_signal + d_signal)
+        return max(
+            min(angular_z, self.max_angular_velocity), -self.max_angular_velocity
+        )
 
     def _calculate_linear_x(self) -> float:
         """Calculates the linear velocity command."""
@@ -188,11 +173,16 @@ class VisualServoingController:
         """Handles dynamic reconfigure updates for controller gains."""
         self.kp_gain = config.kp_gain
         self.kd_gain = config.kd_gain
+        self.v_x_desired = config.v_x_desired
         self.navigation_timeout_after_prop_disappear_s = (
             config.navigation_timeout_after_prop_disappear_s
         )
+        self.overall_timeout_s = config.overall_timeout_s
+        self.prop_lost_timeout_s = config.prop_lost_timeout_s
+        self.search_angular_velocity = config.search_angular_velocity
+        self.max_angular_velocity = config.max_angular_velocity
         rospy.loginfo(
-            f"Updated gains: Kp={self.kp_gain}, kd={self.kd_gain}, NavTimeout={self.navigation_timeout_after_prop_disappear_s}"
+            f"Updated params: Kp={self.kp_gain}, kd={self.kd_gain}, VxDesired={self.v_x_desired}, NavTimeout={self.navigation_timeout_after_prop_disappear_s}, OverallTimeout={self.overall_timeout_s}, PropLostTimeout={self.prop_lost_timeout_s}, SearchAngularVelocity={self.search_angular_velocity}, MaxAngularVelocity={self.max_angular_velocity}"
         )
         return config
 
@@ -205,10 +195,14 @@ class VisualServoingController:
             )
 
         self.target_prop = req.target_prop
-        self.target_yaw_in_world = self.current_yaw
         self.state = ControllerState.CENTERING
         self.service_start_time = rospy.Time.now()
         self.last_prop_stamp_time = None
+        # Reset controller state
+        self.error = 0.0
+        self.error_derivative = 0.0
+        self.last_error_stamp = None
+        self.last_known_error = 0.0
         rospy.loginfo(f"Visual servoing started for target: {self.target_prop}")
         return VisualServoingResponse(
             success=True, message="Visual servoing activated."
@@ -234,7 +228,9 @@ class VisualServoingController:
             )
 
         self.state = ControllerState.NAVIGATING
-        rospy.loginfo("Visual servoing navigation started.")
+        rospy.loginfo(
+            f"Visual servoing navigation started. Current error: {self.error}"
+        )
         return TriggerResponse(success=True, message="Navigation mode activated.")
 
     def handle_cancel_navigation_request(self, req: Trigger) -> TriggerResponse:
@@ -270,6 +266,17 @@ class VisualServoingController:
                 self._stop_controller("overall timeout reached")
                 continue
 
+            if self.state == ControllerState.CENTERING:
+                if (
+                    self.last_prop_stamp_time is not None
+                    and (rospy.Time.now() - self.last_prop_stamp_time).to_sec()
+                    > self.prop_lost_timeout_s
+                ):
+                    rospy.logwarn("Prop lost during centering, starting search.")
+                    self.state = ControllerState.SEARCHING
+                    self.error = 0.0
+                    self.error_derivative = 0.0
+
             self.control_enable_pub.publish(Bool(True))
             self.control_step()
             rate.sleep()
@@ -277,7 +284,7 @@ class VisualServoingController:
 
 if __name__ == "__main__":
     try:
-        controller = VisualServoingController()
+        controller = VisualServoingControllerNoIMU()
         controller.spin()
     except rospy.ROSInterruptException:
         pass

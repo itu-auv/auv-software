@@ -1,6 +1,5 @@
 #pragma once
 
-#include <angles/angles.h>
 #include <dynamic_reconfigure/server.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/Twist.h>
@@ -8,9 +7,7 @@
 #include <nav_msgs/Odometry.h>
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-#include "auv_common_lib/ros/conversions.h"
 #include "auv_common_lib/ros/subscriber_with_timeout.h"
 #include "auv_control/WrenchControllerConfig.h"
 
@@ -44,7 +41,6 @@ class WrenchController {
       prev_error_ = 0.0;
     }
     double control(double current, double desired, double dt);
-    double controlFromError(double error, double dt);
     void setGains(double p, double i, double d) {
       kp_ = p;
       ki_ = i;
@@ -68,24 +64,15 @@ class WrenchController {
 
   double current_z_ = 0.0;
   double desired_z_ = 0.0;
-  double current_roll_ = 0.0;
-  double desired_roll_ = 0.0;
-  double current_pitch_ = 0.0;
-  double desired_pitch_ = 0.0;
-  double current_yaw_ = 0.0;
-  double current_yaw_vel_ = 0.0;
-  double desired_yaw_ = 0.0;
   double zx_multiplier_ = 0.0;
   double zy_multiplier_ = 0.0;
   double linear_xy_scalar_ = 0.0;
-  double linear_z_scalar_ = 0.0;
+  double roll_scalar_ = 0.0;
+  double pitch_scalar_ = 0.0;
+  double yaw_scalar_ = 0.0;
   geometry_msgs::Twist latest_cmd_vel_;
 
   PID z_pid_;
-  PID roll_pid_;
-  PID pitch_pid_;
-  PID yaw_pos_pid_;
-  PID yaw_vel_pid_;
   std::string body_frame_;
 
   dynamic_reconfigure::Server<auv_control::WrenchControllerConfig>

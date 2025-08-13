@@ -86,15 +86,13 @@
     <group if="$(arg start_visual_servoing)">
       <node pkg="auv_control" type="visual_servoing_controller.py" name="visual_servoing_controller"
         output="screen">
+        <rosparam file="$(arg config_file)" command="load" ns="" />
         <!-- Subscribers -->
-        <remap from="imu/data" to="sensors/imu/data" />
         <remap from="props_yaw" to="props_yaw" />
         <!-- Publishers -->
         <remap from="cmd_vel" to="cmd_vel" />
         <remap from="enable" to="enable" />
         <remap from="visual_servoing/error" to="visual_servoing/error" />
-        <remap from="visual_servoing/current_yaw" to="visual_servoing/current_yaw" />
-        <remap from="visual_servoing/target_yaw" to="visual_servoing/target_yaw" />
       </node>
     </group>
 

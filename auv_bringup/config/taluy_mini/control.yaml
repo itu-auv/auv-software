@@ -50,18 +50,22 @@ thruster_7_coeff: 1.0
 
 heading_control_mode: "set_heading"
 
-z_p_gain: 0.0
+z_p_gain: 10.0
 z_i_gain: 0.0
-z_d_gain: 0.0
-yaw_pos_p_gain: 0.0
-yaw_pos_i_gain: 0.0
-yaw_pos_d_gain: 0.0
-yaw_vel_p_gain: 0.0
-yaw_vel_i_gain: 0.0
-yaw_vel_d_gain: 0.0
-pitch_p_gain: 0.0
-pitch_i_gain: 0.0
-pitch_d_gain: 0.0
-roll_p_gain: 0.0
-roll_i_gain: 0.0
-roll_d_gain: 0.0
+z_d_gain: 3.0
+zx_multiplier: 0.0
+zy_multiplier: 0.0
+linear_xy_scalar: 10.0
+linear_z_scalar: 10.0
+roll_scalar: 0.5
+pitch_scalar: 0.5
+yaw_scalar: 5.0
+
+kp_gain: 0.5
+kd_gain: 0.2
+navigation_timeout_after_prop_disappear_s: 20.0
+prop_lost_timeout_s: 5.0
+search_angular_velocity: 0.1
+v_x_desired: 0.3
+overall_timeout_s: 200.0
+max_angular_velocity: 0.3
