@@ -65,7 +65,7 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.roll_depth = -0.8
 
-        self.slalom_depth = -1.3
+        self.slalom_depth = -1.1
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -80,7 +80,7 @@ class MainStateMachineNode:
         self.bin_front_look_depth = -0.9
         self.bin_bottom_look_depth = -0.7
 
-        self.octagon_depth = -1.0
+        self.octagon_depth = -0.8
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
