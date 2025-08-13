@@ -29,6 +29,11 @@ def callback(config, level):
             )
         )
     else:
+        # If the pool selection is invalid, reset to the default values from the .cfg file
+        config.gate_exit_angle = SmachParametersConfig.defaults["gate_exit_angle"]
+        config.slalom_exit_angle = SmachParametersConfig.defaults["slalom_exit_angle"]
+        config.bin_exit_angle = SmachParametersConfig.defaults["bin_exit_angle"]
+        config.torpedo_exit_angle = SmachParametersConfig.defaults["torpedo_exit_angle"]
         rospy.loginfo(
             """Reconfigure Request: pool_selection={pool_selection}, selected_animal={selected_animal}, wall_reference_yaw={wall_reference_yaw}, slalom_direction={slalom_direction}, Active angles - Gate: {gate_exit_angle}, Slalom: {slalom_exit_angle}, Bin: {bin_exit_angle}, Torpedo: {torpedo_exit_angle}""".format(
                 **config
