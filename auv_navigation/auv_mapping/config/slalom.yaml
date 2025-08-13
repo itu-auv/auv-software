@@ -1,6 +1,6 @@
 ---
 # D
-gate_to_slalom_entrance_distance: 1.6
+gate_to_slalom_entrance_distance: 1.25
 second_slalom_offset: 0.2
 slalom_entrance_backed_distance: 0.0
 third_slalom_offset: 0.5
