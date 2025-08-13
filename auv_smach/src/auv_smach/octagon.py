@@ -49,8 +49,8 @@ class OctagonTaskState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_OCTAGON_DEPTH",
-                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
+                "SET_OCTAGON_INITIAL_DEPTH",
+                SetDepthState(depth=-1.2, sleep_duration=4.0),
                 transitions={
                     "succeeded": "FOCUS_ON_OCTAGON",
                     "preempted": "preempted",
@@ -112,6 +112,15 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "CLOSE_OCTAGON_PUBLİSHER",
                 OctagonFramePublisherServiceState(req=False),
+                transitions={
+                    "succeeded": "SET_OCTAGON_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_OCTAGON_DEPTH",
+                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
@@ -224,6 +233,15 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "SURFACE_TO_SURFACE",
                 SetDepthState(depth=-0.15, sleep_duration=4.0),
+                transitions={
+                    "succeeded": "SET_FINAL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_FINAL_DEPTH",
+                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_OCTAGON",
                     "preempted": "preempted",

@@ -30,25 +30,25 @@ class NavigateReturnThroughGateState(smach.State):
         )
 
         with self.state_machine:
-            smach.StateMachine.add(
-                "SET_RETURN_DEPTH",
-                SetDepthState(
-                    depth=-1.2,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 3.0),
-                ),
-                transitions={
-                    "succeeded": "LOOK_AT_STATION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+            # smach.StateMachine.add(
+            #     "SET_RETURN_DEPTH",
+            #     SetDepthState(
+            #         depth=-1.2,
+            #         sleep_duration=rospy.get_param("~set_depth_sleep_duration", 3.0),
+            #     ),
+            #     transitions={
+            #         "succeeded": "LOOK_AT_STATION",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
                 "LOOK_AT_STATION",
                 SearchForPropState(
                     look_at_frame=self.station_frame,
                     alignment_frame="look_at_station",
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    set_frame_duration=7.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -76,7 +76,7 @@ class NavigateReturnThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame="look_at_gate",
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    set_frame_duration=7.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),

@@ -63,7 +63,7 @@ class MainStateMachineNode:
 
         self.gate_search_depth = -0.7
         self.gate_depth = -1.35
-        self.roll_depth = -0.8
+        self.roll_depth = -0.7
 
         self.slalom_depth = -1.1
 
