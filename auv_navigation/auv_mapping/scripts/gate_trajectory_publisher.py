@@ -224,12 +224,13 @@ class TransformServiceNode:
             middle_x = (p1.x + p2.x) / 2.0
             middle_y = (p1.y + p2.y) / 2.0
             middle_z = (p1.z + p2.z) / 2.0
-            # Orientation: same as gate line (yaw)
-            yaw = math.atan2(p2.y - p1.y, p2.x - p1.x)
-            quat = tf_conversions.transformations.quaternion_from_euler(0, 0, yaw)
+            # Orientation: same as odom frame (no rotation)
+            identity_quat = tf_conversions.transformations.quaternion_from_euler(
+                0, 0, 0
+            )
             middle_pose = Pose(
                 position=Point(middle_x, middle_y, middle_z),
-                orientation=Quaternion(*quat),
+                orientation=Quaternion(*identity_quat),
             )
             middle_transform = self.build_transform_message(
                 self.middle_frame, middle_pose

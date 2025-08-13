@@ -19,7 +19,6 @@ from dynamic_reconfigure.client import Client
 from auv_bringup.cfg import SmachParametersConfig
 
 
-
 class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
@@ -80,7 +79,7 @@ class MainStateMachineNode:
         self.torpedo_shark_fire_frame = "torpedo_shark_fire_frame"
         self.torpedo_sawfish_fire_frame = "torpedo_sawfish_fire_frame"
 
-        self.bin_front_look_depth = -0.9
+        self.bin_front_look_depth = -1.25
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -0.8

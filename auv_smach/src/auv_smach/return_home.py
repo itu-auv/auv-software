@@ -62,7 +62,7 @@ class NavigateReturnThroughGateState(smach.State):
                 "DYNAMIC_PATH_TO_STATION",
                 DynamicPathState(
                     plan_target_frame=self.station_frame,
-                    keep_orientation=True,
+                    angle_offset=1.57,
                 ),
                 transitions={
                     "succeeded": "LOOK_AT_GATE",
@@ -90,7 +90,7 @@ class NavigateReturnThroughGateState(smach.State):
                 "DYNAMIC_PATH_TO_GATE_RETURN",
                 DynamicPathState(
                     plan_target_frame=self.gate_look_at_frame,
-                    keep_orientation=True,
+                    angle_offset=3.14,
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_ENTRANCE",
