@@ -90,6 +90,36 @@ class Prop:
             return None
 
 
+class SlalomPipe(Prop):
+    def __init__(
+        self,
+        id: int,
+        name: str,
+        real_length: float,
+    ):
+        super().__init__(id, name, real_length, None)
+
+    def estimate_distance(
+        self,
+        measured_height: float,
+        measured_width: float,
+        calibration: CameraCalibration,
+    ):
+        if measured_height <= 0:
+            rospy.logwarn(
+                f"{self.name}: measured_height is zero, skipping distance estimation"
+            )
+            return None
+
+        length = math.sqrt(measured_height**2 + measured_width**2)
+
+        if self.real_height is not None:
+            return calibration.distance_from_height(self.real_height, length)
+        else:
+            rospy.logerr(f"Could not estimate distance for prop {self.name}")
+            return None
+
+
 class Sawfish(Prop):
     def __init__(self):
         super().__init__(0, "sawfish", 0.3048, 0.3048)
@@ -100,14 +130,14 @@ class Shark(Prop):
         super().__init__(1, "shark", 0.3048, 0.3048)
 
 
-class RedPipe(Prop):
+class RedPipe(SlalomPipe):
     def __init__(self):
-        super().__init__(2, "red_pipe", 0.90, None)
+        super().__init__(2, "red_pipe", 0.9004)
 
 
-class WhitePipe(Prop):
+class WhitePipe(SlalomPipe):
     def __init__(self):
-        super().__init__(3, "white_pipe", 0.90, None)
+        super().__init__(3, "white_pipe", 0.9004)
 
 
 class TorpedoMap(Prop):
