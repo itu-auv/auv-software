@@ -182,7 +182,10 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
-                {"octagon_depth": self.octagon_depth},
+                {
+                    "octagon_depth": self.octagon_depth,
+                    "animal": self.selected_animal,
+                },
             ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
