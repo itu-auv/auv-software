@@ -30,7 +30,7 @@ class MainStateMachineNode:
             config_callback=self.dynamic_reconfigure_callback,
         )
 
-        self.return_home_station = "bin_whole_link"
+        self.return_home_station = "torpedo_target_realsense"
 
         # Get initial values from dynamic reconfigure
         self.selected_animal = "sawfish"
