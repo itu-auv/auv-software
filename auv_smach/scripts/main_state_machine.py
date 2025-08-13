@@ -38,7 +38,7 @@ class MainStateMachineNode:
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
-        self.slalom_exit_angle_deg = 0
+        self.slalom_exit_angle_deg = 0.0
         self.bin_exit_angle_deg = 0.0
         self.torpedo_exit_angle_deg = 0.0
 
