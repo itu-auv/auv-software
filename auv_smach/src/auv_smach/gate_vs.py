@@ -1,238 +1,266 @@
-from .initialize import *
 import smach
 import rospy
-import math
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
-from std_msgs.msg import Bool
-from tf.transformations import euler_from_quaternion
 from auv_smach.common import (
     SetDepthState,
-    VisualServoingCentering,
-    VisualServoingNavigation,
 )
 import smach_ros
 from std_srvs.srv import Trigger, TriggerRequest
+from std_msgs.msg import Float64
+from auv_msgs.srv import VisualServoing, VisualServoingRequest
 from auv_smach.initialize import DelayState
+from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 
 
-class TurnAroundState(smach.State):
+class VisualServoingCenteringActivate(smach_ros.ServiceState):
+    """
+    Simple service state that just activates visual servoing centering
+    without waiting for convergence. Used when you want to start centering
+    and then use a DelayState to wait.
+    """
+
+    def __init__(self, target_prop: str):
+        request = VisualServoingRequest()
+        request.target_prop = target_prop
+        super(VisualServoingCenteringActivate, self).__init__(
+            "visual_servoing/start",
+            VisualServoing,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
+class VisualServoingCenteringWithFeedback(smach.State):
+    """
+    Enhanced visual servoing centering state that waits for actual convergence
+    instead of using a fixed delay.
+    """
+
     def __init__(
         self,
-        rotation_speed=0.2,
-        timeout=15.0,
-        rate_hz=10,
+        target_prop: str,
+        error_threshold: float = 0.1,
+        convergence_time: float = 2.0,
+        max_timeout: float = 30.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.odom_topic = "odometry"
-        self.cmd_vel_topic = "cmd_vel"
-        self.rotation_speed = rotation_speed
-        self.timeout = timeout
-        self.odom_data = False
-        self.yaw = None
-        self.yaw_prev = None
-        self.total_yaw = 0.0
-        self.rate = rospy.Rate(rate_hz)
-        self.active = True
 
-        self.sub = rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb)
-        self.pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
+        self.target_prop = target_prop
+        self.error_threshold = error_threshold  # radians
+        self.convergence_time = convergence_time  # seconds to stay within threshold
+        self.max_timeout = max_timeout
 
-        self.enable_pub = rospy.Publisher(
-            "enable",
-            Bool,
-            queue_size=1,
-        )
+        # State tracking
+        self.current_error = float("inf")
+        self.convergence_start_time = None
+        self.is_converged = False
 
-        self.killswitch_sub = rospy.Subscriber(
-            "propulsion_board/status",
-            Bool,
-            self.killswitch_callback,
-        )
+        # ROS communication
+        self.error_sub = None
 
-    def killswitch_callback(self, msg):
-        if not msg.data:
-            self.active = False
-            rospy.logwarn("RotationState: Killswitch activated, stopping rotation")
+    def error_callback(self, msg: Float64):
+        """Callback for visual servoing error messages."""
+        self.current_error = abs(msg.data)
 
-    def odom_cb(self, msg):
-        q = msg.pose.pose.orientation
-        orientation_list = [q.x, q.y, q.z, q.w]
-        _, _, yaw = euler_from_quaternion(orientation_list)
-        self.odom_data = True
-        self.yaw = yaw
-
-    @staticmethod
-    def normalize_angle(angle):
-        return math.atan2(math.sin(angle), math.cos(angle))
+        # Check if we're within the error threshold
+        if self.current_error <= self.error_threshold:
+            if self.convergence_start_time is None:
+                self.convergence_start_time = rospy.Time.now()
+                rospy.loginfo(
+                    f"Centering: Error within threshold ({self.current_error:.3f} <= {self.error_threshold:.3f})"
+                )
+            else:
+                # Check if we've been converged long enough
+                convergence_duration = (
+                    rospy.Time.now() - self.convergence_start_time
+                ).to_sec()
+                if convergence_duration >= self.convergence_time:
+                    self.is_converged = True
+                    rospy.loginfo(
+                        f"Centering: Converged for {convergence_duration:.1f}s, centering complete!"
+                    )
+        else:
+            # Reset convergence tracking if error goes above threshold
+            if self.convergence_start_time is not None:
+                rospy.loginfo(
+                    f"Centering: Error increased ({self.current_error:.3f}), resetting convergence timer"
+                )
+            self.convergence_start_time = None
+            self.is_converged = False
 
     def execute(self, userdata):
-        # Wait for odometry data
-        while not rospy.is_shutdown() and not self.odom_data:
-            if self.preempt_requested():
-                self.service_preempt()
-                return "preempted"
-            self.rate.sleep()
+        # Reset state
+        self.current_error = float("inf")
+        self.convergence_start_time = None
+        self.is_converged = False
 
-        # Initialize rotation
-        self.yaw_prev = self.yaw
-        self.total_yaw = 0.0
-        twist = Twist()
-        twist.angular.z = self.rotation_speed
-        self.active = True
-        rotation_start_time = rospy.Time.now()
+        # Subscribe to error topic
+        self.error_sub = rospy.Subscriber(
+            "visual_servoing/error", Float64, self.error_callback, queue_size=1
+        )
 
-        rospy.loginfo("RotationState: Starting 180 degree rotation")
+        try:
+            # Start visual servoing
+            rospy.loginfo(f"Starting visual servoing centering for: {self.target_prop}")
+            rospy.wait_for_service("visual_servoing/start", timeout=5.0)
+            start_service = rospy.ServiceProxy("visual_servoing/start", VisualServoing)
 
-        # Rotate until 180 degrees (pi radians) is completed
-        while not rospy.is_shutdown() and self.total_yaw < math.pi and self.active:
-            if self.preempt_requested():
-                twist.angular.z = 0.0
-                self.pub.publish(twist)
-                self.service_preempt()
-                return "preempted"
+            request = VisualServoingRequest()
+            request.target_prop = self.target_prop
+            response = start_service(request)
 
-            # Check timeout
-            if (rospy.Time.now() - rotation_start_time).to_sec() > self.timeout:
-                rospy.logwarn(
-                    f"RotationState: Timeout reached after {self.timeout} seconds during rotation."
-                )
-                twist.angular.z = 0.0
-                self.pub.publish(twist)
+            if not response.success:
+                rospy.logerr(f"Failed to start visual servoing: {response.message}")
                 return "aborted"
 
-            # Enable propulsion and publish rotation command
-            self.enable_pub.publish(Bool(data=True))
-            self.pub.publish(twist)
+            # Wait for convergence
+            start_time = rospy.Time.now()
+            rate = rospy.Rate(10)  # 10 Hz
 
-            # Calculate total rotation
-            if self.yaw is not None and self.yaw_prev is not None:
-                dyaw = TurnAroundState.normalize_angle(self.yaw - self.yaw_prev)
-                self.total_yaw += abs(dyaw)
-                self.yaw_prev = self.yaw
+            while not rospy.is_shutdown() and not self.is_converged:
+                if self.preempt_requested():
+                    self.service_preempt()
+                    return "preempted"
 
-            self.rate.sleep()
+                # Check timeout
+                if (rospy.Time.now() - start_time).to_sec() > self.max_timeout:
+                    rospy.logwarn(
+                        f"Centering timeout after {self.max_timeout}s. Current error: {self.current_error:.3f}"
+                    )
+                    return "aborted"
 
-        # Stop rotation
-        twist.angular.z = 0.0
-        self.pub.publish(twist)
+                # Log progress periodically
+                if (
+                    rospy.Time.now() - start_time
+                ).to_sec() % 5.0 < 0.1:  # Every 5 seconds
+                    if self.convergence_start_time is not None:
+                        conv_time = (
+                            rospy.Time.now() - self.convergence_start_time
+                        ).to_sec()
+                        rospy.loginfo(
+                            f"Centering: Converging for {conv_time:.1f}s (need {self.convergence_time:.1f}s)"
+                        )
+                    else:
+                        rospy.loginfo(
+                            f"Centering: Current error: {self.current_error:.3f} (threshold: {self.error_threshold:.3f})"
+                        )
 
-        if not self.active:
-            rospy.loginfo("RotationState: rotation aborted by killswitch.")
+                rate.sleep()
+
+            if self.is_converged:
+                rospy.loginfo("Visual servoing centering completed successfully!")
+                return "succeeded"
+            else:
+                return "preempted"  # Shutdown case
+
+        except rospy.ROSException as e:
+            rospy.logerr(f"ROS exception during centering: {e}")
             return "aborted"
+        finally:
+            # Cleanup subscriber
+            if self.error_sub is not None:
+                self.error_sub.unregister()
 
-        rospy.loginfo(
-            f"RotationState: completed 180 degree rotation. Total yaw: {self.total_yaw:.2f} radians"
-        )
-        return "succeeded"
 
+class VisualServoingNavigationWithFeedback(smach.State):
+    """
+    Enhanced navigation state that monitors the visual servoing status
+    and can detect when navigation is complete or failed.
+    """
 
-class NavigateThroughGateStateVS(smach.State):
-    def __init__(self, gate_depth: float, target_prop: str, wait_duration: float = 6.0):
+    def __init__(
+        self, max_navigation_time: float = 60.0, prop_lost_timeout: float = 10.0
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        # Initialize the state machine
-        self.state_machine = smach.StateMachine(
-            outcomes=["succeeded", "preempted", "aborted"]
-        )
-        # Open the container for adding states
-        with self.state_machine:
+        self.max_navigation_time = max_navigation_time
+        self.prop_lost_timeout = prop_lost_timeout
 
-            smach.StateMachine.add(
-                "SET_GATE_DEPTH",
-                SetDepthState(
-                    depth=gate_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
-                ),
-                transitions={
-                    "succeeded": "VISUAL_SERVOING_CENTERING",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "VISUAL_SERVOING_CENTERING",
-                VisualServoingCentering(target_prop=target_prop),
-                transitions={
-                    "succeeded": "WAIT_FOR_CENTERING",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_CENTERING",
-                DelayState(delay_time=wait_duration),
-                transitions={
-                    "succeeded": "VISUAL_SERVOING_NAVIGATION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "VISUAL_SERVOING_NAVIGATION",
-                VisualServoingNavigation(),
-                transitions={
-                    "succeeded": "WAIT_FOR_EXIT",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_EXIT",
-                DelayState(delay_time=60.0),
-                transitions={
-                    "succeeded": "CANCEL_NAVIGATION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_NAVIGATION",
-                VisualServoingCancelNavigation(),
-                transitions={
-                    "succeeded": "CANCEL_VISUAL_SERVOING",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_VISUAL_SERVOING",
-                VisualServoingCancel(),
-                transitions={
-                    "succeeded": "TURN_AROUND",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TURN_AROUND",
-                TurnAroundState(),
-                transitions={
-                    "succeeded": "FARUK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "FARUK",
-                VisualServoingCentering(target_prop=target_prop),
-                transitions={
-                    "succeeded": "WAIT_FOR_CENTERING",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+        # State tracking
+        self.current_error = float("inf")
+        self.last_error_time = None
+        self.error_sub = None
+
+    def error_callback(self, msg: Float64):
+        """Callback for visual servoing error messages."""
+        self.current_error = abs(msg.data)
+        self.last_error_time = rospy.Time.now()
 
     def execute(self, userdata):
-        rospy.logdebug("[NavigateThroughGateStateVS] Starting state machine execution.")
+        # Reset state
+        self.current_error = float("inf")
+        self.last_error_time = None
 
-        # Execute the state machine
-        outcome = self.state_machine.execute()
+        # Subscribe to error topic
+        self.error_sub = rospy.Subscriber(
+            "visual_servoing/error", Float64, self.error_callback, queue_size=1
+        )
 
-        if outcome is None:  # ctrl + c
-            return "preempted"
-        # Return the outcome of the state machine
-        return outcome
+        try:
+            # Start navigation
+            rospy.loginfo("Starting visual servoing navigation")
+            rospy.wait_for_service("visual_servoing/navigate", timeout=5.0)
+            nav_service = rospy.ServiceProxy("visual_servoing/navigate", Trigger)
+
+            response = nav_service(TriggerRequest())
+            if not response.success:
+                rospy.logerr(f"Failed to start navigation: {response.message}")
+                return "aborted"
+
+            # Monitor navigation
+            start_time = rospy.Time.now()
+            rate = rospy.Rate(20)  # 20 Hz
+
+            while not rospy.is_shutdown():
+                if self.preempt_requested():
+                    self.service_preempt()
+                    return "preempted"
+
+                current_time = rospy.Time.now()
+                elapsed_time = (current_time - start_time).to_sec()
+
+                # Check overall timeout
+                if elapsed_time > self.max_navigation_time:
+                    rospy.loginfo(
+                        f"Navigation completed after {elapsed_time:.1f}s (max time reached)"
+                    )
+                    return "succeeded"
+
+                # Check if prop is lost (no error updates)
+                if self.last_error_time is not None:
+                    time_since_error = (current_time - self.last_error_time).to_sec()
+                    if time_since_error > self.prop_lost_timeout:
+                        rospy.loginfo(
+                            f"Navigation completed: prop lost for {time_since_error:.1f}s"
+                        )
+                        return "succeeded"
+
+                # Log progress periodically
+                if elapsed_time % 10.0 < 0.1:  # Every 10 seconds
+                    if self.last_error_time is not None:
+                        time_since_error = (
+                            current_time - self.last_error_time
+                        ).to_sec()
+                        rospy.loginfo(
+                            f"Navigation: t={elapsed_time:.1f}s, error={self.current_error:.3f}, "
+                            f"time_since_prop={time_since_error:.1f}s"
+                        )
+                    else:
+                        rospy.loginfo(
+                            f"Navigation: t={elapsed_time:.1f}s, no prop detected yet"
+                        )
+
+                rate.sleep()
+
+            return "preempted"  # Shutdown case
+
+        except rospy.ROSException as e:
+            rospy.logerr(f"ROS exception during navigation: {e}")
+            return "aborted"
+        finally:
+            # Cleanup subscriber
+            if self.error_sub is not None:
+                self.error_sub.unregister()
 
 
 class VisualServoingCancelNavigation(smach_ros.ServiceState):
@@ -253,3 +281,206 @@ class VisualServoingCancel(smach_ros.ServiceState):
             request=TriggerRequest(),
             outcomes=["succeeded", "preempted", "aborted"],
         )
+
+
+class PublishConstantCmdVelState(smach.State):
+    """
+    Publishes a constant cmd_vel and an enable flag for a fixed duration.
+    Velocity is passed in as an argument when creating the state.
+    """
+
+    def __init__(self, duration: float, vel: Twist):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.duration = duration
+        self.vel = vel
+        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=1)
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
+
+    def execute(self, userdata):
+        rospy.loginfo(
+            f"Publishing constant cmd_vel for {self.duration:.1f}s "
+            f"(lin=({self.vel.linear.x}, {self.vel.linear.y}, {self.vel.linear.z}), "
+            f"ang=({self.vel.angular.x}, {self.vel.angular.y}, {self.vel.angular.z})), "
+            f"and enabling control."
+        )
+
+        rate = rospy.Rate(10)  # 10 Hz
+        start_time = rospy.Time.now()
+
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                rospy.logwarn("PublishConstantCmdVelState preempted")
+                self.service_preempt()
+                self.enable_pub.publish(False)  # disable before exit
+                return "preempted"
+
+            elapsed = (rospy.Time.now() - start_time).to_sec()
+            if elapsed > self.duration:
+                break
+
+            self.cmd_vel_pub.publish(self.vel)
+            self.enable_pub.publish(True)
+            rate.sleep()
+
+        # Stop the robot and disable after publishing
+        self.cmd_vel_pub.publish(Twist())
+        self.enable_pub.publish(False)
+        rospy.loginfo("Finished constant cmd_vel publishing, disabled control.")
+        return "succeeded"
+
+
+class NavigateThroughGateStateVS(smach.State):
+    """
+    Improved gate navigation state that uses feedback-based visual servoing
+    instead of fixed delays.
+    """
+
+    def __init__(self, gate_depth: float, target_prop: str):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        # Initialize the state machine
+        self.state_machine = smach.StateMachine(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        with self.state_machine:
+            smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(depth=gate_depth, sleep_duration=5.0),
+                transitions={
+                    "succeeded": "VISUAL_SERVOING_CENTERING",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "VISUAL_SERVOING_CENTERING",
+                VisualServoingCenteringWithFeedback(
+                    target_prop=target_prop,
+                    error_threshold=0.1,
+                    convergence_time=5.0,
+                    max_timeout=30.0,
+                ),
+                transitions={
+                    "succeeded": "VISUAL_SERVOING_NAVIGATION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "VISUAL_SERVOING_NAVIGATION",
+                VisualServoingNavigationWithFeedback(
+                    max_navigation_time=60, prop_lost_timeout=5.0
+                ),
+                transitions={
+                    "succeeded": "CANCEL_VISUAL_SERVOING",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_VISUAL_SERVOING",
+                VisualServoingCancel(),
+                transitions={
+                    "succeeded": "TURN_BACK_TIMED",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            vel_turn = Twist()
+            vel_turn.angular.z = 0.3
+            smach.StateMachine.add(
+                "TURN_BACK_TIMED",
+                PublishConstantCmdVelState(duration=5.0, vel=vel_turn),
+                transitions={
+                    "succeeded": "GET_BACK_TIMED",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            vel_forward = Twist()
+            vel_forward.linear.x = 0.2
+            smach.StateMachine.add(
+                "GET_BACK_TIMED",
+                PublishConstantCmdVelState(duration=10.0, vel=vel_forward),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TURN_BACK",
+                VisualServoingCenteringActivate(
+                    target_prop=target_prop,
+                ),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_ACOUSTICS",
+                DelayState(delay_time=10.0),
+                transitions={
+                    "succeeded": "CANCEL_VISUAL_SERVOING_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_VISUAL_SERVOING_2",
+                VisualServoingCancel(),
+                transitions={
+                    "succeeded": "VISUAL_SERVOING_CENTERING_RETURN",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "VISUAL_SERVOING_CENTERING_RETURN",
+                VisualServoingCenteringWithFeedback(
+                    target_prop="return_gate",
+                    error_threshold=0.1,
+                    convergence_time=5.0,
+                    max_timeout=30.0,
+                ),
+                transitions={
+                    "succeeded": "VISUAL_SERVOING_NAVIGATION_RETURN",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "VISUAL_SERVOING_NAVIGATION_RETURN",
+                VisualServoingNavigationWithFeedback(
+                    max_navigation_time=60, prop_lost_timeout=5.0
+                ),
+                transitions={
+                    "succeeded": "CANCEL_VISUAL_SERVOING_3",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_VISUAL_SERVOING_3",
+                VisualServoingCancel(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+    def execute(self, userdata):
+        rospy.loginfo(
+            "[ImprovedNavigateThroughGateStateVS] Starting improved gate navigation"
+        )
+
+        # Execute the state machine
+        outcome = self.state_machine.execute()
+
+        if outcome is None:  # ctrl + c
+            return "preempted"
+        return outcome
