@@ -356,7 +356,7 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "VISUAL_SERVOING_CENTERING",
                 VisualServoingCenteringWithFeedback(
-                    target_prop=target_prop,
+                    target_prop="gate_sawfish_link",
                     error_threshold=0.1,
                     convergence_time=5.0,
                     max_timeout=30.0,

@@ -19,35 +19,32 @@ from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
-import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
 
 
 class CameraCalibration:
     def __init__(self, namespace: str):
-        self.calibration = camera_calibrations.CameraCalibrationFetcher(
-            namespace, True
-        ).get_camera_info()
+        # Hardcoded values from auv_bringup/config/taluy_mini/cameras.yaml
+        self.fx = 676.312034
+        self.fy = 681.711604
+        self.cx = 643.420557
+        self.cy = 354.735897
 
     def calculate_angles(self, pixel_coordinates: tuple) -> tuple:
-        fx = self.calibration.K[0]
-        fy = self.calibration.K[4]
-        cx = self.calibration.K[2]
-        cy = self.calibration.K[5]
-        norm_x = (pixel_coordinates[0] - cx) / fx
-        norm_y = (pixel_coordinates[1] - cy) / fy
+        norm_x = (pixel_coordinates[0] - self.cx) / self.fx
+        norm_y = (pixel_coordinates[1] - self.cy) / self.fy
         angle_x = math.atan(norm_x)
         angle_y = math.atan(norm_y)
         return angle_x, angle_y
 
     def distance_from_height(self, real_height: float, measured_height: float) -> float:
-        focal_length = self.calibration.K[4]
+        focal_length = self.fy
         distance = (real_height * focal_length) / measured_height
         return distance
 
     def distance_from_width(self, real_width: float, measured_width: float) -> float:
-        focal_length = self.calibration.K[0]
+        focal_length = self.fx
         distance = (real_width * focal_length) / measured_width
         return distance
 
