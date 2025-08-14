@@ -32,7 +32,20 @@ from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryS
 class PublishSlalomWaypointsState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
-            self, "publish_slalom_waypoints", Trigger, request=TriggerRequest()
+            self,
+            "toggle_slalom_waypoints",
+            SetBool,
+            request=SetBoolRequest(data=True),
+        )
+
+
+class StopSlalomWaypointsState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "toggle_slalom_waypoints",
+            SetBool,
+            request=SetBoolRequest(data=False),
         )
 
 
@@ -311,9 +324,18 @@ class NavigateThroughSlalomState(smach.State):
                     angle_offset=self.slalom_exit_angle,
                 ),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "STOP_SLALOM_WAYPOINTS",
                     "preempted": "preempted",
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+            smach.StateMachine.add(
+                "STOP_SLALOM_WAYPOINTS",
+                StopSlalomWaypointsState(),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
