@@ -521,6 +521,7 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
+        rospy.loginfo(f"Received detection message from {camera_source}")
         # Determine camera_ns based on the source passed by the subscriber
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
@@ -568,6 +569,9 @@ class CameraDetectionNode:
             red_pipe_x = largest_red_pipe.bbox.center.x
 
         for detection in detection_msg.detections.detections:
+            rospy.loginfo(
+                f"Processing detection: {detection.results[0].id} from {camera_source}"
+            )
             if len(detection.results) == 0:
                 continue
             skip_inside_image = False
@@ -602,13 +606,18 @@ class CameraDetectionNode:
                 )
                 continue
             """
-            if not skip_inside_image:
-                if self.check_if_detection_is_inside_image(detection) is False:
-                    continue
+            # if not skip_inside_image:
+            #     if self.check_if_detection_is_inside_image(detection) is False:
+            #         rospy.loginfo(
+            #             f"Detection {detection_id} is outside the image bounds, skipping."
+            #         )
+            #         continue
             prop_name = self.id_tf_map[camera_ns][detection_id]
+            rospy.loginfo(
+                f"Processing prop: {prop_name} for detection ID: {detection_id}"
+            )
             if prop_name not in self.props:
                 continue
-
             prop = self.props[prop_name]
 
             if not skip_inside_image:  # Calculate distance using object dimensions

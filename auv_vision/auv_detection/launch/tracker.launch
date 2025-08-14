@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <launch>
   <include file="$(find depthai_ros_driver)/launch/camera.launch">
-    <param name="camera_i_nn_type" value="RGB"/>
-    <!-- <param name="camera_i_base_frame" value="taluy_mini/base_link/front_camera"/> -->
-    <param name="camera_i_enable_imu" value="False"/>
-    <param name="camera_i_enable_ir" value="False"/>
-    <!-- <param name="camera_i_parent_frame" value="taluy_mini/base_link"/> -->
-    <param name="camera_i_pipeline_type" value="RGB"/>
+    <!-- <arg name="rgb_camera_color_profile" default="640,480,30" /> -->
   </include>
 
 
