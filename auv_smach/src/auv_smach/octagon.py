@@ -74,7 +74,7 @@ class OctagonTaskState(smach.State):
                     full_rotation=False,
                     set_frame_duration=4.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=-0.2,
+                    rotation_speed=0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER",
