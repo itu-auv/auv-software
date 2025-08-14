@@ -198,7 +198,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SURFACE_TO_ANIMAL_DEPTH",
-                SetDepthState(depth=-0.27, sleep_duration=4.0),
+                SetDepthState(depth=-0.34, sleep_duration=4.0),
                 transitions={
                     "succeeded": "SEARCH_FOR_ANIMAL",
                     "preempted": "preempted",
