@@ -170,7 +170,9 @@ class OctagonTaskState(smach.State):
                 ),
                 transitions={
                     "succeeded": (
-                        "SURFACE_TO_ANIMAL_DEPTH" if not self.griper_mode else "MOVE_GRIPPER"
+                        "SURFACE_TO_ANIMAL_DEPTH"
+                        if not self.griper_mode
+                        else "MOVE_GRIPPER"
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -187,7 +189,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SURFACE_TO_ANIMAL_DEPTH",
-                SetDepthState(depth=-0.2, sleep_duration=4.0),
+                SetDepthState(depth=-0.4, sleep_duration=4.0),
                 transitions={
                     "succeeded": "SEARCH_FOR_ANIMAL",
                     "preempted": "preempted",
@@ -221,13 +223,22 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SURFACE_TO_SURFACE",
-                SetDepthState(depth=-0.0, sleep_duration=4.0),
+                SetDepthState(depth=-0.15, sleep_duration=4.0),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_OCTAGON",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_OCTAGON",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )     
+            )
 
     def execute(self, userdata):
         # Execute the state machine

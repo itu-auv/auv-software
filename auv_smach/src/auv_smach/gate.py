@@ -236,7 +236,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SELAM_TO_GATE",
                 LookAroundState(
-                    angle_offset=0.5,
+                    angle_offset=0.34,
                     max_angular_velocity=0.15,
                 ),
                 transitions={
