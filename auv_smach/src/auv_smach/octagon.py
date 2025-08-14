@@ -214,6 +214,40 @@ class OctagonTaskState(smach.State):
                     rotation_speed=0.2,
                 ),
                 transitions={
+                    "succeeded": "ALLIGN_BACK_TO_OCTAGON",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALLIGN_BACK_TO_OCTAGON",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="octagon_link",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=60.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "LOOK_TO_ANLIMAL_AGAIN",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_TO_ANLIMAL_AGAIN",
+                SearchForPropState(
+                    look_at_frame=self.animal_frame,
+                    alignment_frame="animal_search_frame",
+                    full_rotation=False,
+                    set_frame_duration=10.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.2,
+                ),
+                transitions={
                     "succeeded": "SURFACE_TO_SURFACE",
                     "preempted": "preempted",
                     "aborted": "aborted",
