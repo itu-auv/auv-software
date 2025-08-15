@@ -152,9 +152,7 @@ class CameraDetectionNode:
         )
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
-        self.active_front_camera_ids = self.object_id_map[
-            "gate"
-        ]  # Allow gate by default
+
         self.red_pipe_x = None
 
         self.object_id_map = {
@@ -167,6 +165,9 @@ class CameraDetectionNode:
             "all": [0, 1, 2, 3, 4, 5, 6, 7],
             "none": [],
         }
+        self.active_front_camera_ids = self.object_id_map[
+            "gate"
+        ]  # Allow gate by default
 
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
