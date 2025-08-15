@@ -126,6 +126,11 @@ class Octagon(Prop):
         super().__init__(7, "octagon", 0.92, 1.30)
 
 
+class GateBack(Prop):
+    def __init__(self):
+        super().__init__(8, "gate_back", 0.3048, 0.3048)
+
+
 class BinShark(Prop):
     def __init__(self):
         super().__init__(10, "bin_shark", 0.30480, 0.30480)
@@ -151,7 +156,7 @@ class CameraDetectionNode:
             "torpedo": [4, 5],
             "bin": [6],
             "octagon": [7],
-            "all": [0, 1, 2, 3, 4, 5, 6, 7],
+            "all": [0, 1, 2, 3, 4, 5, 6, 7, 8],
             "none": [],
         }
 
@@ -193,6 +198,7 @@ class CameraDetectionNode:
             "bin_shark_link": BinSawfish(),
             "torpedo_hole_shark_link": TorpedoHole(),
             "torpedo_hole_sawfish_link": TorpedoHole(),
+            "gate_back_link": GateBack(),  # Add this line
         }
 
         self.id_tf_map = {
@@ -205,6 +211,7 @@ class CameraDetectionNode:
                 5: "torpedo_hole_link",
                 6: "bin_whole_link",
                 7: "octagon_link",
+                8: "gate_back_link",  # Add this line
             }
         }
         # Subscribe to YOLO detections and altitude
@@ -590,6 +597,23 @@ class CameraDetectionNode:
                     continue
                 if self.selected_side == "right" and white_x < red_pipe_x:
                     continue
+
+            if detection_id == 8:
+                gate_back_detections = [
+                    d
+                    for d in detection_msg.detections.detections
+                    if len(d.results) > 0 and d.results[0].id == 8
+                ]
+
+                if len(gate_back_detections) > 1:
+                    image_center_x = 320
+                    closest_detection = min(
+                        gate_back_detections,
+                        key=lambda d: abs(d.bbox.center.x - image_center_x),
+                    )
+
+                    if detection != closest_detection:
+                        continue
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
