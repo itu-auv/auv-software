@@ -416,7 +416,7 @@ class RotationState(smach.State):
                 self.source_frame,
                 self.look_at_frame,
                 rospy.Time(0),
-                rospy.Duration(0.05),
+                rospy.Duration(4.0),
             )
         except (
             tf2_ros.LookupException,
@@ -540,7 +540,7 @@ class SetFrameLookingAtState(smach.State):
                     self.source_frame,
                     self.look_at_frame,
                     rospy.Time(0),
-                    rospy.Duration(1.0),
+                    rospy.Duration(4.0),
                 )
 
                 direction_vector = np.array(
@@ -853,7 +853,7 @@ class CheckAlignmentState(smach.State):
     def get_error(self):
         try:
             transform = self.tf_buffer.lookup_transform(
-                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(1.0)
+                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(4.0)
             )
             trans = transform.transform.translation
             rot = transform.transform.rotation
@@ -1276,7 +1276,7 @@ class CreateFrameAtCurrentPositionState(smach.State):
                 self.reference_frame,
                 self.source_frame,
                 rospy.Time(0),
-                rospy.Duration(2.0),
+                rospy.Duration(4.0),
             )
             new_transform = TransformStamped()
             new_transform.header.stamp = rospy.Time.now()

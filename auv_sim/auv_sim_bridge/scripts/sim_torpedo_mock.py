@@ -70,7 +70,7 @@ class TorpedoLauncherServer:
                 self.base_frame,
                 drop_frame,
                 rospy.Time(0),
-                rospy.Duration(1.0),
+                rospy.Duration(4.0),
             )
         except TransformException as e:
             raise RuntimeError(

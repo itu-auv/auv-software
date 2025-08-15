@@ -29,7 +29,7 @@ class PathPlanningHelper:
         Looks up the transform for the given frame and returns its position and quaternion.
         """
         transform = tf_buffer.lookup_transform(
-            fixed_frame, frame, rospy.Time(0), rospy.Duration(1.0)
+            fixed_frame, frame, rospy.Time(0), rospy.Duration(4.0)
         )
         position = transform.transform.translation
         quaternion = [

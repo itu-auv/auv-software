@@ -140,10 +140,13 @@ class TorpedoTransformServiceNode:
     def create_target_frame(self):
         try:
             robot_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(1)
+                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(4.0)
             )
             torpedo_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.torpedo_frame, rospy.Time.now(), rospy.Duration(1)
+                self.odom_frame,
+                self.torpedo_frame,
+                rospy.Time.now(),
+                rospy.Duration(4.0),
             )
 
         except (
@@ -206,7 +209,7 @@ class TorpedoTransformServiceNode:
                 self.odom_frame,
                 self.torpedo_realsense_frame,
                 rospy.Time.now(),
-                rospy.Duration(1),
+                rospy.Duration(4.0),
             )
             torpedo_pose = self.get_pose(torpedo_tf)
 
@@ -250,13 +253,13 @@ class TorpedoTransformServiceNode:
                 self.odom_frame,
                 self.torpedo_hole_shark_frame,
                 rospy.Time.now(),
-                rospy.Duration(1),
+                rospy.Duration(4.0),
             )
             realsense_target_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.realsense_target_frame,
                 rospy.Time.now(),
-                rospy.Duration(1),
+                rospy.Duration(4.0),
             )
             torpedo_hole_shark_pose = self.get_pose(torpedo_hole_shark_tf)
             realsense_target_pose = self.get_pose(realsense_target_tf)
@@ -298,13 +301,13 @@ class TorpedoTransformServiceNode:
                 self.odom_frame,
                 self.torpedo_hole_sawfish_frame,
                 rospy.Time.now(),
-                rospy.Duration(1),
+                rospy.Duration(4.0),
             )
             realsense_target_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.realsense_target_frame,
                 rospy.Time.now(),
-                rospy.Duration(1),
+                rospy.Duration(4.0),
             )
             torpedo_hole_sawfish_pose = self.get_pose(torpedo_hole_sawfish_tf)
             realsense_target_pose = self.get_pose(realsense_target_tf)
