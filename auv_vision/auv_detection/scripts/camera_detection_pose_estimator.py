@@ -531,7 +531,7 @@ class CameraDetectionNode:
 
             # Transform the PoseStamped message
             transformed_pose_stamped = self.tf_buffer.transform(
-                pose_stamped, "odom", rospy.Duration(1.0)
+                pose_stamped, "odom", rospy.Duration(4.0)
             )
 
             # Create a new TransformStamped message from the transformed PoseStamped
@@ -718,7 +718,7 @@ class CameraDetectionNode:
 
                 # Transform the PoseStamped message
                 transformed_pose_stamped = self.tf_buffer.transform(
-                    pose_stamped, "odom", rospy.Duration(1.0)
+                    pose_stamped, "odom", rospy.Duration(4.0)
                 )
 
                 # Create a new TransformStamped message from the transformed PoseStamped

@@ -35,7 +35,7 @@ class DropBallServer:
             f"[drop_ball_server] Ready. base_frame={self.base_frame}, drop_frame={self.drop_frame}"
         )
 
-    def lookup_drop_pose(self, timeout: float = 1.0) -> Pose:
+    def lookup_drop_pose(self, timeout: float = 4.0) -> Pose:
         try:
             trans = self.tf_buffer.lookup_transform(
                 self.base_frame, self.drop_frame, rospy.Time(0), rospy.Duration(timeout)

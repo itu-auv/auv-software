@@ -163,7 +163,7 @@ class SlalomTrajectoryPublisher(object):
                 self.parent_frame,
                 self.slalom_white_frame,
                 rospy.Time.now(),
-                rospy.Duration(1.0),
+                rospy.Duration(4.0),
             )
             pos_white = np.array(
                 [
@@ -176,7 +176,7 @@ class SlalomTrajectoryPublisher(object):
                 self.parent_frame,
                 self.slalom_red_frame,
                 rospy.Time.now(),
-                rospy.Duration(1.0),
+                rospy.Duration(4.0),
             )
             pos_red = np.array(
                 [
@@ -315,7 +315,7 @@ class SlalomTrajectoryPublisher(object):
                 self.parent_frame,
                 self.gate_exit_frame,
                 rospy.Time.now(),
-                rospy.Duration(1.0),
+                rospy.Duration(4.0),
             )
             gate_exit_pos = np.array(
                 [
