@@ -111,12 +111,12 @@ class TransformServiceNode:
                 self.target_gate_frame = "gate_sawfish_link"
 
     def handle_toggle_rescuer_service(self, request: SetBool) -> SetBoolResponse:
-
-        self.coin_flip_enabled = request.data
-        message = f"Coin flip rescuer frame publishing set to: {self.coin_flip_enabled}"
+        if request.data:
+            self.coin_flip_enabled = True
+        message = f"Coin flip rescuer frame publishing set to: {request.data}"
         rospy.loginfo(message)
 
-        if self.coin_flip_enabled and self.coin_flip_rescuer_pose is None:
+        if request.data and self.coin_flip_rescuer_pose is None:
             try:
                 initial_transform = self.tf_buffer.lookup_transform(
                     self.odom_frame,
@@ -183,6 +183,7 @@ class TransformServiceNode:
         transform.transform.rotation.z = rescuer_quat[2]
         transform.transform.rotation.w = rescuer_quat[3]
         self.send_transform(transform)
+        self.coin_flip_enabled = False
 
     def create_trajectory_frames(self) -> None:
         """
@@ -612,7 +613,7 @@ class TransformServiceNode:
             if self.coin_flip_enabled:
                 self._publish_rescuer_frame()
 
-        rate.sleep()
+            rate.sleep()
 
     def reconfigure_callback(self, config, level):
         self.entrance_offset = config.entrance_offset
