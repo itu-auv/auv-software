@@ -152,7 +152,9 @@ class CameraDetectionNode:
         )
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
-        self.active_front_camera_ids = list(range(15))  # Allow all by default
+        self.active_front_camera_ids = self.object_id_map[
+            "gate"
+        ]  # Allow gate by default
         self.red_pipe_x = None
 
         self.object_id_map = {

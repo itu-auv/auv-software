@@ -386,7 +386,6 @@ class SlalomTrajectoryPublisher(object):
         t.transform.rotation.y = q[1]
         t.transform.rotation.z = q[2]
         t.transform.rotation.w = q[3]
-        self.tf_broadcaster.sendTransform(t)
         return t
 
     def send_transform(self, transform: TransformStamped):
