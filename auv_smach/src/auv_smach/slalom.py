@@ -32,17 +32,36 @@ from auv_smach.initialize import DelayState, OdometryEnableState, ResetOdometryS
 class PublishSlalomWaypointsState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
-            self, "publish_slalom_waypoints", Trigger, request=TriggerRequest()
+            self,
+            "toggle_slalom_waypoints",
+            SetBool,
+            request=SetBoolRequest(data=True),
+        )
+
+
+class StopSlalomWaypointsState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "toggle_slalom_waypoints",
+            SetBool,
+            request=SetBoolRequest(data=False),
         )
 
 
 class NavigateThroughSlalomState(smach.State):
-    def __init__(self, slalom_depth: float, slalom_exit_angle: float = 0.0):
+    def __init__(
+        self,
+        slalom_depth: float,
+        slalom_exit_angle: float = 0.0,
+        slalom_mode: str = "close",
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.slalom_exit_angle = slalom_exit_angle
+        self.slalom_mode = slalom_mode
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -62,11 +81,17 @@ class NavigateThroughSlalomState(smach.State):
                     "aborted": "aborted",
                 },
             )
+
+            succeeded_transition = (
+                "SET_DETECTION_FOCUS_TO_SLALOM"
+                if self.slalom_mode == "close"
+                else "DYNAMIC_PATH_TO_SLALOM_ENTRANCE"
+            )
             smach.StateMachine.add(
                 "PUBLISH_SLALOM_WAYPOINTS",
                 PublishSlalomWaypointsState(),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_SLALOM_ENTRANCE",
+                    "succeeded": succeeded_transition,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -299,9 +324,18 @@ class NavigateThroughSlalomState(smach.State):
                     angle_offset=self.slalom_exit_angle,
                 ),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "STOP_SLALOM_WAYPOINTS",
                     "preempted": "preempted",
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+            smach.StateMachine.add(
+                "STOP_SLALOM_WAYPOINTS",
+                StopSlalomWaypointsState(),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(

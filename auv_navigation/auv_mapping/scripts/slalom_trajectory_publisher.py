@@ -11,7 +11,7 @@ import os
 import rospkg
 
 from geometry_msgs.msg import TransformStamped
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 from dynamic_reconfigure.server import Server
@@ -98,7 +98,7 @@ class SlalomTrajectoryPublisher(object):
 
         # Create a service that will trigger the frame publishing
         self.srv = rospy.Service(
-            "publish_slalom_waypoints", Trigger, self.trigger_callback
+            "toggle_slalom_waypoints", SetBool, self.trigger_callback
         )
 
         # Create a timer to publish the frames at 4 Hz
@@ -136,13 +136,19 @@ class SlalomTrajectoryPublisher(object):
 
     def trigger_callback(self, req):
         """
-        The service callback that activates the frame publishing loop.
+        The service callback that activates/deactivates the frame publishing loop.
         """
-        rospy.loginfo("Activating slalom waypoint publishing...")
-        self.active = True
-        return TriggerResponse(
-            success=True, message="Slalom waypoint publishing activated."
-        )
+        self.active = req.data
+        if self.active:
+            rospy.loginfo("Activating slalom waypoint publishing...")
+            return SetBoolResponse(
+                success=True, message="Slalom waypoint publishing activated."
+            )
+        else:
+            rospy.loginfo("Deactivating slalom waypoint publishing...")
+            return SetBoolResponse(
+                success=True, message="Slalom waypoint publishing deactivated."
+            )
 
     def publish_loop(self, event):
         """

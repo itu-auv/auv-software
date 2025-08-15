@@ -540,7 +540,33 @@ class BinTaskState(smach.State):
                     source_frame="taluy/base_link/ball_dropper_link",
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
-                    confirm_duration=7.0,
+                    confirm_duration=4.0,
+                    timeout=20.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
+                transitions={
+                    "succeeded": "SET_BALL_DROP_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BALL_DROP_DEPTH",
+                SetDepthState(depth=-1.0, sleep_duration=3.0),
+                transitions={
+                    "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
+                SetAlignToFoundState(
+                    source_frame="taluy/base_link/ball_dropper_link",
+                    dist_threshold=0.05,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
                     timeout=20.0,
                     cancel_on_success=False,
                     keep_orientation=True,
