@@ -10,6 +10,7 @@ from auv_msgs.srv import VisualServoing, VisualServoingRequest
 from auv_smach.initialize import DelayState
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool, UInt8
+from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 
 
 class VisualServoingCenteringActivate(smach_ros.ServiceState):
@@ -273,6 +274,16 @@ class VisualServoingCancelNavigation(smach_ros.ServiceState):
         )
 
 
+class GateBackServiceEnableState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "enable_gate_back_detection",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
 class VisualServoingCancel(smach_ros.ServiceState):
     def __init__(self):
         super(VisualServoingCancel, self).__init__(
@@ -409,6 +420,15 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "CANCEL_VISUAL_SERVOING",
                 VisualServoingCancel(),
+                transitions={
+                    "succeeded": "ENABLE_GATE_BACK_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_GATE_BACK_DETECTION",
+                GateBackServiceEnableState(req=True),
                 transitions={
                     "succeeded": "VISUAL_SERVOING_CENTERING_RETURN",
                     "preempted": "preempted",
