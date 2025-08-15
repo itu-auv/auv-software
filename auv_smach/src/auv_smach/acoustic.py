@@ -13,7 +13,7 @@ class AcousticTransmitter(smach.State):
         self.data_value = data_value
 
         # Create publisher for acoustic modem
-        self.acoustic_pub = rospy.Publisher("modem/data/tx", UInt8, queue_size=10)
+        self.acoustic_pub = rospy.Publisher("modem/tx", UInt8, queue_size=10)
 
         rospy.loginfo(f"AcousticTransmitter initialized - data: {data_value}")
 
@@ -44,9 +44,7 @@ class AcousticReceiver(smach.State):
         self.data_received = False
 
         # Create subscriber for acoustic modem
-        self.acoustic_sub = rospy.Subscriber(
-            "modem/data/rx", UInt8, self.acoustic_callback
-        )
+        self.acoustic_sub = rospy.Subscriber("modem/rx", UInt8, self.acoustic_callback)
 
         rospy.loginfo(
             f"AcousticReceiver initialized - expected: {expected_data}, timeout: {timeout}s"

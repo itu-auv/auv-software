@@ -28,10 +28,10 @@
 
 
     <!-- launch modem serial bridge -->
-    <!-- <include file="$(find auv_bringup)/launch/inc/boards/start_modem_serial_bridge.launch.xml">
+    <include file="$(find auv_bringup)/launch/inc/boards/start_modem_serial_bridge.launch.xml">
       <arg name="namespace" value="$(arg namespace)" />
-      <arg name="port" value="/dev/auv_taluymini_modem" />
-      <arg name="baudrate" value="921600" />
-      <arg name="respawn" value="true" />
-    </include> -->
+      <!-- <arg name="port" value="/dev/auv_taluymini_modem" /> -->
+      <!-- <arg name="baudrate" value="921600" /> -->
+      <!-- <arg name="respawn" value="true" /> -->
+    </include>
 </launch>

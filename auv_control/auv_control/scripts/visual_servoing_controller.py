@@ -136,7 +136,10 @@ class VisualServoingControllerNoIMU:
                 # If we have no last error (e.g., prop never seen after start), turn one way.
                 return -self.search_angular_velocity
 
-        self.error_pub.publish(Float64(self.error))
+        time_since_last_prop = (rospy.Time.now() - self.last_prop_stamp_time).to_sec()
+
+        if time_since_last_prop < self.prop_lost_timeout_s:
+            self.error_pub.publish(Float64(self.error))
 
         p_signal = self.kp_gain * self.error
         d_signal = self.kd_gain * self.error_derivative
@@ -144,7 +147,7 @@ class VisualServoingControllerNoIMU:
         # We want to turn to reduce the error. If error is positive (prop on the right),
         # we need a negative angular velocity (turn right).
         # The damping term (d_signal) should oppose the motion.
-        angular_z = -(p_signal + d_signal)
+        angular_z = p_signal + d_signal
         return max(
             min(angular_z, self.max_angular_velocity), -self.max_angular_velocity
         )
@@ -160,13 +163,13 @@ class VisualServoingControllerNoIMU:
             )
             return 0.0
 
-        time_since_last_prop = (rospy.Time.now() - self.last_prop_stamp_time).to_sec()
-        if time_since_last_prop > self.navigation_timeout_after_prop_disappear_s:
-            rospy.loginfo(
-                "Navigation timeout reached. Stopping forward motion and returning to centering."
-            )
-            self.state = ControllerState.CENTERING
-            return 0.0
+        # time_since_last_prop = (rospy.Time.now() - self.last_prop_stamp_time).to_sec()
+        # if time_since_last_prop > self.navigation_timeout_after_prop_disappear_s:
+        #     rospy.loginfo(
+        #         "Navigation timeout reached. Stopping forward motion and returning to centering."
+        #     )
+        #     self.state = ControllerState.CENTERING
+        #     return 0.0
         return self.v_x_desired
 
     def reconfigure_callback(self, config, level):

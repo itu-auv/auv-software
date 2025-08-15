@@ -128,7 +128,7 @@ class Octagon(Prop):
 
 class GateBack(Prop):
     def __init__(self):
-        super().__init__(8, "gate_back", 0.3048, 0.3048)
+        super().__init__(9, "gate_back", 0.3048, 0.3048)
 
 
 class BinShark(Prop):
@@ -156,7 +156,7 @@ class CameraDetectionNode:
             "torpedo": [4, 5],
             "bin": [6],
             "octagon": [7],
-            "all": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+            "all": [0, 1, 2, 3, 4, 5, 6, 7, 9],
             "none": [],
         }
 
@@ -211,7 +211,7 @@ class CameraDetectionNode:
                 5: "torpedo_hole_link",
                 6: "bin_whole_link",
                 7: "octagon_link",
-                8: "gate_back_link",  # Add this line
+                9: "gate_back_link",  # Add this line
             }
         }
         # Subscribe to YOLO detections and altitude
@@ -528,7 +528,6 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
-        rospy.loginfo(f"Received detection message from {camera_source}")
         # Determine camera_ns based on the source passed by the subscriber
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
@@ -576,9 +575,6 @@ class CameraDetectionNode:
             red_pipe_x = largest_red_pipe.bbox.center.x
 
         for detection in detection_msg.detections.detections:
-            rospy.loginfo(
-                f"Processing detection: {detection.results[0].id} from {camera_source}"
-            )
             if len(detection.results) == 0:
                 continue
             skip_inside_image = False
@@ -598,7 +594,7 @@ class CameraDetectionNode:
                 if self.selected_side == "right" and white_x < red_pipe_x:
                     continue
 
-            if detection_id == 8:
+            if detection_id == 9:
                 gate_back_detections = [
                     d
                     for d in detection_msg.detections.detections
@@ -637,9 +633,7 @@ class CameraDetectionNode:
             #         )
             #         continue
             prop_name = self.id_tf_map[camera_ns][detection_id]
-            rospy.loginfo(
-                f"Processing prop: {prop_name} for detection ID: {detection_id}"
-            )
+
             if prop_name not in self.props:
                 continue
             prop = self.props[prop_name]

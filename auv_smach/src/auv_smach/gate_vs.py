@@ -10,6 +10,7 @@ from auv_msgs.srv import VisualServoing, VisualServoingRequest
 from auv_smach.initialize import DelayState
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
+from acoustic import AcousticReceiver
 
 
 class VisualServoingCenteringActivate(smach_ros.ServiceState):
@@ -236,7 +237,7 @@ class VisualServoingNavigationWithFeedback(smach.State):
                         return "succeeded"
 
                 # Log progress periodically
-                if elapsed_time % 10.0 < 0.1:  # Every 10 seconds
+                if elapsed_time % 1.0 < 0.1:  # Every 10 seconds
                     if self.last_error_time is not None:
                         time_since_error = (
                             current_time - self.last_error_time
@@ -346,7 +347,7 @@ class NavigateThroughGateStateVS(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=5.0),
+                SetDepthState(depth=-1.0, sleep_duration=5.0),
                 transitions={
                     "succeeded": "VISUAL_SERVOING_CENTERING",
                     "preempted": "preempted",
@@ -356,9 +357,9 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "VISUAL_SERVOING_CENTERING",
                 VisualServoingCenteringWithFeedback(
-                    target_prop="gate_sawfish_link",
-                    error_threshold=0.1,
-                    convergence_time=5.0,
+                    target_prop="shark",
+                    error_threshold=0.2,
+                    convergence_time=10.0,
                     max_timeout=30.0,
                 ),
                 transitions={
@@ -370,7 +371,7 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "VISUAL_SERVOING_NAVIGATION",
                 VisualServoingNavigationWithFeedback(
-                    max_navigation_time=60, prop_lost_timeout=5.0
+                    max_navigation_time=60, prop_lost_timeout=3.0
                 ),
                 transitions={
                     "succeeded": "CANCEL_VISUAL_SERVOING",
@@ -382,29 +383,7 @@ class NavigateThroughGateStateVS(smach.State):
                 "CANCEL_VISUAL_SERVOING",
                 VisualServoingCancel(),
                 transitions={
-                    "succeeded": "TURN_BACK_TIMED",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            vel_turn = Twist()
-            vel_turn.angular.z = 0.3
-            smach.StateMachine.add(
-                "TURN_BACK_TIMED",
-                PublishConstantCmdVelState(duration=5.0, vel=vel_turn),
-                transitions={
-                    "succeeded": "GET_BACK_TIMED",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            vel_forward = Twist()
-            vel_forward.linear.x = 0.2
-            smach.StateMachine.add(
-                "GET_BACK_TIMED",
-                PublishConstantCmdVelState(duration=10.0, vel=vel_forward),
-                transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "TURN_BACK",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -412,17 +391,17 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "TURN_BACK",
                 VisualServoingCenteringActivate(
-                    target_prop=target_prop,
+                    target_prop="gate_back",
                 ),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "WAIT_FOR_ACOUSTICS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ACOUSTICS",
-                DelayState(delay_time=10.0),
+                AcousticReceiver(expected_data=[1, 2, 3, 4, 5, 6, 7, 8], timeout=600),
                 transitions={
                     "succeeded": "CANCEL_VISUAL_SERVOING_2",
                     "preempted": "preempted",
@@ -441,9 +420,9 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "VISUAL_SERVOING_CENTERING_RETURN",
                 VisualServoingCenteringWithFeedback(
-                    target_prop="return_gate",
-                    error_threshold=0.1,
-                    convergence_time=5.0,
+                    target_prop="gate_back",
+                    error_threshold=0.2,
+                    convergence_time=10.0,
                     max_timeout=30.0,
                 ),
                 transitions={
@@ -455,7 +434,7 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "VISUAL_SERVOING_NAVIGATION_RETURN",
                 VisualServoingNavigationWithFeedback(
-                    max_navigation_time=60, prop_lost_timeout=5.0
+                    max_navigation_time=60, prop_lost_timeout=3.0
                 ),
                 transitions={
                     "succeeded": "CANCEL_VISUAL_SERVOING_3",
