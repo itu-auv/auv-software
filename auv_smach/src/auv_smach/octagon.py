@@ -176,6 +176,7 @@ class OctagonTaskState(smach.State):
                     confirm_duration=4.0,
                     timeout=60.0,
                     cancel_on_success=False,
+                    keep_orientation=True,
                 ),
                 transitions={
                     "succeeded": (
@@ -198,7 +199,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SURFACE_TO_ANIMAL_DEPTH",
-                SetDepthState(depth=-0.34, sleep_duration=4.0),
+                SetDepthState(depth=-0.43, sleep_duration=4.0),
                 transitions={
                     "succeeded": "SEARCH_FOR_ANIMAL",
                     "preempted": "preempted",
@@ -221,41 +222,6 @@ class OctagonTaskState(smach.State):
                     alignment_frame="animal_search_frame",
                     full_rotation=True,
                     set_frame_duration=10.0,
-                    source_frame="taluy/base_link",
-                    rotation_speed=0.2,
-                ),
-                transitions={
-                    "succeeded": "GO_BACK_TO_OCTAGON",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "GO_BACK_TO_OCTAGON",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="octagon_link",
-                    angle_offset=0.0,
-                    dist_threshold=0.3,
-                    yaw_threshold=0.1,
-                    confirm_duration=3.0,
-                    timeout=60.0,
-                    cancel_on_success=False,
-                    keep_orientation=True,
-                ),
-                transitions={
-                    "succeeded": "LOOK_TO_ANIMAL_AGAIN",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "LOOK_TO_ANIMAL_AGAIN",
-                SearchForPropState(
-                    look_at_frame=self.animal_frame,
-                    alignment_frame="animal_search_frame",
-                    full_rotation=False,
-                    set_frame_duration=5.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
