@@ -117,7 +117,7 @@ class AlignFrameControllerNode:
     ) -> Tuple[Optional[Tuple[float, float, float]], Optional[float]]:
         try:
             transform = self.tf_buffer.lookup_transform(
-                source_frame, target_frame, time, rospy.Duration(4.0)
+                source_frame, target_frame, time, rospy.Duration(2.0)
             )
             trans = transform.transform.translation
             rot = transform.transform.rotation
