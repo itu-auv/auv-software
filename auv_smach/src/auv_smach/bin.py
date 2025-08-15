@@ -27,6 +27,8 @@ class CheckForDropAreaState(smach.State):
         source_frame: str = "odom",
         timeout: float = 2.0,
         target_selection: str = "shark",
+        tf_buffer=None,
+        tf_listener=None,
     ):
         smach.State.__init__(
             self,
@@ -35,8 +37,16 @@ class CheckForDropAreaState(smach.State):
         )
         self.source_frame = source_frame
         self.timeout = rospy.Duration(timeout)
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        
+        # Use shared TF buffer if provided, otherwise create new one
+        if tf_buffer is not None and tf_listener is not None:
+            self.tf_buffer = tf_buffer
+            self.tf_listener = tf_listener
+            rospy.loginfo(f"CheckForDropAreaState using shared TF buffer")
+        else:
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+            rospy.logwarn(f"CheckForDropAreaState creating new TF buffer")
         self.target_selection = target_selection
         # Set frame order based on target_selection
         if self.target_selection == "shark":
@@ -185,6 +195,8 @@ class BinSecondTrialState(smach.StateMachine):
                     source_frame="odom",
                     timeout=1.0,
                     target_selection=target_selection,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "succeeded",
@@ -268,6 +280,8 @@ class BinSecondTrialState(smach.StateMachine):
                     source_frame="odom",
                     timeout=2.0,
                     target_selection=target_selection,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "succeeded",
@@ -290,8 +304,12 @@ class BinTaskState(smach.State):
         bin_bottom_look_depth,
         target_selection="shark",
         bin_exit_angle=0.0,
+        tf_buffer=None,
+        tf_listener=None,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.tf_buffer = tf_buffer
+        self.tf_listener = tf_listener
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -451,6 +469,8 @@ class BinTaskState(smach.State):
                     source_frame="odom",
                     timeout=1.0,
                     target_selection=target_selection,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
@@ -494,6 +514,8 @@ class BinTaskState(smach.State):
                     source_frame="odom",
                     timeout=1.0,
                     target_selection=target_selection,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
@@ -527,6 +549,8 @@ class BinTaskState(smach.State):
                     source_frame="odom",
                     timeout=1.0,
                     target_selection=target_selection,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_FINAL",

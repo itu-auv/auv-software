@@ -74,10 +74,14 @@ class TorpedoTaskState(smach.State):
         torpedo_realsense_target_frame,
         torpedo_fire_frames,
         torpedo_exit_angle: float = 0.0,
+        tf_buffer=None,
+        tf_listener=None,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.torpedo_fire_frames = torpedo_fire_frames
         self.torpedo_exit_angle = torpedo_exit_angle
+        self.tf_buffer = tf_buffer
+        self.tf_listener = tf_listener
 
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
@@ -131,6 +135,8 @@ class TorpedoTaskState(smach.State):
                     set_frame_duration=7.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.3,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "PATH_TO_TORPEDO_CLOSE_APPROACH",
@@ -159,6 +165,8 @@ class TorpedoTaskState(smach.State):
                     confirm_duration=3.0,
                     timeout=10.0,
                     cancel_on_success=False,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_FRAME_PUBLISHER",
@@ -186,6 +194,8 @@ class TorpedoTaskState(smach.State):
                     confirm_duration=3.0,
                     timeout=30.0,
                     cancel_on_success=False,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "SET_DEPTH_FOR_REALSENSE",
@@ -269,6 +279,8 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                     heading_control=False,
                     enable_heading_control_afterwards=False,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "SET_TORPEDO_HOLES_DETECTION",
@@ -295,6 +307,8 @@ class TorpedoTaskState(smach.State):
                     source_frame="taluy/base_link",
                     rotation_speed=0.1,
                     max_angular_velocity=0.1,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_MAP_LOOKUP",
@@ -310,6 +324,8 @@ class TorpedoTaskState(smach.State):
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=5.0,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
@@ -372,6 +388,8 @@ class TorpedoTaskState(smach.State):
                     max_angular_velocity=0.1,
                     heading_control=False,
                     enable_heading_control_afterwards=False,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
@@ -425,6 +443,8 @@ class TorpedoTaskState(smach.State):
                     max_angular_velocity=0.1,
                     heading_control=False,
                     enable_heading_control_afterwards=False,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",
@@ -463,6 +483,8 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                     heading_control=False,
                     enable_heading_control_afterwards=True,
+                    tf_buffer=self.tf_buffer,
+                    tf_listener=self.tf_listener,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",

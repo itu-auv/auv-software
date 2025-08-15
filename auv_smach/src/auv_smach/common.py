@@ -239,14 +239,22 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
 
 
 class NavigateToFrameState(smach.State):
-    def __init__(self, start_frame, end_frame, target_frame, n_turns=0):
+    def __init__(self, start_frame, end_frame, target_frame, n_turns=0, tf_buffer=None, tf_listener=None):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.start_frame = start_frame
         self.end_frame = end_frame
         self.target_frame = target_frame
         self.n_turns = n_turns
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        
+        # Use shared TF buffer if provided, otherwise create new one
+        if tf_buffer is not None and tf_listener is not None:
+            self.tf_buffer = tf_buffer
+            self.tf_listener = tf_listener
+            rospy.loginfo(f"NavigateToFrameState using shared TF buffer for {target_frame}")
+        else:
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+            rospy.logwarn(f"NavigateToFrameState creating new TF buffer for {target_frame}")
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
@@ -359,6 +367,8 @@ class RotationState(smach.State):
         full_rotation_timeout=25.0,
         rate_hz=10,
         rotation_radian=2 * math.pi,
+        tf_buffer=None,
+        tf_listener=None,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.odom_topic = "odometry"
@@ -376,8 +386,16 @@ class RotationState(smach.State):
         self.look_at_frame = look_at_frame
         self.full_rotation = full_rotation
         self.full_rotation_timeout = full_rotation_timeout
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        
+        # Use shared TF buffer if provided, otherwise create new one
+        if tf_buffer is not None and tf_listener is not None:
+            self.tf_buffer = tf_buffer
+            self.tf_listener = tf_listener
+            rospy.loginfo(f"RotationState using shared TF buffer for {look_at_frame}")
+        else:
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+            rospy.logwarn(f"RotationState creating new TF buffer for {look_at_frame}")
 
         self.sub = rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb)
         self.pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
@@ -512,14 +530,22 @@ class RotationState(smach.State):
 
 
 class SetFrameLookingAtState(smach.State):
-    def __init__(self, source_frame, look_at_frame, alignment_frame, duration_time=3.0):
+    def __init__(self, source_frame, look_at_frame, alignment_frame, duration_time=3.0, tf_buffer=None, tf_listener=None):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.source_frame = source_frame
         self.look_at_frame = look_at_frame
         self.alignment_frame = alignment_frame
         self.duration_time = duration_time
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        
+        # Use shared TF buffer if provided, otherwise create new one
+        if tf_buffer is not None and tf_listener is not None:
+            self.tf_buffer = tf_buffer
+            self.tf_listener = tf_listener
+            rospy.loginfo(f"SetFrameLookingAtState using shared TF buffer for {alignment_frame}")
+        else:
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+            rospy.logwarn(f"SetFrameLookingAtState creating new TF buffer for {alignment_frame}")
         self.rate = rospy.Rate(10)
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
@@ -701,6 +727,8 @@ class SearchForPropState(smach.StateMachine):
         source_frame: str = "taluy/base_link",
         rotation_speed: float = 0.3,
         max_angular_velocity: float = 0.25,
+        tf_buffer=None,
+        tf_listener=None,
     ):
         """
         Args:
@@ -733,6 +761,8 @@ class SearchForPropState(smach.StateMachine):
                     look_at_frame=look_at_frame,
                     rotation_speed=rotation_speed,
                     full_rotation=full_rotation,
+                    tf_buffer=tf_buffer,
+                    tf_listener=tf_listener,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
@@ -760,6 +790,8 @@ class SearchForPropState(smach.StateMachine):
                     look_at_frame=look_at_frame,
                     alignment_frame=alignment_frame,
                     duration_time=set_frame_duration,
+                    tf_buffer=tf_buffer,
+                    tf_listener=tf_listener,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_TARGET",
@@ -836,6 +868,8 @@ class CheckAlignmentState(smach.State):
         angle_offset=0.0,
         confirm_duration=0.0,
         keep_orientation=False,
+        tf_buffer=None,
+        tf_listener=None,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
@@ -846,14 +880,23 @@ class CheckAlignmentState(smach.State):
         self.angle_offset = angle_offset
         self.confirm_duration = confirm_duration
         self.keep_orientation = keep_orientation
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        
+        # Use shared TF buffer if provided, otherwise create new one
+        if tf_buffer is not None and tf_listener is not None:
+            self.tf_buffer = tf_buffer
+            self.tf_listener = tf_listener
+            rospy.loginfo(f"CheckAlignmentState using shared TF buffer for {target_frame}")
+        else:
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+            rospy.logwarn(f"CheckAlignmentState creating new TF buffer for {target_frame}")
+        
         self.rate = rospy.Rate(10)
 
     def get_error(self):
         try:
             transform = self.tf_buffer.lookup_transform(
-                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(1.0)
+                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(5.0)
             )
             trans = transform.transform.translation
             rot = transform.transform.rotation
@@ -939,6 +982,8 @@ class AlignFrame(smach.StateMachine):
         max_angular_velocity=None,
         heading_control=True,
         enable_heading_control_afterwards=True,
+        tf_buffer=None,
+        tf_listener=None,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
@@ -1005,6 +1050,8 @@ class AlignFrame(smach.StateMachine):
                     angle_offset,
                     confirm_duration,
                     keep_orientation=keep_orientation,
+                    tf_buffer=tf_buffer,
+                    tf_listener=tf_listener,
                 ),
                 transitions={
                     "succeeded": watch_succeeded_transition,
@@ -1256,13 +1303,23 @@ class CreateFrameAtCurrentPositionState(smach.State):
         source_frame: str = "taluy/base_link",
         current_pose_frame: str = "selam_frame",
         reference_frame: str = "odom",
+        tf_buffer=None,
+        tf_listener=None,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.source_frame = source_frame
         self.current_pose_frame = current_pose_frame
         self.reference_frame = reference_frame
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        
+        # Use shared TF buffer if provided, otherwise create new one
+        if tf_buffer is not None and tf_listener is not None:
+            self.tf_buffer = tf_buffer
+            self.tf_listener = tf_listener
+            rospy.loginfo(f"CreateFrameAtCurrentPositionState using shared TF buffer for {current_pose_frame}")
+        else:
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+            rospy.logwarn(f"CreateFrameAtCurrentPositionState creating new TF buffer for {current_pose_frame}")
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )

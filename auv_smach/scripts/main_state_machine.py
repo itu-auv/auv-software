@@ -4,6 +4,7 @@ import rospy
 import smach
 import auv_smach
 import math
+import tf2_ros
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.slalom import NavigateThroughSlalomState
@@ -22,6 +23,11 @@ from auv_bringup.cfg import SmachParametersConfig
 class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
+
+        # Create centralized TF buffer and listener for all states
+        self.tf_buffer = tf2_ros.Buffer(rospy.Duration(10.0))  # 10 second buffer
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        rospy.loginfo("Created centralized TF buffer and listener for state machine")
 
         # Initialize dynamic reconfigure client
         self.dynamic_reconfigure_client = Client(
@@ -168,7 +174,7 @@ class MainStateMachineNode:
 
         # Map state names to their corresponding classes and parameters
         state_mapping = {
-            "INITIALIZE": (InitializeState, {}),
+            "INITIALIZE": (InitializeState, {"tf_buffer": self.tf_buffer, "tf_listener": self.tf_listener}),
             "NAVIGATE_THROUGH_GATE": (
                 NavigateThroughGateState,
                 {
@@ -176,6 +182,8 @@ class MainStateMachineNode:
                     "gate_search_depth": self.gate_search_depth,
                     "roll_depth": self.roll_depth,
                     "gate_exit_angle": gate_exit_angle_rad,
+                    "tf_buffer": self.tf_buffer,
+                    "tf_listener": self.tf_listener,
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (
@@ -184,6 +192,8 @@ class MainStateMachineNode:
                     "slalom_depth": self.slalom_depth,
                     "slalom_exit_angle": slalom_exit_angle_rad,
                     "slalom_mode": self.slalom_mode,
+                    "tf_buffer": self.tf_buffer,
+                    "tf_listener": self.tf_listener,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
@@ -194,6 +204,8 @@ class MainStateMachineNode:
                     "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
                     "torpedo_exit_angle": torpedo_exit_angle_rad,
                     "torpedo_fire_frames": torpedo_fire_frames,
+                    "tf_buffer": self.tf_buffer,
+                    "tf_listener": self.tf_listener,
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (
@@ -203,6 +215,8 @@ class MainStateMachineNode:
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
                     "target_selection": self.selected_animal,
                     "bin_exit_angle": bin_exit_angle_rad,
+                    "tf_buffer": self.tf_buffer,
+                    "tf_listener": self.tf_listener,
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
@@ -210,12 +224,16 @@ class MainStateMachineNode:
                 {
                     "octagon_depth": self.octagon_depth,
                     "animal": self.selected_animal,
+                    "tf_buffer": self.tf_buffer,
+                    "tf_listener": self.tf_listener,
                 },
             ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
                 {
                     "data_value": self.acoustic_tx_data_value,
+                    "tf_buffer": self.tf_buffer,
+                    "tf_listener": self.tf_listener,
                 },
             ),
             "ACOUSTIC_RECEIVER": (
@@ -223,11 +241,17 @@ class MainStateMachineNode:
                 {
                     "expected_data": self.acoustic_rx_expected_data,
                     "timeout": self.acoustic_rx_timeout,
+                    "tf_buffer": self.tf_buffer,
+                    "tf_listener": self.tf_listener,
                 },
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (
                 NavigateReturnThroughGateState,
-                {"station_frame": self.return_home_station},
+                {
+                    "station_frame": self.return_home_station,
+                    "tf_buffer": self.tf_buffer,
+                    "tf_listener": self.tf_listener,
+                },
             ),
         }
 
