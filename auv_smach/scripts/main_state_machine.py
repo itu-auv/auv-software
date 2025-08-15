@@ -214,9 +214,7 @@ class MainStateMachineNode:
             ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
-                {
-                    "data_value": self.acoustic_tx_data_value,
-                },
+                {},
             ),
             "ACOUSTIC_RECEIVER": (
                 AcousticReceiver,
