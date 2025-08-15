@@ -122,7 +122,7 @@ class TransformServiceNode:
                     self.odom_frame,
                     self.robot_base_frame,
                     rospy.Time(0),
-                    rospy.Duration(1.0),
+                    rospy.Duration(4.0),
                 )
 
                 initial_pos = initial_transform.transform.translation
@@ -195,7 +195,7 @@ class TransformServiceNode:
                 self.odom_frame,
                 self.gate_frame_1,
                 rospy.Time.now(),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
         except tf2_ros.TransformException:
             t_gate1 = None
@@ -205,7 +205,7 @@ class TransformServiceNode:
                 self.odom_frame,
                 self.gate_frame_2,
                 rospy.Time.now(),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
         except tf2_ros.TransformException:
             t_gate2 = None
@@ -296,7 +296,7 @@ class TransformServiceNode:
                 self.odom_frame,
                 self.robot_base_frame,
                 rospy.Time(0),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
         except tf2_ros.TransformException as e:
             rospy.logwarn(
@@ -448,7 +448,7 @@ class TransformServiceNode:
                 self.odom_frame,
                 self.robot_base_frame,
                 rospy.Time(0),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
             robot_pos = robot_transform.transform.translation
         except tf2_ros.TransformException as e:
@@ -519,7 +519,7 @@ class TransformServiceNode:
                 selected_gate_frame_name,
                 other_gate_frame_name,
                 rospy.Time.now(),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
         except tf2_ros.TransformException as e:
             rospy.logwarn(f"Parallel shift failed due to TF Error: {e}")

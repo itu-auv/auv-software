@@ -152,7 +152,7 @@ class CameraDetectionNode:
         )
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
-        self.active_front_camera_ids = list(range(15))  # Allow all by default
+
         self.red_pipe_x = None
 
         self.object_id_map = {
@@ -165,6 +165,9 @@ class CameraDetectionNode:
             "all": [0, 1, 2, 3, 4, 5, 6, 7],
             "none": [],
         }
+        self.active_front_camera_ids = self.object_id_map[
+            "gate"
+        ]  # Allow gate by default
 
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
@@ -531,7 +534,7 @@ class CameraDetectionNode:
 
             # Transform the PoseStamped message
             transformed_pose_stamped = self.tf_buffer.transform(
-                pose_stamped, "odom", rospy.Duration(1.0)
+                pose_stamped, "odom", rospy.Duration(4.0)
             )
 
             # Create a new TransformStamped message from the transformed PoseStamped
@@ -718,7 +721,7 @@ class CameraDetectionNode:
 
                 # Transform the PoseStamped message
                 transformed_pose_stamped = self.tf_buffer.transform(
-                    pose_stamped, "odom", rospy.Duration(1.0)
+                    pose_stamped, "odom", rospy.Duration(4.0)
                 )
 
                 # Create a new TransformStamped message from the transformed PoseStamped

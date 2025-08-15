@@ -25,7 +25,7 @@ namespace auv_mapping {
 
 ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
     : nh_{nh},
-      tf_buffer_{},
+      tf_buffer_{ros::Duration(60.0)},
       tf_listener_{tf_buffer_},
       rate_{10.0},
       distance_threshold_squared_{16.0},

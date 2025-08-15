@@ -163,7 +163,7 @@ class SlalomTrajectoryPublisher(object):
                 self.parent_frame,
                 self.slalom_white_frame,
                 rospy.Time.now(),
-                rospy.Duration(1.0),
+                rospy.Duration(4.0),
             )
             pos_white = np.array(
                 [
@@ -176,7 +176,7 @@ class SlalomTrajectoryPublisher(object):
                 self.parent_frame,
                 self.slalom_red_frame,
                 rospy.Time.now(),
-                rospy.Duration(1.0),
+                rospy.Duration(4.0),
             )
             pos_red = np.array(
                 [
@@ -315,7 +315,7 @@ class SlalomTrajectoryPublisher(object):
                 self.parent_frame,
                 self.gate_exit_frame,
                 rospy.Time.now(),
-                rospy.Duration(1.0),
+                rospy.Duration(4.0),
             )
             gate_exit_pos = np.array(
                 [
@@ -386,7 +386,6 @@ class SlalomTrajectoryPublisher(object):
         t.transform.rotation.y = q[1]
         t.transform.rotation.z = q[2]
         t.transform.rotation.w = q[3]
-        self.tf_broadcaster.sendTransform(t)
         return t
 
     def send_transform(self, transform: TransformStamped):

@@ -66,10 +66,13 @@ class OctagonTransformServiceNode:
 
         try:
             transform_robot = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(1)
+                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(4.0)
             )
             transform_octagon = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.octagon_frame, rospy.Time.now(), rospy.Duration(1)
+                self.odom_frame,
+                self.octagon_frame,
+                rospy.Time.now(),
+                rospy.Duration(4.0),
             )
 
         except (
