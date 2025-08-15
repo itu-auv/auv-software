@@ -9,8 +9,7 @@ from std_msgs.msg import Float64
 from auv_msgs.srv import VisualServoing, VisualServoingRequest
 from auv_smach.initialize import DelayState
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Bool
-from acoustic import AcousticReceiver
+from std_msgs.msg import Bool, UInt8
 
 
 class VisualServoingCenteringActivate(smach_ros.ServiceState):
@@ -330,6 +329,25 @@ class PublishConstantCmdVelState(smach.State):
         return "succeeded"
 
 
+class WaitForAcoustics(smach.State):
+    def __init__(self):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.enabled = False
+        self.killswitch_subscriber = rospy.Subscriber("modem/rx", UInt8, self.callback)
+
+    def callback(self, msg):
+        if msg is not None:
+            self.enabled = True
+
+    def execute(self, userdata):
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if self.enabled:
+                return "succeeded"
+            rate.sleep()
+        return "aborted"
+
+
 class NavigateThroughGateStateVS(smach.State):
     """
     Improved gate navigation state that uses feedback-based visual servoing
@@ -345,6 +363,15 @@ class NavigateThroughGateStateVS(smach.State):
         )
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "WAIT_FOR_ACOUSTICS",
+                WaitForAcoustics(),
+                transitions={
+                    "succeeded": "SET_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
                 SetDepthState(depth=-1.0, sleep_duration=5.0),
@@ -381,35 +408,6 @@ class NavigateThroughGateStateVS(smach.State):
             )
             smach.StateMachine.add(
                 "CANCEL_VISUAL_SERVOING",
-                VisualServoingCancel(),
-                transitions={
-                    "succeeded": "TURN_BACK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TURN_BACK",
-                VisualServoingCenteringActivate(
-                    target_prop="gate_back",
-                ),
-                transitions={
-                    "succeeded": "WAIT_FOR_ACOUSTICS",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_ACOUSTICS",
-                AcousticReceiver(expected_data=[1, 2, 3, 4, 5, 6, 7, 8], timeout=600),
-                transitions={
-                    "succeeded": "CANCEL_VISUAL_SERVOING_2",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_VISUAL_SERVOING_2",
                 VisualServoingCancel(),
                 transitions={
                     "succeeded": "VISUAL_SERVOING_CENTERING_RETURN",

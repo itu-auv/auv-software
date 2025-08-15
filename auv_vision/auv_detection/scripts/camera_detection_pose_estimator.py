@@ -229,6 +229,18 @@ class CameraDetectionNode:
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
         )
+        rospy.Service(
+            "enable_gate_back_detection",
+            SetBool,
+            self.handle_enable_gate_back_detection,
+        )
+
+    def handle_enable_gate_back_detection(self, req):
+        """Service handler to enable/disable gate_back detection"""
+        self.gate_back_detection_enabled = req.data
+        message = "Gate back detection " + ("enabled" if req.data else "disabled")
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
 
     def handle_set_front_camera_focus(self, req):
         focus_objects = [
@@ -594,22 +606,28 @@ class CameraDetectionNode:
                 if self.selected_side == "right" and white_x < red_pipe_x:
                     continue
 
-            if detection_id == 9:
-                gate_back_detections = [
-                    d
-                    for d in detection_msg.detections.detections
-                    if len(d.results) > 0 and d.results[0].id == 8
-                ]
+            if self.handle_enable_gate_back_detection:
+                if detection_id == 9 or detection_id == 0 or detection_id == 1:
+                    gate_back_detections = [
+                        d
+                        for d in detection_msg.detections.detections
+                        if len(d.results) > 0
+                        and (
+                            d.results[0].id == 9
+                            or detection_id == 0
+                            or detection_id == 1
+                        )
+                    ]
 
-                if len(gate_back_detections) > 1:
-                    image_center_x = 320
-                    closest_detection = min(
-                        gate_back_detections,
-                        key=lambda d: abs(d.bbox.center.x - image_center_x),
-                    )
+                    if len(gate_back_detections) > 1:
+                        image_center_x = 320
+                        closest_detection = min(
+                            gate_back_detections,
+                            key=lambda d: abs(d.bbox.center.x - image_center_x),
+                        )
 
-                    if detection != closest_detection:
-                        continue
+                        if detection != closest_detection:
+                            continue
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
@@ -632,6 +650,9 @@ class CameraDetectionNode:
             #             f"Detection {detection_id} is outside the image bounds, skipping."
             #         )
             #         continue
+            if self.handle_enable_gate_back_detection:
+                detection_id = 9
+
             prop_name = self.id_tf_map[camera_ns][detection_id]
 
             if prop_name not in self.props:
