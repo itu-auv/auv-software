@@ -5,12 +5,13 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   smach
   smach_ros
+  std_srvs
 )
 
 catkin_python_setup()
 
 catkin_package(
-  CATKIN_DEPENDS rospy smach smach_ros auv_navigation
+  CATKIN_DEPENDS rospy smach smach_ros auv_navigation std_srvs
 )
 
 include_directories(

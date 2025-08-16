@@ -15,7 +15,7 @@ ZERO_DISTANCE_TOLERANCE: float = (
 DYNAMIC_TARGET_FRAME: str = "dynamic_target"
 ODOM_FRAME: str = "odom"
 TIME_ZERO: rospy.Time = rospy.Time(0)
-TF_LOOKUP_TIMEOUT: rospy.Duration = rospy.Duration(1.0)
+TF_LOOKUP_TIMEOUT: rospy.Duration = rospy.Duration(4.0)
 
 
 def get_robot_pose(

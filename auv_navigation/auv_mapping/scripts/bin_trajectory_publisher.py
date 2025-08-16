@@ -79,10 +79,10 @@ class BinTransformServiceNode:
     def create_bin_frames(self):
         try:
             transform_robot = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(1)
+                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(4.0)
             )
             transform_bin = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.bin_frame, rospy.Time.now(), rospy.Duration(1)
+                self.odom_frame, self.bin_frame, rospy.Time.now(), rospy.Duration(4.0)
             )
         except (
             tf2_ros.LookupException,
@@ -96,7 +96,10 @@ class BinTransformServiceNode:
         gate_exit_pose = None
         try:
             transform_gate_exit = self.tf_buffer.lookup_transform(
-                self.odom_frame, "gate_exit", rospy.Time.now(), rospy.Duration(1)
+                self.odom_frame,
+                "slalom_exit",
+                rospy.Time.now(),
+                rospy.Duration(1),
             )
             gate_exit_pose = self.get_pose(transform_gate_exit)
         except (

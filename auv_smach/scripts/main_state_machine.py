@@ -34,6 +34,7 @@ class MainStateMachineNode:
 
         # Get initial values from dynamic reconfigure
         self.selected_animal = "sawfish"
+        self.slalom_mode = "close"
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
@@ -46,6 +47,7 @@ class MainStateMachineNode:
             current_config = self.dynamic_reconfigure_client.get_configuration()
             if current_config:
                 self.selected_animal = current_config.get("selected_animal", "sawfish")
+                self.slalom_mode = current_config.get("slalom_mode", "close")
                 self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
                 self.slalom_exit_angle_deg = current_config.get(
                     "slalom_exit_angle", 0.0
@@ -55,7 +57,7 @@ class MainStateMachineNode:
                     "torpedo_exit_angle", 0.0
                 )
                 rospy.loginfo(
-                    f"Loaded current config: selected_animal={self.selected_animal}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
+                    f"Loaded current config: selected_animal={self.selected_animal}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
                 )
         except Exception as e:
             rospy.logwarn(f"Could not get current configuration: {e}")
@@ -65,7 +67,7 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.roll_depth = -0.8
 
-        self.slalom_depth = -1.3
+        self.slalom_depth = -1.1
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -77,10 +79,10 @@ class MainStateMachineNode:
         self.torpedo_shark_fire_frame = "torpedo_shark_fire_frame"
         self.torpedo_sawfish_fire_frame = "torpedo_sawfish_fire_frame"
 
-        self.bin_front_look_depth = -0.9
+        self.bin_front_look_depth = -1.4
         self.bin_bottom_look_depth = -0.7
 
-        self.octagon_depth = -1.0
+        self.octagon_depth = -0.8
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
@@ -125,8 +127,9 @@ class MainStateMachineNode:
             return
 
         rospy.loginfo(
-            "Received reconfigure request: selected_animal=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            "Received reconfigure request: selected_animal=%s, slalom_mode=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
             config.selected_animal,
+            config.slalom_mode,
             config.gate_exit_angle,
             config.slalom_exit_angle,
             config.bin_exit_angle,
@@ -135,6 +138,7 @@ class MainStateMachineNode:
 
         # Update parameters
         self.selected_animal = config.selected_animal
+        self.slalom_mode = config.slalom_mode
         self.gate_exit_angle_deg = config.gate_exit_angle
         self.slalom_exit_angle_deg = config.slalom_exit_angle
         self.bin_exit_angle_deg = config.bin_exit_angle
@@ -179,6 +183,7 @@ class MainStateMachineNode:
                 {
                     "slalom_depth": self.slalom_depth,
                     "slalom_exit_angle": slalom_exit_angle_rad,
+                    "slalom_mode": self.slalom_mode,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
@@ -209,9 +214,7 @@ class MainStateMachineNode:
             ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
-                {
-                    "data_value": self.acoustic_tx_data_value,
-                },
+                {},
             ),
             "ACOUSTIC_RECEIVER": (
                 AcousticReceiver,
