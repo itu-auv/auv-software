@@ -25,6 +25,7 @@ from auv_msgs.srv import (
     SetDetectionFocusRequest,
 )
 
+from geometry_msgs.msg import TransformStamped
 from auv_msgs.srv import SetDepth, SetDepthRequest
 from auv_msgs.srv import VisualServoing, VisualServoingRequest
 
@@ -1311,15 +1312,6 @@ class CreateFrameAtCurrentPositionState(smach.State):
         except rospy.ServiceException as e:
             rospy.logerr(f"CreateFrameAtCurrentPositionState: Service call failed: {e}")
             return "aborted"
-
-
-import math
-import rospy
-import smach
-import tf2_ros
-from geometry_msgs.msg import TransformStamped
-from tf.transformations import quaternion_from_euler
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 
 class CreateRotatingFrameState(smach.State):
