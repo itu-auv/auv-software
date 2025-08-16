@@ -354,7 +354,7 @@ class BinTaskState(smach.State):
                 "WAIT_FOR_ENABLE_BIN_FRAME_PUBLISHER",
                 DelayState(delay_time=2.0),
                 transitions={
-                    "succeeded": "DISABLE_BIN_FRAME_PUBLISHER",
+                    "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
