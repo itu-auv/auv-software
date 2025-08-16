@@ -352,7 +352,16 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ENABLE_BIN_FRAME_PUBLISHER",
-                DelayState(delay_time=1.0),
+                DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "DISABLE_BIN_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_BIN_FRAME_PUBLISHER",
+                BinTransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
@@ -384,15 +393,6 @@ class BinTaskState(smach.State):
                 ),
                 transitions={
                     "succeeded": "DISABLE_BIN_FRAME_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_BIN_FRAME_PUBLISHER",
-                BinTransformServiceEnableState(req=False),
-                transitions={
-                    "succeeded": "SET_BIN_DROP_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
