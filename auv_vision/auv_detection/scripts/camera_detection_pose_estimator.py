@@ -678,6 +678,9 @@ class CameraDetectionNode:
             props_yaw_msg.header.stamp = detection_msg.header.stamp
             props_yaw_msg.object = prop.name
             props_yaw_msg.angle = -angles[0]
+            props_yaw_msg.bounding_box_lower_y = (
+                detection.bbox.center.y + detection.bbox.size_y * 0.5
+            )
             self.props_yaw_pub.publish(props_yaw_msg)
             """
             try:

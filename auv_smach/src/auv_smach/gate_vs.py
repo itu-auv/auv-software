@@ -10,7 +10,122 @@ from auv_msgs.srv import VisualServoing, VisualServoingRequest
 from auv_smach.initialize import DelayState
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool, UInt8
-from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
+from std_srvs.srv import SetBool, SetBoolRequest
+
+
+class NavigateThroughGateStateVS(smach.State):
+    """
+    Improved gate navigation state that uses feedback-based visual servoing
+    instead of fixed delays.
+    """
+
+    def __init__(self, gate_depth: float, target_prop: str):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        # Initialize the state machine
+        self.state_machine = smach.StateMachine(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        with self.state_machine:
+            smach.StateMachine.add(
+                "WAIT_FOR_ACOUSTICS",
+                WaitForAcoustics(),
+                transitions={
+                    "succeeded": "SET_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_GATE_DEPTH",
+                SetDepthState(depth=-1.0, sleep_duration=5.0),
+                transitions={
+                    "succeeded": "VISUAL_SERVOING_CENTERING",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "VISUAL_SERVOING_CENTERING",
+                VisualServoingCenteringWithFeedback(
+                    target_prop="shark",
+                    error_threshold=0.2,
+                    convergence_time=10.0,
+                    max_timeout=20.0,
+                ),
+                transitions={
+                    "succeeded": "VISUAL_SERVOING_NAVIGATION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "VISUAL_SERVOING_NAVIGATION",
+                VisualServoingNavigationWithFeedback(
+                    max_navigation_time=60, prop_lost_timeout=0.3
+                ),
+                transitions={
+                    "succeeded": "CANCEL_VISUAL_SERVOING",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_VISUAL_SERVOING",
+                VisualServoingCancel(),
+                transitions={
+                    "succeeded": "ENABLE_SLALOM_VS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_SLALOM_VS",
+                VisualServoingCenteringWithFeedback(
+                    target_prop="slalom",
+                    error_threshold=0.2,
+                    convergence_time=10.0,
+                    max_timeout=20.0,
+                ),
+                transitions={
+                    "succeeded": "SLALOM_VS_NAVIGATION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SLALOM_VS_NAVIGATION",
+                VisualServoingNavigationWithFeedback(
+                    max_navigation_time=60, prop_lost_timeout=1.0
+                ),
+                transitions={
+                    "succeeded": "CANCEL_VISUAL_SERVOING_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_VISUAL_SERVOING_2",
+                VisualServoingCancel(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+    def execute(self, userdata):
+        rospy.loginfo(
+            "[ImprovedNavigateThroughGateStateVS] Starting improved gate navigation"
+        )
+
+        # Execute the state machine
+        outcome = self.state_machine.execute()
+
+        if outcome is None:  # ctrl + c
+            return "preempted"
+        return outcome
 
 
 class VisualServoingCenteringActivate(smach_ros.ServiceState):
@@ -128,7 +243,7 @@ class VisualServoingCenteringWithFeedback(smach.State):
                     rospy.logwarn(
                         f"Centering timeout after {self.max_timeout}s. Current error: {self.current_error:.3f}"
                     )
-                    return "aborted"
+                    return "succeeded"
 
                 # Log progress periodically
                 if (
@@ -357,127 +472,3 @@ class WaitForAcoustics(smach.State):
                 return "succeeded"
             rate.sleep()
         return "aborted"
-
-
-class NavigateThroughGateStateVS(smach.State):
-    """
-    Improved gate navigation state that uses feedback-based visual servoing
-    instead of fixed delays.
-    """
-
-    def __init__(self, gate_depth: float, target_prop: str):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-
-        # Initialize the state machine
-        self.state_machine = smach.StateMachine(
-            outcomes=["succeeded", "preempted", "aborted"]
-        )
-
-        with self.state_machine:
-            smach.StateMachine.add(
-                "WAIT_FOR_ACOUSTICS",
-                WaitForAcoustics(),
-                transitions={
-                    "succeeded": "SET_GATE_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_GATE_DEPTH",
-                SetDepthState(depth=-1.0, sleep_duration=5.0),
-                transitions={
-                    "succeeded": "VISUAL_SERVOING_CENTERING",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "VISUAL_SERVOING_CENTERING",
-                VisualServoingCenteringWithFeedback(
-                    target_prop="shark",
-                    error_threshold=0.2,
-                    convergence_time=10.0,
-                    max_timeout=30.0,
-                ),
-                transitions={
-                    "succeeded": "VISUAL_SERVOING_NAVIGATION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "VISUAL_SERVOING_NAVIGATION",
-                VisualServoingNavigationWithFeedback(
-                    max_navigation_time=60, prop_lost_timeout=3.0
-                ),
-                transitions={
-                    "succeeded": "CANCEL_VISUAL_SERVOING",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_VISUAL_SERVOING",
-                VisualServoingCancel(),
-                transitions={
-                    "succeeded": "ENABLE_GATE_BACK_DETECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ENABLE_GATE_BACK_DETECTION",
-                GateBackServiceEnableState(req=True),
-                transitions={
-                    "succeeded": "VISUAL_SERVOING_CENTERING_RETURN",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "VISUAL_SERVOING_CENTERING_RETURN",
-                VisualServoingCenteringWithFeedback(
-                    target_prop="gate_back",
-                    error_threshold=0.2,
-                    convergence_time=10.0,
-                    max_timeout=30.0,
-                ),
-                transitions={
-                    "succeeded": "VISUAL_SERVOING_NAVIGATION_RETURN",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "VISUAL_SERVOING_NAVIGATION_RETURN",
-                VisualServoingNavigationWithFeedback(
-                    max_navigation_time=60, prop_lost_timeout=3.0
-                ),
-                transitions={
-                    "succeeded": "CANCEL_VISUAL_SERVOING_3",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CANCEL_VISUAL_SERVOING_3",
-                VisualServoingCancel(),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-    def execute(self, userdata):
-        rospy.loginfo(
-            "[ImprovedNavigateThroughGateStateVS] Starting improved gate navigation"
-        )
-
-        # Execute the state machine
-        outcome = self.state_machine.execute()
-
-        if outcome is None:  # ctrl + c
-            return "preempted"
-        return outcome
