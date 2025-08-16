@@ -47,4 +47,9 @@
     <arg name="config_file" value="$(find auv_sim_bridge)/config/control_config.yaml"/>
   </include>
 
+  <group ns="$(arg namespace)">
+    <include file="$(find auv_detection)/launch/camera_pose.launch">
+    </include>
+  </group>
+
 </launch>

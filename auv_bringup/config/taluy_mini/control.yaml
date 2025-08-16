@@ -39,20 +39,33 @@ coeffs_ccw: [12.292935764557399, -3.0745135927968605, -1.0664649834600253, 181.6
 coeffs_cw: [-7.65890867108129, -2.272619267631361, 1.5070809906898863, 140.79738360070297, -50.325593642656244, 1954.5975713257544]
 mapping: [0, 1, 2, 3, 4, 5, 6, 7]
 thruster_0_coeff: 1.0
-thruster_1_coeff: -1.0
-thruster_2_coeff: -1.0
-thruster_3_coeff: -1.0
-thruster_4_coeff: -1.0
-thruster_5_coeff: -1.0
+thruster_1_coeff: 1.0
+thruster_2_coeff: 1.0
+thruster_3_coeff: 1.0
+thruster_4_coeff: 1.0
+thruster_5_coeff: 1.0
 thruster_6_coeff: 1.0
-thruster_7_coeff: -1.0
+thruster_7_coeff: 1.0
 
 
 heading_control_mode: "set_heading"
 
-z_p_gain: 100.0
+z_p_gain: 70.0
 z_i_gain: 0.0
-z_d_gain: 75.0
-yaw_p_gain: 0.0
-yaw_i_gain: 0.0
-yaw_d_gain: 0.0
+z_d_gain: 30.0
+zx_multiplier: 0.0
+zy_multiplier: 0.0
+linear_xy_scalar: 20.0
+linear_z_scalar: 20.0
+roll_scalar: 0.5
+pitch_scalar: 0.5
+yaw_scalar: 7.0
+
+kp_gain: 0.2
+kd_gain: 0.1
+navigation_timeout_after_prop_disappear_s: 20.0
+prop_lost_timeout_s: 3.0
+search_angular_velocity: 0.1
+v_x_desired: 0.6
+overall_timeout_s: 200.0
+max_angular_velocity: 0.3

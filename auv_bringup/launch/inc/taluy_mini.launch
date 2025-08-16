@@ -7,26 +7,31 @@
   <arg name="enable_logging" default="true" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
 
-    <!-- launch expansion bridge -->
-    <include file="$(find auv_bringup)/launch/inc/boards/start_expansion_board_bridge.launch.xml">
-      <arg name="namespace" value="$(arg namespace)" />
-      <arg name="baudrate" value="912600" />
-      <arg name="port" value="/dev/auv_taluymini_mainboard" />
-      <arg name="virtual_port" value="$(arg dvl_virtual_port)" />
-    </include>
+  <!-- launch expansion bridge -->
+  <include file="$(find auv_bringup)/launch/inc/boards/start_expansion_board_bridge.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="baudrate" value="921600" />
+    <arg name="port" value="/dev/auv_taluymini_mainboard" />
+    <arg name="virtual_port" value="$(arg dvl_virtual_port)" />
+  </include>
 
-      <!-- launch xsens driver -->
-    <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
-      <arg name="namespace" value="$(arg namespace)" />
-      <arg name="control_rate" value="$(arg control_rate)" />
-      <arg name="port" value="/dev/auv_imu" />
-    </include>
+  <!-- launch xsens driver -->
+  <!-- <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="port" value="/dev/auv_imu" />
+  </include> -->
+
+  <group ns="$(arg namespace)">
+    <include file="$(find auv_detection)/launch/camera_pose.launch" />
+  </group>
+
 
     <!-- launch modem serial bridge -->
-    <!-- <include file="$(find auv_bringup)/launch/inc/boards/start_modem_serial_bridge.launch.xml">
+    <include file="$(find auv_bringup)/launch/inc/boards/start_modem_serial_bridge.launch.xml">
       <arg name="namespace" value="$(arg namespace)" />
-      <arg name="port" value="/dev/auv_taluymini_modem" />
-      <arg name="baudrate" value="921600" />
-      <arg name="respawn" value="true" />
-    </include> -->
+      <!-- <arg name="port" value="/dev/auv_taluymini_modem" /> -->
+      <!-- <arg name="baudrate" value="921600" /> -->
+      <!-- <arg name="respawn" value="true" /> -->
+    </include>
 </launch>

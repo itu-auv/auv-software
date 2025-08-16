@@ -5,7 +5,7 @@
   <arg name="use_gui" default="false" />
   <arg name="command_timeout" default="0.1" />
   <arg name="config_file" default="$(find auv_bringup)/config/$(arg namespace)/control.yaml" />
-  <arg name="start_visual_servoing" default="false" />
+  <arg name="start_visual_servoing" default="true" />
   <arg name="body_frame" default="$(arg namespace)/base_link" />
 
   <group ns="$(arg namespace)">
@@ -24,23 +24,13 @@
         <remap from="wrench" to="wrench" />
         <rosparam file="$(arg config_file)" command="load" ns="" />
       </node>
-
-      <node pkg="auv_control" type="align_frame_controller.py" name="align_frame_controller"
-        output="screen">
-        <param name="rate" value="$(arg rate)" />
-
-        <remap from="align_frame/start" to="control/align_frame/start" />
-        <remap from="propulsion_board/status" to="propulsion_board/status" />
-        <remap from="cancel_control" to="control/align_frame/cancel" />
-        <!-- <remap from="cmd_vel" to=""/> -->
-      </node>
     </group>
 
     <group if="$(eval arg('namespace') == 'taluy_mini')">
       <node pkg="auv_control" type="wrench_controller" name="wrench_controller" output="screen">
         <param name="body_frame" value="$(arg body_frame)" />
         <remap from="odometry" to="odometry" />
-        <remap from="cmd_wrench" to="cmd_wrench" />
+        <remap from="cmd_vel" to="cmd_vel"/>
         <remap from="cmd_pose" to="cmd_pose"/>
         <remap from="wrench" to="wrench" />
         <remap from="enable" to="enable" />
@@ -71,6 +61,17 @@
       <remap from="enable" to="enable" />
       <remap from="set_pose" to="set_pose" />
       <remap from="reset_odometry" to="reset_odometry" />
+      <remap from="enable_heading_integral_mode" to="enable_heading_integral_mode" />
+    </node>
+
+    <node pkg="auv_control" type="align_frame_controller.py" name="align_frame_controller"
+      output="screen">
+      <param name="rate" value="$(arg rate)" />
+
+      <remap from="align_frame/start" to="control/align_frame/start" />
+      <remap from="propulsion_board/status" to="propulsion_board/status" />
+      <remap from="cancel_control" to="control/align_frame/cancel" />
+      <!-- <remap from="cmd_vel" to=""/> -->
     </node>
 
     <node pkg="auv_control" type="battery_monitor_node.py" name="battery_monitor_node"
@@ -85,15 +86,13 @@
     <group if="$(arg start_visual_servoing)">
       <node pkg="auv_control" type="visual_servoing_controller.py" name="visual_servoing_controller"
         output="screen">
+        <rosparam file="$(arg config_file)" command="load" ns="" />
         <!-- Subscribers -->
-        <remap from="imu/data" to="sensors/imu/data" />
         <remap from="props_yaw" to="props_yaw" />
         <!-- Publishers -->
         <remap from="cmd_vel" to="cmd_vel" />
         <remap from="enable" to="enable" />
         <remap from="visual_servoing/error" to="visual_servoing/error" />
-        <remap from="visual_servoing/current_yaw" to="visual_servoing/current_yaw" />
-        <remap from="visual_servoing/target_yaw" to="visual_servoing/target_yaw" />
       </node>
     </group>
 

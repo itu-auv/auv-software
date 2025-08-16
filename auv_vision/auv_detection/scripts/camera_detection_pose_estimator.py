@@ -19,35 +19,32 @@ from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
-import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
 
 
 class CameraCalibration:
     def __init__(self, namespace: str):
-        self.calibration = camera_calibrations.CameraCalibrationFetcher(
-            namespace, True
-        ).get_camera_info()
+        # Hardcoded values from auv_bringup/config/taluy_mini/cameras.yaml
+        self.fx = 676.312034
+        self.fy = 681.711604
+        self.cx = 643.420557
+        self.cy = 354.735897
 
     def calculate_angles(self, pixel_coordinates: tuple) -> tuple:
-        fx = self.calibration.K[0]
-        fy = self.calibration.K[4]
-        cx = self.calibration.K[2]
-        cy = self.calibration.K[5]
-        norm_x = (pixel_coordinates[0] - cx) / fx
-        norm_y = (pixel_coordinates[1] - cy) / fy
+        norm_x = (pixel_coordinates[0] - self.cx) / self.fx
+        norm_y = (pixel_coordinates[1] - self.cy) / self.fy
         angle_x = math.atan(norm_x)
         angle_y = math.atan(norm_y)
         return angle_x, angle_y
 
     def distance_from_height(self, real_height: float, measured_height: float) -> float:
-        focal_length = self.calibration.K[4]
+        focal_length = self.fy
         distance = (real_height * focal_length) / measured_height
         return distance
 
     def distance_from_width(self, real_width: float, measured_width: float) -> float:
-        focal_length = self.calibration.K[0]
+        focal_length = self.fx
         distance = (real_width * focal_length) / measured_width
         return distance
 
@@ -129,6 +126,11 @@ class Octagon(Prop):
         super().__init__(7, "octagon", 0.92, 1.30)
 
 
+class GateBack(Prop):
+    def __init__(self):
+        super().__init__(9, "gate_back", 0.3048, 0.3048)
+
+
 class BinShark(Prop):
     def __init__(self):
         super().__init__(10, "bin_shark", 0.30480, 0.30480)
@@ -154,7 +156,7 @@ class CameraDetectionNode:
             "torpedo": [4, 5],
             "bin": [6],
             "octagon": [7],
-            "all": [0, 1, 2, 3, 4, 5, 6, 7],
+            "all": [0, 1, 2, 3, 4, 5, 6, 7, 9],
             "none": [],
         }
 
@@ -166,8 +168,7 @@ class CameraDetectionNode:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.camera_calibrations = {
-            "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
-            "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
+            "taluy_mini/cameras/cam_front": CameraCalibration("cameras/cam_front"),
         }
         # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
@@ -181,12 +182,10 @@ class CameraDetectionNode:
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
         )
         self.frame_id_to_camera_ns = {
-            "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
-            "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
+            "taluy_mini/base_link/front_camera_link": "taluy_mini/cameras/cam_front",
         }
         self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
-            "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link",
-            "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
+            "taluy_mini/cameras/cam_front": "taluy_mini/base_link/front_camera_optical_link",
         }
         self.props = {
             "gate_sawfish_link": Sawfish(),
@@ -199,10 +198,11 @@ class CameraDetectionNode:
             "bin_shark_link": BinSawfish(),
             "torpedo_hole_shark_link": TorpedoHole(),
             "torpedo_hole_sawfish_link": TorpedoHole(),
+            "gate_back_link": GateBack(),  # Add this line
         }
 
         self.id_tf_map = {
-            "taluy/cameras/cam_front": {
+            "taluy_mini/cameras/cam_front": {
                 0: "gate_sawfish_link",
                 1: "gate_shark_link",
                 2: "red_pipe_link",
@@ -211,16 +211,12 @@ class CameraDetectionNode:
                 5: "torpedo_hole_link",
                 6: "bin_whole_link",
                 7: "octagon_link",
-            },
-            "taluy/cameras/cam_bottom": {
-                0: "bin_shark_link",
-                1: "bin_sawfish_link",
-            },
+                9: "gate_back_link",  # Add this line
+            }
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
-        self.pool_depth = rospy.get_param("/env/pool_depth")
-        rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
+        # rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
         # Services to enable/disable cameras
         rospy.Service(
@@ -229,15 +225,22 @@ class CameraDetectionNode:
             self.handle_enable_front_camera,
         )
         rospy.Service(
-            "enable_bottom_camera_detections",
-            SetBool,
-            self.handle_enable_bottom_camera,
-        )
-        rospy.Service(
             "set_front_camera_focus",
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
         )
+        rospy.Service(
+            "enable_gate_back_detection",
+            SetBool,
+            self.handle_enable_gate_back_detection,
+        )
+
+    def handle_enable_gate_back_detection(self, req):
+        """Service handler to enable/disable gate_back detection"""
+        self.gate_back_detection_enabled = req.data
+        message = "Gate back detection " + ("enabled" if req.data else "disabled")
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
 
     def handle_set_front_camera_focus(self, req):
         focus_objects = [
@@ -280,12 +283,6 @@ class CameraDetectionNode:
     def handle_enable_front_camera(self, req):
         self.front_camera_enabled = req.data
         message = "Front camera detections " + ("enabled" if req.data else "disabled")
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
-
-    def handle_enable_bottom_camera(self, req):
-        self.bottom_camera_enabled = req.data
-        message = "Bottom camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
@@ -547,11 +544,11 @@ class CameraDetectionNode:
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return
-            camera_ns = "taluy/cameras/cam_front"
+            camera_ns = "taluy_mini/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
                 return
-            camera_ns = "taluy/cameras/cam_bottom"
+            camera_ns = "taluy_mini/cameras/cam_bottom"
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
@@ -609,25 +606,57 @@ class CameraDetectionNode:
                 if self.selected_side == "right" and white_x < red_pipe_x:
                     continue
 
+            if self.handle_enable_gate_back_detection:
+                if detection_id == 9 or detection_id == 0 or detection_id == 1:
+                    gate_back_detections = [
+                        d
+                        for d in detection_msg.detections.detections
+                        if len(d.results) > 0
+                        and (
+                            d.results[0].id == 9
+                            or detection_id == 0
+                            or detection_id == 1
+                        )
+                    ]
+
+                    if len(gate_back_detections) > 1:
+                        image_center_x = 320
+                        closest_detection = min(
+                            gate_back_detections,
+                            key=lambda d: abs(d.bbox.center.x - image_center_x),
+                        )
+
+                        if detection != closest_detection:
+                            continue
+
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
+            if camera_ns == "taluy_mini/cameras/cam_bottom" and detection_id in [0, 1]:
                 skip_inside_image = True
                 # use altidude for bin
                 distance = self.altitude
 
             if detection_id == 6:
+                continue
+            """
                 self.process_altitude_projection(
                     detection, camera_ns, detection_msg.header.stamp
                 )
                 continue
-            if not skip_inside_image:
-                if self.check_if_detection_is_inside_image(detection) is False:
-                    continue
+            """
+            # if not skip_inside_image:
+            #     if self.check_if_detection_is_inside_image(detection) is False:
+            #         rospy.loginfo(
+            #             f"Detection {detection_id} is outside the image bounds, skipping."
+            #         )
+            #         continue
+            if self.handle_enable_gate_back_detection:
+                detection_id = 9
+
             prop_name = self.id_tf_map[camera_ns][detection_id]
+
             if prop_name not in self.props:
                 continue
-
             prop = self.props[prop_name]
 
             if not skip_inside_image:  # Calculate distance using object dimensions
@@ -649,6 +678,7 @@ class CameraDetectionNode:
             props_yaw_msg.object = prop.name
             props_yaw_msg.angle = -angles[0]
             self.props_yaw_pub.publish(props_yaw_msg)
+            """
             try:
                 camera_to_odom_transform = self.tf_buffer.lookup_transform(
                     camera_frame,
@@ -679,6 +709,7 @@ class CameraDetectionNode:
             )
             # Calculate the rotation based on odom
             self.object_transform_pub.publish(transform_stamped_msg)
+            """
 
     def run(self):
         rospy.spin()

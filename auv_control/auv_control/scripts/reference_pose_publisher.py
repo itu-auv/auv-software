@@ -3,13 +3,8 @@
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseStamped, Twist, PoseWithCovarianceStamped
-from std_msgs.msg import Float64
 from std_srvs.srv import Trigger, TriggerResponse
-from auv_msgs.srv import (
-    SetDepth,
-    SetDepthRequest,
-    SetDepthResponse,
-)
+from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
 from robot_localization.srv import SetPose, SetPoseRequest
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from auv_common_lib.control.enable_state import ControlEnableHandler
@@ -17,8 +12,6 @@ from auv_common_lib.control.enable_state import ControlEnableHandler
 
 class ReferencePosePublisherNode:
     def __init__(self):
-        self.heading_control_mode = rospy.get_param("~heading_control_mode", "cmd_vel")
-
         # Initialize subscribers
         self.odometry_sub = rospy.Subscriber(
             "odometry", Odometry, self.odometry_callback, tcp_nodelay=True
@@ -26,14 +19,9 @@ class ReferencePosePublisherNode:
         self.set_depth_service = rospy.Service(
             "set_depth", SetDepth, self.target_depth_handler
         )
-        if self.heading_control_mode == "cmd_vel":
-            self.cmd_vel_sub = rospy.Subscriber(
-                "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
-            )
-        elif self.heading_control_mode == "set_heading":
-            self.set_heading_sub = rospy.Subscriber(
-                "set_heading", Float64, self.target_heading_handler, tcp_nodelay=True
-            )
+        self.cmd_vel_sub = rospy.Subscriber(
+            "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
+        )
         self.reset_odometry_service = rospy.Service(
             "reset_odometry", Trigger, self.reset_odometry_handler
         )
@@ -67,9 +55,6 @@ class ReferencePosePublisherNode:
             success=True,
             message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
         )
-
-    def target_heading_handler(self, req: Float64):
-        self.target_heading = req.data
 
     def reset_odometry_handler(self, req):
         if self.is_resetting:
