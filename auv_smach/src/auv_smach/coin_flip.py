@@ -67,7 +67,7 @@ class CoinFlipState(smach.StateMachine):
                     max_linear_velocity=0.3,
                 ),
                 transitions={
-                    "succeeded": "SET_DEPTH",
+                    "succeeded": "ALIGN_ORIENTATION_TO_RESCUE_COIN_FLIP_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
