@@ -49,8 +49,8 @@ class OctagonTaskState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_OCTAGON_DEPTH",
-                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
+                "SET_OCTAGON_INITIAL_DEPTH",
+                SetDepthState(depth=-1.2, sleep_duration=4.0),
                 transitions={
                     "succeeded": "FOCUS_ON_OCTAGON",
                     "preempted": "preempted",
@@ -74,7 +74,7 @@ class OctagonTaskState(smach.State):
                     full_rotation=False,
                     set_frame_duration=4.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.2,
+                    rotation_speed=-0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER",
@@ -112,6 +112,15 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "CLOSE_OCTAGON_PUBLİSHER",
                 OctagonFramePublisherServiceState(req=False),
+                transitions={
+                    "succeeded": "SET_OCTAGON_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_OCTAGON_DEPTH",
+                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
@@ -167,10 +176,13 @@ class OctagonTaskState(smach.State):
                     confirm_duration=4.0,
                     timeout=60.0,
                     cancel_on_success=False,
+                    keep_orientation=True,
                 ),
                 transitions={
                     "succeeded": (
-                        "SURFACE_TO_ANIMAL_DEPTH" if not self.griper_mode else "MOVE_GRIPPER"
+                        "SURFACE_TO_ANIMAL_DEPTH"
+                        if not self.griper_mode
+                        else "MOVE_GRIPPER"
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -187,7 +199,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SURFACE_TO_ANIMAL_DEPTH",
-                SetDepthState(depth=-0.2, sleep_duration=4.0),
+                SetDepthState(depth=-0.43, sleep_duration=4.0),
                 transitions={
                     "succeeded": "SEARCH_FOR_ANIMAL",
                     "preempted": "preempted",
@@ -221,13 +233,31 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SURFACE_TO_SURFACE",
-                SetDepthState(depth=-0.0, sleep_duration=4.0),
+                SetDepthState(depth=-0.05, sleep_duration=7.0),
+                transitions={
+                    "succeeded": "SET_FINAL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_FINAL_DEPTH",
+                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER_OCTAGON",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER_OCTAGON",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-            )     
+            )
 
     def execute(self, userdata):
         # Execute the state machine

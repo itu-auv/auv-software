@@ -3,37 +3,19 @@
 import rospy
 import smach
 from std_msgs.msg import UInt8
+from std_srvs.srv import Trigger, TriggerRequest
+import smach_ros
 
 
-class AcousticTransmitter(smach.State):
-
-    def __init__(self, data_value):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-
-        self.data_value = data_value
-
-        # Create publisher for acoustic modem
-        self.acoustic_pub = rospy.Publisher(
-            "/taluy/modem/data/tx", UInt8, queue_size=10
+class AcousticTransmitter(smach_ros.ServiceState):
+    def __init__(self):
+        request = TriggerRequest()
+        super(AcousticTransmitter, self).__init__(
+            "start_acoustic_transmission",
+            Trigger,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
         )
-
-        rospy.loginfo(f"AcousticTransmitter initialized - data: {data_value}")
-
-    def execute(self, userdata):
-        rospy.loginfo(f"Publishing acoustic data: {self.data_value}")
-
-        # Create and publish message
-        msg = UInt8()
-        msg.data = self.data_value
-
-        try:
-            self.acoustic_pub.publish(msg)
-            rospy.loginfo(f"Acoustic transmission completed - data: {self.data_value}")
-            return "succeeded"
-
-        except Exception as e:
-            rospy.logerr(f"Error during acoustic transmission: {e}")
-            return "aborted"
 
 
 class AcousticReceiver(smach.State):

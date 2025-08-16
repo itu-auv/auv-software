@@ -116,13 +116,16 @@ class TransformServiceNode:
         message = f"Coin flip rescuer frame publishing set to: {self.coin_flip_enabled}"
         rospy.loginfo(message)
 
+        if request.data:
+            self._publish_rescuer_frame()
+
         if self.coin_flip_enabled and self.coin_flip_rescuer_pose is None:
             try:
                 initial_transform = self.tf_buffer.lookup_transform(
                     self.odom_frame,
                     self.robot_base_frame,
                     rospy.Time(0),
-                    rospy.Duration(1.0),
+                    rospy.Duration(4.0),
                 )
 
                 initial_pos = initial_transform.transform.translation
@@ -195,7 +198,7 @@ class TransformServiceNode:
                 self.odom_frame,
                 self.gate_frame_1,
                 rospy.Time.now(),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
         except tf2_ros.TransformException:
             t_gate1 = None
@@ -205,7 +208,7 @@ class TransformServiceNode:
                 self.odom_frame,
                 self.gate_frame_2,
                 rospy.Time.now(),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
         except tf2_ros.TransformException:
             t_gate2 = None
@@ -224,12 +227,13 @@ class TransformServiceNode:
             middle_x = (p1.x + p2.x) / 2.0
             middle_y = (p1.y + p2.y) / 2.0
             middle_z = (p1.z + p2.z) / 2.0
-            # Orientation: same as gate line (yaw)
-            yaw = math.atan2(p2.y - p1.y, p2.x - p1.x)
-            quat = tf_conversions.transformations.quaternion_from_euler(0, 0, yaw)
+            # Orientation: same as odom frame (no rotation)
+            identity_quat = tf_conversions.transformations.quaternion_from_euler(
+                0, 0, 0
+            )
             middle_pose = Pose(
                 position=Point(middle_x, middle_y, middle_z),
-                orientation=Quaternion(*quat),
+                orientation=Quaternion(*identity_quat),
             )
             middle_transform = self.build_transform_message(
                 self.middle_frame, middle_pose
@@ -295,7 +299,7 @@ class TransformServiceNode:
                 self.odom_frame,
                 self.robot_base_frame,
                 rospy.Time(0),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
         except tf2_ros.TransformException as e:
             rospy.logwarn(
@@ -447,7 +451,7 @@ class TransformServiceNode:
                 self.odom_frame,
                 self.robot_base_frame,
                 rospy.Time(0),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
             robot_pos = robot_transform.transform.translation
         except tf2_ros.TransformException as e:
@@ -518,7 +522,7 @@ class TransformServiceNode:
                 selected_gate_frame_name,
                 other_gate_frame_name,
                 rospy.Time.now(),
-                rospy.Duration(0.5),
+                rospy.Duration(4.0),
             )
         except tf2_ros.TransformException as e:
             rospy.logwarn(f"Parallel shift failed due to TF Error: {e}")
@@ -611,7 +615,7 @@ class TransformServiceNode:
             if self.coin_flip_enabled:
                 self._publish_rescuer_frame()
 
-        rate.sleep()
+            rate.sleep()
 
     def reconfigure_callback(self, config, level):
         self.entrance_offset = config.entrance_offset

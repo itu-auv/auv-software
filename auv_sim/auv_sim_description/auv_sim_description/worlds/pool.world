@@ -30,6 +30,11 @@
       </attenuation>
       <cast_shadows>0</cast_shadows>
       <direction>0 0 -1</direction>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
     </light>
     <gravity>0 0 -9.8</gravity>
     <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
@@ -91,66 +96,587 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    <include>
-      <uri>model://robosub_slalom</uri>
-      <name>robosub_slalom_1</name>
-      <pose>9.4 -17.4 -1.35 0 0 1.57</pose>
-    </include>
-    <include>
-      <uri>model://robosub_slalom</uri>
-      <name>robosub_slalom_2</name>
-      <pose>7.4 -17.3 -1.35 0 0 1.57</pose>
-    </include>
-    <include>
-      <uri>model://robosub_slalom</uri>
-      <name>robosub_slalom_3</name>
-      <pose>5.4 -17.4 -1.35 0 0 1.57</pose>
-    </include>
-    <include>
-      <uri>model://robosub_octagon_animals</uri>
-      <name>robosub_octagon_animals</name>
-      <pose>-4.55 -14.2 -0.65 0 0 0</pose>
-    </include>
+    <model name='robosub_slalom_1'>
+      <static>1</static>
+      <link name='left_white_pipe'>
+        <pose>-1.5 0 0.45 0 -0 0</pose>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <link name='red_pipe'>
+        <pose>0 0 0.45 0 -0 0</pose>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <link name='right_white_pipe'>
+        <pose>1.5 0 0.45 0 -0 0</pose>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <pose>7.55 -0.8 -1.35 0 -0 1.57</pose>
+    </model>
+    <model name='robosub_slalom_2'>
+      <static>1</static>
+      <link name='left_white_pipe'>
+        <pose>-1.5 0 0.45 0 -0 0</pose>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <link name='red_pipe'>
+        <pose>0 0 0.45 0 -0 0</pose>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <link name='right_white_pipe'>
+        <pose>1.5 0 0.45 0 -0 0</pose>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <pose>5.85 -1.1 -1.35 0 -0 1.57</pose>
+    </model>
+    <model name='robosub_slalom_3'>
+      <static>1</static>
+      <link name='left_white_pipe'>
+        <pose>-1.5 0 0.45 0 -0 0</pose>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <link name='red_pipe'>
+        <pose>0 0 0.45 0 -0 0</pose>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <link name='right_white_pipe'>
+        <pose>1.5 0 0.45 0 -0 0</pose>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <material>
+            <ambient>1 1 1 1</ambient>
+            <diffuse>1 1 1 1</diffuse>
+          </material>
+        </visual>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <radius>0.0127</radius>
+              <length>0.9</length>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <pose>4.15 -0.7 -1.35 0 -0 1.57</pose>
+    </model>
+    <model name='robosub_octagon_animals'>
+      <static>1</static>
+      <link name='hanging1'>
+        <visual name='visual1_front'>
+          <geometry>
+            <plane>
+              <normal>1 0 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <name>ReefSharkMaterial</name>
+            </script>
+          </material>
+          <pose>0 0 0.1525 1.5708 -0 1.5708</pose>
+        </visual>
+        <visual name='visual1_back'>
+          <geometry>
+            <plane>
+              <normal>-1 0 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <name>ReefSharkBackMaterial</name>
+            </script>
+          </material>
+          <pose>0 0 0.1525 1.5708 -0 1.5708</pose>
+        </visual>
+        <pose>0 0 0 0 -0 0</pose>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <link name='hanging2'>
+        <visual name='visual2_front'>
+          <geometry>
+            <plane>
+              <normal>-1 0 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <name>SawfishMaterial</name>
+            </script>
+          </material>
+          <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
+        </visual>
+        <visual name='visual2_back'>
+          <geometry>
+            <plane>
+              <normal>1 0 0</normal>
+              <size>0.305 0.305</size>
+            </plane>
+          </geometry>
+          <material>
+            <script>
+              <uri>model://robosub_octagon_animals/materials/scripts</uri>
+              <name>SawfishBackMaterial</name>
+            </script>
+          </material>
+          <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
+        </visual>
+        <pose>2.7 0 0 0 -0 0</pose>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <pose>-3.8 -2.7 -0.65 0 -0 0</pose>
+    </model>
     <state world_name='default'>
-      <sim_time>1711 633000000</sim_time>
-      <real_time>62 375293282</real_time>
-      <wall_time>1734459289 293355600</wall_time>
-      <iterations>62177</iterations>
+      <sim_time>1760 844000000</sim_time>
+      <real_time>113 794960030</real_time>
+      <wall_time>1755326256 38475069</wall_time>
+      <iterations>21847</iterations>
+      <model name='pool_camera'>
+        <pose>4.75 -2 20 3.14159 1.57079 3.14159</pose>
+        <scale>1 1 1</scale>
+        <link name='pool_camera_link'>
+          <pose>4.75 -2 20 3.14159 1.57079 3.14159</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
       <model name='robosub_bin'>
-        <pose>0.3 -16.4 -2 1.57 0 1.0</pose>
+        <pose>-0.7 -1.3 -2 1.57 0 1.6</pose>
         <scale>1 1 1</scale>
         <link name='robosub_bin'>
-          <pose>0.3 -16.4 -2 1.57 0 1.0</pose>
+          <pose>-0.7 -1.3 -2 1.57 0 1.6</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='robosub_bin_clone'>
+        <pose>0.527262 -10.2417 -2 1.57 0 1.6</pose>
+        <scale>1 1 1</scale>
+        <link name='robosub_bin'>
+          <pose>0.527262 -10.2417 -2 1.57 0 1.6</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_gate'>
-        <pose>12.3 -16.0 -1.50 0 -0 0.0</pose>
+        <pose>10.75 -3.3 -1.5 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='robosub_gate'>
-          <pose>12.3 -16.0 -1.50 0 -0 0.0</pose>
+          <pose>10.75 -3.3 -1.5 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_octagon'>
-        <pose>-3.2 -14.2 -2 0 -0 0</pose>
+        <pose>-2.45 -2.7 -2 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='robosub_octagon'>
-          <pose>-3.2 -14.2 -2 0 -0 0</pose>
+          <pose>-2.45 -2.7 -2 0 -0 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='robosub_octagon_animals'>
+        <pose>-3.8 -2.7 -0.65 0 -0 0</pose>
+        <scale>1 1 1</scale>
+        <link name='hanging1'>
+          <pose>-3.8 -2.7 -0.65 0 -0 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='hanging2'>
+          <pose>-1.1 -2.7 -0.65 0 -0 0</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='robosub_slalom_1'>
+        <pose>7.55 -0.8 -1.35 0 -0 1.57</pose>
+        <scale>1 1 1</scale>
+        <link name='left_white_pipe'>
+          <pose>7.54881 -2.3 -0.9 0 -0 1.57</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='red_pipe'>
+          <pose>7.55 -0.8 -0.9 0 -0 1.57</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='right_white_pipe'>
+          <pose>7.55119 0.7 -0.9 0 -0 1.57</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='robosub_slalom_2'>
+        <pose>5.85 -1.1 -1.35 0 -0 1.57</pose>
+        <scale>1 1 1</scale>
+        <link name='left_white_pipe'>
+          <pose>5.84881 -2.6 -0.9 0 -0 1.57</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='red_pipe'>
+          <pose>5.85 -1.1 -0.9 0 -0 1.57</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='right_white_pipe'>
+          <pose>5.85119 0.4 -0.9 0 -0 1.57</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='robosub_slalom_3'>
+        <pose>4.15 -0.7 -1.35 0 -0 1.57</pose>
+        <scale>1 1 1</scale>
+        <link name='left_white_pipe'>
+          <pose>4.14881 -2.2 -0.9 0 -0 1.57</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='red_pipe'>
+          <pose>4.15 -0.7 -0.9 0 -0 1.57</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='right_white_pipe'>
+          <pose>4.15119 0.8 -0.9 0 -0 1.57</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_torpedo'>
-        <pose>0.6 -12.55 -2 1.57 0 -0.6</pose>
+        <pose>1.85 -8.1 -2 1.57 -0 0.44</pose>
         <scale>1 1 1</scale>
         <link name='robosub_torpedo'>
-          <pose>0.6 -12.55 -2 1.57 0 -0.6</pose>
+          <pose>1.85 -8.1 -2 1.57 -0 0.44</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -166,6 +692,112 @@
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
+      <model name='taluy'>
+        <pose>16 -3 -0.685922 0 0.000114 3.13999</pose>
+        <scale>1 1 1</scale>
+        <link name='taluy/base_link'>
+          <pose>16 -3 -0.685922 0 0.000114 3.13999</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>0 -0 0 -0.005668 -0.0003 -0.005331</acceleration>
+          <wrench>0 -0 0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/base_link/dvl_sim_link'>
+          <pose>15.8 -2.99968 -0.795945 0 0.000114 3.13999</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/base_link/external_pressure_sensor_sim_link'>
+          <pose>16 -3 -0.606922 0 0.000114 3.13999</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>0 0 -0 0 -0 0</acceleration>
+          <wrench>0 0 -0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/base_link/imu_sim_link'>
+          <pose>16.162 -3.00026 -0.696703 0 0.000114 3.13999</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>-0 -0 -0 0 -0 0</acceleration>
+          <wrench>-0 -0 -0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/dvl_sonar0_link'>
+          <pose>15.8 -2.99968 -0.865945 -3.14147 1.57068 -0.001486</pose>
+          <velocity>-0 0 -0.001757 -0 -0 -0</velocity>
+          <acceleration>0 0 0 -0 -0 -0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/dvl_sonar1_link'>
+          <pose>15.8 -2.99968 -0.865945 -3.14147 1.57068 -0.001486</pose>
+          <velocity>-0 0 -0.001757 -0 -0 -0</velocity>
+          <acceleration>0 0 0 -0 -0 -0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/dvl_sonar2_link'>
+          <pose>15.8 -2.99968 -0.865945 -3.14147 1.57068 -0.001486</pose>
+          <velocity>-0 0 -0.001757 -0 -0 -0</velocity>
+          <acceleration>0 0 0 -0 -0 -0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/dvl_sonar3_link'>
+          <pose>15.8 -2.99968 -0.865945 -3.14147 1.57068 -0.001486</pose>
+          <velocity>-0 0 -0.001757 -0 -0 -0</velocity>
+          <acceleration>0 0 0 -0 -0 -0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/pose_sensor_link_default'>
+          <pose>16 -3 -0.685922 0 0.000114 3.13999</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>0 -0 0 0 -0 0</acceleration>
+          <wrench>0 -0 0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/thruster_0_propeller_link'>
+          <pose>15.8407 -3.20044 -0.69119 3.14148 -0 1.56919</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>-0 -0 -0 -0 -0 -0</acceleration>
+          <wrench>-0 -0 -0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/thruster_1_propeller_link'>
+          <pose>15.8414 -2.79905 -0.69119 -3.14148 -0 -1.57239</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>0 0 -0 -0 -0 -0</acceleration>
+          <wrench>0 0 -0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/thruster_2_propeller_link'>
+          <pose>16.1586 -3.20095 -0.691154 3.14148 -0 1.56919</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>-0 -0 -0 -0 -0 -0</acceleration>
+          <wrench>-0 -0 -0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/thruster_3_propeller_link'>
+          <pose>16.1593 -2.79956 -0.691154 -3.14148 -0 -1.57239</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>0 -0 -0 -0 -0 -0</acceleration>
+          <wrench>0 -0 -0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/thruster_4_propeller_link'>
+          <pose>15.6472 -3.21607 -0.695962 -1.57072 8.1e-05 -2.3578</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>-0 -0 -0 0 -0 0</acceleration>
+          <wrench>-0 -0 -0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/thruster_5_propeller_link'>
+          <pose>15.6479 -2.7828 -0.695962 1.57072 8.1e-05 2.35459</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>0 -0 -0 0 -0 0</acceleration>
+          <wrench>0 -0 -0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/thruster_6_propeller_link'>
+          <pose>16.352 -3.2172 -0.695882 -1.57088 8.1e-05 2.35459</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>0 -0 -0 0 -0 0</acceleration>
+          <wrench>0 -0 -0 0 -0 0</wrench>
+        </link>
+        <link name='taluy/thruster_7_propeller_link'>
+          <pose>16.3527 -2.78393 -0.695882 1.57088 8.1e-05 -2.3578</pose>
+          <velocity>-0 0 -0.001757 0 -0 0</velocity>
+          <acceleration>0 -0 -0 0 -0 0</acceleration>
+          <wrench>0 -0 -0 0 -0 0</wrench>
+        </link>
+      </model>
       <light name='sun'>
         <pose>0 0 10 0 -0 0</pose>
       </light>
@@ -175,14 +807,14 @@
     </state>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>30.0 -15.0 12.0 0 0.6 3.14</pose>
+        <pose>25.1806 -2.65995 9.14871 0 0.572 3.136</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
     </gui>
     <model name='robosub_bin'>
       <static>1</static>
-      <pose>0 -12.5 -2 1.57 0 0</pose>
+      <pose>1.25 -1.4 -2 1.57 -0 -1.6</pose>
       <link name='robosub_bin'>
         <pose>0 0 0 0 -0 0</pose>
         <collision name='robosub_bin_col'>
@@ -221,7 +853,7 @@
     </model>
     <model name='robosub_gate'>
       <static>1</static>
-      <pose>4.0 -1.5 -1.50 0 -0 -1.57516</pose>
+      <pose>4 -1.5 -1.5 0 -0 -1.57516</pose>
       <link name='robosub_gate'>
         <pose>0 0 0 0 -0 0</pose>
         <collision name='robosub_gate_col'>
@@ -299,7 +931,7 @@
     </model>
     <model name='robosub_octagon'>
       <static>1</static>
-      <pose>3.5 -19 -2 0 -0 0</pose>
+      <pose>-2.45 -2.7 -2 0 -0 0</pose>
       <link name='robosub_octagon'>
         <pose>0 0 0 0 -0 0</pose>
         <collision name='robosub_octagon_col'>
@@ -336,13 +968,12 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    <!-- Pool overhead camera model -->
-    <model name="pool_camera">
-      <static>true</static>
-      <pose>4 -15 20 0 1.5708 0</pose>
-      <link name="pool_camera_link">
-        <pose>0 0 0 0 0 0</pose>
-        <visual name="camera_visual">
+    <model name='pool_camera'>
+      <static>1</static>
+      <pose>4.75 -2 20 3.14159 1.57079 3.14159</pose>
+      <link name='pool_camera_link'>
+        <pose>0 0 0 0 -0 0</pose>
+        <visual name='camera_visual'>
           <geometry>
             <box>
               <size>0.1 0.1 0.1</size>
@@ -353,9 +984,9 @@
             <diffuse>0.1 0.1 0.1 1</diffuse>
           </material>
         </visual>
-        <sensor name="camera_sensor" type="camera">
-          <update_rate>30.0</update_rate>
-          <camera name="pool_camera">
+        <sensor name='camera_sensor' type='camera'>
+          <update_rate>30</update_rate>
+          <camera name='pool_camera'>
             <horizontal_fov>1.36136</horizontal_fov>
             <image>
               <width>640</width>
@@ -368,12 +999,12 @@
             </clip>
             <noise>
               <type>gaussian</type>
-              <mean>0.0</mean>
+              <mean>0</mean>
               <stddev>0.007</stddev>
             </noise>
           </camera>
-          <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
-            <alwaysOn>true</alwaysOn>
+          <plugin name='camera_controller' filename='libgazebo_ros_camera.so'>
+            <alwaysOn>1</alwaysOn>
             <updateRate>30.0</updateRate>
             <cameraName>pool_camera</cameraName>
             <imageTopicName>image_raw</imageTopicName>
@@ -387,8 +1018,2759 @@
             <distortionT2>0.0</distortionT2>
           </plugin>
         </sensor>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
       </link>
     </model>
-
+    <model name='taluy'>
+      <link name='taluy/base_link'>
+        <inertial>
+          <pose>0.012801 -5e-06 -0.003494 0 -0 0</pose>
+          <mass>27.7526</mass>
+          <inertia>
+            <ixx>0.162143</ixx>
+            <ixy>-0.000727908</ixy>
+            <ixz>0.114275</ixz>
+            <iyy>0.274736</iyy>
+            <iyz>0.0100011</iyz>
+            <izz>0.253473</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/base_link_collision'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/taluy_description/meshes/body/body.stl</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/ball_dropper_collision_collision_1'>
+          <pose>0.1004 0.0745 -0.1953 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/ball_dropper/ball_dropper.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/bottom_camera_collision_collision_2'>
+          <pose>0 0 -0.07 -1.57079 -1.57079 3.14159</pose>
+          <geometry>
+            <box>
+              <size>0.02 0.094 0.0433</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/dvl_collision_collision_3'>
+          <pose>0.2 0 -0.11 3.14159 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/external_pressure_sensor_collision_collision_4'>
+          <pose>0 0 0.079 0 -0 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/bar30/bar30.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/front_camera_collision_collision_5'>
+          <pose>0.40125 0 0 0 -0 3.14159</pose>
+          <geometry>
+            <box>
+              <size>0.02 0.094 0.0433</size>
+            </box>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/hydrophone_0_collision_collision_6'>
+          <pose>0.315 0.1675 0.1715 0 -0 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.05695</length>
+              <radius>0.02489</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/hydrophone_1_collision_collision_7'>
+          <pose>0.315 -0.1675 0.1715 0 -0 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.05695</length>
+              <radius>0.02489</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/hydrophone_2_collision_collision_8'>
+          <pose>-0.315 0.1675 0.1715 0 -0 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.05695</length>
+              <radius>0.02489</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/hydrophone_3_collision_collision_9'>
+          <pose>-0.315 -0.1675 0.1715 0 -0 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.05695</length>
+              <radius>0.02489</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/imu_expansion_collision_collision_10'>
+          <pose>-0.282 -0.1 -0.0108 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/imu_collision_collision_11'>
+          <pose>-0.162 0 -0.0108 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/ping360_collision_collision_12'>
+          <pose>0.2 0 0.134 0 -0 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/ping360/ping360.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/sonar_back_collision_collision_13'>
+          <pose>-0.42 -0.09 0.09 0 -0 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/sonar/sonar.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/sonar_front_collision_collision_14'>
+          <pose>0.38 0.09 0.09 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/sonar/sonar.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/sonar_left_collision_collision_15'>
+          <pose>0.02 0.21 -0.14 0 -0 1.5708</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/sonar/sonar.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/sonar_right_collision_collision_16'>
+          <pose>0.02 -0.21 -0.14 0 0 -1.5708</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/sonar/sonar.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/torpedo_bottom_collision_collision_17'>
+          <pose>0.4057 -0.1038 -0.084 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/torpedo/torpedo_bottom.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link/torpedo_upper_collision_collision_18'>
+          <pose>0.4057 -0.1038 -0.049 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/torpedo/torpedo_upper.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link_fixed_joint_lump__taluy/thruster_0_collision_collision_19'>
+          <pose>0.15895 0.2007 -0.00525 -3e-06 -1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link_fixed_joint_lump__taluy/thruster_1_collision_collision_20'>
+          <pose>0.15895 -0.2007 -0.00525 3.14159 -1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link_fixed_joint_lump__taluy/thruster_2_collision_collision_21'>
+          <pose>-0.15895 0.2007 -0.00525 -3e-06 -1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link_fixed_joint_lump__taluy/thruster_3_collision_collision_22'>
+          <pose>-0.15895 -0.2007 -0.00525 3.14159 -1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link_fixed_joint_lump__taluy/thruster_4_collision_collision_23'>
+          <pose>0.352398 0.216638 -0.01 -0 -0 -0.785398</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link_fixed_joint_lump__taluy/thruster_5_collision_collision_24'>
+          <pose>0.352398 -0.216638 -0.01 3.14159 -0 0.785398</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link_fixed_joint_lump__taluy/thruster_6_collision_collision_25'>
+          <pose>-0.352398 0.216638 -0.01 0 0 -2.35619</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <collision name='taluy/base_link_fixed_joint_lump__taluy/thruster_7_collision_collision_26'>
+          <pose>-0.352398 -0.216638 -0.01 3.14159 -0 2.35619</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='taluy/base_link_visual'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/taluy_description/meshes/body/body.stl</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/ball_dropper_link_visual_1'>
+          <pose>0.1004 0.0745 -0.1953 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/ball_dropper/ball_dropper.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/bottom_camera_link_visual_2'>
+          <pose>0 0 -0.07 -1.57079 -1.57079 3.14159</pose>
+          <geometry>
+            <box>
+              <size>0.02 0.094 0.0433</size>
+            </box>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/dvl_mount_link_visual_3'>
+          <pose>0.2 0 -0.11 3.14159 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/external_pressure_sensor_chasis_link_visual_4'>
+          <pose>0 0 0.079 0 -0 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/bar30/bar30.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/front_camera_link_visual_5'>
+          <pose>0.40125 0 0 0 -0 3.14159</pose>
+          <geometry>
+            <box>
+              <size>0.02 0.094 0.0433</size>
+            </box>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/hydrophone_0_link_visual_6'>
+          <pose>0.315 0.1675 0.1715 0 -0 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.05695</length>
+              <radius>0.0125</radius>
+            </cylinder>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/hydrophone_1_link_visual_7'>
+          <pose>0.315 -0.1675 0.1715 0 -0 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.05695</length>
+              <radius>0.0125</radius>
+            </cylinder>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/hydrophone_2_link_visual_8'>
+          <pose>-0.315 0.1675 0.1715 0 -0 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.05695</length>
+              <radius>0.0125</radius>
+            </cylinder>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/hydrophone_3_link_visual_9'>
+          <pose>-0.315 -0.1675 0.1715 0 -0 0</pose>
+          <geometry>
+            <cylinder>
+              <length>0.05695</length>
+              <radius>0.0125</radius>
+            </cylinder>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/imu_expansion_link_visual_10'>
+          <pose>-0.282 -0.1 -0.0108 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/imu_link_visual_11'>
+          <pose>-0.162 0 -0.0108 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/ping360_mount_link_visual_12'>
+          <pose>0.2 0 0.134 0 -0 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/ping360/ping360.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/sonar_back_link_visual_13'>
+          <pose>-0.42 -0.09 0.09 0 -0 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/sonar/sonar.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/sonar_front_link_visual_14'>
+          <pose>0.38 0.09 0.09 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/sonar/sonar.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/sonar_left_link_visual_15'>
+          <pose>0.02 0.21 -0.14 0 -0 1.5708</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/sonar/sonar.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/sonar_right_link_visual_16'>
+          <pose>0.02 -0.21 -0.14 0 0 -1.5708</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/sonar/sonar.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/torpedo_bottom_link_visual_17'>
+          <pose>0.4057 -0.1038 -0.084 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/torpedo/torpedo_bottom.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link/torpedo_upper_link_visual_18'>
+          <pose>0.4057 -0.1038 -0.049 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>0.001 0.001 0.001</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/torpedo/torpedo_upper.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <visual name='taluy/base_link_fixed_joint_lump__taluy/thruster_0_link_visual_19'>
+          <pose>0.15895 0.2007 -0.00525 -3e-06 -1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='taluy/base_link_fixed_joint_lump__taluy/thruster_1_link_visual_20'>
+          <pose>0.15895 -0.2007 -0.00525 3.14159 -1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='taluy/base_link_fixed_joint_lump__taluy/thruster_2_link_visual_21'>
+          <pose>-0.15895 0.2007 -0.00525 -3e-06 -1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='taluy/base_link_fixed_joint_lump__taluy/thruster_3_link_visual_22'>
+          <pose>-0.15895 -0.2007 -0.00525 3.14159 -1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='taluy/base_link_fixed_joint_lump__taluy/thruster_4_link_visual_23'>
+          <pose>0.352398 0.216638 -0.01 -0 -0 -0.785398</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='taluy/base_link_fixed_joint_lump__taluy/thruster_5_link_visual_24'>
+          <pose>0.352398 -0.216638 -0.01 3.14159 -0 0.785398</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='taluy/base_link_fixed_joint_lump__taluy/thruster_6_link_visual_25'>
+          <pose>-0.352398 0.216638 -0.01 0 0 -2.35619</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <visual name='taluy/base_link_fixed_joint_lump__taluy/thruster_7_link_visual_26'>
+          <pose>-0.352398 -0.216638 -0.01 3.14159 -0 2.35619</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/shell.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <sensor name='taluy/base_link/bottom_camera_sensor' type='camera'>
+          <update_rate>30</update_rate>
+          <camera name='head'>
+            <horizontal_fov>1.36136</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>B8G8R8</format>
+            </image>
+            <clip>
+              <near>0.02</near>
+              <far>300</far>
+            </clip>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.007</stddev>
+            </noise>
+          </camera>
+          <plugin name='camera_controller' filename='libgazebo_ros_camera.so'>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>0.0</updateRate>
+            <cameraName>cameras/cam_bottom</cameraName>
+            <imageTopicName>image_raw</imageTopicName>
+            <frameName>taluy/base_link/bottom_camera_link</frameName>
+            <hackBaseline>0.07</hackBaseline>
+            <distortionK1>0.0</distortionK1>
+            <distortionK2>0.0</distortionK2>
+            <distortionK3>0.0</distortionK3>
+            <distortionT1>0.0</distortionT1>
+            <distortionT2>0.0</distortionT2>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+          <pose>0 0 -0.07 -3.14159 1.57079 1.57079</pose>
+        </sensor>
+        <sensor name='taluy/base_link/front_camera_sensor' type='camera'>
+          <update_rate>30</update_rate>
+          <camera name='head'>
+            <horizontal_fov>1.36136</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>B8G8R8</format>
+            </image>
+            <clip>
+              <near>0.02</near>
+              <far>300</far>
+            </clip>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.007</stddev>
+            </noise>
+          </camera>
+          <plugin name='camera_controller' filename='libgazebo_ros_camera.so'>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>0.0</updateRate>
+            <cameraName>cameras/cam_front</cameraName>
+            <imageTopicName>image_raw</imageTopicName>
+            <frameName>taluy/base_link/front_camera_link</frameName>
+            <hackBaseline>0.07</hackBaseline>
+            <distortionK1>0.0</distortionK1>
+            <distortionK2>0.0</distortionK2>
+            <distortionK3>0.0</distortionK3>
+            <distortionT1>0.0</distortionT1>
+            <distortionT2>0.0</distortionT2>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+          <pose>0.40125 0 0 0 -0 0</pose>
+        </sensor>
+        <sensor name='taluy/base_link/sonar_back' type='ray'>
+          <visualize>0</visualize>
+          <update_rate>20</update_rate>
+          <ray>
+            <scan>
+              <horizontal>
+                <samples>1</samples>
+                <resolution>0.15</resolution>
+                <min_angle>-0.5</min_angle>
+                <max_angle>0.2618</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>1</samples>
+                <resolution>0.15</resolution>
+                <min_angle>-0.2618</min_angle>
+                <max_angle>0.2618</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.3</min>
+              <max>100</max>
+              <resolution>0.1</resolution>
+            </range>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.5</stddev>
+            </noise>
+          </ray>
+          <plugin name='taluy/base_link/sonar_back_range_plugin' filename='libgazebo_ros_range.so'>
+            <topicName>sensors/sonar_back/data</topicName>
+            <frameName>taluy/base_link/sonar_back_link</frameName>
+            <gaussianNoise>0.005</gaussianNoise>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>20</updateRate>
+            <visualize>1</visualize>
+            <radiation>infrared</radiation>
+            <fov>0.523599</fov>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+          <pose>-0.42 -0.09 0.09 0 -0 3.14159</pose>
+        </sensor>
+        <sensor name='taluy/base_link/sonar_front' type='ray'>
+          <visualize>0</visualize>
+          <update_rate>20</update_rate>
+          <ray>
+            <scan>
+              <horizontal>
+                <samples>1</samples>
+                <resolution>0.15</resolution>
+                <min_angle>-0.5</min_angle>
+                <max_angle>0.2618</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>1</samples>
+                <resolution>0.15</resolution>
+                <min_angle>-0.2618</min_angle>
+                <max_angle>0.2618</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.3</min>
+              <max>100</max>
+              <resolution>0.1</resolution>
+            </range>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.5</stddev>
+            </noise>
+          </ray>
+          <plugin name='taluy/base_link/sonar_front_range_plugin' filename='libgazebo_ros_range.so'>
+            <topicName>sensors/sonar_front/data</topicName>
+            <frameName>taluy/base_link/sonar_front_link</frameName>
+            <gaussianNoise>0.005</gaussianNoise>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>20</updateRate>
+            <visualize>1</visualize>
+            <radiation>infrared</radiation>
+            <fov>0.523599</fov>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+          <pose>0.38 0.09 0.09 0 -0 0</pose>
+        </sensor>
+        <sensor name='taluy/base_link/sonar_left' type='ray'>
+          <visualize>0</visualize>
+          <update_rate>20</update_rate>
+          <ray>
+            <scan>
+              <horizontal>
+                <samples>1</samples>
+                <resolution>0.15</resolution>
+                <min_angle>-0.5</min_angle>
+                <max_angle>0.2618</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>1</samples>
+                <resolution>0.15</resolution>
+                <min_angle>-0.2618</min_angle>
+                <max_angle>0.2618</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.3</min>
+              <max>100</max>
+              <resolution>0.1</resolution>
+            </range>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.5</stddev>
+            </noise>
+          </ray>
+          <plugin name='taluy/base_link/sonar_left_range_plugin' filename='libgazebo_ros_range.so'>
+            <topicName>sensors/sonar_left/data</topicName>
+            <frameName>taluy/base_link/sonar_left_link</frameName>
+            <gaussianNoise>0.005</gaussianNoise>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>20</updateRate>
+            <visualize>1</visualize>
+            <radiation>infrared</radiation>
+            <fov>0.523599</fov>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+          <pose>0.02 0.21 -0.14 0 -0 1.5708</pose>
+        </sensor>
+        <sensor name='taluy/base_link/sonar_right' type='ray'>
+          <visualize>0</visualize>
+          <update_rate>20</update_rate>
+          <ray>
+            <scan>
+              <horizontal>
+                <samples>1</samples>
+                <resolution>0.15</resolution>
+                <min_angle>-0.5</min_angle>
+                <max_angle>0.2618</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>1</samples>
+                <resolution>0.15</resolution>
+                <min_angle>-0.2618</min_angle>
+                <max_angle>0.2618</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.3</min>
+              <max>100</max>
+              <resolution>0.1</resolution>
+            </range>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.5</stddev>
+            </noise>
+          </ray>
+          <plugin name='taluy/base_link/sonar_right_range_plugin' filename='libgazebo_ros_range.so'>
+            <topicName>sensors/sonar_right/data</topicName>
+            <frameName>taluy/base_link/sonar_right_link</frameName>
+            <gaussianNoise>0.005</gaussianNoise>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>20</updateRate>
+            <visualize>1</visualize>
+            <radiation>infrared</radiation>
+            <fov>0.523599</fov>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+          <pose>0.02 -0.21 -0.14 0 0 -1.5708</pose>
+        </sensor>
+        <sensor name='taluy/camera_depth_sensor' type='depth'>
+          <update_rate>30</update_rate>
+          <camera name='realsense_d435_camera'>
+            <horizontal_fov>1.487</horizontal_fov>
+            <image>
+              <width>1280</width>
+              <height>720</height>
+              <format>B8G8R8</format>
+            </image>
+            <clip>
+              <near>0.1</near>
+              <far>10</far>
+            </clip>
+          </camera>
+          <plugin name='depth_camera_controller' filename='libgazebo_ros_openni_kinect.so'>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>30.0</updateRate>
+            <cameraName>camera</cameraName>
+            <imageTopicName>color/image_raw</imageTopicName>
+            <cameraInfoTopicName>color/camera_info</cameraInfoTopicName>
+            <depthImageTopicName>depth/image_raw</depthImageTopicName>
+            <depthImageCameraInfoTopicName>depth/camera_info</depthImageCameraInfoTopicName>
+            <pointCloudTopicName>depth/color/points</pointCloudTopicName>
+            <frameName>taluy/camera_depth_optical_frame</frameName>
+            <pointCloudCutoff>0.1</pointCloudCutoff>
+            <pointCloudCutoffMax>10.0</pointCloudCutoffMax>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+          <pose>-0.35 0 0 0 -0 3.14159</pose>
+        </sensor>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/base_link/dvl_sim_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0.2 0 -0.11 0 -0 0</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/base_link/dvl_sim_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>0</lower>
+            <upper>0</upper>
+            <effort>0</effort>
+            <velocity>0</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/base_link/dvl_sim_link'>
+        <pose relative_to='taluy/base_link/dvl_sim_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/base_link/dvl_sim_link_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <cylinder>
+              <length>1e-06</length>
+              <radius>1e-06</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/dvl_sonar0_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0.2 0 -0.18 3.14159 1.57079 3.14159</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/dvl_sonar0_link</child>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <limit>
+            <lower>0</lower>
+            <upper>0</upper>
+            <effort>0</effort>
+            <velocity>0</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/dvl_sonar0_link'>
+        <pose relative_to='taluy/dvl_sonar0_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1.7e-08</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7e-08</iyy>
+            <iyz>0</iyz>
+            <izz>1.7e-08</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/dvl_sonar0_link_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <cylinder>
+              <length>1e-06</length>
+              <radius>1e-06</radius>
+            </cylinder>
+          </geometry>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <friction>
+              <ode/>
+              <torsional>
+                <ode/>
+              </torsional>
+            </friction>
+            <bounce/>
+          </surface>
+          <max_contacts>10</max_contacts>
+        </collision>
+        <sensor name='taluy/dvl_sonar0' type='ray'>
+          <pose>0 0 0 0 -0 0</pose>
+          <update_rate>20</update_rate>
+          <visualize>0</visualize>
+          <ray>
+            <scan>
+              <horizontal>
+                <samples>3</samples>
+                <resolution>1</resolution>
+                <min_angle>-0.03</min_angle>
+                <max_angle>0.03</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>3</samples>
+                <resolution>1</resolution>
+                <min_angle>-0.03</min_angle>
+                <max_angle>0.03</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.01</min>
+              <max>100</max>
+              <resolution>0.01</resolution>
+            </range>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.05</stddev>
+            </noise>
+          </ray>
+          <plugin name='taluy/dvl_sonar0_range_plugin' filename='libgazebo_ros_range.so'>
+            <topicName>sim/dvl_sonar/0</topicName>
+            <frameName>taluy/dvl_sonar0_link</frameName>
+            <gaussianNoise>0.005</gaussianNoise>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>20</updateRate>
+            <visualize>0</visualize>
+            <radiation>ultrasound</radiation>
+            <fov>0.06</fov>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+        </sensor>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/dvl_sonar1_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0.2 0 -0.18 3.14159 1.57079 3.14159</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/dvl_sonar1_link</child>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <limit>
+            <lower>0</lower>
+            <upper>0</upper>
+            <effort>0</effort>
+            <velocity>0</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/dvl_sonar1_link'>
+        <pose relative_to='taluy/dvl_sonar1_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1.7e-08</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7e-08</iyy>
+            <iyz>0</iyz>
+            <izz>1.7e-08</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/dvl_sonar1_link_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <cylinder>
+              <length>1e-06</length>
+              <radius>1e-06</radius>
+            </cylinder>
+          </geometry>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <friction>
+              <ode/>
+              <torsional>
+                <ode/>
+              </torsional>
+            </friction>
+            <bounce/>
+          </surface>
+          <max_contacts>10</max_contacts>
+        </collision>
+        <sensor name='taluy/dvl_sonar1' type='ray'>
+          <pose>0 0 0 0 -0 0</pose>
+          <update_rate>20</update_rate>
+          <visualize>0</visualize>
+          <ray>
+            <scan>
+              <horizontal>
+                <samples>3</samples>
+                <resolution>1</resolution>
+                <min_angle>-0.03</min_angle>
+                <max_angle>0.03</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>3</samples>
+                <resolution>1</resolution>
+                <min_angle>-0.03</min_angle>
+                <max_angle>0.03</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.01</min>
+              <max>100</max>
+              <resolution>0.01</resolution>
+            </range>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.05</stddev>
+            </noise>
+          </ray>
+          <plugin name='taluy/dvl_sonar1_range_plugin' filename='libgazebo_ros_range.so'>
+            <topicName>sim/dvl_sonar/1</topicName>
+            <frameName>taluy/dvl_sonar1_link</frameName>
+            <gaussianNoise>0.005</gaussianNoise>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>20</updateRate>
+            <visualize>0</visualize>
+            <radiation>ultrasound</radiation>
+            <fov>0.06</fov>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+        </sensor>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/dvl_sonar2_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0.2 0 -0.18 3.14159 1.57079 3.14159</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/dvl_sonar2_link</child>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <limit>
+            <lower>0</lower>
+            <upper>0</upper>
+            <effort>0</effort>
+            <velocity>0</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/dvl_sonar2_link'>
+        <pose relative_to='taluy/dvl_sonar2_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1.7e-08</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7e-08</iyy>
+            <iyz>0</iyz>
+            <izz>1.7e-08</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/dvl_sonar2_link_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <cylinder>
+              <length>1e-06</length>
+              <radius>1e-06</radius>
+            </cylinder>
+          </geometry>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <friction>
+              <ode/>
+              <torsional>
+                <ode/>
+              </torsional>
+            </friction>
+            <bounce/>
+          </surface>
+          <max_contacts>10</max_contacts>
+        </collision>
+        <sensor name='taluy/dvl_sonar2' type='ray'>
+          <pose>0 0 0 0 -0 0</pose>
+          <update_rate>20</update_rate>
+          <visualize>0</visualize>
+          <ray>
+            <scan>
+              <horizontal>
+                <samples>3</samples>
+                <resolution>1</resolution>
+                <min_angle>-0.03</min_angle>
+                <max_angle>0.03</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>3</samples>
+                <resolution>1</resolution>
+                <min_angle>-0.03</min_angle>
+                <max_angle>0.03</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.01</min>
+              <max>100</max>
+              <resolution>0.01</resolution>
+            </range>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.05</stddev>
+            </noise>
+          </ray>
+          <plugin name='taluy/dvl_sonar2_range_plugin' filename='libgazebo_ros_range.so'>
+            <topicName>sim/dvl_sonar/2</topicName>
+            <frameName>taluy/dvl_sonar2_link</frameName>
+            <gaussianNoise>0.005</gaussianNoise>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>20</updateRate>
+            <visualize>0</visualize>
+            <radiation>ultrasound</radiation>
+            <fov>0.06</fov>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+        </sensor>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/dvl_sonar3_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0.2 0 -0.18 3.14159 1.57079 3.14159</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/dvl_sonar3_link</child>
+        <axis>
+          <xyz>1 0 0</xyz>
+          <limit>
+            <lower>0</lower>
+            <upper>0</upper>
+            <effort>0</effort>
+            <velocity>0</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/dvl_sonar3_link'>
+        <pose relative_to='taluy/dvl_sonar3_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1.7e-08</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1.7e-08</iyy>
+            <iyz>0</iyz>
+            <izz>1.7e-08</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/dvl_sonar3_link_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <cylinder>
+              <length>1e-06</length>
+              <radius>1e-06</radius>
+            </cylinder>
+          </geometry>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <friction>
+              <ode/>
+              <torsional>
+                <ode/>
+              </torsional>
+            </friction>
+            <bounce/>
+          </surface>
+          <max_contacts>10</max_contacts>
+        </collision>
+        <sensor name='taluy/dvl_sonar3' type='ray'>
+          <pose>0 0 0 0 -0 0</pose>
+          <update_rate>20</update_rate>
+          <visualize>0</visualize>
+          <ray>
+            <scan>
+              <horizontal>
+                <samples>3</samples>
+                <resolution>1</resolution>
+                <min_angle>-0.03</min_angle>
+                <max_angle>0.03</max_angle>
+              </horizontal>
+              <vertical>
+                <samples>3</samples>
+                <resolution>1</resolution>
+                <min_angle>-0.03</min_angle>
+                <max_angle>0.03</max_angle>
+              </vertical>
+            </scan>
+            <range>
+              <min>0.01</min>
+              <max>100</max>
+              <resolution>0.01</resolution>
+            </range>
+            <noise>
+              <type>gaussian</type>
+              <mean>0</mean>
+              <stddev>0.05</stddev>
+            </noise>
+          </ray>
+          <plugin name='taluy/dvl_sonar3_range_plugin' filename='libgazebo_ros_range.so'>
+            <topicName>sim/dvl_sonar/3</topicName>
+            <frameName>taluy/dvl_sonar3_link</frameName>
+            <gaussianNoise>0.005</gaussianNoise>
+            <alwaysOn>1</alwaysOn>
+            <updateRate>20</updateRate>
+            <visualize>0</visualize>
+            <radiation>ultrasound</radiation>
+            <fov>0.06</fov>
+            <robotNamespace>/taluy/</robotNamespace>
+          </plugin>
+        </sensor>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/base_link/external_pressure_sensor_sim_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0 0 0.079 0 -0 0</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/base_link/external_pressure_sensor_sim_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>0</lower>
+            <upper>0</upper>
+            <effort>0</effort>
+            <velocity>0</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/base_link/external_pressure_sensor_sim_link'>
+        <pose relative_to='taluy/base_link/external_pressure_sensor_sim_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/base_link/external_pressure_sensor_sim_link_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <cylinder>
+              <length>1e-06</length>
+              <radius>1e-06</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/base_link/imu_sim_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>-0.162 0 -0.0108 0 -0 0</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/base_link/imu_sim_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>0</lower>
+            <upper>0</upper>
+            <effort>0</effort>
+            <velocity>0</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/base_link/imu_sim_link'>
+        <pose relative_to='taluy/base_link/imu_sim_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/base_link/imu_sim_link_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <cylinder>
+              <length>1e-06</length>
+              <radius>1e-06</radius>
+            </cylinder>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/pose_sensor_default_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0 0 0 0 -0 0</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/pose_sensor_link_default</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>0</lower>
+            <upper>0</upper>
+            <effort>0</effort>
+            <velocity>0</velocity>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/pose_sensor_link_default'>
+        <pose relative_to='taluy/pose_sensor_default_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-05</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-05</iyy>
+            <iyz>0</iyz>
+            <izz>1e-05</izz>
+          </inertia>
+        </inertial>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/thruster_0_propeller_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0.15895 0.2007 -0.00525 3.14159 -0 -1.5708</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/thruster_0_propeller_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-1e+16</lower>
+            <upper>1e+16</upper>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/thruster_0_propeller_link'>
+        <pose relative_to='taluy/thruster_0_propeller_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/thruster_0_propeller_link_fixed_joint_lump__taluy/thruster_0_propeller_collision_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='taluy/thruster_0_propeller_link_visual'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/thruster_1_propeller_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0.15895 -0.2007 -0.00525 3.14159 -0 1.5708</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/thruster_1_propeller_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-1e+16</lower>
+            <upper>1e+16</upper>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/thruster_1_propeller_link'>
+        <pose relative_to='taluy/thruster_1_propeller_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/thruster_1_propeller_link_fixed_joint_lump__taluy/thruster_1_propeller_collision_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='taluy/thruster_1_propeller_link_visual'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/thruster_2_propeller_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>-0.15895 0.2007 -0.00525 3.14159 -0 -1.5708</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/thruster_2_propeller_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-1e+16</lower>
+            <upper>1e+16</upper>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/thruster_2_propeller_link'>
+        <pose relative_to='taluy/thruster_2_propeller_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/thruster_2_propeller_link_fixed_joint_lump__taluy/thruster_2_propeller_collision_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='taluy/thruster_2_propeller_link_visual'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/thruster_3_propeller_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>-0.15895 -0.2007 -0.00525 3.14159 -0 1.5708</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/thruster_3_propeller_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-1e+16</lower>
+            <upper>1e+16</upper>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/thruster_3_propeller_link'>
+        <pose relative_to='taluy/thruster_3_propeller_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/thruster_3_propeller_link_fixed_joint_lump__taluy/thruster_3_propeller_collision_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='taluy/thruster_3_propeller_link_visual'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/thruster_4_propeller_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0.352398 0.216638 -0.01 -1.5708 -0 0.785398</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/thruster_4_propeller_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-1e+16</lower>
+            <upper>1e+16</upper>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/thruster_4_propeller_link'>
+        <pose relative_to='taluy/thruster_4_propeller_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/thruster_4_propeller_link_fixed_joint_lump__taluy/thruster_4_propeller_collision_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='taluy/thruster_4_propeller_link_visual'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/thruster_5_propeller_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>0.352398 -0.216638 -0.01 1.5708 -0 -0.785398</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/thruster_5_propeller_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-1e+16</lower>
+            <upper>1e+16</upper>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/thruster_5_propeller_link'>
+        <pose relative_to='taluy/thruster_5_propeller_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/thruster_5_propeller_link_fixed_joint_lump__taluy/thruster_5_propeller_collision_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='taluy/thruster_5_propeller_link_visual'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/thruster_6_propeller_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>-0.352398 0.216638 -0.01 -1.5708 0 -0.785398</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/thruster_6_propeller_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-1e+16</lower>
+            <upper>1e+16</upper>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/thruster_6_propeller_link'>
+        <pose relative_to='taluy/thruster_6_propeller_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/thruster_6_propeller_link_fixed_joint_lump__taluy/thruster_6_propeller_collision_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='taluy/thruster_6_propeller_link_visual'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <joint name='taluy/thruster_7_propeller_joint' type='revolute'>
+        <pose relative_to='taluy/base_link'>-0.352398 -0.216638 -0.01 1.5708 0 0.785398</pose>
+        <parent>taluy/base_link</parent>
+        <child>taluy/thruster_7_propeller_link</child>
+        <axis>
+          <xyz>0 0 1</xyz>
+          <limit>
+            <lower>-1e+16</lower>
+            <upper>1e+16</upper>
+          </limit>
+          <dynamics>
+            <spring_reference>0</spring_reference>
+            <spring_stiffness>0</spring_stiffness>
+          </dynamics>
+        </axis>
+      </joint>
+      <link name='taluy/thruster_7_propeller_link'>
+        <pose relative_to='taluy/thruster_7_propeller_joint'>0 0 0 0 -0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 -0 0</pose>
+          <mass>0.001</mass>
+          <inertia>
+            <ixx>1e-07</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1e-07</iyy>
+            <iyz>0</iyz>
+            <izz>1e-07</izz>
+          </inertia>
+        </inertial>
+        <collision name='taluy/thruster_7_propeller_link_fixed_joint_lump__taluy/thruster_7_propeller_collision_collision'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='taluy/thruster_7_propeller_link_visual'>
+          <pose>0 0 0 3.14159 1.57079 3.14159</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>/home/melih/catkin_ws/src/auv-software/auv_description/auv_common_descriptions/meshes/t200/propeller.dae</uri>
+            </mesh>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Orange</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+          </material>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+      <plugin name='uuv_plugin' filename='libuuv_underwater_object_ros_plugin.so'>
+        <fluid_density>1028.0</fluid_density>
+        <flow_velocity_topic>hydrodynamics/current_velocity</flow_velocity_topic>
+        <debug>0</debug>
+        <link name='taluy/base_link'>
+          <neutrally_buoyant>1</neutrally_buoyant>
+          <volume>0.027</volume>
+          <box>
+            <width>0.03</width>
+            <length>0.03</length>
+            <height>0.03</height>
+          </box>
+          <center_of_buoyancy>0.0 0.0 0.2</center_of_buoyancy>
+          <hydrodynamic_model>
+            <type>fossen</type>
+            <added_mass>0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0</added_mass>
+            <linear_damping>-30 -31 -89 -1.87 -1.87 -1.87</linear_damping>
+            <quadratic_damping>-77 -155 -136 -7.98 -7.98 -7.98</quadratic_damping>
+          </hydrodynamic_model>
+        </link>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/thruster_0_plugin' filename='libuuv_thruster_ros_plugin.so'>
+        <linkName>taluy/thruster_0_propeller_link</linkName>
+        <jointName>taluy/thruster_0_propeller_joint</jointName>
+        <thrusterID>0</thrusterID>
+        <gain>1</gain>
+        <dynamics>
+          <type>FirstOrder</type>
+          <timeConstant>0.04</timeConstant>
+        </dynamics>
+        <conversion>
+          <type>LinearInterp</type>
+          <inputValues>0 1099 1100 1104 1108 1112 1116 1120 1124 1128 1132 1136 1140 1144 1148 1152 1156 1160 1164 1168 1172 1176 1180 1184 1188 1192 1196 1200 1204 1208 1212 1216 1220 1224 1228 1232 1236 1240 1244 1248 1252 1256 1260 1264 1268 1272 1276 1280 1284 1288 1292 1296 1300 1304 1308 1312 1316 1320 1324 1328 1332 1336 1340 1344 1348 1352 1356 1360 1364 1368 1372 1376 1380 1384 1388 1392 1396 1400 1404 1408 1412 1416 1420 1424 1428 1432 1436 1440 1444 1448 1452 1456 1460 1464 1468 1472 1476 1480 1484 1488 1492 1496 1500 1504 1508 1512 1516 1520 1524 1528 1532 1536 1540 1544 1548 1552 1556 1560 1564 1568 1572 1576 1580 1584 1588 1592 1596 1600 1604 1608 1612 1616 1620 1624 1628 1632 1636 1640 1644 1648 1652 1656 1660 1664 1668 1672 1676 1680 1684 1688 1692 1696 1700 1704 1708 1712 1716 1720 1724 1728 1732 1736 1740 1744 1748 1752 1756 1760 1764 1768 1772 1776 1780 1784 1788 1792 1796 1800 1804 1808 1812 1816 1820 1824 1828 1832 1836 1840 1844 1848 1852 1856 1860 1864 1868 1872 1876 1880 1884 1888 1892 1896 1900 1902</inputValues>
+          <outputValues>0 0 -28.48 -28.61 -28.38 -27.76 -27.32 -27.09 -26.69 -26.20 -25.49 -25.45 -25.14 -24.47 -23.93 -23.85 -23.40 -22.96 -22.60 -22.11 -21.84 -21.40 -21.00 -20.55 -20.29 -19.71 -19.44 -19.08 -18.46 -18.11 -17.70 -17.44 -16.99 -16.33 -16.19 -15.79 -15.30 -15.04 -14.63 -14.41 -14.10 -13.70 -13.43 -13.08 -12.68 -12.54 -11.96 -11.70 -11.30 -10.94 -10.63 -10.23 -10.01 -9.74 -9.43 -9.12 -8.85 -8.54 -8.18 -7.78 -7.56 -7.25 -7.07 -6.80 -6.45 -6.27 -5.91 -5.60 -5.33 -5.07 -4.85 -4.62 -4.31 -4.09 -3.82 -3.60 -3.33 -3.11 -2.89 -2.62 -2.40 -2.22 -2.00 -1.73 -1.60 -1.42 -1.20 -1.06 -0.88 -0.71 -0.57 -0.44 -0.35 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.40 0.53 0.71 0.93 1.11 1.29 1.51 1.73 1.95 2.18 2.49 2.71 3.02 3.24 3.60 3.87 4.18 4.49 4.80 5.07 5.38 5.78 6.14 6.40 6.71 6.98 7.43 7.74 8.14 8.41 8.76 9.12 9.47 9.83 10.18 10.63 11.16 11.39 11.74 12.10 12.54 12.85 13.26 13.74 14.06 14.55 14.99 15.35 16.01 16.41 16.77 17.35 17.84 18.11 18.68 18.86 19.26 19.93 20.46 20.91 21.35 21.93 22.29 22.87 23.53 24.16 24.60 25.14 25.67 26.03 26.60 27.23 27.89 28.16 28.74 29.50 29.85 30.25 30.97 31.63 31.99 32.52 33.15 33.37 33.81 34.35 35.01 35.68 36.35 36.22 36.43 0</outputValues>
+        </conversion>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/thruster_1_plugin' filename='libuuv_thruster_ros_plugin.so'>
+        <linkName>taluy/thruster_1_propeller_link</linkName>
+        <jointName>taluy/thruster_1_propeller_joint</jointName>
+        <thrusterID>1</thrusterID>
+        <gain>1</gain>
+        <dynamics>
+          <type>FirstOrder</type>
+          <timeConstant>0.04</timeConstant>
+        </dynamics>
+        <conversion>
+          <type>LinearInterp</type>
+          <inputValues>0 1099 1100 1104 1108 1112 1116 1120 1124 1128 1132 1136 1140 1144 1148 1152 1156 1160 1164 1168 1172 1176 1180 1184 1188 1192 1196 1200 1204 1208 1212 1216 1220 1224 1228 1232 1236 1240 1244 1248 1252 1256 1260 1264 1268 1272 1276 1280 1284 1288 1292 1296 1300 1304 1308 1312 1316 1320 1324 1328 1332 1336 1340 1344 1348 1352 1356 1360 1364 1368 1372 1376 1380 1384 1388 1392 1396 1400 1404 1408 1412 1416 1420 1424 1428 1432 1436 1440 1444 1448 1452 1456 1460 1464 1468 1472 1476 1480 1484 1488 1492 1496 1500 1504 1508 1512 1516 1520 1524 1528 1532 1536 1540 1544 1548 1552 1556 1560 1564 1568 1572 1576 1580 1584 1588 1592 1596 1600 1604 1608 1612 1616 1620 1624 1628 1632 1636 1640 1644 1648 1652 1656 1660 1664 1668 1672 1676 1680 1684 1688 1692 1696 1700 1704 1708 1712 1716 1720 1724 1728 1732 1736 1740 1744 1748 1752 1756 1760 1764 1768 1772 1776 1780 1784 1788 1792 1796 1800 1804 1808 1812 1816 1820 1824 1828 1832 1836 1840 1844 1848 1852 1856 1860 1864 1868 1872 1876 1880 1884 1888 1892 1896 1900 1902</inputValues>
+          <outputValues>0 0 -28.48 -28.61 -28.38 -27.76 -27.32 -27.09 -26.69 -26.20 -25.49 -25.45 -25.14 -24.47 -23.93 -23.85 -23.40 -22.96 -22.60 -22.11 -21.84 -21.40 -21.00 -20.55 -20.29 -19.71 -19.44 -19.08 -18.46 -18.11 -17.70 -17.44 -16.99 -16.33 -16.19 -15.79 -15.30 -15.04 -14.63 -14.41 -14.10 -13.70 -13.43 -13.08 -12.68 -12.54 -11.96 -11.70 -11.30 -10.94 -10.63 -10.23 -10.01 -9.74 -9.43 -9.12 -8.85 -8.54 -8.18 -7.78 -7.56 -7.25 -7.07 -6.80 -6.45 -6.27 -5.91 -5.60 -5.33 -5.07 -4.85 -4.62 -4.31 -4.09 -3.82 -3.60 -3.33 -3.11 -2.89 -2.62 -2.40 -2.22 -2.00 -1.73 -1.60 -1.42 -1.20 -1.06 -0.88 -0.71 -0.57 -0.44 -0.35 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.40 0.53 0.71 0.93 1.11 1.29 1.51 1.73 1.95 2.18 2.49 2.71 3.02 3.24 3.60 3.87 4.18 4.49 4.80 5.07 5.38 5.78 6.14 6.40 6.71 6.98 7.43 7.74 8.14 8.41 8.76 9.12 9.47 9.83 10.18 10.63 11.16 11.39 11.74 12.10 12.54 12.85 13.26 13.74 14.06 14.55 14.99 15.35 16.01 16.41 16.77 17.35 17.84 18.11 18.68 18.86 19.26 19.93 20.46 20.91 21.35 21.93 22.29 22.87 23.53 24.16 24.60 25.14 25.67 26.03 26.60 27.23 27.89 28.16 28.74 29.50 29.85 30.25 30.97 31.63 31.99 32.52 33.15 33.37 33.81 34.35 35.01 35.68 36.35 36.22 36.43 0</outputValues>
+        </conversion>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/thruster_2_plugin' filename='libuuv_thruster_ros_plugin.so'>
+        <linkName>taluy/thruster_2_propeller_link</linkName>
+        <jointName>taluy/thruster_2_propeller_joint</jointName>
+        <thrusterID>2</thrusterID>
+        <gain>1</gain>
+        <dynamics>
+          <type>FirstOrder</type>
+          <timeConstant>0.04</timeConstant>
+        </dynamics>
+        <conversion>
+          <type>LinearInterp</type>
+          <inputValues>0 1099 1100 1104 1108 1112 1116 1120 1124 1128 1132 1136 1140 1144 1148 1152 1156 1160 1164 1168 1172 1176 1180 1184 1188 1192 1196 1200 1204 1208 1212 1216 1220 1224 1228 1232 1236 1240 1244 1248 1252 1256 1260 1264 1268 1272 1276 1280 1284 1288 1292 1296 1300 1304 1308 1312 1316 1320 1324 1328 1332 1336 1340 1344 1348 1352 1356 1360 1364 1368 1372 1376 1380 1384 1388 1392 1396 1400 1404 1408 1412 1416 1420 1424 1428 1432 1436 1440 1444 1448 1452 1456 1460 1464 1468 1472 1476 1480 1484 1488 1492 1496 1500 1504 1508 1512 1516 1520 1524 1528 1532 1536 1540 1544 1548 1552 1556 1560 1564 1568 1572 1576 1580 1584 1588 1592 1596 1600 1604 1608 1612 1616 1620 1624 1628 1632 1636 1640 1644 1648 1652 1656 1660 1664 1668 1672 1676 1680 1684 1688 1692 1696 1700 1704 1708 1712 1716 1720 1724 1728 1732 1736 1740 1744 1748 1752 1756 1760 1764 1768 1772 1776 1780 1784 1788 1792 1796 1800 1804 1808 1812 1816 1820 1824 1828 1832 1836 1840 1844 1848 1852 1856 1860 1864 1868 1872 1876 1880 1884 1888 1892 1896 1900 1902</inputValues>
+          <outputValues>0 0 -28.48 -28.61 -28.38 -27.76 -27.32 -27.09 -26.69 -26.20 -25.49 -25.45 -25.14 -24.47 -23.93 -23.85 -23.40 -22.96 -22.60 -22.11 -21.84 -21.40 -21.00 -20.55 -20.29 -19.71 -19.44 -19.08 -18.46 -18.11 -17.70 -17.44 -16.99 -16.33 -16.19 -15.79 -15.30 -15.04 -14.63 -14.41 -14.10 -13.70 -13.43 -13.08 -12.68 -12.54 -11.96 -11.70 -11.30 -10.94 -10.63 -10.23 -10.01 -9.74 -9.43 -9.12 -8.85 -8.54 -8.18 -7.78 -7.56 -7.25 -7.07 -6.80 -6.45 -6.27 -5.91 -5.60 -5.33 -5.07 -4.85 -4.62 -4.31 -4.09 -3.82 -3.60 -3.33 -3.11 -2.89 -2.62 -2.40 -2.22 -2.00 -1.73 -1.60 -1.42 -1.20 -1.06 -0.88 -0.71 -0.57 -0.44 -0.35 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.40 0.53 0.71 0.93 1.11 1.29 1.51 1.73 1.95 2.18 2.49 2.71 3.02 3.24 3.60 3.87 4.18 4.49 4.80 5.07 5.38 5.78 6.14 6.40 6.71 6.98 7.43 7.74 8.14 8.41 8.76 9.12 9.47 9.83 10.18 10.63 11.16 11.39 11.74 12.10 12.54 12.85 13.26 13.74 14.06 14.55 14.99 15.35 16.01 16.41 16.77 17.35 17.84 18.11 18.68 18.86 19.26 19.93 20.46 20.91 21.35 21.93 22.29 22.87 23.53 24.16 24.60 25.14 25.67 26.03 26.60 27.23 27.89 28.16 28.74 29.50 29.85 30.25 30.97 31.63 31.99 32.52 33.15 33.37 33.81 34.35 35.01 35.68 36.35 36.22 36.43 0</outputValues>
+        </conversion>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/thruster_3_plugin' filename='libuuv_thruster_ros_plugin.so'>
+        <linkName>taluy/thruster_3_propeller_link</linkName>
+        <jointName>taluy/thruster_3_propeller_joint</jointName>
+        <thrusterID>3</thrusterID>
+        <gain>1</gain>
+        <dynamics>
+          <type>FirstOrder</type>
+          <timeConstant>0.04</timeConstant>
+        </dynamics>
+        <conversion>
+          <type>LinearInterp</type>
+          <inputValues>0 1099 1100 1104 1108 1112 1116 1120 1124 1128 1132 1136 1140 1144 1148 1152 1156 1160 1164 1168 1172 1176 1180 1184 1188 1192 1196 1200 1204 1208 1212 1216 1220 1224 1228 1232 1236 1240 1244 1248 1252 1256 1260 1264 1268 1272 1276 1280 1284 1288 1292 1296 1300 1304 1308 1312 1316 1320 1324 1328 1332 1336 1340 1344 1348 1352 1356 1360 1364 1368 1372 1376 1380 1384 1388 1392 1396 1400 1404 1408 1412 1416 1420 1424 1428 1432 1436 1440 1444 1448 1452 1456 1460 1464 1468 1472 1476 1480 1484 1488 1492 1496 1500 1504 1508 1512 1516 1520 1524 1528 1532 1536 1540 1544 1548 1552 1556 1560 1564 1568 1572 1576 1580 1584 1588 1592 1596 1600 1604 1608 1612 1616 1620 1624 1628 1632 1636 1640 1644 1648 1652 1656 1660 1664 1668 1672 1676 1680 1684 1688 1692 1696 1700 1704 1708 1712 1716 1720 1724 1728 1732 1736 1740 1744 1748 1752 1756 1760 1764 1768 1772 1776 1780 1784 1788 1792 1796 1800 1804 1808 1812 1816 1820 1824 1828 1832 1836 1840 1844 1848 1852 1856 1860 1864 1868 1872 1876 1880 1884 1888 1892 1896 1900 1902</inputValues>
+          <outputValues>0 0 -28.48 -28.61 -28.38 -27.76 -27.32 -27.09 -26.69 -26.20 -25.49 -25.45 -25.14 -24.47 -23.93 -23.85 -23.40 -22.96 -22.60 -22.11 -21.84 -21.40 -21.00 -20.55 -20.29 -19.71 -19.44 -19.08 -18.46 -18.11 -17.70 -17.44 -16.99 -16.33 -16.19 -15.79 -15.30 -15.04 -14.63 -14.41 -14.10 -13.70 -13.43 -13.08 -12.68 -12.54 -11.96 -11.70 -11.30 -10.94 -10.63 -10.23 -10.01 -9.74 -9.43 -9.12 -8.85 -8.54 -8.18 -7.78 -7.56 -7.25 -7.07 -6.80 -6.45 -6.27 -5.91 -5.60 -5.33 -5.07 -4.85 -4.62 -4.31 -4.09 -3.82 -3.60 -3.33 -3.11 -2.89 -2.62 -2.40 -2.22 -2.00 -1.73 -1.60 -1.42 -1.20 -1.06 -0.88 -0.71 -0.57 -0.44 -0.35 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.40 0.53 0.71 0.93 1.11 1.29 1.51 1.73 1.95 2.18 2.49 2.71 3.02 3.24 3.60 3.87 4.18 4.49 4.80 5.07 5.38 5.78 6.14 6.40 6.71 6.98 7.43 7.74 8.14 8.41 8.76 9.12 9.47 9.83 10.18 10.63 11.16 11.39 11.74 12.10 12.54 12.85 13.26 13.74 14.06 14.55 14.99 15.35 16.01 16.41 16.77 17.35 17.84 18.11 18.68 18.86 19.26 19.93 20.46 20.91 21.35 21.93 22.29 22.87 23.53 24.16 24.60 25.14 25.67 26.03 26.60 27.23 27.89 28.16 28.74 29.50 29.85 30.25 30.97 31.63 31.99 32.52 33.15 33.37 33.81 34.35 35.01 35.68 36.35 36.22 36.43 0</outputValues>
+        </conversion>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/thruster_4_plugin' filename='libuuv_thruster_ros_plugin.so'>
+        <linkName>taluy/thruster_4_propeller_link</linkName>
+        <jointName>taluy/thruster_4_propeller_joint</jointName>
+        <thrusterID>4</thrusterID>
+        <gain>1</gain>
+        <dynamics>
+          <type>FirstOrder</type>
+          <timeConstant>0.04</timeConstant>
+        </dynamics>
+        <conversion>
+          <type>LinearInterp</type>
+          <inputValues>0 1099 1100 1104 1108 1112 1116 1120 1124 1128 1132 1136 1140 1144 1148 1152 1156 1160 1164 1168 1172 1176 1180 1184 1188 1192 1196 1200 1204 1208 1212 1216 1220 1224 1228 1232 1236 1240 1244 1248 1252 1256 1260 1264 1268 1272 1276 1280 1284 1288 1292 1296 1300 1304 1308 1312 1316 1320 1324 1328 1332 1336 1340 1344 1348 1352 1356 1360 1364 1368 1372 1376 1380 1384 1388 1392 1396 1400 1404 1408 1412 1416 1420 1424 1428 1432 1436 1440 1444 1448 1452 1456 1460 1464 1468 1472 1476 1480 1484 1488 1492 1496 1500 1504 1508 1512 1516 1520 1524 1528 1532 1536 1540 1544 1548 1552 1556 1560 1564 1568 1572 1576 1580 1584 1588 1592 1596 1600 1604 1608 1612 1616 1620 1624 1628 1632 1636 1640 1644 1648 1652 1656 1660 1664 1668 1672 1676 1680 1684 1688 1692 1696 1700 1704 1708 1712 1716 1720 1724 1728 1732 1736 1740 1744 1748 1752 1756 1760 1764 1768 1772 1776 1780 1784 1788 1792 1796 1800 1804 1808 1812 1816 1820 1824 1828 1832 1836 1840 1844 1848 1852 1856 1860 1864 1868 1872 1876 1880 1884 1888 1892 1896 1900 1902</inputValues>
+          <outputValues>0 0 -28.48 -28.61 -28.38 -27.76 -27.32 -27.09 -26.69 -26.20 -25.49 -25.45 -25.14 -24.47 -23.93 -23.85 -23.40 -22.96 -22.60 -22.11 -21.84 -21.40 -21.00 -20.55 -20.29 -19.71 -19.44 -19.08 -18.46 -18.11 -17.70 -17.44 -16.99 -16.33 -16.19 -15.79 -15.30 -15.04 -14.63 -14.41 -14.10 -13.70 -13.43 -13.08 -12.68 -12.54 -11.96 -11.70 -11.30 -10.94 -10.63 -10.23 -10.01 -9.74 -9.43 -9.12 -8.85 -8.54 -8.18 -7.78 -7.56 -7.25 -7.07 -6.80 -6.45 -6.27 -5.91 -5.60 -5.33 -5.07 -4.85 -4.62 -4.31 -4.09 -3.82 -3.60 -3.33 -3.11 -2.89 -2.62 -2.40 -2.22 -2.00 -1.73 -1.60 -1.42 -1.20 -1.06 -0.88 -0.71 -0.57 -0.44 -0.35 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.40 0.53 0.71 0.93 1.11 1.29 1.51 1.73 1.95 2.18 2.49 2.71 3.02 3.24 3.60 3.87 4.18 4.49 4.80 5.07 5.38 5.78 6.14 6.40 6.71 6.98 7.43 7.74 8.14 8.41 8.76 9.12 9.47 9.83 10.18 10.63 11.16 11.39 11.74 12.10 12.54 12.85 13.26 13.74 14.06 14.55 14.99 15.35 16.01 16.41 16.77 17.35 17.84 18.11 18.68 18.86 19.26 19.93 20.46 20.91 21.35 21.93 22.29 22.87 23.53 24.16 24.60 25.14 25.67 26.03 26.60 27.23 27.89 28.16 28.74 29.50 29.85 30.25 30.97 31.63 31.99 32.52 33.15 33.37 33.81 34.35 35.01 35.68 36.35 36.22 36.43 0</outputValues>
+        </conversion>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/thruster_5_plugin' filename='libuuv_thruster_ros_plugin.so'>
+        <linkName>taluy/thruster_5_propeller_link</linkName>
+        <jointName>taluy/thruster_5_propeller_joint</jointName>
+        <thrusterID>5</thrusterID>
+        <gain>1</gain>
+        <dynamics>
+          <type>FirstOrder</type>
+          <timeConstant>0.04</timeConstant>
+        </dynamics>
+        <conversion>
+          <type>LinearInterp</type>
+          <inputValues>0 1099 1100 1104 1108 1112 1116 1120 1124 1128 1132 1136 1140 1144 1148 1152 1156 1160 1164 1168 1172 1176 1180 1184 1188 1192 1196 1200 1204 1208 1212 1216 1220 1224 1228 1232 1236 1240 1244 1248 1252 1256 1260 1264 1268 1272 1276 1280 1284 1288 1292 1296 1300 1304 1308 1312 1316 1320 1324 1328 1332 1336 1340 1344 1348 1352 1356 1360 1364 1368 1372 1376 1380 1384 1388 1392 1396 1400 1404 1408 1412 1416 1420 1424 1428 1432 1436 1440 1444 1448 1452 1456 1460 1464 1468 1472 1476 1480 1484 1488 1492 1496 1500 1504 1508 1512 1516 1520 1524 1528 1532 1536 1540 1544 1548 1552 1556 1560 1564 1568 1572 1576 1580 1584 1588 1592 1596 1600 1604 1608 1612 1616 1620 1624 1628 1632 1636 1640 1644 1648 1652 1656 1660 1664 1668 1672 1676 1680 1684 1688 1692 1696 1700 1704 1708 1712 1716 1720 1724 1728 1732 1736 1740 1744 1748 1752 1756 1760 1764 1768 1772 1776 1780 1784 1788 1792 1796 1800 1804 1808 1812 1816 1820 1824 1828 1832 1836 1840 1844 1848 1852 1856 1860 1864 1868 1872 1876 1880 1884 1888 1892 1896 1900 1902</inputValues>
+          <outputValues>0 0 -28.48 -28.61 -28.38 -27.76 -27.32 -27.09 -26.69 -26.20 -25.49 -25.45 -25.14 -24.47 -23.93 -23.85 -23.40 -22.96 -22.60 -22.11 -21.84 -21.40 -21.00 -20.55 -20.29 -19.71 -19.44 -19.08 -18.46 -18.11 -17.70 -17.44 -16.99 -16.33 -16.19 -15.79 -15.30 -15.04 -14.63 -14.41 -14.10 -13.70 -13.43 -13.08 -12.68 -12.54 -11.96 -11.70 -11.30 -10.94 -10.63 -10.23 -10.01 -9.74 -9.43 -9.12 -8.85 -8.54 -8.18 -7.78 -7.56 -7.25 -7.07 -6.80 -6.45 -6.27 -5.91 -5.60 -5.33 -5.07 -4.85 -4.62 -4.31 -4.09 -3.82 -3.60 -3.33 -3.11 -2.89 -2.62 -2.40 -2.22 -2.00 -1.73 -1.60 -1.42 -1.20 -1.06 -0.88 -0.71 -0.57 -0.44 -0.35 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.40 0.53 0.71 0.93 1.11 1.29 1.51 1.73 1.95 2.18 2.49 2.71 3.02 3.24 3.60 3.87 4.18 4.49 4.80 5.07 5.38 5.78 6.14 6.40 6.71 6.98 7.43 7.74 8.14 8.41 8.76 9.12 9.47 9.83 10.18 10.63 11.16 11.39 11.74 12.10 12.54 12.85 13.26 13.74 14.06 14.55 14.99 15.35 16.01 16.41 16.77 17.35 17.84 18.11 18.68 18.86 19.26 19.93 20.46 20.91 21.35 21.93 22.29 22.87 23.53 24.16 24.60 25.14 25.67 26.03 26.60 27.23 27.89 28.16 28.74 29.50 29.85 30.25 30.97 31.63 31.99 32.52 33.15 33.37 33.81 34.35 35.01 35.68 36.35 36.22 36.43 0</outputValues>
+        </conversion>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/thruster_6_plugin' filename='libuuv_thruster_ros_plugin.so'>
+        <linkName>taluy/thruster_6_propeller_link</linkName>
+        <jointName>taluy/thruster_6_propeller_joint</jointName>
+        <thrusterID>6</thrusterID>
+        <gain>1</gain>
+        <dynamics>
+          <type>FirstOrder</type>
+          <timeConstant>0.04</timeConstant>
+        </dynamics>
+        <conversion>
+          <type>LinearInterp</type>
+          <inputValues>0 1099 1100 1104 1108 1112 1116 1120 1124 1128 1132 1136 1140 1144 1148 1152 1156 1160 1164 1168 1172 1176 1180 1184 1188 1192 1196 1200 1204 1208 1212 1216 1220 1224 1228 1232 1236 1240 1244 1248 1252 1256 1260 1264 1268 1272 1276 1280 1284 1288 1292 1296 1300 1304 1308 1312 1316 1320 1324 1328 1332 1336 1340 1344 1348 1352 1356 1360 1364 1368 1372 1376 1380 1384 1388 1392 1396 1400 1404 1408 1412 1416 1420 1424 1428 1432 1436 1440 1444 1448 1452 1456 1460 1464 1468 1472 1476 1480 1484 1488 1492 1496 1500 1504 1508 1512 1516 1520 1524 1528 1532 1536 1540 1544 1548 1552 1556 1560 1564 1568 1572 1576 1580 1584 1588 1592 1596 1600 1604 1608 1612 1616 1620 1624 1628 1632 1636 1640 1644 1648 1652 1656 1660 1664 1668 1672 1676 1680 1684 1688 1692 1696 1700 1704 1708 1712 1716 1720 1724 1728 1732 1736 1740 1744 1748 1752 1756 1760 1764 1768 1772 1776 1780 1784 1788 1792 1796 1800 1804 1808 1812 1816 1820 1824 1828 1832 1836 1840 1844 1848 1852 1856 1860 1864 1868 1872 1876 1880 1884 1888 1892 1896 1900 1902</inputValues>
+          <outputValues>0 0 -28.48 -28.61 -28.38 -27.76 -27.32 -27.09 -26.69 -26.20 -25.49 -25.45 -25.14 -24.47 -23.93 -23.85 -23.40 -22.96 -22.60 -22.11 -21.84 -21.40 -21.00 -20.55 -20.29 -19.71 -19.44 -19.08 -18.46 -18.11 -17.70 -17.44 -16.99 -16.33 -16.19 -15.79 -15.30 -15.04 -14.63 -14.41 -14.10 -13.70 -13.43 -13.08 -12.68 -12.54 -11.96 -11.70 -11.30 -10.94 -10.63 -10.23 -10.01 -9.74 -9.43 -9.12 -8.85 -8.54 -8.18 -7.78 -7.56 -7.25 -7.07 -6.80 -6.45 -6.27 -5.91 -5.60 -5.33 -5.07 -4.85 -4.62 -4.31 -4.09 -3.82 -3.60 -3.33 -3.11 -2.89 -2.62 -2.40 -2.22 -2.00 -1.73 -1.60 -1.42 -1.20 -1.06 -0.88 -0.71 -0.57 -0.44 -0.35 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.40 0.53 0.71 0.93 1.11 1.29 1.51 1.73 1.95 2.18 2.49 2.71 3.02 3.24 3.60 3.87 4.18 4.49 4.80 5.07 5.38 5.78 6.14 6.40 6.71 6.98 7.43 7.74 8.14 8.41 8.76 9.12 9.47 9.83 10.18 10.63 11.16 11.39 11.74 12.10 12.54 12.85 13.26 13.74 14.06 14.55 14.99 15.35 16.01 16.41 16.77 17.35 17.84 18.11 18.68 18.86 19.26 19.93 20.46 20.91 21.35 21.93 22.29 22.87 23.53 24.16 24.60 25.14 25.67 26.03 26.60 27.23 27.89 28.16 28.74 29.50 29.85 30.25 30.97 31.63 31.99 32.52 33.15 33.37 33.81 34.35 35.01 35.68 36.35 36.22 36.43 0</outputValues>
+        </conversion>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/thruster_7_plugin' filename='libuuv_thruster_ros_plugin.so'>
+        <linkName>taluy/thruster_7_propeller_link</linkName>
+        <jointName>taluy/thruster_7_propeller_joint</jointName>
+        <thrusterID>7</thrusterID>
+        <gain>1</gain>
+        <dynamics>
+          <type>FirstOrder</type>
+          <timeConstant>0.04</timeConstant>
+        </dynamics>
+        <conversion>
+          <type>LinearInterp</type>
+          <inputValues>0 1099 1100 1104 1108 1112 1116 1120 1124 1128 1132 1136 1140 1144 1148 1152 1156 1160 1164 1168 1172 1176 1180 1184 1188 1192 1196 1200 1204 1208 1212 1216 1220 1224 1228 1232 1236 1240 1244 1248 1252 1256 1260 1264 1268 1272 1276 1280 1284 1288 1292 1296 1300 1304 1308 1312 1316 1320 1324 1328 1332 1336 1340 1344 1348 1352 1356 1360 1364 1368 1372 1376 1380 1384 1388 1392 1396 1400 1404 1408 1412 1416 1420 1424 1428 1432 1436 1440 1444 1448 1452 1456 1460 1464 1468 1472 1476 1480 1484 1488 1492 1496 1500 1504 1508 1512 1516 1520 1524 1528 1532 1536 1540 1544 1548 1552 1556 1560 1564 1568 1572 1576 1580 1584 1588 1592 1596 1600 1604 1608 1612 1616 1620 1624 1628 1632 1636 1640 1644 1648 1652 1656 1660 1664 1668 1672 1676 1680 1684 1688 1692 1696 1700 1704 1708 1712 1716 1720 1724 1728 1732 1736 1740 1744 1748 1752 1756 1760 1764 1768 1772 1776 1780 1784 1788 1792 1796 1800 1804 1808 1812 1816 1820 1824 1828 1832 1836 1840 1844 1848 1852 1856 1860 1864 1868 1872 1876 1880 1884 1888 1892 1896 1900 1902</inputValues>
+          <outputValues>0 0 -28.48 -28.61 -28.38 -27.76 -27.32 -27.09 -26.69 -26.20 -25.49 -25.45 -25.14 -24.47 -23.93 -23.85 -23.40 -22.96 -22.60 -22.11 -21.84 -21.40 -21.00 -20.55 -20.29 -19.71 -19.44 -19.08 -18.46 -18.11 -17.70 -17.44 -16.99 -16.33 -16.19 -15.79 -15.30 -15.04 -14.63 -14.41 -14.10 -13.70 -13.43 -13.08 -12.68 -12.54 -11.96 -11.70 -11.30 -10.94 -10.63 -10.23 -10.01 -9.74 -9.43 -9.12 -8.85 -8.54 -8.18 -7.78 -7.56 -7.25 -7.07 -6.80 -6.45 -6.27 -5.91 -5.60 -5.33 -5.07 -4.85 -4.62 -4.31 -4.09 -3.82 -3.60 -3.33 -3.11 -2.89 -2.62 -2.40 -2.22 -2.00 -1.73 -1.60 -1.42 -1.20 -1.06 -0.88 -0.71 -0.57 -0.44 -0.35 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.00 0.40 0.53 0.71 0.93 1.11 1.29 1.51 1.73 1.95 2.18 2.49 2.71 3.02 3.24 3.60 3.87 4.18 4.49 4.80 5.07 5.38 5.78 6.14 6.40 6.71 6.98 7.43 7.74 8.14 8.41 8.76 9.12 9.47 9.83 10.18 10.63 11.16 11.39 11.74 12.10 12.54 12.85 13.26 13.74 14.06 14.55 14.99 15.35 16.01 16.41 16.77 17.35 17.84 18.11 18.68 18.86 19.26 19.93 20.46 20.91 21.35 21.93 22.29 22.87 23.53 24.16 24.60 25.14 25.67 26.03 26.60 27.23 27.89 28.16 28.74 29.50 29.85 30.25 30.97 31.63 31.99 32.52 33.15 33.37 33.81 34.35 35.01 35.68 36.35 36.22 36.43 0</outputValues>
+        </conversion>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/base_link/external_pressure_sensor_pressure_plugin' filename='libuuv_gazebo_ros_subsea_pressure_plugin.so'>
+        <robot_namespace>taluy</robot_namespace>
+        <link_name>taluy/base_link/external_pressure_sensor_sim_link</link_name>
+        <sensor_topic>sim/pressure</sensor_topic>
+        <update_rate>20</update_rate>
+        <saturation>5000</saturation>
+        <noise_sigma>0.4</noise_sigma>
+        <noise_amplitude>0.13</noise_amplitude>
+        <estimate_depth_on>0</estimate_depth_on>
+        <standard_pressure>101.325</standard_pressure>
+        <kPa_per_meter>9.80638</kPa_per_meter>
+        <enable_gazebo_messages>0</enable_gazebo_messages>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='taluy/base_link/imu_imu_plugin' filename='libuuv_gazebo_ros_imu_plugin.so'>
+        <robot_namespace>taluy</robot_namespace>
+        <link_name>taluy/base_link/imu_sim_link</link_name>
+        <sensor_topic>sim/imu</sensor_topic>
+        <gyroscope_noise_density>0.0002514074</gyroscope_noise_density>
+        <gyroscope_random_walk>0.000038785</gyroscope_random_walk>
+        <gyroscope_bias_correlation_time>1000.0</gyroscope_bias_correlation_time>
+        <gyroscope_turn_on_bias_sigma>0.0087</gyroscope_turn_on_bias_sigma>
+        <accelerometer_noise_density>0.00104347826</accelerometer_noise_density>
+        <accelerometer_random_walk>0.006</accelerometer_random_walk>
+        <accelerometer_bias_correlation_time>300.0</accelerometer_bias_correlation_time>
+        <accelerometer_turn_on_bias_sigma>0.1960</accelerometer_turn_on_bias_sigma>
+        <orientation_noise>0.05</orientation_noise>
+        <update_rate>20</update_rate>
+        <enable_gazebo_messages>0</enable_gazebo_messages>
+        <enable_local_ned_frame>0</enable_local_ned_frame>
+        <static_reference_frame>world</static_reference_frame>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='libuuv_gazebo_dvl_plugin' filename='libuuv_gazebo_ros_dvl_plugin.so'>
+        <robot_namespace>taluy</robot_namespace>
+        <link_name>taluy/base_link/dvl_sim_link</link_name>
+        <sensor_topic>sim/dvl</sensor_topic>
+        <update_rate>20</update_rate>
+        <noise_sigma>0</noise_sigma>
+        <noise_amplitude>0</noise_amplitude>
+        <enable_gazebo_messages>0</enable_gazebo_messages>
+        <enable_local_ned_frame>0</enable_local_ned_frame>
+        <static_reference_frame>world</static_reference_frame>
+        <beam_link_name_0>taluy/dvl_sonar0_link</beam_link_name_0>
+        <beam_link_name_1>taluy/dvl_sonar1_link</beam_link_name_1>
+        <beam_link_name_2>taluy/dvl_sonar2_link</beam_link_name_2>
+        <beam_link_name_3>taluy/dvl_sonar3_link</beam_link_name_3>
+        <beam_topic_0>sim/dvl_sonar/0</beam_topic_0>
+        <beam_topic_1>sim/dvl_sonar/1</beam_topic_1>
+        <beam_topic_2>sim/dvl_sonar/2</beam_topic_2>
+        <beam_topic_3>sim/dvl_sonar/3</beam_topic_3>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <plugin name='uuv_joint_state_publisher' filename='libuuv_joint_state_publisher.so'>
+        <robotNamespace>taluy</robotNamespace>
+        <updateRate>20.0</updateRate>
+      </plugin>
+      <plugin name='pose_3d_plugin' filename='libuuv_gazebo_ros_pose_gt_plugin.so'>
+        <robot_namespace>taluy</robot_namespace>
+        <link_name>taluy/base_link</link_name>
+        <sensor_topic>odometry_gt</sensor_topic>
+        <static_reference_frame>odom</static_reference_frame>
+        <noise_sigma>0.0</noise_sigma>
+        <noise_amplitude>0.0</noise_amplitude>
+        <update_rate>20.0</update_rate>
+        <enable_gazebo_messages>0</enable_gazebo_messages>
+        <publish_ned_odom>0</publish_ned_odom>
+        <robotNamespace>/taluy/</robotNamespace>
+      </plugin>
+      <frame name='taluy/base_link/ball_dropper_joint' attached_to='taluy/base_link'>
+        <pose>0.1004 0.0745 -0.1953 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/ball_dropper_link' attached_to='taluy/base_link/ball_dropper_joint'/>
+      <frame name='taluy/base_link/bottom_camera_optical_joint' attached_to='taluy/base_link/bottom_camera_link'>
+        <pose>0.01 0 0 -1.5708 -0 -1.5708</pose>
+      </frame>
+      <frame name='taluy/base_link/bottom_camera_optical_link' attached_to='taluy/base_link/bottom_camera_optical_joint'/>
+      <frame name='taluy/base_link/bottom_camera_joint' attached_to='taluy/base_link'>
+        <pose>0 0 -0.07 -1.57079 1.57079 3.14159</pose>
+      </frame>
+      <frame name='taluy/base_link/bottom_camera_link' attached_to='taluy/base_link/bottom_camera_joint'/>
+      <frame name='taluy/base_link/dvl_cog_joint' attached_to='taluy/base_link/dvl_mount_link'>
+        <pose>0 0 -0.035 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/dvl_cog' attached_to='taluy/base_link/dvl_cog_joint'/>
+      <frame name='taluy/base_link/dvl_sensor_joint' attached_to='taluy/base_link/dvl_sensor_surface_link'>
+        <pose>0 0 0 0 0 -2.35619</pose>
+      </frame>
+      <frame name='taluy/base_link/dvl_link' attached_to='taluy/base_link/dvl_sensor_joint'/>
+      <frame name='taluy/base_link/dvl_sensor_surface_joint' attached_to='taluy/base_link/dvl_mount_link'>
+        <pose>0 0 -0.07 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/dvl_sensor_surface_link' attached_to='taluy/base_link/dvl_sensor_surface_joint'/>
+      <frame name='taluy/base_link/dvl_chasis_joint' attached_to='taluy/base_link'>
+        <pose>0.2 0 -0.11 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/dvl_mount_link' attached_to='taluy/base_link/dvl_chasis_joint'/>
+      <frame name='taluy/base_link/external_pressure_sensor_sensor_joint' attached_to='taluy/base_link/external_pressure_sensor_chasis_link'>
+        <pose>0 0 0.0092 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/external_pressure_sensor_link' attached_to='taluy/base_link/external_pressure_sensor_sensor_joint'/>
+      <frame name='taluy/base_link/external_pressure_sensor_joint' attached_to='taluy/base_link'>
+        <pose>0 0 0.079 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/external_pressure_sensor_chasis_link' attached_to='taluy/base_link/external_pressure_sensor_joint'/>
+      <frame name='taluy/base_link/front_camera_optical_joint' attached_to='taluy/base_link/front_camera_link'>
+        <pose>0.01 0 0 -1.5708 -0 -1.5708</pose>
+      </frame>
+      <frame name='taluy/base_link/front_camera_optical_link' attached_to='taluy/base_link/front_camera_optical_joint'/>
+      <frame name='taluy/base_link/front_camera_joint' attached_to='taluy/base_link'>
+        <pose>0.40125 0 0 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/front_camera_link' attached_to='taluy/base_link/front_camera_joint'/>
+      <frame name='taluy/base_link/hydrophone_0_joint' attached_to='taluy/base_link'>
+        <pose>0.315 0.1675 0.1715 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/hydrophone_0_link' attached_to='taluy/base_link/hydrophone_0_joint'/>
+      <frame name='taluy/base_link/hydrophone_1_joint' attached_to='taluy/base_link'>
+        <pose>0.315 -0.1675 0.1715 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/hydrophone_1_link' attached_to='taluy/base_link/hydrophone_1_joint'/>
+      <frame name='taluy/base_link/hydrophone_2_joint' attached_to='taluy/base_link'>
+        <pose>-0.315 0.1675 0.1715 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/hydrophone_2_link' attached_to='taluy/base_link/hydrophone_2_joint'/>
+      <frame name='taluy/base_link/hydrophone_3_joint' attached_to='taluy/base_link'>
+        <pose>-0.315 -0.1675 0.1715 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/hydrophone_3_link' attached_to='taluy/base_link/hydrophone_3_joint'/>
+      <frame name='taluy/base_link/imu_expansion_joint' attached_to='taluy/base_link'>
+        <pose>-0.282 -0.1 -0.0108 0 -0 3.14159</pose>
+      </frame>
+      <frame name='taluy/base_link/imu_expansion_link' attached_to='taluy/base_link/imu_expansion_joint'/>
+      <frame name='taluy/base_link/imu_joint' attached_to='taluy/base_link'>
+        <pose>-0.162 0 -0.0108 0 -0 3.14159</pose>
+      </frame>
+      <frame name='taluy/base_link/imu_link' attached_to='taluy/base_link/imu_joint'/>
+      <frame name='taluy/base_link/ping360_scan_joint' attached_to='taluy/base_link/ping360_mount_link'>
+        <pose>0 0 0.065 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/ping360_link' attached_to='taluy/base_link/ping360_scan_joint'/>
+      <frame name='taluy/base_link/ping360_joint' attached_to='taluy/base_link'>
+        <pose>0.2 0 0.134 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/ping360_mount_link' attached_to='taluy/base_link/ping360_joint'/>
+      <frame name='taluy/base_link/sonar_back_joint' attached_to='taluy/base_link'>
+        <pose>-0.42 -0.09 0.09 0 -0 3.14159</pose>
+      </frame>
+      <frame name='taluy/base_link/sonar_back_link' attached_to='taluy/base_link/sonar_back_joint'/>
+      <frame name='taluy/base_link/sonar_front_joint' attached_to='taluy/base_link'>
+        <pose>0.38 0.09 0.09 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/sonar_front_link' attached_to='taluy/base_link/sonar_front_joint'/>
+      <frame name='taluy/base_link/sonar_left_joint' attached_to='taluy/base_link'>
+        <pose>0.02 0.21 -0.14 0 -0 1.5708</pose>
+      </frame>
+      <frame name='taluy/base_link/sonar_left_link' attached_to='taluy/base_link/sonar_left_joint'/>
+      <frame name='taluy/base_link/sonar_right_joint' attached_to='taluy/base_link'>
+        <pose>0.02 -0.21 -0.14 0 0 -1.5708</pose>
+      </frame>
+      <frame name='taluy/base_link/sonar_right_link' attached_to='taluy/base_link/sonar_right_joint'/>
+      <frame name='taluy/base_link/torpedo_bottom_joint' attached_to='taluy/base_link'>
+        <pose>0.4057 -0.1038 -0.084 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/torpedo_bottom_link' attached_to='taluy/base_link/torpedo_bottom_joint'/>
+      <frame name='taluy/base_link/torpedo_upper_joint' attached_to='taluy/base_link'>
+        <pose>0.4057 -0.1038 -0.049 0 -0 0</pose>
+      </frame>
+      <frame name='taluy/base_link/torpedo_upper_link' attached_to='taluy/base_link/torpedo_upper_joint'/>
+      <frame name='taluy/camera_color_optical_joint' attached_to='taluy/camera'>
+        <pose>0 0 0 -1.5708 -0 -1.5708</pose>
+      </frame>
+      <frame name='taluy/camera_color_optical_frame' attached_to='taluy/camera_color_optical_joint'/>
+      <frame name='taluy/camera_depth_optical_joint' attached_to='taluy/camera'>
+        <pose>0 0 0 -1.5708 -0 -1.5708</pose>
+      </frame>
+      <frame name='taluy/camera_depth_optical_frame' attached_to='taluy/camera_depth_optical_joint'/>
+      <frame name='taluy/camera_joint' attached_to='taluy/base_link'>
+        <pose>-0.35 0 0 0 -0 3.14159</pose>
+      </frame>
+      <frame name='taluy/camera' attached_to='taluy/camera_joint'/>
+      <frame name='taluy/thruster_0_chasis_joint' attached_to='taluy/base_link'>
+        <pose>0.15895 0.2007 -0.00525 3.14159 -0 -1.5708</pose>
+      </frame>
+      <frame name='taluy/thruster_0_link' attached_to='taluy/thruster_0_chasis_joint'/>
+      <frame name='taluy/thruster_1_chasis_joint' attached_to='taluy/base_link'>
+        <pose>0.15895 -0.2007 -0.00525 3.14159 -0 1.5708</pose>
+      </frame>
+      <frame name='taluy/thruster_1_link' attached_to='taluy/thruster_1_chasis_joint'/>
+      <frame name='taluy/thruster_2_chasis_joint' attached_to='taluy/base_link'>
+        <pose>-0.15895 0.2007 -0.00525 3.14159 -0 -1.5708</pose>
+      </frame>
+      <frame name='taluy/thruster_2_link' attached_to='taluy/thruster_2_chasis_joint'/>
+      <frame name='taluy/thruster_3_chasis_joint' attached_to='taluy/base_link'>
+        <pose>-0.15895 -0.2007 -0.00525 3.14159 -0 1.5708</pose>
+      </frame>
+      <frame name='taluy/thruster_3_link' attached_to='taluy/thruster_3_chasis_joint'/>
+      <frame name='taluy/thruster_4_chasis_joint' attached_to='taluy/base_link'>
+        <pose>0.352398 0.216638 -0.01 -1.5708 -0 0.785398</pose>
+      </frame>
+      <frame name='taluy/thruster_4_link' attached_to='taluy/thruster_4_chasis_joint'/>
+      <frame name='taluy/thruster_5_chasis_joint' attached_to='taluy/base_link'>
+        <pose>0.352398 -0.216638 -0.01 1.5708 -0 -0.785398</pose>
+      </frame>
+      <frame name='taluy/thruster_5_link' attached_to='taluy/thruster_5_chasis_joint'/>
+      <frame name='taluy/thruster_6_chasis_joint' attached_to='taluy/base_link'>
+        <pose>-0.352398 0.216638 -0.01 -1.5708 0 -0.785398</pose>
+      </frame>
+      <frame name='taluy/thruster_6_link' attached_to='taluy/thruster_6_chasis_joint'/>
+      <frame name='taluy/thruster_7_chasis_joint' attached_to='taluy/base_link'>
+        <pose>-0.352398 -0.216638 -0.01 1.5708 0 0.785398</pose>
+      </frame>
+      <frame name='taluy/thruster_7_link' attached_to='taluy/thruster_7_chasis_joint'/>
+      <pose>16 -3 -0.6 0 -0 3.14</pose>
+    </model>
+    <model name='robosub_bin_clone'>
+      <static>1</static>
+      <pose>2.89836 -9.19907 -2 1.57 0 1.6</pose>
+      <link name='robosub_bin'>
+        <pose>0 0 0 0 -0 0</pose>
+        <collision name='robosub_bin_col'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_bin/meshes/bin.dae</uri>
+            </mesh>
+          </geometry>
+          <max_contacts>10</max_contacts>
+          <surface>
+            <contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+        </collision>
+        <visual name='robosub_bin_vis'>
+          <pose>0 0 0 0 -0 0</pose>
+          <geometry>
+            <mesh>
+              <uri>model://robosub_bin/meshes/bin.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+    </model>
   </world>
 </sdf>

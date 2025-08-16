@@ -44,6 +44,7 @@ class ReferencePosePublisherNode:
         self.target_frame_id = ""
         self.is_resetting = False
         self.state_lock = Lock()  # To protect shared state
+        self.is_heading_control_enabled = True
 
         self.set_pose_req = SetPoseRequest()
         self.set_pose_req.pose = PoseWithCovarianceStamped()
@@ -97,22 +98,24 @@ class ReferencePosePublisherNode:
         return TriggerResponse(success=True, message="Odometry reset successfully.")
 
     def odometry_callback(self, msg):
-        if self.control_enable_handler.is_enabled() and not self.is_resetting:
-            return
-
         quaternion = [
             msg.pose.pose.orientation.x,
             msg.pose.pose.orientation.y,
             msg.pose.pose.orientation.z,
             msg.pose.pose.orientation.w,
         ]
-        _, _, self.target_heading = euler_from_quaternion(quaternion)
+        _, _, current_heading = euler_from_quaternion(quaternion)
+
+        if not self.is_heading_control_enabled:
+            self.target_heading = current_heading
+        elif not self.control_enable_handler.is_enabled() and not self.is_resetting:
+            self.target_heading = current_heading
 
     def set_heading_control_handler(self, req):
-        with self.state_lock:  # Only process one request at a time
+        with self.state_lock:
+            self.is_heading_control_enabled = req.data
             if not self.heading_gains_stored:
                 try:
-                    # Retrieve current gains once
                     current_config = self.dyn_client.get_configuration(timeout=5)
                     self.stored_kp_5 = current_config["kp_5"]
                     self.stored_ki_5 = current_config["ki_5"]
@@ -129,8 +132,7 @@ class ReferencePosePublisherNode:
                         message="Failed to get current controller config.",
                     )
 
-            if req.data:  # Enable heading control
-                # Enable heading control with stored gains
+            if self.is_heading_control_enabled:
                 params = {
                     "kp_5": self.stored_kp_5,
                     "ki_5": self.stored_ki_5,
@@ -138,7 +140,7 @@ class ReferencePosePublisherNode:
                 }
                 self.dyn_client.update_configuration(params)
                 return SetBoolResponse(success=True, message="Heading control enabled.")
-            else:  # Disable heading control (set cmd_pose.yaw gains to zero)
+            else:
                 params = {"kp_5": 0.0, "ki_5": 0.0, "kd_5": 0.0}
                 self.dyn_client.update_configuration(params)
                 return SetBoolResponse(
@@ -146,7 +148,11 @@ class ReferencePosePublisherNode:
                 )
 
     def cmd_vel_callback(self, msg):
-        if (not self.control_enable_handler.is_enabled()) or self.is_resetting:
+        if (
+            (not self.control_enable_handler.is_enabled())
+            or self.is_resetting
+            or not self.is_heading_control_enabled
+        ):
             return
 
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
@@ -162,6 +168,7 @@ class ReferencePosePublisherNode:
         cmd_pose_stamped.pose.position.z = self.target_depth
         cmd_pose_stamped.header.frame_id = self.target_frame_id
         quaternion = quaternion_from_euler(0.0, 0.0, self.target_heading)
+        rospy.logdebug(f"heading: {self.target_heading}")
         cmd_pose_stamped.pose.orientation.x = quaternion[0]
         cmd_pose_stamped.pose.orientation.y = quaternion[1]
         cmd_pose_stamped.pose.orientation.z = quaternion[2]

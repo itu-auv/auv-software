@@ -152,7 +152,7 @@ class CameraDetectionNode:
         )
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
-        self.active_front_camera_ids = list(range(15))  # Allow all by default
+
         self.red_pipe_x = None
 
         self.object_id_map = {
@@ -165,6 +165,9 @@ class CameraDetectionNode:
             "all": [0, 1, 2, 3, 4, 5, 6, 7],
             "none": [],
         }
+        self.active_front_camera_ids = self.object_id_map[
+            "gate"
+        ]  # Allow gate by default
 
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
@@ -509,21 +512,6 @@ class CameraDetectionNode:
             (detection.bbox.center.x, detection.bbox.center.y)
         )
 
-        try:
-            camera_to_odom_transform = self.tf_buffer.lookup_transform(
-                camera_frame,
-                "odom",
-                stamp,
-                rospy.Duration(1.0),
-            )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            rospy.logerr(f"Transform error for {child_frame_id}: {e}")
-            return
-
         offset_x = math.tan(angles[0]) * distance * 1.0
         offset_y = math.tan(angles[1]) * distance * 1.0
 
@@ -535,10 +523,39 @@ class CameraDetectionNode:
         transform_stamped_msg.transform.translation = Vector3(
             offset_x, offset_y, distance
         )
-        transform_stamped_msg.transform.rotation = (
-            camera_to_odom_transform.transform.rotation
-        )
-        self.object_transform_pub.publish(transform_stamped_msg)
+        transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+
+        try:
+            # Create a PoseStamped message from the TransformStamped
+            pose_stamped = PoseStamped()
+            pose_stamped.header = transform_stamped_msg.header
+            pose_stamped.pose.position = transform_stamped_msg.transform.translation
+            pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
+
+            # Transform the PoseStamped message
+            transformed_pose_stamped = self.tf_buffer.transform(
+                pose_stamped, "odom", rospy.Duration(4.0)
+            )
+
+            # Create a new TransformStamped message from the transformed PoseStamped
+            final_transform_stamped = TransformStamped()
+            final_transform_stamped.header = transformed_pose_stamped.header
+            final_transform_stamped.child_frame_id = child_frame_id
+            final_transform_stamped.transform.translation = (
+                transformed_pose_stamped.pose.position
+            )
+            final_transform_stamped.transform.rotation = (
+                transform_stamped_msg.transform.rotation
+            )
+
+            self.object_transform_pub.publish(final_transform_stamped)
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logerr(f"Transform error for {child_frame_id}: {e}")
+            return
 
     def check_if_detection_is_inside_image(
         self, detection, image_width: int = 640, image_height: int = 480
@@ -693,11 +710,38 @@ class CameraDetectionNode:
             transform_stamped_msg.transform.translation = Vector3(
                 offset_x, offset_y, distance
             )
-            transform_stamped_msg.transform.rotation = (
-                camera_to_odom_transform.transform.rotation
-            )
-            # Calculate the rotation based on odom
-            self.object_transform_pub.publish(transform_stamped_msg)
+            transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+
+            try:
+                # Create a PoseStamped message from the TransformStamped
+                pose_stamped = PoseStamped()
+                pose_stamped.header = transform_stamped_msg.header
+                pose_stamped.pose.position = transform_stamped_msg.transform.translation
+                pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
+
+                # Transform the PoseStamped message
+                transformed_pose_stamped = self.tf_buffer.transform(
+                    pose_stamped, "odom", rospy.Duration(4.0)
+                )
+
+                # Create a new TransformStamped message from the transformed PoseStamped
+                final_transform_stamped = TransformStamped()
+                final_transform_stamped.header = transformed_pose_stamped.header
+                final_transform_stamped.child_frame_id = prop_name
+                final_transform_stamped.transform.translation = (
+                    transformed_pose_stamped.pose.position
+                )
+                final_transform_stamped.transform.rotation = (
+                    transform_stamped_msg.transform.rotation
+                )
+
+                self.object_transform_pub.publish(final_transform_stamped)
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                rospy.logerr(f"Transform error for {prop_name}: {e}")
 
     def run(self):
         rospy.spin()
