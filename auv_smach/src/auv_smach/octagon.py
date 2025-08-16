@@ -52,7 +52,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_TORPEDO_REALSENSE",
                 DynamicPathState(
-                    plan_target_frame="octagon_closer_link",
+                    plan_target_frame="torpedo_target_realsense",
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_TARGET_REALSENSE",
