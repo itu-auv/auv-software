@@ -25,6 +25,7 @@ from auv_msgs.srv import (
     SetDetectionFocusRequest,
 )
 
+from geometry_msgs.msg import TransformStamped
 from auv_msgs.srv import SetDepth, SetDepthRequest
 from auv_msgs.srv import VisualServoing, VisualServoingRequest
 
@@ -416,7 +417,7 @@ class RotationState(smach.State):
                 self.source_frame,
                 self.look_at_frame,
                 rospy.Time(0),
-                rospy.Duration(4.0),
+                rospy.Duration(0.05),
             )
         except (
             tf2_ros.LookupException,
@@ -1311,3 +1312,139 @@ class CreateFrameAtCurrentPositionState(smach.State):
         except rospy.ServiceException as e:
             rospy.logerr(f"CreateFrameAtCurrentPositionState: Service call failed: {e}")
             return "aborted"
+
+
+class CreateRotatingFrameState(smach.State):
+    def __init__(
+        self,
+        target_frame: str,
+        source_frame: str,
+        reference_frame: str = "odom",
+        rotation_period: float = 15.0,
+        rate_hz: int = 20,
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.target_frame = target_frame
+        self.source_frame = source_frame
+        self.reference_frame = reference_frame
+        self.rotation_period = rotation_period
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.rate = rospy.Rate(rate_hz)
+        self.set_object_transform_service = rospy.ServiceProxy(
+            "set_object_transform", SetObjectTransform
+        )
+
+    def execute(self, userdata):
+        rospy.loginfo(
+            "Creating rotating frame '%s' for one rotation (%.2fs).",
+            self.target_frame,
+            self.rotation_period,
+        )
+        try:
+            initial_transform = self.tf_buffer.lookup_transform(
+                self.reference_frame,
+                self.source_frame,
+                rospy.Time(0),
+                rospy.Duration(4.0),
+            )
+            initial_translation = initial_transform.transform.translation
+            rospy.loginfo(
+                "Initial position locked at: x=%.2f, y=%.2f, z=%.2f",
+                initial_translation.x,
+                initial_translation.y,
+                initial_translation.z,
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logerr(
+                "CreateRotatingFrameState: Failed to get initial robot pose: %s", str(e)
+            )
+            return "aborted"
+
+        start_time = rospy.Time.now()
+        end_time = start_time + rospy.Duration(self.rotation_period)
+        angular_velocity = 2.0 * math.pi / self.rotation_period
+
+        while not rospy.is_shutdown() and rospy.Time.now() < end_time:
+            if self.preempt_requested():
+                rospy.logwarn(
+                    "CreateRotatingFrameState: Preempted while creating frame '%s'.",
+                    self.target_frame,
+                )
+                return "preempted"
+            try:
+                elapsed_time = (rospy.Time.now() - start_time).to_sec()
+                current_yaw = angular_velocity * elapsed_time
+                qx, qy, qz, qw = quaternion_from_euler(0.0, 0.0, current_yaw)
+                t = TransformStamped()
+                t.header.stamp = rospy.Time.now()
+                t.header.frame_id = self.reference_frame
+                t.child_frame_id = self.target_frame
+                t.transform.translation.x = initial_translation.x
+                t.transform.translation.y = initial_translation.y
+                t.transform.translation.z = initial_translation.z
+                t.transform.rotation.x = qx
+                t.transform.rotation.y = qy
+                t.transform.rotation.z = qz
+                t.transform.rotation.w = qw
+                req = SetObjectTransformRequest()
+                req.transform = t
+                res = self.set_object_transform_service(req)
+                if not res.success:
+                    rospy.logwarn("SetObjectTransform failed: %s", res.message)
+            except rospy.ServiceException as e:
+                rospy.logwarn("Service call failed: %s", str(e))
+                return "aborted"
+            self.rate.sleep()
+
+        if rospy.is_shutdown():
+            return "aborted"
+        rospy.loginfo("Finished rotating frame '%s'.", self.target_frame)
+        return "succeeded"
+
+
+class AlignAndCreateRotatingFrame(smach.StateMachine):
+    def __init__(
+        self,
+        source_frame: str,
+        target_frame: str,
+        rotating_frame_name: str,
+        rotation_period: float = 15.0,
+        max_linear_velocity: float = None,
+        max_angular_velocity: float = None,
+    ):
+        super().__init__(outcomes=["succeeded", "preempted", "aborted"])
+        with self:
+            smach.StateMachine.add(
+                "SET_ALIGN_TARGET",
+                SetAlignControllerTargetState(
+                    source_frame=source_frame,
+                    target_frame=target_frame,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                ),
+                transitions={
+                    "succeeded": "CREATE_ROTATING_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CREATE_ROTATING_FRAME",
+                CreateRotatingFrameState(
+                    target_frame=rotating_frame_name,
+                    source_frame=source_frame,
+                    reference_frame="odom",
+                    rotation_period=rotation_period,
+                    rate_hz=20,
+                ),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )

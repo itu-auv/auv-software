@@ -333,7 +333,7 @@ class BinTaskState(smach.State):
                     full_rotation=False,
                     set_frame_duration=7.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.2,
+                    rotation_speed=-0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_BIN_FRAME_PUBLISHER",
@@ -352,7 +352,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ENABLE_BIN_FRAME_PUBLISHER",
-                DelayState(delay_time=1.0),
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
@@ -617,30 +617,9 @@ class BinTaskState(smach.State):
                 "DISABLE_BOTTOM_CAMERA",
                 SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
-                    "succeeded": "ALIGN_TO_BIN_EXIT",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_BIN_EXIT",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="bin_exit",
-                    angle_offset=bin_exit_angle,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=2.0,
-                    timeout=15.0,
-                    cancel_on_success=False,
-                    keep_orientation=False,
-                    max_linear_velocity=0.2,
-                    max_angular_velocity=0.2,
-                ),
-                transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
