@@ -1,14 +1,9 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy_mini"/>
-  <arg name="port" default="/dev/auv_taluymini_modem"/>
-  <arg name="baudrate" default="921600"/>
   <arg name="respawn" default="true"/>
   <group ns="$(arg namespace)">
     <!-- start modem serial board bridge -->
-    <node pkg="auv_hardware_bridge" type="modem_to_ros_bridge_node.py" name="modem_serial_board_bridge_node" output="screen" respawn="$(arg respawn)">
-      <param name="serial_port" value="$(arg port)"/>
-      <param name="baudrate" value="$(arg baudrate)"/>
-    </node>
+    <node pkg="auv_hardware_bridge" type="modem_to_ros_bridge_node.py" name="modem_serial_board_bridge_node" output="screen" respawn="$(arg respawn)"/>
   </group>
 </launch>
