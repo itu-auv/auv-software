@@ -116,7 +116,10 @@ class VisualServoingControllerNoIMU:
         return "white" in obj
 
     def _reset_slalom_buffer_if_new_stamp(self, stamp):
-        if self._slalom_frame_stamp is None or stamp != self._slalom_frame_stamp:
+        if (
+            self._slalom_frame_stamp is None
+            or abs((stamp - self._slalom_frame_stamp).to_sec()) > 0.39
+        ):
             self._slalom_frame_stamp = stamp
             self._slalom_red = []
             self._slalom_white = []
@@ -124,7 +127,7 @@ class VisualServoingControllerNoIMU:
     def process_slalom_detections(self):
         """
         1) Angle-based filtering by navigation mode (left/right):
-           - Choose RED by bounding box later (we pick red first by bbox for determinism).
+        - Choose RED by bounding box later (we pick red first by bbox for determinism).
         2) Bounding box filter (lowest lower_y) on both colors.
         3) Heading = (angle_red + angle_white)/2
 
