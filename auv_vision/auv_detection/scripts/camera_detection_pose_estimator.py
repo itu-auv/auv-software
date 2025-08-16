@@ -152,7 +152,6 @@ class CameraDetectionNode:
         )
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
-        self.estimation_mode = False
 
         self.red_pipe_x = None
 
@@ -252,11 +251,6 @@ class CameraDetectionNode:
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
         )
-        rospy.Service(
-            "estimate_frame_locations",
-            SetBool,
-            self.handle_estimate_frame_locations,
-        )
 
     def dynamic_reconfigure_callback(self, config):
         if config is None:
@@ -314,17 +308,6 @@ class CameraDetectionNode:
         message = "Bottom camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
-
-    def handle_estimate_frame_locations(self, req):
-        self.estimation_mode = req.data
-        message = "Estimation mode " + ("enabled" if req.data else "disabled")
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
-
-    def get_frame_id(self, base_name):
-        if self.estimation_mode:
-            return f"{base_name}_estimation"
-        return base_name
 
     def altitude_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
@@ -414,8 +397,9 @@ class CameraDetectionNode:
                 transform_stamped_msg = TransformStamped()
                 transform_stamped_msg.header.stamp = stamp
                 transform_stamped_msg.header.frame_id = "odom"
-                child_frame_id = self.id_tf_map[camera_ns][detection_id]
-                transform_stamped_msg.child_frame_id = self.get_frame_id(child_frame_id)
+                transform_stamped_msg.child_frame_id = self.id_tf_map[camera_ns][
+                    detection_id
+                ]
 
                 transform_stamped_msg.transform.translation = Vector3(x, y, z)
                 transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
@@ -726,8 +710,7 @@ class CameraDetectionNode:
             transform_stamped_msg = TransformStamped()
             transform_stamped_msg.header.stamp = detection_msg.header.stamp
             transform_stamped_msg.header.frame_id = camera_frame
-            child_frame_id = self.get_frame_id(prop_name)
-            transform_stamped_msg.child_frame_id = child_frame_id
+            transform_stamped_msg.child_frame_id = prop_name
 
             transform_stamped_msg.transform.translation = Vector3(
                 offset_x, offset_y, distance
@@ -749,7 +732,7 @@ class CameraDetectionNode:
                 # Create a new TransformStamped message from the transformed PoseStamped
                 final_transform_stamped = TransformStamped()
                 final_transform_stamped.header = transformed_pose_stamped.header
-                final_transform_stamped.child_frame_id = child_frame_id
+                final_transform_stamped.child_frame_id = prop_name
                 final_transform_stamped.transform.translation = (
                     transformed_pose_stamped.pose.position
                 )
