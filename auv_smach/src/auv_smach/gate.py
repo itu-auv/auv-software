@@ -138,7 +138,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "COIN_FLIP_STATE",
-                CoinFlipState(coin_flip_depth=-0.5),
+                CoinFlipState(),
                 transitions={
                     "succeeded": "SET_DETECTION_FOCUS_GATE",
                     "preempted": "preempted",
@@ -158,7 +158,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=self.roll_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 3.0),
+                    sleep_duration=3.0,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",

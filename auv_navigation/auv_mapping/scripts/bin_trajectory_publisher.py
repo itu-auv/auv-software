@@ -97,7 +97,7 @@ class BinTransformServiceNode:
         try:
             transform_gate_exit = self.tf_buffer.lookup_transform(
                 self.odom_frame,
-                "slalom_exit",
+                "gate_exit",
                 rospy.Time.now(),
                 rospy.Duration(1),
             )

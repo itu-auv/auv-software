@@ -256,7 +256,7 @@ class MainStateMachineNode:
                     transitions={
                         "succeeded": next_state,
                         "preempted": "preempted",
-                        "aborted": "aborted",
+                        "aborted": next_state,
                     },
                 )
 
