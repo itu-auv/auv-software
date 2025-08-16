@@ -231,7 +231,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "b",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "c",
                     "preempted": "preempted",
@@ -241,10 +241,10 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "c",
                 SearchForPropState(
-                    look_at_frame="octagon_link",
+                    look_at_frame="self.animal_frame",
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
-                    set_frame_duration=4.0,
+                    set_frame_duration=5.0,
                     source_frame="taluy/base_link",
                     rotation_speed=-0.2,
                 ),
