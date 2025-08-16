@@ -234,6 +234,7 @@ class CameraDetectionNode:
             SetBool,
             self.handle_enable_gate_back_detection,
         )
+        self.gate_back_detection_enabled = False
 
     def handle_enable_gate_back_detection(self, req):
         """Service handler to enable/disable gate_back detection"""
@@ -606,7 +607,7 @@ class CameraDetectionNode:
                 if self.selected_side == "right" and white_x < red_pipe_x:
                     continue
 
-            if self.handle_enable_gate_back_detection:
+            if self.gate_back_detection_enabled:
                 if detection_id == 9 or detection_id == 0 or detection_id == 1:
                     gate_back_detections = [
                         d
@@ -650,7 +651,7 @@ class CameraDetectionNode:
             #             f"Detection {detection_id} is outside the image bounds, skipping."
             #         )
             #         continue
-            if self.handle_enable_gate_back_detection:
+            if self.gate_back_detection_enabled:
                 detection_id = 9
 
             prop_name = self.id_tf_map[camera_ns][detection_id]

@@ -107,6 +107,7 @@ class VisualServoingControllerNoIMU:
         self.error = current_error
         self.last_known_error = current_error
         self.last_error_stamp = current_stamp
+        self.error_pub.publish(Float64(self.error))
         rospy.loginfo(
             f"Prop yaw callback. New error: {self.error:.4f} in state: {self.state}"
         )
@@ -136,10 +137,11 @@ class VisualServoingControllerNoIMU:
                 # If we have no last error (e.g., prop never seen after start), turn one way.
                 return -self.search_angular_velocity
 
-        time_since_last_prop = (rospy.Time.now() - self.last_prop_stamp_time).to_sec()
-
-        if time_since_last_prop < self.prop_lost_timeout_s:
-            self.error_pub.publish(Float64(self.error))
+        if self.last_prop_stamp_time is None:
+            rospy.logwarn_throttle(
+                1.0, "No prop has been seen yet, cannot calculate angular velocity."
+            )
+            return 0.0
 
         p_signal = self.kp_gain * self.error
         d_signal = self.kd_gain * self.error_derivative
