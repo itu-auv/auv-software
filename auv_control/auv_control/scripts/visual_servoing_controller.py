@@ -118,7 +118,7 @@ class VisualServoingControllerNoIMU:
     def _reset_slalom_buffer_if_new_stamp(self, stamp):
         if (
             self._slalom_frame_stamp is None
-            or abs((stamp - self._slalom_frame_stamp).to_sec()) > 0.39
+            or abs((stamp - self._slalom_frame_stamp).to_sec()) > 0.07
         ):
             self._slalom_frame_stamp = stamp
             self._slalom_red = []
