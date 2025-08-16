@@ -136,6 +136,9 @@ class VisualServoingControllerNoIMU:
         # Pick the red pipe with lowest lower_y
         red_best = min(self._slalom_red, key=lambda d: d["lower_y"])
         angle_red = red_best["angle"]
+        rospy.loginfo(
+            f"[SLALOM] Selected red pipe: angle={angle_red:.4f}, lower_y={red_best['lower_y']:.4f}"
+        )
 
         # Angle-based candidate whites relative to chosen red
         if self.slalom_navigation_mode == "left":
@@ -148,7 +151,9 @@ class VisualServoingControllerNoIMU:
 
         # Pick the white pipe with lowest lower_y among candidates
         white_best = min(candidate_white, key=lambda d: d["lower_y"])
-
+        rospy.loginfo(
+            f"[SLALOM] Selected white pipe: angle={white_best['angle']:.4f}, lower_y={white_best['lower_y']:.4f}"
+        )
         # Heading is the average of angles
         heading = 0.5 * (angle_red + white_best["angle"])
         return heading
