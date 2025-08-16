@@ -50,6 +50,35 @@ class OctagonTaskState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_TORPEDO_REALSENSE",
+                DynamicPathState(
+                    plan_target_frame="octagon_closer_link",
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_TORPEDO_TARGET_REALSENSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_TORPEDO_TARGET_REALSENSE",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="torpedo_target_realsense",
+                    angle_offset=-1.745,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=60.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "SET_OCTAGON_INITIAL_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_OCTAGON_INITIAL_DEPTH",
                 SetDepthState(depth=-1.2, sleep_duration=4.0),
                 transitions={
@@ -75,7 +104,7 @@ class OctagonTaskState(smach.State):
                     full_rotation=False,
                     set_frame_duration=4.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.2,
+                    rotation_speed=-0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER",
