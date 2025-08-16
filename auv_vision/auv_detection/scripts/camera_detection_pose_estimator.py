@@ -703,7 +703,7 @@ class CameraDetectionNode:
             offset_x = math.tan(angles[0]) * distance * 1.0
             offset_y = math.tan(angles[1]) * distance * 1.0
 
-            if (offset_x**2 + offset_y**2 + distance**2) > 25**2  # 25 meters squared
+            if (offset_x**2 + offset_y**2 + distance**2) > 30**2:  # 30 meters squared
                 rospy.logdebug(f"Detection for {prop_name} is too far away. Skipping.")
                 continue
 
