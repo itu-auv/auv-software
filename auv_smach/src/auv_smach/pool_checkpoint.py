@@ -36,7 +36,7 @@ class PublishSlalomWaypointsState(smach_ros.ServiceState):
             request=SetBoolRequest(data=True),
         )
 class PoolCheckpointState(smach.State):
-    def __init__(self, depth=-1.5, align_horizontal_offset=0.5, look_around_angles=[-15, 15], pool_checkpoint_exit_angle=0.0):
+    def __init__(self, depth=-1.5, pool_checkpoint_exit_angle=0.0):
         smach.State.__init__(self, outcomes=['succeeded', 'aborted', 'preempted'])
         self.pool_checkpoint_exit_angle = pool_checkpoint_exit_angle
         self.state_machine = smach.StateMachine(outcomes=['succeeded', 'aborted', 'preempted'])
