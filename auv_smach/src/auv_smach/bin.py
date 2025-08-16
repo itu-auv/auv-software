@@ -392,7 +392,7 @@ class BinTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "DISABLE_BIN_FRAME_PUBLISHER",
+                    "succeeded": "SET_BIN_DROP_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
