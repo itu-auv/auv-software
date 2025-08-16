@@ -246,7 +246,7 @@ class VisualServoingControllerNoIMU:
                 # Turn towards the side where the object was last seen.
                 # A positive error means the object is to the right (positive angle),
                 # so we need a negative (clockwise) angular velocity to turn right.
-                return -math.copysign(
+                return math.copysign(
                     self.search_angular_velocity, self.last_known_error
                 )
             else:
