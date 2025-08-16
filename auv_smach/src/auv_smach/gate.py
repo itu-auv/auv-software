@@ -115,7 +115,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
                     depth=-0.5,
-                    sleep_duration=3.0,
+                    sleep_duration=2.0,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -138,7 +138,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "COIN_FLIP_STATE",
-                CoinFlipState(coin_flip_depth=-0.5),
+                CoinFlipState(),
                 transitions={
                     "succeeded": "SET_DETECTION_FOCUS_GATE",
                     "preempted": "preempted",
@@ -158,7 +158,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=self.roll_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 3.0),
+                    sleep_duration=2.0,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -172,7 +172,7 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    set_frame_duration=2.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -251,7 +251,7 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=7.0,
+                    set_frame_duration=4.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),

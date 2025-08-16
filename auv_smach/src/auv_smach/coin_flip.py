@@ -20,7 +20,7 @@ class RescueCoinFlipServiceEnableState(smach_ros.ServiceState):
 
 
 class CoinFlipState(smach.StateMachine):
-    def __init__(self, coin_flip_depth: float = -0.5):
+    def __init__(self):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
@@ -68,15 +68,6 @@ class CoinFlipState(smach.StateMachine):
                 ),
                 transitions={
                     "succeeded": "SET_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_DEPTH",
-                SetDepthState(depth=coin_flip_depth, sleep_duration=3.0),
-                transitions={
-                    "succeeded": "ALIGN_ORIENTATION_TO_RESCUE_COIN_FLIP_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
