@@ -11,6 +11,7 @@ from auv_smach.common import (
     AlignFrame,
     SearchForPropState,
     SetDetectionState,
+    AlignAndCreateRotatingFrame,
 )
 from auv_smach.initialize import DelayState
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
@@ -210,29 +211,51 @@ class OctagonTaskState(smach.State):
                 "SEARCH_FOR_ANIMAL",
                 SetDetectionFocusState(focus_object="gate"),
                 transitions={
-                    "succeeded": "FIND_AIM_ANIMAL",
+                    "succeeded": "a",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "FIND_AIM_ANIMAL",
-                SearchForPropState(
-                    look_at_frame=self.animal_frame,
-                    alignment_frame="animal_search_frame",
-                    full_rotation=True,
-                    set_frame_duration=10.0,
+                "a",
+                AlignAndCreateRotatingFrame(
                     source_frame="taluy/base_link",
-                    rotation_speed=0.2,
+                    target_frame="animal_search_frame",
+                    rotating_frame_name="animal_search_frame",
                 ),
                 transitions={
-                    "succeeded": "SURFACE_TO_SURFACE",
+                    "succeeded": "b",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SURFACE_TO_SURFACE",
+                "b",
+                DelayState(delay_time=5.0),
+                transitions={
+                    "succeeded": "c",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "c",
+                SearchForPropState(
+                    look_at_frame=self.animal_frame,
+                    alignment_frame="octagon_search_frame",
+                    full_rotation=False,
+                    set_frame_duration=5.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=-0.2,
+                ),
+                transitions={
+                    "succeeded": "d",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "d",
                 SetDepthState(depth=-0.05, sleep_duration=7.0),
                 transitions={
                     "succeeded": "SET_FINAL_DEPTH",
