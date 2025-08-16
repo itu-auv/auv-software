@@ -21,8 +21,8 @@ from dynamic_reconfigure.client import Client
 
 class SlalomTrajectoryPublisher(object):
     """
-    This node publishes four TF frames for slalom waypoints when triggered by a ROS 1 service.
-    The frame calculations are based entirely on parameters loaded from the ROS parameter server.
+    This node publishes one TF frame for slalom entrance when triggered by a ROS 1 service.
+    The frame calculations are based on the gate_exit frame and dynamic parameters.
     """
 
     def __init__(self):
@@ -41,30 +41,10 @@ class SlalomTrajectoryPublisher(object):
             )
             self.config_file = ""
 
-        # Parameters will be loaded by the launch file.
-        # We read them here using rospy.get_param.
-        # The default values in the get_param calls serve as fallbacks.
-        self.gate_dist = rospy.get_param("~gate_to_slalom_entrance_distance", 2.5)
-        self.offset2 = rospy.get_param("~second_slalom_offset", 0.5)
-        self.offset3 = rospy.get_param("~third_slalom_offset", 0.0)
-        self.vertical_dist = rospy.get_param(
-            "~vertical_distance_between_slalom_clusters", 2.0
-        )
-        self.slalom_entrance_backed_distance = rospy.get_param(
-            "~slalom_entrance_backed_distance", 2.0
-        )
-        self.exit_distance = (
-            0.5  # This parameter is not part of the dynamic reconfigure config
-        )
-
         self.parent_frame = "odom"
         self.gate_exit_frame = "gate_exit"
-        self.slalom_white_frame = "white_pipe_link"
-        self.slalom_red_frame = "red_pipe_link"
 
         # Setup dynamic reconfigure server.
-        # The server will automatically use the parameters from the ROS Parameter Server
-        # for its initial values. The callback will be called only on subsequent changes.
         self.reconfigure_server = Server(
             SlalomTrajectoryConfig, self.reconfigure_callback
         )
@@ -81,20 +61,9 @@ class SlalomTrajectoryPublisher(object):
         self.set_object_transform_service.wait_for_service()
 
         self.active = False
-        self.q_orientation = None
-        self.pos_entrance, self.pos_wp1, self.pos_wp2, self.pos_wp3, self.pos_exit = (
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        self.navigation_mode = "left"  # Default value
-        self.smach_params_client = Client(
-            "smach_parameters_server",
-            timeout=10,
-            config_callback=self.smach_params_callback,
-        )
+        self.pos_entrance = None
+        self.faruk_y_offset = rospy.get_param("~faruk_y_offset", 0.0)
+        self.faruk_x_offset = rospy.get_param("~faruk_x_offset", 0.0)
 
         # Create a service that will trigger the frame publishing
         self.srv = rospy.Service(
@@ -113,26 +82,13 @@ class SlalomTrajectoryPublisher(object):
         The callback function for dynamic reconfigure server.
         This function is called when a parameter is changed in the dynamic_reconfigure GUI.
         """
-        self.gate_dist = config.gate_to_slalom_entrance_distance
-        self.offset2 = config.second_slalom_offset
-        self.offset3 = config.third_slalom_offset
-        self.vertical_dist = config.vertical_distance_between_slalom_clusters
-        self.slalom_entrance_backed_distance = config.slalom_entrance_backed_distance
+        self.faruk_y_offset = config.faruk_y_offset
+        self.faruk_x_offset = config.faruk_x_offset
 
         # Save the updated parameters to the YAML file
         self.save_parameters()
 
         return config
-
-    def smach_params_callback(self, config):
-        """
-        Callback for the smach parameters server.
-        """
-        if config is None:
-            rospy.logwarn("Could not get parameters from smach_parameters_server")
-            return
-        self.navigation_mode = config.slalom_direction
-        rospy.loginfo(f"Slalom navigation_mode updated to: {self.navigation_mode}")
 
     def trigger_callback(self, req):
         """
@@ -157,158 +113,6 @@ class SlalomTrajectoryPublisher(object):
         if not self.active:
             return
 
-        try:
-            # --- First, get the pipe locations to establish the coordinate system ---
-            t_white = self.tf_buffer.lookup_transform(
-                self.parent_frame,
-                self.slalom_white_frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
-            )
-            pos_white = np.array(
-                [
-                    t_white.transform.translation.x,
-                    t_white.transform.translation.y,
-                    t_white.transform.translation.z,
-                ]
-            )
-            t_red = self.tf_buffer.lookup_transform(
-                self.parent_frame,
-                self.slalom_red_frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
-            )
-            pos_red = np.array(
-                [
-                    t_red.transform.translation.x,
-                    t_red.transform.translation.y,
-                    t_red.transform.translation.z,
-                ]
-            )
-            if self.navigation_mode == "right":
-                slalom_parallel_vector = pos_white - pos_red
-            elif self.navigation_mode == "left":
-                slalom_parallel_vector = pos_red - pos_white
-            else:
-                rospy.logwarn("Invalid navigation mode. Defaulting to 'left'.")
-                slalom_parallel_vector = pos_red - pos_white
-
-            slalom_parallel_vector = slalom_parallel_vector / np.linalg.norm(
-                slalom_parallel_vector
-            )
-            # Forward vector is the normal of the vector between pipes
-            forward_vec = np.array(
-                [-slalom_parallel_vector[1], slalom_parallel_vector[0], 0.0]
-            )
-            forward_vec = forward_vec / np.linalg.norm(forward_vec)
-
-            # --- Frame Calculation and Publishing ---
-
-            # Calculate slalom_waypoint_1 (midpoint of the pipes)
-            self.pos_wp1 = (pos_white + pos_red) / 2.0
-
-            # Ensure the forward vector points away from the odom frame origin
-            if np.dot(forward_vec, self.pos_wp1) < 0:
-                forward_vec = -forward_vec
-
-            # Angle for orientation
-            slalom_forward_angle = math.atan2(forward_vec[1], forward_vec[0])
-            self.q_orientation = tf.transformations.quaternion_from_euler(
-                0.0, 0.0, slalom_forward_angle
-            )
-
-            self.send_transform(
-                self.build_transform(
-                    "slalom_waypoint_1",
-                    self.parent_frame,
-                    self.pos_wp1,
-                    self.q_orientation,
-                )
-            )
-
-            # Calculate intermediate frame orientations
-            self.pos_wp2 = (
-                self.pos_wp1
-                + forward_vec * self.vertical_dist
-                + slalom_parallel_vector * self.offset2
-            )
-            self.pos_wp3 = (
-                self.pos_wp1
-                + forward_vec * (self.vertical_dist + self.vertical_dist)
-                + slalom_parallel_vector * self.offset3
-            )
-
-            dir_vec1 = self.pos_wp2 - self.pos_wp1
-            dir_vec1 = dir_vec1 / np.linalg.norm(dir_vec1)
-            angle1 = math.atan2(dir_vec1[1], dir_vec1[0])
-            q1 = tf.transformations.quaternion_from_euler(0, 0, angle1)
-
-            dir_vec2 = self.pos_wp3 - self.pos_wp2
-            dir_vec2 = dir_vec2 / np.linalg.norm(dir_vec2)
-            angle2 = math.atan2(dir_vec2[1], dir_vec2[0])
-            q2 = tf.transformations.quaternion_from_euler(0, 0, angle2)
-
-            # Publish intermediate frames
-            self.send_transform(
-                self.build_transform(
-                    "slalom_waypoint_1_inter",
-                    self.parent_frame,
-                    self.pos_wp1,
-                    q1,
-                )
-            )
-            self.send_transform(
-                self.build_transform(
-                    "slalom_waypoint_2_inter",
-                    self.parent_frame,
-                    self.pos_wp2,
-                    q2,
-                )
-            )
-
-            # Publish main waypoints with updated orientations
-            self.send_transform(
-                self.build_transform(
-                    "slalom_waypoint_2",
-                    self.parent_frame,
-                    self.pos_wp2,
-                    q1,
-                )
-            )
-            self.send_transform(
-                self.build_transform(
-                    "slalom_waypoint_3",
-                    self.parent_frame,
-                    self.pos_wp3,
-                    q2,
-                )
-            )
-
-            # Calculate and publish slalom_exit
-            self.pos_exit = self.pos_wp3 + forward_vec * self.exit_distance
-            self.send_transform(
-                self.build_transform(
-                    "slalom_exit",
-                    self.parent_frame,
-                    self.pos_exit,
-                    self.q_orientation,
-                )
-            )
-
-            # Broadcast the debug frame
-            self.send_transform(
-                self.build_transform(
-                    "slalom_debug_frame",
-                    self.parent_frame,
-                    np.array([0.5, 0.0, 0.0]),
-                    self.q_orientation,
-                )
-            )
-        except Exception as e:
-            rospy.logwarn_throttle(
-                8, "Failed to get pipe locations and publish slalom waypoints: %s", e
-            )
-
         # Calculate and publish slalom_entrance
         try:
             t_gate_exit = self.tf_buffer.lookup_transform(
@@ -332,35 +136,28 @@ class SlalomTrajectoryPublisher(object):
             ]
             # Get the rotation matrix from the quaternion
             rotation_matrix = tf.transformations.quaternion_matrix(gate_exit_q)[:3, :3]
+
             # The y-axis in the gate_exit frame is (0, 1, 0)
             y_axis_in_gate_frame = np.array([0, 1, 0])
             # Transform the y-axis vector to the parent_frame (odom)
             y_axis_in_parent_frame = rotation_matrix.dot(y_axis_in_gate_frame)
-            # Calculate the new position by moving along the gate's y-axis
-            self.pos_entrance = gate_exit_pos + y_axis_in_parent_frame * self.gate_dist
-            self.send_transform(
-                self.build_transform(
-                    "slalom_entrance",
-                    self.parent_frame,
-                    self.pos_entrance,
-                    gate_exit_q,
-                )
-            )
 
             # The x-axis in the gate_exit frame is (1, 0, 0)
             x_axis_in_gate_frame = np.array([1, 0, 0])
             # Transform the x-axis vector to the parent_frame (odom)
             x_axis_in_parent_frame = rotation_matrix.dot(x_axis_in_gate_frame)
-            # Calculate the new position for the backed frame
-            pos_entrance_backed = (
-                self.pos_entrance
-                - x_axis_in_parent_frame * self.slalom_entrance_backed_distance
+
+            # Calculate the new position by moving along the gate's y-axis and x-axis
+            self.pos_entrance = (
+                gate_exit_pos
+                + y_axis_in_parent_frame * self.faruk_y_offset
+                + x_axis_in_parent_frame * self.faruk_x_offset
             )
             self.send_transform(
                 self.build_transform(
-                    "slalom_entrance_backed",
+                    "pool_checkpoint",
                     self.parent_frame,
-                    pos_entrance_backed,
+                    self.pos_entrance,
                     gate_exit_q,
                 )
             )
@@ -402,11 +199,8 @@ class SlalomTrajectoryPublisher(object):
     def save_parameters(self):
         """Save parameters to the YAML file."""
         params = {
-            "gate_to_slalom_entrance_distance": self.gate_dist,
-            "second_slalom_offset": self.offset2,
-            "third_slalom_offset": self.offset3,
-            "vertical_distance_between_slalom_clusters": self.vertical_dist,
-            "slalom_entrance_backed_distance": self.slalom_entrance_backed_distance,
+            "faruk_y_offset": self.faruk_y_offset,
+            "faruk_x_offset": self.faruk_x_offset,
         }
         try:
             with open(self.config_file, "w") as f:

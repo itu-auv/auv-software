@@ -6,6 +6,7 @@ import auv_smach
 import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
+from auv_smach.pool_checkpoint import PoolCheckpointState
 from auv_smach.slalom import NavigateThroughSlalomState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
@@ -41,6 +42,7 @@ class MainStateMachineNode:
         self.slalom_exit_angle_deg = 0.0
         self.bin_exit_angle_deg = 0.0
         self.torpedo_exit_angle_deg = 0.0
+        self.pool_checkpoint_exit_angle_deg = 0.0
 
         # Get current configuration from server
         try:
@@ -56,8 +58,11 @@ class MainStateMachineNode:
                 self.torpedo_exit_angle_deg = current_config.get(
                     "torpedo_exit_angle", 0.0
                 )
+                self.pool_checkpoint_exit_angle_deg = current_config.get(
+                    "pool_checkpoint_exit_angle", 0.0
+                )
                 rospy.loginfo(
-                    f"Loaded current config: selected_animal={self.selected_animal}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
+                    f"Loaded current config: selected_animal={self.selected_animal}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg}, {self.pool_checkpoint_exit_angle_deg})"
                 )
         except Exception as e:
             rospy.logwarn(f"Could not get current configuration: {e}")
@@ -127,13 +132,14 @@ class MainStateMachineNode:
             return
 
         rospy.loginfo(
-            "Received reconfigure request: selected_animal=%s, slalom_mode=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            "Received reconfigure request: selected_animal=%s, slalom_mode=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f, pool_checkpoint_exit_angle=%f",
             config.selected_animal,
             config.slalom_mode,
             config.gate_exit_angle,
             config.slalom_exit_angle,
             config.bin_exit_angle,
             config.torpedo_exit_angle,
+            config.pool_checkpoint_exit_angle,
         )
 
         # Update parameters
@@ -143,6 +149,7 @@ class MainStateMachineNode:
         self.slalom_exit_angle_deg = config.slalom_exit_angle
         self.bin_exit_angle_deg = config.bin_exit_angle
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
+        self.pool_checkpoint_exit_angle_deg = config.pool_checkpoint_exit_angle
 
     def execute_state_machine(self):
         # Convert degrees to radians
@@ -150,9 +157,10 @@ class MainStateMachineNode:
         slalom_exit_angle_rad = math.radians(self.slalom_exit_angle_deg)
         bin_exit_angle_rad = math.radians(self.bin_exit_angle_deg)
         torpedo_exit_angle_rad = math.radians(self.torpedo_exit_angle_deg)
+        pool_checkpoint_exit_angle_rad = math.radians(self.pool_checkpoint_exit_angle_deg)
 
         rospy.loginfo(
-            f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
+            f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}, pool_checkpoint={self.pool_checkpoint_exit_angle_deg}"
         )
 
         # Create torpedo fire frames based on selected animal
@@ -163,13 +171,17 @@ class MainStateMachineNode:
         )
         rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
         rospy.loginfo(
-            f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
+            f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}, pool_checkpoint={pool_checkpoint_exit_angle_rad}"
         )
 
         # Map state names to their corresponding classes and parameters
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
-            "NAVIGATE_THROUGH_GATE": (
+            "POOL_CHECKPOINT": (
+                PoolCheckpointState,
+                {"pool_checkpoint_exit_angle": pool_checkpoint_exit_angle_rad},
+            ),
+            "NAVIGATE_THROOUGH_GATE": (
                 NavigateThroughGateState,
                 {
                     "gate_depth": self.gate_depth,

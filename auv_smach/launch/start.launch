@@ -9,6 +9,7 @@
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
+        pool_checkpoint:POOL_CHECKPOINT,
         slalom:NAVIGATE_THROUGH_SLALOM,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
