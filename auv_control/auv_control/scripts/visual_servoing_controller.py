@@ -64,6 +64,13 @@ class VisualServoingControllerNoIMU:
         self.last_error_stamp = None
         self.last_known_error = 0.0
 
+        # --- Slalom mode state (added) ---
+        self.slalom_mode = 0
+        self.slalom_navigation_mode = "left"
+        self._slalom_red = []
+        self._slalom_white = []
+        self._slalom_frame_stamp = None
+
     def _setup_ros_communication(self):
         """Setup ROS publishers, subscribers, and services."""
         # Publishers
@@ -90,9 +97,113 @@ class VisualServoingControllerNoIMU:
         """Setup dynamic reconfigure server."""
         self.srv = Server(VisualServoingConfig, self.reconfigure_callback)
 
+    # ---------- Slalom helpers (added) ----------
+
+    @staticmethod
+    def _lower_y_of(msg: PropsYaw) -> float:
+        # Defensive: some messages might miss the attribute; treat as +inf to avoid selection
+        return getattr(msg, "bounding_box_lower_y", float("inf"))
+
+    @staticmethod
+    def _is_red(msg: PropsYaw) -> bool:
+        obj = (msg.object or "").lower()
+        # Accept "red" in object name; extend if you also have a dedicated color field.
+        return "red" in obj
+
+    @staticmethod
+    def _is_white(msg: PropsYaw) -> bool:
+        obj = (msg.object or "").lower()
+        return "white" in obj
+
+    def _reset_slalom_buffer_if_new_stamp(self, stamp):
+        if self._slalom_frame_stamp is None or stamp != self._slalom_frame_stamp:
+            self._slalom_frame_stamp = stamp
+            self._slalom_red = []
+            self._slalom_white = []
+
+    def process_slalom_detections(self):
+        """
+        1) Angle-based filtering by navigation mode (left/right):
+           - Choose RED by bounding box later (we pick red first by bbox for determinism).
+        2) Bounding box filter (lowest lower_y) on both colors.
+        3) Heading = (angle_red + angle_white)/2
+
+        Returns: heading angle (float) or None if insufficient data.
+        """
+        if not self._slalom_red or not self._slalom_white:
+            return None
+
+        # Pick the red pipe with lowest lower_y
+        red_best = min(self._slalom_red, key=lambda d: d["lower_y"])
+        angle_red = red_best["angle"]
+
+        # Angle-based candidate whites relative to chosen red
+        if self.slalom_navigation_mode == "left":
+            candidate_white = [w for w in self._slalom_white if w["angle"] > angle_red]
+        else:
+            candidate_white = [w for w in self._slalom_white if w["angle"] < angle_red]
+
+        if not candidate_white:
+            return None
+
+        # Pick the white pipe with lowest lower_y among candidates
+        white_best = min(candidate_white, key=lambda d: d["lower_y"])
+
+        # Heading is the average of angles
+        heading = 0.5 * (angle_red + white_best["angle"])
+        return heading
+
+    # ---------- End slalom helpers ----------
+
     def prop_yaw_callback(self, msg: PropsYaw):
         """Handles incoming prop yaw messages to update the controller error."""
-        if self.state == ControllerState.IDLE or msg.object != self.target_prop:
+        if self.state == ControllerState.IDLE:
+            return
+
+        # --- Slalom mode path (added) ---
+        if self.slalom_mode == 1 and self.target_prop == "slalom":
+            # Only consider red/white pipe messages
+            if not (self._is_red(msg) or self._is_white(msg)):
+                return
+
+            stamp = msg.header.stamp
+            self._reset_slalom_buffer_if_new_stamp(stamp)
+
+            det = {"angle": msg.angle, "lower_y": self._lower_y_of(msg)}
+            if self._is_red(msg):
+                self._slalom_red.append(det)
+            elif self._is_white(msg):
+                self._slalom_white.append(det)
+
+            # Try to compute heading as soon as both lists have data
+            heading = self.process_slalom_detections()
+            if heading is None:
+                return
+
+            current_stamp = stamp
+            self.last_prop_stamp_time = current_stamp
+            current_error = heading  # target heading for VS
+
+            if self.last_error_stamp is not None:
+                dt = (current_stamp - self.last_error_stamp).to_sec()
+                if dt > 0.001:
+                    self.error_derivative = (current_error - self.error) / dt
+
+            self.error = current_error
+            self.last_known_error = current_error
+            self.last_error_stamp = current_stamp
+            self.error_pub.publish(Float64(self.error))
+            rospy.loginfo(
+                f"[SLALOM] heading={self.error:.4f} (nav_mode={self.slalom_navigation_mode}) state={self.state}"
+            )
+
+            if self.state == ControllerState.SEARCHING:
+                self.state = ControllerState.CENTERING
+                rospy.loginfo("Prop found, returning to centering.")
+            return
+
+        # --- Original path (unchanged) ---
+        if msg.object != self.target_prop:
             return
 
         current_stamp = msg.header.stamp
@@ -186,8 +297,19 @@ class VisualServoingControllerNoIMU:
         self.prop_lost_timeout_s = config.prop_lost_timeout_s
         self.search_angular_velocity = config.search_angular_velocity
         self.max_angular_velocity = config.max_angular_velocity
+
+        # --- Slalom dynamic param (added) ---
+        if hasattr(config, "slalom_navigation_mode"):
+            nav_mode = str(config.slalom_navigation_mode).lower()
+            self.slalom_navigation_mode = (
+                "left" if nav_mode not in ("left", "right") else nav_mode
+            )
+
         rospy.loginfo(
-            f"Updated params: Kp={self.kp_gain}, kd={self.kd_gain}, VxDesired={self.v_x_desired}, NavTimeout={self.navigation_timeout_after_prop_disappear_s}, OverallTimeout={self.overall_timeout_s}, PropLostTimeout={self.prop_lost_timeout_s}, SearchAngularVelocity={self.search_angular_velocity}, MaxAngularVelocity={self.max_angular_velocity}"
+            f"Updated params: Kp={self.kp_gain}, kd={self.kd_gain}, VxDesired={self.v_x_desired}, "
+            f"NavTimeout={self.navigation_timeout_after_prop_disappear_s}, OverallTimeout={self.overall_timeout_s}, "
+            f"PropLostTimeout={self.prop_lost_timeout_s}, SearchAngularVelocity={self.search_angular_velocity}, "
+            f"MaxAngularVelocity={self.max_angular_velocity}, SlalomNavMode={self.slalom_navigation_mode}"
         )
         return config
 
@@ -208,7 +330,15 @@ class VisualServoingControllerNoIMU:
         self.error_derivative = 0.0
         self.last_error_stamp = None
         self.last_known_error = 0.0
-        rospy.loginfo(f"Visual servoing started for target: {self.target_prop}")
+
+        # --- Slalom mode init (added) ---
+        self.slalom_mode = 1 if (self.target_prop == "slalom") else 0
+        self._slalom_red, self._slalom_white = [], []
+        self._slalom_frame_stamp = None
+
+        rospy.loginfo(
+            f"Visual servoing started for target: {self.target_prop} (slalom_mode={self.slalom_mode})"
+        )
         return VisualServoingResponse(
             success=True, message="Visual servoing activated."
         )
