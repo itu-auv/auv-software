@@ -241,7 +241,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "c",
                 SearchForPropState(
-                    look_at_frame="self.animal_frame",
+                    look_at_frame=self.animal_frame,
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     set_frame_duration=5.0,
