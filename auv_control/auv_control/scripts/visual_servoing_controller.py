@@ -58,6 +58,7 @@ class VisualServoingControllerNoIMU:
         self.prop_lost_timeout_s = rospy.get_param("~prop_lost_timeout_s")
         self.search_angular_velocity = rospy.get_param("~search_angular_velocity")
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity")
+        self.high_error_timeout_s = rospy.get_param("~high_error_timeout_s", 5.0)
 
     def _setup_state(self):
         """Initialize the controller's state."""
@@ -71,6 +72,7 @@ class VisualServoingControllerNoIMU:
         self.error_derivative = 0.0
         self.last_error_stamp = None
         self.last_known_error = 0.0
+        self.high_error_start_time = None
 
         # --- Slalom mode state (added) ---
         self.slalom_mode = 0
@@ -288,11 +290,24 @@ class VisualServoingControllerNoIMU:
 
         if self.wait_to_center:
             if abs(self.error) > self.error_threshold_vx:
-                rospy.logwarn_throttle(
-                    1.0,
-                    f"Large error {self.error:.2f} > threshold {self.error_threshold_vx:.2f}, not navigating.",
-                )
-                return 0.0
+                if self.high_error_start_time is None:
+                    self.high_error_start_time = rospy.Time.now()
+
+                time_with_high_error = (
+                    rospy.Time.now() - self.high_error_start_time
+                ).to_sec()
+                if time_with_high_error < self.high_error_timeout_s:
+                    rospy.logwarn_throttle(
+                        1.0,
+                        f"Large error {self.error:.2f} > threshold {self.error_threshold_vx:.2f}, waiting for {self.high_error_timeout_s - time_with_high_error:.2f}s before navigating.",
+                    )
+                    return 0.0
+                else:
+                    rospy.logwarn(
+                        f"High error timeout of {self.high_error_timeout_s}s reached. Proceeding with navigation despite error {self.error:.2f}."
+                    )
+            else:
+                self.high_error_start_time = None
 
         if self.last_prop_stamp_time is None:
             rospy.logwarn_throttle(
@@ -315,6 +330,7 @@ class VisualServoingControllerNoIMU:
         self.kd_gain = config.kd_gain
         self.v_x_desired = config.v_x_desired
         self.error_threshold_vx = config.error_threshold_vx
+        self.high_error_timeout_s = config.high_error_timeout_s
         self.navigation_timeout_after_prop_disappear_s = (
             config.navigation_timeout_after_prop_disappear_s
         )
@@ -356,6 +372,7 @@ class VisualServoingControllerNoIMU:
         self.error_derivative = 0.0
         self.last_error_stamp = None
         self.last_known_error = 0.0
+        self.high_error_start_time = None
 
         # --- Slalom mode init (added) ---
         self.slalom_mode = 1 if (self.target_prop == "slalom") else 0
