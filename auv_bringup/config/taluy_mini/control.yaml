@@ -69,6 +69,6 @@ search_angular_velocity: 0.1
 v_x_desired: 0.6
 overall_timeout_s: 200.0
 max_angular_velocity: 0.5
-
 high_error_timeout_s: 5.0
 error_threshold_vx: 0.1
+slalom_height_threshold: 50.0

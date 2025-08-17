@@ -681,6 +681,7 @@ class CameraDetectionNode:
             props_yaw_msg.bounding_box_lower_y = (
                 detection.bbox.center.y + detection.bbox.size_y * 0.5
             )
+            props_yaw_msg.bounding_box_height = detection.bbox.size_y
             self.props_yaw_pub.publish(props_yaw_msg)
             """
             try:

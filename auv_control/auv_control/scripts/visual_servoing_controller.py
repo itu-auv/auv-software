@@ -49,7 +49,7 @@ class VisualServoingControllerNoIMU:
         self.kp_gain = rospy.get_param("~kp_gain")
         self.kd_gain = rospy.get_param("~kd_gain")
         self.v_x_desired = rospy.get_param("~v_x_desired")
-        self.error_threshold_vx = rospy.get_param("~error_threshold_vx")
+        self.error_threshold_vx = rospy.get_param("~error_threshold_vx", 0.1)
         self.navigation_timeout_after_prop_disappear_s = rospy.get_param(
             "~navigation_timeout_after_prop_disappear_s"
         )
@@ -59,6 +59,7 @@ class VisualServoingControllerNoIMU:
         self.search_angular_velocity = rospy.get_param("~search_angular_velocity")
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity")
         self.high_error_timeout_s = rospy.get_param("~high_error_timeout_s", 5.0)
+        self.slalom_height_threshold = rospy.get_param("~slalom_height_threshold", 50.0)
 
     def _setup_state(self):
         """Initialize the controller's state."""
@@ -136,28 +137,44 @@ class VisualServoingControllerNoIMU:
 
     def process_slalom_detections(self):
         """
-        1) Angle-based filtering by navigation mode (left/right):
+        1) Height filter: ignore detections with height below slalom_height_threshold
+        2) Angle-based filtering by navigation mode (left/right):
         - Choose RED by bounding box later (we pick red first by bbox for determinism).
-        2) Bounding box filter (lowest lower_y) on both colors.
-        3) Heading = (angle_red + angle_white)/2
+        3) Bounding box filter (lowest lower_y) on both colors.
+        4) Heading = (angle_red + angle_white)/2
 
         Returns: heading angle (float) or None if insufficient data.
         """
         if not self._slalom_red or not self._slalom_white:
             return None
 
+        # First check: Height filtering - filter out detections below threshold
+        filtered_red = [
+            d
+            for d in self._slalom_red
+            if d.get("height", 0) >= self.slalom_height_threshold
+        ]
+        filtered_white = [
+            d
+            for d in self._slalom_white
+            if d.get("height", 0) >= self.slalom_height_threshold
+        ]
+
+        if not filtered_red or not filtered_white:
+            return None
+
         # Pick the red pipe with largest lower_y (appears lower in the image)
-        red_best = max(self._slalom_red, key=lambda d: d["lower_y"])
+        red_best = max(filtered_red, key=lambda d: d["lower_y"])
         angle_red = red_best["angle"]
         rospy.loginfo(
-            f"[SLALOM] Selected red pipe: angle={angle_red:.4f}, lower_y={red_best['lower_y']:.4f}"
+            f"[SLALOM] Selected red pipe: angle={angle_red:.4f}, lower_y={red_best['lower_y']:.4f}, height={red_best.get('height', 0):.4f}"
         )
 
         # Angle-based candidate whites relative to chosen red
         if self.slalom_navigation_mode == "left":
-            candidate_white = [w for w in self._slalom_white if w["angle"] > angle_red]
+            candidate_white = [w for w in filtered_white if w["angle"] > angle_red]
         else:
-            candidate_white = [w for w in self._slalom_white if w["angle"] < angle_red]
+            candidate_white = [w for w in filtered_white if w["angle"] < angle_red]
 
         if not candidate_white:
             return None
@@ -165,7 +182,7 @@ class VisualServoingControllerNoIMU:
         # Pick the white pipe with largest lower_y among candidates
         white_best = max(candidate_white, key=lambda d: d["lower_y"])
         rospy.loginfo(
-            f"[SLALOM] Selected white pipe: angle={white_best['angle']:.4f}, lower_y={white_best['lower_y']:.4f}"
+            f"[SLALOM] Selected white pipe: angle={white_best['angle']:.4f}, lower_y={white_best['lower_y']:.4f}, height={white_best.get('height', 0):.4f}"
         )
         # Heading is the average of angles
         heading = 0.5 * (angle_red + white_best["angle"])
@@ -187,7 +204,11 @@ class VisualServoingControllerNoIMU:
             stamp = msg.header.stamp
             self._reset_slalom_buffer_if_new_stamp(stamp)
 
-            det = {"angle": msg.angle, "lower_y": self._lower_y_of(msg)}
+            det = {
+                "angle": msg.angle,
+                "lower_y": self._lower_y_of(msg),
+                "height": getattr(msg, "bounding_box_height", 0),
+            }
             if self._is_red(msg):
                 self._slalom_red.append(det)
             elif self._is_white(msg):
@@ -338,6 +359,7 @@ class VisualServoingControllerNoIMU:
         self.prop_lost_timeout_s = config.prop_lost_timeout_s
         self.search_angular_velocity = config.search_angular_velocity
         self.max_angular_velocity = config.max_angular_velocity
+        self.slalom_height_threshold = config.slalom_height_threshold
 
         # --- Slalom dynamic param (added) ---
         if hasattr(config, "slalom_navigation_mode"):
@@ -350,7 +372,8 @@ class VisualServoingControllerNoIMU:
             f"Updated params: Kp={self.kp_gain}, kd={self.kd_gain}, VxDesired={self.v_x_desired}, ErrorThresholdVx={self.error_threshold_vx}, "
             f"NavTimeout={self.navigation_timeout_after_prop_disappear_s}, OverallTimeout={self.overall_timeout_s}, "
             f"PropLostTimeout={self.prop_lost_timeout_s}, SearchAngularVelocity={self.search_angular_velocity}, "
-            f"MaxAngularVelocity={self.max_angular_velocity}, SlalomNavMode={self.slalom_navigation_mode}"
+            f"MaxAngularVelocity={self.max_angular_velocity}, SlalomNavMode={self.slalom_navigation_mode}, "
+            f"SlalomHeightThreshold={self.slalom_height_threshold}"
         )
         return config
 
@@ -449,7 +472,7 @@ class VisualServoingControllerNoIMU:
                     self.last_prop_stamp_time is not None
                     and (rospy.Time.now() - self.last_prop_stamp_time).to_sec()
                     > self.prop_lost_timeout_s
-                ):
+                ) or self.last_prop_stamp_time is None:
                     rospy.logwarn("Prop lost during centering, starting search.")
                     self.state = ControllerState.SEARCHING
                     self.error = 0.0
