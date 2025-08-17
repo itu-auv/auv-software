@@ -34,7 +34,7 @@ class AcousticTransmitterNode:
             return SendAcousticResponse(success=False, message=message)
 
     def spin(self):
-        rate = rospy.Rate(1)  # 1 Hz
+        rate = rospy.Rate(0.2)
 
         while not rospy.is_shutdown():
             if self.is_transmitting and self.data_to_transmit is not None:
