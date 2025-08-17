@@ -334,7 +334,7 @@ class BinTaskState(smach.State):
                     full_rotation=False,
                     set_frame_duration=7.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=0.2,
+                    rotation_speed=-0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_BIN_FRAME_PUBLISHER",
@@ -639,18 +639,9 @@ class BinTaskState(smach.State):
                     max_angular_velocity=0.2,
                 ),
                 transitions={
-                    "succeeded": "DELAY_FOR_PINGER",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-            smach.StateMachine.add(
-                "DELAY_FOR_PINGER",
-                DelayState(delay_time=10.0),
-                transitions={
                     "succeeded": "TRANSMIT_ACOUSTIC_3",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
             smach.StateMachine.add(
