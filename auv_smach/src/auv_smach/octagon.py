@@ -283,7 +283,7 @@ class OctagonTaskState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_OCTAGON",
+                "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
