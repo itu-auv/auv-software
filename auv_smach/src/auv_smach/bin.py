@@ -19,6 +19,7 @@ from auv_smach.common import (
 )
 
 from auv_smach.initialize import DelayState
+from auv_smach.acoustic import AcousticTransmitter
 
 
 class CheckForDropAreaState(smach.State):
@@ -646,6 +647,15 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "DELAY_FOR_PINGER",
                 DelayState(delay_time=10.0),
+                transitions={
+                    "succeeded": "TRANSMIT_ACOUSTIC_3",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TRANSMIT_ACOUSTIC_3",
+                AcousticTransmitter(acoustic_data=3),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
