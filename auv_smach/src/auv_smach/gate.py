@@ -321,18 +321,9 @@ class NavigateThroughGateState(smach.State):
                     yaw_threshold=0.1,
                     confirm_duration=1.0,
                     timeout=10.0,
-                    cancel_on_success=False,
+                    cancel_on_success=True,
                     keep_orientation=False,
                 ),
-                transitions={
-                    "succeeded": "DELAY_FOR_PINGER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DELAY_FOR_PINGER",
-                DelayState(delay_time=10.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
