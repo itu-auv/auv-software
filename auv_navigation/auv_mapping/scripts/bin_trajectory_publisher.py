@@ -97,7 +97,7 @@ class BinTransformServiceNode:
         try:
             transform_gate_exit = self.tf_buffer.lookup_transform(
                 self.odom_frame,
-                "gate_exit",
+                "torpedo_target_realsense",
                 rospy.Time.now(),
                 rospy.Duration(1),
             )

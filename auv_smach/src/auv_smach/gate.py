@@ -319,11 +319,20 @@ class NavigateThroughGateState(smach.State):
                     angle_offset=self.gate_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=0.0,
+                    confirm_duration=1.0,
                     timeout=10.0,
-                    cancel_on_success=True,
+                    cancel_on_success=False,
                     keep_orientation=False,
                 ),
+                transitions={
+                    "succeeded": "DELAY_FOR_PINGER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_FOR_PINGER",
+                DelayState(delay_time=10.0),
                 transitions={
                     "succeeded": "TRANSMIT_ACOUSTIC_1",
                     "preempted": "preempted",
