@@ -66,6 +66,8 @@ class WrenchController {
   double desired_z_ = 0.0;
   double zx_multiplier_ = 0.0;
   double zy_multiplier_ = 0.0;
+  double yyaw_multiplier_ = 0.0;
+  double yx_multiplier_ = 0.0;
   double linear_xy_scalar_ = 0.0;
   double roll_scalar_ = 0.0;
   double pitch_scalar_ = 0.0;

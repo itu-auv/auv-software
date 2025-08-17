@@ -6,7 +6,13 @@ from enum import Enum
 
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool, Float64
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import (
+    Trigger,
+    TriggerResponse,
+    SetBool,
+    SetBoolRequest,
+    SetBoolResponse,
+)
 from auv_msgs.msg import PropsYaw
 from auv_msgs.srv import VisualServoing, VisualServoingResponse
 from dynamic_reconfigure.server import Server
@@ -43,6 +49,7 @@ class VisualServoingControllerNoIMU:
         self.kp_gain = rospy.get_param("~kp_gain")
         self.kd_gain = rospy.get_param("~kd_gain")
         self.v_x_desired = rospy.get_param("~v_x_desired")
+        self.error_threshold_vx = rospy.get_param("~error_threshold_vx", 0.1)
         self.navigation_timeout_after_prop_disappear_s = rospy.get_param(
             "~navigation_timeout_after_prop_disappear_s"
         )
@@ -51,6 +58,9 @@ class VisualServoingControllerNoIMU:
         self.prop_lost_timeout_s = rospy.get_param("~prop_lost_timeout_s")
         self.search_angular_velocity = rospy.get_param("~search_angular_velocity")
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity")
+        self.high_error_timeout_s = rospy.get_param("~high_error_timeout_s", 5.0)
+        self.slalom_height_threshold = rospy.get_param("~slalom_height_threshold", 5.0)
+        self.slalom_angle_threshold = rospy.get_param("~slalom_angle_threshold", 0.1)
 
     def _setup_state(self):
         """Initialize the controller's state."""
@@ -58,11 +68,13 @@ class VisualServoingControllerNoIMU:
         self.target_prop = ""
         self.service_start_time = None
         self.last_prop_stamp_time = None
+        self.wait_to_center = False
         # Controller state
         self.error = 0.0
         self.error_derivative = 0.0
         self.last_error_stamp = None
         self.last_known_error = 0.0
+        self.high_error_start_time = None
 
         # --- Slalom mode state (added) ---
         self.slalom_mode = 0
@@ -86,7 +98,7 @@ class VisualServoingControllerNoIMU:
             "visual_servoing/start", VisualServoing, self.handle_start_request
         )
         rospy.Service("visual_servoing/cancel", Trigger, self.handle_cancel_request)
-        rospy.Service("visual_servoing/navigate", Trigger, self.handle_navigate_request)
+        rospy.Service("visual_servoing/navigate", SetBool, self.handle_navigate_request)
         rospy.Service(
             "visual_servoing/cancel_navigation",
             Trigger,
@@ -126,37 +138,82 @@ class VisualServoingControllerNoIMU:
 
     def process_slalom_detections(self):
         """
-        1) Angle-based filtering by navigation mode (left/right):
+        1) Height filter: ignore detections with height below slalom_height_threshold
+        2) Angle-based filtering by navigation mode (left/right):
         - Choose RED by bounding box later (we pick red first by bbox for determinism).
-        2) Bounding box filter (lowest lower_y) on both colors.
-        3) Heading = (angle_red + angle_white)/2
+        3) Angle threshold filtering: filter out white pipes too close in angle to selected red pipe
+        4) Bounding box filter (lowest lower_y) on both colors.
+        5) Heading = (angle_red + angle_white)/2
 
         Returns: heading angle (float) or None if insufficient data.
         """
         if not self._slalom_red or not self._slalom_white:
             return None
+        # First check: Height filtering - filter out detections below threshold
+        # Log all red detections
+        red_info = []
+        for i, det in enumerate(self._slalom_red):
+            red_info.append(
+                f"Red[{i}]: obj={det.get('object', 'red')}, h={det.get('height', 0):.1f}, y={det.get('lower_y', 0):.1f}"
+            )
+
+        # Log all white detections
+        white_info = []
+        for i, det in enumerate(self._slalom_white):
+            white_info.append(
+                f"White[{i}]: obj={det.get('object', 'white')}, h={det.get('height', 0):.1f}, y={det.get('lower_y', 0):.1f}"
+            )
+
+        rospy.loginfo_throttle(
+            1.0,
+            f"Slalom detections - {' | '.join(red_info)} || {' | '.join(white_info)}",
+        )
+
+        # Use original lists without height filtering
+        filtered_red = self._slalom_red
+        filtered_white = self._slalom_white
+
+        if not filtered_red or not filtered_white:
+            return None
 
         # Pick the red pipe with largest lower_y (appears lower in the image)
-        red_best = max(self._slalom_red, key=lambda d: d["lower_y"])
+        red_best = max(filtered_red, key=lambda d: d["lower_y"])
         angle_red = red_best["angle"]
         rospy.loginfo(
-            f"[SLALOM] Selected red pipe: angle={angle_red:.4f}, lower_y={red_best['lower_y']:.4f}"
+            f"[SLALOM] Selected red pipe: angle={angle_red:.4f}, lower_y={red_best['lower_y']:.4f}, height={red_best.get('height', 0):.4f}"
         )
 
         # Angle-based candidate whites relative to chosen red
         if self.slalom_navigation_mode == "left":
-            candidate_white = [w for w in self._slalom_white if w["angle"] > angle_red]
+            candidate_white = [w for w in filtered_white if w["angle"] > angle_red]
         else:
-            candidate_white = [w for w in self._slalom_white if w["angle"] < angle_red]
+            candidate_white = [w for w in filtered_white if w["angle"] < angle_red]
 
         if not candidate_white:
             return None
 
-        # Pick the white pipe with largest lower_y among candidates
-        white_best = max(candidate_white, key=lambda d: d["lower_y"])
+        # Angle threshold filtering: remove white pipes too close in angle to the selected red pipe
+        angle_filtered_white = [
+            w
+            for w in candidate_white
+            if abs(w["angle"] - angle_red) >= self.slalom_angle_threshold
+        ]
+
+        if not angle_filtered_white:
+            rospy.logwarn_throttle(
+                1.0,
+                f"[SLALOM] All white candidates filtered out by angle threshold {self.slalom_angle_threshold:.3f}rad",
+            )
+            return None
+
+        # Pick the white pipe with largest lower_y among angle-filtered candidates
+        white_best = max(angle_filtered_white, key=lambda d: d["lower_y"])
+        angle_diff = abs(white_best["angle"] - angle_red)
         rospy.loginfo(
-            f"[SLALOM] Selected white pipe: angle={white_best['angle']:.4f}, lower_y={white_best['lower_y']:.4f}"
+            f"[SLALOM] Selected white pipe: angle={white_best['angle']:.4f}, lower_y={white_best['lower_y']:.4f}, "
+            f"height={white_best.get('height', 0):.4f}, angle_diff={angle_diff:.4f}"
         )
+
         # Heading is the average of angles
         heading = 0.5 * (angle_red + white_best["angle"])
         return heading
@@ -177,7 +234,11 @@ class VisualServoingControllerNoIMU:
             stamp = msg.header.stamp
             self._reset_slalom_buffer_if_new_stamp(stamp)
 
-            det = {"angle": msg.angle, "lower_y": self._lower_y_of(msg)}
+            det = {
+                "angle": msg.angle,
+                "lower_y": self._lower_y_of(msg),
+                "height": getattr(msg, "bounding_box_height", 0),
+            }
             if self._is_red(msg):
                 self._slalom_red.append(det)
             elif self._is_white(msg):
@@ -278,6 +339,27 @@ class VisualServoingControllerNoIMU:
         if self.state != ControllerState.NAVIGATING:
             return 0.0
 
+        if self.wait_to_center:
+            if abs(self.error) > self.error_threshold_vx:
+                if self.high_error_start_time is None:
+                    self.high_error_start_time = rospy.Time.now()
+
+                time_with_high_error = (
+                    rospy.Time.now() - self.high_error_start_time
+                ).to_sec()
+                if time_with_high_error < self.high_error_timeout_s:
+                    rospy.logwarn_throttle(
+                        1.0,
+                        f"Large error {self.error:.2f} > threshold {self.error_threshold_vx:.2f}, waiting for {self.high_error_timeout_s - time_with_high_error:.2f}s before navigating.",
+                    )
+                    return 0.0
+                else:
+                    rospy.logwarn(
+                        f"High error timeout of {self.high_error_timeout_s}s reached. Proceeding with navigation despite error {self.error:.2f}."
+                    )
+            else:
+                self.high_error_start_time = None
+
         if self.last_prop_stamp_time is None:
             rospy.logwarn_throttle(
                 1.0, "In navigation mode but no prop has been seen yet."
@@ -298,6 +380,8 @@ class VisualServoingControllerNoIMU:
         self.kp_gain = config.kp_gain
         self.kd_gain = config.kd_gain
         self.v_x_desired = config.v_x_desired
+        self.error_threshold_vx = config.error_threshold_vx
+        self.high_error_timeout_s = config.high_error_timeout_s
         self.navigation_timeout_after_prop_disappear_s = (
             config.navigation_timeout_after_prop_disappear_s
         )
@@ -305,6 +389,8 @@ class VisualServoingControllerNoIMU:
         self.prop_lost_timeout_s = config.prop_lost_timeout_s
         self.search_angular_velocity = config.search_angular_velocity
         self.max_angular_velocity = config.max_angular_velocity
+        self.slalom_height_threshold = config.slalom_height_threshold
+        self.slalom_angle_threshold = config.slalom_angle_threshold
 
         # --- Slalom dynamic param (added) ---
         if hasattr(config, "slalom_navigation_mode"):
@@ -314,10 +400,11 @@ class VisualServoingControllerNoIMU:
             )
 
         rospy.loginfo(
-            f"Updated params: Kp={self.kp_gain}, kd={self.kd_gain}, VxDesired={self.v_x_desired}, "
+            f"Updated params: Kp={self.kp_gain}, kd={self.kd_gain}, VxDesired={self.v_x_desired}, ErrorThresholdVx={self.error_threshold_vx}, "
             f"NavTimeout={self.navigation_timeout_after_prop_disappear_s}, OverallTimeout={self.overall_timeout_s}, "
             f"PropLostTimeout={self.prop_lost_timeout_s}, SearchAngularVelocity={self.search_angular_velocity}, "
-            f"MaxAngularVelocity={self.max_angular_velocity}, SlalomNavMode={self.slalom_navigation_mode}"
+            f"MaxAngularVelocity={self.max_angular_velocity}, SlalomNavMode={self.slalom_navigation_mode}, "
+            f"SlalomHeightThreshold={self.slalom_height_threshold}, SlalomAngleThreshold={self.slalom_angle_threshold}"
         )
         return config
 
@@ -338,6 +425,7 @@ class VisualServoingControllerNoIMU:
         self.error_derivative = 0.0
         self.last_error_stamp = None
         self.last_known_error = 0.0
+        self.high_error_start_time = None
 
         # --- Slalom mode init (added) ---
         self.slalom_mode = 1 if (self.target_prop == "slalom") else 0
@@ -359,22 +447,23 @@ class VisualServoingControllerNoIMU:
         self._stop_controller("cancelled by request")
         return TriggerResponse(success=True, message="Visual servoing deactivated.")
 
-    def handle_navigate_request(self, req: Trigger) -> TriggerResponse:
+    def handle_navigate_request(self, req: SetBoolRequest) -> SetBoolResponse:
         """Switches to navigation mode."""
         if self.state == ControllerState.IDLE:
-            return TriggerResponse(
+            return SetBoolResponse(
                 success=False, message="Controller is not in centering mode."
             )
         if self.state == ControllerState.NAVIGATING:
-            return TriggerResponse(
+            return SetBoolResponse(
                 success=False, message="Controller is already in navigation mode."
             )
 
+        self.wait_to_center = req.data
         self.state = ControllerState.NAVIGATING
         rospy.loginfo(
-            f"Visual servoing navigation started. Current error: {self.error}"
+            f"Visual servoing navigation started. Current error: {self.error}, wait_to_center: {self.wait_to_center}"
         )
-        return TriggerResponse(success=True, message="Navigation mode activated.")
+        return SetBoolResponse(success=True, message="Navigation mode activated.")
 
     def handle_cancel_navigation_request(self, req: Trigger) -> TriggerResponse:
         """Cancels navigation mode and returns to centering."""
@@ -414,7 +503,7 @@ class VisualServoingControllerNoIMU:
                     self.last_prop_stamp_time is not None
                     and (rospy.Time.now() - self.last_prop_stamp_time).to_sec()
                     > self.prop_lost_timeout_s
-                ):
+                ) or self.last_prop_stamp_time is None:
                     rospy.logwarn("Prop lost during centering, starting search.")
                     self.state = ControllerState.SEARCHING
                     self.error = 0.0

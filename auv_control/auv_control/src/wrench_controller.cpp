@@ -52,6 +52,8 @@ void WrenchController::reconfigureCallback(
   z_pid_.setGains(config.z_p_gain, config.z_i_gain, config.z_d_gain);
   zx_multiplier_ = config.zx_multiplier;
   zy_multiplier_ = config.zy_multiplier;
+  yyaw_multiplier_ = config.yyaw_multiplier;
+  yx_multiplier_ = config.yx_multiplier;
   linear_xy_scalar_ = config.linear_xy_scalar;
   roll_scalar_ = config.roll_scalar;
   pitch_scalar_ = config.pitch_scalar;
@@ -91,14 +93,17 @@ void WrenchController::spin() {
       geometry_msgs::WrenchStamped wrench_msg;
       wrench_msg.header.stamp = ros::Time::now();
       wrench_msg.header.frame_id = body_frame_;
+      double y_force = latest_cmd_vel_.linear.y * linear_xy_scalar_ +
+                       zy_multiplier_ * z_force;
       wrench_msg.wrench.force.x = latest_cmd_vel_.linear.x * linear_xy_scalar_ +
-                                  zx_multiplier_ * z_force;
-      wrench_msg.wrench.force.y = latest_cmd_vel_.linear.y * linear_xy_scalar_ +
-                                  zy_multiplier_ * z_force;
+                                  zx_multiplier_ * z_force +
+                                  yx_multiplier_ * y_force;
+      wrench_msg.wrench.force.y = y_force;
       wrench_msg.wrench.force.z = z_force;
       wrench_msg.wrench.torque.x = latest_cmd_vel_.angular.x * roll_scalar_;
       wrench_msg.wrench.torque.y = latest_cmd_vel_.angular.y * pitch_scalar_;
-      wrench_msg.wrench.torque.z = latest_cmd_vel_.angular.z * yaw_scalar_;
+      wrench_msg.wrench.torque.z =
+          latest_cmd_vel_.angular.z * yaw_scalar_ + yyaw_multiplier_ * y_force;
       wrench_pub_.publish(wrench_msg);
     }
 
