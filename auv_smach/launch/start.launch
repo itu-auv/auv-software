@@ -23,6 +23,7 @@
     <arg name="roll" default="true" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
+    <arg name="pool_frame" default="false" doc="Enable pool frame navigation after gate"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -50,6 +51,7 @@
             <param name="roll" value="$(arg roll)"/>
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
+            <param name="pool_frame" value="$(arg pool_frame)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>

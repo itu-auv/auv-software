@@ -100,6 +100,7 @@ class NavigateThroughGateState(smach.State):
         self.roll = rospy.get_param("~roll", True)
         self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip = rospy.get_param("~coin_flip", False)
+        self.pool_frame = rospy.get_param("~pool_frame", False)
         self.gate_look_at_frame = "gate_middle_part"
         self.gate_search_frame = "gate_search"
         self.gate_exit_angle = gate_exit_angle
@@ -318,7 +319,41 @@ class NavigateThroughGateState(smach.State):
                     angle_offset=self.gate_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=0.0,
+                    confirm_duration=1.0,
+                    timeout=10.0,
+                    cancel_on_success=True,
+                    keep_orientation=False,
+                ),
+                transitions={
+                    "succeeded": (
+                        "DYNAMIC_PATH_TO_POOL" if self.pool_frame else "succeeded"
+                    ),
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_POOL",
+                DynamicPathState(
+                    plan_target_frame="gate_to_pool",
+                    angle_offset=self.gate_exit_angle,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_POOL",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_POOL",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="gate_to_pool",
+                    angle_offset=self.gate_exit_angle,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=1.0,
                     timeout=10.0,
                     cancel_on_success=True,
                     keep_orientation=False,
@@ -329,6 +364,7 @@ class NavigateThroughGateState(smach.State):
                     "aborted": "aborted",
                 },
             )
+
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
