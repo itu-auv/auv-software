@@ -38,6 +38,8 @@ class TransformServiceNode:
         self.parallel_shift_offset = 0.20
         self.rescuer_distance = 1.0
         self.wall_reference_yaw = 0.0
+        self.pool_x_offset = 1.0
+        self.pool_y_offset = 0.0
         self.reconfigure_server = Server(
             GateTrajectoryConfig, self.reconfigure_callback
         )
@@ -69,6 +71,7 @@ class TransformServiceNode:
         self.entrance_frame = "gate_entrance"
         self.exit_frame = "gate_exit"
         self.middle_frame = "gate_middle_part"
+        self.pool_frame = "gate_to_pool"
 
         # Verify that we have valid frame names
         if not all([self.gate_frame_1, self.gate_frame_2]):
@@ -287,6 +290,16 @@ class TransformServiceNode:
             exit_transform = self.build_transform_message(self.exit_frame, exit_pose)
             self.send_transform(entrance_transform)
             self.send_transform(exit_transform)
+
+            # Create and send the gate_to_pool frame relative to the exit frame
+            pool_pose = Pose()
+            pool_pose.position.x = exit_pose.position.x + self.pool_x_offset
+            pool_pose.position.y = exit_pose.position.y + self.pool_y_offset
+            pool_pose.position.z = exit_pose.position.z  # Keep the same Z
+            pool_pose.orientation = exit_pose.orientation  # Keep the same orientation
+
+            pool_transform = self.build_transform_message(self.pool_frame, pool_pose)
+            self.send_transform(pool_transform)
 
     def _compute_frames_fallback_mode(
         self, gate_transform: TransformStamped
@@ -623,6 +636,8 @@ class TransformServiceNode:
         self.z_offset = config.z_offset
         self.parallel_shift_offset = config.parallel_shift_offset
         self.rescuer_distance = config.rescuer_distance
+        self.pool_x_offset = config.pool_x_offset
+        self.pool_y_offset = config.pool_y_offset
         return config
 
 
