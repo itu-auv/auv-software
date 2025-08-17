@@ -60,6 +60,7 @@ class VisualServoingControllerNoIMU:
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity")
         self.high_error_timeout_s = rospy.get_param("~high_error_timeout_s", 5.0)
         self.slalom_height_threshold = rospy.get_param("~slalom_height_threshold", 50.0)
+        self.slalom_angle_threshold = rospy.get_param("~slalom_angle_threshold", 0.1)
 
     def _setup_state(self):
         """Initialize the controller's state."""
@@ -140,8 +141,9 @@ class VisualServoingControllerNoIMU:
         1) Height filter: ignore detections with height below slalom_height_threshold
         2) Angle-based filtering by navigation mode (left/right):
         - Choose RED by bounding box later (we pick red first by bbox for determinism).
-        3) Bounding box filter (lowest lower_y) on both colors.
-        4) Heading = (angle_red + angle_white)/2
+        3) Angle threshold filtering: filter out white pipes too close in angle to selected red pipe
+        4) Bounding box filter (lowest lower_y) on both colors.
+        5) Heading = (angle_red + angle_white)/2
 
         Returns: heading angle (float) or None if insufficient data.
         """
@@ -197,11 +199,28 @@ class VisualServoingControllerNoIMU:
         if not candidate_white:
             return None
 
-        # Pick the white pipe with largest lower_y among candidates
-        white_best = max(candidate_white, key=lambda d: d["lower_y"])
+        # Angle threshold filtering: remove white pipes too close in angle to the selected red pipe
+        angle_filtered_white = [
+            w
+            for w in candidate_white
+            if abs(w["angle"] - angle_red) >= self.slalom_angle_threshold
+        ]
+
+        if not angle_filtered_white:
+            rospy.logwarn_throttle(
+                1.0,
+                f"[SLALOM] All white candidates filtered out by angle threshold {self.slalom_angle_threshold:.3f}rad",
+            )
+            return None
+
+        # Pick the white pipe with largest lower_y among angle-filtered candidates
+        white_best = max(angle_filtered_white, key=lambda d: d["lower_y"])
+        angle_diff = abs(white_best["angle"] - angle_red)
         rospy.loginfo(
-            f"[SLALOM] Selected white pipe: angle={white_best['angle']:.4f}, lower_y={white_best['lower_y']:.4f}, height={white_best.get('height', 0):.4f}"
+            f"[SLALOM] Selected white pipe: angle={white_best['angle']:.4f}, lower_y={white_best['lower_y']:.4f}, "
+            f"height={white_best.get('height', 0):.4f}, angle_diff={angle_diff:.4f}"
         )
+
         # Heading is the average of angles
         heading = 0.5 * (angle_red + white_best["angle"])
         return heading
@@ -378,6 +397,7 @@ class VisualServoingControllerNoIMU:
         self.search_angular_velocity = config.search_angular_velocity
         self.max_angular_velocity = config.max_angular_velocity
         self.slalom_height_threshold = config.slalom_height_threshold
+        self.slalom_angle_threshold = config.slalom_angle_threshold
 
         # --- Slalom dynamic param (added) ---
         if hasattr(config, "slalom_navigation_mode"):
@@ -391,7 +411,7 @@ class VisualServoingControllerNoIMU:
             f"NavTimeout={self.navigation_timeout_after_prop_disappear_s}, OverallTimeout={self.overall_timeout_s}, "
             f"PropLostTimeout={self.prop_lost_timeout_s}, SearchAngularVelocity={self.search_angular_velocity}, "
             f"MaxAngularVelocity={self.max_angular_velocity}, SlalomNavMode={self.slalom_navigation_mode}, "
-            f"SlalomHeightThreshold={self.slalom_height_threshold}"
+            f"SlalomHeightThreshold={self.slalom_height_threshold}, SlalomAngleThreshold={self.slalom_angle_threshold}"
         )
         return config
 
