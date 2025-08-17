@@ -109,7 +109,7 @@
     <include>
       <uri>model://robosub_octagon_animals</uri>
       <name>robosub_octagon_animals</name>
-      <pose>10.65 -4.25 -0.65 0 0 0</pose>
+      <pose>11.65 -4.25 -0.65 0 0 0</pose>
     </include>
     <state world_name='default'>
       <sim_time>1711 633000000</sim_time>
@@ -117,10 +117,10 @@
       <wall_time>1734459289 293355600</wall_time>
       <iterations>62177</iterations>
       <model name='robosub_bin'>
-        <pose>3.7 -3.3 -2 1.57 0 0.5</pose>
+        <pose>9.8 -12.6 -2 1.57 0 1.57</pose>
         <scale>1 1 1</scale>
         <link name='robosub_bin'>
-          <pose>3.7 -3.3 -2 1.57 0 0.5</pose>
+          <pose>9.8 -12.6 -2 1.57 0 1.57</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -137,20 +137,20 @@
         </link>
       </model>
       <model name='robosub_octagon'>
-        <pose>12.0 -4.25 -2 0 -0 0</pose>
+        <pose>13.0 -4.25 -2 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='robosub_octagon'>
-          <pose>12.0 -4.25 -2 0 -0 0</pose>
+          <pose>13.0 -4.25 -2 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
         </link>
       </model>
       <model name='robosub_torpedo'>
-        <pose>10.8 -12.6 -2 1.57 0 2.64</pose>
+        <pose>5.25 -1.4 -2 1.57 0 -2.5</pose>
         <scale>1 1 1</scale>
         <link name='robosub_torpedo'>
-          <pose>10.8 -12.6 -2 1.57 0 2.64</pose>
+          <pose>5.25 -1.4 -2 1.57 0 -2.5</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -182,7 +182,7 @@
     </gui>
     <model name='robosub_bin'>
       <static>1</static>
-      <pose>1.25 -1.4 -2 1.57 0 -1.6</pose>
+      <pose>9.8 -12.6 -2 1.57 0 1.57</pose>
       <link name='robosub_bin'>
         <pose>0 0 0 0 -0 0</pose>
         <collision name='robosub_bin_col'>
@@ -260,7 +260,7 @@
     </model>
     <model name='robosub_torpedo'>
       <static>1</static>
-      <pose>10.8 -12.6 -2 1.57 0 2.64</pose>
+      <pose>5.25 -1.4 -2 1.57 0 -2.5</pose>
       <link name='robosub_torpedo'>
         <pose>0 0 0 0 -0 0</pose>
         <collision name='robosub_torpedo_col'>
@@ -299,7 +299,7 @@
     </model>
     <model name='robosub_octagon'>
       <static>1</static>
-      <pose>12.0 -4.25 -2 0 -0 0</pose>
+      <pose>13.0 -4.25 -2 0 -0 0</pose>
       <link name='robosub_octagon'>
         <pose>0 0 0 0 -0 0</pose>
         <collision name='robosub_octagon_col'>
