@@ -63,7 +63,7 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "VISUAL_SERVOING_NAVIGATION",
                 VisualServoingNavigationWithFeedback(
-                    max_navigation_time=60, prop_lost_timeout=0.3
+                    navigate_value=True, max_navigation_time=100, prop_lost_timeout=0.3
                 ),
                 transitions={
                     "succeeded": "CANCEL_VISUAL_SERVOING",
@@ -97,7 +97,7 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "SLALOM_VS_NAVIGATION",
                 VisualServoingNavigationWithFeedback(
-                    max_navigation_time=60, prop_lost_timeout=3.0
+                    navigate_value=True, max_navigation_time=100, prop_lost_timeout=0.3
                 ),
                 transitions={
                     "succeeded": "CANCEL_VISUAL_SERVOING_2",
@@ -285,10 +285,14 @@ class VisualServoingNavigationWithFeedback(smach.State):
     """
 
     def __init__(
-        self, max_navigation_time: float = 60.0, prop_lost_timeout: float = 10.0
+        self,
+        navigate_value: bool = True,
+        max_navigation_time: float = 60.0,
+        prop_lost_timeout: float = 10.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
+        self.navigate_value = navigate_value
         self.max_navigation_time = max_navigation_time
         self.prop_lost_timeout = prop_lost_timeout
 
@@ -314,11 +318,15 @@ class VisualServoingNavigationWithFeedback(smach.State):
 
         try:
             # Start navigation
-            rospy.loginfo("Starting visual servoing navigation")
+            rospy.loginfo(
+                f"Starting visual servoing navigation with value: {self.navigate_value}"
+            )
             rospy.wait_for_service("visual_servoing/navigate", timeout=5.0)
-            nav_service = rospy.ServiceProxy("visual_servoing/navigate", Trigger)
+            nav_service = rospy.ServiceProxy("visual_servoing/navigate", SetBool)
 
-            response = nav_service(TriggerRequest())
+            request = SetBoolRequest()
+            request.data = self.navigate_value
+            response = nav_service(request)
             if not response.success:
                 rospy.logerr(f"Failed to start navigation: {response.message}")
                 return "aborted"

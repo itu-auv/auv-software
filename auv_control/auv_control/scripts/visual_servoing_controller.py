@@ -147,8 +147,26 @@ class VisualServoingControllerNoIMU:
         """
         if not self._slalom_red or not self._slalom_white:
             return None
-
         # First check: Height filtering - filter out detections below threshold
+        # Log all red detections
+        red_info = []
+        for i, det in enumerate(self._slalom_red):
+            red_info.append(
+                f"Red[{i}]: obj={det.get('object', 'red')}, h={det.get('height', 0):.1f}, y={det.get('lower_y', 0):.1f}"
+            )
+
+        # Log all white detections
+        white_info = []
+        for i, det in enumerate(self._slalom_white):
+            white_info.append(
+                f"White[{i}]: obj={det.get('object', 'white')}, h={det.get('height', 0):.1f}, y={det.get('lower_y', 0):.1f}"
+            )
+
+        rospy.loginfo_throttle(
+            1.0,
+            f"Slalom detections - {' | '.join(red_info)} || {' | '.join(white_info)}",
+        )
+
         filtered_red = [
             d
             for d in self._slalom_red
