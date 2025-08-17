@@ -12,6 +12,7 @@ from auv_smach.common import (
     AlignFrame,
     DynamicPathState,
 )
+from auv_smach.acoustic import AcousticTransmitter
 
 
 class NavigateReturnThroughGateState(smach.State):
@@ -111,6 +112,15 @@ class NavigateReturnThroughGateState(smach.State):
                     cancel_on_success=False,
                     keep_orientation=False,
                 ),
+                transitions={
+                    "succeeded": "TRANSMIT_ACOUSTIC_7",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TRANSMIT_ACOUSTIC_7",
+                AcousticTransmitter(acoustic_data=7),
                 transitions={
                     "succeeded": "FINISHED_ROBOSUB",
                     "preempted": "preempted",
