@@ -30,6 +30,7 @@ add_service_files(
   FILES
   AlignFrameController.srv
   PlanPath.srv
+  SendAcoustic.srv
   SetDepth.srv
   SetObjectTransform.srv
   VisualServoing.srv
