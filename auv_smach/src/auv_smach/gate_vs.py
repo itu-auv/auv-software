@@ -51,8 +51,8 @@ class NavigateThroughGateStateVS(smach.State):
                 VisualServoingCenteringWithFeedback(
                     target_prop="shark",
                     error_threshold=0.2,
-                    convergence_time=10.0,
-                    max_timeout=20.0,
+                    convergence_time=3.0,
+                    max_timeout=10.0,
                 ),
                 transitions={
                     "succeeded": "VISUAL_SERVOING_NAVIGATION",
@@ -85,8 +85,8 @@ class NavigateThroughGateStateVS(smach.State):
                 VisualServoingCenteringWithFeedback(
                     target_prop="slalom",
                     error_threshold=0.2,
-                    convergence_time=10.0,
-                    max_timeout=20.0,
+                    convergence_time=4.0,
+                    max_timeout=10.0,
                 ),
                 transitions={
                     "succeeded": "SLALOM_VS_NAVIGATION",
@@ -97,7 +97,7 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "SLALOM_VS_NAVIGATION",
                 VisualServoingNavigationWithFeedback(
-                    max_navigation_time=60, prop_lost_timeout=1.0
+                    max_navigation_time=60, prop_lost_timeout=3.0
                 ),
                 transitions={
                     "succeeded": "CANCEL_VISUAL_SERVOING_2",

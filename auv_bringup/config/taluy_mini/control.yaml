@@ -68,4 +68,4 @@ prop_lost_timeout_s: 3.0
 search_angular_velocity: 0.1
 v_x_desired: 0.6
 overall_timeout_s: 200.0
-max_angular_velocity: 0.3
+max_angular_velocity: 0.5

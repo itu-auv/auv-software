@@ -6,7 +6,13 @@ from enum import Enum
 
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool, Float64
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import (
+    Trigger,
+    TriggerResponse,
+    SetBool,
+    SetBoolRequest,
+    SetBoolResponse,
+)
 from auv_msgs.msg import PropsYaw
 from auv_msgs.srv import VisualServoing, VisualServoingResponse
 from dynamic_reconfigure.server import Server
@@ -43,6 +49,7 @@ class VisualServoingControllerNoIMU:
         self.kp_gain = rospy.get_param("~kp_gain")
         self.kd_gain = rospy.get_param("~kd_gain")
         self.v_x_desired = rospy.get_param("~v_x_desired")
+        self.error_threshold_vx = rospy.get_param("~error_threshold_vx")
         self.navigation_timeout_after_prop_disappear_s = rospy.get_param(
             "~navigation_timeout_after_prop_disappear_s"
         )
@@ -58,6 +65,7 @@ class VisualServoingControllerNoIMU:
         self.target_prop = ""
         self.service_start_time = None
         self.last_prop_stamp_time = None
+        self.wait_to_center = False
         # Controller state
         self.error = 0.0
         self.error_derivative = 0.0
@@ -86,7 +94,7 @@ class VisualServoingControllerNoIMU:
             "visual_servoing/start", VisualServoing, self.handle_start_request
         )
         rospy.Service("visual_servoing/cancel", Trigger, self.handle_cancel_request)
-        rospy.Service("visual_servoing/navigate", Trigger, self.handle_navigate_request)
+        rospy.Service("visual_servoing/navigate", SetBool, self.handle_navigate_request)
         rospy.Service(
             "visual_servoing/cancel_navigation",
             Trigger,
@@ -278,6 +286,14 @@ class VisualServoingControllerNoIMU:
         if self.state != ControllerState.NAVIGATING:
             return 0.0
 
+        if self.wait_to_center:
+            if abs(self.error) > self.error_threshold_vx:
+                rospy.logwarn_throttle(
+                    1.0,
+                    f"Large error {self.error:.2f} > threshold {self.error_threshold_vx:.2f}, not navigating.",
+                )
+                return 0.0
+
         if self.last_prop_stamp_time is None:
             rospy.logwarn_throttle(
                 1.0, "In navigation mode but no prop has been seen yet."
@@ -298,6 +314,7 @@ class VisualServoingControllerNoIMU:
         self.kp_gain = config.kp_gain
         self.kd_gain = config.kd_gain
         self.v_x_desired = config.v_x_desired
+        self.error_threshold_vx = config.error_threshold_vx
         self.navigation_timeout_after_prop_disappear_s = (
             config.navigation_timeout_after_prop_disappear_s
         )
@@ -305,6 +322,7 @@ class VisualServoingControllerNoIMU:
         self.prop_lost_timeout_s = config.prop_lost_timeout_s
         self.search_angular_velocity = config.search_angular_velocity
         self.max_angular_velocity = config.max_angular_velocity
+        self.error_threshold_vx = config.error_threshold_vx
 
         # --- Slalom dynamic param (added) ---
         if hasattr(config, "slalom_navigation_mode"):
@@ -314,7 +332,7 @@ class VisualServoingControllerNoIMU:
             )
 
         rospy.loginfo(
-            f"Updated params: Kp={self.kp_gain}, kd={self.kd_gain}, VxDesired={self.v_x_desired}, "
+            f"Updated params: Kp={self.kp_gain}, kd={self.kd_gain}, VxDesired={self.v_x_desired}, ErrorThresholdVx={self.error_threshold_vx}, "
             f"NavTimeout={self.navigation_timeout_after_prop_disappear_s}, OverallTimeout={self.overall_timeout_s}, "
             f"PropLostTimeout={self.prop_lost_timeout_s}, SearchAngularVelocity={self.search_angular_velocity}, "
             f"MaxAngularVelocity={self.max_angular_velocity}, SlalomNavMode={self.slalom_navigation_mode}"
@@ -359,22 +377,23 @@ class VisualServoingControllerNoIMU:
         self._stop_controller("cancelled by request")
         return TriggerResponse(success=True, message="Visual servoing deactivated.")
 
-    def handle_navigate_request(self, req: Trigger) -> TriggerResponse:
+    def handle_navigate_request(self, req: SetBoolRequest) -> SetBoolResponse:
         """Switches to navigation mode."""
         if self.state == ControllerState.IDLE:
-            return TriggerResponse(
+            return SetBoolResponse(
                 success=False, message="Controller is not in centering mode."
             )
         if self.state == ControllerState.NAVIGATING:
-            return TriggerResponse(
+            return SetBoolResponse(
                 success=False, message="Controller is already in navigation mode."
             )
 
+        self.wait_to_center = req.data
         self.state = ControllerState.NAVIGATING
         rospy.loginfo(
-            f"Visual servoing navigation started. Current error: {self.error}"
+            f"Visual servoing navigation started. Current error: {self.error}, wait_to_center: {self.wait_to_center}"
         )
-        return TriggerResponse(success=True, message="Navigation mode activated.")
+        return SetBoolResponse(success=True, message="Navigation mode activated.")
 
     def handle_cancel_navigation_request(self, req: Trigger) -> TriggerResponse:
         """Cancels navigation mode and returns to centering."""
