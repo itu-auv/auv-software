@@ -334,16 +334,7 @@ class NavigateThroughGateState(smach.State):
                 "DELAY_FOR_PINGER",
                 DelayState(delay_time=10.0),
                 transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_1",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_1",
-                AcousticTransmitter(acoustic_data=1),
-                transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },

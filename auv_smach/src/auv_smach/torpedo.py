@@ -134,6 +134,15 @@ class TorpedoTaskState(smach.State):
                     rotation_speed=0.3,
                 ),
                 transitions={
+                    "succeeded": "TRANSMIT_ACOUSTIC_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TRANSMIT_ACOUSTIC_1",
+                AcousticTransmitter(acoustic_data=1),
+                transitions={
                     "succeeded": "PATH_TO_TORPEDO_CLOSE_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
