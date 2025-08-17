@@ -59,7 +59,7 @@ class VisualServoingControllerNoIMU:
         self.search_angular_velocity = rospy.get_param("~search_angular_velocity")
         self.max_angular_velocity = rospy.get_param("~max_angular_velocity")
         self.high_error_timeout_s = rospy.get_param("~high_error_timeout_s", 5.0)
-        self.slalom_height_threshold = rospy.get_param("~slalom_height_threshold", 50.0)
+        self.slalom_height_threshold = rospy.get_param("~slalom_height_threshold", 5.0)
         self.slalom_angle_threshold = rospy.get_param("~slalom_angle_threshold", 0.1)
 
     def _setup_state(self):
@@ -169,16 +169,9 @@ class VisualServoingControllerNoIMU:
             f"Slalom detections - {' | '.join(red_info)} || {' | '.join(white_info)}",
         )
 
-        filtered_red = [
-            d
-            for d in self._slalom_red
-            if d.get("height", 0) >= self.slalom_height_threshold
-        ]
-        filtered_white = [
-            d
-            for d in self._slalom_white
-            if d.get("height", 0) >= self.slalom_height_threshold
-        ]
+        # Use original lists without height filtering
+        filtered_red = self._slalom_red
+        filtered_white = self._slalom_white
 
         if not filtered_red or not filtered_white:
             return None
