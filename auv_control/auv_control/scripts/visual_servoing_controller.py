@@ -338,7 +338,6 @@ class VisualServoingControllerNoIMU:
         self.prop_lost_timeout_s = config.prop_lost_timeout_s
         self.search_angular_velocity = config.search_angular_velocity
         self.max_angular_velocity = config.max_angular_velocity
-        self.error_threshold_vx = config.error_threshold_vx
 
         # --- Slalom dynamic param (added) ---
         if hasattr(config, "slalom_navigation_mode"):
