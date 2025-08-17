@@ -63,7 +63,7 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "VISUAL_SERVOING_NAVIGATION",
                 VisualServoingNavigationWithFeedback(
-                    navigate_value=True, max_navigation_time=100, prop_lost_timeout=0.3
+                    navigate_value=True, max_navigation_time=100, prop_lost_timeout=10.0
                 ),
                 transitions={
                     "succeeded": "CANCEL_VISUAL_SERVOING",
@@ -97,7 +97,7 @@ class NavigateThroughGateStateVS(smach.State):
             smach.StateMachine.add(
                 "SLALOM_VS_NAVIGATION",
                 VisualServoingNavigationWithFeedback(
-                    navigate_value=True, max_navigation_time=100, prop_lost_timeout=0.3
+                    navigate_value=True, max_navigation_time=100, prop_lost_timeout=10.0
                 ),
                 transitions={
                     "succeeded": "CANCEL_VISUAL_SERVOING_2",
