@@ -333,7 +333,7 @@ class BinTaskState(smach.State):
                     full_rotation=False,
                     set_frame_duration=7.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=-0.2,
+                    rotation_speed=0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_BIN_FRAME_PUBLISHER",
@@ -546,6 +546,15 @@ class BinTaskState(smach.State):
                     keep_orientation=True,
                 ),
                 transitions={
+                    "succeeded": "SET_DETECTION_FOCUS_NONE_FOR_BOTTOM_CAM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_NONE_FOR_BOTTOM_CAM",
+                SetDetectionState(camera_name="bottom", enable=False),
+                transitions={
                     "succeeded": "SET_BALL_DROP_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -553,7 +562,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BALL_DROP_DEPTH",
-                SetDepthState(depth=-1.3, sleep_duration=3.0),
+                SetDepthState(depth=-1.45, sleep_duration=3.0),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
                     "preempted": "preempted",
@@ -608,14 +617,35 @@ class BinTaskState(smach.State):
                 "WAIT_FOR_BALL_DROP_2",
                 DelayState(delay_time=3.0),
                 transitions={
-                    "succeeded": "DISABLE_BOTTOM_CAMERA",
+                    "succeeded": "ALIGN_TO_BIN_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DISABLE_BOTTOM_CAMERA",
-                SetDetectionState(camera_name="bottom", enable=False),
+                "ALIGN_TO_BIN_EXIT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="bin_exit",
+                    angle_offset=bin_exit_angle,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=2.0,
+                    timeout=15.0,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_linear_velocity=0.2,
+                    max_angular_velocity=0.2,
+                ),
+                transitions={
+                    "succeeded": "DELAY_FOR_PINGER",
+                    "preempted": "preempted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_FOR_PINGER",
+                DelayState(delay_time=10.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
