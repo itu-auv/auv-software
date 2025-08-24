@@ -30,7 +30,7 @@ class MainStateMachineNode:
             config_callback=self.dynamic_reconfigure_callback,
         )
 
-        self.return_home_station = "torpedo_target_realsense"
+        self.return_home_station = "bin_exit"
 
         # Get initial values from dynamic reconfigure
         self.selected_animal = "sawfish"
@@ -79,7 +79,7 @@ class MainStateMachineNode:
         self.torpedo_shark_fire_frame = "torpedo_shark_fire_frame"
         self.torpedo_sawfish_fire_frame = "torpedo_sawfish_fire_frame"
 
-        self.bin_front_look_depth = -1.4
+        self.bin_front_look_depth = -1.3
         self.bin_bottom_look_depth = -0.7
 
         self.octagon_depth = -0.8

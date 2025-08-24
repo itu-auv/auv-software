@@ -14,6 +14,7 @@ from auv_smach.common import (
     AlignAndCreateRotatingFrame,
 )
 from auv_smach.initialize import DelayState
+from auv_smach.acoustic import AcousticTransmitter
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 
 
@@ -50,35 +51,6 @@ class OctagonTaskState(smach.State):
         # Open the container for adding states
         with self.state_machine:
             smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_TORPEDO_REALSENSE",
-                DynamicPathState(
-                    plan_target_frame="torpedo_target_realsense",
-                ),
-                transitions={
-                    "succeeded": "ALIGN_TO_TORPEDO_TARGET_REALSENSE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_TORPEDO_TARGET_REALSENSE",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="torpedo_target_realsense",
-                    angle_offset=-1.745,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=4.0,
-                    timeout=60.0,
-                    cancel_on_success=False,
-                ),
-                transitions={
-                    "succeeded": "SET_OCTAGON_INITIAL_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "SET_OCTAGON_INITIAL_DEPTH",
                 SetDepthState(depth=-1.2, sleep_duration=4.0),
                 transitions={
@@ -104,7 +76,7 @@ class OctagonTaskState(smach.State):
                     full_rotation=False,
                     set_frame_duration=4.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=-0.2,
+                    rotation_speed=0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER",
@@ -231,22 +203,22 @@ class OctagonTaskState(smach.State):
                 "SURFACE_TO_ANIMAL_DEPTH",
                 SetDepthState(depth=-0.43, sleep_duration=4.0),
                 transitions={
-                    "succeeded": "SEARCH_FOR_ANIMAL",
+                    "succeeded": "SET_DETECTION_FOCUS_TO_ANIMALS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SEARCH_FOR_ANIMAL",
+                "SET_DETECTION_FOCUS_TO_ANIMALS",
                 SetDetectionFocusState(focus_object="gate"),
                 transitions={
-                    "succeeded": "a",
+                    "succeeded": "ROTATE_FOR_ANIMALS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "a",
+                "ROTATE_FOR_ANIMALS",
                 AlignAndCreateRotatingFrame(
                     source_frame="taluy/base_link",
                     target_frame="animal_search_frame",
@@ -278,13 +250,13 @@ class OctagonTaskState(smach.State):
                     rotation_speed=-0.2,
                 ),
                 transitions={
-                    "succeeded": "d",
+                    "succeeded": "SURFACING",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "d",
+                "SURFACING",
                 SetDepthState(depth=-0.05, sleep_duration=7.0),
                 transitions={
                     "succeeded": "SET_FINAL_DEPTH",
@@ -296,13 +268,22 @@ class OctagonTaskState(smach.State):
                 "SET_FINAL_DEPTH",
                 SetDepthState(depth=octagon_depth, sleep_duration=4.0),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER_OCTAGON",
+                    "succeeded": "TRANSMIT_ACOUSTIC_5",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_OCTAGON",
+                "TRANSMIT_ACOUSTIC_5",
+                AcousticTransmitter(acoustic_data=5),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",

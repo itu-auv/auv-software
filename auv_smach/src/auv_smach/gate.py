@@ -18,6 +18,7 @@ from auv_smach.common import (
 from std_srvs.srv import SetBool, SetBoolRequest
 from auv_smach.roll import TwoRollState, TwoYawState
 from auv_smach.coin_flip import CoinFlipState
+from auv_smach.acoustic import AcousticTransmitter
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
@@ -318,13 +319,13 @@ class NavigateThroughGateState(smach.State):
                     angle_offset=self.gate_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=0.0,
+                    confirm_duration=1.0,
                     timeout=10.0,
                     cancel_on_success=True,
                     keep_orientation=False,
                 ),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
