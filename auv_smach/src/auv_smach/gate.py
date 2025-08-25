@@ -18,6 +18,7 @@ from auv_smach.common import (
 from std_srvs.srv import SetBool, SetBoolRequest
 from auv_smach.roll import TwoRollState, TwoYawState
 from auv_smach.coin_flip import CoinFlipState
+from auv_smach.acoustic import AcousticTransmitter
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
@@ -138,7 +139,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "COIN_FLIP_STATE",
-                CoinFlipState(coin_flip_depth=-0.5),
+                CoinFlipState(),
                 transitions={
                     "succeeded": "SET_DETECTION_FOCUS_GATE",
                     "preempted": "preempted",
@@ -158,7 +159,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=self.roll_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 3.0),
+                    sleep_duration=3.0,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -318,13 +319,13 @@ class NavigateThroughGateState(smach.State):
                     angle_offset=self.gate_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=0.0,
+                    confirm_duration=1.0,
                     timeout=10.0,
                     cancel_on_success=True,
                     keep_orientation=False,
                 ),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },

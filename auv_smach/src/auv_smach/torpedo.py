@@ -14,6 +14,7 @@ from auv_smach.common import (
     SetDetectionState,
 )
 from auv_smach.initialize import DelayState
+from auv_smach.acoustic import AcousticTransmitter
 
 
 class TorpedoTargetFramePublisherServiceState(smach_ros.ServiceState):
@@ -130,8 +131,17 @@ class TorpedoTaskState(smach.State):
                     full_rotation=False,
                     set_frame_duration=7.0,
                     source_frame="taluy/base_link",
-                    rotation_speed=-0.3,
+                    rotation_speed=0.3,
                 ),
+                transitions={
+                    "succeeded": "TRANSMIT_ACOUSTIC_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TRANSMIT_ACOUSTIC_1",
+                AcousticTransmitter(acoustic_data=1),
                 transitions={
                     "succeeded": "PATH_TO_TORPEDO_CLOSE_APPROACH",
                     "preempted": "preempted",
@@ -464,6 +474,15 @@ class TorpedoTaskState(smach.State):
                     heading_control=False,
                     enable_heading_control_afterwards=True,
                 ),
+                transitions={
+                    "succeeded": "TRANSMIT_ACOUSTIC_4",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "TRANSMIT_ACOUSTIC_4",
+                AcousticTransmitter(acoustic_data=4),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",

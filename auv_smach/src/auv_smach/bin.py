@@ -19,6 +19,7 @@ from auv_smach.common import (
 )
 
 from auv_smach.initialize import DelayState
+from auv_smach.acoustic import AcousticTransmitter
 
 
 class CheckForDropAreaState(smach.State):
@@ -352,7 +353,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ENABLE_BIN_FRAME_PUBLISHER",
-                DelayState(delay_time=1.0),
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
@@ -546,6 +547,15 @@ class BinTaskState(smach.State):
                     keep_orientation=True,
                 ),
                 transitions={
+                    "succeeded": "SET_DETECTION_FOCUS_NONE_FOR_BOTTOM_CAM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_NONE_FOR_BOTTOM_CAM",
+                SetDetectionState(camera_name="bottom", enable=False),
+                transitions={
                     "succeeded": "SET_BALL_DROP_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -553,7 +563,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BALL_DROP_DEPTH",
-                SetDepthState(depth=-1.3, sleep_duration=3.0),
+                SetDepthState(depth=-1.45, sleep_duration=3.0),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
                     "preempted": "preempted",
@@ -608,15 +618,6 @@ class BinTaskState(smach.State):
                 "WAIT_FOR_BALL_DROP_2",
                 DelayState(delay_time=3.0),
                 transitions={
-                    "succeeded": "DISABLE_BOTTOM_CAMERA",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_BOTTOM_CAMERA",
-                SetDetectionState(camera_name="bottom", enable=False),
-                transitions={
                     "succeeded": "ALIGN_TO_BIN_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -638,9 +639,18 @@ class BinTaskState(smach.State):
                     max_angular_velocity=0.2,
                 ),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "TRANSMIT_ACOUSTIC_3",
                     "preempted": "preempted",
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+            smach.StateMachine.add(
+                "TRANSMIT_ACOUSTIC_3",
+                AcousticTransmitter(acoustic_data=3),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(

@@ -5,8 +5,8 @@ bin_frame: "bin_whole_link"
 bin_further_frame: "bin_far_trial"
 bin_closer_frame: "bin_close_approach"
 second_trial_frame: "bin_second_trial"
-closer_frame_distance: 2.0
+closer_frame_distance: 2.135
 further_frame_distance: 2.0
-second_trial_distance: 2.0
+second_trial_distance: 3.0
 bin_whole_estimated_frame: "bin_whole_estimated"
 bin_exit_frame: "bin_exit"

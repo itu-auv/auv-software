@@ -3,17 +3,16 @@
 import rospy
 import smach
 from std_msgs.msg import UInt8
-from std_srvs.srv import Trigger, TriggerRequest
+from auv_msgs.srv import SendAcoustic, SendAcousticRequest
 import smach_ros
 
 
 class AcousticTransmitter(smach_ros.ServiceState):
-    def __init__(self):
-        request = TriggerRequest()
+    def __init__(self, acoustic_data):
         super(AcousticTransmitter, self).__init__(
-            "start_acoustic_transmission",
-            Trigger,
-            request=request,
+            "send_acoustic_data",
+            SendAcoustic,
+            request=SendAcousticRequest(data=acoustic_data),
             outcomes=["succeeded", "preempted", "aborted"],
         )
 
