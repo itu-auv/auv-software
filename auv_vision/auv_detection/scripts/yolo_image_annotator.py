@@ -175,12 +175,8 @@ class YoloImageAnnotator:
                 # Save the annotated image
                 success = cv2.imwrite(filepath, annotated_image)
 
-                if success:
-                    rospy.loginfo(f"Saved to {class_name}/: {filename}")
-                else:
+                if not success:
                     rospy.logerr(f"Failed to save image: {filepath}")
-
-            rospy.loginfo(f"Detected classes: {class_names}")
 
         except Exception as e:
             rospy.logerr(f"Error processing messages: {str(e)}")
