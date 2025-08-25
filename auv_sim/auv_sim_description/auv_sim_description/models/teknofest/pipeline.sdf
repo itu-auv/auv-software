@@ -1,0 +1,360 @@
+<?xml version="1.0"?>
+<sdf version="1.7">
+  <model name="pipeline">
+    <static>true</static>
+
+    <!-- 1. Straight Section (5 meters in +X direction) -->
+    <link name="straight_1">
+      <pose>2.5 0 0 0 1.5708 0</pose> <!-- Rotated 90 degrees on X axis -->
+      <visual name="visual_1">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius> <!-- 12.5cm/2 = 6.25cm -->
+            <length>5</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient> <!-- Black color -->
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision_1">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>5</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- 2. Straight Section (2.5 meters in +Y direction) -->
+    <link name="straight_2">
+      <pose>5 1.25 0 1.5708 0 0</pose> <!-- Rotated 90 degrees on Y axis -->
+      <visual name="visual_2">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>2.5</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision_2">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>2.5</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- 3. Straight Section (2 meters in -X direction) -->
+    <link name="straight_3">
+      <pose>4 2.5 0 0 1.5708 0</pose>
+      <visual name="visual_3">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>2</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision_3">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>2</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- 4. Straight Section (1.5 meters in -Y direction) -->
+    <link name="straight_4">
+      <pose>3 1.75 0 1.5708 0 0</pose>
+      <visual name="visual_4">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>1.5</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision_4">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>1.5</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- 5. Straight Section (1.5 meters in -X direction) -->
+    <link name="straight_5">
+      <pose>2.25 1 0 0 1.5708 0</pose>
+      <visual name="visual_5">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>1.5</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision_5">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>1.5</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- 6. Straight Section (1 meter in +Y direction) -->
+    <link name="straight_6">
+      <pose>1.5 1.5 0 1.5708 0 0</pose>
+      <visual name="visual_6">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>1</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision_6">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>1</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- 7. Straight Section (1.5 meters in -X direction) -->
+    <link name="straight_7">
+      <pose>0.75 2 0 0 1.5708 0</pose>
+      <visual name="visual_7">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>1.5</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision_7">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>1.5</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- 8. Straight Section (3 meters in +Y direction) -->
+    <link name="straight_8">
+      <pose>0 3.5 0 1.5708 0 0</pose> <!-- Rotated 90 degrees on Y axis -->
+      <visual name="visual_8">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>3</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision_8">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>3</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- 9. Straight Section (5 meters in +X direction) -->
+    <link name="straight_9">
+      <pose>2.5 5 0 0 1.5708 0</pose> <!-- Rotated 90 degrees on X axis -->
+      <visual name="visual_9">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>5</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision_9">
+        <geometry>
+          <cylinder>
+            <radius>0.0625</radius>
+            <length>5</length>
+          </cylinder>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Turns (90 Degree Elbows) -->
+    <!-- 1. Elbow (end of 5m -> start of 2.5m) -->
+    <link name="elbow_1">
+      <pose>5 0 0 0 0 0</pose>
+      <visual name="elbow_visual_1">
+        <geometry>
+          <sphere>
+            <radius>0.0625</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 2. Elbow (end of 2.5m -> start of 2m) -->
+    <link name="elbow_2">
+      <pose>5 2.5 0 0 0 0</pose>
+      <visual name="elbow_visual_2">
+        <geometry>
+          <sphere>
+            <radius>0.0625</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 3. Elbow (end of 2m -> start of 1.5m) -->
+    <link name="elbow_3">
+      <pose>3 2.5 0 0 0 0</pose>
+      <visual name="elbow_visual_3">
+        <geometry>
+          <sphere>
+            <radius>0.0625</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 4. Elbow (end of 1.5m -> start of 1.5m) -->
+    <link name="elbow_4">
+      <pose>3 1 0 0 0 0</pose>
+      <visual name="elbow_visual_4">
+        <geometry>
+          <sphere>
+            <radius>0.0625</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 5. Elbow (end of 1.5m -> start of 1m) -->
+    <link name="elbow_5">
+      <pose>1.5 1 0 0 0 0</pose>
+      <visual name="elbow_visual_5">
+        <geometry>
+          <sphere>
+            <radius>0.0625</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 6. Elbow (end of 1m -> start of 1.5m) -->
+    <link name="elbow_6">
+      <pose>1.5 2 0 0 0 0</pose>
+      <visual name="elbow_visual_6">
+        <geometry>
+          <sphere>
+            <radius>0.0625</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 7. Elbow (end of straight_7 -> start of straight_8) -->
+    <link name="elbow_7">
+      <pose>0 2 0 0 0 0</pose>
+      <visual name="elbow_visual_7">
+        <geometry>
+          <sphere>
+            <radius>0.0625</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <!-- 8. Elbow (end of straight_8 -> start of straight_9) -->
+    <link name="elbow_8">
+      <pose>0 5 0 0 0 0</pose>
+      <visual name="elbow_visual_8">
+        <geometry>
+          <sphere>
+            <radius>0.0625</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>
