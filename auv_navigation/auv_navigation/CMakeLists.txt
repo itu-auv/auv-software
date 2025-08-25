@@ -17,5 +17,6 @@ catkin_python_setup()
 catkin_install_python(PROGRAMS
   scripts/follow_path_action_server.py
   scripts/path_planner_node.py
+  scripts/pipe_follower_vs.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
