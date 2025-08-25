@@ -24,13 +24,10 @@
   <param name="/create_model_symlink_cmd"
          command="bash -c 'ln -sf $(arg model_source_path) $(arg ultralytics_models_dir)/$(arg yolo_model)'"/>
 
-  <group if="$(eval arg('sim') == '1')">
-    <arg name="input_topic" value="/taluy/cameras/cam_bottom/image_underwater"/>
-  </group>
-
   <node name="tracker_node_bottom" pkg="ultralytics_ros" type="tracker_node.py" output="screen">
     <param name="yolo_model" value="$(arg yolo_model)"/>
-    <param name="input_topic" value="$(arg input_topic)"/>
+    <param if="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_bottom/image_underwater"/>
+    <param unless="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_bottom/image_rect_color"/>
     <param name="result_topic" value="$(arg result_topic)"/>
     <param name="result_image_topic" value="$(arg result_image_topic)"/>
     <param name="conf_thres" value="$(arg conf_thres)"/>
