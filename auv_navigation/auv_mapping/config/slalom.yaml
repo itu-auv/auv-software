@@ -1,13 +1,6 @@
 ---
-# D
 gate_to_slalom_entrance_distance: 0.0
 second_slalom_offset: 0.3
 slalom_entrance_backed_distance: 0.0
 third_slalom_offset: 0.75
 vertical_distance_between_slalom_clusters: 2.0
-# A
-# gate_to_slalom_entrance_distance: -2.0
-# second_slalom_offset: -0.3
-# slalom_entrance_backed_distance: 0.0
-# third_slalom_offset: -0.5
-# vertical_distance_between_slalom_clusters: 2.0
