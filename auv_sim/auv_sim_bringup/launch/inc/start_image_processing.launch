@@ -9,6 +9,6 @@
   </include>
 
   <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
-    <arg name="camera_namespace" value="$(arg namespace)/cameras_x/$(arg cam_bottom_name)" />
+    <arg name="camera_namespace" value="$(arg namespace)/cameras/$(arg cam_bottom_name)" />
   </include>
 </launch>
