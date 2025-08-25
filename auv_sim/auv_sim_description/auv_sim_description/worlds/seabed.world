@@ -92,15 +92,21 @@
     </include>
 
     <!-- Bounding box with sea surface -->
-    <include>
+    <!-- <include>
       <uri>model://ocean</uri>
       <pose>0 0 0 0 0 0</pose>
-    </include>
+    </include> -->
 
     <!-- Heightmap -->
     <include>
       <uri>model://sand_heightmap</uri>
-      <pose>0 0 -95 0 0 0</pose>
+      <pose>0 0 -10 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>model://teknofest</uri>
+      <name>pipeline</name>
+      <pose>8 2 -10 0 0 0.7</pose>
     </include>
 
     <plugin name="underwater_current_plugin" filename="libuuv_underwater_current_ros_plugin.so">
@@ -137,7 +143,7 @@
 
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose frame=''>37 -34 -76 0 0.4 2.3 </pose>
+        <pose frame=''>17 -17 6 0 0.4 2.3 </pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
