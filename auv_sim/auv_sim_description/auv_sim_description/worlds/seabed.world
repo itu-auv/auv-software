@@ -23,7 +23,7 @@
       <real_time_factor>1</real_time_factor>
       <real_time_update_rate>500</real_time_update_rate>
     </physics>
-    <scene>
+    <!-- <scene>
       <ambient>0.01 0.01 0.01 1.0</ambient>
       <sky>
         <clouds>
@@ -35,7 +35,7 @@
         <density>0.01</density>
       </fog>
       <shadows>1</shadows>
-    </scene>
+    </scene> -->
 
     <!-- Origin placed somewhere in the middle of the North Sea  -->
     <spherical_coordinates>
