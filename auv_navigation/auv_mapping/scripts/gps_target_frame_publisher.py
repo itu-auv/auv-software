@@ -28,9 +28,10 @@ class GpsTargetFramePublisher(object):
         self.parent_frame = rospy.get_param("~parent_frame", "odom")
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
         self.child_frame = rospy.get_param("~child_frame", "gps_target")
+        self.anchor_frame = rospy.get_param("~anchor_frame", "anchor_robot")
 
         # Publishing control
-        self.publish_rate_hz = float(rospy.get_param("~publish_rate_hz", 4.0))
+        self.publish_rate_hz = float(rospy.get_param("~publish_rate_hz", 2.0))
 
         # North reference, rotate ENU into odom by this yaw (rad)
         self.north_reference_yaw = float(
@@ -164,7 +165,7 @@ class GpsTargetFramePublisher(object):
         yaw = math.atan2(vec[1], vec[0]) if np.linalg.norm(vec) > 1e-6 else 0.0
         q = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
 
-        # 5) Build and send via service (no fallback)
+        # 5) Build and send GPS target frame via service
         ts = self._build_transform(self.child_frame, self.parent_frame, target_pos, q)
         try:
             req = SetObjectTransformRequest(transform=ts)
@@ -178,6 +179,26 @@ class GpsTargetFramePublisher(object):
                 )
         except Exception as e:
             rospy.logerr_throttle(8.0, "set_object_transform call error: %s", e)
+
+        # 6) Also broadcast the anchor robot frame at the anchor position
+        anchor_q = tf.transformations.quaternion_from_euler(0.0, 0.0, 0.0)
+        anchor_ts = self._build_transform(
+            self.anchor_frame, self.parent_frame, self._anchor_robot_at_start, anchor_q
+        )
+        try:
+            anchor_req = SetObjectTransformRequest(transform=anchor_ts)
+            anchor_resp = self._set_object_srv.call(anchor_req)
+            if not anchor_resp.success:
+                rospy.logerr_throttle(
+                    8.0,
+                    "set_object_transform failed for %s: %s",
+                    anchor_ts.child_frame_id,
+                    anchor_resp.message,
+                )
+        except Exception as e:
+            rospy.logerr_throttle(
+                8.0, "set_object_transform call error for anchor: %s", e
+            )
 
     # -------------------- Helpers --------------------
     @staticmethod

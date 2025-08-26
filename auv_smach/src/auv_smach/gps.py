@@ -76,13 +76,39 @@ class NavigateToGpsTargetState(smach.State):
                 "TOGGLE_GPS_SERVICE",
                 ToggleGpsServiceState(enable=True),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_GPS_TARGET",
+                    "succeeded": "ALIGN_TO_ANCHOR_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
-            # State 3: Dynamic Path to GPS Target
+            # State 3: Align to Anchor Frame (newly added)
+            smach.StateMachine.add(
+                "ALIGN_TO_ANCHOR_FRAME",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="anchor_robot",
+                    confirm_duration=2.0,
+                ),
+                transitions={
+                    "succeeded": "DISABLE_GPS_SERVICE",
+                    "preempted": "preempted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+
+            # State 4: Disable GPS Service (newly added)
+            smach.StateMachine.add(
+                "DISABLE_GPS_SERVICE",
+                ToggleGpsServiceState(enable=False),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_GPS_TARGET",
+                    "preempted": "preempted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+
+            # State 5: Dynamic Path to GPS Target
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_GPS_TARGET",
                 DynamicPathState(
@@ -95,7 +121,7 @@ class NavigateToGpsTargetState(smach.State):
                 },
             )
 
-            # State 4: Align to GPS Target Frame
+            # State 6: Align to GPS Target Frame
             smach.StateMachine.add(
                 "ALIGN_TO_GPS_TARGET",
                 AlignFrame(
