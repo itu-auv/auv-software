@@ -39,10 +39,10 @@ class GpsTargetFramePublisher(object):
 
         # Dynamic reconfigure (holds start/target GPS + placeholder cartesians)
         self.cfg_server = Server(GpsTargetFrameConfig, self._reconfig_cb)
-        self.start_lat = None
-        self.start_lon = None
-        self.target_lat = None
-        self.target_lon = None
+        self.start_lat = 41.0000  #! deneme
+        self.start_lon = 29.0000
+        self.target_lat = 41.0000270
+        self.target_lon = 28.9999412
         self.start_xyz = np.zeros(3, dtype=float)  # kept but unused
         self.target_xyz = np.zeros(3, dtype=float)  # kept but unused
 
@@ -128,20 +128,18 @@ class GpsTargetFramePublisher(object):
     def _publish_loop(self, _evt):
         if not self._active:
             return
+        rospy.loginfo(f"self start lat is: {self.start_lat}")
         if self._anchor_robot_at_start is None:
             rospy.logwarn_throttle(
                 8.0, "Anchor position not catced; call toggle service again."
             )
             return
+
         if self.start_lat is None or self.start_lon is None:
-            rospy.logwarn_throttle(
-                8.0, "starting_latitude/longitude not set via dynamic_reconfigure."
-            )
+            rospy.logwarn_throttle(8.0, "starting_latitude/longitude not set")
             return
         if self.target_lat is None or self.target_lon is None:
-            rospy.logwarn_throttle(
-                8.0, "target_latitude/longitude not set via dynamic_reconfigure."
-            )
+            rospy.logwarn_throttle(8.0, "target_latitude/longitude not set")
             return
 
         # 1) GPS delta (deg) -> local ENU meters at start latitude
@@ -221,6 +219,7 @@ class GpsTargetFramePublisher(object):
 
     @staticmethod
     def _rotate_enu_to_odom(east_m, north_m, yaw_rad):
+        # saat yönünün tersine yaw_rad kadar döndür
         c, s = math.cos(yaw_rad), math.sin(yaw_rad)
         x = c * east_m - s * north_m
         y = s * east_m + c * north_m
