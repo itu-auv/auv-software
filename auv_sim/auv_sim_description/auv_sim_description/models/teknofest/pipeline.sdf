@@ -2,19 +2,17 @@
 <sdf version="1.7">
   <model name="pipeline">
     <static>true</static>
-
-    <!-- 1. Straight Section (5 meters in +X direction) -->
     <link name="straight_1">
-      <pose>2.5 0 0 0 1.5708 0</pose> <!-- Rotated 90 degrees on X axis -->
+      <pose>2.5 0 0 0 1.5708 0</pose>
       <visual name="visual_1">
         <geometry>
           <cylinder>
-            <radius>0.0625</radius> <!-- 12.5cm/2 = 6.25cm -->
+            <radius>0.0625</radius>
             <length>5</length>
           </cylinder>
         </geometry>
         <material>
-          <ambient>0 0 0 1</ambient> <!-- Black color -->
+          <ambient>0 0 0 1</ambient>
           <diffuse>0 0 0 1</diffuse>
         </material>
       </visual>
@@ -27,10 +25,8 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- 2. Straight Section (2.5 meters in +Y direction) -->
     <link name="straight_2">
-      <pose>5 1.25 0 1.5708 0 0</pose> <!-- Rotated 90 degrees on Y axis -->
+      <pose>5 1.25 0 1.5708 0 0</pose>
       <visual name="visual_2">
         <geometry>
           <cylinder>
@@ -52,8 +48,6 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- 3. Straight Section (2 meters in -X direction) -->
     <link name="straight_3">
       <pose>4 2.5 0 0 1.5708 0</pose>
       <visual name="visual_3">
@@ -77,8 +71,6 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- 4. Straight Section (1.5 meters in -Y direction) -->
     <link name="straight_4">
       <pose>3 1.75 0 1.5708 0 0</pose>
       <visual name="visual_4">
@@ -102,8 +94,6 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- 5. Straight Section (1.5 meters in -X direction) -->
     <link name="straight_5">
       <pose>2.25 1 0 0 1.5708 0</pose>
       <visual name="visual_5">
@@ -127,8 +117,6 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- 6. Straight Section (1 meter in +Y direction) -->
     <link name="straight_6">
       <pose>1.5 1.5 0 1.5708 0 0</pose>
       <visual name="visual_6">
@@ -152,8 +140,6 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- 7. Straight Section (1.5 meters in -X direction) -->
     <link name="straight_7">
       <pose>0.75 2 0 0 1.5708 0</pose>
       <visual name="visual_7">
@@ -177,10 +163,8 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- 8. Straight Section (3 meters in +Y direction) -->
     <link name="straight_8">
-      <pose>0 3.5 0 1.5708 0 0</pose> <!-- Rotated 90 degrees on Y axis -->
+      <pose>0 3.5 0 1.5708 0 0</pose>
       <visual name="visual_8">
         <geometry>
           <cylinder>
@@ -202,10 +186,8 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- 9. Straight Section (5 meters in +X direction) -->
     <link name="straight_9">
-      <pose>2.5 5 0 0 1.5708 0</pose> <!-- Rotated 90 degrees on X axis -->
+      <pose>2.5 5 0 0 1.5708 0</pose>
       <visual name="visual_9">
         <geometry>
           <cylinder>
@@ -227,9 +209,6 @@
         </geometry>
       </collision>
     </link>
-
-    <!-- Turns (90 Degree Elbows) -->
-    <!-- 1. Elbow (end of 5m -> start of 2.5m) -->
     <link name="elbow_1">
       <pose>5 0 0 0 0 0</pose>
       <visual name="elbow_visual_1">
@@ -244,8 +223,6 @@
         </material>
       </visual>
     </link>
-
-    <!-- 2. Elbow (end of 2.5m -> start of 2m) -->
     <link name="elbow_2">
       <pose>5 2.5 0 0 0 0</pose>
       <visual name="elbow_visual_2">
@@ -260,8 +237,6 @@
         </material>
       </visual>
     </link>
-
-    <!-- 3. Elbow (end of 2m -> start of 1.5m) -->
     <link name="elbow_3">
       <pose>3 2.5 0 0 0 0</pose>
       <visual name="elbow_visual_3">
@@ -276,8 +251,6 @@
         </material>
       </visual>
     </link>
-
-    <!-- 4. Elbow (end of 1.5m -> start of 1.5m) -->
     <link name="elbow_4">
       <pose>3 1 0 0 0 0</pose>
       <visual name="elbow_visual_4">
@@ -292,8 +265,6 @@
         </material>
       </visual>
     </link>
-
-    <!-- 5. Elbow (end of 1.5m -> start of 1m) -->
     <link name="elbow_5">
       <pose>1.5 1 0 0 0 0</pose>
       <visual name="elbow_visual_5">
@@ -308,8 +279,6 @@
         </material>
       </visual>
     </link>
-
-    <!-- 6. Elbow (end of 1m -> start of 1.5m) -->
     <link name="elbow_6">
       <pose>1.5 2 0 0 0 0</pose>
       <visual name="elbow_visual_6">
@@ -324,8 +293,6 @@
         </material>
       </visual>
     </link>
-
-    <!-- 7. Elbow (end of straight_7 -> start of straight_8) -->
     <link name="elbow_7">
       <pose>0 2 0 0 0 0</pose>
       <visual name="elbow_visual_7">
@@ -340,8 +307,6 @@
         </material>
       </visual>
     </link>
-
-    <!-- 8. Elbow (end of straight_8 -> start of straight_9) -->
     <link name="elbow_8">
       <pose>0 5 0 0 0 0</pose>
       <visual name="elbow_visual_8">
@@ -353,6 +318,212 @@
         <material>
           <ambient>0 0 0 1</ambient>
           <diffuse>0 0 0 1</diffuse>
+        </material>
+      </visual>
+    </link>
+    <link name="triangle_mark_1">
+      <pose>2.5 0 0.065 0 0 0</pose>
+      <visual name="triangle_visual">
+        <geometry>
+          <polyline>
+            <height>0.002</height>
+            <point>0 0.17320508</point>
+            <point>-0.15 -0.08660254</point>
+            <point>0.15 -0.08660254</point>
+          </polyline>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+    </link>
+    <link name="square_mark_2">
+      <pose>5 1.25 0.064 0 0 0</pose>
+      <visual name="square_visual">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>0.3 0.3</size>
+          </plane>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+    </link>
+    <link name="pentagon_mark_3">
+      <pose>4 2.5 0.065 0 0 0</pose>
+      <visual name="pentagon_visual">
+        <geometry>
+          <polyline>
+            <height>0.002</height>
+            <point>-0.24270510 0.07885967</point>
+            <point>-0.15000000 -0.20645729</point>
+            <point>0.15000000 -0.20645729</point>
+            <point>0.24270510 0.07885967</point>
+            <point>0.00000000 0.25519524</point>
+          </polyline>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+    </link>
+    <link name="star_mark_4">
+      <pose>3 1.75 0.065 0 0 0</pose>
+      <visual name="star_visual">
+        <geometry>
+          <polyline>
+            <height>0.002</height>
+            <!-- CCW vertices of a 5-point star -->
+            <point>-0.05729490 0.07885967</point>
+            <point>-0.24270510 0.07885967</point>
+            <point>-0.09270510 -0.03012171</point>
+            <point>-0.15000000 -0.20645729</point>
+            <point>0.00000000 -0.09747591</point>
+            <point>0.15000000 -0.20645729</point>
+            <point>0.09270510 -0.03012171</point>
+            <point>0.24270510 0.07885967</point>
+            <point>0.05729490 0.07885967</point>
+            <point>0.00000000 0.25519524</point>
+          </polyline>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+    </link>
+    <link name="dortgen_mark_5">
+      <pose>2.25 1 0.065 0 0 0</pose>
+      <visual name="dortgen_visual">
+        <geometry>
+          <polyline>
+            <height>0.002</height>
+            <point>0 0.20</point>
+            <point>0.15 0</point>
+            <point>0 -0.20</point>
+            <point>-0.15 0</point>
+          </polyline>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+    </link>
+    <link name="ellipse_mark_7">
+      <pose>0.75 2 0.065 0 0 0</pose>
+      <visual name="ellipse_visual">
+        <geometry>
+          <polyline>
+            <height>0.002</height>
+            <point>0.200000 0.000000</point>
+            <point>0.190212 0.046353</point>
+            <point>0.161803 0.088168</point>
+            <point>0.117557 0.121352</point>
+            <point>0.061803 0.142659</point>
+            <point>0.000000 0.150000</point>
+            <point>-0.061803 0.142659</point>
+            <point>-0.117557 0.121352</point>
+            <point>-0.161803 0.088168</point>
+            <point>-0.190212 0.046353</point>
+            <point>-0.200000 0.000000</point>
+            <point>-0.190212 -0.046353</point>
+            <point>-0.161803 -0.088168</point>
+            <point>-0.117557 -0.121352</point>
+            <point>-0.061803 -0.142659</point>
+            <point>0.000000 -0.150000</point>
+            <point>0.061803 -0.142659</point>
+            <point>0.117557 -0.121352</point>
+            <point>0.161803 -0.088168</point>
+            <point>0.190212 -0.046353</point>
+          </polyline>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+    </link>
+    <link name="clover_mark_8">
+      <pose>0 3.5 0.065 0 0 0</pose>
+      <visual name="petal_n">
+        <pose>0 0.06 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.10</radius>
+            <length>0.002</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+      <visual name="petal_s">
+        <pose>0 -0.06 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.10</radius>
+            <length>0.002</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+      <visual name="petal_e">
+        <pose>0.06 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.10</radius>
+            <length>0.002</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+      <visual name="petal_w">
+        <pose>-0.06 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.10</radius>
+            <length>0.002</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
+        </material>
+      </visual>
+      <visual name="center">
+        <geometry>
+          <cylinder>
+            <radius>0.035</radius>
+            <length>0.002</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <ambient>1 0.8 0 1</ambient>
+          <diffuse>1 0.8 0 1</diffuse>
+          <specular>0.5 0.5 0.5 1</specular>
         </material>
       </visual>
     </link>

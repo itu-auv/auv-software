@@ -33,14 +33,14 @@
 
     <!-- Initial robot position and orientation -->
     <arg name="x" default="-7.0" if="$(eval arg('world') == 'pool')" />
-    <arg name="x" default="5.0" if="$(eval arg('world') == 'seabed')" />
+    <arg name="x" default="7.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="x" default="-9.5" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="y" default="-15.5" if="$(eval arg('world') == 'pool')" />
-    <arg name="y" default="0" if="$(eval arg('world') == 'seabed')" />
+    <arg name="y" default="1.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="y" default="-3" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'pool')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'semi_final_pool')" />
-    <arg name="z" default="-5.0" if="$(eval arg('world') == 'seabed')" />
+    <arg name="z" default="-7.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="0.7" if="$(eval arg('world') == 'seabed')" />
