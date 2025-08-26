@@ -1,4 +1,6 @@
 ---
+# pipe frame publisher node
+
 frames:
   start_frame_name: "pipe_mission_start_link"
   bootstrap_frame_name: "pipe_bootstrap_link"
@@ -18,7 +20,7 @@ tf:
   base_link: "taluy/base_link"
   camera: "camera_optical_link"
 
-# -------------------------------------------------------------------
+# pipe follower visual servo node
 
 max_lin: 0.8
 max_ang: 1.2

@@ -2,7 +2,6 @@
 import rospy, tf2_ros
 from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import Trigger, TriggerResponse
-import yaml
 import numpy as np
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf2_ros import StaticTransformBroadcaster
@@ -10,12 +9,12 @@ from tf2_ros import StaticTransformBroadcaster
 
 class PipeFramePlanner:
     def __init__(self):
-        self.cfg_path = rospy.get_param(
-            "~rules_yaml", rospy.get_param("~rules", "config/pipe_rules.yaml")
-        )
-        raw = yaml.safe_load(open(self.cfg_path, "r"))
-        self.cfg = raw.get("pipe_frame_planner", raw)
-
+        self.cfg = {
+            "frames": rospy.get_param("~frames"),
+            "plan": rospy.get_param("~plan"),
+            "path_rules": rospy.get_param("~path_rules"),
+            "tf": rospy.get_param("~tf"),
+        }
         self.odom = self.cfg["tf"]["odom"]
         self.base_link = self.cfg["tf"]["base_link"]
         self.frames = self.cfg["frames"]
