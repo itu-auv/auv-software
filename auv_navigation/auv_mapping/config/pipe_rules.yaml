@@ -1,32 +1,35 @@
 ---
-frames:
-  start_frame_name: "pipe_mission_start_link"
-  bootstrap_frame_name: "pipe_bootstrap_link"
-  aligned_start_name: "pipe_start_aligned"
-  waypoint_prefix: "pipe_wp_"
+pipe_frame_planner:
+  frames:
+    start_frame_name: "pipe_mission_start_link"
+    bootstrap_frame_name: "pipe_bootstrap_link"
+    aligned_start_name: "pipe_start_aligned"
+    waypoint_prefix: "pipe_wp_"
 
-plan:
-  bootstrap_forward_seconds: 5.0
-  default_z_offset_m: -2.0
+  plan:
+    default_z_offset_m: -2.0
 
-path_rules:
-  - {type: "forward", meters: 5.0}
-  - {type: "turn", deg: -90}
-  - {type: "forward", meters: 2.5}
+  path_rules:
+    - {type: "forward", meters: 5.0}
+    - {type: "turn", deg: -90}
+    - {type: "forward", meters: 2.5}
 
-limits:
+  tf:
+    odom: "odom"
+    base_link: "taluy/base_link"
+    camera: "camera_optical_link"
+
+# -------------------------------------------------------------------
+
+pipe_visual_servo:
   max_lin: 0.8
   max_ang: 1.2
 
-pid:
-  yaw: {kp: 0.35, ki: 0.01, kd: 0.04}
-  lat: {kp: 0.4, ki: 0.00, kd: 0.02}
+  pid_yaw:
+    kp: 0.35
+    ki: 0.01
+    kd: 0.04
 
-topics:
-  mask: "/seg/pipe_mask"
-  cmd_vel: "/taluy/cmd_vel"
+  lat_to_deg_gain: 0.01
 
-tf:
-  odom: "odom"
-  base_link: "taluy/base_link"
-  camera: "camera_optical_link"
+  bootstrap_secs: 5.0

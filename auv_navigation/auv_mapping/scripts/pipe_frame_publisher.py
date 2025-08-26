@@ -2,17 +2,19 @@
 import rospy, tf2_ros
 from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import Trigger, TriggerResponse
-import yaml, os
+import yaml
+import numpy as np
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
-from tf2_ros import StaticTransformBroadcaster, TransformBroadcaster
+from tf2_ros import StaticTransformBroadcaster
 
 
-class FramePlanner:
+class PipeFramePlanner:
     def __init__(self):
         self.cfg_path = rospy.get_param(
             "~rules_yaml", rospy.get_param("~rules", "config/pipe_rules.yaml")
         )
-        self.cfg = yaml.safe_load(open(self.cfg_path, "r"))
+        raw = yaml.safe_load(open(self.cfg_path, "r"))
+        self.cfg = raw.get("pipe_frame_planner", raw)
 
         self.odom = self.cfg["tf"]["odom"]
         self.base_link = self.cfg["tf"]["base_link"]
@@ -23,7 +25,6 @@ class FramePlanner:
         self.tfl = tf2_ros.TransformListener(self.tfbuf)
 
         self.stb = StaticTransformBroadcaster()
-        self.tb = TransformBroadcaster()
 
         self.start_created = False
         self.z_start = None
@@ -31,11 +32,6 @@ class FramePlanner:
         rospy.Service("/pipe_plan/create_start", Trigger, self.srv_create_start)
         rospy.Service("/pipe_plan/commit_bootstrap", Trigger, self.srv_commit_bootstrap)
         rospy.Service("/pipe_plan/align_and_build", Trigger, self.srv_align_and_build)
-
-    def lookup(self, target, source):
-        return self.tfbuf.lookup_transform(
-            self.odom, self.base_link, rospy.Time(0), rospy.Duration(1.0)
-        )
 
     def make_static_tf(self, parent, child, xyz, rpy):
         t = TransformStamped()
@@ -56,7 +52,7 @@ class FramePlanner:
 
     def srv_create_start(self, req):
         try:
-            tfbl = self.tfbuf.lookupTransform(
+            tfbl = self.tfbuf.lookup_transform(
                 self.odom, self.base_link, rospy.Time(0), rospy.Duration(2.0)
             )
             x = tfbl.transform.translation.x
@@ -81,7 +77,7 @@ class FramePlanner:
         if not self.start_created or self.z_start is None:
             return TriggerResponse(success=False, message="start not created yet")
         try:
-            tfbl = self.tfbuf.lookupTransform(
+            tfbl = self.tfbuf.lookup_transform(
                 self.odom, self.base_link, rospy.Time(0), rospy.Duration(2.0)
             )
             x = tfbl.transform.translation.x
@@ -102,13 +98,13 @@ class FramePlanner:
     def srv_align_and_build(self, req):
         try:
             # get start & bootstrap in odom
-            s = self.tfbuf.lookupTransform(
+            s = self.tfbuf.lookup_transform(
                 self.odom,
                 self.frames["start_frame_name"],
                 rospy.Time(0),
                 rospy.Duration(2.0),
             )
-            b = self.tfbuf.lookupTransform(
+            b = self.tfbuf.lookup_transform(
                 self.odom,
                 self.frames["bootstrap_frame_name"],
                 rospy.Time(0),
@@ -149,14 +145,14 @@ class FramePlanner:
                 else:
                     rospy.logwarn("Unknown rule: %s", rule)
 
-            return TriggerResponse(success=True, message="aligned & waypoints built")
+            return TriggerResponse(
+                success=True, message=f"aligned & waypoints built ({idx-1})"
+            )
         except Exception as e:
             return TriggerResponse(success=False, message=str(e))
 
 
 if __name__ == "__main__":
-    import numpy as np
-
-    rospy.init_node("pipe_frame_planner_node")
-    FramePlanner()
+    rospy.init_node("pipe_frame_publisher_node")
+    PipeFramePlanner()
     rospy.spin()
