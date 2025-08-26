@@ -1,0 +1,5 @@
+<launch>
+    <node pkg="auv_control" type="gps_target_frame_publisher.py" name="gps_target_frame_publisher" output="screen">
+        <rosparam command="load" file="$(find auv_control)/config/gps_target.yaml" />
+    </node>
+</launch>
