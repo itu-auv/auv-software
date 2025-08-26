@@ -25,6 +25,9 @@ class VisualServo:
         self.last_t = rospy.Time.now()
 
         self.bootstrap_secs = rospy.get_param("~bootstrap_secs", 5.0)
+        self.roi_top_frac = rospy.get_param("~roi_top_frac", 0.0)
+        self.num_segments = rospy.get_param("~num_segments", 5)
+
         self.started = rospy.Time.now()
         self.bootstrap_done = False
 
@@ -56,11 +59,11 @@ class VisualServo:
         mask = self.bridge.imgmsg_to_cv2(msg, desired_encoding="mono8")
         h, w = mask.shape[:2]
 
-        # bottom 60% ROI
-        roi = mask[int(0.4 * h) :, :]
-        seg_h = max(1, roi.shape[0] // 5)
+        y0 = int(np.clip(self.roi_top_frac, 0.0, 0.9) * h)
+        roi = mask[y0:, :]
+        seg_h = max(1, roi.shape[0] // max(1, self.num_segments))
         mids = []
-        for i in range(5):
+        for i in range(self.num_segments):
             seg = roi[i * seg_h : (i + 1) * seg_h, :]
             cnts, _ = cv2.findContours(seg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             if not cnts:
@@ -70,7 +73,7 @@ class VisualServo:
             if M["m00"] == 0:
                 continue
             cx = int(M["m10"] / M["m00"])
-            cy = int(M["m01"] / M["m00"]) + i * seg_h
+            cy = int(M["m01"] / M["m00"]) + i * seg_h + y0
             mids.append((cx, cy))
 
         tw = Twist()

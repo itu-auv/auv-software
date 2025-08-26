@@ -88,11 +88,10 @@
     </node>
 
     <node pkg="auv_navigation" type="pipe_follower_vs.py" name="pipe_follower_vs" output="screen">
+      <rosparam command="load" file="$(find auv_mapping)/config/pipe_rules.yaml"/>
+      <!-- remaps -->
       <remap from="cmd_vel" to="cmd_vel"/>
       <remap from="pipe_mask" to="/seg/pipe_mask"/>
-      <param name="bootstrap_secs" value="5.0"/>
-      <param name="max_lin" value="0.8"/>
-      <param name="max_ang" value="1.2"/>
     </node>
   </group>
 </launch>

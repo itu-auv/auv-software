@@ -112,7 +112,7 @@ class PipeFramePlanner:
             )
             sx, sy = s.transform.translation.x, s.transform.translation.y
             bx, by = b.transform.translation.x, b.transform.translation.y
-            yaw = np.arctan2(by - sy, bx - sx)  # boru yönü
+            yaw = np.arctan2(by - sy, bx - sx)  # pipe's direction
 
             # aligned start at same origin (sx,sy,z_start) but corrected yaw
             self.make_static_tf(
