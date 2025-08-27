@@ -36,6 +36,8 @@ class PipelineTransformServiceNode:
             "pipe_corner_5",
             "pipe_corner_6",
             "pipe_corner_7",
+            "pipe_corner_8",
+            "pipe_corner_9",
         ]
 
         # Service to enable/disable pipeline trajectory generation
@@ -153,6 +155,8 @@ class PipelineTransformServiceNode:
         # pipe_corner_5: 1.5m backward from pipe_corner_4
         # pipe_corner_6: 1m left from pipe_corner_5
         # pipe_corner_7: 1.5m backward from pipe_corner_6
+        # pipe_corner_8: 3m left from pipe_corner_7
+        # pipe_corner_9: 5m forward from pipe_corner_8
 
         # pipe_corner_1: 5 meters forward
         corner_1_pose = self.create_relative_pose(robot_pose, forward=5.0, left=0.0)
@@ -175,6 +179,12 @@ class PipelineTransformServiceNode:
         # pipe_corner_7: 1.5 meters backward from corner_6
         corner_7_pose = self.create_relative_pose(corner_6_pose, forward=-1.5, left=0.0)
 
+        # pipe_corner_8: 3 meters left from corner_7
+        corner_8_pose = self.create_relative_pose(corner_7_pose, forward=0.0, left=3.0)
+
+        # pipe_corner_9: 5 meters forward from corner_8
+        corner_9_pose = self.create_relative_pose(corner_8_pose, forward=5.0, left=0.0)
+
         # Store all poses
         corner_poses = [
             corner_1_pose,
@@ -184,6 +194,8 @@ class PipelineTransformServiceNode:
             corner_5_pose,
             corner_6_pose,
             corner_7_pose,
+            corner_8_pose,
+            corner_9_pose,
         ]
 
         # Send all transforms

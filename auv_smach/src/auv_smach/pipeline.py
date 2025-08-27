@@ -38,6 +38,8 @@ class NavigateThroughPipelineState(smach.State):
             "pipe_corner_5",
             "pipe_corner_6",
             "pipe_corner_7",
+            "pipe_corner_8",
+            "pipe_corner_9",
         ]
 
         # Initialize the state machine container
@@ -87,7 +89,7 @@ class NavigateThroughPipelineState(smach.State):
                 "DYNAMIC_PATH_TO_CORNER_1",
                 DynamicPathState(
                     plan_target_frame=self.pipeline_frames[0],
-                    max_linear_velocity=0.2,
+                    max_linear_velocity=0.3,
                 ),
                 transitions={
                     "succeeded": "ALIGN_FRAME_CORNER_1",
@@ -102,7 +104,7 @@ class NavigateThroughPipelineState(smach.State):
                     source_frame="taluy/base_link",
                     angle_offset=1.57,
                     confirm_duration=0.2,
-                    max_angular_velocity=0.15,
+                    max_angular_velocity=0.2,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CORNER_2",
@@ -115,7 +117,7 @@ class NavigateThroughPipelineState(smach.State):
                 "DYNAMIC_PATH_TO_CORNER_2",
                 DynamicPathState(
                     plan_target_frame=self.pipeline_frames[1],
-                    max_linear_velocity=0.2,
+                    max_linear_velocity=0.3,
                     angle_offset=1.57,
                 ),
                 transitions={
@@ -131,7 +133,7 @@ class NavigateThroughPipelineState(smach.State):
                     source_frame="taluy/base_link",
                     angle_offset=3.14,
                     confirm_duration=0.2,
-                    max_angular_velocity=0.15,
+                    max_angular_velocity=0.2,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CORNER_3",
@@ -144,7 +146,7 @@ class NavigateThroughPipelineState(smach.State):
                 "DYNAMIC_PATH_TO_CORNER_3",
                 DynamicPathState(
                     plan_target_frame=self.pipeline_frames[2],
-                    max_linear_velocity=0.2,
+                    max_linear_velocity=0.3,
                     angle_offset=3.14,
                 ),
                 transitions={
@@ -160,7 +162,7 @@ class NavigateThroughPipelineState(smach.State):
                     source_frame="taluy/base_link",
                     angle_offset=-1.57,
                     confirm_duration=0.2,
-                    max_angular_velocity=0.15,
+                    max_angular_velocity=0.2,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CORNER_4",
@@ -173,7 +175,7 @@ class NavigateThroughPipelineState(smach.State):
                 "DYNAMIC_PATH_TO_CORNER_4",
                 DynamicPathState(
                     plan_target_frame=self.pipeline_frames[3],
-                    max_linear_velocity=0.2,
+                    max_linear_velocity=0.3,
                     angle_offset=-1.57,
                 ),
                 transitions={
@@ -189,7 +191,7 @@ class NavigateThroughPipelineState(smach.State):
                     source_frame="taluy/base_link",
                     angle_offset=3.14,
                     confirm_duration=0.2,
-                    max_angular_velocity=0.15,
+                    max_angular_velocity=0.2,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CORNER_5",
@@ -202,7 +204,7 @@ class NavigateThroughPipelineState(smach.State):
                 "DYNAMIC_PATH_TO_CORNER_5",
                 DynamicPathState(
                     plan_target_frame=self.pipeline_frames[4],
-                    max_linear_velocity=0.2,
+                    max_linear_velocity=0.3,
                     angle_offset=3.14,
                 ),
                 transitions={
@@ -218,7 +220,7 @@ class NavigateThroughPipelineState(smach.State):
                     source_frame="taluy/base_link",
                     angle_offset=1.57,
                     confirm_duration=0.2,
-                    max_angular_velocity=0.15,
+                    max_angular_velocity=0.2,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CORNER_6",
@@ -231,7 +233,7 @@ class NavigateThroughPipelineState(smach.State):
                 "DYNAMIC_PATH_TO_CORNER_6",
                 DynamicPathState(
                     plan_target_frame=self.pipeline_frames[5],
-                    max_linear_velocity=0.2,
+                    max_linear_velocity=0.3,
                     angle_offset=1.57,
                 ),
                 transitions={
@@ -247,7 +249,7 @@ class NavigateThroughPipelineState(smach.State):
                     source_frame="taluy/base_link",
                     angle_offset=3.14,
                     confirm_duration=0.2,
-                    max_angular_velocity=0.15,
+                    max_angular_velocity=0.2,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CORNER_7",
@@ -260,7 +262,7 @@ class NavigateThroughPipelineState(smach.State):
                 "DYNAMIC_PATH_TO_CORNER_7",
                 DynamicPathState(
                     plan_target_frame=self.pipeline_frames[6],
-                    max_linear_velocity=0.2,
+                    max_linear_velocity=0.3,
                     angle_offset=3.14,
                 ),
                 transitions={
@@ -274,9 +276,67 @@ class NavigateThroughPipelineState(smach.State):
                 AlignFrame(
                     target_frame=self.pipeline_frames[6],
                     source_frame="taluy/base_link",
-                    angle_offset=3.14,
+                    angle_offset=1.57,
                     confirm_duration=0.2,
-                    max_angular_velocity=0.15,
+                    max_angular_velocity=0.2,
+                ),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_CORNER_8",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            ### 8
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_CORNER_8",
+                DynamicPathState(
+                    plan_target_frame=self.pipeline_frames[7],
+                    max_linear_velocity=0.3,
+                    angle_offset=1.57,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_FRAME_CORNER_8",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_FRAME_CORNER_8",
+                AlignFrame(
+                    target_frame=self.pipeline_frames[7],
+                    source_frame="taluy/base_link",
+                    angle_offset=0.0,
+                    confirm_duration=0.2,
+                    max_angular_velocity=0.2,
+                ),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_CORNER_9",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            ### 9
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_CORNER_9",
+                DynamicPathState(
+                    plan_target_frame=self.pipeline_frames[8],
+                    max_linear_velocity=0.3,
+                    angle_offset=0.0,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_FRAME_CORNER_9",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_FRAME_CORNER_9",
+                AlignFrame(
+                    target_frame=self.pipeline_frames[8],
+                    source_frame="taluy/base_link",
+                    angle_offset=0.0,
+                    confirm_duration=0.2,
+                    max_angular_velocity=0.2,
                 ),
                 transitions={
                     "succeeded": "succeeded",
