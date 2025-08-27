@@ -46,6 +46,7 @@ class GpsTargetFramePublisher(object):
         self.target_lon = None
         self.start_xyz = np.zeros(3, dtype=float)  # kept but unused
         self.target_xyz = np.zeros(3, dtype=float)  # kept but unused
+        self.facing_exit = False
 
         # TF infra
         self.tf_broadcaster = (
