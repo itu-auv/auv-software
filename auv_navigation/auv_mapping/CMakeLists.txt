@@ -81,6 +81,7 @@ catkin_install_python(PROGRAMS
   scripts/slalom_trajectory_publisher.py
   scripts/octagon_trajectory_publisher.py
   scripts/acoustic_transmitter.py
+  scripts/pipeline_trajectory_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
