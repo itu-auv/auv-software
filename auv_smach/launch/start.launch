@@ -15,7 +15,8 @@
         octagon:NAVIGATE_TO_OCTAGON_TASK,
         acoustic_tx:ACOUSTIC_TRANSMITTER,
         acoustic_rx:ACOUSTIC_RECEIVER,
-        return:NAVIGATE_RETURN_THROUGH_GATE
+        return:NAVIGATE_RETURN_THROUGH_GATE,
+        pipeline:NAVIGATE_THROUGH_PIPELINE
     "/>
 
     <!-- Test Mode Configuration -->
@@ -34,7 +35,8 @@
         'NAVIGATE_TO_OCTAGON_TASK',
         'ACOUSTIC_TRANSMITTER',
         'ACOUSTIC_RECEIVER',
-        'NAVIGATE_RETURN_THROUGH_GATE'
+        'NAVIGATE_RETURN_THROUGH_GATE',
+        'NAVIGATE_THROUGH_PIPELINE'
     ]" doc="Full sequence of mission states"/>
 
     <!-- Test Mission States -->
@@ -91,6 +93,8 @@
 
             <!--bin.py-->
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
+
+            <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>
