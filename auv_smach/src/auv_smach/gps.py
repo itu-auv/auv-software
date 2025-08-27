@@ -130,9 +130,22 @@ class NavigateToGpsTargetState(smach.State):
                     confirm_duration=2.0,
                 ),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "SET_FINAL_DEPTH",
                     "preempted": "preempted",
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+
+            smach.StateMachine.add(
+                "SET_FINAL_DEPTH",
+                SetDepthState(
+                    depth=0.0,
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
+                ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
 
