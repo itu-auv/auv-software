@@ -90,6 +90,7 @@ class GpsTargetFramePublisher(object):
         self.target_xyz = np.array(
             [config.target_x_m, config.target_y_m, config.target_z_m], dtype=float
         )
+        self.facing_exit = config.facing_exit
         return config
 
     # -------------------- Toggle service --------------------
@@ -155,16 +156,49 @@ class GpsTargetFramePublisher(object):
             east_m, north_m, self.north_reference_yaw
         )
 
-        # 3) Compose final position in odom (relative to anchor)
-        target_pos = self._anchor_robot_at_start + np.array(
-            [odom_dx, odom_dy, 0.0], dtype=float
-        )
-
-        # 4) Orientation: x-axis points from anchor to target
-        vec = np.array([odom_dx, odom_dy], dtype=float)
-        yaw = math.atan2(vec[1], vec[0]) if np.linalg.norm(vec) > 1e-6 else 0.0
-        q = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
-
+        if self.facing_exit:
+            # GPS mesafesini hesapla
+            gps_distance = np.linalg.norm([odom_dx, odom_dy])
+            # base_link'in o anki yönünü bul
+            try:
+                t = self.tf_buffer.lookup_transform(
+                    self.parent_frame,
+                    self.robot_frame,
+                    rospy.Time(0),
+                    rospy.Duration(2.0),
+                )
+                yaw = tf.transformations.euler_from_quaternion(
+                    [
+                        t.transform.rotation.x,
+                        t.transform.rotation.y,
+                        t.transform.rotation.z,
+                        t.transform.rotation.w,
+                    ]
+                )[2]
+                # base_link'in önüne gps_distance kadar yerleştir
+                dx = gps_distance * math.cos(yaw)
+                dy = gps_distance * math.sin(yaw)
+                target_pos = np.array(
+                    [
+                        t.transform.translation.x + dx,
+                        t.transform.translation.y + dy,
+                        t.transform.translation.z,
+                    ],
+                    dtype=float,
+                )
+                q = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
+            except Exception as e:
+                rospy.logerr_throttle(8.0, "TF lookup for facing_exit failed: %s", e)
+                return
+        else:
+            # 3) Compose final position in odom (relative to anchor)
+            target_pos = self._anchor_robot_at_start + np.array(
+                [odom_dx, odom_dy, 0.0], dtype=float
+            )
+            # 4) Orientation: x-axis points from anchor to target
+            vec = np.array([odom_dx, odom_dy], dtype=float)
+            yaw = math.atan2(vec[1], vec[0]) if np.linalg.norm(vec) > 1e-6 else 0.0
+            q = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
         # 5) Build and send GPS target frame via service
         ts = self._build_transform(self.child_frame, self.parent_frame, target_pos, q)
         try:
