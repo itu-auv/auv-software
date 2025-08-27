@@ -85,7 +85,7 @@ class MainStateMachineNode:
 
         self.octagon_depth = -0.8
 
-        self.pipeline_depth = -1.5
+        self.pipeline_depth = -0.75
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
