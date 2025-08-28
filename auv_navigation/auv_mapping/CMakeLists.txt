@@ -49,6 +49,7 @@ generate_dynamic_reconfigure_options(
   cfg/SlalomTrajectory.cfg
   cfg/GateTrajectory.cfg
   cfg/TorpedoTrajectory.cfg
+  cfg/GpsTargetFrame.cfg
 )
 
 catkin_package(
@@ -80,6 +81,7 @@ catkin_install_python(PROGRAMS
   scripts/torpedo_frame_publisher.py
   scripts/slalom_trajectory_publisher.py
   scripts/octagon_trajectory_publisher.py
+  scripts/gps_target_frame_publisher.py
   scripts/acoustic_transmitter.py
   scripts/pipeline_trajectory_publisher.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
