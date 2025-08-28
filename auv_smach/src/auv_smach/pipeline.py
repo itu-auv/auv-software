@@ -367,7 +367,7 @@ class NavigateThroughPipelineState(smach.State):
                 "DISABLE_ANNOTATOR",
                 ToggleAnnotatorServiceState(req=False),
                 transitions={
-                    "succeeded": " CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
