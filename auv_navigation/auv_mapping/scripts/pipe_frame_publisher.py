@@ -17,7 +17,6 @@ class PipeFramePlanner:
         self.odom = self.cfg["tf"]["odom"]
         self.base_link = self.cfg["tf"]["base_link"]
         self.frames = self.cfg["frames"]
-        self.rules = self.cfg["path_rules"]
 
         self.tfbuf = tf2_ros.Buffer(cache_time=rospy.Duration(60.0))
         self.tfl = tf2_ros.TransformListener(self.tfbuf)
