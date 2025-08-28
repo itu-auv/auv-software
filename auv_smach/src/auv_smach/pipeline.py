@@ -80,25 +80,24 @@ class NavigateThroughPipelineState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
-                "CREATE_PIPE_START",
-                CreatePipeStartState(),
+                "ENABLE_ANNOTATOR",
+                ToggleAnnotatorServiceState(req=True),
                 transitions={
-                    "succeeded": "MOVE_TO_BOOTSTRAP_POSE",
+                    "succeeded": "CREATE_PIPE_START",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "MOVE_TO_BOOTSTRAP_POSE",
-                DynamicPathState(
-                    plan_target_frame="pipe_bootstrap_pose", max_linear_velocity=0.3
-                ),
+                "CREATE_PIPE_START",
+                CreatePipeStartState(),
                 transitions={
                     "succeeded": "COMMIT_PIPE_BOOTSTRAP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            # Visual servo will be added @frk781
             smach.StateMachine.add(
                 "COMMIT_PIPE_BOOTSTRAP",
                 CommitPipeBootstrapState(),
@@ -111,15 +110,6 @@ class NavigateThroughPipelineState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_AND_BUILD_PIPE",
                 AlignAndBuildPipeState(),
-                transitions={
-                    "succeeded": "ENABLE_ANNOTATOR",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ENABLE_ANNOTATOR",
-                ToggleAnnotatorServiceState(req=True),
                 transitions={
                     "succeeded": "SET_PIPELINE_DEPTH",
                     "preempted": "preempted",
