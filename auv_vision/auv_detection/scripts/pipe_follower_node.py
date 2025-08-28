@@ -228,7 +228,7 @@ class PipeLineFollower(object):
             y_err = -y_err
 
         # ---------- Command synthesis ----------
-        use_linear_y = rospy.get_param("~use_linear_y", False)
+        use_linear_y = rospy.get_param("~use_linear_y", True)
         tw = Twist()
         if use_linear_y:
             # Use linear.y for lateral correction, angular.z for orientation only
