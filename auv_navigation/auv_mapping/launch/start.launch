@@ -89,13 +89,3 @@
 
   </group>
 </launch>
-
-    <!--
-    Pipe follower node for visual servoing
-    <node pkg="auv_navigation" type="pipe_follower_vs.py" name="pipe_follower_vs" output="screen">
-      <rosparam command="load" file="$(find auv_mapping)/config/pipe_rules.yaml"/>
-      <!-- Remap velocity and pipe mask topics -->
-      <remap from="cmd_vel" to="cmd_vel"/>
-      <remap from="pipe_mask" to="/seg/pipe_mask"/>
-    </node>
-    -->
