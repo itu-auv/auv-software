@@ -3,7 +3,7 @@ import smach
 import smach_ros
 import rospy
 import tf2_ros
-from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
+from std_srvs.srv import SetBool, SetBoolRequest
 from auv_msgs.srv import PlanPath, PlanPathRequest
 from auv_navigation.path_planning.path_planners import PathPlanners
 from geometry_msgs.msg import PoseStamped
@@ -33,9 +33,9 @@ class ToggleGpsServiceState(smach_ros.ServiceState):
     def __init__(self, enable=True):
         smach_ros.ServiceState.__init__(
             self,
-            "toggle_gps_target_frame",
-            Trigger,
-            request=TriggerRequest(),
+            "gps_target_frame_trigger",
+            SetBool,
+            request=SetBoolRequest(data=enable),
         )
 
 
@@ -57,7 +57,33 @@ class NavigateToGpsTargetState(smach.State):
         )
 
         with self.state_machine:
-            # State 1: Set Depth
+            smach.StateMachine.add(
+                "TOGGLE_GPS_SERVICE",
+                ToggleGpsServiceState(enable=True),
+                transitions={
+                    "succeeded": "WAIT_FOR_SERVICE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_SERVICE",
+                DelayState(delay_time=1.0),
+                transitions={
+                    "succeeded": "DISABLE_GPS_SERVICE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_GPS_SERVICE",
+                ToggleGpsServiceState(enable=False),
+                transitions={
+                    "succeeded": "SET_GPS_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
             smach.StateMachine.add(
                 "SET_GPS_DEPTH",
                 SetDepthState(
@@ -65,50 +91,11 @@ class NavigateToGpsTargetState(smach.State):
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
-                    "succeeded": "TOGGLE_GPS_SERVICE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            # State 2: Toggle GPS Service
-            smach.StateMachine.add(
-                "TOGGLE_GPS_SERVICE",
-                ToggleGpsServiceState(enable=True),
-                transitions={
-                    "succeeded": "ALIGN_TO_ANCHOR_FRAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            # State 3: Align to Anchor Frame (newly added)
-            smach.StateMachine.add(
-                "ALIGN_TO_ANCHOR_FRAME",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="anchor_robot",
-                    confirm_duration=2.0,
-                ),
-                transitions={
-                    "succeeded": "DISABLE_GPS_SERVICE",
-                    "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
-                },
-            )
-
-            # State 4: Disable GPS Service (newly added)
-            smach.StateMachine.add(
-                "DISABLE_GPS_SERVICE",
-                ToggleGpsServiceState(enable=False),
-                transitions={
                     "succeeded": "DYNAMIC_PATH_TO_GPS_TARGET",
                     "preempted": "preempted",
-                    "aborted": "CANCEL_ALIGN_CONTROLLER",
+                    "aborted": "aborted",
                 },
             )
-
-            # State 5: Dynamic Path to GPS Target
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_GPS_TARGET",
                 DynamicPathState(
@@ -120,8 +107,6 @@ class NavigateToGpsTargetState(smach.State):
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
-
-            # State 6: Align to GPS Target Frame
             smach.StateMachine.add(
                 "ALIGN_TO_GPS_TARGET",
                 AlignFrame(
@@ -135,12 +120,11 @@ class NavigateToGpsTargetState(smach.State):
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
                 },
             )
-
             smach.StateMachine.add(
                 "SET_FINAL_DEPTH",
                 SetDepthState(
                     depth=0.0,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
+                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
@@ -148,8 +132,6 @@ class NavigateToGpsTargetState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # Final state: Cancel align controller
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),

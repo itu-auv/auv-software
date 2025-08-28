@@ -7,7 +7,7 @@ import rospy
 import tf2_ros
 import tf
 from geometry_msgs.msg import TransformStamped
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 from dynamic_reconfigure.server import Server
@@ -65,7 +65,7 @@ class GpsTargetFramePublisher(object):
         self._active = False
         self._anchor_robot_at_start = None  # latched robot pose in odom at activation
         self._srv_toggle = rospy.Service(
-            "toggle_gps_target_frame", Trigger, self._toggle_cb
+            "gps_target_frame_trigger", SetBool, self._toggle_cb
         )
 
         # Timer for publishing
@@ -74,7 +74,7 @@ class GpsTargetFramePublisher(object):
         )
 
         rospy.loginfo(
-            "gps_target_frame_publisher ready. Call 'toggle_gps_target_frame' to start/stop."
+            "gps_target_frame_publisher ready. Call 'gps_target_frame_trigger' to start/stop."
         )
 
     # -------------------- Dynamic reconfigure --------------------
@@ -97,7 +97,7 @@ class GpsTargetFramePublisher(object):
 
     # -------------------- Toggle service --------------------
     def _toggle_cb(self, req):
-        self._active = not self._active
+        self._active = req.data
         if self._active:
             # Latch current robot pose in odom as the anchor
             try:
@@ -117,16 +117,17 @@ class GpsTargetFramePublisher(object):
                 )
             except Exception as e:
                 self._anchor_robot_at_start = None
-                return TriggerResponse(
+                self._active = False  # Failed to activate, so set back to false
+                return SetBoolResponse(
                     success=False,
                     message=f"TF lookup (odom->{self.robot_frame}) failed: {e}",
                 )
 
             rospy.loginfo("gps_target_frame_publisher: ACTIVATED.")
-            return TriggerResponse(success=True, message="Publishing activated.")
+            return SetBoolResponse(success=True, message="Publishing activated.")
         else:
             rospy.loginfo("gps_target_frame_publisher: DEACTIVATED.")
-            return TriggerResponse(success=True, message="Publishing deactivated.")
+            return SetBoolResponse(success=True, message="Publishing deactivated.")
 
     # -------------------- Main loop --------------------
     def _publish_loop(self, _evt):
