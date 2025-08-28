@@ -12,7 +12,6 @@ class PipeFramePlanner:
         self.cfg = {
             "frames": rospy.get_param("~frames"),
             "plan": rospy.get_param("~plan"),
-            "path_rules": rospy.get_param("~path_rules"),
             "tf": rospy.get_param("~tf"),
         }
         self.odom = self.cfg["tf"]["odom"]
@@ -120,33 +119,10 @@ class PipeFramePlanner:
                 (sx, sy, self.z_start),
                 (0, 0, yaw),
             )
-
-            wp_prefix = self.frames["waypoint_prefix"]
-            idx = 1
-            cur_yaw = yaw
-            cur_x, cur_y, cur_z = sx, sy, self.z_start
-
-            for rule in self.rules:
-                if rule["type"] == "turn":
-                    # update heading only
-                    cur_yaw += np.deg2rad(float(rule["deg"]))
-                elif rule["type"] == "forward":
-                    dist = float(rule["meters"])
-                    # move along current heading
-                    cur_x += dist * np.cos(cur_yaw)
-                    cur_y += dist * np.sin(cur_yaw)
-
-                    name = f"{wp_prefix}{idx:02d}"
-                    self.make_static_tf(
-                        self.odom, name, (cur_x, cur_y, cur_z), (0, 0, cur_yaw)
-                    )
-                    idx += 1
-                else:
-                    rospy.logwarn("Unknown rule: %s", rule)
-
             return TriggerResponse(
-                success=True, message=f"aligned & waypoints built ({idx-1})"
+                success=True, message="aligned_start set (yaw corrected)"
             )
+
         except Exception as e:
             return TriggerResponse(success=False, message=str(e))
 
