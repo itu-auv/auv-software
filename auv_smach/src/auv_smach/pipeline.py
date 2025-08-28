@@ -80,6 +80,15 @@ class NavigateThroughPipelineState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "SET_PIPELINE_DEPTH",
+                SetDepthState(depth=pipeline_depth, sleep_duration=3.0),
+                transitions={
+                    "succeeded": "ENABLE_ANNOTATOR",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "ENABLE_ANNOTATOR",
                 ToggleAnnotatorServiceState(req=True),
                 transitions={
@@ -110,15 +119,6 @@ class NavigateThroughPipelineState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_AND_BUILD_PIPE",
                 AlignAndBuildPipeState(),
-                transitions={
-                    "succeeded": "SET_PIPELINE_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_PIPELINE_DEPTH",
-                SetDepthState(depth=pipeline_depth, sleep_duration=3.0),
                 transitions={
                     "succeeded": "ENABLE_PIPELINE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
