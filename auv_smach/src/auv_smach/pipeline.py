@@ -22,6 +22,16 @@ class TransformServiceEnableState(smach_ros.ServiceState):
         )
 
 
+class ToggleAnnotatorServiceState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "/yolo_image_annotator/toggle_annotator",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
 class NavigateThroughPipelineState(smach.State):
     def __init__(self, pipeline_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -48,6 +58,15 @@ class NavigateThroughPipelineState(smach.State):
         )
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "ENABLE_ANNOTATOR",
+                ToggleAnnotatorServiceState(req=True),
+                transitions={
+                    "succeeded": "SET_PIPELINE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_PIPELINE_DEPTH",
                 SetDepthState(depth=pipeline_depth, sleep_duration=3.0),
@@ -338,6 +357,24 @@ class NavigateThroughPipelineState(smach.State):
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
                 ),
+                transitions={
+                    "succeeded": "DISABLE_ANNOTATOR",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_ANNOTATOR",
+                ToggleAnnotatorServiceState(req=False),
+                transitions={
+                    "succeeded": " CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
