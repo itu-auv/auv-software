@@ -158,6 +158,10 @@ class GpsTargetFramePublisher(object):
             east_m, north_m, self.north_reference_yaw
         )
 
+        gps_distance = np.linalg.norm([odom_dx, odom_dy])
+        if gps_distance > 0.0:
+            rospy.loginfo_once(f"GPS hedefi robotun {gps_distance:.2f} metre önünde.")
+
         # --- New: If facing_distance_m > 0, override target position to be that far in front of robot ---
         if hasattr(self, "facing_distance_m") and self.facing_distance_m > 0.0:
             try:
