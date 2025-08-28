@@ -33,14 +33,16 @@ class PipeHeadingTF:
         self.bridge = CvBridge()
 
         # --- Parametreler ---
-        self.mask_topic   = rospy.get_param("~mask_topic", "pipe_mask")
+        self.mask_topic = rospy.get_param("~mask_topic", "pipe_mask")
         self.parent_frame = rospy.get_param("~parent_frame", "taluy/base_link")
-        self.child_frame  = rospy.get_param("~child_frame",  "pipe_x")
+        self.child_frame = rospy.get_param("~child_frame", "pipe_x")
 
         # Görüntü oryantasyonu (gerekirse kullan)
-        self.rotate_cw = int(rospy.get_param("~rotate_cw", 0))   # 0,1,2,3 (×90° saat yönü)
-        self.flip_x    = bool(rospy.get_param("~flip_x", False))
-        self.flip_y    = bool(rospy.get_param("~flip_y", False))
+        self.rotate_cw = int(
+            rospy.get_param("~rotate_cw", 0)
+        )  # 0,1,2,3 (×90° saat yönü)
+        self.flip_x = bool(rospy.get_param("~flip_x", False))
+        self.flip_y = bool(rospy.get_param("~flip_y", False))
 
         # Eşik
         self.min_pipe_area_px = int(rospy.get_param("~min_pipe_area_px", 1500))
@@ -48,17 +50,21 @@ class PipeHeadingTF:
         # Yön/işaret ayarları
         # Senaryon: base_link +x görüntüde SOL → True bırak.
         self.base_x_is_image_left = bool(rospy.get_param("~base_x_is_image_left", True))
-        self.invert_angle         = bool(rospy.get_param("~invert_angle", False))
+        self.invert_angle = bool(rospy.get_param("~invert_angle", False))
         self.extra_yaw_offset_rad = float(rospy.get_param("~extra_yaw_offset_rad", 0.0))
         # İstersen sabit 180° çevirme için:
-        self.flip_180             = bool(rospy.get_param("~flip_180", False))
+        self.flip_180 = bool(rospy.get_param("~flip_180", False))
 
         # TF yayıncı ve abone
-        self.br  = tf2_ros.TransformBroadcaster()
+        self.br = tf2_ros.TransformBroadcaster()
         self.sub = rospy.Subscriber(self.mask_topic, Image, self.cb_mask, queue_size=1)
 
-        rospy.loginfo("[pipe_heading_tf] parent=%s child=%s base_x_is_image_left=%s",
-                      self.parent_frame, self.child_frame, self.base_x_is_image_left)
+        rospy.loginfo(
+            "[pipe_heading_tf] parent=%s child=%s base_x_is_image_left=%s",
+            self.parent_frame,
+            self.child_frame,
+            self.base_x_is_image_left,
+        )
 
     # ---- Yardımcılar ----
     def _orient_img(self, m: np.ndarray) -> np.ndarray:
@@ -97,10 +103,10 @@ class PipeHeadingTF:
 
         # --- YÖNÜ İLERİYE SABİTLE ---
         if self.base_x_is_image_left:
-            if vx > 0:      # sağa bakıyorsa çevir → sola baksın (ileri)
+            if vx > 0:  # sağa bakıyorsa çevir → sola baksın (ileri)
                 vx, vy = -vx, -vy
         else:
-            if vx < 0:      # sola bakıyorsa çevir → sağa baksın (ileri)
+            if vx < 0:  # sola bakıyorsa çevir → sağa baksın (ileri)
                 vx, vy = -vx, -vy
 
         angle = math.atan2(float(vy), float(vx))  # 0 ~ ileri (görüntüde base_x yönü)
@@ -145,7 +151,7 @@ class PipeHeadingTF:
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
         t.header.frame_id = self.parent_frame
-        t.child_frame_id  = self.child_frame
+        t.child_frame_id = self.child_frame
         t.transform.translation.x = 0.0
         t.transform.translation.y = 0.0
         t.transform.translation.z = 0.0

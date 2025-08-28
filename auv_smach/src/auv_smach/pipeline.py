@@ -58,12 +58,11 @@ class NavigateThroughPipelineState(smach.State):
         )
 
         with self.state_machine:
-            """
             smach.StateMachine.add(
                 "ENABLE_ANNOTATOR",
                 ToggleAnnotatorServiceState(req=True),
                 transitions={
-                    "succeeded": "ENABLE_PIPELINE_TRAJECTORY_PUBLISHER",
+                    "succeeded": "SET_PIPELINE_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -77,7 +76,6 @@ class NavigateThroughPipelineState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            """
             smach.StateMachine.add(
                 "ENABLE_PIPELINE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
@@ -369,7 +367,7 @@ class NavigateThroughPipelineState(smach.State):
                 "DISABLE_ANNOTATOR",
                 ToggleAnnotatorServiceState(req=False),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",  # <-- Fixed here
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
