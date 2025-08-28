@@ -10,6 +10,7 @@ from std_msgs.msg import Bool
 from auv_smach.common import (
     CancelAlignControllerState,
     ClearObjectMapState,
+    SetAlignControllerTargetState,
 )
 from typing import Optional, Literal
 from dataclasses import dataclass
@@ -190,6 +191,17 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "SET_START_FRAME",
                 SetStartFrameState(frame_name="mission_start_link"),
+                transitions={
+                    "succeeded": "ALIGN_TO_MISSION_START",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_MISSION_START",
+                SetAlignControllerTargetState(
+                    source_frame="taluy/base_link", target_frame="mission_start_link"
+                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
