@@ -25,7 +25,9 @@ class PipelineTransformServiceNode:
 
         # Parameters
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
-        self.robot_base_frame = rospy.get_param("~robot_base_frame", "taluy/base_link")
+        self.pipe_start_frame = rospy.get_param(
+            "~pipe_start_frame", "pipe_start_aligned"
+        )
 
         # Frame names for pipeline corners
         self.pipe_corner_frames = [
@@ -126,17 +128,17 @@ class PipelineTransformServiceNode:
     def create_pipeline_frames(self):
         """Create all pipeline corner frames based on robot's current position"""
         try:
-            # Get robot's current transform
-            robot_transform = self.tf_buffer.lookup_transform(
+            # Get pipe start frame's current transform
+            pipe_start_transform = self.tf_buffer.lookup_transform(
                 self.odom_frame,
-                self.robot_base_frame,
+                self.pipe_start_frame,
                 rospy.Time(0),
                 rospy.Duration(1.0),
             )
 
-            robot_pose = self.get_pose_from_transform(robot_transform)
+            pipe_start_pose = self.get_pose_from_transform(pipe_start_transform)
             rospy.loginfo(
-                f"Robot position: x={robot_pose.position.x:.2f}, y={robot_pose.position.y:.2f}, z={robot_pose.position.z:.2f}"
+                f"Pipe start position: x={pipe_start_pose.position.x:.2f}, y={pipe_start_pose.position.y:.2f}, z={pipe_start_pose.position.z:.2f}"
             )
 
         except (
@@ -159,7 +161,9 @@ class PipelineTransformServiceNode:
         # pipe_corner_9: 5m forward from pipe_corner_8
 
         # pipe_corner_1: 5 meters forward
-        corner_1_pose = self.create_relative_pose(robot_pose, forward=5.0, left=0.0)
+        corner_1_pose = self.create_relative_pose(
+            pipe_start_pose, forward=5.0, left=0.0
+        )
 
         # pipe_corner_2: 2.5 meters left from corner_1
         corner_2_pose = self.create_relative_pose(corner_1_pose, forward=0.0, left=2.5)

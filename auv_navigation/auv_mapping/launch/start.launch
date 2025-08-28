@@ -83,5 +83,9 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <node pkg="auv_mapping" type="pipe_frame_publisher.py" name="pipe_frame_publisher" output="screen">
+      <rosparam command="load" file="$(find auv_mapping)/config/pipe_rules.yaml"/>
+    </node>
+
   </group>
 </launch>
