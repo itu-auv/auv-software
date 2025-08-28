@@ -13,7 +13,7 @@
   <arg name="max_det" default="300"/>
   <arg name="classes" default=""/>
   <arg name="tracker" default="bytetrack.yaml"/>
-  <arg name="device" default="cuda:0"/>
+  <arg name="device" default="cpu"/>
   <arg name="result_conf" default="true"/>
   <arg name="result_line_width" default="1"/>
   <arg name="result_font_size" default="1"/>
@@ -27,7 +27,7 @@
   <node name="tracker_node_bottom" pkg="ultralytics_ros" type="tracker_node.py" output="screen">
     <param name="yolo_model" value="$(arg yolo_model)"/>
     <param if="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_bottom/image_underwater"/>
-    <param unless="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_bottom/image_rect_color"/>
+    <param unless="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_bottom/image_underwater"/>
     <param name="result_topic" value="$(arg result_topic)"/>
     <param name="result_image_topic" value="$(arg result_image_topic)"/>
     <param name="conf_thres" value="$(arg conf_thres)"/>

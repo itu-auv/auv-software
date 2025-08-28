@@ -17,8 +17,6 @@ Assumptions
 
 Debug
 - Publishes an annotated overlay image to ~debug_image (sensor bands, fitted line, etc.)
-
-Author: Rafiq (ChatGPT)
 """
 
 import math
@@ -29,6 +27,7 @@ import rospy
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge
+from std_srvs.srv import SetBool, SetBoolResponse
 
 
 def saturate(x, lo, hi):
@@ -83,10 +82,8 @@ class PipeLineFollower(object):
         )  # nominal forward speed (m/s)
         self.v_min = float(rospy.get_param("~v_min", 0.05))  # min forward speed
         self.ang_limit = float(rospy.get_param("~ang_limit", 0.6))  # rad/s
-        self.lin_limit = float(rospy.get_param("~lin_limit", 0.4))  # m/s
-        self.slowdown_angle = float(
-            rospy.get_param("~slowdown_angle", 0.8)
-        )  # scale fwd by 1/(1+slowdown_angle*|ang_err|)
+        self.lin_limit = float(rospy.get_param("~lin_limit", 1))  # m/s
+        self.slowdown_angle = float(rospy.get_param("~slowdown_angle", 0.8))
 
         # If the sign feels wrong in your setup, flip one of these:
         self.invert_y_error = bool(rospy.get_param("~invert_y_error", False))
@@ -114,8 +111,25 @@ class PipeLineFollower(object):
             self.cmd_vel_topic,
         )
 
+        # Enable/disable service (RENAMED to absolute and friendly path)
+        # Was "~enable" -> now "/pipe_follower/enable"
+        self.enabled = True
+        self.srv_enable = rospy.Service(
+            "/pipe_follower/enable",
+            SetBool,
+            self.cb_enable_service,
+        )
+
+    def cb_enable_service(self, req):
+        self.enabled = bool(req.data)
+        rospy.loginfo("[pipe_line_follower] enabled set to: %s", self.enabled)
+        return SetBoolResponse(success=True, message=f"Enabled: {self.enabled}")
+
     # ---------- Core callback ----------
     def cb_mask(self, msg):
+        rospy.loginfo("[pipe_line_follower] got mask image")
+        if not self.enabled:
+            return
         try:
             mask = self.bridge.imgmsg_to_cv2(msg, desired_encoding="mono8")
         except Exception as e:
@@ -165,9 +179,7 @@ class PipeLineFollower(object):
         pts = contours[0].reshape(-1, 2)
 
         [vx, vy, x0, y0] = cv2.fitLine(pts, cv2.DIST_L2, 0, 0.01, 0.01)
-        angle = math.atan2(
-            float(vy), float(vx)
-        )  # radians; 0 means horizontal left→right
+        angle = math.atan2(float(vy), float(vx))  # radians; 0 means horizontal left→right
         # Map to [-pi/2, +pi/2] to avoid flipping
         if angle > math.pi / 2:
             angle -= math.pi
@@ -216,7 +228,6 @@ class PipeLineFollower(object):
             y_err = -y_err
 
         # ---------- Command synthesis ----------
-        # Combine orientation and alignment. Signs may need flipping depending on your frame; use invert_* params.
         use_linear_y = rospy.get_param("~use_linear_y", False)
         tw = Twist()
         if use_linear_y:
@@ -261,14 +272,11 @@ class PipeLineFollower(object):
         # Fitted line
         if fit is not None:
             vx, vy, x0, y0 = fit
-            # Draw long line across image bounds
             x0, y0, vx, vy = float(x0), float(y0), float(vx), float(vy)
 
-            # parametric form: P = P0 + t*V; find intersections at image borders
             def line_point(t):
                 return int(x0 + t * vx), int(y0 + t * vy)
 
-            # choose large t to span
             p1 = line_point(-2000)
             p2 = line_point(+2000)
             cv2.line(vis, p1, p2, (0, 0, 255), 2)

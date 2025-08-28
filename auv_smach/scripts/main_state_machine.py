@@ -86,7 +86,7 @@ class MainStateMachineNode:
 
         self.octagon_depth = -0.8
 
-        self.pipeline_depth = -0.75
+        self.pipeline_depth = -1.5
 
         # GPS parameters
         self.gps_depth = -1.0
