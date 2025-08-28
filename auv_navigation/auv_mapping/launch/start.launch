@@ -77,5 +77,11 @@
       <remap from="set_transform_octagon_frame" to="set_transform_octagon_frame" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
+
+    <node pkg="auv_mapping" type="pipeline_trajectory_publisher.py" name="pipeline_trajectory_publisher">
+      <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
   </group>
 </launch>
