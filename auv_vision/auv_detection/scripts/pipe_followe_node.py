@@ -51,55 +51,75 @@ def rot90n(img, n_cw):
 class PipeLineFollower(object):
     def __init__(self):
         # ---- Topics ----
-        self.mask_topic = rospy.get_param('~mask_topic', 'pipe_mask')
-        self.cmd_vel_topic = rospy.get_param('~cmd_vel_topic', '/taluy/cmd_vel')
-        self.debug_topic = rospy.get_param('~debug_topic', 'pipe_follow_debug')
+        self.mask_topic = rospy.get_param("~mask_topic", "pipe_mask")
+        self.cmd_vel_topic = rospy.get_param("~cmd_vel_topic", "/taluy/cmd_vel")
+        self.debug_topic = rospy.get_param("~debug_topic", "pipe_follow_debug")
 
         # ---- Image orientation controls ----
         # Bring your image into the assumed frame: columns≈forward (left→right), rows≈lateral (top→bottom)
-        self.rotate_cw = rospy.get_param('~rotate_cw', 0)         # 0,1,2,3 (×90° clockwise)
-        self.flip_x = rospy.get_param('~flip_x', False)           # horizontal flip
-        self.flip_y = rospy.get_param('~flip_y', False)           # vertical flip
+        self.rotate_cw = rospy.get_param("~rotate_cw", 0)  # 0,1,2,3 (×90° clockwise)
+        self.flip_x = rospy.get_param("~flip_x", False)  # horizontal flip
+        self.flip_y = rospy.get_param("~flip_y", False)  # vertical flip
 
         # ---- Sensor band config ----
-        self.n_sensors = int(rospy.get_param('~n_sensors', 5))    # 3 or 5 typical
-        self.sensor_x_frac = float(rospy.get_param('~sensor_x_frac', 0.20))  # gate center as fraction of width
-        self.sensor_width_frac = float(rospy.get_param('~sensor_width_frac', 0.10))  # gate width fraction
-        self.sensor_min_fill = float(rospy.get_param('~sensor_min_fill', 0.02))      # min occupancy to count band
+        self.n_sensors = int(rospy.get_param("~n_sensors", 5))  # 3 or 5 typical
+        self.sensor_x_frac = float(
+            rospy.get_param("~sensor_x_frac", 0.20)
+        )  # gate center as fraction of width
+        self.sensor_width_frac = float(
+            rospy.get_param("~sensor_width_frac", 0.10)
+        )  # gate width fraction
+        self.sensor_min_fill = float(
+            rospy.get_param("~sensor_min_fill", 0.02)
+        )  # min occupancy to count band
 
         # ---- Control gains & limits ----
-        self.k_y = float(rospy.get_param('~k_y', 1.50))           # lateral alignment gain from sensor bands
-        self.k_ang = float(rospy.get_param('~k_ang', 1.00))       # orientation (angle) gain
-        self.v_fwd = float(rospy.get_param('~v_fwd', 0.25))       # nominal forward speed (m/s)
-        self.v_min = float(rospy.get_param('~v_min', 0.05))       # min forward speed
-        self.ang_limit = float(rospy.get_param('~ang_limit', 0.6))  # rad/s
-        self.lin_limit = float(rospy.get_param('~lin_limit', 0.4))  # m/s
-        self.slowdown_angle = float(rospy.get_param('~slowdown_angle', 0.8))  # scale fwd by 1/(1+slowdown_angle*|ang_err|)
+        self.k_y = float(
+            rospy.get_param("~k_y", 1.50)
+        )  # lateral alignment gain from sensor bands
+        self.k_ang = float(rospy.get_param("~k_ang", 1.00))  # orientation (angle) gain
+        self.v_fwd = float(
+            rospy.get_param("~v_fwd", 0.25)
+        )  # nominal forward speed (m/s)
+        self.v_min = float(rospy.get_param("~v_min", 0.05))  # min forward speed
+        self.ang_limit = float(rospy.get_param("~ang_limit", 0.6))  # rad/s
+        self.lin_limit = float(rospy.get_param("~lin_limit", 0.4))  # m/s
+        self.slowdown_angle = float(
+            rospy.get_param("~slowdown_angle", 0.8)
+        )  # scale fwd by 1/(1+slowdown_angle*|ang_err|)
 
         # If the sign feels wrong in your setup, flip one of these:
-        self.invert_y_error = bool(rospy.get_param('~invert_y_error', False))
-        self.invert_ang_error = bool(rospy.get_param('~invert_ang_error', False))
+        self.invert_y_error = bool(rospy.get_param("~invert_y_error", False))
+        self.invert_ang_error = bool(rospy.get_param("~invert_ang_error", False))
 
         # ---- Validity and search behavior ----
-        self.min_pipe_area_px = int(rospy.get_param('~min_pipe_area_px', 1500))
-        self.search_omega = float(rospy.get_param('~search_omega', 0.25))  # when pipe not visible
+        self.min_pipe_area_px = int(rospy.get_param("~min_pipe_area_px", 1500))
+        self.search_omega = float(
+            rospy.get_param("~search_omega", 0.25)
+        )  # when pipe not visible
 
         # ---- Debug ----
-        self.publish_debug = bool(rospy.get_param('~publish_debug', True))
+        self.publish_debug = bool(rospy.get_param("~publish_debug", True))
 
         self.bridge = CvBridge()
         self.pub_cmd = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
         self.pub_debug = rospy.Publisher(self.debug_topic, Image, queue_size=1)
-        self.sub_mask = rospy.Subscriber(self.mask_topic, Image, self.cb_mask, queue_size=1, buff_size=2**24)
+        self.sub_mask = rospy.Subscriber(
+            self.mask_topic, Image, self.cb_mask, queue_size=1, buff_size=2**24
+        )
 
-        rospy.loginfo('[pipe_line_follower] started. Subscribing to %s, publishing %s', self.mask_topic, self.cmd_vel_topic)
+        rospy.loginfo(
+            "[pipe_line_follower] started. Subscribing to %s, publishing %s",
+            self.mask_topic,
+            self.cmd_vel_topic,
+        )
 
     # ---------- Core callback ----------
     def cb_mask(self, msg):
         try:
-            mask = self.bridge.imgmsg_to_cv2(msg, desired_encoding='mono8')
+            mask = self.bridge.imgmsg_to_cv2(msg, desired_encoding="mono8")
         except Exception as e:
-            rospy.logwarn('cv_bridge err: %s', e)
+            rospy.logwarn("cv_bridge err: %s", e)
             return
 
         # Bring into assumed orientation
@@ -123,7 +143,7 @@ class PipeLineFollower(object):
             tw.linear.x = 0.0
             self.pub_cmd.publish(tw)
             if self.publish_debug:
-                self._publish_debug(mask, None, None, None, note='SEARCH')
+                self._publish_debug(mask, None, None, None, note="SEARCH")
             return
 
         # ---------- A) Orientation control via fitLine ----------
@@ -139,17 +159,19 @@ class PipeLineFollower(object):
             tw.linear.x = 0.0
             self.pub_cmd.publish(tw)
             if self.publish_debug:
-                self._publish_debug(mask, None, None, None, note='SEARCH(no-contours)')
+                self._publish_debug(mask, None, None, None, note="SEARCH(no-contours)")
             return
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
         pts = contours[0].reshape(-1, 2)
 
         [vx, vy, x0, y0] = cv2.fitLine(pts, cv2.DIST_L2, 0, 0.01, 0.01)
-        angle = math.atan2(float(vy), float(vx))  # radians; 0 means horizontal left→right
+        angle = math.atan2(
+            float(vy), float(vx)
+        )  # radians; 0 means horizontal left→right
         # Map to [-pi/2, +pi/2] to avoid flipping
-        if angle > math.pi/2:
+        if angle > math.pi / 2:
             angle -= math.pi
-        elif angle < -math.pi/2:
+        elif angle < -math.pi / 2:
             angle += math.pi
         ang_err = angle  # target=0 (horizontal)
         if self.invert_ang_error:
@@ -169,7 +191,7 @@ class PipeLineFollower(object):
         centers_y = []
         for i in range(n):
             ys = i * band_h
-            ye = h if i == n-1 else (i+1) * band_h
+            ye = h if i == n - 1 else (i + 1) * band_h
             roi = gate[ys:ye, :]
             fill = float(np.count_nonzero(roi)) / float(roi.size)
             occ.append(fill)
@@ -184,8 +206,8 @@ class PipeLineFollower(object):
         else:
             # Fallback to global centroid if gate is empty
             m = cv2.moments(mask, binaryImage=True)
-            if m['m00'] > 1e-3:
-                y_meas = m['m01'] / m['m00']
+            if m["m00"] > 1e-3:
+                y_meas = m["m01"] / m["m00"]
             else:
                 y_meas = h * 0.5
 
@@ -195,7 +217,7 @@ class PipeLineFollower(object):
 
         # ---------- Command synthesis ----------
         # Combine orientation and alignment. Signs may need flipping depending on your frame; use invert_* params.
-        w_z = - self.k_ang * ang_err - self.k_y * y_err
+        w_z = -self.k_ang * ang_err - self.k_y * y_err
         w_z = saturate(w_z, -self.ang_limit, self.ang_limit)
 
         # Slow down when misaligned by angle
@@ -209,9 +231,13 @@ class PipeLineFollower(object):
 
         if self.publish_debug:
             debug_info = {
-                'x_center': x_center, 'xs': xs, 'xe': xe,
-                'y_meas': float(y_meas), 'ang_err': float(ang_err),
-                'y_err': float(y_err), 'occ': occ.tolist()
+                "x_center": x_center,
+                "xs": xs,
+                "xe": xe,
+                "y_meas": float(y_meas),
+                "ang_err": float(ang_err),
+                "y_err": float(y_err),
+                "occ": occ.tolist(),
             }
             self._publish_debug(mask, (vx, vy, x0, y0), (xs, xe), y_meas, debug_info)
 
@@ -222,42 +248,64 @@ class PipeLineFollower(object):
         # Gate band
         if gate_xsxe is not None:
             xs, xe = gate_xsxe
-            cv2.rectangle(vis, (xs, 0), (xe, h-1), (0, 255, 255), 1)
+            cv2.rectangle(vis, (xs, 0), (xe, h - 1), (0, 255, 255), 1)
         # Fitted line
         if fit is not None:
             vx, vy, x0, y0 = fit
             # Draw long line across image bounds
             x0, y0, vx, vy = float(x0), float(y0), float(vx), float(vy)
+
             # parametric form: P = P0 + t*V; find intersections at image borders
             def line_point(t):
                 return int(x0 + t * vx), int(y0 + t * vy)
+
             # choose large t to span
             p1 = line_point(-2000)
             p2 = line_point(+2000)
             cv2.line(vis, p1, p2, (0, 0, 255), 2)
         # Desired center line
-        cv2.line(vis, (0, int(h/2)), (w-1, int(h/2)), (255, 0, 0), 1)
+        cv2.line(vis, (0, int(h / 2)), (w - 1, int(h / 2)), (255, 0, 0), 1)
         # Measured y
         if y_meas is not None:
             y = int(y_meas)
-            cv2.line(vis, (0, y), (w-1, y), (0, 255, 0), 1)
+            cv2.line(vis, (0, y), (w - 1, y), (0, 255, 0), 1)
         # Note / text
         if note:
-            cv2.putText(vis, str(note), (8, 18), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 255), 2, cv2.LINE_AA)
+            cv2.putText(
+                vis,
+                str(note),
+                (8, 18),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 200, 255),
+                2,
+                cv2.LINE_AA,
+            )
         if isinstance(extra, dict):
-            txt = 'ang_err={:+.2f}  y_err={:+.2f}'.format(extra.get('ang_err', 0.0), extra.get('y_err', 0.0))
-            cv2.putText(vis, txt, (8, h-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (50, 220, 50), 2, cv2.LINE_AA)
+            txt = "ang_err={:+.2f}  y_err={:+.2f}".format(
+                extra.get("ang_err", 0.0), extra.get("y_err", 0.0)
+            )
+            cv2.putText(
+                vis,
+                txt,
+                (8, h - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (50, 220, 50),
+                2,
+                cv2.LINE_AA,
+            )
         try:
-            self.pub_debug.publish(CvBridge().cv2_to_imgmsg(vis, encoding='bgr8'))
+            self.pub_debug.publish(CvBridge().cv2_to_imgmsg(vis, encoding="bgr8"))
         except Exception:
             pass
 
 
 def main():
-    rospy.init_node('pipe_line_follower')
+    rospy.init_node("pipe_line_follower")
     PipeLineFollower()
     rospy.spin()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -7,23 +7,38 @@ from cv_bridge import CvBridge
 import cv2
 import numpy as np
 
+
 class PipeDetectorSimple:
     def __init__(self):
         # ---- Params ----
-        self.use_percentile = rospy.get_param("~use_percentile", True)   # True -> dinamik eşik
-        self.black_percentile = rospy.get_param("~black_percentile", 5)  # 0-100 arası; 5 iyi bir başlangıç
-        self.fixed_thresh = rospy.get_param("~fixed_thresh", 30)         # use_percentile=False ise kullanılır (0-255)
-        self.blur_ksize = rospy.get_param("~blur_ksize", 3)              # 0/1 => kapalı; >=3 tek sayı
-        self.morph_close = rospy.get_param("~morph_close", 5)            # tek sayı; 0/1 => kapalı
-        self.morph_open  = rospy.get_param("~morph_open", 3)             # tek sayı; 0/1 => kapalı
-        self.min_area_px = rospy.get_param("~min_area_px", 1000)         # küçük gürültüyü ele
-        self.publish_thresh = rospy.get_param("~publish_thresh", True)    # debug
+        self.use_percentile = rospy.get_param(
+            "~use_percentile", True
+        )  # True -> dinamik eşik
+        self.black_percentile = rospy.get_param(
+            "~black_percentile", 5
+        )  # 0-100 arası; 5 iyi bir başlangıç
+        self.fixed_thresh = rospy.get_param(
+            "~fixed_thresh", 30
+        )  # use_percentile=False ise kullanılır (0-255)
+        self.blur_ksize = rospy.get_param(
+            "~blur_ksize", 3
+        )  # 0/1 => kapalı; >=3 tek sayı
+        self.morph_close = rospy.get_param("~morph_close", 5)  # tek sayı; 0/1 => kapalı
+        self.morph_open = rospy.get_param("~morph_open", 3)  # tek sayı; 0/1 => kapalı
+        self.min_area_px = rospy.get_param("~min_area_px", 1000)  # küçük gürültüyü ele
+        self.publish_thresh = rospy.get_param("~publish_thresh", True)  # debug
 
         self.bridge = CvBridge()
-        self.sub = rospy.Subscriber('/taluy/cameras/cam_bottom/image_underwater', Image, self.cb, queue_size=1, buff_size=2**24)
-        self.pub_mask = rospy.Publisher('pipe_mask', Image, queue_size=1)
-        self.pub_gray = rospy.Publisher('gray_image', Image, queue_size=1)
-        self.pub_thr  = rospy.Publisher('thresh_image', Image, queue_size=1)
+        self.sub = rospy.Subscriber(
+            "/taluy/cameras/cam_bottom/image_underwater",
+            Image,
+            self.cb,
+            queue_size=1,
+            buff_size=2**24,
+        )
+        self.pub_mask = rospy.Publisher("pipe_mask", Image, queue_size=1)
+        self.pub_gray = rospy.Publisher("gray_image", Image, queue_size=1)
+        self.pub_thr = rospy.Publisher("thresh_image", Image, queue_size=1)
 
     @staticmethod
     def _odd(k):
@@ -32,7 +47,7 @@ class PipeDetectorSimple:
 
     def cb(self, msg):
         print("Received image")
-        img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
         # İsteğe bağlı hafif blur (gürültüyü yumuşatır)
@@ -79,15 +94,17 @@ class PipeDetectorSimple:
         # hiç bileşen yoksa maske boş (siyah) kalır
 
         # Publish
-        self.pub_gray.publish(self.bridge.cv2_to_imgmsg(gray, encoding='mono8'))
+        self.pub_gray.publish(self.bridge.cv2_to_imgmsg(gray, encoding="mono8"))
         if self.publish_thresh:
-            self.pub_thr.publish(self.bridge.cv2_to_imgmsg(thr, encoding='mono8'))
-        self.pub_mask.publish(self.bridge.cv2_to_imgmsg(mask, encoding='mono8'))
+            self.pub_thr.publish(self.bridge.cv2_to_imgmsg(thr, encoding="mono8"))
+        self.pub_mask.publish(self.bridge.cv2_to_imgmsg(mask, encoding="mono8"))
+
 
 def main():
-    rospy.init_node('pipe_detector_simple')
+    rospy.init_node("pipe_detector_simple")
     PipeDetectorSimple()
     rospy.spin()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
