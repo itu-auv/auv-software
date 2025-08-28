@@ -3,13 +3,34 @@ import smach
 import smach_ros
 import rospy
 import tf2_ros
-from std_srvs.srv import SetBool, SetBoolRequest
+from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerRequest
 from auv_smach.common import (
     DynamicPathState,
     SetDepthState,
     AlignFrame,
 )
 from auv_smach.initialize import DelayState
+
+
+class CreatePipeStartState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "/pipe_plan/create_start", Trigger, request=TriggerRequest()
+        )
+
+
+class CommitPipeBootstrapState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "/pipe_plan/commit_bootstrap", Trigger, request=TriggerRequest()
+        )
+
+
+class AlignAndBuildPipeState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self, "/pipe_plan/align_and_build", Trigger, request=TriggerRequest()
+        )
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
@@ -58,6 +79,44 @@ class NavigateThroughPipelineState(smach.State):
         )
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "CREATE_PIPE_START",
+                CreatePipeStartState(),
+                transitions={
+                    "succeeded": "MOVE_TO_BOOTSTRAP_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "MOVE_TO_BOOTSTRAP_POSE",
+                DynamicPathState(
+                    plan_target_frame="pipe_bootstrap_pose", max_linear_velocity=0.3
+                ),
+                transitions={
+                    "succeeded": "COMMIT_PIPE_BOOTSTRAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "COMMIT_PIPE_BOOTSTRAP",
+                CommitPipeBootstrapState(),
+                transitions={
+                    "succeeded": "ALIGN_AND_BUILD_PIPE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_AND_BUILD_PIPE",
+                AlignAndBuildPipeState(),
+                transitions={
+                    "succeeded": "ENABLE_ANNOTATOR",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "ENABLE_ANNOTATOR",
                 ToggleAnnotatorServiceState(req=True),
