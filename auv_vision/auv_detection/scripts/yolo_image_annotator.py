@@ -19,7 +19,7 @@ class YoloImageAnnotator:
 
         # Get parameters
         self.save_directory = rospy.get_param(
-            "~save_directory", "/tmp/yolo_annotated_images"
+            "~save_directory", "/home/agxorin/yolo_annotated_images"
         )
         self.font_scale = rospy.get_param("~font_scale", 0.7)
         self.font_thickness = rospy.get_param("~font_thickness", 2)
@@ -56,8 +56,10 @@ class YoloImageAnnotator:
         )
 
         # Subscribe to topics using message_filters for synchronization
-        image_sub = message_filters.Subscriber("cam_bottom/image_raw", Image)
-        yolo_sub = message_filters.Subscriber("yolo_result_bottom", YoloResult)
+        image_sub = message_filters.Subscriber(
+            "/taluy/cameras/cam_bottom/image_raw", Image
+        )
+        yolo_sub = message_filters.Subscriber("/yolo_result", YoloResult)
 
         # Synchronize messages with a time tolerance
         ts = message_filters.ApproximateTimeSynchronizer(
