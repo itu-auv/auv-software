@@ -1,6 +1,19 @@
 <launch>
   <arg name="namespace" default="taluy" />
+  <node pkg="auv_detection"
+        type="yolo_to_mask_node.py"
+        name="yolo_seg_to_pipe_mask"
+        output="screen" />
 
+  <!-- Pipe follower node -->
+  <node pkg="auv_detection"
+        type="pipe_trajectory_referance_pub.py"
+        name="pipe_heading_tf"
+        output="screen" />
+  <node pkg="auv_detection"
+        type="pipe_follower_node.py"
+        name="pipe_follower_node"
+        output="screen" />
   <group ns="$(arg namespace)">
     <node
       pkg="auv_vision"

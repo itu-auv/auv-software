@@ -3,16 +3,5 @@
   <include file="$(find auv_detection)/launch/tracker_segment.launch" />
   <include file="$(find auv_detection)/launch/tracker_detection.launch" />
 
-  <!-- YOLO mask node -->
-  <node pkg="auv_detection"
-        type="yolo_to_mask_node.py"
-        name="yolo_seg_to_pipe_mask"
-        output="screen" />
-
-  <!-- Pipe follower node -->
-  <node pkg="auv_detection"
-        type="pipe_trajectory_referance_pub.py"
-        name="pipe_heading_tf"
-        output="screen" />
 
 </launch>

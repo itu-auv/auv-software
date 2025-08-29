@@ -26,6 +26,7 @@ import cv2
 import rospy
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
+from std_msgs.msg import Bool
 from cv_bridge import CvBridge
 from std_srvs.srv import SetBool, SetBoolResponse
 
@@ -100,6 +101,7 @@ class PipeLineFollower(object):
 
         self.bridge = CvBridge()
         self.pub_cmd = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
+        self.pub_enable = rospy.Publisher("/taluy/enable", Bool, queue_size=1)
         self.pub_debug = rospy.Publisher(self.debug_topic, Image, queue_size=1)
         self.sub_mask = rospy.Subscriber(
             self.mask_topic, Image, self.cb_mask, queue_size=1, buff_size=2**24
@@ -124,6 +126,13 @@ class PipeLineFollower(object):
         self.enabled = bool(req.data)
         rospy.loginfo("[pipe_line_follower] enabled set to: %s", self.enabled)
         return SetBoolResponse(success=True, message=f"Enabled: {self.enabled}")
+
+    def spin(self):
+        rate = rospy.Rate(20.0)
+        while not rospy.is_shutdown():
+            if self.enabled:
+                self.pub_enable.publish(Bool(data=True))
+            rate.sleep()
 
     # ---------- Core callback ----------
     def cb_mask(self, msg):
@@ -320,8 +329,8 @@ class PipeLineFollower(object):
 
 def main():
     rospy.init_node("pipe_line_follower")
-    PipeLineFollower()
-    rospy.spin()
+    node = PipeLineFollower()
+    node.spin()
 
 
 if __name__ == "__main__":
