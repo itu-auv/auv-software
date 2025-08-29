@@ -7,7 +7,7 @@ import rospy
 import tf2_ros
 import tf
 from geometry_msgs.msg import TransformStamped
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 from dynamic_reconfigure.server import Server
@@ -65,7 +65,7 @@ class GpsTargetFramePublisher(object):
         self._active = False
         self._anchor_robot_at_start = None  # latched robot pose in odom at activation
         self._srv_toggle = rospy.Service(
-            "toggle_gps_target_frame", Trigger, self._toggle_cb
+            "gps_target_frame_trigger", SetBool, self._toggle_cb
         )
 
         # Timer for publishing
@@ -74,7 +74,7 @@ class GpsTargetFramePublisher(object):
         )
 
         rospy.loginfo(
-            "gps_target_frame_publisher ready. Call 'toggle_gps_target_frame' to start/stop."
+            "gps_target_frame_publisher ready. Call 'gps_target_frame_trigger' to start/stop."
         )
 
     # -------------------- Dynamic reconfigure --------------------
@@ -92,11 +92,12 @@ class GpsTargetFramePublisher(object):
             [config.target_x_m, config.target_y_m, config.target_z_m], dtype=float
         )
         self.facing_exit = config.facing_exit
+        self.facing_distance_m = config.facing_distance_m
         return config
 
     # -------------------- Toggle service --------------------
     def _toggle_cb(self, req):
-        self._active = not self._active
+        self._active = req.data
         if self._active:
             # Latch current robot pose in odom as the anchor
             try:
@@ -116,16 +117,17 @@ class GpsTargetFramePublisher(object):
                 )
             except Exception as e:
                 self._anchor_robot_at_start = None
-                return TriggerResponse(
+                self._active = False  # Failed to activate, so set back to false
+                return SetBoolResponse(
                     success=False,
                     message=f"TF lookup (odom->{self.robot_frame}) failed: {e}",
                 )
 
             rospy.loginfo("gps_target_frame_publisher: ACTIVATED.")
-            return TriggerResponse(success=True, message="Publishing activated.")
+            return SetBoolResponse(success=True, message="Publishing activated.")
         else:
             rospy.loginfo("gps_target_frame_publisher: DEACTIVATED.")
-            return TriggerResponse(success=True, message="Publishing deactivated.")
+            return SetBoolResponse(success=True, message="Publishing deactivated.")
 
     # -------------------- Main loop --------------------
     def _publish_loop(self, _evt):
@@ -157,10 +159,12 @@ class GpsTargetFramePublisher(object):
             east_m, north_m, self.north_reference_yaw
         )
 
-        if self.facing_exit:
-            # GPS mesafesini hesapla
-            gps_distance = np.linalg.norm([odom_dx, odom_dy])
-            # base_link'in o anki yönünü bul
+        gps_distance = np.linalg.norm([odom_dx, odom_dy])
+        if gps_distance > 0.0:
+            rospy.loginfo_once(f"GPS hedefi robotun {gps_distance:.2f} metre önünde.")
+
+        # --- New: If facing_distance_m > 0, override target position to be that far in front of robot ---
+        if hasattr(self, "facing_distance_m") and self.facing_distance_m > 0.0:
             try:
                 t = self.tf_buffer.lookup_transform(
                     self.parent_frame,
@@ -176,9 +180,46 @@ class GpsTargetFramePublisher(object):
                         t.transform.rotation.w,
                     ]
                 )[2]
-                # base_link'in önüne gps_distance kadar yerleştir
-                dx = gps_distance * math.cos(yaw)
-                dy = gps_distance * math.sin(yaw)
+                dx = self.facing_distance_m * math.cos(yaw)
+                dy = self.facing_distance_m * math.sin(yaw)
+                target_pos = np.array(
+                    [
+                        t.transform.translation.x + dx,
+                        t.transform.translation.y + dy,
+                        t.transform.translation.z,
+                    ],
+                    dtype=float,
+                )
+                q = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
+            except Exception as e:
+                rospy.logerr_throttle(
+                    8.0, "TF lookup for facing_distance_m failed: %s", e
+                )
+                return
+        # --- facing_exit: always use robot's current heading, but distance is either GPS or facing_distance_m ---
+        if self.facing_exit:
+            try:
+                t = self.tf_buffer.lookup_transform(
+                    self.parent_frame,
+                    self.robot_frame,
+                    rospy.Time(0),
+                    rospy.Duration(2.0),
+                )
+                yaw = tf.transformations.euler_from_quaternion(
+                    [
+                        t.transform.rotation.x,
+                        t.transform.rotation.y,
+                        t.transform.rotation.z,
+                        t.transform.rotation.w,
+                    ]
+                )[2]
+                # If facing_distance_m > 0, use it; else use GPS distance
+                if hasattr(self, "facing_distance_m") and self.facing_distance_m > 0.0:
+                    distance = self.facing_distance_m
+                else:
+                    distance = np.linalg.norm([odom_dx, odom_dy])
+                dx = distance * math.cos(yaw)
+                dy = distance * math.sin(yaw)
                 target_pos = np.array(
                     [
                         t.transform.translation.x + dx,
