@@ -11,7 +11,8 @@
 
   <!-- Pipe follower node -->
   <node pkg="auv_detection"
-        type="pipe_follower_node.py"
-        name="pipe_follower_node"
+        type="pipe_trajectory_referance_pub.py"
+        name="pipe_heading_tf"
         output="screen" />
+
 </launch>

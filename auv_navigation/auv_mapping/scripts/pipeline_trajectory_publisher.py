@@ -25,7 +25,7 @@ class PipelineTransformServiceNode:
 
         # Parameters
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
-        self.robot_base_frame = rospy.get_param("~robot_base_frame", "taluy/base_link")
+        self.robot_base_frame = rospy.get_param("~robot_base_frame", "pipe_x")
 
         # Frame names for pipeline corners
         self.pipe_corner_frames = [
