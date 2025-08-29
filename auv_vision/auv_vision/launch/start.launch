@@ -20,10 +20,8 @@
       type="yolo_image_annotator.py"
       name="yolo_image_annotator_node"
       output="screen">
-      <remap from="cam_bottom/image_raw" to="cameras/cam_bottom/image_raw" />
-      <remap from="yolo_result_bottom" to="/yolo_result_2" />
 
-      <param name="save_directory" value="/tmp/yolo_annotated_images"/>
+      <param name="save_directory" value="/home/agxorin/yolo_annotated_images"/>
       <param name="font_scale" value="0.7"/>
       <param name="font_thickness" value="2"/>
     </node>
