@@ -80,16 +80,14 @@ class FollowPipelineState(smach.State):
                 "ENABLE_VISIUAL_SERVOING",
                 VisiualServoingServiceEnableState(req=True),
                 transitions={
-                    "succeeded": "WAIT_FOR_TRAJECTORY_GENERATION",
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-    
+
     def execute(self, userdata):
-        rospy.logdebug(
-            "[FollowPipelineState] Starting state machine execution."
-        )
+        rospy.logdebug("[FollowPipelineState] Starting state machine execution.")
 
         outcome = self.state_machine.execute()
 

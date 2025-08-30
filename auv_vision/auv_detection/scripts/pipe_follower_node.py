@@ -99,6 +99,11 @@ class PipeLineFollower(object):
         self.search_timeout_s = float(rospy.get_param("~search_timeout_s", 2.0))
         self.last_pipe_time = rospy.Time.now()
 
+        # ---- Last known pipe position ----
+        self.last_pipe_y_normalized = (
+            0.0  # normalized Y position [-1, +1] where pipe was last seen
+        )
+
         # ---- Debug ----
         self.publish_debug = bool(rospy.get_param("~publish_debug", True))
 
@@ -129,6 +134,8 @@ class PipeLineFollower(object):
         self.enabled = bool(req.data)
         if self.enabled:
             self.last_pipe_time = rospy.Time.now()
+            # Reset last known position to center when re-enabled
+            self.last_pipe_y_normalized = 0.0
         rospy.loginfo("[pipe_line_follower] enabled set to: %s", self.enabled)
         return SetBoolResponse(success=True, message=f"Enabled: {self.enabled}")
 
@@ -139,10 +146,26 @@ class PipeLineFollower(object):
                 self.pub_enable.publish(Bool(data=True))
                 time_since_pipe = rospy.Time.now() - self.last_pipe_time
                 if time_since_pipe > rospy.Duration(self.search_timeout_s):
-                    rospy.logwarn_throttle(1.0, "[pipe_line_follower] Pipe lost, searching...")
+                    rospy.logwarn_throttle(
+                        1.0,
+                        "[pipe_line_follower] Pipe lost, moving towards last known position...",
+                    )
                     tw = Twist()
-                    tw.angular.z = saturate(self.search_omega, -self.ang_limit, self.ang_limit)
+                    # Move in Y direction towards where pipe was last seen
+                    # Use last_pipe_y_normalized to determine lateral search direction
+                    search_linear_y = saturate(
+                        self.k_y * self.last_pipe_y_normalized,
+                        -self.lin_limit,
+                        self.lin_limit,
+                    )
+                    tw.linear.y = search_linear_y
                     tw.linear.x = self.search_v_fwd
+                    # Optional: small rotation to help find the pipe
+                    tw.angular.z = saturate(
+                        0.1 * self.search_omega * np.sign(self.last_pipe_y_normalized),
+                        -self.ang_limit,
+                        self.ang_limit,
+                    )
                     self.pub_cmd.publish(tw)
                     if self.publish_debug:
                         # Can't publish a debug image here as we don't have one
@@ -189,8 +212,17 @@ class PipeLineFollower(object):
         contours = list(contours) if contours is not None else []
         if len(contours) == 0:
             tw = Twist()
-            tw.angular.z = saturate(self.search_omega, -self.ang_limit, self.ang_limit)
+            # Use similar search strategy as in spin() method
+            search_linear_y = saturate(
+                self.k_y * self.last_pipe_y_normalized, -self.lin_limit, self.lin_limit
+            )
+            tw.linear.y = search_linear_y
             tw.linear.x = self.search_v_fwd
+            tw.angular.z = saturate(
+                0.1 * self.search_omega * np.sign(self.last_pipe_y_normalized),
+                -self.ang_limit,
+                self.ang_limit,
+            )
             self.pub_cmd.publish(tw)
             if self.publish_debug:
                 self._publish_debug(mask, None, None, None, note="SEARCH(no-contours)")
@@ -199,7 +231,9 @@ class PipeLineFollower(object):
         pts = contours[0].reshape(-1, 2)
 
         [vx, vy, x0, y0] = cv2.fitLine(pts, cv2.DIST_L2, 0, 0.01, 0.01)
-        angle = math.atan2(float(vy), float(vx))  # radians; 0 means horizontal left→right
+        angle = math.atan2(
+            float(vy), float(vx)
+        )  # radians; 0 means horizontal left→right
         # Map to [-pi/2, +pi/2] to avoid flipping
         if angle > math.pi / 2:
             angle -= math.pi
@@ -246,6 +280,9 @@ class PipeLineFollower(object):
         y_err = (y_meas - (0.5 * h)) / (0.5 * h)  # [-1, +1]; + if measured below center
         if self.invert_y_error:
             y_err = -y_err
+
+        # Update last known pipe position for search behavior
+        self.last_pipe_y_normalized = y_err
 
         # ---------- Command synthesis ----------
         use_linear_y = rospy.get_param("~use_linear_y", True)
