@@ -91,6 +91,22 @@ class NavigateToGpsTargetState(smach.State):
                     sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
+                    "succeeded": "LOOK_AT_EXIT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_AT_EXIT",
+                SearchForPropState(
+                    look_at_frame=self.gps_target_frame,
+                    alignment_frame="teknofest_exit_aimer",
+                    full_rotation=False,
+                    set_frame_duration=5.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.2,
+                ),
+                transitions={
                     "succeeded": "DYNAMIC_PATH_TO_GPS_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",

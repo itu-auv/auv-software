@@ -199,36 +199,44 @@ class GpsTargetFramePublisher(object):
         # --- facing_exit: always use robot's current heading, but distance is either GPS or facing_distance_m ---
         if self.facing_exit:
             try:
-                t = self.tf_buffer.lookup_transform(
+                # base_link'in pozisyonunu al
+                t_base = self.tf_buffer.lookup_transform(
                     self.parent_frame,
                     self.robot_frame,
                     rospy.Time(0),
                     rospy.Duration(2.0),
                 )
-                yaw = tf.transformations.euler_from_quaternion(
+                base_pos = np.array(
                     [
-                        t.transform.rotation.x,
-                        t.transform.rotation.y,
-                        t.transform.rotation.z,
-                        t.transform.rotation.w,
-                    ]
-                )[2]
-                # If facing_distance_m > 0, use it; else use GPS distance
+                        t_base.transform.translation.x,
+                        t_base.transform.translation.y,
+                        t_base.transform.translation.z,
+                    ],
+                    dtype=float,
+                )
+                # odom'un oryantasyonunu al
+                t_odom = self.tf_buffer.lookup_transform(
+                    self.parent_frame,
+                    self.parent_frame,  # odom->odom (kendi oryantasyonu)
+                    rospy.Time(0),
+                    rospy.Duration(2.0),
+                )
+                odom_rot = [
+                    t_odom.transform.rotation.x,
+                    t_odom.transform.rotation.y,
+                    t_odom.transform.rotation.z,
+                    t_odom.transform.rotation.w,
+                ]
+                odom_yaw = tf.transformations.euler_from_quaternion(odom_rot)[2]
+                # Mesafe: facing_distance_m > 0 ise onu, yoksa GPS mesafesini kullan
                 if hasattr(self, "facing_distance_m") and self.facing_distance_m > 0.0:
                     distance = self.facing_distance_m
                 else:
                     distance = np.linalg.norm([odom_dx, odom_dy])
-                dx = distance * math.cos(yaw)
-                dy = distance * math.sin(yaw)
-                target_pos = np.array(
-                    [
-                        t.transform.translation.x + dx,
-                        t.transform.translation.y + dy,
-                        t.transform.translation.z,
-                    ],
-                    dtype=float,
-                )
-                q = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
+                dx = distance * math.cos(odom_yaw)
+                dy = distance * math.sin(odom_yaw)
+                target_pos = base_pos + np.array([dx, dy, 0.0], dtype=float)
+                q = tf.transformations.quaternion_from_euler(0.0, 0.0, odom_yaw)
             except Exception as e:
                 rospy.logerr_throttle(8.0, "TF lookup for facing_exit failed: %s", e)
                 return
