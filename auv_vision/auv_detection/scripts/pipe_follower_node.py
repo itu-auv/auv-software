@@ -95,6 +95,9 @@ class PipeLineFollower(object):
         self.search_omega = float(
             rospy.get_param("~search_omega", 0.25)
         )  # when pipe not visible
+        self.search_v_fwd = float(rospy.get_param("~search_v_fwd", 0.1))
+        self.search_timeout_s = float(rospy.get_param("~search_timeout_s", 2.0))
+        self.last_pipe_time = rospy.Time.now()
 
         # ---- Debug ----
         self.publish_debug = bool(rospy.get_param("~publish_debug", True))
@@ -124,6 +127,8 @@ class PipeLineFollower(object):
 
     def cb_enable_service(self, req):
         self.enabled = bool(req.data)
+        if self.enabled:
+            self.last_pipe_time = rospy.Time.now()
         rospy.loginfo("[pipe_line_follower] enabled set to: %s", self.enabled)
         return SetBoolResponse(success=True, message=f"Enabled: {self.enabled}")
 
@@ -132,6 +137,16 @@ class PipeLineFollower(object):
         while not rospy.is_shutdown():
             if self.enabled:
                 self.pub_enable.publish(Bool(data=True))
+                time_since_pipe = rospy.Time.now() - self.last_pipe_time
+                if time_since_pipe > rospy.Duration(self.search_timeout_s):
+                    rospy.logwarn_throttle(1.0, "[pipe_line_follower] Pipe lost, searching...")
+                    tw = Twist()
+                    tw.angular.z = saturate(self.search_omega, -self.ang_limit, self.ang_limit)
+                    tw.linear.x = self.search_v_fwd
+                    self.pub_cmd.publish(tw)
+                    if self.publish_debug:
+                        # Can't publish a debug image here as we don't have one
+                        pass
             rate.sleep()
 
     # ---------- Core callback ----------
@@ -160,14 +175,10 @@ class PipeLineFollower(object):
         have_pipe = pipe_area >= self.min_pipe_area_px
 
         if not have_pipe:
-            # Simple search: rotate to reacquire
-            tw = Twist()
-            tw.angular.z = saturate(self.search_omega, -self.ang_limit, self.ang_limit)
-            tw.linear.x = 0.0
-            self.pub_cmd.publish(tw)
-            if self.publish_debug:
-                self._publish_debug(mask, None, None, None, note="SEARCH")
+            # Let the spin() loop handle search timeout
             return
+
+        self.last_pipe_time = rospy.Time.now()
 
         # ---------- A) Orientation control via fitLine ----------
         _ret = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -179,7 +190,7 @@ class PipeLineFollower(object):
         if len(contours) == 0:
             tw = Twist()
             tw.angular.z = saturate(self.search_omega, -self.ang_limit, self.ang_limit)
-            tw.linear.x = 0.0
+            tw.linear.x = self.search_v_fwd
             self.pub_cmd.publish(tw)
             if self.publish_debug:
                 self._publish_debug(mask, None, None, None, note="SEARCH(no-contours)")
