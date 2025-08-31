@@ -75,15 +75,15 @@ class PipeLineFollower(object):
 
         # ---- Control gains & limits ----
         self.k_y = float(
-            rospy.get_param("~k_y", 1.50)
+            rospy.get_param("~k_y", 1.0)
         )  # lateral alignment gain from sensor bands
-        self.k_ang = float(rospy.get_param("~k_ang", 1.00))  # orientation (angle) gain
+        self.k_ang = float(rospy.get_param("~k_ang", 0.7))  # orientation (angle) gain
         self.v_fwd = float(
             rospy.get_param("~v_fwd", 0.25)
         )  # nominal forward speed (m/s)
         self.v_min = float(rospy.get_param("~v_min", 0.05))  # min forward speed
-        self.ang_limit = float(rospy.get_param("~ang_limit", 0.6))  # rad/s
-        self.lin_limit = float(rospy.get_param("~lin_limit", 1))  # m/s
+        self.ang_limit = float(rospy.get_param("~ang_limit", 0.3))  # rad/s
+        self.lin_limit = float(rospy.get_param("~lin_limit", 0.3))  # m/s
         self.slowdown_angle = float(rospy.get_param("~slowdown_angle", 0.8))
 
         # If the sign feels wrong in your setup, flip one of these:
