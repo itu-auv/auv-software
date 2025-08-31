@@ -32,6 +32,24 @@ class ToggleAnnotatorServiceState(smach_ros.ServiceState):
         )
 
 
+class SetStartFrameState(smach_ros.ServiceState):
+    def __init__(self, frame_name: str):
+        transform_request = SetObjectTransformRequest()
+        transform_request.transform.header.frame_id = "mission_start_link"
+        transform_request.transform.child_frame_id = frame_name
+        transform_request.transform.transform.translation.x = (
+            1.0  # 1 metre ahead of mission_start_link
+        )
+        transform_request.transform.transform.rotation.w = 1.0
+
+        smach_ros.ServiceState.__init__(
+            self,
+            "set_object_transform",
+            SetObjectTransform,
+            request=transform_request,
+        )
+
+
 class FollowPipelineState(smach.State):
     def __init__(self, pipeline_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -58,6 +76,31 @@ class FollowPipelineState(smach.State):
         )
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "SET_PIPE_START_FRAME",
+                SetStartFrameState(frame_name="pipe_mission_start"),
+                transitions={
+                    "succeeded": "ALIGN_TO_PIPE_MISSION_START",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_PIPE_MISSION_START",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="pipe_mission_start",
+                    confirm_duration=1.0,
+                    timeout=15.0,
+                    cancel_on_success=True,
+                    max_linear_velocity=0.3,
+                ),
+                transitions={
+                    "succeeded": "ENABLE_ANNOTATOR",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "ENABLE_ANNOTATOR",
                 ToggleAnnotatorServiceState(req=True),
