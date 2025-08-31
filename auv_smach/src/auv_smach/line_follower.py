@@ -76,31 +76,31 @@ class FollowPipelineState(smach.State):
         )
 
         with self.state_machine:
-            smach.StateMachine.add(
-                "SET_PIPE_START_FRAME",
-                SetStartFrameState(frame_name="pipe_mission_start"),
-                transitions={
-                    "succeeded": "ALIGN_TO_PIPE_MISSION_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_PIPE_MISSION_START",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="pipe_mission_start",
-                    confirm_duration=1.0,
-                    timeout=15.0,
-                    cancel_on_success=True,
-                    max_linear_velocity=0.3,
-                ),
-                transitions={
-                    "succeeded": "ENABLE_ANNOTATOR",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+            # smach.StateMachine.add(
+            #     "SET_PIPE_START_FRAME",
+            #     SetStartFrameState(frame_name="pipe_mission_start"),
+            #     transitions={
+            #         "succeeded": "ALIGN_TO_PIPE_MISSION_START",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "ALIGN_TO_PIPE_MISSION_START",
+            #     AlignFrame(
+            #         source_frame="taluy/base_link",
+            #         target_frame="pipe_mission_start",
+            #         confirm_duration=1.0,
+            #         timeout=15.0,
+            #         cancel_on_success=True,
+            #         max_linear_velocity=0.3,
+            #     ),
+            #     transitions={
+            #         "succeeded": "ENABLE_ANNOTATOR",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
                 "ENABLE_ANNOTATOR",
                 ToggleAnnotatorServiceState(req=True),
@@ -122,6 +122,42 @@ class FollowPipelineState(smach.State):
             smach.StateMachine.add(
                 "ENABLE_VISIUAL_SERVOING",
                 VisiualServoingServiceEnableState(req=True),
+                transitions={
+                    "succeeded": "WAIT_FOR_SECOND_SET_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_SECOND_SET_DEPTH",
+                DelayState(delay_time=60.0),
+                transitions={
+                    "succeeded": "SET_SECOND_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_SECOND_DEPTH",
+                SetDepthState(depth=-2.0, sleep_duration=3.0),
+                transitions={
+                    "succeeded": "WAIT_FOR_THIRD_SET_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_THIRD_SET_DEPTH",
+                DelayState(delay_time=20.0),
+                transitions={
+                    "succeeded": "SET_THIRD_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_THIRD_DEPTH",
+                SetDepthState(depth=-1.0, sleep_duration=3.0),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
