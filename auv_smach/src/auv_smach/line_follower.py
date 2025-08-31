@@ -112,7 +112,7 @@ class FollowPipelineState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_PIPELINE_DEPTH",
-                SetDepthState(depth=pipeline_depth, sleep_duration=3.0),
+                SetDepthState(depth=-3.5, sleep_duration=3.0),
                 transitions={
                     "succeeded": "ENABLE_VISIUAL_SERVOING",
                     "preempted": "preempted",
@@ -130,7 +130,7 @@ class FollowPipelineState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_SECOND_SET_DEPTH",
-                DelayState(delay_time=60.0),
+                DelayState(delay_time=50.0),
                 transitions={
                     "succeeded": "SET_SECOND_DEPTH",
                     "preempted": "preempted",
@@ -157,7 +157,7 @@ class FollowPipelineState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_THIRD_DEPTH",
-                SetDepthState(depth=-1.0, sleep_duration=3.0),
+                SetDepthState(depth=-0.7, sleep_duration=3.0),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

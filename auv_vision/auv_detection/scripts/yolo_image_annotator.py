@@ -19,7 +19,7 @@ class YoloImageAnnotator:
 
         # Get parameters
         self.save_directory = rospy.get_param(
-            "~save_directory", "/tmp/yolo_annotated_images"
+            "~save_directory", "/home/agxorin/yolo_annotated_images"
         )
         self.font_scale = rospy.get_param("~font_scale", 0.7)
         self.font_thickness = rospy.get_param("~font_thickness", 2)
@@ -40,6 +40,9 @@ class YoloImageAnnotator:
             },
         )
 
+        # ID filter list - only these class IDs will be processed and saved
+        self.allowed_class_ids = rospy.get_param("~allowed_class_ids", [1, 2, 8, 5])
+
         # Create base save directory if it doesn't exist
         if not os.path.exists(self.save_directory):
             os.makedirs(self.save_directory)
@@ -50,6 +53,13 @@ class YoloImageAnnotator:
         self.class_counters = {}
 
         self.is_active = False
+
+        # Log the allowed class IDs
+        rospy.loginfo(f"Allowed class IDs: {self.allowed_class_ids}")
+        allowed_names = [
+            self.class_names.get(id, f"class_{id}") for id in self.allowed_class_ids
+        ]
+        rospy.loginfo(f"Allowed class names: {allowed_names}")
 
         self.service = rospy.Service(
             "/yolo_image_annotator/toggle_annotator", SetBool, self.enable_callback
@@ -81,16 +91,16 @@ class YoloImageAnnotator:
 
         return SetBoolResponse(success=True, message=message)
 
-    def parse_class_names(self, yolo_result):
-        """Extract class names from YoloResult message"""
+    def parse_classes(self, yolo_result):
+        """Extract (id, name) tuples from YoloResult message, filtering by allowed IDs"""
         classes = []
         for detection in yolo_result.detections.detections:
             for result in detection.results:
                 class_id = result.id
-                class_name = self.class_names.get(class_id, f"class_{class_id}")
-                classes.append(class_name)
-
-        return list(set(classes)) if classes else ["unknown"]
+                if class_id in self.allowed_class_ids:
+                    class_name = self.class_names.get(class_id, f"class_{class_id}")
+                    classes.append((class_id, class_name))
+        return list(set(classes)) if classes else []
 
     def create_class_directory(self, class_name):
         """Create directory for specific class if it doesn't exist"""
@@ -104,13 +114,13 @@ class YoloImageAnnotator:
 
         return class_dir
 
-    def draw_class_names(self, image, class_names):
-        """Draw class names on the image"""
+    def draw_class_names(self, image, class_items):
+        """Draw class IDs and names on the image"""
         y_offset = 30
-        for class_name in class_names:
-            # Get text size
+        for class_id, class_name in class_items:
+            text = f"{class_id}: {class_name}"
             (text_width, text_height), baseline = cv2.getTextSize(
-                class_name,
+                text,
                 cv2.FONT_HERSHEY_SIMPLEX,
                 self.font_scale,
                 self.font_thickness,
@@ -128,7 +138,7 @@ class YoloImageAnnotator:
             # Draw text
             cv2.putText(
                 image,
-                class_name,
+                text,
                 (10, y_offset),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 self.font_scale,
@@ -155,29 +165,37 @@ class YoloImageAnnotator:
                 rospy.logwarn("No detections in YOLO message")
                 return
 
-            # Parse class names from YOLO result
-            class_names = self.parse_class_names(yolo_msg)
+            # Parse (id, name) pairs
+            classes = self.parse_classes(yolo_msg)
 
-            # Draw only class names on image
-            annotated_image = self.draw_class_names(cv_image.copy(), class_names)
+            # If no allowed classes detected, skip processing
+            if not classes:
+                rospy.logdebug("No allowed classes detected in current frame")
+                return
+
+            # Draw IDs + class names on image
+            annotated_image = self.draw_class_names(cv_image.copy(), classes)
 
             # Save image to each detected class directory
-            for class_name in class_names:
+            for class_id, class_name in classes:
                 class_dir = self.create_class_directory(class_name)
 
-                # Get counter for this class
                 if class_name not in self.class_counters:
                     self.class_counters[class_name] = 0
                 self.class_counters[class_name] += 1
 
-                # Create simple filename
-                filename = f"{class_name}_{self.class_counters[class_name]}.jpg"
+                # Filename with ID + name
+                filename = (
+                    f"{class_id}_{class_name}_{self.class_counters[class_name]}.jpg"
+                )
                 filepath = os.path.join(class_dir, filename)
 
                 # Save the annotated image
                 success = cv2.imwrite(filepath, annotated_image)
 
-                if not success:
+                if success:
+                    rospy.loginfo(f"Saved image: {filepath}")
+                else:
                     rospy.logerr(f"Failed to save image: {filepath}")
 
         except Exception as e:
