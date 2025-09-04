@@ -1,26 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-YOLOv11(-seg) -> Pipe Mask (ROS1)
-
-- Subscribes: ultralytics_ros/ YoloResult (masks + detections)  [~input_result_topic]
-- Publishes:  sensor_msgs/Image mono8 (255=pipe, 0=background)  [~output_mask_topic]
-
-Assumptions
-- result.masks list is aligned with result.detections.detections order (Ultralytics).
-- Each Detection2D has results[0].id (class id) and score (confidence).
-
-Params
-- ~input_result_topic (str): default "yolo_result_2"
-- ~output_mask_topic (str): default "pipe_mask"
-- ~target_class_ids (list of int): which class ids are considered "pipe" [default: [0]]
-- ~conf_min (float): min confidence to accept a mask [default: 0.25]
-- ~morph_kernel (int): >0 to apply closing (fill small holes) [default: 0]
-- ~publish_debug (bool): if True, also publish a BGR overlay for quick view [default: False]
-- ~debug_topic (str): default "pipe_mask_debug"
-"""
-
 import numpy as np
 import cv2
 import rospy
@@ -33,7 +13,7 @@ from ultralytics_ros.msg import YoloResult
 class YoloSegToPipeMaskNode:
     def __init__(self):
         self.input_result_topic = rospy.get_param(
-            "~input_result_topic", "yolo_result_2"
+            "~input_result_topic", "yolo_result_bottom"
         )
         self.output_mask_topic = rospy.get_param("~output_mask_topic", "pipe_mask")
         self.target_class_ids = set(rospy.get_param("~target_class_ids", [0]))

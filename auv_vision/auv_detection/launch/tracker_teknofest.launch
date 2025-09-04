@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
-  <include file="$(find auv_detection)/launch/tracker_segment.launch" />
-  <include file="$(find auv_detection)/launch/tracker_detection.launch" />
+  <include file="$(find auv_detection)/launch/inc/tracker_segment.launch" />
+  <include file="$(find auv_detection)/launch/inc/tracker_detection.launch" />
 
   <!-- YOLO mask node -->
   <node pkg="auv_detection"
