@@ -17,8 +17,6 @@
 
   <!-- YOLO Result Bridge Node (from auv_detection package) -->
   <node name="yolo_result_bridge" pkg="auv_detection" type="yolo_result_bridge.py" output="screen">
-    <remap from="/yolo_result" to="$(arg yolo_result_topic_in)"/>
-    <remap from="/yolo_detections" to="$(arg yolo_result_topic_out)"/>
   </node>
 
   <!-- Process Tracker With Cloud Node -->

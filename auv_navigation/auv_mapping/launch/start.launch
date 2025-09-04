@@ -38,6 +38,7 @@
     </node>
 
     <node pkg="auv_mapping" type="acoustic_transmitter.py" name="acoustic_transmitter">
+      <remap from="modem/data/tx" to="modem/data/tx" />
     </node>
 
     <node pkg="auv_mapping" type="bin_trajectory_publisher.py" name="bin_trajectory_publisher">
