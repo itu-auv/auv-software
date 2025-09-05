@@ -15,8 +15,8 @@
   <!-- Camera optical frame argument -->
   <arg name="camera_optical_frame" default="$(arg namespace)/camera_depth_optical_frame"/>
 
-  <!-- YOLO Result Bridge Node (from auv_detection package) -->
-  <node name="yolo_result_bridge" pkg="auv_detection" type="yolo_result_bridge.py" output="screen">
+  <!-- YOLO Result Bridge Node (from auv_vision package) -->
+  <node name="yolo_result_bridge" pkg="auv_vision" type="yolo_result_bridge.py" output="screen">
   </node>
 
   <!-- Process Tracker With Cloud Node -->

@@ -1,17 +1,17 @@
-<?xml version="1.0"?>
 <launch>
+  <arg name="namespace" default="taluy" />
+
   <include file="$(find auv_detection)/launch/inc/tracker_segment.launch" />
   <include file="$(find auv_detection)/launch/inc/tracker_detection.launch" />
 
-  <!-- YOLO mask node -->
-  <node pkg="auv_detection"
-        type="yolo_to_mask_node.py"
-        name="yolo_seg_to_pipe_mask"
-        output="screen" />
+  <group ns="$(arg namespace)">
+    <node pkg="auv_vision" type="yolo_to_mask_node.py" name="yolo_seg_to_pipe_mask" output="screen" />
+      <remap from="yolo_result_seg" to="/yolo_result_seg"/>
+      <remap from="pipe_mask" to="yolo_to_seg_node/pipe_mask" />
 
-  <!-- Pipe follower node -->
-  <node pkg="auv_detection"
-        type="pipe_follower_node.py"
-        name="pipe_follower_node"
-        output="screen" />
+    <node pkg="auv_vision" type="pipe_follower.py" name="pipe_follower_node" output="screen" />
+      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="debug_image" to="pipe_follower_node/debug_image" />
+      <remap from="pipe_mask" to="yolo_to_seg_node/pipe_mask" />
+  </group>
 </launch>

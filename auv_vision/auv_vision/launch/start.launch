@@ -16,7 +16,7 @@
       <param name="recalc_threshold_deg" value="0.1"/>
     </node>
     <node
-      pkg="auv_detection"
+      pkg="auv_vision"
       type="yolo_image_annotator.py"
       name="yolo_image_annotator_node"
       output="screen">
