@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Deploy Trained RL Agent Launch File -->
+
+  <arg name="model_path" default="$(find auv_rl_navigation)/models/ppo_auv_best.zip"/>
+  <arg name="goal_frame" default="gate"/>
+  <arg name="rate" default="10"/>
+  <arg name="visualize" default="true"/>
+  <arg name="start_enabled" default="true"/>
+
+  <!-- Object frames to track -->
+  <arg name="object_frames" default="gate_shark_link,gate_sawfish_link,red_pipe_link,white_pipe_link,red_buoy,torpedo_map_link,bin_whole_link,octagon_link"/>
+
+  <!-- RL Agent Node -->
+  <node name="rl_agent_node" pkg="auv_rl_navigation" type="rl_agent_node.py" output="screen">
+    <param name="model_path" value="$(arg model_path)"/>
+    <param name="goal_frame" value="$(arg goal_frame)"/>
+    <param name="rate" value="$(arg rate)"/>
+    <param name="deterministic" value="true"/>
+    <param name="visualize" value="$(arg visualize)"/>
+    <param name="start_enabled" value="$(arg start_enabled)"/>
+    <param name="object_frames" value="$(arg object_frames)"/>
+
+    <!-- Environment parameters -->
+    <param name="max_episode_steps" value="1000"/>
+    <param name="goal_tolerance" value="1.0"/>
+  </node>
+
+  <!-- Optional: Launch monitoring visualization -->
+  <arg name="monitor" default="false"/>
+  <node if="$(arg monitor)" name="training_monitor" pkg="auv_rl_navigation"
+        type="plot_training_progress.py" output="screen"/>
+
+</launch>

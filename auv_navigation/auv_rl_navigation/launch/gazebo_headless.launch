@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Gazebo Headless Launch for RL Training -->
+
+  <!-- Simulation speed control -->
+  <arg name="real_time_factor" default="2.0" doc="Simulation speed multiplier (1.0 = real-time, 2.0 = 2x speed)"/>
+  <arg name="max_step_size" default="0.001" doc="Physics step size in seconds"/>
+  <arg name="update_rate" default="1000" doc="Physics update rate (Hz)"/>
+
+  <!-- GUI settings -->
+  <arg name="gui" default="false" doc="Enable Gazebo GUI (set false for headless)"/>
+  <arg name="headless" default="true" doc="Run truly headless (no rendering at all)"/>
+  <arg name="verbose" default="false" doc="Verbose output"/>
+
+  <!-- World selection -->
+  <arg name="world_name" default="$(find auv_rl_navigation)/worlds/training_pool.world"/>
+  <arg name="paused" default="false" doc="Start paused"/>
+
+  <!-- Launch Gazebo server (headless mode) -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(arg world_name)"/>
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="gui" value="$(arg gui)"/>
+    <arg name="headless" value="$(arg headless)"/>
+    <arg name="debug" value="false"/>
+    <arg name="verbose" value="$(arg verbose)"/>
+
+    <!-- Physics engine parameters for speed -->
+    <arg name="physics" default="ode"/>
+    <arg name="extra_gazebo_args" value="--verbose $(arg verbose)"/>
+  </include>
+
+  <!-- Set physics parameters for faster simulation -->
+  <node name="gazebo_physics_config" pkg="rosservice" type="rosservice"
+        args="call --wait /gazebo/set_physics_properties
+        '{time_step: $(arg max_step_size),
+          max_update_rate: $(arg update_rate),
+          gravity: {x: 0.0, y: 0.0, z: -9.81},
+          ode_config: {
+            auto_disable_bodies: true,
+            sor_pgs_precon_iters: 0,
+            sor_pgs_iters: 50,
+            sor_pgs_w: 1.3,
+            sor_pgs_rms_error_tol: 0.0,
+            contact_surface_layer: 0.001,
+            contact_max_correcting_vel: 100.0,
+            cfm: 0.0,
+            erp: 0.2,
+            max_contacts: 20
+          }}'"
+        output="screen"/>
+
+</launch>

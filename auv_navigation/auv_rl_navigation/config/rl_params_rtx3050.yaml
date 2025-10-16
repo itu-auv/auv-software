@@ -1,0 +1,44 @@
+---
+# AUV RL Navigation Training Parameters - Optimized for RTX 3050 (4GB VRAM)
+
+# Training Configuration
+total_timesteps: 500000      # Total training steps
+save_freq: 10000             # Save best model every N steps
+max_episode_steps: 500       # Max steps per episode
+
+# Environment Parameters
+goal_tolerance: 1.0          # Distance to goal for success (meters)
+goal_frame: "gate"           # Goal TF frame name
+visualize: false             # DISABLE visualization during training to save resources
+
+# Object frames to track (8 object types)
+object_frames: "gate_shark_link,gate_sawfish_link,red_pipe_link,white_pipe_link,red_buoy,torpedo_map_link,bin_whole_link,octagon_link"
+
+# ROS Topics
+cmd_vel_topic: "/taluy/cmd_vel"
+odom_topic: "/taluy/odom"
+base_frame: "taluy/base_link"
+world_frame: "world"
+
+# PPO Hyperparameters - OPTIMIZED FOR 4GB VRAM
+learning_rate: 0.0003        # 3e-4
+n_steps: 1024                # REDUCED from 2048 to save memory
+batch_size: 32               # REDUCED from 64 to save VRAM
+n_epochs: 10                 # Keep at 10
+gamma: 0.99                  # Discount factor
+gae_lambda: 0.95             # GAE lambda
+clip_range: 0.2              # PPO clipping parameter
+ent_coef: 0.01               # Entropy coefficient (exploration)
+vf_coef: 0.5                 # Value function coefficient
+max_grad_norm: 0.5           # Gradient clipping
+features_dim: 128            # REDUCED from 256 to save VRAM
+
+# Model Save Paths
+model_save_path: "./models/ppo_auv_best"
+final_model_path: "./models/ppo_auv_final"
+
+# Performance Tips:
+# 1. Close unnecessary applications while training
+# 2. Use headless Gazebo (gzclient off) or reduce GUI quality
+# 3. Monitor GPU usage: watch -n 1 nvidia-smi
+# 4. If OOM errors occur, reduce batch_size to 16 and features_dim to 64

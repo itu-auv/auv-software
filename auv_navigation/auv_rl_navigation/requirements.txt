@@ -1,0 +1,9 @@
+# Python dependencies for AUV RL Navigation
+# Install with: pip3 install -r requirements.txt
+
+gym==0.21.0
+stable-baselines3==1.7.0
+tensorboard>=2.11.0
+torch>=1.13.0
+numpy>=1.21.0
+scipy>=1.7.0

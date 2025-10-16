@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Test Components Launch File -->
+
+  <arg name="goal_frame" default="gate"/>
+  <arg name="object_frames" default="gate_shark_link,red_buoy,white_pipe_link"/>
+  <arg name="base_frame" default="taluy/base_link"/>
+
+  <!-- Test node -->
+  <node name="test_components" pkg="auv_rl_navigation" type="test_components.py" output="screen">
+    <param name="goal_frame" value="$(arg goal_frame)"/>
+    <param name="object_frames" value="$(arg object_frames)"/>
+    <param name="base_frame" value="$(arg base_frame)"/>
+
+    <!-- Optional: Skip certain tests -->
+    <param name="skip_grid" value="false"/>
+    <param name="skip_env" value="false"/>
+    <param name="skip_agent" value="false"/>
+  </node>
+
+</launch>

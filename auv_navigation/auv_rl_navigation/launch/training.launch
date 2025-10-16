@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- AUV RL Navigation Training Launch File -->
+
+  <!-- Gazebo settings -->
+  <arg name="gazebo_gui" default="false" doc="Show Gazebo GUI (false for headless training)"/>
+  <arg name="sim_speed" default="2.0" doc="Simulation speed multiplier (1.0=realtime, 2.0=2x faster)"/>
+
+  <!-- Select config file based on hardware -->
+  <arg name="config" default="rl_params.yaml" doc="Config file (rl_params.yaml or rl_params_rtx3050.yaml)"/>
+
+  <!-- Start Gazebo headless -->
+  <include file="$(find auv_rl_navigation)/launch/gazebo_headless.launch">
+    <arg name="gui" value="$(arg gazebo_gui)"/>
+    <arg name="headless" value="true"/>
+    <arg name="real_time_factor" value="$(arg sim_speed)"/>
+  </include>
+
+  <!-- Spawn AUV model -->
+  <!-- TODO: Include your AUV spawn launch file here -->
+  <!-- <include file="$(find taluy_description)/launch/spawn_taluy.launch"/> -->
+
+  <!-- Load training parameters -->
+  <rosparam command="load" file="$(find auv_rl_navigation)/config/$(arg config)" ns="auv_rl_trainer"/>
+
+  <!-- Launch training node -->
+  <node name="auv_rl_trainer" pkg="auv_rl_navigation" type="train_agent.py" output="screen">
+    <!-- Override parameters here if needed -->
+    <!-- <param name="total_timesteps" value="1000000"/> -->
+  </node>
+
+  <!-- Optional: Launch RViz for visualization -->
+  <arg name="rviz" default="false" doc="Launch RViz (disable during training to save resources)"/>
+  <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find auv_rl_navigation)/config/training.rviz" required="false"/>
+
+</launch>
