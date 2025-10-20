@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy"/>
+
+  <!-- Load gripper controller parameters -->
+  <rosparam file="$(find auv_sim_description)/config/gripper_controllers.yaml" command="load" ns="$(arg namespace)"/>
+
+  <!-- Spawn controllers -->
+  <node name="gripper_controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
+        output="screen" ns="$(arg namespace)"
+        args="joint_state_controller
+              finger_left_joint_position_controller
+              finger_right_joint_position_controller
+              wrist_position_controller"/>
+
+  <!-- Start our custom gripper controller -->
+  <node name="gripper_controller" pkg="auv_sim_bridge" type="gripper_controller.py" output="screen" ns="$(arg namespace)">
+    <param name="namespace" value="$(arg namespace)" />
+  </node>
+
+</launch>

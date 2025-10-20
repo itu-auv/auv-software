@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/inertials.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/gripper/parameters_parallel_gripper.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/gripper/parallel_gripper.urdf.xacro"/>
+</robot>

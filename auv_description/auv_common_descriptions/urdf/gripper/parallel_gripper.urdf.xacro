@@ -1,0 +1,159 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Define PI constant -->
+  <xacro:property name="PI" value="3.1415926535897931"/>
+
+  <!-- Ground base -->
+  <link name="${namespace}/end_effector">
+    <inertial>
+      <origin xyz="${gripper_base_com}" rpy="0 0 0"/>
+      <mass value="0.2"/>
+      <inertia ixx="0.002" iyy="0.002" izz="0.002" ixy="0.0" iyz="0.0" ixz="0.0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find auv_common_descriptions)/meshes/gripper/visual/BaseGripper.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="${gripper_base_com}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${gripper_base_length} ${gripper_base_width} ${gripper_base_height}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="${namespace}/wrist" type="revolute">
+    <parent link="${namespace}/wrist_link"/>
+    <child link="${namespace}/end_effector"/>
+    <origin xyz="0.19304 0 0" rpy="${-PI*0.5} 0 0"/>
+    <axis xyz="1 0 0"/>
+    <dynamics damping="10" friction="5"/>
+    <limit effort="10" lower="${-2*PI}" upper="${2*PI}" velocity="${gripper_velocity}"/>
+  </joint>
+
+  <!-- Finger left  -->
+  <link name="${namespace}/finger_left">
+    <inertial>
+      <origin xyz="${finger_com}" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" iyy="0.001" izz="0.001" ixy="0.0" iyz="0.0" ixz="0.0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find auv_common_descriptions)/meshes/gripper/visual/Finger.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find auv_common_descriptions)/meshes/gripper/visual/Finger.dae"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="${namespace}/finger_left_joint" type="revolute">
+    <parent link="${namespace}/end_effector"/>
+    <child link="${namespace}/finger_left"/>
+    <origin xyz="0.0444267 0.0391376 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <dynamics damping="50" friction="100"/>
+    <limit effort="${gripper_effort}" lower="0" upper="0.1" velocity="0.1"/>
+  </joint>
+
+  <!-- Finger tip left  -->
+  <link name="${namespace}/finger_tip_left">
+    <inertial>
+      <origin xyz="${finger_tip_com}" rpy="0 0 0"/>
+      <mass value="0.05"/>
+      <inertia ixx="0.0005" iyy="0.0005" izz="0.0005" ixy="0.0" iyz="0.0" ixz="0.0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find auv_common_descriptions)/meshes/gripper/visual/FingerTip.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find auv_common_descriptions)/meshes/gripper/visual/FingerTip.dae"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="${namespace}/finger_tip_left_joint" type="revolute">
+    <parent link="${namespace}/finger_left"/>
+    <child link="${namespace}/finger_tip_left"/>
+    <origin xyz="0.06431 0 0" rpy="${PI} 0 0"/>
+    <axis xyz="0 0 1"/>
+    <dynamics damping="5" friction="10"/>
+    <limit effort="0" lower="0" upper="0" velocity="0"/>
+  </joint>
+
+  <!-- Finger right  -->
+  <link name="${namespace}/finger_right">
+    <inertial>
+      <origin xyz="${finger_com}" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.001" iyy="0.001" izz="0.001" ixy="0.0" iyz="0.0" ixz="0.0"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="${PI} 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find auv_common_descriptions)/meshes/gripper/visual/Finger.dae"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="${PI} 0 0"/>
+      <geometry>
+        <mesh filename="file://$(find auv_common_descriptions)/meshes/gripper/visual/Finger.dae"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="${namespace}/finger_right_joint" type="revolute">
+    <parent link="${namespace}/end_effector"/>
+    <child link="${namespace}/finger_right"/>
+    <origin xyz="0.0444267 -0.0391376 0" rpy="${PI} ${PI} ${PI}"/>
+    <axis xyz="0 0 -1"/>
+    <dynamics damping="50" friction="100"/>
+    <limit effort="${gripper_effort}" lower="0" upper="0.1" velocity="0.1"/>
+  </joint>
+
+  <!-- Transmissions -->
+  <transmission name="${namespace}/wrist_trans">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="${namespace}/wrist">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="${namespace}/wrist_motor">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="${namespace}/finger_left_trans">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="${namespace}/finger_left_joint">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="${namespace}/finger_left_motor">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+
+  <transmission name="${namespace}/finger_right_trans">
+    <type>transmission_interface/SimpleTransmission</type>
+    <joint name="${namespace}/finger_right_joint">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+    </joint>
+    <actuator name="${namespace}/finger_right_motor">
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      <mechanicalReduction>1</mechanicalReduction>
+    </actuator>
+  </transmission>
+</robot>

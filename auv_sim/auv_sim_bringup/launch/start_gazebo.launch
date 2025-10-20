@@ -98,6 +98,11 @@
     <node pkg="rostopic" type="rostopic" name="propulsion_board_status_publisher"
           args="pub /$(arg namespace)/propulsion_board/status std_msgs/Bool 'data: true' -r 1" />
 
+    <!-- Gripper Controllers -->
+    <include file="$(find auv_sim_description)/launch/gripper_control.launch">
+        <arg name="namespace" value="$(arg namespace)" />
+    </include>
+
     <!-- Smach Monitor Node -->
     <node name="smach_monitor_node" pkg="auv_smach" type="smach_monitor_node.py" output="screen" ns="$(arg namespace)">
         <remap from="vision/set_front_camera_focus" to="vision/set_front_camera_focus"/>

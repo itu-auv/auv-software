@@ -1,0 +1,71 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Transmission Macro -->
+  <xacro:macro name="simple_transmission" params="joint">
+    <transmission name="${joint}_trans">
+      <type>transmission_interface/SimpleTransmission</type>
+      <joint name="${joint}">
+        <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+      </joint>
+      <actuator name="${joint}_motor">
+        <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
+        <mechanicalReduction>1</mechanicalReduction>
+      </actuator>
+    </transmission>
+  </xacro:macro>
+
+  <!-- Transmission Macro for Position Interface -->
+  <xacro:macro name="simple_transmission_pos" params="joint">
+    <transmission name="${joint}_trans">
+      <type>transmission_interface/SimpleTransmission</type>
+      <joint name="${joint}">
+        <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      </joint>
+      <actuator name="${joint}_motor">
+        <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+        <mechanicalReduction>1</mechanicalReduction>
+      </actuator>
+    </transmission>
+  </xacro:macro>
+
+  <!-- Macro for box inertial properties -->
+  <xacro:macro name="link_box_inertial" params="mass width length height *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia
+        ixx="${0.083333333 * mass * (width * width + height * height)}"
+        ixy="0.0"
+        ixz="0.0"
+        iyy="${0.083333333 * mass * (length * length + height * height)}"
+        iyz="0.0"
+        izz="${0.083333333 * mass * (width * width + length * length)}"
+      />
+    </inertial>
+  </xacro:macro>
+
+  <!-- Macro for cylinder inertial properties -->
+  <xacro:macro name="cylinder_inertia" params="radius length mass *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia
+        ixx="${0.083333333 * mass * (3.0 * radius * radius + length * length)}"
+        ixy="0.0"
+        ixz="0.0"
+        iyy="${0.083333333 * mass * (3.0 * radius * radius + length * length)}"
+        iyz="0.0"
+        izz="${0.5 * mass * radius * radius}"
+      />
+    </inertial>
+  </xacro:macro>
+
+  <!-- Macro for sphere inertial properties -->
+  <xacro:macro name="sphere_inertia" params="radius mass *origin">
+    <inertial>
+      <xacro:insert_block name="origin"/>
+      <mass value="${mass}"/>
+      <inertia ixx="${0.4 * mass * radius * radius}" ixy="0.0" ixz="0.0" iyy="${0.4 * mass * radius * radius}" iyz="0.0" izz="${0.4 * mass * radius * radius}"/>
+    </inertial>
+  </xacro:macro>
+</robot>

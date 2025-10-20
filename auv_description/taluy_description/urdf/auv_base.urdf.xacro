@@ -1,12 +1,17 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="taluy">
+  <!-- Make gripper macros available globally -->
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/gripper/parameters_parallel_gripper.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/gripper/parallel_gripper.urdf.xacro"/>
   <!-- create xacro property -->
-  <xacro:property name="namespace" value="taluy"/>
-  <xacro:macro name="taluy_base">
+  <!-- Removed hardcoded namespace property to allow passing via macro params -->
+  <xacro:macro name="taluy_base" params="namespace">
     <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors.urdf.xacro"/>
+    <!-- gripper includes moved to top-level -->
     <xacro:include filename="$(find auv_common_descriptions)/urdf/materials.urdf.xacro"/>
     <xacro:arg name="angled_thruster_z_offset" default="-0.01"/>
+
     <link name="${namespace}/base_link">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -63,19 +68,45 @@
     <xacro:ball_dropper name="${namespace}/base_link/ball_dropper" parent="${namespace}/base_link" position="0.1004 0.0745 -0.1953" orientation="0 0 0"/>
     <xacro:realsense_d435 name="${namespace}/camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 ${math.pi}"/>
 
-    <!-- <link name="base_footprint">
+    <!-- Gripper mount link -->
+    <link name="${namespace}/wrist_link">
       <inertial>
-        <origin xyz="0 0 0" rpy="0 0 0" />
-        <mass value="15.0" />
-        <inertia ixx="39.351246" iyy="103.261717" izz="127.702526" ixy="-5e-06" iyz="6e-06"
-          ixz="4.403436" />
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.1"/>
+        <inertia ixx="0.001" iyy="0.001" izz="0.001" ixy="0.0" iyz="0.0" ixz="0.0"/>
       </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="0.02" length="0.05"/>
+        </geometry>
+        <material name="dark_gray"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="0.02" length="0.05"/>
+        </geometry>
+      </collision>
     </link>
 
-    <joint name="base_link_joint" type="fixed">
-      <origin xyz="0 0 ${-base_z_offsett + 0.06 - draft}" rpy="0 0 0" />
-      <parent link="base_footprint" />
-      <child link="base_link" />
-    </joint> -->
+    <!-- Mount gripper to the front of the robot -->
+    <joint name="${namespace}/gripper_mount_joint" type="fixed">
+      <parent link="${namespace}/base_link"/>
+      <child link="${namespace}/wrist_link"/>
+      <origin xyz="0.45 0 0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Instantiate the parallel gripper on the wrist_link -->
+    <xacro:parallel_gripper ns="${namespace}"/>
+
+    <!-- Gazebo ROS Control Plugin -->
+    <gazebo>
+      <plugin name="gazebo_ros_control" filename="libgazebo_ros_control.so">
+        <robotNamespace>/${namespace}</robotNamespace>
+        <controlPeriod>0.001</controlPeriod>
+        <robotSimType>gazebo_ros_control/DefaultRobotHWSim</robotSimType>
+      </plugin>
+    </gazebo>
   </xacro:macro>
 </robot>

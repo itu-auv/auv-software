@@ -1,0 +1,17 @@
+<?xml versi  <param name="robot_description" command="$(find xacro)/xacro $(find taluy_description)/urdf/auv_base.urdf.xacro"/>n="1.0"?>
+<launch>
+  <!-- Test the gripper integration with a simple robot -->
+
+  <!-- Robot State Publisher -->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+
+  <!-- Joint State Publisher GUI for controlling joints -->
+  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" output="screen" />
+
+  <!-- Load robot description -->
+  <param name="robot_description" command="$(find xacro)/xacro $(find auv_common_descriptions)/urdf/auv_base.urdf.xacro" />
+
+  <!-- Launch RViz for visualization -->
+  <node name="rviz" pkg="rviz" type="rviz" output="screen" args="-d $(find auv_common_descriptions)/rviz/robot_view.rviz" if="false" />
+
+</launch>

@@ -1,0 +1,23 @@
+---
+# Gripper joint position controllers
+joint_state_controller:
+  type: joint_state_controller/JointStateController
+  publish_rate: 50
+
+# Left finger position controller
+finger_left_joint_position_controller:
+  type: effort_controllers/JointPositionController
+  joint: taluy/finger_left_joint
+  pid: {p: 200.0, i: 0.05, d: 20.0, i_clamp: 2.0}
+
+# Right finger position controller
+finger_right_joint_position_controller:
+  type: effort_controllers/JointPositionController
+  joint: taluy/finger_right_joint
+  pid: {p: 200.0, i: 0.05, d: 20.0, i_clamp: 2.0}
+
+# Wrist position controller
+wrist_position_controller:
+  type: effort_controllers/JointPositionController
+  joint: taluy/wrist
+  pid: {p: 150.0, i: 0.05, d: 10.0, i_clamp: 2.0}
