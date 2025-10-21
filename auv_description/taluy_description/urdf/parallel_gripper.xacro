@@ -11,13 +11,13 @@
 
   <!-- Parallel Gripper Macro -->
   <!-- Added parameter use_mimic_plugin (default: false) to avoid Gazebo errors when the plugin is not available yet. -->
-  <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false">
+  <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false mass_scale:=0.001 mount_xyz:='0 0 0' mount_rpy:='0 0 0'">
     <!-- Gripper Base Link -->
     <link name="${namespace}/gripper_base">
       <inertial>
         <origin rpy="0 0 0" xyz="0.024426 0.0 0.0"/>
-        <mass value="3.5"/>
-        <xacro:box_inertia mass="3.5" x="0.074326" y="0.117427" z="0.114298"/>
+        <mass value="${3.5*mass_scale}"/>
+        <xacro:box_inertia mass="${3.5*mass_scale}" x="0.074326" y="0.117427" z="0.114298"/>
       </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -37,16 +37,16 @@
     <joint name="${namespace}/gripper_mount_joint" type="fixed">
       <parent link="${parent_link}"/>
       <child link="${namespace}/gripper_base"/>
-      <!-- Adjusted mounting position - front and slightly down from base_link -->
-      <origin xyz="0.45 0 -0.05" rpy="0 0 0"/>
+      <!-- Mount pose provided by caller (auv_base) via mount_xyz/mount_rpy -->
+      <origin xyz="${mount_xyz}" rpy="${mount_rpy}"/>
     </joint>
 
     <!-- Left Finger -->
     <link name="${namespace}/finger_left">
       <inertial>
         <origin rpy="0 0 0" xyz="0.025268 -0.001931 -0.000079"/>
-        <mass value="0.88"/>
-        <xacro:box_inertia mass="0.88" x="0.064" y="0.078" z="0.025"/>
+        <mass value="${0.88*mass_scale}"/>
+        <xacro:box_inertia mass="${0.88*mass_scale}" x="0.064" y="0.078" z="0.025"/>
       </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -77,8 +77,8 @@
     <link name="${namespace}/finger_tip_left">
       <inertial>
         <origin rpy="0 0 0" xyz="0.027744 0.017278 0.0"/>
-        <mass value="1.13"/>
-        <xacro:box_inertia mass="1.13" x="0.084" y="0.048" z="0.024"/>
+        <mass value="${1.13*mass_scale}"/>
+        <xacro:box_inertia mass="${1.13*mass_scale}" x="0.084" y="0.048" z="0.024"/>
       </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -108,8 +108,8 @@
     <link name="${namespace}/finger_right">
       <inertial>
         <origin rpy="0 0 0" xyz="0.025268 -0.001931 -0.000079"/>
-        <mass value="0.88"/>
-        <xacro:box_inertia mass="0.88" x="0.064" y="0.078" z="0.025"/>
+        <mass value="${0.88*mass_scale}"/>
+        <xacro:box_inertia mass="${0.88*mass_scale}" x="0.064" y="0.078" z="0.025"/>
       </inertial>
       <visual>
         <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
@@ -140,8 +140,8 @@
     <link name="${namespace}/finger_tip_right">
       <inertial>
         <origin rpy="0 0 0" xyz="0.027744 0.017278 0.0"/>
-        <mass value="1.13"/>
-        <xacro:box_inertia mass="1.13" x="0.084" y="0.048" z="0.024"/>
+        <mass value="${1.13*mass_scale}"/>
+        <xacro:box_inertia mass="${1.13*mass_scale}" x="0.084" y="0.048" z="0.024"/>
       </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
