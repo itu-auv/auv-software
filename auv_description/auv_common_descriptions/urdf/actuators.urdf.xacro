@@ -4,4 +4,5 @@
   <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators/torpedo_upper.urdf.xacro"/>
   <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators/torpedo_bottom.urdf.xacro"/>
   <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators/ball_dropper.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators/gripper.urdf.xacro"/>
 </robot>

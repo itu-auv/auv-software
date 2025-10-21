@@ -1,0 +1,56 @@
+---
+# Gripper Controller Configuration
+# This configuration sets up the joint state controller and gripper controller
+
+# Joint State Controller - publishes joint states
+joint_state_controller:
+  type: joint_state_controller/JointStateController
+  publish_rate: 50
+
+# Gripper Controller - controls both jaw joints
+gripper_controller:
+  type: effort_controllers/JointTrajectoryController
+  joints:
+    - taluy/gripper_left_jaw_joint
+    - taluy/gripper_right_jaw_joint
+
+  constraints:
+    goal_time: 0.6
+    stopped_velocity_tolerance: 0.05
+    taluy/gripper_left_jaw_joint:
+      trajectory: 0.1
+      goal: 0.05
+    taluy/gripper_right_jaw_joint:
+      trajectory: 0.1
+      goal: 0.05
+
+  gains:
+    taluy/gripper_left_jaw_joint:
+      p: 100.0
+      i: 0.01
+      d: 10.0
+      i_clamp: 1.0
+    taluy/gripper_right_jaw_joint:
+      p: 100.0
+      i: 0.01
+      d: 10.0
+      i_clamp: 1.0
+
+# Individual Joint Controllers (for direct control)
+gripper_left_jaw_position_controller:
+  type: effort_controllers/JointPositionController
+  joint: taluy/gripper_left_jaw_joint
+  pid:
+    p: 100.0
+    i: 0.01
+    d: 10.0
+    i_clamp: 1.0
+
+gripper_right_jaw_position_controller:
+  type: effort_controllers/JointPositionController
+  joint: taluy/gripper_right_jaw_joint
+  pid:
+    p: 100.0
+    i: 0.01
+    d: 10.0
+    i_clamp: 1.0

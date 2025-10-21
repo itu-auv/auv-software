@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="debug" default="false"/>
+  <arg name="gui" default="true"/>
+  <arg name="paused" default="false"/>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="headless" default="false"/>
+
+  <!-- Start Gazebo with an underwater world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(find uuv_gazebo_worlds)/worlds/ocean_waves.world"/>
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="gui" value="$(arg gui)"/>
+    <arg name="headless" value="$(arg headless)"/>
+    <arg name="debug" value="$(arg debug)"/>
+  </include>
+
+  <!-- Load robot description -->
+  <param name="robot_description"
+         command="$(find xacro)/xacro '$(find taluy_description)/urdf/auv.urdf.xacro' namespace:=$(arg namespace)" />
+
+  <!-- Spawn the robot in Gazebo -->
+  <node name="spawn_auv" pkg="gazebo_ros" type="spawn_model"
+        args="-urdf -param robot_description -model $(arg namespace) -z 0.5"
+        output="screen" respawn="false"/>
+
+  <!-- Load joint state controller -->
+  <rosparam file="$(find auv_bringup)/config/gripper_control.yaml" command="load" ns="$(arg namespace)"/>
+
+  <!-- Spawn controllers -->
+  <node name="controller_spawner" pkg="controller_manager" type="spawner"
+        respawn="false" output="screen"
+        args="--namespace=$(arg namespace)
+              joint_state_controller
+              gripper_left_jaw_position_controller
+              gripper_right_jaw_position_controller"/>
+
+  <!-- Robot state publisher -->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher">
+    <param name="publish_frequency" value="50.0"/>
+    <param name="tf_prefix" value="$(arg namespace)"/>
+    <remap from="joint_states" to="/$(arg namespace)/joint_states"/>
+  </node>
+
+  <!-- RViz -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find auv_bringup)/config/gripper_test.rviz" if="$(arg gui)"/>
+
+</launch>

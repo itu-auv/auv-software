@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+
+  <!-- Load gripper controller configuration -->
+  <rosparam file="$(find auv_bringup)/config/gripper_control.yaml" command="load" ns="$(arg namespace)"/>
+
+  <!-- Spawn controllers -->
+  <node name="gripper_controller_spawner" pkg="controller_manager" type="spawner"
+        respawn="false" output="screen"
+        args="--namespace=$(arg namespace)
+              gripper_left_jaw_position_controller
+              gripper_right_jaw_position_controller"/>
+
+</launch>

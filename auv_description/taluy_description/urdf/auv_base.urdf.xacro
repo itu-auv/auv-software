@@ -63,19 +63,7 @@
     <xacro:ball_dropper name="${namespace}/base_link/ball_dropper" parent="${namespace}/base_link" position="0.1004 0.0745 -0.1953" orientation="0 0 0"/>
     <xacro:realsense_d435 name="${namespace}/camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 ${math.pi}"/>
 
-    <!-- <link name="base_footprint">
-      <inertial>
-        <origin xyz="0 0 0" rpy="0 0 0" />
-        <mass value="15.0" />
-        <inertia ixx="39.351246" iyy="103.261717" izz="127.702526" ixy="-5e-06" iyz="6e-06"
-          ixz="4.403436" />
-      </inertial>
-    </link>
-
-    <joint name="base_link_joint" type="fixed">
-      <origin xyz="0 0 ${-base_z_offsett + 0.06 - draft}" rpy="0 0 0" />
-      <parent link="base_footprint" />
-      <child link="base_link" />
-    </joint> -->
+    <!-- Gripper mounted underneath the robot, facing downwards -->
+    <xacro:gripper name="${namespace}/gripper" parent="${namespace}/base_link" position="0.15 0 -0.15" orientation="0 ${math.pi/2} 0" namespace="${namespace}"/>
   </xacro:macro>
 </robot>
