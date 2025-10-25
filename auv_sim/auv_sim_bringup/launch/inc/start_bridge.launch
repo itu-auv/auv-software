@@ -36,6 +36,11 @@
     <node name="drop_ball_server" pkg="auv_sim_bridge" type="sim_bin_mock.py" output="screen">
       <remap from="actuators/ball_dropper/drop" to="actuators/ball_dropper/drop" />
     </node>
+    <!-- Model Spawner Service Node (generic) -->
+    <node name="spawn_model_server" pkg="auv_sim_bridge" type="sim_bottle_mock.py" output="screen">
+      <!-- service name remapped to ladle by default; the spawner script is configurable via params -->
+      <remap from="actuators/ladle/spawn" to="actuators/ladle/spawn" />
+    </node>
     <!-- Torpedo Launcher Service Node -->
     <node name="launch_torpedo_server" pkg="auv_sim_bridge" type="sim_torpedo_mock.py" output="screen">
       <remap from="actuators/torpedo_1/launch" to="actuators/torpedo_1/launch" />
