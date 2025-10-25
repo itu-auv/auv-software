@@ -50,6 +50,10 @@
       <param name="right_joint" value="$(arg namespace)/finger_right_joint" />
       <param name="open_angle" value="0.35" />
       <param name="close_angle" value="0.0" />
+      <!-- Behavior params -->
+      <param name="mirror_right" value="false" />
+      <param name="move_duration" value="1.0" />
+      <param name="move_steps" value="30" />
       <remap from="actuators/gripper/set" to="actuators/gripper/set" />
       <remap from="actuators/gripper/open" to="actuators/gripper/open" />
       <remap from="actuators/gripper/close" to="actuators/gripper/close" />
