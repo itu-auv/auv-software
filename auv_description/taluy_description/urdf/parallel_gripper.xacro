@@ -69,8 +69,8 @@
       <origin rpy="0 0 0" xyz="0.0444267 0.0391376 0"/>
       <axis xyz="0 0 1"/>
       <dynamics damping="5" friction="10"/>
-      <!-- Lock by default; enable motion later when adding control -->
-      <limit effort="3000" lower="0" upper="0" velocity="0.15"/>
+      <!-- Allow motion for open/close -->
+      <limit effort="3000" lower="0.0" upper="0.35" velocity="0.15"/>
     </joint>
 
     <!-- Left Finger Tip -->
@@ -132,8 +132,8 @@
       <origin rpy="3.14159265359 3.14159265359 3.14159265359" xyz="0.0444267 -0.0391376 0"/>
       <axis xyz="0 0 -1"/>
       <dynamics damping="5" friction="10"/>
-      <!-- Lock by default; enable motion later when adding control -->
-      <limit effort="3000" lower="0" upper="0" velocity="0.15"/>
+      <!-- Allow mirrored motion -->
+      <limit effort="3000" lower="-0.35" upper="0.0" velocity="0.15"/>
     </joint>
 
     <!-- Right Finger Tip -->

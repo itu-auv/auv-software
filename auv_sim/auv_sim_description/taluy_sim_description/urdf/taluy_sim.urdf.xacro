@@ -34,4 +34,12 @@
   >
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </xacro:pose_3d_macro>
+  <xacro:macro name="parallel_gripper" params="namespace, use_mimic_plugin">
+    <xacro:if test="$(arg use_mimic_plugin)">
+      <xacro:include filename="$(find taluy_sim_description)/urdf/mimic_gripper.urdf.xacro"/>
+    </xacro:if>
+    <xacro:if test="$(not(arg use_mimic_plugin))">
+      <xacro:include filename="$(find taluy_sim_description)/urdf/simple_gripper.urdf.xacro"/>
+    </xacro:if>
+  </xacro:macro>
 </robot>
