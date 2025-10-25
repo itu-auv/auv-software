@@ -61,10 +61,9 @@ class ModelSpawner:
                 xml = f.read()
 
             pose = Pose()
-            # default spawn at origin (can be changed later if needed)
-            pose.position.x = 0.0
-            pose.position.y = 0.0
-            pose.position.z = 0.0
+            pose.position.x = 13.0
+            pose.position.y = -4.25
+            pose.position.z = -1.25
 
             resp = self.spawn_model(
                 model_name=cfg['model_name'],

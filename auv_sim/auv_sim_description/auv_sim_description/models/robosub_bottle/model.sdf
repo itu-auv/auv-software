@@ -1,10 +1,20 @@
 <?xml version="1.0"?>
 <sdf version="1.6">
   <model name="robosub_bottle">
-    <static>true</static>
     <pose>0 0 0 0 0 0</pose>
   <link name="robosub_bottle_link">
       <pose>0 0 0 0 0 0</pose>
+      <inertial>
+        <mass>1.5</mass>
+        <inertia>
+          <ixx>0.01</ixx>
+          <iyy>0.01</iyy>
+          <izz>0.01</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
   <collision name="robosub_bottle_col">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
@@ -12,6 +22,17 @@
             <uri>model://robosub_bottle/meshes/bottle_final1.dae</uri>
           </mesh>
         </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.5</mu>
+              <mu2>0.5</mu2>
+            </ode>
+          </friction>
+          <bounce>
+            <restitution_coefficient>0.2</restitution_coefficient>
+          </bounce>
+        </surface>
       </collision>
   <visual name="robosub_bottle_vis">
         <pose>0 0 0 0 0 0</pose>
