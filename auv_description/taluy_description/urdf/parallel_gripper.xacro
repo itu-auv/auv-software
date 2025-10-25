@@ -11,7 +11,7 @@
 
   <!-- Parallel Gripper Macro -->
   <!-- Added parameter use_mimic_plugin (default: false) to avoid Gazebo errors when the plugin is not available yet. -->
-  <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false mass_scale:=0.001 mount_xyz:='0 0 0' mount_rpy:='0 0 0'">
+  <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false use_grasp_fix:=false mass_scale:=0.001 mount_xyz:='0 0 0' mount_rpy:='0 0 0'">
     <!-- Gripper Base Link -->
     <link name="${namespace}/gripper_base">
       <inertial>
@@ -44,9 +44,10 @@
     <!-- Left Finger -->
     <link name="${namespace}/finger_left">
       <inertial>
-        <origin rpy="0 0 0" xyz="0.025268 -0.001931 -0.000079"/>
+        <origin rpy="0 0 0" xyz="0.032 0 0"/>
         <mass value="${0.88*mass_scale}"/>
-        <xacro:box_inertia mass="${0.88*mass_scale}" x="0.064" y="0.078" z="0.025"/>
+        <!-- Clamp inertia to avoid solver instability with very small masses -->
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
       </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -55,9 +56,9 @@
         </geometry>
       </visual>
       <collision>
-        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <origin rpy="0 0 0" xyz="0.032 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+          <box size="0.064 0.078 0.025"/>
         </geometry>
       </collision>
     </link>
@@ -68,17 +69,18 @@
       <child link="${namespace}/finger_left"/>
       <origin rpy="0 0 0" xyz="0.0444267 0.0391376 0"/>
       <axis xyz="0 0 1"/>
-      <dynamics damping="5" friction="10"/>
+      <dynamics damping="12" friction="1"/>
       <!-- Allow motion for open/close -->
-      <limit effort="3000" lower="0.0" upper="0.35" velocity="0.15"/>
+      <limit effort="120" lower="0.0" upper="0.35" velocity="0.2"/>
     </joint>
 
     <!-- Left Finger Tip -->
     <link name="${namespace}/finger_tip_left">
       <inertial>
-        <origin rpy="0 0 0" xyz="0.027744 0.017278 0.0"/>
+        <origin rpy="0 0 0" xyz="0.042 0 0"/>
         <mass value="${1.13*mass_scale}"/>
-        <xacro:box_inertia mass="${1.13*mass_scale}" x="0.084" y="0.048" z="0.024"/>
+        <!-- Clamp inertia to avoid solver instability with very small masses -->
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
       </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -87,29 +89,27 @@
         </geometry>
       </visual>
       <collision>
-        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <origin rpy="0 0 0" xyz="0.042 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+          <box size="0.084 0.048 0.024"/>
         </geometry>
       </collision>
     </link>
 
-    <!-- Left Finger Tip Joint -->
-    <joint name="${namespace}/finger_tip_left_joint" type="revolute">
+    <!-- Left Finger Tip Joint (fixed for stability) -->
+    <joint name="${namespace}/finger_tip_left_joint" type="fixed">
       <parent link="${namespace}/finger_left"/>
       <child link="${namespace}/finger_tip_left"/>
       <origin rpy="3.14159265359 0 0" xyz="0.06431 0 0"/>
-      <axis xyz="0 0 1"/>
-      <dynamics damping="5" friction="10"/>
-      <limit effort="0" lower="0" upper="0" velocity="0"/>
     </joint>
 
     <!-- Right Finger -->
     <link name="${namespace}/finger_right">
       <inertial>
-        <origin rpy="0 0 0" xyz="0.025268 -0.001931 -0.000079"/>
+        <origin rpy="0 0 0" xyz="0.032 0 0"/>
         <mass value="${0.88*mass_scale}"/>
-        <xacro:box_inertia mass="${0.88*mass_scale}" x="0.064" y="0.078" z="0.025"/>
+        <!-- Clamp inertia to avoid solver instability with very small masses -->
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
       </inertial>
       <visual>
         <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
@@ -118,9 +118,9 @@
         </geometry>
       </visual>
       <collision>
-        <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
+        <origin rpy="3.14159265359 0 0" xyz="0.032 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+          <box size="0.064 0.078 0.025"/>
         </geometry>
       </collision>
     </link>
@@ -131,17 +131,18 @@
       <child link="${namespace}/finger_right"/>
       <origin rpy="3.14159265359 3.14159265359 3.14159265359" xyz="0.0444267 -0.0391376 0"/>
       <axis xyz="0 0 -1"/>
-      <dynamics damping="5" friction="10"/>
+      <dynamics damping="12" friction="1"/>
       <!-- Opposite physical rotation with positive angles -->
-      <limit effort="3000" lower="0.0" upper="0.35" velocity="0.15"/>
+      <limit effort="120" lower="0.0" upper="0.35" velocity="0.2"/>
     </joint>
 
     <!-- Right Finger Tip -->
     <link name="${namespace}/finger_tip_right">
       <inertial>
-        <origin rpy="0 0 0" xyz="0.027744 0.017278 0.0"/>
+        <origin rpy="0 0 0" xyz="0.042 0 0"/>
         <mass value="${1.13*mass_scale}"/>
-        <xacro:box_inertia mass="${1.13*mass_scale}" x="0.084" y="0.048" z="0.024"/>
+        <!-- Clamp inertia to avoid solver instability with very small masses -->
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
       </inertial>
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -150,22 +151,113 @@
         </geometry>
       </visual>
       <collision>
-        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <origin rpy="0 0 0" xyz="0.042 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+          <box size="0.084 0.048 0.024"/>
         </geometry>
       </collision>
     </link>
 
-    <!-- Right Finger Tip Joint -->
-    <joint name="${namespace}/finger_tip_right_joint" type="revolute">
+    <!-- Right Finger Tip Joint (fixed for stability) -->
+    <joint name="${namespace}/finger_tip_right_joint" type="fixed">
       <parent link="${namespace}/finger_right"/>
       <child link="${namespace}/finger_tip_right"/>
       <origin rpy="0 0 0" xyz="0.06431 0 0"/>
-      <axis xyz="0 0 1"/>
-      <dynamics damping="5" friction="10"/>
-      <limit effort="0" lower="0" upper="0" velocity="0"/>
     </joint>
+
+    <!-- Contact parameters for gripper links: firm for grasping, prevent tunneling -->
+    <gazebo reference="${namespace}/finger_left">
+      <self_collide>false</self_collide>
+      <!-- gravity tag removed to re-enable gravity -->
+      <linearDamping>0.2</linearDamping>
+      <angularDamping>0.2</angularDamping>
+      <mu1>1.0</mu1>
+      <mu2>1.0</mu2>
+      <slip1>0.0</slip1>
+      <slip2>0.0</slip2>
+      <kp>80000</kp>
+      <kd>80</kd>
+      <max_contacts>10</max_contacts>
+      <max_vel>0.3</max_vel>
+      <min_depth>0.001</min_depth>
+      <contact_surface_layer>0.0002</contact_surface_layer>
+    </gazebo>
+    <gazebo reference="${namespace}/finger_right">
+      <self_collide>false</self_collide>
+      <!-- gravity tag removed to re-enable gravity -->
+      <linearDamping>0.2</linearDamping>
+      <angularDamping>0.2</angularDamping>
+      <mu1>1.0</mu1>
+      <mu2>1.0</mu2>
+      <slip1>0.0</slip1>
+      <slip2>0.0</slip2>
+      <kp>80000</kp>
+      <kd>80</kd>
+      <max_contacts>10</max_contacts>
+      <max_vel>0.3</max_vel>
+      <min_depth>0.001</min_depth>
+      <contact_surface_layer>0.0002</contact_surface_layer>
+    </gazebo>
+    <gazebo reference="${namespace}/finger_tip_left">
+      <self_collide>false</self_collide>
+      <!-- gravity tag removed to re-enable gravity -->
+      <linearDamping>0.2</linearDamping>
+      <angularDamping>0.2</angularDamping>
+      <mu1>1.0</mu1>
+      <mu2>1.0</mu2>
+      <slip1>0.0</slip1>
+      <slip2>0.0</slip2>
+      <kp>80000</kp>
+      <kd>80</kd>
+      <max_contacts>10</max_contacts>
+      <max_vel>0.3</max_vel>
+      <min_depth>0.001</min_depth>
+      <contact_surface_layer>0.0002</contact_surface_layer>
+    </gazebo>
+    <gazebo reference="${namespace}/finger_tip_right">
+      <self_collide>false</self_collide>
+      <!-- gravity tag removed to re-enable gravity -->
+      <linearDamping>0.2</linearDamping>
+      <angularDamping>0.2</angularDamping>
+      <mu1>1.0</mu1>
+      <mu2>1.0</mu2>
+      <slip1>0.0</slip1>
+      <slip2>0.0</slip2>
+      <kp>80000</kp>
+      <kd>80</kd>
+      <max_contacts>10</max_contacts>
+      <max_vel>0.3</max_vel>
+      <min_depth>0.001</min_depth>
+      <contact_surface_layer>0.0002</contact_surface_layer>
+    </gazebo>
+
+    <!-- Make joints soft but not mushy; single definition per joint -->
+    <gazebo reference="${namespace}/finger_left_joint">
+      <implicitSpringDamper>true</implicitSpringDamper>
+      <stop_kp>1500</stop_kp>
+      <stop_kd>15</stop_kd>
+      <cfm>0.001</cfm>
+      <erp>0.2</erp>
+      <spring_reference>0.0</spring_reference>
+      <spring_stiffness>5.0</spring_stiffness>
+      <provideFeedback>true</provideFeedback>
+    </gazebo>
+    <gazebo reference="${namespace}/finger_right_joint">
+      <implicitSpringDamper>true</implicitSpringDamper>
+      <stop_kp>1500</stop_kp>
+      <stop_kd>15</stop_kd>
+      <cfm>0.001</cfm>
+      <erp>0.2</erp>
+      <spring_reference>0.0</spring_reference>
+      <spring_stiffness>5.0</spring_stiffness>
+      <provideFeedback>true</provideFeedback>
+    </gazebo>
+
+    <!-- Soften the fixed mount joint slightly to avoid tearing on impacts -->
+    <gazebo reference="${namespace}/gripper_mount_joint">
+      <cfm>0.002</cfm>
+      <erp>0.15</erp>
+    </gazebo>
 
     <!-- Gazebo plugin for gripper control (optional) -->
     <xacro:if value="${use_mimic_plugin}">
@@ -176,6 +268,24 @@
           <multiplier>1.0</multiplier>
           <offset>0.0</offset>
           <robotNamespace>/${namespace}</robotNamespace>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+
+    <!-- Optional: grasp-fix plugin for robust bottle grasping -->
+    <xacro:if value="${use_grasp_fix}">
+      <gazebo>
+        <plugin name="${namespace}_grasp_fix" filename="libgazebo_ros_grasp_fix.so">
+          <robotNamespace>/${namespace}</robotNamespace>
+          <gripper_link>${namespace}/finger_left</gripper_link>
+          <gripper_link>${namespace}/finger_right</gripper_link>
+          <gripper_link>${namespace}/finger_tip_left</gripper_link>
+          <gripper_link>${namespace}/finger_tip_right</gripper_link>
+          <palm_link>${namespace}/gripper_base</palm_link>
+          <max_contacts>100</max_contacts>
+          <min_contact_count>2</min_contact_count>
+          <forces_angle_tolerance>25</forces_angle_tolerance>
+          <release_tolerance>0.002</release_tolerance>
         </plugin>
       </gazebo>
     </xacro:if>
