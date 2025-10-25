@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="robosub_ladle">
+    <static>true</static>
+    <pose>0 0 0 0 0 0</pose>
+  <link name="robosub_ladle_link">
+      <pose>0 0 0 0 0 0</pose>
+  <collision name="robosub_ladle_col">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://robosub_ladle/meshes/ladle.dae</uri>
+          </mesh>
+        </geometry>
+      </collision>
+  <visual name="robosub_ladle_vis">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://robosub_ladle/meshes/ladle.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+  </model>
+</sdf>

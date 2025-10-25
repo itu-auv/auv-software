@@ -1,23 +1,23 @@
 <?xml version="1.0"?>
 <sdf version="1.6">
-  <model name="robosub_ladle">
+  <model name="robosub_bottle">
     <static>true</static>
     <pose>0 0 0 0 0 0</pose>
-  <link name="robosub_ladle_link">
+  <link name="robosub_bottle_link">
       <pose>0 0 0 0 0 0</pose>
-  <collision name="robosub_ladle_col">
+  <collision name="robosub_bottle_col">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
           <mesh>
-            <uri>model://robosub_objects/meshes/ladle.dae</uri>
+            <uri>model://robosub_bottle/meshes/bottle_final1.dae</uri>
           </mesh>
         </geometry>
       </collision>
-  <visual name="robosub_ladle_vis">
+  <visual name="robosub_bottle_vis">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
           <mesh>
-            <uri>model://robosub_objects/meshes/ladle.dae</uri>
+            <uri>model://robosub_bottle/meshes/bottle_final1.dae</uri>
           </mesh>
         </geometry>
       </visual>
