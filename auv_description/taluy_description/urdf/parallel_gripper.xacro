@@ -11,7 +11,7 @@
 
   <!-- Parallel Gripper Macro -->
   <!-- Added parameter use_mimic_plugin (default: false) to avoid Gazebo errors when the plugin is not available yet. -->
-  <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false use_grasp_fix:=false mass_scale:=0.001 mount_xyz:='0 0 0' mount_rpy:='0 0 0'">
+  <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false use_grasp_fix:=true mass_scale:=0.001 mount_xyz:='0 0 0' mount_rpy:='0 0 0'">
     <!-- Gripper Base Link -->
     <link name="${namespace}/gripper_base">
       <inertial>
@@ -70,8 +70,8 @@
       <origin rpy="0 0 0" xyz="0.0444267 0.0391376 0"/>
       <axis xyz="0 0 1"/>
       <dynamics damping="12" friction="1"/>
-      <!-- Allow motion for open/close -->
-      <limit effort="120" lower="0.0" upper="0.35" velocity="0.2"/>
+      <!-- Lower max effort & speed so joint stalls on object instead of crushing it -->
+      <limit effort="15" lower="0.0" upper="0.35" velocity="0.1"/>
     </joint>
 
     <!-- Left Finger Tip -->
@@ -132,8 +132,8 @@
       <origin rpy="3.14159265359 3.14159265359 3.14159265359" xyz="0.0444267 -0.0391376 0"/>
       <axis xyz="0 0 -1"/>
       <dynamics damping="12" friction="1"/>
-      <!-- Opposite physical rotation with positive angles -->
-      <limit effort="120" lower="0.0" upper="0.35" velocity="0.2"/>
+      <!-- Lower max effort & speed so joint stalls on object instead of crushing it -->
+      <limit effort="15" lower="0.0" upper="0.35" velocity="0.1"/>
     </joint>
 
     <!-- Right Finger Tip -->
