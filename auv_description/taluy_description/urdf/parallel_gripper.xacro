@@ -1,0 +1,183 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Load inertial macros -->
+  <xacro:macro name="cylinder_inertia" params="mass r h">
+    <inertia ixx="${mass*(3*r*r+h*h)/12}" ixy="0.0" ixz="0.0" iyy="${mass*(3*r*r+h*h)/12}" iyz="0.0" izz="${mass*r*r/2}"/>
+  </xacro:macro>
+
+  <xacro:macro name="box_inertia" params="mass x y z">
+    <inertia ixx="${mass*(y*y+z*z)/12}" ixy="0.0" ixz="0.0" iyy="${mass*(x*x+z*z)/12}" iyz="0.0" izz="${mass*(x*x+y*y)/12}"/>
+  </xacro:macro>
+
+  <!-- Parallel Gripper Macro -->
+  <!-- Added parameter use_mimic_plugin (default: false) to avoid Gazebo errors when the plugin is not available yet. -->
+  <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false mass_scale:=0.001 mount_xyz:='0 0 0' mount_rpy:='0 0 0'">
+    <!-- Gripper Base Link -->
+    <link name="${namespace}/gripper_base">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.024426 0.0 0.0"/>
+        <mass value="${3.5*mass_scale}"/>
+        <xacro:box_inertia mass="${3.5*mass_scale}" x="0.074326" y="0.117427" z="0.114298"/>
+      </inertial>
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/BaseGripper.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0.024426 0.0 0.0"/>
+        <geometry>
+          <box size="0.074326 0.117427 0.114298"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Joint connecting parent to gripper base -->
+    <joint name="${namespace}/gripper_mount_joint" type="fixed">
+      <parent link="${parent_link}"/>
+      <child link="${namespace}/gripper_base"/>
+      <!-- Mount pose provided by caller (auv_base) via mount_xyz/mount_rpy -->
+      <origin xyz="${mount_xyz}" rpy="${mount_rpy}"/>
+    </joint>
+
+    <!-- Left Finger -->
+    <link name="${namespace}/finger_left">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.025268 -0.001931 -0.000079"/>
+        <mass value="${0.88*mass_scale}"/>
+        <xacro:box_inertia mass="${0.88*mass_scale}" x="0.064" y="0.078" z="0.025"/>
+      </inertial>
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Left Finger Joint -->
+    <joint name="${namespace}/finger_left_joint" type="revolute">
+      <parent link="${namespace}/gripper_base"/>
+      <child link="${namespace}/finger_left"/>
+      <origin rpy="0 0 0" xyz="0.0444267 0.0391376 0"/>
+      <axis xyz="0 0 1"/>
+      <dynamics damping="5" friction="10"/>
+      <!-- Lock by default; enable motion later when adding control -->
+      <limit effort="3000" lower="0" upper="0" velocity="0.15"/>
+    </joint>
+
+    <!-- Left Finger Tip -->
+    <link name="${namespace}/finger_tip_left">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.027744 0.017278 0.0"/>
+        <mass value="${1.13*mass_scale}"/>
+        <xacro:box_inertia mass="${1.13*mass_scale}" x="0.084" y="0.048" z="0.024"/>
+      </inertial>
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Left Finger Tip Joint -->
+    <joint name="${namespace}/finger_tip_left_joint" type="revolute">
+      <parent link="${namespace}/finger_left"/>
+      <child link="${namespace}/finger_tip_left"/>
+      <origin rpy="3.14159265359 0 0" xyz="0.06431 0 0"/>
+      <axis xyz="0 0 1"/>
+      <dynamics damping="5" friction="10"/>
+      <limit effort="0" lower="0" upper="0" velocity="0"/>
+    </joint>
+
+    <!-- Right Finger -->
+    <link name="${namespace}/finger_right">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.025268 -0.001931 -0.000079"/>
+        <mass value="${0.88*mass_scale}"/>
+        <xacro:box_inertia mass="${0.88*mass_scale}" x="0.064" y="0.078" z="0.025"/>
+      </inertial>
+      <visual>
+        <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Right Finger Joint -->
+    <joint name="${namespace}/finger_right_joint" type="revolute">
+      <parent link="${namespace}/gripper_base"/>
+      <child link="${namespace}/finger_right"/>
+      <origin rpy="3.14159265359 3.14159265359 3.14159265359" xyz="0.0444267 -0.0391376 0"/>
+      <axis xyz="0 0 -1"/>
+      <dynamics damping="5" friction="10"/>
+      <!-- Lock by default; enable motion later when adding control -->
+      <limit effort="3000" lower="0" upper="0" velocity="0.15"/>
+    </joint>
+
+    <!-- Right Finger Tip -->
+    <link name="${namespace}/finger_tip_right">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.027744 0.017278 0.0"/>
+        <mass value="${1.13*mass_scale}"/>
+        <xacro:box_inertia mass="${1.13*mass_scale}" x="0.084" y="0.048" z="0.024"/>
+      </inertial>
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Right Finger Tip Joint -->
+    <joint name="${namespace}/finger_tip_right_joint" type="revolute">
+      <parent link="${namespace}/finger_right"/>
+      <child link="${namespace}/finger_tip_right"/>
+      <origin rpy="0 0 0" xyz="0.06431 0 0"/>
+      <axis xyz="0 0 1"/>
+      <dynamics damping="5" friction="10"/>
+      <limit effort="0" lower="0" upper="0" velocity="0"/>
+    </joint>
+
+    <!-- Gazebo plugin for gripper control (optional) -->
+    <xacro:if value="${use_mimic_plugin}">
+      <gazebo>
+        <plugin name="${namespace}_gripper_mimic" filename="libroboticsgroup_gazebo_mimic_joint_plugin.so">
+          <joint>${namespace}/finger_left_joint</joint>
+          <mimicJoint>${namespace}/finger_right_joint</mimicJoint>
+          <multiplier>1.0</multiplier>
+          <offset>0.0</offset>
+          <robotNamespace>/${namespace}</robotNamespace>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
+</robot>
