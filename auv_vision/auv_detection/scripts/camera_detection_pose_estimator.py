@@ -22,6 +22,7 @@ from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
+from tf import transformations as tf_transformations
 from dynamic_reconfigure.client import Client
 
 
@@ -110,6 +111,11 @@ class WhitePipe(Prop):
         super().__init__(3, "white_pipe", 0.90, None)
 
 
+class Bottle(Prop):
+    def __init__(self):
+        super().__init__(0, "bottle", 0.30, 0.15)
+
+
 class TorpedoMap(Prop):
     def __init__(self):
         super().__init__(4, "torpedo_map", 0.6096, 0.6096)
@@ -154,6 +160,8 @@ class CameraDetectionNode:
         self.bottom_camera_enabled = False
 
         self.red_pipe_x = None
+        self.pipe_line_angle = None  # Angle of pipe line relative to base_link
+        self.current_yaw = 0.0  # Current yaw of base_link in odom frame
 
         self.object_id_map = {
             "gate": [0, 1],
@@ -182,13 +190,13 @@ class CameraDetectionNode:
         }
         # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
-            "/yolo_result",
+            "/yolo_result_1",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="front_camera"),
             queue_size=1,
         )
         rospy.Subscriber(
-            "/yolo_result_2",
+            "/yolo_result",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
             queue_size=1,
@@ -206,6 +214,7 @@ class CameraDetectionNode:
             "gate_shark_link": Shark(),
             "red_pipe_link": RedPipe(),
             "white_pipe_link": WhitePipe(),
+            "bottle_link": Bottle(),
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
             "bin_sawfish_link": BinShark(),
@@ -226,14 +235,19 @@ class CameraDetectionNode:
                 7: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {
-                0: "bin_shark_link",
+                0: "bottle_link",
                 1: "bin_sawfish_link",
+                2: "red_pipe_link",
+                3: "white_pipe_link",
             },
         }
         # Subscribe to YOLO detections and altitude
         self.altitude = None
         self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
+        
+        # Subscribe to pipe line angle
+        rospy.Subscriber("/taluy/pipe_line_angle", Float32, self.pipe_angle_callback, queue_size=1)
 
         # Services to enable/disable cameras
         rospy.Service(
@@ -315,6 +329,35 @@ class CameraDetectionNode:
         rospy.loginfo_once(
             f"Calculated altitude from odom_pressure: {self.altitude:.2f} m (pool_depth={self.pool_depth})"
         )
+
+    def pipe_angle_callback(self, msg: Float32):
+        """Store pipe line angle from pipe_line_angle_node.
+        
+        Args:
+            msg: Float32 message containing the pipe line angle in radians relative to base_link
+        """
+        if not math.isnan(msg.data):
+            self.pipe_line_angle = -msg.data  # Store in base_link frame
+            
+            # Get current yaw from odom to base_link transform
+            try:
+                # Get transform from odom to base_link
+                transform = self.tf_buffer.lookup_transform(
+                    'odom',
+                    'taluy/base_link',
+                    rospy.Time(0),
+                    rospy.Duration(1.0)
+                )
+                # Extract yaw from quaternion
+                _, _, self.current_yaw = tf_transformations.euler_from_quaternion([
+                    transform.transform.rotation.x,
+                    transform.transform.rotation.y,
+                    transform.transform.rotation.z,
+                    transform.transform.rotation.w
+                ])
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                rospy.logwarn(f"Could not get transform from odom to base_link: {e}")
+                return
 
     def calculate_intersection_with_plane(self, point1_odom, point2_odom, z_plane):
         # Calculate t where the z component is z_plane
@@ -577,13 +620,14 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
-        # Determine camera_ns based on the source passed by the subscriber
+        # Determine camera_ns based on the source passed by the subscribe
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return
             camera_ns = "taluy/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
+                rospy.loginfo("Bottom camera is disabled")
                 return
             camera_ns = "taluy/cameras/cam_bottom"
         else:
@@ -644,7 +688,6 @@ class CameraDetectionNode:
                 continue
             skip_inside_image = False
             detection_id = detection.results[0].id
-
             if camera_source == "front_camera":
                 if detection_id not in self.active_front_camera_ids:
                     continue
@@ -677,7 +720,6 @@ class CameraDetectionNode:
             prop_name = self.id_tf_map[camera_ns][detection_id]
             if prop_name not in self.props:
                 continue
-
             prop = self.props[prop_name]
 
             if not skip_inside_image:  # Calculate distance using object dimensions
@@ -715,7 +757,15 @@ class CameraDetectionNode:
             transform_stamped_msg.transform.translation = Vector3(
                 offset_x, offset_y, distance
             )
-            transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+            
+            # For bottom camera bottle/pipe detections, use pipe line angle in odom frame
+            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 2, 3] and self.pipe_line_angle is not None:
+                # Calculate angle in odom frame: pipe_angle_odom = current_yaw + pipe_angle_base_link
+                pipe_angle_odom = self.current_yaw + self.pipe_line_angle
+                quat = tf_transformations.quaternion_from_euler(0, 0, pipe_angle_odom)
+                transform_stamped_msg.transform.rotation = Quaternion(*quat)
+            else:
+                transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
 
             try:
                 # Create a PoseStamped message from the TransformStamped

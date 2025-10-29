@@ -41,7 +41,7 @@ class OctagonFramePublisherServiceState(smach_ros.ServiceState):
 class OctagonTaskState(smach.State):
     def __init__(self, octagon_depth: float, animal: str):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.griper_mode = False
+        self.griper_mode = True
         self.animal_frame = f"gate_{animal}_link"
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
@@ -184,7 +184,7 @@ class OctagonTaskState(smach.State):
                     "succeeded": (
                         "SURFACE_TO_ANIMAL_DEPTH"
                         if not self.griper_mode
-                        else "MOVE_GRIPPER"
+                        else "ALIGN_TO_BOTTLE"
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -193,6 +193,56 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "MOVE_GRIPPER",
                 MoveGripperServiceState(id=0),
+                transitions={
+                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            
+            # New states for bottle alignment and gripper operation
+            smach.StateMachine.add(
+                "ALIGN_TO_BOTTLE",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="bottle_link",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=60.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "SET_BOTTLE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            
+            smach.StateMachine.add(
+                "SET_BOTTLE_DEPTH",
+                SetDepthState(depth=-1.20, sleep_duration=4.0),
+                transitions={
+                    "succeeded": "SURFACE_WITH_BOTTLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            
+            smach.StateMachine.add(
+                "CLOSE_GRIPPER",
+                MoveGripperServiceState(id=1),  # Assuming id=1 means close gripper
+                transitions={
+                    "succeeded": "SURFACE_WITH_BOTTLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            
+            smach.StateMachine.add(
+                "SURFACE_WITH_BOTTLE",
+                SetDepthState(depth=-0.3, sleep_duration=5.0),  # Close to surface
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
