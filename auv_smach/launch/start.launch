@@ -97,6 +97,9 @@
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
             <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
+            
+            <!-- octagon.py Gripper Service -->
+            <remap from="actuators/gripper/set" to="actuators/gripper/set"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>

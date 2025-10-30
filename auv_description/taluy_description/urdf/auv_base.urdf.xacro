@@ -66,6 +66,21 @@
 
     <!-- Parallel Gripper -->
     <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.1 0 -0.1" mount_rpy="0 ${math.pi/2} 0" mass_scale="0.001"/>
+    
+    <!-- Gripper Link (fixed frame) -->
+    <link name="${namespace}/gripper_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.001"/>
+        <inertia ixx="0.000001" ixy="0.0" ixz="0.0" iyy="0.000001" iyz="0.0" izz="0.000001"/>
+      </inertial>
+    </link>
+    
+    <joint name="gripper_link_joint" type="fixed">
+      <origin xyz="-0.1 0 -0.1" rpy="0 0 0"/>
+      <parent link="${namespace}/base_link"/>
+      <child link="${namespace}/gripper_link"/>
+    </joint>
 
     <!-- <link name="base_footprint">
       <inertial>

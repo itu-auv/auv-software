@@ -19,12 +19,14 @@ from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 
 
 class MoveGripperServiceState(smach_ros.ServiceState):
-    def __init__(self, id: int):
+    def __init__(self, close_gripper: bool):
+        from std_srvs.srv import SetBool, SetBoolRequest
         smach_ros.ServiceState.__init__(
             self,
-            "move_gripper",
-            Trigger,
-            request=TriggerRequest(),
+            "actuators/gripper/set",
+            SetBool,
+            request=SetBoolRequest(data=close_gripper),  # True to close, False to open
+            response_slots=[],
         )
 
 
@@ -184,7 +186,7 @@ class OctagonTaskState(smach.State):
                     "succeeded": (
                         "SURFACE_TO_ANIMAL_DEPTH"
                         if not self.griper_mode
-                        else "ALIGN_TO_BOTTLE"
+                        else "MOVE_GRIPPER"
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -192,7 +194,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "MOVE_GRIPPER",
-                MoveGripperServiceState(id=0),
+                MoveGripperServiceState(close_gripper=False),  # Open gripper
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
@@ -204,7 +206,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_BOTTLE",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame="taluy/gripper_link",
                     target_frame="bottle_link",
                     angle_offset=0.0,
                     dist_threshold=0.1,
@@ -232,7 +234,7 @@ class OctagonTaskState(smach.State):
             
             smach.StateMachine.add(
                 "CLOSE_GRIPPER",
-                MoveGripperServiceState(id=1),  # Assuming id=1 means close gripper
+                MoveGripperServiceState(close_gripper=True),  # Close gripper
                 transitions={
                     "succeeded": "SURFACE_WITH_BOTTLE",
                     "preempted": "preempted",
