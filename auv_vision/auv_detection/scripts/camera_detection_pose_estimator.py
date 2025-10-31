@@ -113,7 +113,7 @@ class WhitePipe(Prop):
 
 class Bottle(Prop):
     def __init__(self):
-        super().__init__(0, "bottle", 0.30, 0.15)
+        super().__init__(0, "bottle", None, 0.09)
 
 
 class TorpedoMap(Prop):
@@ -162,6 +162,7 @@ class CameraDetectionNode:
         self.red_pipe_x = None
         self.pipe_line_angle = None  # Angle of pipe line relative to base_link
         self.current_yaw = 0.0  # Current yaw of base_link in odom frame
+        self.pipe_thickness_px = None  # Pixel width from pipe_line_angle_node
 
         self.object_id_map = {
             "gate": [0, 1],
@@ -246,8 +247,9 @@ class CameraDetectionNode:
         self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
         
-        # Subscribe to pipe line angle
+        # Subscribe to pipe line angle and thickness
         rospy.Subscriber("/taluy/pipe_line_angle", Float32, self.pipe_angle_callback, queue_size=1)
+        rospy.Subscriber("/pipe_thickness", Float32, self.pipe_thickness_callback, queue_size=1)
 
         # Services to enable/disable cameras
         rospy.Service(
@@ -330,6 +332,18 @@ class CameraDetectionNode:
             f"Calculated altitude from odom_pressure: {self.altitude:.2f} m (pool_depth={self.pool_depth})"
         )
 
+    def pipe_thickness_callback(self, msg: Float32):
+        print("pipe thickness callback")    
+        print(msg.data)
+        """Store pipe thickness in pixels from pipe_line_angle_node.
+        
+        Args:
+            msg: Float32 message containing the pipe thickness in pixels
+        """
+        if not math.isnan(msg.data) and msg.data > 0:
+            self.pipe_thickness_px = msg.data
+            rospy.logdebug(f"Updated pipe thickness: {self.pipe_thickness_px:.1f}px")
+            
     def pipe_angle_callback(self, msg: Float32):
         """Store pipe line angle from pipe_line_angle_node.
         
@@ -704,10 +718,33 @@ class CameraDetectionNode:
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
+            prop_name = self.id_tf_map[camera_ns][detection_id]
+            if prop_name not in self.props:
+                continue
+            prop = self.props[prop_name]
+            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:  # Bottle detection
                 skip_inside_image = True
-                # use altidude for bin
-                distance = self.altitude
+                # Calculate distance using pixel width from pipe_line_angle_node
+                if self.pipe_thickness_px is not None and self.pipe_thickness_px > 0:
+                    # Use the pipe_thickness_px as the width in pixels
+                    distance = prop.estimate_distance(
+                        None,
+                        self.pipe_thickness_px,
+                        self.camera_calibrations[camera_ns]
+                    )
+                    print(str(distance)+ "-----distance of bottle ")
+                    rospy.logdebug(f"Using pipe_thickness_px: {self.pipe_thickness_px}px for distance calculation")
+                else:
+                    # Fallback to using bbox width if pipe_thickness_px is not available
+                    distance = prop.estimate_distance(
+                        detection.bbox.size_y,  # height
+                        detection.bbox.size_x,  # width
+                        self.camera_calibrations[camera_ns]
+                    )
+                    print(str(distance)+ "-----distance of bottle from wrong tree ")
+                if distance is None:
+                    rospy.logwarn("Could not calculate bottle distance from pixel width, using altitude")
+                    distance = self.altitude
 
             if detection_id == 6:
                 self.process_altitude_projection(
@@ -717,10 +754,7 @@ class CameraDetectionNode:
             if not skip_inside_image:
                 if self.check_if_detection_is_inside_image(detection) is False:
                     continue
-            prop_name = self.id_tf_map[camera_ns][detection_id]
-            if prop_name not in self.props:
-                continue
-            prop = self.props[prop_name]
+
 
             if not skip_inside_image:  # Calculate distance using object dimensions
                 distance = prop.estimate_distance(
