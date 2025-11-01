@@ -44,9 +44,3 @@ TEST(MultiDOFPIDController, TestVelocityControlOnly) {
   EXPECT_NEAR(force_torque(4), expected_force, kEpsilon);
   EXPECT_NEAR(force_torque(5), expected_force, kEpsilon);
 }
-
-int main(int argc, char** argv) {
-  testing::InitGoogleTest(&argc, argv);
-  ros::init(argc, argv, "tester");
-  return RUN_ALL_TESTS();
-}
