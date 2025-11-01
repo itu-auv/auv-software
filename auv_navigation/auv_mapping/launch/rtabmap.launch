@@ -1,0 +1,154 @@
+<?xml version="1.0"?>
+<launch>
+
+
+  <!-- Arguments -->
+  <arg name="namespace" default="rtabmap"/>
+  <arg name="use_sim_time" default="false"/>
+
+  <arg name="camera_name" default="zedm"/>
+
+  <!-- Topics - ZED camera default topics -->
+  <arg name="rgb_topic" default="/$(arg camera_name)/zed_node/rgb/image_rect_color"/>
+  <arg name="depth_topic" default="/$(arg camera_name)/zed_node/depth/depth_registered"/>
+  <arg name="camera_info_topic" default="/$(arg camera_name)/zed_node/rgb/camera_info"/>
+
+  <!-- Optional: External odometry topic (from your EKF) - NOT USED when visual_odometry:=true -->
+  <arg name="odom_topic" default="/taluy/odometry"/>
+
+  <!-- Frames -->
+  <arg name="frame_id" default="zedm_base_link"/>
+  <arg name="odom_frame_id" default="rtabmap_odom"/>
+  <arg name="map_frame_id" default="rtabmap_map"/>
+
+  <!-- RTAB-Map Parameters File -->
+  <arg name="rtabmap_params_file" default="$(find auv_mapping)/config/rtabmap_params.yaml"/>
+
+  <!-- Enable/disable nodes -->
+  <arg name="visual_odometry" default="true" doc="Launch rgbd_odometry node for visual odometry"/>
+  <arg name="rtabmap_viz" default="true" doc="Launch rtabmapviz for visualization"/>
+  <arg name="publish_tf_odom" default="true" doc="Publish TF from odom to base_link (visual odometry)"/>
+  <arg name="publish_tf_map" default="true" doc="Publish TF from map to odom (SLAM correction)"/>
+
+  <!-- ========================================================================== -->
+
+  <param name="use_sim_time" value="$(arg use_sim_time)"/>
+
+  <group ns="$(arg namespace)">
+
+    <!-- ====================================================================== -->
+    <!-- RGB-D Visual Odometry Node -->
+    <!-- Computes odometry from camera images - publishes to rtabmap_slam node -->
+    <!-- ====================================================================== -->
+    <node if="$(arg visual_odometry)"
+          pkg="rtabmap_odom"
+          type="rgbd_odometry"
+          name="rgbd_odometry"
+          output="screen">
+
+      <param name="frame_id" value="$(arg frame_id)"/>
+      <param name="odom_frame_id" value="$(arg odom_frame_id)"/>
+      <param name="publish_tf" value="$(arg publish_tf_odom)"/>
+
+      <!-- Load parameters from YAML -->
+      <rosparam command="load" file="$(arg rtabmap_params_file)"/>
+
+      <!-- Topic remappings -->
+      <remap from="rgb/image" to="$(arg rgb_topic)"/>
+      <remap from="depth/image" to="$(arg depth_topic)"/>
+      <remap from="rgb/camera_info" to="$(arg camera_info_topic)"/>
+    </node>
+
+    <!-- ====================================================================== -->
+    <!-- RTAB-Map SLAM Node (Core) -->
+    <!-- Receives odometry from rgbd_odometry and performs SLAM -->
+    <!-- ====================================================================== -->
+    <node pkg="rtabmap_slam"
+          type="rtabmap"
+          name="rtabmap_slam"
+          output="screen"
+          args="--delete_db_on_start">
+
+      <param name="frame_id" value="$(arg frame_id)"/>
+      <param name="odom_frame_id" value="$(arg odom_frame_id)"/>
+      <param name="map_frame_id" value="$(arg map_frame_id)"/>
+      <param name="publish_tf" value="$(arg publish_tf_map)"/>
+
+      <!-- Load all parameters from YAML file -->
+      <rosparam command="load" file="$(arg rtabmap_params_file)"/>
+
+      <!-- Topic remappings -->
+      <remap from="rgb/image" to="$(arg rgb_topic)"/>
+      <remap from="depth/image" to="$(arg depth_topic)"/>
+      <remap from="rgb/camera_info" to="$(arg camera_info_topic)"/>
+
+      <!-- NOT using external odometry - rgbd_odometry provides odom automatically -->
+      <!-- To use external odometry (EKF): set visual_odometry:=false, subscribe_odom:=true in YAML, and uncomment below -->
+      <!-- <remap from="odom" to="$(arg odom_topic)"/> -->
+    </node>
+
+    <!-- ====================================================================== -->
+    <!-- RTAB-Map Visualization (Optional) -->
+    <!-- ====================================================================== -->
+    <node if="$(arg rtabmap_viz)"
+          pkg="rtabmap_viz"
+          type="rtabmap_viz"
+          name="rtabmap_viz"
+          output="screen">
+
+      <param name="frame_id" value="$(arg frame_id)"/>
+
+      <!-- Load parameters from YAML -->
+      <rosparam command="load" file="$(arg rtabmap_params_file)"/>
+
+      <!-- Topic remappings -->
+      <remap from="rgb/image" to="$(arg rgb_topic)"/>
+      <remap from="depth/image" to="$(arg depth_topic)"/>
+      <remap from="rgb/camera_info" to="$(arg camera_info_topic)"/>
+    </node>
+
+  </group>
+
+  <!-- ========================================================================== -->
+  <!-- Usage Examples: -->
+  <!--
+  1. Launch with visual odometry + SLAM (default) - publishes rtabmap_map -> rtabmap_odom -> base_link_rtab:
+     roslaunch auv_mapping rtabmap.launch
+
+  2. Launch VIO only for testing (no SLAM, only odometry TF):
+     roslaunch auv_mapping rtabmap.launch publish_tf_map:=false
+     This publishes only rtabmap_odom -> base_link_rtab (similar to ZED odometry)
+
+  3. Launch without TF publishing (use for comparison with other odometry sources):
+     roslaunch auv_mapping rtabmap.launch publish_tf_odom:=false publish_tf_map:=false
+
+  4. Launch without visual odometry (using external EKF):
+     roslaunch auv_mapping rtabmap.launch visual_odometry:=false
+     (Remember to set subscribe_odom:=true in rtabmap_params.yaml and uncomment odom remap above)
+
+  5. Launch without visualization:
+     roslaunch auv_mapping rtabmap.launch rtabmap_viz:=false
+
+  6. Custom camera topics:
+     roslaunch auv_mapping rtabmap.launch rgb_topic:=/my_camera/rgb depth_topic:=/my_camera/depth
+
+  7. Save map:
+     rosservice call /rtabmap/rtabmap_slam/save_map "output_path: '~/rtabmap_maps/mission1.db'"
+
+  8. Reset map:
+     rosservice call /rtabmap/rtabmap_slam/reset
+
+  TF Tree Structure (default):
+     rtabmap_map (fixed frame for SLAM)
+         -> rtabmap_odom (visual odometry frame, drift-corrected by SLAM)
+             -> base_link_rtab (RTAB-Map's robot base frame)
+                 -> zedm_camera_link (camera frame from ZED)
+
+  Compare with ZED Mini (both running simultaneously):
+     - ZED Mini:    zed_map -> zed_odom -> base_link -> zedm_camera_link
+     - RTAB-Map VIO: rtabmap_map -> rtabmap_odom -> base_link_rtab -> zedm_camera_link
+     (Two independent odometry sources, no frame conflicts!)
+  -->
+  <!-- ========================================================================== -->
+
+</launch>
