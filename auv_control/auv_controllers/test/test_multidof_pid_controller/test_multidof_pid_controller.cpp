@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <ros/ros.h>
 
 #include "auv_controllers/multidof_pid_controller.h"
 namespace {
@@ -42,4 +43,10 @@ TEST(MultiDOFPIDController, TestVelocityControlOnly) {
   EXPECT_NEAR(force_torque(3), expected_force, kEpsilon);
   EXPECT_NEAR(force_torque(4), expected_force, kEpsilon);
   EXPECT_NEAR(force_torque(5), expected_force, kEpsilon);
+}
+
+int main(int** argv, char** argc) {
+  testing::InitGoogleTest(&argc, argv);
+  ros::init(argc, argv, "tester");
+  return RUN_ALL_TESTS();
 }
