@@ -25,8 +25,10 @@ class GripperService:
         self.mirror_right = bool(rospy.get_param("~mirror_right", True))
 
         # Angles (radians)
-        self.open_angle = float(rospy.get_param("~open_angle", 0.35))
-        self.close_angle = float(rospy.get_param("~close_angle", 0.0))
+        # Neutral=0 (paralel), Open=pozitif (dışa açık), Close=negatif (içe kapalı)
+        self.open_angle = float(rospy.get_param("~open_angle", 0.25))
+        self.close_angle = float(rospy.get_param("~close_angle", -0.15))
+        self.neutral_angle = float(rospy.get_param("~neutral_angle", 0.0))
 
         # Motion profile
         self.move_duration = float(rospy.get_param("~move_duration", 1.0))  # seconds
@@ -34,10 +36,12 @@ class GripperService:
 
         # Effort-based control parameters (for stall-on-contact)
         self.use_effort = bool(rospy.get_param("~use_effort_control", True))
-        self.kp_effort = float(rospy.get_param("~kp_effort", 20.0))  # Nm/rad
-        self.max_effort = float(rospy.get_param("~max_effort", 6.0))  # Nm cap
+        # Dengeli ayar: Güçlü ama titreşimsiz
+        self.kp_effort = float(rospy.get_param("~kp_effort", 45.0))  # Nm/rad
+        self.max_effort = float(rospy.get_param("~max_effort", 20.0))  # Nm cap
+        # Hold effort optimal: Düşürmeden ama titretmeden
         self.hold_effort = float(
-            rospy.get_param("~hold_effort", 1.5)
+            rospy.get_param("~hold_effort", 7.0)
         )  # Nm per finger when holding
         self.error_tol = float(
             rospy.get_param("~error_tol", 0.01)
@@ -73,6 +77,7 @@ class GripperService:
         # Convenience services
         rospy.Service("actuators/gripper/open", Trigger, self.handle_open)
         rospy.Service("actuators/gripper/close", Trigger, self.handle_close)
+        rospy.Service("actuators/gripper/neutral", Trigger, self.handle_neutral)
 
         rospy.loginfo(
             f"[gripper_service] Ready for model='{self.model_name}', joints=({self.left_joint}, {self.right_joint}), robot_description='{self.robot_description_param}'"
@@ -191,11 +196,13 @@ class GripperService:
         timeout = max(self.move_duration, 0.5)
 
         while not rospy.is_shutdown():
-            # Time check to avoid infinite loops
-            if rospy.Time.now().to_sec() - t0 > 3.0 * timeout:
-                rospy.logwarn("Effort control timeout")
-                ok = False
-                break
+            # Hold mode: SONSUZ DÖNGÜ, timeout YOK - gripper açılana kadar sıkar
+            if not hold:
+                # Normal mode: timeout check
+                if rospy.Time.now().to_sec() - t0 > 3.0 * timeout:
+                    rospy.logwarn("Effort control timeout")
+                    ok = False
+                    break
 
             lp = self._get_current(self.left_joint)
             rp = self._get_current(self.right_joint)
@@ -234,21 +241,26 @@ class GripperService:
                 and stall_count_r >= self.stall_cycles
             ):
                 if hold:
-                    # Apply gentle inward hold effort continuously
-                    le_sign = 1.0 if le > 0.0 else -1.0  # direction toward target
+                    # HOLD MODE: Sürekli maksimum kuvvet uygula - hiç bırakma!
+                    # Hold effort'u hedef yöne doğru uygula
+                    le_sign = 1.0 if le > 0.0 else -1.0
                     re_sign = 1.0 if re > 0.0 else -1.0
-                    self._apply_effort_once(
-                        self.left_joint, le_sign * self.hold_effort, dt
-                    )
-                    self._apply_effort_once(
-                        self.right_joint, re_sign * self.hold_effort, dt
-                    )
-                    # Keep looping to maintain hold until another command
+
+                    # Maksimum hold kuvveti - bottle ASLA düşmemeli
+                    hold_l = le_sign * self.hold_effort
+                    hold_r = re_sign * self.hold_effort
+
+                    self._apply_effort_once(self.left_joint, hold_l, dt)
+                    self._apply_effort_once(self.right_joint, hold_r, dt)
+
+                    # SONSUZ DÖNGÜ - gripper kapatıldığında sadece yeni komutla çıkar
+                    # Timeout YOK, sürekli sıkmaya devam et!
                 else:
+                    # Open/neutral mode: normal exit
                     break
 
-            # If both reached target within tolerance
-            if abs(le) <= self.error_tol and abs(re) <= self.error_tol:
+            # If both reached target within tolerance (hold mode'da bile kontrol et)
+            if not hold and abs(le) <= self.error_tol and abs(re) <= self.error_tol:
                 break
 
             rospy.sleep(dt)
@@ -257,6 +269,7 @@ class GripperService:
         if not hold:
             self._clear_force(self.left_joint)
             self._clear_force(self.right_joint)
+        # Hold mode: Force'ları ASLA temizleme - sürekli sık!
 
         return ok
 
@@ -291,6 +304,17 @@ class GripperService:
         right_target = -base if self.mirror_right else base
         ok = self.set_angles(base, right_target, hold=True)
         return TriggerResponse(success=ok, message="closed" if ok else "close failed")
+
+    def handle_neutral(self, _req):
+        # Clear any holding force first
+        self._clear_force(self.left_joint)
+        self._clear_force(self.right_joint)
+        base = self.neutral_angle
+        right_target = -base if self.mirror_right else base
+        ok = self.set_angles(base, right_target, hold=False)
+        return TriggerResponse(
+            success=ok, message="neutral" if ok else "neutral failed"
+        )
 
     def run(self):
         rospy.spin()

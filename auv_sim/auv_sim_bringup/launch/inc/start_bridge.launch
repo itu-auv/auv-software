@@ -53,15 +53,23 @@
       <param name="robot_description_param" value="/$(arg namespace)/robot_description" />
       <param name="left_joint" value="$(arg namespace)/finger_left_joint" />
       <param name="right_joint" value="$(arg namespace)/finger_right_joint" />
-      <param name="open_angle" value="0.35" />
-      <param name="close_angle" value="0.0" />
+      <!-- Neutral/Normal: paralel parmaklar (0.0 rad), Open: dışa açık (+0.25 rad), Close: içe kapalı (-0.15 rad) -->
+      <param name="open_angle" value="0.25" />
+      <param name="close_angle" value="-0.15" />
+      <param name="neutral_angle" value="0.0" />
       <!-- Behavior params -->
       <param name="mirror_right" value="false" />
-      <param name="move_duration" value="1.0" />
-      <param name="move_steps" value="30" />
+      <param name="move_duration" value="1.5" />
+      <param name="move_steps" value="40" />
+      <!-- Effort control - DENGELI: Güçlü ama titremeyen tutuş -->
+      <param name="use_effort_control" value="true" />
+      <param name="kp_effort" value="45.0" />
+      <param name="max_effort" value="20.0" />
+      <param name="hold_effort" value="7.0" />
       <remap from="actuators/gripper/set" to="actuators/gripper/set" />
       <remap from="actuators/gripper/open" to="actuators/gripper/open" />
       <remap from="actuators/gripper/close" to="actuators/gripper/close" />
+      <remap from="actuators/gripper/neutral" to="actuators/gripper/neutral" />
     </node>
   </group>
 
