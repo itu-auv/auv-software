@@ -1,44 +1,51 @@
 <?xml version="1.0"?>
 <sdf version="1.6">
-  <model name="robosub_bottle">
+  <model name="robosub_ladle">
     <pose>0 0 0 0 0 0</pose>
     <static>false</static>
     <allow_auto_disable>false</allow_auto_disable>
     <self_collide>false</self_collide>
 
-  <link name="robosub_bottle_link">
+  <link name="robosub_ladle_link">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
         <mass>0.01</mass>
         <inertia>
-          <ixx>0.01</ixx>
-          <iyy>0.01</iyy>
-          <izz>0.01</izz>
+          <ixx>0.015</ixx>
+          <iyy>0.015</iyy>
+          <izz>0.015</izz>
           <ixy>0</ixy>
           <ixz>0</ixz>
           <iyz>0</iyz>
         </inertia>
+        <pose>0 0 0 0 0 0</pose>
       </inertial>
+
+      <!-- Gravity enabled -->
+      <gravity>true</gravity>
+      <kinematic>false</kinematic>
 
       <!-- Stability settings for better grasping -->
       <velocity_decay>
         <linear>0.05</linear>
         <angular>0.05</angular>
       </velocity_decay>
-  <collision name="robosub_bottle_col">
+  <collision name="robosub_ladle_col">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
           <mesh>
-            <uri>model://robosub_bottle/meshes/bottle_final1.dae</uri>
+            <uri>model://robosub_ladle/meshes/ladle.dae</uri>
           </mesh>
         </geometry>
         <surface>
           <contact>
+            <collide_bitmask>0xffff</collide_bitmask>
             <ode>
-              <kp>3000000</kp>
-              <kd>300</kd>
-              <max_vel>0.3</max_vel>
-              <min_depth>0.03</min_depth>
+              <!-- Çok sert contact - zeminden geçmeyi önler -->
+              <kp>10000000</kp>
+              <kd>1000</kd>
+              <max_vel>0.01</max_vel>
+              <min_depth>0.001</min_depth>
             </ode>
           </contact>
           <friction>
@@ -46,23 +53,30 @@
               <!-- Çok yüksek sürtünme - gripper ile mükemmel tutuş -->
               <mu>50.0</mu>
               <mu2>50.0</mu2>
+              <fdir1>0 0 0</fdir1>
               <slip1>0.0</slip1>
               <slip2>0.0</slip2>
             </ode>
+            <torsional>
+              <coefficient>1.0</coefficient>
+              <use_patch_radius>true</use_patch_radius>
+              <patch_radius>0.1</patch_radius>
+            </torsional>
           </friction>
           <bounce>
-            <restitution_coefficient>0.2</restitution_coefficient>
+            <restitution_coefficient>0.0</restitution_coefficient>
+            <threshold>0.01</threshold>
           </bounce>
         </surface>
         <!-- Daha fazla contact noktası izleme -->
         <laser_retro>0.0</laser_retro>
-        <max_contacts>200</max_contacts>
+        <max_contacts>250</max_contacts>
       </collision>
-  <visual name="robosub_bottle_vis">
+  <visual name="robosub_ladle_vis">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
           <mesh>
-            <uri>model://robosub_bottle/meshes/bottle_final1.dae</uri>
+            <uri>model://robosub_ladle/meshes/ladle.dae</uri>
           </mesh>
         </geometry>
       </visual>
