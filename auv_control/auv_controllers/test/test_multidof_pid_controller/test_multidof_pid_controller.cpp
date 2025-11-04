@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <ros/ros.h>
 
 #include "auv_controllers/multidof_pid_controller.h"
 

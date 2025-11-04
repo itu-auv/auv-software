@@ -19,9 +19,9 @@ RUN find /etc/apt/ -type f -name '*.list' -exec grep -l 'packages.ros.org' {} \;
   echo "deb [signed-by=/etc/apt/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros/ubuntu focal main" \
   > /etc/apt/sources.list.d/ros-latest.list && \
   add-apt-repository universe || true && \
-   echo 'deb mirror://mirrors.ubuntu.com/mirrors.txt focal main restricted universe multiverse' > /etc/apt/sources.list && \
-   echo 'deb mirror://mirrors.ubuntu.com/mirrors.txt focal-updates main restricted universe multiverse' >> /etc/apt/sources.list && \
-   echo 'deb mirror://mirrors.ubuntu.com/mirrors.txt focal-security main restricted universe multiverse' >> /etc/apt/sources.list && \
+   echo 'deb http://archive.ubuntu.com/ubuntu focal main restricted universe multiverse' > /etc/apt/sources.list && \
+   echo 'deb http://archive.ubuntu.com/ubuntu focal-updates main restricted universe multiverse' >> /etc/apt/sources.list && \
+   echo 'deb http://archive.ubuntu.com/ubuntu focal-security main restricted universe multiverse' >> /etc/apt/sources.list && \
   apt-get update
 
 RUN apt-get update && \
