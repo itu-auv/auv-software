@@ -22,7 +22,7 @@
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/BaseGripper.dae"/>
+          <mesh filename="package://auv_common_sim_descriptions/meshes/parallel_gripper/visual/BaseGripper.dae"/>
         </geometry>
       </visual>
       <collision>
@@ -52,7 +52,7 @@
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+          <mesh filename="package://auv_common_sim_descriptions/meshes/parallel_gripper/visual/Finger.dae"/>
         </geometry>
       </visual>
       <collision>
@@ -87,7 +87,7 @@
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+          <mesh filename="package://auv_common_sim_descriptions/meshes/parallel_gripper/visual/FingerTip.dae"/>
         </geometry>
       </visual>
       <collision>
@@ -117,7 +117,7 @@
       <visual>
         <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+          <mesh filename="package://auv_common_sim_descriptions/meshes/parallel_gripper/visual/Finger.dae"/>
         </geometry>
       </visual>
       <collision>
@@ -152,7 +152,7 @@
       <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+          <mesh filename="package://auv_common_sim_descriptions/meshes/parallel_gripper/visual/FingerTip.dae"/>
         </geometry>
       </visual>
       <collision>

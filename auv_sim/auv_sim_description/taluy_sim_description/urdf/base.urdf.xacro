@@ -6,5 +6,8 @@
     <xacro:taluy_base/>
     <xacro:include filename="$(find taluy_sim_description)/urdf/actuators.urdf.xacro"/>
     <xacro:include filename="$(find taluy_sim_description)/urdf/sensors.urdf.xacro"/>
+    <xacro:include filename="$(find taluy_sim_description)/urdf/parallel_gripper.xacro"/>
+    <!-- Parallel Gripper -->
+    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.1 0 -0.1" mount_rpy="0 ${math.pi/2} 0" mass_scale="0.001"/>
   </xacro:macro>
 </robot>

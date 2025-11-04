@@ -6,7 +6,6 @@
     <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/materials.urdf.xacro"/>
-    <xacro:include filename="$(find taluy_description)/urdf/parallel_gripper.xacro"/>
     <xacro:arg name="angled_thruster_z_offset" default="-0.01"/>
     <link name="${namespace}/base_link">
       <inertial>
@@ -63,9 +62,6 @@
     <!-- 0.0931 -->
     <xacro:ball_dropper name="${namespace}/base_link/ball_dropper" parent="${namespace}/base_link" position="0.1004 0.0745 -0.1953" orientation="0 0 0"/>
     <xacro:realsense_d435 name="${namespace}/camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 ${math.pi}"/>
-
-    <!-- Parallel Gripper -->
-    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.1 0 -0.1" mount_rpy="0 ${math.pi/2} 0" mass_scale="0.001"/>
 
     <!-- <link name="base_footprint">
       <inertial>
