@@ -28,7 +28,7 @@ jobs:
           ROS_DISTRO: noetic
           UPSTREAM_WORKSPACE: third_party.repos
           TARGET_WORKSPACE: ". -auv_sim"
-          ADDITIONAL_DEBS: lld libxml2-dev libxslt-dev
+          ADDITIONAL_DEBS: lld libxml2-dev libxslt-dev python3-pyside2.qtcore python3-pyside2.qtgui python3-pyside2.qtwidgets
           BASEDIR: ${{ steps.make_temp_build_dir.outputs.build_directory }}
           AFTER_SETUP_UPSTREAM_WORKSPACE: mv $BASEDIR/upstream_ws/third_party $BASEDIR/upstream_ws/src/; vcs pull $BASEDIR/upstream_ws/src
           DOCKER_IMAGE: ${{ inputs.docker_image_tag }}

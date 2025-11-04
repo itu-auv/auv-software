@@ -12,12 +12,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
   TZ=Etc/UTC
 
 RUN find /etc/apt/ -type f -name '*.list' -exec grep -l 'packages.ros.org' {} \; | xargs -r mv -t /tmp || true && \
-  apt-get update && apt-get install -y curl gnupg debconf-utils && \
+  apt-get update && apt-get install -y curl gnupg debconf-utils software-properties-common && \
   mkdir -p /etc/apt/keyrings && \
   curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
   -o /etc/apt/keyrings/ros-archive-keyring.gpg && \
   echo "deb [signed-by=/etc/apt/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros/ubuntu focal main" \
-  > /etc/apt/sources.list.d/ros-latest.list
+  > /etc/apt/sources.list.d/ros-latest.list && \
+  add-apt-repository universe || true && \
+  apt-get update
 
 RUN apt-get update && \
   apt-get install -yqq --no-install-recommends \
