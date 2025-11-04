@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
-#include <ros/ros.h>
-
 #include "auv_controllers/multidof_pid_controller.h"
+
 namespace {
 using Vector6d = Eigen::Matrix<double, 6, 1>;
 using Vector12d = Eigen::Matrix<double, 12, 1>;
@@ -43,10 +42,4 @@ TEST(MultiDOFPIDController, TestVelocityControlOnly) {
   EXPECT_NEAR(force_torque(3), expected_force, kEpsilon);
   EXPECT_NEAR(force_torque(4), expected_force, kEpsilon);
   EXPECT_NEAR(force_torque(5), expected_force, kEpsilon);
-}
-
-int main(int argc, char **argv) {
-  testing::InitGoogleTest(&argc, argv);
-  ros::init(argc, argv, "tester");
-  return RUN_ALL_TESTS();
 }
