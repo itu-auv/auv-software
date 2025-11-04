@@ -23,6 +23,15 @@ jobs:
         run: |
           directory=$(mktemp -d)
           echo build_directory=$directory >> $GITHUB_ENV
+      - name: Configure runner apt to use Ubuntu mirror redirector and enable universe
+        run: |
+          sudo apt-get update || true
+          sudo apt-get install -y software-properties-common || true
+          sudo add-apt-repository universe || true
+          sudo bash -c 'printf "%s\n" "deb http://mirror://mirrors.ubuntu.com/mirrors.txt focal main restricted universe multiverse" > /etc/apt/sources.list'
+          sudo bash -c 'printf "%s\n" "deb http://mirror://mirrors.ubuntu.com/mirrors.txt focal-updates main restricted universe multiverse" >> /etc/apt/sources.list'
+          sudo bash -c 'printf "%s\n" "deb http://mirror://mirrors.ubuntu.com/mirrors.txt focal-security main restricted universe multiverse" >> /etc/apt/sources.list'
+          sudo apt-get update
       - uses: ros-industrial/industrial_ci@master
         env:
           ROS_DISTRO: noetic
