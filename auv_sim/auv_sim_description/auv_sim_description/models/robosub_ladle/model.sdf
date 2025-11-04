@@ -41,7 +41,7 @@
           <contact>
             <collide_bitmask>0xffff</collide_bitmask>
             <ode>
-              <!-- Çok sert contact - zeminden geçmeyi önler -->
+              <!-- Very stiff contact - prevents passing through ground -->
               <kp>10000000</kp>
               <kd>1000</kd>
               <max_vel>0.01</max_vel>
@@ -50,7 +50,7 @@
           </contact>
           <friction>
             <ode>
-              <!-- Çok yüksek sürtünme - gripper ile mükemmel tutuş -->
+              <!-- Very high friction - perfect grip with gripper -->
               <mu>50.0</mu>
               <mu2>50.0</mu2>
               <fdir1>0 0 0</fdir1>
@@ -68,7 +68,7 @@
             <threshold>0.01</threshold>
           </bounce>
         </surface>
-        <!-- Daha fazla contact noktası izleme -->
+        <!-- Track more contact points -->
         <laser_retro>0.0</laser_retro>
         <max_contacts>250</max_contacts>
       </collision>

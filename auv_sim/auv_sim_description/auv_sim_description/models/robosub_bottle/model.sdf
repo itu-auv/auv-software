@@ -43,7 +43,7 @@
           </contact>
           <friction>
             <ode>
-              <!-- Çok yüksek sürtünme - gripper ile mükemmel tutuş -->
+              <!-- Very high friction - perfect grip with gripper -->
               <mu>50.0</mu>
               <mu2>50.0</mu2>
               <slip1>0.0</slip1>
@@ -54,7 +54,7 @@
             <restitution_coefficient>0.2</restitution_coefficient>
           </bounce>
         </surface>
-        <!-- Daha fazla contact noktası izleme -->
+        <!-- Track more contact points -->
         <laser_retro>0.0</laser_retro>
         <max_contacts>200</max_contacts>
       </collision>

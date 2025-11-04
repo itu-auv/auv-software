@@ -67,12 +67,12 @@
     <joint name="${namespace}/finger_left_joint" type="revolute">
       <parent link="${namespace}/gripper_base"/>
       <child link="${namespace}/finger_left"/>
-      <!-- Y mesafesi artırıldı: 0.055 -> 0.065 (parmaklar arası mesafe daha da arttı) -->
+      <!-- Y distance increased: 0.055 -> 0.065 (finger spacing further increased) -->
       <origin rpy="0 0 0" xyz="0.0444267 0.065 0"/>
       <axis xyz="0 0 1"/>
-      <!-- Dengeli ayar: Güçlü ama yumuşak (titreşim önleme) -->
+      <!-- Balanced setting: Strong but soft (vibration prevention) -->
       <dynamics damping="30" friction="8"/>
-      <!-- Effort optimal: 100 -> 80 Nm (hala çok güçlü), velocity biraz daha yavaş -->
+      <!-- Effort optimal: 100 -> 80 Nm (still very strong), velocity slightly slower -->
       <limit effort="80" lower="-0.15" upper="0.25" velocity="0.02"/>
     </joint>
 
@@ -102,7 +102,7 @@
     <joint name="${namespace}/finger_tip_left_joint" type="fixed">
       <parent link="${namespace}/finger_left"/>
       <child link="${namespace}/finger_tip_left"/>
-      <!-- Ucu daha fazla içe doğru: Z ekseninde -0.15 rad (~-8.6°) rotasyon ekleyerek uç içe bakar -->
+      <!-- Tip angled more inward: -0.15 rad (~-8.6°) rotation on Z axis makes tip face inward -->
       <origin rpy="3.14159265359 0 -0.15" xyz="0.06431 0 0"/>
     </joint>
 
@@ -132,12 +132,12 @@
     <joint name="${namespace}/finger_right_joint" type="revolute">
       <parent link="${namespace}/gripper_base"/>
       <child link="${namespace}/finger_right"/>
-      <!-- Y mesafesi artırıldı: -0.055 -> -0.065 (parmaklar arası mesafe daha da arttı) -->
+      <!-- Y distance increased: -0.055 -> -0.065 (finger spacing further increased) -->
       <origin rpy="3.14159265359 3.14159265359 3.14159265359" xyz="0.0444267 -0.065 0"/>
       <axis xyz="0 0 -1"/>
-      <!-- Dengeli ayar: Güçlü ama yumuşak (titreşim önleme) -->
+      <!-- Balanced setting: Strong but soft (vibration prevention) -->
       <dynamics damping="30" friction="8"/>
-      <!-- Effort optimal: 100 -> 80 Nm (hala çok güçlü), velocity biraz daha yavaş -->
+      <!-- Effort optimal: 100 -> 80 Nm (still very strong), velocity slightly slower -->
       <limit effort="80" lower="-0.15" upper="0.25" velocity="0.02"/>
     </joint>
 
@@ -167,26 +167,26 @@
     <joint name="${namespace}/finger_tip_right_joint" type="fixed">
       <parent link="${namespace}/finger_right"/>
       <child link="${namespace}/finger_tip_right"/>
-      <!-- Ucu daha fazla içe doğru: Z ekseninde +0.15 rad (~+8.6°) rotasyon ekleyerek uç içe bakar -->
+      <!-- Tip angled more inward: +0.15 rad (~+8.6°) rotation on Z axis makes tip face inward -->
       <origin rpy="0 0 0.15" xyz="0.06431 0 0"/>
     </joint>
 
     <!-- Contact parameters for gripper links: firm for grasping, prevent tunneling -->
-    <!-- Çok yüksek sürtünme ile mükemmel tutuş -->
+    <!-- Perfect grip with very high friction -->
     <gazebo reference="${namespace}/finger_left">
       <self_collide>false</self_collide>
       <!-- gravity tag removed to re-enable gravity -->
-      <!-- Damping artırıldı: 0.3 -> 0.5 (titreşimi söndürür) -->
+      <!-- Damping increased: 0.3 -> 0.5 (dampens vibration) -->
       <linearDamping>0.5</linearDamping>
       <angularDamping>0.5</angularDamping>
-      <!-- Sürtünme ÇOK YÜKSEK - bottle asla kaymasın -->
+      <!-- Friction VERY HIGH - bottle should never slip -->
       <mu1>50.0</mu1>
       <mu2>50.0</mu2>
       <slip1>0.0</slip1>
       <slip2>0.0</slip2>
-      <!-- Contact stiffness hafif azaltıldı: 120k -> 100k (daha yumuşak temas) -->
+      <!-- Contact stiffness slightly reduced: 120k -> 100k (softer contact) -->
       <kp>100000</kp>
-      <!-- Contact damping artırıldı: 100 -> 150 (titreşim sönümleme) -->
+      <!-- Contact damping increased: 100 -> 150 (vibration damping) -->
       <kd>150</kd>
       <max_contacts>20</max_contacts>
       <max_vel>0.2</max_vel>
@@ -240,17 +240,17 @@
     </gazebo>
 
     <!-- Make joints soft but not mushy; single definition per joint -->
-    <!-- Joint sertliği artırıldı - daha güçlü tutma kabiliyeti -->
+    <!-- Joint stiffness increased - stronger gripping capability -->
     <gazebo reference="${namespace}/finger_left_joint">
       <implicitSpringDamper>true</implicitSpringDamper>
-      <!-- Stop stiffness artırıldı: 1500 -> 3000 (daha sert durma) -->
+      <!-- Stop stiffness increased: 1500 -> 3000 (stiffer stopping) -->
       <stop_kp>3000</stop_kp>
       <stop_kd>30</stop_kd>
-      <!-- CFM azaltıldı, ERP artırıldı: daha sert ve hızlı düzeltme -->
+      <!-- CFM reduced, ERP increased: stiffer and faster correction -->
       <cfm>0.0005</cfm>
       <erp>0.3</erp>
       <spring_reference>0.0</spring_reference>
-      <!-- Spring stiffness artırıldı: 5.0 -> 15.0 (güçlü geri yay) -->
+      <!-- Spring stiffness increased: 5.0 -> 15.0 (strong return spring) -->
       <spring_stiffness>15.0</spring_stiffness>
       <provideFeedback>true</provideFeedback>
     </gazebo>
@@ -294,15 +294,15 @@
           <gripper_link>${namespace}/finger_tip_left</gripper_link>
           <gripper_link>${namespace}/finger_tip_right</gripper_link>
           <palm_link>${namespace}/gripper_base</palm_link>
-          <!-- Çok daha fazla contact izleme -->
+          <!-- Track much more contacts -->
           <max_contacts>200</max_contacts>
-          <!-- Minimum 3 contact noktası gerekli (daha güvenli) -->
+          <!-- Minimum 3 contact points required (safer) -->
           <min_contact_count>3</min_contact_count>
-          <!-- Kuvvet açı toleransı azaltıldı: 25 -> 20 (daha hassas) -->
+          <!-- Force angle tolerance reduced: 25 -> 20 (more precise) -->
           <forces_angle_tolerance>20</forces_angle_tolerance>
-          <!-- Release tolerance azaltıldı: 0.002 -> 0.001 (daha sıkı tutma) -->
+          <!-- Release tolerance reduced: 0.002 -> 0.001 (tighter grip) -->
           <release_tolerance>0.001</release_tolerance>
-          <!-- Attach ve detach kuvvet eşikleri eklendi -->
+          <!-- Attach and detach force thresholds added -->
           <grip_count_threshold>3</grip_count_threshold>
           <max_grip_count>10</max_grip_count>
           <release_count_threshold>2</release_count_threshold>
