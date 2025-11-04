@@ -19,13 +19,27 @@ from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 
 
 class MoveGripperServiceState(smach_ros.ServiceState):
-    def __init__(self, close_gripper: bool):
-        from std_srvs.srv import SetBool, SetBoolRequest
+    def __init__(self):
+        from std_srvs.srv import Trigger, TriggerRequest
+
         smach_ros.ServiceState.__init__(
             self,
-            "actuators/gripper/set",
-            SetBool,
-            request=SetBoolRequest(data=close_gripper),  # True to close, False to open
+            "actuators/gripper/close",
+            Trigger,
+            request=TriggerRequest(),
+            response_slots=[],
+        )
+
+
+class OpenGripperServiceState(smach_ros.ServiceState):
+    def __init__(self):
+        from std_srvs.srv import Trigger, TriggerRequest
+
+        smach_ros.ServiceState.__init__(
+            self,
+            "actuators/gripper/open",
+            Trigger,
+            request=TriggerRequest(),
             response_slots=[],
         )
 
@@ -194,14 +208,14 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "MOVE_GRIPPER",
-                MoveGripperServiceState(close_gripper=False),  # Open gripper
+                OpenGripperServiceState(),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            
+
             # New states for bottle alignment and gripper operation
             smach.StateMachine.add(
                 "ALIGN_TO_BOTTLE",
@@ -213,6 +227,8 @@ class OctagonTaskState(smach.State):
                     yaw_threshold=0.1,
                     confirm_duration=4.0,
                     timeout=60.0,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -221,27 +237,27 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            
+
             smach.StateMachine.add(
                 "SET_BOTTLE_DEPTH",
-                SetDepthState(depth=-1.20, sleep_duration=4.0),
+                SetDepthState(depth=-1.29, sleep_duration=4.0),
                 transitions={
-                    "succeeded": "SURFACE_WITH_BOTTLE",
+                    "succeeded": "CLOSE_GRIPPER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            
+
             smach.StateMachine.add(
                 "CLOSE_GRIPPER",
-                MoveGripperServiceState(close_gripper=True),  # Close gripper
+                MoveGripperServiceState(),
                 transitions={
                     "succeeded": "SURFACE_WITH_BOTTLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            
+
             smach.StateMachine.add(
                 "SURFACE_WITH_BOTTLE",
                 SetDepthState(depth=-0.3, sleep_duration=5.0),  # Close to surface

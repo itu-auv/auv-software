@@ -246,10 +246,14 @@ class CameraDetectionNode:
         self.altitude = None
         self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
-        
+
         # Subscribe to pipe line angle and thickness
-        rospy.Subscriber("/taluy/pipe_line_angle", Float32, self.pipe_angle_callback, queue_size=1)
-        rospy.Subscriber("/pipe_thickness", Float32, self.pipe_thickness_callback, queue_size=1)
+        rospy.Subscriber(
+            "/taluy/pipe_line_angle", Float32, self.pipe_angle_callback, queue_size=1
+        )
+        rospy.Subscriber(
+            "/pipe_thickness", Float32, self.pipe_thickness_callback, queue_size=1
+        )
 
         # Services to enable/disable cameras
         rospy.Service(
@@ -333,43 +337,46 @@ class CameraDetectionNode:
         )
 
     def pipe_thickness_callback(self, msg: Float32):
-        print("pipe thickness callback")    
+        print("pipe thickness callback")
         print(msg.data)
         """Store pipe thickness in pixels from pipe_line_angle_node.
-        
+
         Args:
             msg: Float32 message containing the pipe thickness in pixels
         """
         if not math.isnan(msg.data) and msg.data > 0:
             self.pipe_thickness_px = msg.data
             rospy.logdebug(f"Updated pipe thickness: {self.pipe_thickness_px:.1f}px")
-            
+
     def pipe_angle_callback(self, msg: Float32):
         """Store pipe line angle from pipe_line_angle_node.
-        
+
         Args:
             msg: Float32 message containing the pipe line angle in radians relative to base_link
         """
         if not math.isnan(msg.data):
             self.pipe_line_angle = -msg.data  # Store in base_link frame
-            
+
             # Get current yaw from odom to base_link transform
             try:
                 # Get transform from odom to base_link
                 transform = self.tf_buffer.lookup_transform(
-                    'odom',
-                    'taluy/base_link',
-                    rospy.Time(0),
-                    rospy.Duration(1.0)
+                    "odom", "taluy/base_link", rospy.Time(0), rospy.Duration(1.0)
                 )
                 # Extract yaw from quaternion
-                _, _, self.current_yaw = tf_transformations.euler_from_quaternion([
-                    transform.transform.rotation.x,
-                    transform.transform.rotation.y,
-                    transform.transform.rotation.z,
-                    transform.transform.rotation.w
-                ])
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                _, _, self.current_yaw = tf_transformations.euler_from_quaternion(
+                    [
+                        transform.transform.rotation.x,
+                        transform.transform.rotation.y,
+                        transform.transform.rotation.z,
+                        transform.transform.rotation.w,
+                    ]
+                )
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
                 rospy.logwarn(f"Could not get transform from odom to base_link: {e}")
                 return
 
@@ -722,7 +729,10 @@ class CameraDetectionNode:
             if prop_name not in self.props:
                 continue
             prop = self.props[prop_name]
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:  # Bottle detection
+            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [
+                0,
+                1,
+            ]:  # Bottle detection
                 skip_inside_image = True
                 # Calculate distance using pixel width from pipe_line_angle_node
                 if self.pipe_thickness_px is not None and self.pipe_thickness_px > 0:
@@ -730,20 +740,24 @@ class CameraDetectionNode:
                     distance = prop.estimate_distance(
                         None,
                         self.pipe_thickness_px,
-                        self.camera_calibrations[camera_ns]
+                        self.camera_calibrations[camera_ns],
                     )
-                    print(str(distance)+ "-----distance of bottle ")
-                    rospy.logdebug(f"Using pipe_thickness_px: {self.pipe_thickness_px}px for distance calculation")
+                    print(str(distance) + "-----distance of bottle ")
+                    rospy.logdebug(
+                        f"Using pipe_thickness_px: {self.pipe_thickness_px}px for distance calculation"
+                    )
                 else:
                     # Fallback to using bbox width if pipe_thickness_px is not available
                     distance = prop.estimate_distance(
                         detection.bbox.size_y,  # height
                         detection.bbox.size_x,  # width
-                        self.camera_calibrations[camera_ns]
+                        self.camera_calibrations[camera_ns],
                     )
-                    print(str(distance)+ "-----distance of bottle from wrong tree ")
+                    print(str(distance) + "-----distance of bottle from wrong tree ")
                 if distance is None:
-                    rospy.logwarn("Could not calculate bottle distance from pixel width, using altitude")
+                    rospy.logwarn(
+                        "Could not calculate bottle distance from pixel width, using altitude"
+                    )
                     distance = self.altitude
 
             if detection_id == 6:
@@ -754,7 +768,6 @@ class CameraDetectionNode:
             if not skip_inside_image:
                 if self.check_if_detection_is_inside_image(detection) is False:
                     continue
-
 
             if not skip_inside_image:  # Calculate distance using object dimensions
                 distance = prop.estimate_distance(
@@ -791,9 +804,13 @@ class CameraDetectionNode:
             transform_stamped_msg.transform.translation = Vector3(
                 offset_x, offset_y, distance
             )
-            
+
             # For bottom camera bottle/pipe detections, use pipe line angle in odom frame
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 2, 3] and self.pipe_line_angle is not None:
+            if (
+                camera_ns == "taluy/cameras/cam_bottom"
+                and detection_id in [0, 2, 3]
+                and self.pipe_line_angle is not None
+            ):
                 # Calculate angle in odom frame: pipe_angle_odom = current_yaw + pipe_angle_base_link
                 pipe_angle_odom = self.current_yaw + self.pipe_line_angle
                 quat = tf_transformations.quaternion_from_euler(0, 0, pipe_angle_odom)

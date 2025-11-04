@@ -32,9 +32,7 @@ from ultralytics_ros.msg import YoloResult
 
 class YoloSegToPipeMaskNode:
     def __init__(self):
-        self.input_result_topic = rospy.get_param(
-            "~input_result_topic", "yolo_result"
-        )
+        self.input_result_topic = rospy.get_param("~input_result_topic", "yolo_result")
         self.output_mask_topic = rospy.get_param("~output_mask_topic", "pipe_mask")
         self.target_class_ids = set(rospy.get_param("~target_class_ids", [0]))
         self.conf_min = float(rospy.get_param("~conf_min", 0.25))

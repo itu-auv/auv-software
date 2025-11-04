@@ -2,10 +2,14 @@
 <sdf version="1.6">
   <model name="robosub_bottle">
     <pose>0 0 0 0 0 0</pose>
+    <static>false</static>
+    <allow_auto_disable>false</allow_auto_disable>
+    <self_collide>false</self_collide>
+
   <link name="robosub_bottle_link">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <mass>1.5</mass>
+        <mass>0.01</mass>
         <inertia>
           <ixx>0.01</ixx>
           <iyy>0.01</iyy>
@@ -15,6 +19,12 @@
           <iyz>0</iyz>
         </inertia>
       </inertial>
+
+      <!-- Stability settings for better grasping -->
+      <velocity_decay>
+        <linear>0.05</linear>
+        <angular>0.05</angular>
+      </velocity_decay>
   <collision name="robosub_bottle_col">
         <pose>0 0 0 0 0 0</pose>
         <geometry>
@@ -23,16 +33,30 @@
           </mesh>
         </geometry>
         <surface>
+          <contact>
+            <ode>
+              <kp>3000000</kp>
+              <kd>300</kd>
+              <max_vel>0.3</max_vel>
+              <min_depth>0.03</min_depth>
+            </ode>
+          </contact>
           <friction>
             <ode>
-              <mu>0.5</mu>
-              <mu2>0.5</mu2>
+              <!-- Very high friction - perfect grip with gripper -->
+              <mu>50.0</mu>
+              <mu2>50.0</mu2>
+              <slip1>0.0</slip1>
+              <slip2>0.0</slip2>
             </ode>
           </friction>
           <bounce>
             <restitution_coefficient>0.2</restitution_coefficient>
           </bounce>
         </surface>
+        <!-- Track more contact points -->
+        <laser_retro>0.0</laser_retro>
+        <max_contacts>200</max_contacts>
       </collision>
   <visual name="robosub_bottle_vis">
         <pose>0 0 0 0 0 0</pose>

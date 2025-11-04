@@ -5,7 +5,7 @@
 Pipe Line Angle and Thickness Detector (ROS1)
 
 - Subscribes: sensor_msgs/Image (mono8 pipe mask)
-- Publishes: 
+- Publishes:
     - std_msgs/Float32 (deviation angle in radians)
     - std_msgs/Float32 (median thickness in pixels)
     - std_msgs/Float32MultiArray (detailed debug info)
@@ -27,7 +27,9 @@ from cv_bridge import CvBridge
 # Kalınlık hesaplaması için gerekli kütüphaneler
 from scipy.ndimage import distance_transform_edt
 from skimage.morphology import skeletonize
+
 # --- BİTTİ ---
+
 
 def rot90n(img, n_cw):
     """Rotate image by n*90 degrees clockwise."""
@@ -67,7 +69,9 @@ class PipeLineAngleNode(object):
         self.bridge = CvBridge()
         self.pub_angle = rospy.Publisher(self.angle_topic, Float32, queue_size=1)
         # --- YENİ PUBLISHER ---
-        self.pub_thickness = rospy.Publisher(self.thickness_topic, Float32, queue_size=1)
+        self.pub_thickness = rospy.Publisher(
+            self.thickness_topic, Float32, queue_size=1
+        )
         # --- BİTTİ ---
         self.pub_debug_info = rospy.Publisher(
             self.debug_topic, Float32MultiArray, queue_size=1
@@ -84,7 +88,7 @@ class PipeLineAngleNode(object):
             "[pipe_line_angle] started. Subscribing to %s. Publishing angle to %s and thickness to %s",
             self.mask_topic,
             self.angle_topic,
-            self.thickness_topic
+            self.thickness_topic,
         )
 
     def cb_mask(self, msg):
@@ -114,13 +118,16 @@ class PipeLineAngleNode(object):
                 self.min_pipe_area_px,
             )
             self.pub_angle.publish(Float32(float("nan")))
-            self.pub_thickness.publish(Float32(float("nan"))) # Yeni
+            self.pub_thickness.publish(Float32(float("nan")))  # Yeni
             if self.publish_debug:
                 self._publish_debug_info(
-                    angle=float("nan"), confidence=0.0, pipe_area=pipe_area, thickness=float('nan')
+                    angle=float("nan"),
+                    confidence=0.0,
+                    pipe_area=pipe_area,
+                    thickness=float("nan"),
                 )
             return
-        
+
         # Binarize mask for calculations
         binary_mask = mask > 127
 
@@ -131,7 +138,7 @@ class PipeLineAngleNode(object):
         try:
             # 1. Distance Transform uygula
             dist = distance_transform_edt(binary_mask)
-            
+
             # 2. İskeleti çıkar
             skel = skeletonize(binary_mask)
 
@@ -142,8 +149,10 @@ class PipeLineAngleNode(object):
                 if thickness_values.size > 0:
                     median_thickness_px = float(np.median(thickness_values))
         except Exception as e:
-            rospy.logwarn_throttle(5.0, "[pipe_line_angle] Thickness calculation failed: %s", e)
-            median_thickness_px = float('nan')
+            rospy.logwarn_throttle(
+                5.0, "[pipe_line_angle] Thickness calculation failed: %s", e
+            )
+            median_thickness_px = float("nan")
         # ===================================================================
 
         # ---------- Extract contours and fit line (Mevcut Açı Kodu) ----------
@@ -158,10 +167,13 @@ class PipeLineAngleNode(object):
         if len(contours) == 0:
             rospy.logdebug_throttle(2.0, "[pipe_line_angle] no contours found")
             self.pub_angle.publish(Float32(float("nan")))
-            self.pub_thickness.publish(Float32(float("nan"))) # Yeni
+            self.pub_thickness.publish(Float32(float("nan")))  # Yeni
             if self.publish_debug:
                 self._publish_debug_info(
-                    angle=float("nan"), confidence=0.0, pipe_area=pipe_area, thickness=median_thickness_px
+                    angle=float("nan"),
+                    confidence=0.0,
+                    pipe_area=pipe_area,
+                    thickness=median_thickness_px,
                 )
             return
 
@@ -173,16 +185,19 @@ class PipeLineAngleNode(object):
                 2.0, "[pipe_line_angle] contour too small: %d points", len(pts)
             )
             self.pub_angle.publish(Float32(float("nan")))
-            self.pub_thickness.publish(Float32(float("nan"))) # Yeni
+            self.pub_thickness.publish(Float32(float("nan")))  # Yeni
             if self.publish_debug:
                 self._publish_debug_info(
-                    angle=float("nan"), confidence=0.0, pipe_area=pipe_area, thickness=median_thickness_px
+                    angle=float("nan"),
+                    confidence=0.0,
+                    pipe_area=pipe_area,
+                    thickness=median_thickness_px,
                 )
             return
 
         [vx, vy, x0, y0] = cv2.fitLine(pts, cv2.DIST_L2, 0, 0.01, 0.01)
         vx, vy = float(vx), float(vy)
-        
+
         # ... (Koordinat dönüşümü ve açı hesaplama kodu aynı kalıyor)
         vehicle_vx = -vx
         vehicle_vy = -vy
@@ -192,33 +207,35 @@ class PipeLineAngleNode(object):
             angle -= math.pi
         elif angle < -math.pi / 2:
             angle += math.pi
-        
+
         line_magnitude = math.sqrt(vx * vx + vy * vy)
         confidence = min(1.0, line_magnitude)
 
         # ---------- Publish results ----------
         self.pub_angle.publish(Float32(angle))
-        self.pub_thickness.publish(Float32(median_thickness_px)) # YENİ
+        self.pub_thickness.publish(Float32(median_thickness_px))  # YENİ
 
         if self.publish_debug:
             self._publish_debug_info(
                 angle=angle,
                 confidence=confidence,
                 pipe_area=pipe_area,
-                thickness=median_thickness_px, # Yeni
+                thickness=median_thickness_px,  # Yeni
                 vx=vx,
                 vy=vy,
                 vehicle_vx=vehicle_vx,
                 vehicle_vy=vehicle_vy,
             )
-            self._publish_debug_image(mask, (vx, vy, x0, y0), angle, median_thickness_px) # Yeni
+            self._publish_debug_image(
+                mask, (vx, vy, x0, y0), angle, median_thickness_px
+            )  # Yeni
 
     def _publish_debug_info(
         self,
         angle,
         confidence,
         pipe_area,
-        thickness, # Yeni parametre
+        thickness,  # Yeni parametre
         vx=None,
         vy=None,
         vehicle_vx=None,
@@ -230,7 +247,7 @@ class PipeLineAngleNode(object):
             angle if not math.isnan(angle) else -999.0,
             confidence,
             float(pipe_area),
-            thickness if not math.isnan(thickness) else -1.0, # Yeni veri
+            thickness if not math.isnan(thickness) else -1.0,  # Yeni veri
             vx if vx is not None else -999.0,
             vy if vy is not None else -999.0,
             vehicle_vx if vehicle_vx is not None else -999.0,
@@ -238,7 +255,7 @@ class PipeLineAngleNode(object):
         ]
         self.pub_debug_info.publish(msg)
 
-    def _publish_debug_image(self, mask, fit, angle, thickness): # Yeni parametre
+    def _publish_debug_image(self, mask, fit, angle, thickness):  # Yeni parametre
         """Publish annotated debug image."""
         h, w = mask.shape[:2]
         vis = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
@@ -247,8 +264,8 @@ class PipeLineAngleNode(object):
             # ... (mevcut çizgi ve merkez çizimi aynı)
             vx, vy, x0, y0 = fit
             x0, y0, vx, vy = float(x0), float(y0), float(vx), float(vy)
-            p1 = (int(x0 - 2000*vx), int(y0 - 2000*vy))
-            p2 = (int(x0 + 2000*vx), int(y0 + 2000*vy))
+            p1 = (int(x0 - 2000 * vx), int(y0 - 2000 * vy))
+            p2 = (int(x0 + 2000 * vx), int(y0 + 2000 * vy))
             cv2.line(vis, p1, p2, (0, 0, 255), 2)
             cv2.circle(vis, (int(x0), int(y0)), 5, (0, 255, 0), -1)
 
@@ -260,14 +277,28 @@ class PipeLineAngleNode(object):
         # Draw text (Açı ve Kalınlık)
         angle_deg = math.degrees(angle) if not math.isnan(angle) else 0.0
         txt_angle = f"Angle: {angle_deg:+.1f} deg"
-        txt_thickness = f"Thickness: {thickness:.1f} px" # Yeni
-        
+        txt_thickness = f"Thickness: {thickness:.1f} px"  # Yeni
+
         cv2.putText(
-            vis, txt_angle, (8, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA
+            vis,
+            txt_angle,
+            (8, 22),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 255),
+            2,
+            cv2.LINE_AA,
         )
         cv2.putText(
-            vis, txt_thickness, (8, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA
-        ) # Yeni
+            vis,
+            txt_thickness,
+            (8, 44),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )  # Yeni
 
         try:
             msg = self.bridge.cv2_to_imgmsg(vis, encoding="bgr8")
@@ -278,7 +309,7 @@ class PipeLineAngleNode(object):
 
 
 def main():
-    rospy.init_node("pipe_line_angle_thickness") # Düğüm adı güncellendi
+    rospy.init_node("pipe_line_angle_thickness")  # Düğüm adı güncellendi
     PipeLineAngleNode()
     rospy.spin()
 
