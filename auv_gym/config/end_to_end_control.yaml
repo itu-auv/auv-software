@@ -1,0 +1,73 @@
+---
+# ============================================
+# AUV-Gym Configuration: End-to-End Control
+# ============================================
+# Task: RL agent directly outputs thruster commands
+# Observation: [error_pose(6), error_vel(6)]
+# Action: Wrench [Fx, Fy, Fz, Tx, Ty, Tz]
+
+task: "EndToEndControl"
+
+# ============================================
+# OBSERVATION AND ACTION SPACE
+# ============================================
+observation_keys:
+  - error_pose      # [x, y, z, roll, pitch, yaw] error
+  - error_vel       # [vx, vy, vz, wx, wy, wz] error
+
+action_type: "wrench"  # Direct thruster forces/torques
+action_scaling: [100.0, 100.0, 100.0, 20.0, 20.0, 20.0]
+
+# ============================================
+# REWARD FUNCTION
+# ============================================
+reward_weights:
+  w_pose: 1.0
+  w_vel: 0.5
+  w_effort: 0.05         # Penalize total effort
+  w_time: -0.01
+  w_goal_reached: 100.0
+
+goal_tolerance: 0.5  # meters
+
+# ============================================
+# EPISODE SETTINGS
+# ============================================
+max_episode_steps: 1500  # Longer episodes (learning from scratch is harder)
+simulation_dt: 0.1
+
+# ============================================
+# DOMAIN RANDOMIZATION
+# ============================================
+domain_randomization:
+  physics:
+    mass_range: [90.0, 110.0]           # Wider range for robustness
+    drag_coeff_range: [0.7, 1.3]
+    current_velocity_range: [0.0, 0.5]
+    buoyancy_offset_range: [-10.0, 10.0]  # N
+
+  sensor:
+    imu_noise_std: 0.02
+    dvl_noise_std: 0.03
+    pressure_noise_std: 0.1
+
+# ============================================
+# SCENARIO MANAGEMENT
+# ============================================
+scenario_mode: "curriculum"  # Start easy, gradually increase difficulty
+difficulty: "easy"           # Initial difficulty
+
+# Curriculum learning parameters
+curriculum:
+  initial_distance_range: [1.0, 3.0]   # meters
+  final_distance_range: [5.0, 15.0]
+  steps_to_final: 1000000              # timesteps
+
+# ============================================
+# ROS SETTINGS
+# ============================================
+ros_namespace: "taluy"
+ros_topics:
+  odom: "/taluy/odom"
+  cmd_wrench: "/taluy/cmd_wrench"
+  target: "/taluy/rl_target"
