@@ -14,8 +14,8 @@ subscribe_rgb: true
 subscribe_depth: true
 
 # External Odometry or VIO
-subscribe_odom_info: true     # Set false when using external odometry (EKF)
-subscribe_odom: false    # Set true when using external odometry (EKF)
+subscribe_odom_info: false    # Set false when using external odometry (EKF/simulation)
+subscribe_odom: true          # Set true when using external odometry (EKF/simulation)
 
 subscribe_scan: false          # Enable when integrating sonar as LaserScan
 subscribe_scan_cloud: false    # Enable for 3D LIDAR or multi-beam sonar
