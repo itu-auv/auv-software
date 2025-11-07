@@ -1,17 +1,17 @@
-<?xml version='1.0' encoding='UTF-8'?>
+<?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="bar30">
   <xacro:macro name="bar30" params="name parent position:='0 0 0' orientation:='0 0 0'">
     <link name="${name}_chasis_link">
       <visual>
         <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
         <geometry>
-          <box size="0.1 0.1 0.1"/>
+          <mesh filename="package://auv_common_descriptions/meshes/bar30/bar30.dae" scale="0.001 0.001 0.001"/>
         </geometry>
       </visual>
       <collision name="${name}_collision">
         <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
         <geometry>
-          <box size="0.1 0.1 0.1"/>
+          <mesh filename="package://auv_common_descriptions/meshes/bar30/bar30.dae" scale="0.001 0.001 0.001"/>
         </geometry>
       </collision>
       <inertial>

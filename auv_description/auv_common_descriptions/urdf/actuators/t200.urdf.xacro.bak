@@ -23,7 +23,7 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
         <geometry>
-          <box size="0.1 0.1 0.1"/>
+          <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae" scale="1.0 1.0 1.0"/>
         </geometry>
       </visual>
       <collision name="${name}_propeller_collision">

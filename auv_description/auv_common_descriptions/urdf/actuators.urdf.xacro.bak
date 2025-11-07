@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators/t200.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators/torpedo_upper.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators/torpedo_bottom.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators/ball_dropper.urdf.xacro"/>
+</robot>
