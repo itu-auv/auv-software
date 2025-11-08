@@ -7,11 +7,14 @@
   <author email="mimarlarf@gmail.com">Faruk Mimarlar</author>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
+  <depend>auv_common_lib</depend>
   <depend>auv_detection</depend>
   <depend>cv_bridge</depend>
   <depend>image_transport</depend>
+  <depend>python3-zmq</depend>
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
   <depend>tf</depend>
   <export/>
 </package>

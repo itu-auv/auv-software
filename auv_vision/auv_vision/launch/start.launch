@@ -25,5 +25,16 @@
       <param name="font_scale" value="0.7"/>
       <param name="font_thickness" value="2"/>
     </node>
+    <node
+      pkg="auv_vision"
+      type="mapanything_socket.py"
+      name="map_anything_node"
+      output="screen">
+      <remap from="camera/image_raw" to="cameras/cam_front/image_rect_color"/>
+      <remap from="map_anything/result" to="map_anything/result"/>
+      <param name="camera_namespace" value="cameras/cam_front"/>
+      <param name="capture_interval_sec" value="1.0"/>
+      <param name="batch_size" value="10"/>
+    </node>
   </group>
 </launch>
