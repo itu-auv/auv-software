@@ -4,18 +4,23 @@
 """
 Bottom-Cam Visual Servo Errors (ROS1)
 
+Görüntü Koordinatları:
+  - pipe_mask sol tarafı = araç +X ekseni
+  - pipe_mask yukarı tarafı = araç +Y ekseni
+  - Görüntü (u,v): u=yatay (soldan sağa), v=dikey (yukarıdan aşağı)
+
 Subscribes:
   - sensor_msgs/Image (mono8 mask) -> ~mask_topic
 
 Publishes:
   - std_msgs/Float32MultiArray -> bottle_vsc_errors
-      data[0] = e_vert_px         # v0 - cy   (↑ pozitif)
-      data[1] = e_horiz_px        # cx - u0   (→ pozitif)
+      data[0] = e_vert_px         # v0 - cy   (obje yukarıda → pozitif → araç -Y)
+      data[1] = e_horiz_px        # u0 - cx   (obje solda → pozitif → araç -X)
       data[2] = angle_to_vertical # rad, [-pi/2, +pi/2], iskelet doğrusu vs merkez dikey
-      data[3] = width_px          # px, yatay genişlik (merkez satırı, yoksa global)
+      data[3] = width_px          # px, dikey yükseklik (araç Y ekseni, şişe kalınlığı)
 
   - sensor_msgs/Image -> bottle_vsc_viz
-      Merkez dikey & yatay (beyaz), iskelet doğrusu (kırmızı), yatay genişlik doğrusu (turuncu)
+      Merkez dikey & yatay (beyaz), iskelet doğrusu (kırmızı), kalınlık doğrusu dikey (turuncu)
 
 Author: ChatGPT (simplified per user request)
 """
@@ -32,19 +37,6 @@ from skimage.morphology import skeletonize  # iskelet için
 
 
 # ----------------- yardımcılar -----------------
-def rot90n(img, n_cw: int):
-    """Rotate image by n*90 degrees clockwise."""
-    n_cw = int(n_cw) % 4
-    if n_cw == 0:
-        return img
-    elif n_cw == 1:
-        return np.ascontiguousarray(np.rot90(img, k=3))
-    elif n_cw == 2:
-        return np.ascontiguousarray(np.rot90(img, k=2))
-    else:  # 3
-        return np.ascontiguousarray(np.rot90(img, k=1))
-
-
 def fit_line_from_points(points_xy: np.ndarray):
     """
     OpenCV fitLine sarmalayıcı.
@@ -71,33 +63,34 @@ def angle_to_vertical_from_v(vx: float, vy: float) -> float:
     return ang
 
 
-def horizontal_width_on_row(binary_mask: np.ndarray, row_idx: int):
+def vertical_height_on_col(binary_mask: np.ndarray, col_idx: int):
     """
-    Verilen satırda maskenin yatay genişliğini (min_x, max_x, width) döndürür.
-    Eğer o satırda hiç piksel yoksa (None, None, 0) döner.
+    Verilen sütunda maskenin dikey yüksekliğini (min_y, max_y, height) döndürür.
+    Eğer o sütunda hiç piksel yoksa (None, None, 0) döner.
+    Şişenin kalınlığı araç Y ekseninde (görüntüde dikey).
     """
     h, w = binary_mask.shape
-    row_idx = int(np.clip(row_idx, 0, h - 1))
-    row = binary_mask[row_idx, :]
-    xs = np.flatnonzero(row)
-    if xs.size == 0:
+    col_idx = int(np.clip(col_idx, 0, w - 1))
+    col = binary_mask[:, col_idx]
+    ys = np.flatnonzero(col)
+    if ys.size == 0:
         return None, None, 0
-    x_min = int(xs.min())
-    x_max = int(xs.max())
-    return x_min, x_max, int(x_max - x_min + 1)
+    y_min = int(ys.min())
+    y_max = int(ys.max())
+    return y_min, y_max, int(y_max - y_min + 1)
 
 
-def global_horizontal_extent(binary_mask: np.ndarray):
+def global_vertical_extent(binary_mask: np.ndarray):
     """
-    Maskenin tümünde yatay min-max ve genişlik.
+    Maskenin tümünde dikey min-max ve yükseklik.
     Hiç piksel yoksa (None, None, 0).
     """
     ys, xs = np.where(binary_mask)
-    if xs.size == 0:
+    if ys.size == 0:
         return None, None, 0
-    x_min = int(xs.min())
-    x_max = int(xs.max())
-    return x_min, x_max, int(x_max - x_min + 1)
+    y_min = int(ys.min())
+    y_max = int(ys.max())
+    return y_min, y_max, int(y_max - y_min + 1)
 
 
 # ----------------- ana düğüm -----------------
@@ -106,10 +99,8 @@ class VSCErrorNode(object):
         # -- Parametreler --
         self.mask_topic = rospy.get_param("~mask_topic", "pipe_mask")
 
-        # Görüntü oryantasyonu
-        self.rotate_cw = int(
-            rospy.get_param("~rotate_cw", 0)
-        )  # 0/1/2/3 -> 0/90/180/270 CW
+        # Görüntü oryantasyonu (kaldırıldı - görüntü doğru oryantasyonda geliyor)
+        # self.rotate_cw = int(rospy.get_param("~rotate_cw", 0))
         self.flip_x = bool(rospy.get_param("~flip_x", False))  # yatay ayna
         self.flip_y = bool(rospy.get_param("~flip_y", False))  # dikey ayna
 
@@ -146,15 +137,14 @@ class VSCErrorNode(object):
             return
 
         # --- oryantasyon düzeltmeleri ---
-        if self.rotate_cw:
-            mask = rot90n(mask, self.rotate_cw)
+        # rotate_cw kaldırıldı - görüntü zaten doğru oryantasyonda
         if self.flip_x:
             mask = np.ascontiguousarray(np.fliplr(mask))
         if self.flip_y:
             mask = np.ascontiguousarray(np.flipud(mask))
 
         h, w = mask.shape[:2]
-        u0, v0 = w * 0.5, h * 0.5
+        u0, v0 = w * 6.5 / 8.0, h * 0.5  # u0: gripper tarafı (6.5/8), v0: merkez
 
         # --- alan kontrolü ---
         area = int(np.count_nonzero(mask))
@@ -205,18 +195,26 @@ class VSCErrorNode(object):
             cx = float(M["m10"] / M["m00"])
             cy = float(M["m01"] / M["m00"])
 
-        # --- genişlik ölçümü ---
-        width_line_y = int(round(cy)) if not math.isnan(cy) else int(round(v0))
-        xL, xR, width_on_row = horizontal_width_on_row(binary, width_line_y)
-        if width_on_row == 0:
-            # satırda yoksa: global min-max
-            xL, xR, width_on_row = global_horizontal_extent(binary)
+        # --- kalınlık ölçümü (dikey, araç Y ekseni) ---
+        # Şişenin kalınlığı araç Y ekseninde = görüntüde dikey yönde
+        width_line_x = int(round(cx)) if not math.isnan(cx) else int(round(u0))
+        yT, yB, height_on_col = vertical_height_on_col(binary, width_line_x)
+        if height_on_col == 0:
+            # sütunda yoksa: global min-max
+            yT, yB, height_on_col = global_vertical_extent(binary)
 
-        width_px = float(width_on_row) if width_on_row is not None else float("nan")
+        width_px = float(height_on_col) if height_on_col is not None else float("nan")
 
         # --- hatalar ---
-        e_vert_px = float("nan") if math.isnan(cy) else (v0 - cy)  # ↑ pozitif
-        e_horiz_px = float("nan") if math.isnan(cx) else (cx - u0)  # → pozitif
+        # Obje referans noktasına (u0, v0) gelmeli
+        # Obje sol-üstte → her iki error pozitif → araç sağa-aşağı (-X, -Y)
+        # Obje sağ-altta → her iki error negatif → araç sola-yukarı (+X, +Y)
+        e_vert_px = (
+            float("nan") if math.isnan(cy) else (v0 - cy)
+        )  # obje yukarıda → pozitif
+        e_horiz_px = (
+            float("nan") if math.isnan(cx) else (u0 - cx)
+        )  # obje solda → pozitif
 
         # --- publish errors ---
         out = Float32MultiArray()
@@ -230,7 +228,7 @@ class VSCErrorNode(object):
 
         # --- publish viz ---
         width_segment = (
-            (xL, xR, width_line_y) if (xL is not None and xR is not None) else None
+            (yT, yB, width_line_x) if (yT is not None and yB is not None) else None
         )
         self._publish_viz(mask, line_fit, width_segment, (u0, v0), center=(cx, cy))
 
@@ -244,7 +242,7 @@ class VSCErrorNode(object):
     def _publish_viz(self, mask, line_fit, width_segment, center_lines, center=None):
         """
         center_lines: (u0, v0)
-        width_segment: (xL, xR, yRow) or None
+        width_segment: (yTop, yBottom, xCol) or None - dikey segment (kalınlık Y ekseninde)
         """
         vis = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
         h, w = mask.shape[:2]
@@ -262,12 +260,12 @@ class VSCErrorNode(object):
             p2 = (int(x0 + 2000 * vx), int(y0 + 2000 * vy))
             cv2.line(vis, p1, p2, (0, 0, 255), 2)
 
-        # genişlik doğrusu (turuncu), maskenin içinde
+        # kalınlık doğrusu (turuncu), dikey - araç Y ekseni
         if width_segment is not None:
-            xL, xR, yRow = width_segment
-            cv2.line(vis, (int(xL), int(yRow)), (int(xR), int(yRow)), (0, 165, 255), 2)
-            cv2.circle(vis, (int(xL), int(yRow)), 3, (0, 165, 255), -1)
-            cv2.circle(vis, (int(xR), int(yRow)), 3, (0, 165, 255), -1)
+            yT, yB, xCol = width_segment
+            cv2.line(vis, (int(xCol), int(yT)), (int(xCol), int(yB)), (0, 165, 255), 2)
+            cv2.circle(vis, (int(xCol), int(yT)), 3, (0, 165, 255), -1)
+            cv2.circle(vis, (int(xCol), int(yB)), 3, (0, 165, 255), -1)
 
         # objenin merkezi (sarı)
         if center is not None and not any(math.isnan(c) for c in center):
