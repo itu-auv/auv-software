@@ -1,6 +1,37 @@
 <launch>
   <arg name="namespace" default="taluy" />
 
+  <!-- YOLO to Mask Node -->
+  <node
+    pkg="auv_detection"
+    type="yolo_to_mask_node.py"
+    name="yolo_to_mask_node"
+    output="screen">
+  </node>
+
+  <!-- Bottle Error Detector Node -->
+  <node
+    pkg="auv_detection"
+    type="bottle_error_detector.py"
+    name="bottle_error_detector"
+    output="screen">
+
+    <!-- Input topic: mask image (mono8) -->
+    <param name="mask_topic" value="/pipe_mask"/>
+
+    <!-- Output topics -->
+    <param name="errors_topic" value="/bottle_vsc_errors"/>
+    <param name="viz_topic" value="/bottle_vsc_viz"/>
+
+    <!-- Image orientation parameters -->
+    <param name="rotate_cw" value="0"/>  <!-- 0/1/2/3 for 0/90/180/270 degrees CW rotation -->
+    <param name="flip_x" value="false"/> <!-- horizontal flip -->
+    <param name="flip_y" value="false"/> <!-- vertical flip -->
+
+    <!-- Minimum area threshold (pixels) -->
+    <param name="min_area_px" value="500"/>
+  </node>
+
   <group ns="$(arg namespace)">
     <node
       pkg="auv_vision"
