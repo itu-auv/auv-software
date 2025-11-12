@@ -85,6 +85,49 @@
       </node>
     </group>
 
+    <!-- Bottom Camera Visual Servoing Controller -->
+    <node pkg="auv_control" type="visual_servoing_controller_bottom.py" name="bottom_visual_servoing_controller"
+      output="screen">
+      <!-- Subscribers -->
+      <remap from="bottle_vsc_errors" to="bottle_vsc_errors" />
+      <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="propulsion_board/status" to="propulsion_board/status" />
+
+      <!-- Publishers -->
+      <remap from="wrench" to="wrench" />
+      <remap from="enable" to="enable" />
+
+      <!-- PD Gains for X axis -->
+      <param name="kp_x" value="0.5" />
+      <param name="kd_x" value="0.2" />
+
+      <!-- PD Gains for Y axis -->
+      <param name="kp_y" value="0.5" />
+      <param name="kd_y" value="0.2" />
+
+      <!-- PD Gains for Z axis (depth) -->
+      <param name="kp_z" value="0.3" />
+      <param name="kd_z" value="0.15" />
+
+      <!-- PD Gains for Yaw -->
+      <param name="kp_yaw" value="0.8" />
+      <param name="kd_yaw" value="0.4" />
+
+      <!-- Max wrench limits -->
+      <param name="max_force_x" value="50.0" />
+      <param name="max_force_y" value="50.0" />
+      <param name="max_force_z" value="50.0" />
+      <param name="max_torque_z" value="20.0" />
+
+      <!-- Pixel to meter conversion -->
+      <param name="pixel_to_meter" value="0.001" />
+      <param name="desired_width_px" value="150.0" />
+
+      <!-- Control rate -->
+      <param name="rate_hz" value="20.0" />
+      <param name="imu_history_secs" value="2.0" />
+    </node>
+
   </group>
 
 </launch>

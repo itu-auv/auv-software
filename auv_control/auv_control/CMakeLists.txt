@@ -25,6 +25,7 @@ generate_dynamic_reconfigure_options(
   cfg/Controller.cfg
   cfg/VisualServoing.cfg
   cfg/AlignFrame.cfg
+  cfg/BottomVisualServoing.cfg
 )
 
 find_package(Eigen3 REQUIRED)
@@ -50,6 +51,7 @@ catkin_install_python(PROGRAMS
   scripts/battery_monitor_node.py
   scripts/align_frame_controller.py
   scripts/visual_servoing_controller.py
+  scripts/visual_servoing_controller_bottom.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
