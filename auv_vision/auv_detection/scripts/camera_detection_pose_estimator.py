@@ -59,12 +59,13 @@ class Prop:
         self.name = name
         self.real_height = real_height
         self.real_width = real_width
-
+        
     def estimate_distance(
         self,
         measured_height: float,
         measured_width: float,
         calibration: CameraCalibration,
+        use_hypotenuse: bool = False,
     ):
         distance_from_height = None
         distance_from_width = None
@@ -78,6 +79,9 @@ class Prop:
             distance_from_width = calibration.distance_from_width(
                 self.real_width, measured_width
             )
+            
+        if use_hypotenuse == True and distance_from_height is not None and distance_from_width is not None:
+            return math.sqrt(distance_from_height**2 + distance_from_width**2)
 
         if distance_from_height is not None and distance_from_width is not None:
             return (distance_from_height + distance_from_width) * 0.5
@@ -85,36 +89,6 @@ class Prop:
             return distance_from_height
         elif distance_from_width is not None:
             return distance_from_width
-        else:
-            rospy.logerr(f"Could not estimate distance for prop {self.name}")
-            return None
-
-
-class SlalomPipe(Prop):
-    def __init__(
-        self,
-        id: int,
-        name: str,
-        real_length: float,
-    ):
-        super().__init__(id, name, real_length, None)
-
-    def estimate_distance(
-        self,
-        measured_height: float,
-        measured_width: float,
-        calibration: CameraCalibration,
-    ):
-        if measured_height <= 0:
-            rospy.logwarn(
-                f"{self.name}: measured_height is zero, skipping distance estimation"
-            )
-            return None
-
-        length = math.sqrt(measured_height**2 + measured_width**2)
-
-        if self.real_height is not None:
-            return calibration.distance_from_height(self.real_height, length)
         else:
             rospy.logerr(f"Could not estimate distance for prop {self.name}")
             return None
@@ -130,14 +104,14 @@ class Shark(Prop):
         super().__init__(1, "shark", 0.3048, 0.3048)
 
 
-class RedPipe(SlalomPipe):
+class RedPipe(Prop):
     def __init__(self):
-        super().__init__(2, "red_pipe", 0.9004)
+        super().__init__(2, "red_pipe", 0.9, 0.00254)
 
 
-class WhitePipe(SlalomPipe):
+class WhitePipe(Prop):
     def __init__(self):
-        super().__init__(3, "white_pipe", 0.9004)
+        super().__init__(3, "white_pipe", 0.9, 0.00254)
 
 
 class TorpedoMap(Prop):
@@ -711,10 +685,12 @@ class CameraDetectionNode:
             prop = self.props[prop_name]
 
             if not skip_inside_image:  # Calculate distance using object dimensions
+                use_hypotenuse_for_pipes = detection_id in [2, 3]
                 distance = prop.estimate_distance(
                     detection.bbox.size_y,
                     detection.bbox.size_x,
                     self.camera_calibrations[camera_ns],
+                    use_hypotenuse=use_hypotenuse_for_pipes,
                 )
 
             if distance is None:
