@@ -59,7 +59,7 @@ class Prop:
         self.name = name
         self.real_height = real_height
         self.real_width = real_width
-        
+
     def estimate_distance(
         self,
         measured_height: float,
@@ -79,8 +79,12 @@ class Prop:
             distance_from_width = calibration.distance_from_width(
                 self.real_width, measured_width
             )
-            
-        if use_hypotenuse == True and distance_from_height is not None and distance_from_width is not None:
+
+        if (
+            use_hypotenuse == True
+            and distance_from_height is not None
+            and distance_from_width is not None
+        ):
             return math.sqrt(distance_from_height**2 + distance_from_width**2)
 
         if distance_from_height is not None and distance_from_width is not None:
