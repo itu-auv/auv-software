@@ -65,6 +65,7 @@ class Prop:
         measured_height: float,
         measured_width: float,
         calibration: CameraCalibration,
+        use_hypotenuse: bool = False,
     ):
         distance_from_height = None
         distance_from_width = None
@@ -78,6 +79,13 @@ class Prop:
             distance_from_width = calibration.distance_from_width(
                 self.real_width, measured_width
             )
+
+        if (
+            use_hypotenuse == True
+            and distance_from_height is not None
+            and distance_from_width is not None
+        ):
+            return math.sqrt(distance_from_height**2 + distance_from_width**2)
 
         if distance_from_height is not None and distance_from_width is not None:
             return (distance_from_height + distance_from_width) * 0.5
@@ -102,12 +110,12 @@ class Shark(Prop):
 
 class RedPipe(Prop):
     def __init__(self):
-        super().__init__(2, "red_pipe", 0.90, None)
+        super().__init__(2, "red_pipe", 0.9, 0.00254)
 
 
 class WhitePipe(Prop):
     def __init__(self):
-        super().__init__(3, "white_pipe", 0.90, None)
+        super().__init__(3, "white_pipe", 0.9, 0.00254)
 
 
 class TorpedoMap(Prop):
@@ -681,10 +689,12 @@ class CameraDetectionNode:
             prop = self.props[prop_name]
 
             if not skip_inside_image:  # Calculate distance using object dimensions
+                use_hypotenuse_for_pipes = detection_id in [2, 3]
                 distance = prop.estimate_distance(
                     detection.bbox.size_y,
                     detection.bbox.size_x,
                     self.camera_calibrations[camera_ns],
+                    use_hypotenuse=use_hypotenuse_for_pipes,
                 )
 
             if distance is None:
