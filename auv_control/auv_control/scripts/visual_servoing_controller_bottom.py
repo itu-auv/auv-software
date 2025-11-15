@@ -3,16 +3,23 @@
 
 """
 Bottom Camera Visual Servoing Controller (ROS1)
+STEP 1: YAW-only control
 
-Bu kontrolcü, bottle_error_detector tarafından yayınlanan hataları kullanarak
-araç üzerinde wrench (kuvvet/tork) üretir.
+Subscribes:
+  - bottle_vsc_errors (Float32MultiArray):
+      data[0] = e_vert_px (Y error in pixels) [NOT USED YET]
+      data[1] = e_horiz_px (X error in pixels) [NOT USED YET]
+      data[2] = angle_to_vertical (radians, [-pi/2, +pi/2]) [USED]
+  - propulsion_board/status (Bool): killswitch status
 
-Mode 1: Basit PD kontrolcü
-  - data[0] (e_vert_px)  → Y wrench
-  - data[1] (e_horiz_px) → X wrench
-  - data[2] (angle_error) → Angular Z wrench
+Publishes:
+  - wrench (WrenchStamped): Only torque.z for yaw alignment
 
-PD kontrolcü kullanır ve dynamic reconfigure ile ayarlanabilir.
+Services:
+  - bottom_vsc/start: Start the controller
+  - bottom_vsc/cancel: Stop the controller
+
+Uses P or PD control (configurable via dynamic reconfigure).
 """
 
 import rospy
@@ -25,19 +32,19 @@ from dynamic_reconfigure.server import Server
 from auv_control.cfg import BottomVisualServoingConfig
 
 
+# Timeout for error messages (seconds)
+ERROR_TIMEOUT = 0.5
+
+
 class BottomVisualServoingController:
     """
-    Bottom camera visual servoing controller using PD control.
-
-    Mode 1: Basit hizalama
-      - data[0] → Y wrench
-      - data[1] → X wrench
-      - data[2] → Angular Z wrench
+    STEP 1: Yaw-only visual servoing controller.
+    Reads data[2] (angle_error) and produces torque.z
     """
 
     def __init__(self):
         rospy.init_node("bottom_visual_servoing_controller", anonymous=True)
-        rospy.loginfo("Bottom Visual Servoing Controller node started")
+        rospy.loginfo("=== Bottom VSC - STEP 1: YAW ONLY ===")
 
         self._load_parameters()
         self._setup_state()
@@ -45,252 +52,190 @@ class BottomVisualServoingController:
         self._setup_dynamic_reconfigure()
 
     def _load_parameters(self):
-        """Load parameters from the ROS parameter server."""
-        # PD gains (will be overridden by dynamic reconfigure)
-        self.kp_x = rospy.get_param("~kp_x", 0.2)
-        self.kd_x = rospy.get_param("~kd_x", 0.2)
-        self.kp_y = rospy.get_param("~kp_y", 0.2)
-        self.kd_y = rospy.get_param("~kd_y", 0.2)
-        self.kp_angle = rospy.get_param("~kp_yaw", 0.8)
-        self.kd_angle = rospy.get_param("~kd_yaw", 0.4)
-
-        # Max wrench limits
-        self.max_force_x = rospy.get_param("~max_force_x", 50.0)
-        self.max_force_y = rospy.get_param("~max_force_y", 50.0)
-        self.max_torque_z = rospy.get_param("~max_torque_z", 20.0)
-
-        # Control rate
+        """Load parameters from ROS parameter server."""
+        self.kp_yaw = rospy.get_param("~kp_yaw", 0.01)
+        self.kd_yaw = rospy.get_param("~kd_yaw", 0.005)
+        self.max_torque_z = rospy.get_param("~max_torque_z", 5.0)
+        self.use_derivative = rospy.get_param("~use_derivative", False)
         self.rate_hz = rospy.get_param("~rate_hz", 20.0)
 
     def _setup_state(self):
-        """Initialize the controller's state."""
+        """Initialize controller state."""
         self.active = False
-
-        # Error values from bottle_error_detector
-        self.e_vert_px = float("nan")  # Y error in pixels
-        self.e_horiz_px = float("nan")  # X error in pixels
-        self.angle_error = float("nan")  # Angular error in radians
-
-        # Previous errors for derivative calculation
-        self.prev_e_x = None
-        self.prev_e_y = None
-        self.prev_e_angle = None
+        self.angle_error = float("nan")
+        self.prev_angle_error = None
         self.last_error_time = None
-
-        # Killswitch state
+        self.last_error_received_time = None  # Track when we last got error data
         self.killswitch_active = True
 
     def _setup_ros_communication(self):
         """Setup ROS publishers, subscribers, and services."""
-        # Publishers
+        # Publisher (removed 'enable' publisher - not needed)
         self.wrench_pub = rospy.Publisher("wrench", WrenchStamped, queue_size=10)
-        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
         # Subscribers
         rospy.Subscriber(
-            "bottle_vsc_errors", Float32MultiArray, self.error_callback, queue_size=1
+            "bottle_vsc_errors", Float32MultiArray, self._error_callback, queue_size=1
         )
         rospy.Subscriber(
-            "propulsion_board/status", Bool, self.killswitch_callback, queue_size=1
+            "propulsion_board/status", Bool, self._killswitch_callback, queue_size=1
         )
 
         # Services
-        rospy.Service("bottom_vsc/start", Trigger, self.handle_start)
-        rospy.Service("bottom_vsc/cancel", Trigger, self.handle_cancel)
+        rospy.Service("bottom_vsc/start", Trigger, self._handle_start)
+        rospy.Service("bottom_vsc/cancel", Trigger, self._handle_cancel)
 
     def _setup_dynamic_reconfigure(self):
         """Setup dynamic reconfigure server."""
-        self.srv = Server(BottomVisualServoingConfig, self.reconfigure_callback)
+        self.dyn_srv = Server(BottomVisualServoingConfig, self._reconfigure_callback)
 
-    def reconfigure_callback(self, config, level):
-        """Handles dynamic reconfigure updates for controller gains."""
-        self.kp_x = config.kp_x
-        self.kd_x = config.kd_x
-        self.kp_y = config.kp_y
-        self.kd_y = config.kd_y
-        self.kp_angle = config.kp_yaw
-        self.kd_angle = config.kd_yaw
-
-        self.max_force_x = config.max_force_x
-        self.max_force_y = config.max_force_y
+    def _reconfigure_callback(self, config, level):
+        """Handle dynamic reconfigure updates."""
+        self.kp_yaw = config.kp_yaw
+        self.kd_yaw = config.kd_yaw
         self.max_torque_z = config.max_torque_z
+        self.use_derivative = config.use_derivative
 
         rospy.loginfo(
-            f"Updated gains: Kp_x={self.kp_x}, Kd_x={self.kd_x}, "
-            f"Kp_y={self.kp_y}, Kd_y={self.kd_y}, "
-            f"Kp_angle={self.kp_angle}, Kd_angle={self.kd_angle}"
+            f"Config updated: Kp={self.kp_yaw:.4f}, Kd={self.kd_yaw:.4f}, "
+            f"Max_T={self.max_torque_z:.2f}, Use_D={self.use_derivative}"
         )
         return config
 
-    def error_callback(self, msg: Float32MultiArray):
+    def _error_callback(self, msg: Float32MultiArray):
         """
-        Handles incoming error messages from bottle_error_detector.
-        data[0] = e_vert_px (Y error)
-        data[1] = e_horiz_px (X error)
-        data[2] = angle_to_vertical (angular error)
+        Receive error from bottle_error_detector.
+        data[2] = angle_to_vertical (radians, [-pi/2, +pi/2])
         """
         if len(msg.data) >= 3:
-            self.e_vert_px = msg.data[0]
-            self.e_horiz_px = msg.data[1]
             self.angle_error = msg.data[2]
+            self.last_error_received_time = rospy.Time.now()
 
-    def killswitch_callback(self, msg: Bool):
-        """Handles killswitch status."""
+    def _killswitch_callback(self, msg: Bool):
+        """Handle killswitch status."""
         self.killswitch_active = not msg.data
-        if self.killswitch_active:
+        if self.killswitch_active and self.active:
             self.active = False
             rospy.logwarn("Killswitch activated! Controller stopped.")
 
-    def handle_start(self, req):
-        """
-        Start Mode 1: Simple XY + Angular alignment
-        """
+    def _handle_start(self, req):
+        """Start the yaw controller."""
         if self.killswitch_active:
             return TriggerResponse(
                 success=False, message="Cannot start: killswitch is active"
             )
 
         self.active = True
-        self.prev_e_x = None
-        self.prev_e_y = None
-        self.prev_e_angle = None
+        self.prev_angle_error = None
         self.last_error_time = None
 
-        self.enable_pub.publish(Bool(True))
-        rospy.loginfo("Started Mode 1: XY + Angular alignment")
-        return TriggerResponse(success=True, message="Mode 1 started")
+        rospy.loginfo("STEP 1: Yaw controller started")
+        return TriggerResponse(success=True, message="Yaw control started")
 
-    def handle_cancel(self, req):
-        """Cancel the visual servoing control."""
+    def _handle_cancel(self, req):
+        """Cancel the controller."""
         was_active = self.active
         self.active = False
 
         # Publish zero wrench
+        self._publish_zero_wrench()
+
+        if was_active:
+            rospy.loginfo("Controller cancelled")
+            return TriggerResponse(success=True, message="Controller cancelled")
+        else:
+            return TriggerResponse(success=True, message="Controller was not active")
+
+    def _publish_zero_wrench(self):
+        """Publish a zero wrench message."""
         wrench_msg = WrenchStamped()
         wrench_msg.header.stamp = rospy.Time.now()
         wrench_msg.header.frame_id = "taluy/base_link"
         self.wrench_pub.publish(wrench_msg)
 
-        self.enable_pub.publish(Bool(False))
-
-        if was_active:
-            rospy.loginfo("Bottom visual servoing cancelled")
-            return TriggerResponse(success=True, message="Control cancelled")
-        else:
-            return TriggerResponse(success=True, message="Controller was not active")
-
     def control_step(self):
-        """Executes one iteration of the control loop."""
+        """Execute one control loop iteration."""
         if not self.active:
             return
 
-        wrench_msg = WrenchStamped()
-        wrench_msg.header.stamp = rospy.Time.now()
-        wrench_msg.header.frame_id = "taluy/base_link"
+        # Check if we're receiving error messages
+        if self.last_error_received_time is None:
+            rospy.logwarn_throttle(5.0, "Waiting for bottle_vsc_errors messages...")
+            return
 
+        # Check if error data is fresh (timeout check)
+        time_since_last_error = (
+            rospy.Time.now() - self.last_error_received_time
+        ).to_sec()
+        if time_since_last_error > ERROR_TIMEOUT:
+            rospy.logwarn_throttle(
+                2.0,
+                f"No fresh error data ({time_since_last_error:.2f}s old). Not publishing wrench.",
+            )
+            return
+
+        # Check if we have valid error
+        if math.isnan(self.angle_error):
+            rospy.logwarn_throttle(5.0, "Angle error is NaN. Not publishing wrench.")
+            return
+
+        # Calculate dt
         current_time = rospy.Time.now()
         dt = 0.0
         if self.last_error_time is not None:
             dt = (current_time - self.last_error_time).to_sec()
 
-        # Calculate forces and torques
-        force_x = self._calculate_force_x(dt)
-        force_y = self._calculate_force_y(dt)
+        # Calculate torque
         torque_z = self._calculate_torque_z(dt)
 
-        # Apply limits
-        force_x = self._clamp(force_x, -self.max_force_x, self.max_force_x)
-        force_y = self._clamp(force_y, -self.max_force_y, self.max_force_y)
-        torque_z = self._clamp(torque_z, -self.max_torque_z, self.max_torque_z)
-
-        # Populate wrench message
-        wrench_msg.wrench.force.x = force_x
-        wrench_msg.wrench.force.y = force_y
+        # Publish wrench
+        wrench_msg = WrenchStamped()
+        wrench_msg.header.stamp = current_time
+        wrench_msg.header.frame_id = "taluy/base_link"
         wrench_msg.wrench.torque.z = torque_z
-
         self.wrench_pub.publish(wrench_msg)
+
+        # Debug log (every ~2 seconds)
+        if rospy.get_time() % 2.0 < 0.1:
+            rospy.loginfo(
+                f"YAW: error={math.degrees(self.angle_error):+7.2f}° | "
+                f"torque={torque_z:+7.3f} Nm | limit=±{self.max_torque_z:.1f} | "
+                f"data_age={time_since_last_error:.3f}s"
+            )
+
         self.last_error_time = current_time
-
-    def _calculate_force_x(self, dt: float) -> float:
-        """
-        Calculate force in X direction (body frame).
-        Uses data[1] (e_horiz_px)
-        Error convention: obje solda → e_horiz_px pozitif → araç -X (sağa) gitmeli
-        """
-        if math.isnan(self.e_horiz_px):
-            return 0.0
-
-        # Direkt piksel değeriyle çalış
-        error = self.e_horiz_px
-
-        # PD control: force = -Kp * error - Kd * derror/dt
-        # Negative because positive error means we want negative force (right)
-        p_term = -self.kp_x * error
-
-        d_term = 0.0
-        if self.prev_e_x is not None and dt > 0:
-            error_derivative = (error - self.prev_e_x) / dt
-            d_term = -self.kd_x * error_derivative
-
-        self.prev_e_x = error
-        return p_term + d_term
-
-    def _calculate_force_y(self, dt: float) -> float:
-        """
-        Calculate force in Y direction (body frame).
-        Uses data[0] (e_vert_px)
-        Error convention: obje yukarıda → e_vert_px pozitif → araç -Y (aşağı) gitmeli
-        """
-        if math.isnan(self.e_vert_px):
-            return 0.0
-
-        # Direkt piksel değeriyle çalış
-        error = self.e_vert_px
-
-        # PD control: force = -Kp * error - Kd * derror/dt
-        # Negative because positive error means we want negative force (down)
-        p_term = -self.kp_y * error
-
-        d_term = 0.0
-        if self.prev_e_y is not None and dt > 0:
-            error_derivative = (error - self.prev_e_y) / dt
-            d_term = -self.kd_y * error_derivative
-
-        self.prev_e_y = error
-        return p_term + d_term
 
     def _calculate_torque_z(self, dt: float) -> float:
         """
-        Calculate torque for angular alignment with bottle orientation.
-        Uses data[2] (angle_error) from bottle_error_detector.
+        Calculate yaw torque using P or PD control.
+        Positive angle error → need positive torque (same sign)
         """
         if math.isnan(self.angle_error):
             return 0.0
 
-        # Angle error is already in radians
-        # Positive angle → bottle tilted clockwise → need counter-clockwise torque
-        error = self.angle_error
+        # Proportional term
+        p_term = self.kp_yaw * self.angle_error
 
-        # PD control
-        p_term = -self.kp_angle * error
-
+        # Derivative term (optional)
         d_term = 0.0
-        if self.prev_e_angle is not None and dt > 0:
-            error_derivative = (error - self.prev_e_angle) / dt
-            d_term = -self.kd_angle * error_derivative
+        if self.use_derivative and self.prev_angle_error is not None and dt > 1e-6:
+            error_derivative = (self.angle_error - self.prev_angle_error) / dt
+            # Clamp derivative to prevent spikes
+            error_derivative = max(-100.0, min(100.0, error_derivative))
+            d_term = self.kd_yaw * error_derivative
 
-        self.prev_e_angle = error
-        return p_term + d_term
+        self.prev_angle_error = self.angle_error
 
-    @staticmethod
-    def _clamp(value: float, min_val: float, max_val: float) -> float:
-        """Clamp value between min and max."""
-        return max(min_val, min(max_val, value))
+        # Total torque
+        torque = p_term + d_term
+
+        # Clamp to max limit
+        return max(-self.max_torque_z, min(self.max_torque_z, torque))
 
     def run(self):
         """Main control loop."""
         rate = rospy.Rate(self.rate_hz)
-        rospy.loginfo(f"Bottom VSC running at {self.rate_hz} Hz")
+        rospy.loginfo(f"Controller running at {self.rate_hz} Hz")
 
         while not rospy.is_shutdown():
             try:
