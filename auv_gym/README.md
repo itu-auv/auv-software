@@ -8,10 +8,10 @@ AUV-Gym is a Gymnasium-compatible environment for training RL agents on AUV cont
 
 ## Features
 
-- **2 Task Types** (currently implemented):
+- **3 Task Types**:
   - Residual Control: RL adds corrections to PID baseline
   - End-to-End Control: RL directly outputs thruster commands
-  - ~~Navigation: High-level obstacle avoidance~~ _(Coming soon)_
+  - Navigation: RL commands body-frame velocities to align with the gate frames
 
 - **Flexible Configuration**: YAML-based config system
 - **Domain Randomization**: Physics and controller randomization for sim-to-real transfer
@@ -55,8 +55,8 @@ rosrun auv_gym train_residual_control.py
 # End-to-end control
 rosrun auv_gym train_end_to_end.py
 
-# Navigation (coming soon)
-# rosrun auv_gym train_navigation.py
+# Navigation task
+rosrun auv_gym train_navigation.py
 ```
 
 ### 3. Test Trained Policy
@@ -75,7 +75,7 @@ Edit YAML files in `config/`:
 
 - `residual_control.yaml` - PID + RL hybrid
 - `end_to_end_control.yaml` - Pure RL control
-- `navigation.yaml` - High-level navigation
+- `navigation.yaml` - TF-based gate alignment navigation
 
 Example configuration structure:
 
@@ -92,6 +92,10 @@ reward_weights:
 max_episode_steps: 1000
 simulation_dt: 0.1
 ```
+
+## Navigation Task
+
+The navigation mode observes the TF transform from `taluy/base_link` to `gate_sawfish_link` (or any frames you configure) and outputs body-frame velocity commands `[vx, vy, vz, yaw_rate]` via `/taluy/cmd_vel`. Customize the frames, tolerances, and reward weights in `config/navigation.yaml`, then start training with `rosrun auv_gym train_navigation.py`.
 
 ## Package Structure
 

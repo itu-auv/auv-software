@@ -1,0 +1,63 @@
+---
+# ============================================
+# AUV-Gym Configuration: Navigation
+# ============================================
+# Task: RL agent commands body-frame velocities to reach a gate.
+# Observation: taluy/base_link -> gate_sawfish_link transform [dx, dy, dz, roll, pitch, yaw]
+# Action: cmd_vel [vx, vy, vz, yaw_rate]
+
+task: "Navigation"
+
+# ============================================
+# OBSERVATION AND ACTION SPACE
+# ============================================
+observation_keys:
+  - base_to_gate_transform
+  - body_velocity
+
+navigation:
+  source_frame: "taluy/base_link"
+  target_frame: "gate_sawfish_link"
+  transform_timeout: 0.2        # seconds to wait for TF
+  goal_yaw_tolerance: 0.2       # radians (~11 degrees)
+
+action_type: "cmd_vel"
+action_scaling: [0.5, 0.5, 0.5, 0.4]  # Scale RL output to realistic velocities
+
+# ============================================
+# REWARD FUNCTION
+# ============================================
+reward_weights:
+  w_distance: 1.0              # Encourage reducing xyz offset
+  w_heading: 0.6               # Encourage yaw alignment
+  w_effort: 0.05               # Penalize velocity commands
+  w_time: -0.01                # Small time penalty
+  w_goal_reached: 50.0         # Bonus when aligned with the gate
+
+goal_tolerance: 0.3  # meters
+
+# ============================================
+# EPISODE SETTINGS
+# ============================================
+max_episode_steps: 800
+simulation_dt: 0.1
+
+# ============================================
+# DOMAIN RANDOMIZATION
+# ============================================
+domain_randomization:
+  physics:
+    current_velocity_range: [0.0, 0.2]
+    drag_coeff_range: [0.8, 1.2]
+  sensor:
+    imu_noise_std: 0.02
+    dvl_noise_std: 0.03
+
+# ============================================
+# ROS SETTINGS
+# ============================================
+ros_namespace: "taluy"
+ros_topics:
+  odom: "/taluy/odom"
+  cmd_vel: "/taluy/cmd_vel"
+  target: "/taluy/rl_target"

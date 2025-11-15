@@ -33,10 +33,11 @@ class ConfigManager:
     TASK_SPECIFIC_FIELDS = {
         "ResidualControl": ["pid_controller", "observation_keys"],
         "EndToEndControl": ["observation_keys"],
+        "Navigation": ["navigation"],
     }
 
     # Valid task types
-    VALID_TASKS = ["ResidualControl", "EndToEndControl"]
+    VALID_TASKS = ["ResidualControl", "EndToEndControl", "Navigation"]
 
     # Valid action types
     VALID_ACTION_TYPES = ["wrench", "cmd_vel"]
@@ -96,6 +97,9 @@ class ConfigManager:
                 if field not in self.config:
                     raise ValueError(f"Task '{task}' requires field: '{field}'")
 
+        if task == "Navigation":
+            self._validate_navigation_config()
+
         # Validate reward weights
         self._validate_reward_weights()
 
@@ -126,10 +130,8 @@ class ConfigManager:
         if not isinstance(scaling, list):
             raise ValueError("action_scaling must be a list")
 
-        # For wrench: should be 6 values [Fx, Fy, Fz, Tx, Ty, Tz]
-        # For cmd_vel: should be 6 values [vx, vy, vz, wx, wy, wz]
-        if len(scaling) != 6:
-            raise ValueError(f"action_scaling must have 6 values, got {len(scaling)}")
+        if len(scaling) == 0:
+            raise ValueError("action_scaling must contain at least one value")
 
     def _validate_domain_randomization(self):
         """Validate domain randomization configuration."""
@@ -205,6 +207,14 @@ class ConfigManager:
         elif task == "EndToEndControl":
             # error_pose(6) + error_vel(6)
             return 12
+        elif task == "Navigation":
+            dim = 0
+            observation_keys = self.get("observation_keys", [])
+            if "base_to_gate_transform" in observation_keys:
+                dim += 6  # [dx, dy, dz, roll, pitch, yaw]
+            if "body_velocity" in observation_keys:
+                dim += 4  # [vx, vy, vz, yaw_rate]
+            return dim
         else:
             raise ValueError(f"Unknown task type: {task}")
 
@@ -213,9 +223,12 @@ class ConfigManager:
         Get action space dimension.
 
         Returns:
-            Dimension of action space (always 6 for AUV)
+            Dimension of action space
         """
-        return 6  # [Fx, Fy, Fz, Tx, Ty, Tz] or [vx, vy, vz, wx, wy, wz]
+        scaling = self.config.get("action_scaling")
+        if isinstance(scaling, list) and len(scaling) > 0:
+            return len(scaling)
+        return 6  # Default fallback, should not happen with validated configs
 
     def get_action_bounds(self) -> tuple:
         """
@@ -248,6 +261,27 @@ class ConfigManager:
     def is_residual_mode(self) -> bool:
         """Check if using residual control mode."""
         return self.config["task"] == "ResidualControl"
+
+    def is_navigation_mode(self) -> bool:
+        """Check if using navigation task."""
+        return self.config["task"] == "Navigation"
+
+    def _validate_navigation_config(self):
+        """Validate navigation-specific settings."""
+        nav_cfg = self.config.get("navigation")
+        if not isinstance(nav_cfg, dict):
+            raise ValueError("navigation section must be a dictionary")
+
+        for key in ["source_frame", "target_frame"]:
+            if key not in nav_cfg:
+                raise ValueError(f"navigation config requires '{key}'")
+            if not isinstance(nav_cfg[key], str) or not nav_cfg[key]:
+                raise ValueError(f"navigation '{key}' must be a non-empty string")
+
+        if "transform_timeout" in nav_cfg:
+            timeout = nav_cfg["transform_timeout"]
+            if not isinstance(timeout, (int, float)) or timeout <= 0.0:
+                raise ValueError("navigation.transform_timeout must be > 0")
 
     def has_domain_randomization(self) -> bool:
         """Check if domain randomization is enabled."""

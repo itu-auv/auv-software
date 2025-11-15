@@ -4,7 +4,7 @@ AUV Gym Environment
 ===================
 
 Gymnasium-compatible environment for AUV reinforcement learning.
-Supports multiple task types: ResidualControl, EndToEndControl
+Supports multiple task types: ResidualControl, EndToEndControl, Navigation
 """
 
 import gymnasium as gym
@@ -18,6 +18,7 @@ from gazebo_msgs.msg import ModelState
 from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion
 from typing import Dict, Any, Tuple, Optional
+import tf2_ros
 
 from auv_gym.utils.config_manager import ConfigManager
 
@@ -26,9 +27,10 @@ class AUVEnv(gym.Env):
     """
     AUV Gymnasium Environment.
 
-    Supports two task types:
+    Supports three task types:
     1. ResidualControl: RL agent adds corrections to PID controller
     2. EndToEndControl: RL agent directly outputs thruster commands
+    3. Navigation: RL agent commands body velocities to align with a gate
 
     Attributes:
         config (ConfigManager): Configuration manager
@@ -52,6 +54,7 @@ class AUVEnv(gym.Env):
         self.config = config
         self.task_type = config.get("task")
         self.action_type = config.get("action_type")
+        self.is_navigation_mode = self.config.is_navigation_mode()
 
         if not rospy.core.is_initialized():
             rospy.init_node("auv_gym_env", anonymous=True)
@@ -65,9 +68,29 @@ class AUVEnv(gym.Env):
         # Define observation and action spaces
         self._define_spaces()
 
+        # Navigation-specific members
+        self.tf_buffer = None
+        self.tf_listener = None
+        self.last_nav_transform = None
+        self.nav_source_frame = None
+        self.nav_target_frame = None
+        self.nav_transform_timeout = 0.2
+        if self.is_navigation_mode:
+            self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(10.0))
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+            self.nav_source_frame = self.config.get(
+                "navigation.source_frame", f"{self.ros_namespace}/base_link"
+            )
+            self.nav_target_frame = self.config.get(
+                "navigation.target_frame", "gate_sawfish_link"
+            )
+            self.nav_transform_timeout = self.config.get(
+                "navigation.transform_timeout", 0.2
+            )
+
         # Episode management
         self.current_state = None
-        self.desired_state = None
+        self.desired_state = None  # cmd_pose target if in control mode.
         self.episode_step = 0
         self.max_episode_steps = config.get("max_episode_steps")
         self.last_action_pid = np.zeros(6)  # Initialize with zeros
@@ -176,8 +199,12 @@ class AUVEnv(gym.Env):
         """
         super().reset(seed=seed)
 
-        # 1. Sample new target/goal
-        self.desired_state = self._sample_target()
+        # 1. Set target/goal
+        if not self.is_navigation_mode:
+            self.desired_state = self._get_default_target_state()
+            self._publish_target_marker(self.desired_state)
+        else:
+            self.desired_state = None
 
         # 2. Apply domain randomization
         if self.config.has_domain_randomization():
@@ -192,6 +219,7 @@ class AUVEnv(gym.Env):
         # 5. Reset episode variables
         self.episode_step = 0
         self.last_action_pid = np.zeros(6)
+        self.last_nav_transform = None
 
         # 6. Get initial observation
         observation = self._get_observation()
@@ -248,11 +276,27 @@ class AUVEnv(gym.Env):
         # 8. Prepare info dict
         info = {
             "episode_step": self.episode_step,
-            "position_error": self._compute_position_error(),
-            "velocity_error": self._compute_velocity_error(),
             "action_rl": action_rl.tolist(),
             "action_total": action_total.tolist(),
         }
+
+        if self.is_navigation_mode:
+            nav_transform = (
+                self._lookup_navigation_transform()
+                if self.last_nav_transform is None
+                else self.last_nav_transform
+            )
+            if nav_transform is not None:
+                info["navigation_transform"] = nav_transform.tolist()
+                info["distance_to_target"] = float(np.linalg.norm(nav_transform[:3]))
+                info["heading_error"] = float(abs(nav_transform[5]))
+            else:
+                info["navigation_transform"] = None
+                info["distance_to_target"] = None
+                info["heading_error"] = None
+        else:
+            info["position_error"] = self._compute_position_error()
+            info["velocity_error"] = self._compute_velocity_error()
 
         if terminated:
             rospy.loginfo("Goal reached!")
@@ -308,11 +352,17 @@ class AUVEnv(gym.Env):
         elif self.action_type == "cmd_vel":
             msg = Twist()
             msg.linear.x = action[0]
-            msg.linear.y = action[1]
-            msg.linear.z = action[2]
-            msg.angular.x = action[3]
-            msg.angular.y = action[4]
-            msg.angular.z = action[5]
+            msg.linear.y = action[1] if len(action) > 1 else 0.0
+            msg.linear.z = action[2] if len(action) > 2 else 0.0
+            # Navigation mode only commands yaw rate, use zeros for roll/pitch
+            msg.angular.x = action[3] if len(action) > 3 and len(action) == 6 else 0.0
+            msg.angular.y = action[4] if len(action) > 4 and len(action) == 6 else 0.0
+            if len(action) >= 6:
+                msg.angular.z = action[5]
+            elif len(action) == 4:
+                msg.angular.z = action[3]
+            else:
+                msg.angular.z = 0.0
             self.action_pub.publish(msg)
 
     def _get_observation(self) -> np.ndarray:
@@ -322,6 +372,9 @@ class AUVEnv(gym.Env):
         Returns:
             Observation array
         """
+        if self.is_navigation_mode:
+            return self._get_navigation_observation()
+
         if self.current_state is None or self.desired_state is None:
             # Return zeros if not initialized
             return np.zeros(self.observation_space.shape, dtype=np.float32)
@@ -349,6 +402,45 @@ class AUVEnv(gym.Env):
 
         return obs.astype(np.float32)
 
+    def _get_navigation_observation(self) -> np.ndarray:
+        """Construct observation for navigation mode based on TF transform."""
+        transform = self._lookup_navigation_transform()
+        self.last_nav_transform = transform
+
+        # Get current velocity: [vx, vy, vz, wx, wy, wz]
+        current_vel = self._get_current_velocity()
+
+        obs_parts = []
+        observation_keys = self.config.get("observation_keys", [])
+
+        # Part 1: Transform
+        if "base_to_gate_transform" in observation_keys:
+            if transform is not None:
+                obs_parts.append(transform)
+            else:
+                # Use zeros if transform is not available
+                obs_parts.append(np.zeros(6))
+
+        # Part 2: Body Velocity
+        if "body_velocity" in observation_keys:
+            # [vx, vy, vz, yaw_rate]
+            body_vel = np.array(
+                [current_vel[0], current_vel[1], current_vel[2], current_vel[5]]
+            )
+            obs_parts.append(body_vel)
+
+        if not obs_parts:
+            rospy.logwarn_once(
+                "Navigation observation is empty, check observation_keys in config."
+            )
+            return np.zeros(self.observation_space.shape, dtype=np.float32)
+
+        # If transform was None at the start, return zeros for the whole observation space
+        if transform is None:
+            return np.zeros(self.observation_space.shape, dtype=np.float32)
+
+        return np.concatenate(obs_parts).astype(np.float32)
+
     def _compute_reward(self, action_rl: np.ndarray, action_total: np.ndarray) -> float:
         """
         Compute reward based on current state and action.
@@ -360,6 +452,9 @@ class AUVEnv(gym.Env):
         Returns:
             Reward value
         """
+        if self.is_navigation_mode:
+            return self._compute_navigation_reward(action_total)
+
         weights = self.config.get("reward_weights")
 
         # Compute errors
@@ -393,6 +488,38 @@ class AUVEnv(gym.Env):
 
         total_reward = r_pos + r_vel + r_effort + r_time + r_goal
 
+        return float(total_reward)
+
+    def _compute_navigation_reward(self, action_total: np.ndarray) -> float:
+        """Compute reward for navigation mode based on TF errors."""
+        weights = self.config.get("reward_weights")
+        nav_transform = (
+            self._lookup_navigation_transform()
+            if self.last_nav_transform is None
+            else self.last_nav_transform
+        )
+
+        if nav_transform is None:
+            r_time = weights.get("w_time", -0.01)
+            r_effort = -weights.get("w_effort", 0.01) * np.sum(action_total**2)
+            return float(r_time + r_effort)
+
+        distance = np.linalg.norm(nav_transform[:3])
+        yaw_error = abs(nav_transform[5])
+
+        r_distance = weights.get("w_distance", 1.0) * np.exp(-distance)
+        r_heading = weights.get("w_heading", 0.5) * np.exp(-yaw_error)
+        r_effort = -weights.get("w_effort", 0.01) * np.sum(action_total**2)
+        r_time = weights.get("w_time", -0.01)
+
+        goal_tolerance = self.config.get("goal_tolerance", 0.5)
+        yaw_tolerance = self.config.get("navigation.goal_yaw_tolerance", 0.2)
+        if distance < goal_tolerance and yaw_error < yaw_tolerance:
+            r_goal = weights.get("w_goal_reached", 50.0)
+        else:
+            r_goal = 0.0
+
+        total_reward = r_distance + r_heading + r_effort + r_time + r_goal
         return float(total_reward)
 
     def _compute_error(self) -> np.ndarray:
@@ -470,6 +597,20 @@ class AUVEnv(gym.Env):
 
     def _check_goal_reached(self) -> bool:
         """Check if goal has been reached."""
+        if self.is_navigation_mode:
+            nav_transform = (
+                self._lookup_navigation_transform()
+                if self.last_nav_transform is None
+                else self.last_nav_transform
+            )
+            if nav_transform is None:
+                return False
+            goal_tolerance = self.config.get("goal_tolerance", 0.5)
+            yaw_tolerance = self.config.get("navigation.goal_yaw_tolerance", 0.2)
+            pos_error = np.linalg.norm(nav_transform[:3])
+            yaw_error = abs(nav_transform[5])
+            return pos_error < goal_tolerance and yaw_error < yaw_tolerance
+
         goal_tolerance = self.config.get("goal_tolerance", 0.5)
         pos_error = self._compute_position_error()
         return pos_error < goal_tolerance
@@ -482,28 +623,39 @@ class AUVEnv(gym.Env):
 
         return False
 
-    def _sample_target(self) -> np.ndarray:
-        """
-        Sample a new target position.
+    def _get_default_target_state(self) -> np.ndarray:
+        """Return default desired pose [x, y, z, roll, pitch, yaw]."""
+        target_state = self.config.get("target_state")
+        if isinstance(target_state, dict):
+            return np.array(
+                [
+                    target_state.get("x", 0.0),
+                    target_state.get("y", 0.0),
+                    target_state.get("z", -1.0),
+                    target_state.get("roll", 0.0),
+                    target_state.get("pitch", 0.0),
+                    target_state.get("yaw", 0.0),
+                ],
+                dtype=np.float32,
+            )
+        if isinstance(target_state, (list, tuple)) and len(target_state) == 6:
+            return np.array(target_state, dtype=np.float32)
 
-        Returns:
-            Target state [x, y, z, roll, pitch, yaw]
-        """
-
-        # For now, sample random position
-        x = np.random.uniform(-10.0, 10.0)
-        y = np.random.uniform(-10.0, 10.0)
-        z = np.random.uniform(-3.0, -0.5)  # Underwater
-        roll = 0.0
-        pitch = 0.0
-        yaw = np.random.uniform(-np.pi, np.pi)
-
-        target = np.array([x, y, z, roll, pitch, yaw])
-
-        # Publish for visualization
-        self._publish_target_marker(target)
-
-        return target
+        initial_pose = self.config.get(
+            "initial_pose",
+            {"x": 0.0, "y": 0.0, "z": -1.0, "roll": 0.0, "pitch": 0.0, "yaw": 0.0},
+        )
+        return np.array(
+            [
+                initial_pose.get("x", 0.0),
+                initial_pose.get("y", 0.0),
+                initial_pose.get("z", -1.0),
+                initial_pose.get("roll", 0.0),
+                initial_pose.get("pitch", 0.0),
+                initial_pose.get("yaw", 0.0),
+            ],
+            dtype=np.float32,
+        )
 
     def _publish_target_marker(self, target: np.ndarray):
         """Publish target pose for visualization."""
@@ -617,6 +769,39 @@ class AUVEnv(gym.Env):
         )
 
         return vel
+
+    def _lookup_navigation_transform(self) -> Optional[np.ndarray]:
+        """Lookup transform between base_link and gate target frames."""
+        if not self.is_navigation_mode or self.tf_buffer is None:
+            return None
+
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.nav_source_frame,
+                self.nav_target_frame,
+                rospy.Time(0),
+                rospy.Duration(self.nav_transform_timeout),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ):
+            rospy.logwarn_throttle(
+                5.0,
+                f"Navigation transform unavailable: {self.nav_source_frame} -> {self.nav_target_frame}",
+            )
+            return None
+
+        translation = transform.transform.translation
+        rotation = transform.transform.rotation
+        quaternion = (rotation.x, rotation.y, rotation.z, rotation.w)
+        roll, pitch, yaw = euler_from_quaternion(quaternion)
+
+        return np.array(
+            [translation.x, translation.y, translation.z, roll, pitch, yaw],
+            dtype=np.float32,
+        )
 
     def close(self):
         """Cleanup resources."""

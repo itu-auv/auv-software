@@ -26,6 +26,7 @@
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
 
   <!-- AUV-specific dependencies -->
 
