@@ -355,8 +355,8 @@ class AUVEnv(gym.Env):
             msg.linear.y = action[1] if len(action) > 1 else 0.0
             msg.linear.z = action[2] if len(action) > 2 else 0.0
             # Navigation mode only commands yaw rate, use zeros for roll/pitch
-            msg.angular.x = action[3] if len(action) > 3 and len(action) == 6 else 0.0
-            msg.angular.y = action[4] if len(action) > 4 and len(action) == 6 else 0.0
+            msg.angular.x = action[3] if len(action) == 6 else 0.0
+            msg.angular.y = action[4] if len(action) == 6 else 0.0
             if len(action) >= 6:
                 msg.angular.z = action[5]
             elif len(action) == 4:
