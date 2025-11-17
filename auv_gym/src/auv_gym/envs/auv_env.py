@@ -99,6 +99,15 @@ class AUVEnv(gym.Env):
         self.episode_step = 0
         self.max_episode_steps = config.get("max_episode_steps")
 
+        # Agent active flag for enable publishing
+        self.agent_active = False
+        self.enable_rate = 20.0  # Hz - rate at which enable signal is published
+
+        # Setup timer for enable publishing at 20Hz
+        self.enable_timer = rospy.Timer(
+            rospy.Duration(1.0 / self.enable_rate), self._enable_timer_callback
+        )
+
         try:
             rospy.wait_for_service("/gazebo/set_physics_properties", timeout=5.0)
             set_physics_properties = rospy.ServiceProxy(
@@ -153,6 +162,11 @@ class AUVEnv(gym.Env):
                 f"/{self.ros_namespace}/cmd_vel", Twist, queue_size=1
             )
 
+        # Enable publisher - needed for control to work
+        self.enable_pub = rospy.Publisher(
+            f"/{self.ros_namespace}/enable", Bool, queue_size=1
+        )
+
         # Target position publisher (for visualization)
         self.target_pub = rospy.Publisher(
             f"/{self.ros_namespace}/rl_target", Pose, queue_size=1
@@ -191,6 +205,11 @@ class AUVEnv(gym.Env):
                 msg.torque.z,
             ]
         )
+
+    def _enable_timer_callback(self, event):
+        """Timer callback to publish enable signal at 20Hz when agent is active."""
+        if self.agent_active:
+            self.enable_pub.publish(Bool(data=True))
 
     def _define_spaces(self):
         """Define observation and action spaces based on task type."""
@@ -250,6 +269,9 @@ class AUVEnv(gym.Env):
         self.episode_step = 0
         self.last_action_pid = np.zeros(6)
         self.last_nav_transform = None
+
+        # Activate the agent (enables 20Hz enable publishing)
+        self.agent_active = True
 
         # 6. Get initial observation
         observation = self._get_observation()
@@ -330,8 +352,10 @@ class AUVEnv(gym.Env):
 
         if terminated:
             rospy.loginfo("Goal reached!")
+            self.agent_active = False  # Deactivate agent on episode completion
         elif truncated:
             rospy.logwarn("Episode truncated")
+            self.agent_active = False  # Deactivate agent on episode truncation
 
         return observation, reward, terminated, truncated, info
 
@@ -365,6 +389,7 @@ class AUVEnv(gym.Env):
     def _send_action_to_sim(self, action: np.ndarray):
         """
         Send action to simulation via ROS.
+        Note: Enable signal is published separately at 20Hz via timer callback.
 
         Args:
             action: Action to send [6-DOF]
@@ -836,4 +861,9 @@ class AUVEnv(gym.Env):
     def close(self):
         """Cleanup resources."""
         rospy.loginfo("Closing AUVEnv")
+        # Deactivate agent and stop enable publishing
+        self.agent_active = False
+        # Shutdown the enable timer
+        if hasattr(self, "enable_timer"):
+            self.enable_timer.shutdown()
         # Unregister ROS subscribers/publishers if needed
