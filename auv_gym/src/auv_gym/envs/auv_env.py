@@ -13,7 +13,12 @@ import numpy as np
 import rospy
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Wrench, Twist, Pose
-from gazebo_msgs.srv import SetModelState
+from gazebo_msgs.srv import (
+    SetModelState,
+    SetPhysicsProperties,
+    GetPhysicsProperties,
+    SetPhysicsPropertiesRequest,
+)
 from gazebo_msgs.msg import ModelState
 from std_msgs.msg import Bool
 from tf.transformations import euler_from_quaternion
@@ -93,6 +98,31 @@ class AUVEnv(gym.Env):
         self.desired_state = None  # cmd_pose target if in control mode.
         self.episode_step = 0
         self.max_episode_steps = config.get("max_episode_steps")
+
+        try:
+            rospy.wait_for_service("/gazebo/set_physics_properties", timeout=5.0)
+            set_physics_properties = rospy.ServiceProxy(
+                "/gazebo/set_physics_properties", SetPhysicsProperties
+            )
+            rospy.wait_for_service("/gazebo/get_physics_properties", timeout=5.0)
+            get_physics_properties = rospy.ServiceProxy(
+                "/gazebo/get_physics_properties", GetPhysicsProperties
+            )
+            physics_properties = get_physics_properties()
+            req = SetPhysicsPropertiesRequest()
+            req.gravity = physics_properties.gravity
+            req.ode_config = physics_properties.ode_config
+            req.max_update_rate = physics_properties.max_update_rate
+            req.time_step = (
+                physics_properties.time_step
+            )  # Make this faster maybe match it with `self.sim_dt`
+            res = set_physics_properties(req)
+        except rospy.ROSException:
+            rospy.logwarn_throttle(
+                5.0,
+                "Gazebo [set|get]_physics_properties service not available",
+            )
+
         self.last_action_pid = np.zeros(6)  # Initialize with zeros
 
         # Domain randomization settings
@@ -355,8 +385,8 @@ class AUVEnv(gym.Env):
             msg.linear.y = action[1] if len(action) > 1 else 0.0
             msg.linear.z = action[2] if len(action) > 2 else 0.0
             # Navigation mode only commands yaw rate, use zeros for roll/pitch
-            msg.angular.x = action[3] if len(action) > 3 and len(action) == 6 else 0.0
-            msg.angular.y = action[4] if len(action) > 4 and len(action) == 6 else 0.0
+            msg.angular.x = action[3] if len(action) == 6 else 0.0
+            msg.angular.y = action[4] if len(action) == 6 else 0.0
             if len(action) >= 6:
                 msg.angular.z = action[5]
             elif len(action) == 4:
