@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+
+  <!-- Start Robot Localization -->
+  <include file="$(find auv_bringup)/launch/inc/localization/start_robot_localization.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- Control for RL Training -->
+  <include file="$(find auv_gym)/launch/control_for_rl_training.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- Simulation for RL Training -->
+  <include file="$(find auv_gym)/launch/sim_for_rl_training.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- AUV Gym -->
+  <include file="$(find auv_gym)/launch/auv_gym.launch" />
+
+</launch>

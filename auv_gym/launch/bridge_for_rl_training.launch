@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="control_rate" default="20" />
+  <arg name="use_gui" default="true" />
+
+  <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
+
+  <group ns="$(arg namespace)">
+    <node name="auv_sim_bridge" pkg="auv_sim_bridge" type="simulation_mock_node" output="screen">
+      <rosparam command="load" file="$(find auv_localization)/config/imu_calibration_data.yaml"
+        ns="imu" />
+
+      <!-- outputs -->
+      <remap from="depth" to="sensors/external_pressure_sensor/depth" />
+      <remap from="power" to="mainboard/power_sensor/power" />
+      <remap from="altitude" to="sensors/dvl/altitude" />
+      <remap from="velocity_raw" to="sensors/dvl/velocity_raw" />
+      <remap from="is_valid" to="sensors/dvl/is_valid" />
+      <remap from="imu_drifted" to="sensors/imu/data" />
+
+      <!-- inputs -->
+      <remap from="drive_pulse" to="board/drive_pulse" />
+      <remap from="pressure" to="sim/pressure" />
+      <remap from="dvl" to="sim/dvl" />
+      <remap from="imu_raw" to="sim/imu" />
+
+      <!-- params -->
+      <param name="rate" value="$(arg control_rate)" />
+    </node>
+
+    <node name="underwater_effect_node" pkg="auv_sim_bridge" type="sea_mock.py" output="screen">
+    </node>
+
+    <!-- Ball Dropper Service Node -->
+    <node name="drop_ball_server" pkg="auv_sim_bridge" type="sim_bin_mock.py" output="screen">
+      <remap from="actuators/ball_dropper/drop" to="actuators/ball_dropper/drop" />
+    </node>
+    <!-- Torpedo Launcher Service Node -->
+    <node name="launch_torpedo_server" pkg="auv_sim_bridge" type="sim_torpedo_mock.py" output="screen">
+      <remap from="actuators/torpedo_1/launch" to="actuators/torpedo_1/launch" />
+      <remap from="actuators/torpedo_2/launch" to="actuators/torpedo_2/launch" />
+    </node>
+  </group>
+
+
+  <!-- launch parameter server -->
+  <include file="$(find auv_bringup)/launch/param_server.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+</launch>
