@@ -40,7 +40,7 @@ goal_tolerance: 0.3  # meters
 # EPISODE SETTINGS
 # ============================================
 max_episode_steps: 800
-simulation_dt: 0.1
+simulation_dt: 0.005
 
 # ============================================
 # DOMAIN RANDOMIZATION

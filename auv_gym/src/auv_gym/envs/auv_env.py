@@ -123,8 +123,9 @@ class AUVEnv(gym.Env):
             req.ode_config = physics_properties.ode_config
             req.max_update_rate = physics_properties.max_update_rate
             req.time_step = (
-                physics_properties.time_step
+                self.sim_dt
             )  # Make this faster maybe match it with `self.sim_dt`
+            rospy.loginfo(f"Current time_step = {physics_properties.time_step}")
             res = set_physics_properties(req)
         except rospy.ROSException:
             rospy.logwarn_throttle(
