@@ -20,6 +20,8 @@
     <arg name="enable_logging" default="false" />
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
     <arg name="start_bridge" default="true" />
+    <arg name="underwater_effect" default="false" />
+    <arg name="pointcloud_filter" default="false" />
 
 
     <!-- Run RViz -->
@@ -78,6 +80,8 @@
             <arg name="namespace" value="$(arg namespace)" />
             <arg name="control_rate" value="$(arg control_rate)" />
             <arg name="use_gui" value="$(arg use_gui)" />
+            <arg name="underwater_effect" value="$(arg underwater_effect)" />
+            <arg name="pointcloud_filter" value="$(arg pointcloud_filter)" />
         </include>
     </group>
 
