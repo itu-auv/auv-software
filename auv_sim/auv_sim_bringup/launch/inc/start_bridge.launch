@@ -3,6 +3,8 @@
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20" />
   <arg name="use_gui" default="true" />
+  <arg name="underwater_effect" default="false" />
+  <arg name="pointcloud_filter" default="false" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
 
@@ -29,7 +31,7 @@
       <param name="rate" value="$(arg control_rate)" />
     </node>
 
-    <node name="underwater_effect_node" pkg="auv_sim_bridge" type="sea_mock.py" output="screen">
+    <node name="underwater_effect_node" pkg="auv_sim_bridge" type="sea_mock.py" output="screen" if="$(arg underwater_effect)">
     </node>
 
     <!-- Ball Dropper Service Node -->
@@ -49,6 +51,7 @@
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
     <arg name="config_file" value="$(find auv_sim_bridge)/config/control_config.yaml"/>
+    <arg name="pointcloud_filter" value="$(arg pointcloud_filter)" />
   </include>
 
   <!-- launch parameter server -->
