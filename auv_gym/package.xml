@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>auv_gym</name>
+  <version>0.1.0</version>
+  <description>
+    AUV-Gym: Reinforcement Learning training platform for Autonomous Underwater Vehicles.
+    Provides OpenAI Gym-compatible environments for control and navigation tasks.
+  </description>
+
+  <maintainer email="emin@todo.todo">Emin</maintainer>
+  <author email="emin@todo.todo">Emin</author>
+
+  <license>MIT</license>
+
+  <url type="website">https://github.com/your-team/auv-gym</url>
+  <url type="repository">https://github.com/your-team/auv-gym</url>
+
+  <!-- Build tool dependencies -->
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <!-- ROS dependencies -->
+  <depend>auv_msgs</depend>
+  <depend>gazebo_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf2_ros</depend>
+
+  <!-- AUV-specific dependencies -->
+
+  <!-- Python dependencies (will be installed via pip, just declaring here) -->
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+
+  <!-- Testing dependencies -->
+  <build_depend>rostest</build_depend>
+  <test_depend>python3-pytest</test_depend>
+  <test_depend>rostest</test_depend>
+
+  <export>
+    <!-- Specify that this package contains Python modules -->
+  </export>
+</package>

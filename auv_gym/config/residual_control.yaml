@@ -1,0 +1,79 @@
+---
+# ============================================
+# AUV-Gym Configuration: Residual Control
+# ============================================
+# Task: RL agent adds corrections to PID baseline controller
+# Observation: [error_pose(6), error_vel(6), action_pid(6)]
+# Action: Wrench corrections [Fx, Fy, Fz, Tx, Ty, Tz]
+
+task: "ResidualControl"
+
+# ============================================
+# OBSERVATION AND ACTION SPACE
+# ============================================
+observation_keys:
+  - error_pose      # [x, y, z, roll, pitch, yaw] error
+  - error_vel       # [vx, vy, vz, wx, wy, wz] error
+  - action_pid      # PID controller output
+
+action_type: "wrench"  # Direct thruster forces/torques
+action_scaling: [100.0, 100.0, 100.0, 20.0, 20.0, 20.0]  # Scale [-1,1] to real units
+
+# ============================================
+# REWARD FUNCTION
+# ============================================
+reward_weights:
+  w_pose: 1.0              # Position error weight
+  w_vel: 0.5               # Velocity error weight
+  w_effort_rl: 0.1         # Penalize RL effort only (not PID)
+  w_time: -0.01            # Time penalty (encourage speed)
+  w_goal_reached: 100.0    # Bonus for reaching goal
+
+goal_tolerance: 0.5  # meters (success criterion)
+
+# ============================================
+# EPISODE SETTINGS
+# ============================================
+max_episode_steps: 1000
+simulation_dt: 0.1  # seconds (ROS rate)
+
+# ============================================
+# DOMAIN RANDOMIZATION
+# ============================================
+domain_randomization:
+  physics:
+    mass_range: [95.0, 105.0]           # kg
+    drag_coeff_range: [0.8, 1.2]        # coefficient multiplier
+    current_velocity_range: [0.0, 0.3]  # m/s underwater current
+
+  controller:
+    kp_range: [5.0, 9.0]   # Proportional gain
+    ki_range: [0.1, 0.3]   # Integral gain
+    kd_range: [1.5, 2.5]   # Derivative gain
+
+  sensor:
+    imu_noise_std: 0.01    # IMU noise standard deviation
+    dvl_noise_std: 0.02    # DVL noise standard deviation
+
+# ============================================
+# SCENARIO MANAGEMENT
+# ============================================
+scenario_mode: "random"  # Options: random, curriculum, fixed
+difficulty: "medium"     # Options: easy, medium, hard
+
+# ============================================
+# PID CONTROLLER (Baseline)
+# ============================================
+pid_controller:
+  kp: [7.0, 7.0, 7.0, 5.0, 5.0, 5.0]  # [x, y, z, roll, pitch, yaw]
+  ki: [0.2, 0.2, 0.2, 0.1, 0.1, 0.1]
+  kd: [2.0, 2.0, 2.0, 1.0, 1.0, 1.0]
+
+# ============================================
+# ROS SETTINGS
+# ============================================
+ros_namespace: "taluy"
+ros_topics:
+  odom: "/taluy/odom"
+  cmd_wrench: "/taluy/cmd_wrench"
+  target: "/taluy/rl_target"
