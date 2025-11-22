@@ -11,6 +11,9 @@ import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
 import rospy
+import json
+import time
+from collections import deque
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Wrench, Twist, Pose
 from gazebo_msgs.srv import (
@@ -20,7 +23,7 @@ from gazebo_msgs.srv import (
     SetPhysicsPropertiesRequest,
 )
 from gazebo_msgs.msg import ModelState
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, String
 from tf.transformations import euler_from_quaternion
 from typing import Dict, Any, Tuple, Optional
 import tf2_ros
@@ -138,6 +141,20 @@ class AUVEnv(gym.Env):
         # Domain randomization settings
         self.dr_config = config.get("domain_randomization", {})
 
+        # Training metrics
+        self.status_pub = rospy.Publisher(
+            f"/{self.ros_namespace}/training_status", String, queue_size=1
+        )
+        self.episode_num = 0
+        self.total_steps = 0
+        self.current_episode_reward = 0.0
+        self.success_count = 0
+        self.fail_count = 0
+        self.recent_outcomes = deque(maxlen=100)
+        self.recent_rewards = deque(maxlen=100)
+        self.last_real_time = time.time()
+        self.last_sim_time = rospy.get_time()
+
         rospy.loginfo(f"AUVEnv initialized: task={self.task_type}")
 
     def _setup_ros_connections(self):
@@ -249,6 +266,12 @@ class AUVEnv(gym.Env):
         """
         super().reset(seed=seed)
 
+        if self.episode_num > 0:
+            self.recent_rewards.append(self.current_episode_reward)
+
+        self.episode_num += 1
+        self.current_episode_reward = 0.0
+
         # 1. Set target/goal
         if not self.is_navigation_mode:
             self.desired_state = self._get_default_target_state()
@@ -354,9 +377,59 @@ class AUVEnv(gym.Env):
         if terminated:
             rospy.loginfo("Goal reached!")
             self.agent_active = False  # Deactivate agent on episode completion
+            self.success_count += 1
+            self.recent_outcomes.append(1)
         elif truncated:
             rospy.logwarn("Episode truncated")
             self.agent_active = False  # Deactivate agent on episode truncation
+            self.fail_count += 1
+            self.recent_outcomes.append(0)
+
+        self.total_steps += 1
+        self.current_episode_reward += reward
+
+        # Calculate RTF
+        current_real_time = time.time()
+        current_sim_time = rospy.get_time()
+        real_dt = current_real_time - self.last_real_time
+        sim_dt = current_sim_time - self.last_sim_time
+        rtf = sim_dt / real_dt if real_dt > 0 else 0.0
+        self.last_real_time = current_real_time
+        self.last_sim_time = current_sim_time
+
+        # Publish status
+        status_data = {
+            "episode": self.episode_num,
+            "step": self.episode_step,
+            "total_steps": self.total_steps,
+            "current_reward": self.current_episode_reward,
+            "mean_reward_100": (
+                sum(self.recent_rewards) / len(self.recent_rewards)
+                if self.recent_rewards
+                else 0.0
+            ),
+            "success_rate_100": (
+                sum(self.recent_outcomes) / len(self.recent_outcomes)
+                if self.recent_outcomes
+                else 0.0
+            ),
+            "success_count": self.success_count,
+            "fail_count": self.fail_count,
+            "distance_to_target": (
+                info.get("distance_to_target", 0.0)
+                if info.get("distance_to_target") is not None
+                else 0.0
+            ),
+            "heading_error": (
+                info.get("heading_error", 0.0)
+                if info.get("heading_error") is not None
+                else 0.0
+            ),
+            "velocity": float(np.linalg.norm(self._get_current_velocity()[:3])),
+            "action_magnitude": float(np.linalg.norm(action_total)),
+            "rtf": rtf,
+        }
+        self.status_pub.publish(json.dumps(status_data))
 
         return observation, reward, terminated, truncated, info
 
