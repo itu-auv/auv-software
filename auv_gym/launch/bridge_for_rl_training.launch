@@ -29,8 +29,6 @@
       <param name="rate" value="$(arg control_rate)" />
     </node>
 
-    <node name="underwater_effect_node" pkg="auv_sim_bridge" type="sea_mock.py" output="screen">
-    </node>
 
     <!-- Ball Dropper Service Node -->
     <node name="drop_ball_server" pkg="auv_sim_bridge" type="sim_bin_mock.py" output="screen">
