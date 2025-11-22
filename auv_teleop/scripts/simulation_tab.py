@@ -33,7 +33,9 @@ class SimulationTab(QWidget):
         detect_group = QGroupBox("Object Detection")
         detect_layout = QHBoxLayout()
         self.detect_start = QPushButton("Start Detection")
+        self.cuda_check = QCheckBox("Cuda")
         self.detect_stop = QPushButton("Stop Detection")
+        detect_layout.addWidget(self.cuda_check)
         detect_layout.addWidget(self.detect_start)
         detect_layout.addWidget(self.detect_stop)
         detect_group.setLayout(detect_layout)
@@ -80,7 +82,11 @@ class SimulationTab(QWidget):
                 cb.setChecked(False)
 
     def start_detection(self):
-        cmd = ["roslaunch", "auv_detection", "tracker.launch", "device:=cpu"]
+        cmd = ["roslaunch", "auv_detection", "tracker.launch"]
+        if self.cuda_check.isChecked():
+            cmd.append("device:=cuda:0")
+        else:
+            cmd.append("device:=cpu")
         print(f"Executing: {' '.join(cmd)}")
         self.detect_process = subprocess.Popen(cmd)
 
