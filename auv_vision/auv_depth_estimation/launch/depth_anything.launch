@@ -1,0 +1,35 @@
+<launch>
+  <!-- ZeroMQ Backend Configuration -->
+  <arg name="zmq_host" default="localhost" />
+  <arg name="zmq_port" default="5555" />
+
+  <!-- ROS Topic Configuration -->
+  <arg name="input_topic" default="/taluy/cameras/cam_front/image_raw" />
+  <arg name="output_topic" default="/depth_anything/points" />
+  <arg name="depth_topic" default="/depth_anything/depth" />
+
+  <!-- Processing Configuration -->
+  <arg name="process_res" default="504" />
+  <arg name="max_batch_size" default="2" />
+  <arg name="context_window" default="0.5" />
+  <arg name="use_external_odom" default="false" />
+  <arg name="camera_namespace" default="/taluy/cameras/cam_front" />
+  <arg name="camera_frame" default="taluy/base_link/front_camera_optical_link" />
+  <arg name="odom_frame" default="odom" />
+
+  <!-- Depth Anything ZeroMQ Client Node -->
+  <node pkg="auv_depth_estimation" type="depth_anything_client.py" name="depth_anything_node" output="screen">
+    <param name="zmq_host" value="$(arg zmq_host)" />
+    <param name="zmq_port" value="$(arg zmq_port)" />
+    <param name="input_topic" value="$(arg input_topic)" />
+    <param name="output_topic" value="$(arg output_topic)" />
+    <param name="depth_topic" value="$(arg depth_topic)" />
+    <param name="process_res" value="$(arg process_res)" />
+    <param name="max_batch_size" value="$(arg max_batch_size)" />
+    <param name="context_window" value="$(arg context_window)" />
+    <param name="use_external_odom" value="$(arg use_external_odom)" />
+    <param name="camera_namespace" value="$(arg camera_namespace)" />
+    <param name="camera_frame" value="$(arg camera_frame)" />
+    <param name="odom_frame" value="$(arg odom_frame)" />
+  </node>
+</launch>
