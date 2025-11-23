@@ -41,6 +41,9 @@ DEPTH_QUEUE_SIZE = 1
 TF_LOOKUP_TIMEOUT_SEC = 0.1
 INITIAL_INFERENCE_TIME_SEC = 0.1
 
+# Type aliases
+ImageBatch = List[Tuple[float, np.ndarray, rospy.Header, Optional[np.ndarray]]]
+
 
 class DepthAnythingClient:
     """ROS node that interfaces with a Depth Anything 3 inference server via ZeroMQ."""
@@ -236,9 +239,7 @@ class DepthAnythingClient:
             rospy.logwarn_throttle(5.0, f"TF lookup failed: {e}")
             return None
 
-    def select_batch(
-        self,
-    ) -> List[Tuple[float, np.ndarray, rospy.Header, Optional[np.ndarray]]]:
+    def select_batch(self) -> ImageBatch:
         """Select optimal batch of images from buffer for processing.
 
         Returns:
@@ -277,9 +278,9 @@ class DepthAnythingClient:
 
     def _log_batch_selection(
         self,
-        available_frames: List,
-        valid_frames: List,
-        selected_batch: List,
+        available_frames: ImageBatch,
+        valid_frames: ImageBatch,
+        selected_batch: ImageBatch,
         batch_size: int,
         current_time: float,
     ) -> None:
