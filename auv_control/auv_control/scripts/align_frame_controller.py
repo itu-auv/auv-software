@@ -106,6 +106,8 @@ class AlignFrameControllerNode:
         self.active = False
         rospy.loginfo("Control canceled")
         # Publish a zero velocity command to clear old velocity commands
+        self.cmd_vel_pub.publish(Twist())
+        self.enable_pub.publish(Bool(data=False))
         return TriggerResponse(success=True, message="Control deactivated")
 
     def get_error(
