@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 import math
 import rospy
 import threading
@@ -11,7 +11,7 @@ import geometry_msgs.msg
 from geometry_msgs.msg import Pose, Point, Quaternion, TransformStamped
 from std_msgs.msg import Float64
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from auv_msgs.srv import SetObjectTransforms, SetObjectTransformsRequest
 from nav_msgs.msg import Odometry
 from dynamic_reconfigure.server import Server
 from dynamic_reconfigure.client import Client as DynamicReconfigureClient
@@ -53,10 +53,10 @@ class TransformServiceNode:
             rospy.logerr("Smach dynamic reconfigure client not started.")
 
         # Service to broadcast transforms
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transforms_service = rospy.ServiceProxy(
+            "set_object_transforms", SetObjectTransforms
         )
-        self.set_object_transform_service.wait_for_service()
+        self.set_object_transforms_service.wait_for_service()
         self.gate_angle_publisher = rospy.Publisher(
             "gate_angle", Float64, queue_size=10
         )
@@ -185,7 +185,7 @@ class TransformServiceNode:
         transform.transform.rotation.y = rescuer_quat[1]
         transform.transform.rotation.z = rescuer_quat[2]
         transform.transform.rotation.w = rescuer_quat[3]
-        self.send_transform(transform)
+        self.send_transforms([transform])
 
     def create_trajectory_frames(self) -> None:
         """
@@ -213,6 +213,7 @@ class TransformServiceNode:
         except tf2_ros.TransformException:
             t_gate2 = None
 
+        transforms_to_send = []
         poses = None
         # --- Decision logic: Check which mode to use
         if t_gate1 and t_gate2:
@@ -238,7 +239,7 @@ class TransformServiceNode:
             middle_transform = self.build_transform_message(
                 self.middle_frame, middle_pose
             )
-            self.send_transform(middle_transform)
+            transforms_to_send.append(middle_transform)
 
             if self.MIN_GATE_SEPARATION < distance < self.MAX_GATE_SEPARATION:
                 # Distance is valid, use standard dual-frame method
@@ -270,7 +271,7 @@ class TransformServiceNode:
             middle_transform = self.build_transform_message(
                 self.middle_frame, middle_pose
             )
-            self.send_transform(middle_transform)
+            transforms_to_send.append(middle_transform)
             poses = self._compute_frames_fallback_mode(visible_transform)
 
         else:
@@ -285,8 +286,11 @@ class TransformServiceNode:
                 self.entrance_frame, entrance_pose
             )
             exit_transform = self.build_transform_message(self.exit_frame, exit_pose)
-            self.send_transform(entrance_transform)
-            self.send_transform(exit_transform)
+            transforms_to_send.append(entrance_transform)
+            transforms_to_send.append(exit_transform)
+
+        if transforms_to_send:
+            self.send_transforms(transforms_to_send)
 
     def _compute_frames_fallback_mode(
         self, gate_transform: TransformStamped
@@ -571,14 +575,14 @@ class TransformServiceNode:
         transform.transform.rotation = pose.orientation
         return transform
 
-    def send_transform(self, transform: TransformStamped):
-        request = SetObjectTransformRequest()
-        request.transform = transform
+    def send_transforms(self, transforms: List[TransformStamped]):
+        request = SetObjectTransformsRequest()
+        request.transforms = transforms
         try:
-            response = self.set_object_transform_service.call(request)
+            response = self.set_object_transforms_service.call(request)
             if not response.success:
                 rospy.logerr(
-                    f"Failed to set transform for {transform.child_frame_id}: {response.message}"
+                    f"Failed to set transforms: {response.message}"
                 )
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call failed: {e}")

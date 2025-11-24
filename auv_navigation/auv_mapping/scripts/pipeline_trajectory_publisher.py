@@ -4,9 +4,11 @@ import rospy
 import tf2_ros
 import tf.transformations
 import numpy as np
+
+from typing import List
 from geometry_msgs.msg import Pose, TransformStamped, Vector3, Quaternion
 from std_srvs.srv import SetBool, SetBoolResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from auv_msgs.srv import SetObjectTransforms, SetObjectTransformsRequest
 
 
 class PipelineTransformServiceNode:
@@ -18,10 +20,10 @@ class PipelineTransformServiceNode:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # Service to broadcast transforms
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transforms_service = rospy.ServiceProxy(
+            "set_object_transforms", SetObjectTransforms
         )
-        self.set_object_transform_service.wait_for_service()
+        self.set_object_transforms_service.wait_for_service()
 
         # Parameters
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
@@ -75,15 +77,15 @@ class PipelineTransformServiceNode:
         t.transform.rotation = pose.orientation
         return t
 
-    def send_transform(self, transform: TransformStamped):
-        """Send transform via service"""
-        req = SetObjectTransformRequest()
-        req.transform = transform
+    def send_transforms(self, transforms: List[TransformStamped]):
+        """Send transforms via service"""
+        req = SetObjectTransformsRequest()
+        req.transforms = transforms
         try:
-            resp = self.set_object_transform_service.call(req)
+            resp = self.set_object_transforms_service.call(req)
             if not resp.success:
                 rospy.logwarn(
-                    f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
+                    f"Failed to set transforms: {resp.message}"
                 )
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call failed: {e}")
@@ -198,15 +200,19 @@ class PipelineTransformServiceNode:
             corner_9_pose,
         ]
 
+        transforms_to_send = []
+
         # Send all transforms
         for i, pose in enumerate(corner_poses):
             frame_name = self.pipe_corner_frames[i]
             transform = self.build_transform_message(frame_name, pose)
-            self.send_transform(transform)
+            transforms_to_send.append(transform)
             rospy.loginfo(
                 f"Created {frame_name} at position: "
                 f"x={pose.position.x:.2f}, y={pose.position.y:.2f}, z={pose.position.z:.2f}"
             )
+
+        self.send_transforms(transforms_to_send)
 
         rospy.loginfo("All pipeline corner frames created successfully")
 

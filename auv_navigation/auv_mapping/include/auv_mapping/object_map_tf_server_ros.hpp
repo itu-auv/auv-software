@@ -9,6 +9,7 @@
 
 #include "auv_mapping/object_position_filter.hpp"
 #include "auv_msgs/SetObjectTransform.h"
+#include "auv_msgs/SetObjectTransforms.h"
 #include "geometry_msgs/TransformStamped.h"
 #include "ros/ros.h"
 #include "std_srvs/Trigger.h"
@@ -36,6 +37,9 @@ class ObjectMapTFServerROS {
   bool set_transform_handler(auv_msgs::SetObjectTransform::Request &req,
                              auv_msgs::SetObjectTransform::Response &res);
 
+  bool set_transforms_handler(auv_msgs::SetObjectTransforms::Request &req,
+                              auv_msgs::SetObjectTransforms::Response &res);
+
   void dynamic_transform_callback(
       const geometry_msgs::TransformStamped::ConstPtr &msg);
   void update_filter_frame_index(const std::string &object_frame);
@@ -57,6 +61,7 @@ class ObjectMapTFServerROS {
   //
   std::mutex mutex_;
   ros::ServiceServer service_;
+  ros::ServiceServer transforms_service_;
   ros::ServiceServer clear_service_;
   ros::Subscriber dynamic_sub_;
 };

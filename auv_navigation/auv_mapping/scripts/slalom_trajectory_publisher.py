@@ -10,9 +10,10 @@ import yaml
 import os
 import rospkg
 
+from typing import List
 from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from auv_msgs.srv import SetObjectTransforms, SetObjectTransformsRequest
 
 from dynamic_reconfigure.server import Server
 from auv_mapping.cfg import SlalomTrajectoryConfig
@@ -75,10 +76,10 @@ class SlalomTrajectoryPublisher(object):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # Service to broadcast transforms
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transforms_service = rospy.ServiceProxy(
+            "set_object_transforms", SetObjectTransforms
         )
-        self.set_object_transform_service.wait_for_service()
+        self.set_object_transforms_service.wait_for_service()
 
         self.active = False
         self.q_orientation = None
@@ -157,6 +158,8 @@ class SlalomTrajectoryPublisher(object):
         if not self.active:
             return
 
+        transforms_to_send = []
+
         try:
             # --- First, get the pipe locations to establish the coordinate system ---
             t_white = self.tf_buffer.lookup_transform(
@@ -217,7 +220,7 @@ class SlalomTrajectoryPublisher(object):
                 0.0, 0.0, slalom_forward_angle
             )
 
-            self.send_transform(
+            transforms_to_send.append(
                 self.build_transform(
                     "slalom_waypoint_1",
                     self.parent_frame,
@@ -249,7 +252,7 @@ class SlalomTrajectoryPublisher(object):
             q2 = tf.transformations.quaternion_from_euler(0, 0, angle2)
 
             # Publish intermediate frames
-            self.send_transform(
+            transforms_to_send.append(
                 self.build_transform(
                     "slalom_waypoint_1_inter",
                     self.parent_frame,
@@ -257,7 +260,7 @@ class SlalomTrajectoryPublisher(object):
                     q1,
                 )
             )
-            self.send_transform(
+            transforms_to_send.append(
                 self.build_transform(
                     "slalom_waypoint_2_inter",
                     self.parent_frame,
@@ -267,7 +270,7 @@ class SlalomTrajectoryPublisher(object):
             )
 
             # Publish main waypoints with updated orientations
-            self.send_transform(
+            transforms_to_send.append(
                 self.build_transform(
                     "slalom_waypoint_2",
                     self.parent_frame,
@@ -275,7 +278,7 @@ class SlalomTrajectoryPublisher(object):
                     q1,
                 )
             )
-            self.send_transform(
+            transforms_to_send.append(
                 self.build_transform(
                     "slalom_waypoint_3",
                     self.parent_frame,
@@ -286,7 +289,7 @@ class SlalomTrajectoryPublisher(object):
 
             # Calculate and publish slalom_exit
             self.pos_exit = self.pos_wp3 + forward_vec * self.exit_distance
-            self.send_transform(
+            transforms_to_send.append(
                 self.build_transform(
                     "slalom_exit",
                     self.parent_frame,
@@ -296,7 +299,7 @@ class SlalomTrajectoryPublisher(object):
             )
 
             # Broadcast the debug frame
-            self.send_transform(
+            transforms_to_send.append(
                 self.build_transform(
                     "slalom_debug_frame",
                     self.parent_frame,
@@ -338,7 +341,7 @@ class SlalomTrajectoryPublisher(object):
             y_axis_in_parent_frame = rotation_matrix.dot(y_axis_in_gate_frame)
             # Calculate the new position by moving along the gate's y-axis
             self.pos_entrance = gate_exit_pos + y_axis_in_parent_frame * self.gate_dist
-            self.send_transform(
+            transforms_to_send.append(
                 self.build_transform(
                     "slalom_entrance",
                     self.parent_frame,
@@ -356,7 +359,7 @@ class SlalomTrajectoryPublisher(object):
                 self.pos_entrance
                 - x_axis_in_parent_frame * self.slalom_entrance_backed_distance
             )
-            self.send_transform(
+            transforms_to_send.append(
                 self.build_transform(
                     "slalom_entrance_backed",
                     self.parent_frame,
@@ -370,6 +373,8 @@ class SlalomTrajectoryPublisher(object):
                 "Failed to get gate exit transform and publish slalom entrance: %s",
                 e,
             )
+
+        self.send_transforms(transforms_to_send)
 
     def build_transform(self, child_frame, parent_frame, pos, q):
         """Helper function to create and broadcast a TransformStamped message."""
@@ -388,15 +393,20 @@ class SlalomTrajectoryPublisher(object):
         t.transform.rotation.w = q[3]
         return t
 
-    def send_transform(self, transform: TransformStamped):
-        if transform is None:
+    def send_transforms(self, transforms: List[TransformStamped]):
+        if not transforms:
             return
-        request = SetObjectTransformRequest()
-        request.transform = transform
-        response = self.set_object_transform_service.call(request)
+        # Filter out None values
+        transforms = [t for t in transforms if t is not None]
+        if not transforms:
+            return
+
+        request = SetObjectTransformsRequest()
+        request.transforms = transforms
+        response = self.set_object_transforms_service.call(request)
         if not response.success:
             rospy.logerr(
-                f"Failed to set transform for {transform.child_frame_id}: {response.message}"
+                f"Failed to set transforms: {response.message}"
             )
 
     def save_parameters(self):

@@ -46,6 +46,10 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
       nh_.advertiseService("set_object_transform",
                            &ObjectMapTFServerROS::set_transform_handler, this);
 
+  transforms_service_ =
+      nh_.advertiseService("set_object_transforms",
+                           &ObjectMapTFServerROS::set_transforms_handler, this);
+
   clear_service_ =
       nh_.advertiseService("clear_object_transforms",
                            &ObjectMapTFServerROS::clear_map_handler, this);
@@ -115,6 +119,55 @@ bool ObjectMapTFServerROS::set_transform_handler(
                                                    << target_frame);
   res.success = true;
   res.message = "Stored transform for frame: " + target_frame;
+  return true;
+}
+
+bool ObjectMapTFServerROS::set_transforms_handler(
+    auv_msgs::SetObjectTransforms::Request &req,
+    auv_msgs::SetObjectTransforms::Response &res) {
+
+  std::string message = "";
+  bool success = true;
+
+  // Since getting transform might block or fail, we should probably do it outside the lock
+  // or at least handle failures gracefully.
+  // The original handler cleared the filter list for the target frame.
+  // We will do the same for each transform in the list.
+
+  std::vector<std::pair<std::string, std::unique_ptr<ObjectPositionFilter>>> new_filters;
+
+  // First, process all transforms and create filters (without locking)
+  for (const auto& transform : req.transforms) {
+    const auto static_transform = transform_to_static_frame(transform);
+
+    if (!static_transform.has_value()) {
+      success = false;
+      message += "Failed to capture transform for " + transform.child_frame_id + "; ";
+      continue; // try next one
+    }
+
+    const auto target_frame = transform.child_frame_id;
+    new_filters.emplace_back(target_frame, std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
+
+    ROS_DEBUG_STREAM("Computed static transform from " << static_frame_ << " to "
+                                                     << target_frame);
+    message += "Stored transform for " + target_frame + "; ";
+  }
+
+  // Then, lock once and update the map
+  {
+    auto lock = std::scoped_lock{mutex_};
+    for (auto& [target_frame, filter] : new_filters) {
+      auto it = filters_.find(target_frame);
+      if (it != filters_.end()) {
+        filters_[target_frame].clear();
+      }
+      filters_[target_frame].push_back(std::move(filter));
+    }
+  }
+
+  res.success = success;
+  res.message = message;
   return true;
 }
 
