@@ -33,7 +33,6 @@ add_service_files(
   SendAcoustic.srv
   SetDepth.srv
   SetObjectTransform.srv
-  SetObjectTransforms.srv
   VisualServoing.srv
   SetDetectionFocus.srv
 )

@@ -13,7 +13,6 @@ import rospkg
 from typing import List
 from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
-from auv_msgs.srv import SetObjectTransforms, SetObjectTransformsRequest
 
 from dynamic_reconfigure.server import Server
 from auv_mapping.cfg import SlalomTrajectoryConfig
@@ -75,11 +74,10 @@ class SlalomTrajectoryPublisher(object):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        # Service to broadcast transforms
-        self.set_object_transforms_service = rospy.ServiceProxy(
-            "set_object_transforms", SetObjectTransforms
+        # Publisher for object transform updates
+        self.object_transform_pub = rospy.Publisher(
+            "object_transform_updates", TransformStamped, queue_size=10
         )
-        self.set_object_transforms_service.wait_for_service()
 
         self.active = False
         self.q_orientation = None
@@ -401,13 +399,8 @@ class SlalomTrajectoryPublisher(object):
         if not transforms:
             return
 
-        request = SetObjectTransformsRequest()
-        request.transforms = transforms
-        response = self.set_object_transforms_service.call(request)
-        if not response.success:
-            rospy.logerr(
-                f"Failed to set transforms: {response.message}"
-            )
+        for transform in transforms:
+            self.object_transform_pub.publish(transform)
 
     def save_parameters(self):
         """Save parameters to the YAML file."""
