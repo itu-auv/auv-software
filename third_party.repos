@@ -1,13 +1,13 @@
 repositories:
-  ../third_party/xsens_mti_driver:
+  xsens_mti_driver:
     type: git
     version: master
     url: https://github.com/nobleo/xsens_mti_driver.git
-  ../third_party/ping360_sonar:
+  ping360_sonar:
     type: git
     version: master
-    url: https://github.com/batuhanozer/ping360_sonar.git
-  ../third_party/ultralytics_ros:
+    url: https://github.com/CentraleNantesRobotics/ping360_sonar.git
+  ultralytics_ros:
     type: git
     version: noetic-devel
     url: https://github.com/Alpaca-zip/ultralytics_ros.git
