@@ -23,14 +23,14 @@ class DepthAnythingClient:
     def __init__(self):
         rospy.init_node("depth_anything_node", anonymous=True)
 
-        # Parameters
         self.zmq_host = rospy.get_param("~zmq_host", "localhost")
         self.zmq_port = rospy.get_param("~zmq_port", 5555)
-        self.input_topic = rospy.get_param("~input_topic", "/camera/image_raw")
-        self.output_topic = rospy.get_param("~output_topic", "/depth_anything/points")
+        self.camera_input_topic = rospy.get_param("~input_topic", "/camera/image_raw")
+        self.points_topic = rospy.get_param("~output_topic", "/depth_anything/points")
+        #! what is the kind of this?
         self.depth_topic = rospy.get_param("~depth_topic", "/depth_anything/depth")
-        self.process_res = rospy.get_param("~process_res", 504)
 
+        self.process_res = rospy.get_param("~process_res", 504)
         # External Data Parameters
         self.use_external_odom = rospy.get_param("~use_external_odom", False)
         self.camera_namespace = rospy.get_param(
@@ -41,10 +41,8 @@ class DepthAnythingClient:
         )
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
 
-        # Dynamic Batching Parameters
-        self.max_batch_size = rospy.get_param(
-            "~max_batch_size", 5
-        )  # Maximum number of images to send in a single batch
+        # Batching Parameters
+        self.max_batch_size = rospy.get_param("~max_batch_size", 5)
         self.context_window = rospy.get_param(
             "~context_window", 0.5
         )  # seconds: Time window to look back for context frames
@@ -53,43 +51,21 @@ class DepthAnythingClient:
         rospy.loginfo("🚀 Depth Anything 3 - ZeroMQ Client Node")
         rospy.loginfo("=" * 60)
         rospy.loginfo(f"🔌 ZeroMQ Server: {self.zmq_host}:{self.zmq_port}")
-        rospy.loginfo(f"📥 Input topic: {self.input_topic}")
+        rospy.loginfo(f"📥 Input topic: {self.camera_input_topic}")
         rospy.loginfo(f"📦 Max Batch Size: {self.max_batch_size}")
         rospy.loginfo(f"🔄 External Odom: {self.use_external_odom}")
         if self.use_external_odom:
             rospy.loginfo(f"🧭 TF Lookup: {self.odom_frame} → {self.camera_frame}")
 
-        # Fetch camera intrinsics once at startup (non-blocking)
+        # Initialize camera calibration fetcher (keeps subscription active for retries)
         rospy.loginfo(
-            f"📷 Fetching camera intrinsics from: {self.camera_namespace}/camera_info"
+            f"📷 Subscribing to camera intrinsics: {self.camera_namespace}/camera_info"
         )
-        try:
-            camera_info = camera_calibrations.CameraCalibrationFetcher(
-                self.camera_namespace, wait_for_camera_info=False
-            ).get_camera_info()
-
-            if camera_info is not None:
-                # Extract intrinsics matrix (3x3) from camera_info.K
-                self.intrinsics = (
-                    np.array(camera_info.K).reshape(3, 3).astype(np.float32)
-                )
-                rospy.loginfo(f"✅ Camera intrinsics loaded:")
-                rospy.loginfo(
-                    f"   fx={self.intrinsics[0,0]:.2f}, fy={self.intrinsics[1,1]:.2f}"
-                )
-                rospy.loginfo(
-                    f"   cx={self.intrinsics[0,2]:.2f}, cy={self.intrinsics[1,2]:.2f}"
-                )
-            else:
-                rospy.logwarn(
-                    "⚠️ Could not fetch camera intrinsics yet. Will retry or use model-estimated intrinsics."
-                )
-                self.intrinsics = None
-        except Exception as e:
-            rospy.logwarn(
-                f"⚠️ Failed to fetch camera intrinsics: {e}. Will use model-estimated intrinsics."
-            )
-            self.intrinsics = None
+        self.camera_calibration_fetcher = camera_calibrations.CameraCalibrationFetcher(
+            self.camera_namespace, wait_for_camera_info=False
+        )
+        self.intrinsics = None
+        self._try_fetch_intrinsics()
 
         # Initialize ZeroMQ
         self.context = zmq.Context()
@@ -120,14 +96,14 @@ class DepthAnythingClient:
 
         # Subscribers and Publishers
         self.image_sub = rospy.Subscriber(
-            self.input_topic,
+            self.camera_input_topic,
             RosImage,
             self.image_callback,
             queue_size=10,  # Increased queue size to allow buffering
             buff_size=2**24,
         )
 
-        self.pcl_pub = rospy.Publisher(self.output_topic, PointCloud2, queue_size=1)
+        self.pcl_pub = rospy.Publisher(self.points_topic, PointCloud2, queue_size=1)
         self.depth_pub = rospy.Publisher(self.depth_topic, RosImage, queue_size=1)
 
         # Performance metrics
@@ -148,6 +124,25 @@ class DepthAnythingClient:
             rospy.logerr(f"❌ Connection check failed: {e}")
             return False
 
+    def _try_fetch_intrinsics(self):
+        """Try to fetch camera intrinsics from the camera_info topic."""
+        if self.intrinsics is not None:
+            return True  # Already have intrinsics
+
+        camera_info = self.camera_calibration_fetcher.get_camera_info()
+        if camera_info is not None:
+            # Extract intrinsics matrix (3x3) from camera_info.K
+            self.intrinsics = np.array(camera_info.K).reshape(3, 3).astype(np.float32)
+            rospy.loginfo(f"✅ Camera intrinsics loaded:")
+            rospy.loginfo(
+                f"   fx={self.intrinsics[0,0]:.2f}, fy={self.intrinsics[1,1]:.2f}"
+            )
+            rospy.loginfo(
+                f"   cx={self.intrinsics[0,2]:.2f}, cy={self.intrinsics[1,2]:.2f}"
+            )
+            return True
+        return False
+
     def image_callback(self, msg):
         """
         Buffer incoming images with their corresponding camera extrinsics.
@@ -163,14 +158,41 @@ class DepthAnythingClient:
             extrinsics = None
             if self.use_external_odom:
                 try:
-                    # Look up transform from odom to camera frame at the image timestamp
+                    # First try to get transform at exact image timestamp
                     transform = self.tf_buffer.lookup_transform(
                         self.odom_frame,
                         self.camera_frame,
                         msg.header.stamp,
-                        rospy.Duration(0.1),
+                        rospy.Duration(0.05),
                     )
+                except tf2_ros.ExtrapolationException:
+                    # If image timestamp is in the future, use latest available transform
+                    # This happens when camera publishes faster than odometry
+                    try:
+                        transform = self.tf_buffer.lookup_transform(
+                            self.odom_frame,
+                            self.camera_frame,
+                            rospy.Time(0),  # Use latest available
+                            rospy.Duration(0.05),
+                        )
+                        rospy.logdebug_throttle(
+                            5.0, "Using latest TF (image timestamp ahead of TF data)"
+                        )
+                    except (
+                        tf2_ros.LookupException,
+                        tf2_ros.ConnectivityException,
+                        tf2_ros.ExtrapolationException,
+                    ) as e:
+                        rospy.logwarn_throttle(5.0, f"TF lookup failed: {e}")
+                        transform = None
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                ) as e:
+                    rospy.logwarn_throttle(5.0, f"TF lookup failed: {e}")
+                    transform = None
 
+                if transform is not None:
                     # Convert TransformStamped to 4x4 matrix (world-to-camera)
                     trans = transform.transform.translation
                     rot = transform.transform.rotation
@@ -200,14 +222,6 @@ class DepthAnythingClient:
                         f"   │ {extrinsics[3,0]:7.4f} {extrinsics[3,1]:7.4f} {extrinsics[3,2]:7.4f} │ {extrinsics[3,3]:7.4f} │  ← Homogeneous"
                     )
                     rospy.loginfo_once("   └                                      ┘")
-
-                except (
-                    tf2_ros.LookupException,
-                    tf2_ros.ConnectivityException,
-                    tf2_ros.ExtrapolationException,
-                ) as e:
-                    rospy.logwarn_throttle(5.0, f"TF lookup failed: {e}")
-                    extrinsics = None
 
             # Store image with extrinsics
             self.image_buffer.append((timestamp, cv_image, msg.header, extrinsics))
@@ -286,6 +300,9 @@ class DepthAnythingClient:
 
         if not batch:
             return
+
+        # Try to fetch intrinsics if not yet available
+        self._try_fetch_intrinsics()
 
         start_time = time.time()
 
