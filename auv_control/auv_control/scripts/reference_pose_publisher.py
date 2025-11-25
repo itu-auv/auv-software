@@ -10,6 +10,7 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from auv_common_lib.control.enable_state import ControlEnableHandler
 import dynamic_reconfigure.client
 from threading import Lock
+import tf2_ros
 
 
 class ReferencePosePublisherNode:
@@ -59,6 +60,14 @@ class ReferencePosePublisherNode:
         self.dyn_client = dynamic_reconfigure.client.Client(
             "/taluy/auv_control_node", timeout=30
         )
+
+        # TF2 buffer & listener and frame params
+        self.odom_frame = rospy.get_param("~odom_frame", "odom")
+        self.base_frame = rospy.get_param("~base_frame", "taluy/base_link")
+        self.tf_lookup_timeout = rospy.get_param("~tf_lookup_timeout", 2.0)
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
         # Initialize stored PID parameters
         self.stored_kp_5 = 0.0
         self.stored_ki_5 = 0.0
@@ -66,12 +75,68 @@ class ReferencePosePublisherNode:
         self.heading_gains_stored = False
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
-        self.target_depth = req.target_depth
-        self.target_frame_id = req.frame_id
-        return SetDepthResponse(
-            success=True,
-            message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
-        )
+        # 1. Get Frames directly from request
+        external_frame = req.external_frame
+        internal_frame = req.internal_frame
+
+        # 2. Apply Defaults & Validation
+        # Condition 1: If external frame is missing, default is odom
+        if not external_frame:
+            external_frame = self.odom_frame
+        
+        # Condition 2: If internal frame is missing, default is base_link
+        if not internal_frame:
+            internal_frame = self.base_frame
+
+        # Condition 3: Internal frame must belong to robot
+        if not internal_frame.startswith("taluy/") and internal_frame != self.base_frame:
+            msg = f"Internal frame '{internal_frame}' does not start with 'taluy/'. Operation cancelled."
+            rospy.logerr(msg)
+            return SetDepthResponse(success=False, message=msg)
+
+        rospy.loginfo(f"Alignment Request: Internal='{internal_frame}' -> External='{external_frame}' (Offset: {req.target_depth})")
+
+        # 3. Compute Transform
+        # Logic: We need to find where the BASE_LINK should be in ODOM frame.
+        # Formula: Base_Z_Desired = (External_Z_in_Odom + Offset) - (Internal_Z_relative_to_Base)
+        try:
+            # A: Where is the external target in the world?
+            t_odom_ext = self.tf_buffer.lookup_transform(
+                self.odom_frame, external_frame, rospy.Time(0), rospy.Duration(self.tf_lookup_timeout)
+            )
+            
+            # B: Where is the internal tool relative to the robot base?
+            # This is the "chic" part: We calculate the robot's own geometry dynamically.
+            t_base_int = self.tf_buffer.lookup_transform(
+                self.base_frame, internal_frame, rospy.Time(0), rospy.Duration(self.tf_lookup_timeout)
+            )
+
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logerr(f"TF lookup failed: {e}")
+            return SetDepthResponse(success=False, message=f"TF lookup failed: {e}")
+
+        # 4. Calculate Desired Depth
+        # Z position of the target in Odom frame
+        target_z_world = t_odom_ext.transform.translation.z
+        
+        # Z distance from Base to Internal Tool (Robot Geometry)
+        tool_offset_z = t_base_int.transform.translation.z
+
+        # The math:
+        # We want: Internal_Z_World = Target_Z_World + User_Offset
+        # We know: Internal_Z_World = Base_Z_World + Tool_Offset_Z
+        # So:      Base_Z_World = (Target_Z_World + User_Offset) - Tool_Offset_Z
+        
+        base_z_desired = (target_z_world + req.target_depth) - tool_offset_z
+
+        # 5. Update State
+        self.target_depth = base_z_desired
+        self.target_frame_id = self.odom_frame
+
+        success_msg = f"Aligned '{internal_frame}' to '{external_frame}'. Base set to Z={base_z_desired:.3f}"
+        rospy.loginfo(success_msg)
+        
+        return SetDepthResponse(success=True, message=success_msg)
 
     def reset_odometry_handler(self, req):
         if self.is_resetting:
