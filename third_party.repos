@@ -3,6 +3,7 @@ repositories:
     type: git
     version: master
     url: https://github.com/nobleo/xsens_mti_driver.git
+  # The original URL for this repository is no longer valid.
   ping360_sonar:
     type: git
     version: master

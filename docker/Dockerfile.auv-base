@@ -37,8 +37,10 @@ RUN apt-get update && \
   ros-noetic-rosserial-python \
   ros-noetic-move-base \
   ros-noetic-pcl-ros \
-  ros-noetic-pcl-conversions \
-  ros-noetic-robot-localization && \
+  ros-noetic-pcl-conversions && \
+  if [ "$HOST" != "tegra" ]; then \
+    apt-get install -y ros-noetic-robot-localization; \
+  fi && \
   rm -rf /var/lib/apt/lists/*
 
 RUN if [ "$HOST" = "tegra" ]; then \
