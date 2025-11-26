@@ -25,8 +25,18 @@ class ArucoDepthEstimator:
             "~camera_frame", "front_camera_optical_link"
         )
         self.odom_frame = "odom"
-        self.image_topic = "camera/image_corrected"
+
+        # Detector parameters
         self.marker_size = rospy.get_param("~marker_size", 0.05)  # meters
+        self.param_markers.adaptiveThreshConstant = rospy.get_param(
+            "~adaptiveThreshConstant", 7
+        )
+        self.param_markers.minMarkerPerimeterRate = rospy.get_param(
+            "~minMarkerPerimeterRate", 0.03
+        )
+        self.param_markers.maxMarkerPerimeterRate = rospy.get_param(
+            "~maxMarkerPerimeterRate", 4.0
+        )
 
         # Get Camera calibration
         try:
@@ -56,23 +66,15 @@ class ArucoDepthEstimator:
         elif hasattr(aruco, "DetectorParameters"):
             self.param_markers = aruco.DetectorParameters()
 
-        # Optimize detector parameters for better detection (tunable via ROS params)
-        self.param_markers.adaptiveThreshConstant = rospy.get_param(
-            "~adaptiveThreshConstant", 7
-        )
-        self.param_markers.minMarkerPerimeterRate = rospy.get_param(
-            "~minMarkerPerimeterRate", 0.03
-        )
-        self.param_markers.maxMarkerPerimeterRate = rospy.get_param(
-            "~maxMarkerPerimeterRate", 4.0
-        )
+        # fixme: Check which DetectorParameters version is being used
+        # fixme: Check which getdictionary version is being used
 
         self.bridge = CvBridge()
         self.image_pub = rospy.Publisher(
-            "~image_annotated/compressed", CompressedImage, queue_size=1
+            "image_annotated/compressed", CompressedImage, queue_size=1
         )
         self.image_sub = rospy.Subscriber(
-            self.image_topic,
+            "cam_front/image_corrected",
             Image,
             self.image_callback,
             queue_size=1,
