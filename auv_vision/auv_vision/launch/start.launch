@@ -15,6 +15,7 @@
       <param name="sync_slop" value="0.05"/>
       <param name="recalc_threshold_deg" value="0.1"/>
     </node>
+
     <node
       pkg="auv_vision"
       type="yolo_image_annotator.py"
@@ -28,6 +29,20 @@
       <param name="save_directory" value="/tmp/yolo_annotated_images"/>
       <param name="font_scale" value="0.7"/>
       <param name="font_thickness" value="2"/>
+    </node>
+
+    <node
+      pkg="auv_vision"
+      type="aruco_depth_estimation.py"
+      name="aruco_depth_estimation_node"
+      output="screen">
+
+      <remap from="camera/image_corrected" to="cameras/cam_front/image_corrected"/>
+      <remap from="camera_info" to="cameras/cam_front/camera_info"/>
+
+      <param name="camera_namespace" value="/$(arg namespace)/cameras/cam_front"/>
+      <param name="camera_frame" value="front_camera_optical_link"/>
+      <param name="marker_size" value="0.05"/> <!-- meters -->
     </node>
   </group>
 </launch>

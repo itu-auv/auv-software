@@ -35,6 +35,7 @@ catkin_install_python(
     scripts/yolo_to_mask_node.py
     scripts/opencv_pipe_detector.py
     scripts/pipe_follower.py
+    scripts/aruco_depth_estimation.py)
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

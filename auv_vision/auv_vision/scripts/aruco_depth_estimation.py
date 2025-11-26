@@ -24,8 +24,8 @@ class ArucoDepthEstimator:
         self.camera_frame = rospy.get_param(
             "~camera_frame", "front_camera_optical_link"
         )
-        self.odom_frame = rospy.get_param("~odom_frame", "odom")
-        self.image_topic = "camera/image_raw"
+        self.odom_frame = "odom"
+        self.image_topic = "camera/image_corrected"
         self.marker_size = rospy.get_param("~marker_size", 0.05)  # meters
 
         # Get Camera calibration
@@ -40,9 +40,21 @@ class ArucoDepthEstimator:
             rospy.logerr(f"Failed to load camera calibration: {e}")
             raise
 
-        # ArUco setup
-        self.marker_dict = aruco.Dictionary_get(aruco.DICT_ARUCO_ORIGINAL)
-        self.param_markers = aruco.DetectorParameters_create()
+        dict_const = getattr(aruco, "DICT_ARUCO_ORIGINAL", None) or getattr(
+            aruco, "DICT_4X4_50", None
+        )
+
+        # get marker dictionary (prefer modern API)
+        if hasattr(aruco, "getPredefinedDictionary"):
+            self.marker_dict = aruco.getPredefinedDictionary(dict_const)
+        elif hasattr(aruco, "Dictionary_get"):
+            self.marker_dict = aruco.Dictionary_get(dict_const)
+
+        # create detector parameters (prefer create factory)
+        if hasattr(aruco, "DetectorParameters_create"):
+            self.param_markers = aruco.DetectorParameters_create()
+        elif hasattr(aruco, "DetectorParameters"):
+            self.param_markers = aruco.DetectorParameters()
 
         # Optimize detector parameters for better detection (tunable via ROS params)
         self.param_markers.adaptiveThreshConstant = rospy.get_param(
