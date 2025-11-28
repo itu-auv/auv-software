@@ -93,34 +93,48 @@ class DepthAnythingClient:
             rospy.loginfo(f"TF lookup: {self.odom_frame} -> {self.camera_frame}")
 
     def _initialize_camera_intrinsics(self) -> None:
-        """Fetch camera intrinsics from camera_info topic."""
+        """Initialize camera intrinsics fetcher and attempt to get initial intrinsics."""
         rospy.loginfo(
-            f"Fetching camera intrinsics from {self.camera_namespace}/camera_info"
+            f"Setting up camera intrinsics fetcher for {self.camera_namespace}/camera_info"
         )
         try:
-            camera_info = camera_calibrations.CameraCalibrationFetcher(
-                self.camera_namespace, wait_for_camera_info=False
-            ).get_camera_info()
-
-            if camera_info is not None:
-                self.intrinsics = (
-                    np.array(camera_info.K).reshape(3, 3).astype(np.float32)
+            self.camera_calibration_fetcher = (
+                camera_calibrations.CameraCalibrationFetcher(
+                    self.camera_namespace, wait_for_camera_info=False
                 )
-                fx, fy = self.intrinsics[0, 0], self.intrinsics[1, 1]
-                cx, cy = self.intrinsics[0, 2], self.intrinsics[1, 2]
-                rospy.loginfo(
-                    f"Camera intrinsics loaded: fx={fx:.2f}, fy={fy:.2f}, cx={cx:.2f}, cy={cy:.2f}"
-                )
-            else:
-                rospy.logwarn(
-                    "Could not fetch camera intrinsics. Will use model-estimated values."
-                )
-                self.intrinsics = None
-        except Exception as e:
-            rospy.logwarn(
-                f"Failed to fetch camera intrinsics: {e}. Using model-estimated values."
             )
             self.intrinsics = None
+            self._try_fetch_intrinsics()
+        except Exception as e:
+            rospy.logwarn(
+                f"Failed to initialize camera intrinsics fetcher: {e}. Will use model-estimated values."
+            )
+            self.camera_calibration_fetcher = None
+            self.intrinsics = None
+
+    def _try_fetch_intrinsics(self) -> bool:
+        """Attempt to fetch camera intrinsics if not already available.
+
+        Returns:
+            True if intrinsics are available, False otherwise.
+        """
+        if self.intrinsics is not None:
+            return True
+
+        if self.camera_calibration_fetcher is None:
+            return False
+
+        camera_info = self.camera_calibration_fetcher.get_camera_info()
+        if camera_info is not None:
+            self.intrinsics = np.array(camera_info.K).reshape(3, 3).astype(np.float32)
+            fx, fy = self.intrinsics[0, 0], self.intrinsics[1, 1]
+            cx, cy = self.intrinsics[0, 2], self.intrinsics[1, 2]
+            rospy.loginfo(
+                f"Camera intrinsics loaded: fx={fx:.2f}, fy={fy:.2f}, cx={cx:.2f}, cy={cy:.2f}"
+            )
+            return True
+
+        return False
 
     def _initialize_zmq_connection(self) -> None:
         """Initialize ZeroMQ connection to inference server."""
@@ -312,6 +326,9 @@ class DepthAnythingClient:
         start_time = time.time()
 
         images_rgb = [cv2.cvtColor(item[1], cv2.COLOR_BGR2RGB) for item in batch]
+
+        # Try to fetch intrinsics if not already available
+        self._try_fetch_intrinsics()
 
         intrinsics_batch = None
         if self.intrinsics is not None:
