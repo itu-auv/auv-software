@@ -6,6 +6,7 @@ It receives image messages, batches them for efficient processing, and publishes
 depth maps and point clouds based on the inference results.
 """
 import collections
+import signal
 import sys
 import time
 from typing import List, Optional, Tuple
@@ -31,7 +32,7 @@ ZMQ_SEND_TIMEOUT_MS = 5000
 ZMQ_LINGER_MS = 0
 DEFAULT_PROCESS_RESOLUTION = 504
 DEFAULT_MAX_BATCH_SIZE = 5
-DEFAULT_CONTEXT_WINDOW_SEC = 0.5
+DEFAULT_CONTEXT_WINDOW_SEC = 1.0
 IMAGE_BUFFER_MAXLEN = 100
 IMAGE_QUEUE_SIZE = 10
 IMAGE_BUFFER_SIZE = 2**24
@@ -51,13 +52,32 @@ class DepthAnythingClient:
         """Initialize the depth estimation client node."""
         rospy.init_node("depth_anything_node", anonymous=True)
 
+        self._shutdown_requested = False
+        self._setup_signal_handlers()
+
         self._load_parameters()
         self._log_configuration()
         self._initialize_camera_intrinsics()
         self._initialize_zmq_connection()
         self._initialize_ros_components()
 
+        rospy.on_shutdown(self._on_shutdown)
+
         rospy.loginfo("Depth Anything client node initialized successfully")
+
+    def _setup_signal_handlers(self) -> None:
+        """Set up signal handlers for graceful shutdown."""
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+
+    def _signal_handler(self, signum, frame) -> None:
+        """Handle shutdown signals gracefully."""
+        rospy.loginfo(f"Received signal {signum}, initiating shutdown...")
+        self._shutdown_requested = True
+
+    def _on_shutdown(self) -> None:
+        """ROS shutdown callback."""
+        self._shutdown_requested = True
 
     def _load_parameters(self) -> None:
         """Load ROS parameters for node configuration."""
@@ -75,6 +95,10 @@ class DepthAnythingClient:
         self.camera_frame = rospy.get_param(
             "~camera_frame", "taluy/base_link/front_camera_optical_link"
         )
+
+        self.output_frame = rospy.get_param(
+            "~output_frame", "taluy/base_link/front_camera_optical_link"
+        )
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
 
         self.max_batch_size = rospy.get_param("~max_batch_size", DEFAULT_MAX_BATCH_SIZE)
@@ -91,6 +115,10 @@ class DepthAnythingClient:
         rospy.loginfo(f"External odometry enabled: {self.use_external_odom}")
         if self.use_external_odom:
             rospy.loginfo(f"TF lookup: {self.odom_frame} -> {self.camera_frame}")
+        if self.output_frame:
+            rospy.loginfo(f"Output frame override: {self.output_frame}")
+        else:
+            rospy.loginfo("Output frame: using input image header frame_id")
 
     def _initialize_camera_intrinsics(self) -> None:
         """Initialize camera intrinsics fetcher and attempt to get initial intrinsics."""
@@ -256,11 +284,15 @@ class DepthAnythingClient:
         if not self.image_buffer:
             return []
 
-        current_time = rospy.Time.now().to_sec()
         available_frames = list(self.image_buffer)
 
+        # Use the latest frame's timestamp as reference to avoid sim_time vs wall_time issues
+        latest_frame_time = available_frames[-1][0]
+
         valid_frames = [
-            f for f in available_frames if (current_time - f[0]) <= self.context_window
+            f
+            for f in available_frames
+            if (latest_frame_time - f[0]) <= self.context_window
         ]
 
         if not valid_frames:
@@ -275,7 +307,11 @@ class DepthAnythingClient:
         selected_batch = [valid_frames[i] for i in indices]
 
         self._log_batch_selection(
-            available_frames, valid_frames, selected_batch, batch_size, current_time
+            available_frames,
+            valid_frames,
+            selected_batch,
+            batch_size,
+            latest_frame_time,
         )
 
         last_timestamp = selected_batch[-1][0]
@@ -309,7 +345,7 @@ class DepthAnythingClient:
 
     def run(self) -> None:
         """Main processing loop that continuously processes incoming image batches."""
-        while not rospy.is_shutdown():
+        while not rospy.is_shutdown() and not self._shutdown_requested:
             if not self.image_buffer:
                 rospy.sleep(0.01)
                 continue
@@ -349,6 +385,10 @@ class DepthAnythingClient:
             extrinsics_batch = None
 
         try:
+            # Check if shutdown was requested before blocking on ZMQ
+            if self._shutdown_requested:
+                return
+
             request = {
                 "command": "inference_batch",
                 "images": images_rgb,
@@ -358,6 +398,11 @@ class DepthAnythingClient:
             }
 
             self.socket.send_pyobj(request, protocol=2)
+
+            # Check again after send
+            if self._shutdown_requested:
+                return
+
             response = self.socket.recv_pyobj()
 
             if response["status"] != "success":
@@ -379,12 +424,19 @@ class DepthAnythingClient:
             self._publish_results(depth, last_image, intrinsics, last_header)
 
         except zmq.error.Again:
-            rospy.logerr("Server timeout")
+            if not self._shutdown_requested:
+                rospy.logerr("Server timeout")
+        except zmq.error.ContextTerminated:
+            rospy.loginfo("ZMQ context terminated, shutting down...")
+        except zmq.error.ZMQError as e:
+            if not self._shutdown_requested:
+                rospy.logerr(f"ZMQ error: {e}")
         except Exception as e:
-            rospy.logerr(f"Processing failed: {e}")
-            import traceback
+            if not self._shutdown_requested:
+                rospy.logerr(f"Processing failed: {e}")
+                import traceback
 
-            traceback.print_exc()
+                traceback.print_exc()
 
     def _publish_results(
         self, depth: np.ndarray, rgb: np.ndarray, K: np.ndarray, header: rospy.Header
@@ -411,6 +463,9 @@ class DepthAnythingClient:
         self, depth: np.ndarray, rgb: np.ndarray, K: np.ndarray, header: rospy.Header
     ) -> None:
         """Generate and publish point cloud from depth map and RGB image.
+
+        Point cloud is generated in optical frame convention (Z forward, X right, Y down).
+
         Args:
             depth: Depth map array.
             rgb: RGB image array.
@@ -425,6 +480,7 @@ class DepthAnythingClient:
         fx, fy = K[0, 0], K[1, 1]
         cx, cy = K[0, 2], K[1, 2]
 
+        # Optical frame convention: Z forward, X right, Y down
         z = depth
         x = (u - cx) * z / fx
         y = (v - cy) * z / fy
@@ -456,14 +512,50 @@ class DepthAnythingClient:
             PointField("rgb", 12, PointField.FLOAT32, 1),
         ]
 
-        pc_msg = pc2.create_cloud(header, fields, points)
+        # Use override frame if specified, otherwise use header frame
+        pcl_header = rospy.Header()
+        pcl_header.stamp = header.stamp
+        pcl_header.frame_id = (
+            self.output_frame if self.output_frame else header.frame_id
+        )
+
+        rospy.logdebug(
+            f"Publishing point cloud in frame: {pcl_header.frame_id} (image frame: {header.frame_id})"
+        )
+
+        pc_msg = pc2.create_cloud(pcl_header, fields, points)
         self.pcl_pub.publish(pc_msg)
 
     def cleanup(self) -> None:
         """Clean up resources before shutdown."""
-        rospy.loginfo("Cleaning up resources...")
-        self.socket.close()
-        self.context.term()
+        if hasattr(self, "_cleanup_done") and self._cleanup_done:
+            return
+        self._cleanup_done = True
+
+        rospy.loginfo("Cleaning up Depth Anything client resources...")
+
+        # Unregister subscriber to stop receiving new messages
+        try:
+            if hasattr(self, "image_sub"):
+                self.image_sub.unregister()
+        except Exception:
+            pass
+
+        # Close ZMQ socket and context
+        try:
+            if hasattr(self, "socket") and self.socket is not None:
+                self.socket.setsockopt(zmq.LINGER, 0)
+                self.socket.close(linger=0)
+        except Exception:
+            pass
+
+        try:
+            if hasattr(self, "context") and self.context is not None:
+                self.context.term()
+        except Exception:
+            pass
+
+        rospy.loginfo("Depth Anything client cleanup complete")
 
 
 if __name__ == "__main__":
@@ -472,9 +564,14 @@ if __name__ == "__main__":
         node = DepthAnythingClient()
         node.run()
     except rospy.ROSInterruptException:
-        pass
+        rospy.loginfo("ROS interrupt received, shutting down...")
+    except KeyboardInterrupt:
+        rospy.loginfo("Keyboard interrupt received, shutting down...")
     except Exception as e:
         rospy.logerr(f"Node crashed: {e}")
+        import traceback
+
+        traceback.print_exc()
     finally:
         if node:
             node.cleanup()
