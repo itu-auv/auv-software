@@ -42,7 +42,7 @@
       <remap from="cam_front/image_corrected" to="cameras/cam_front/image_corrected"/>
 
       <param name="camera_namespace" value="/$(arg namespace)/cameras/cam_front"/>
-      <param name="camera_frame" value="/$(arg namespace)/front_camera_optical_link"/>
+      <param name="camera_frame" value="/$(arg namespace)/base_link/front_camera_optical_link"/>
       <param name="marker_size" value="0.05"/> <!-- meters -->
     </node>
   </group>

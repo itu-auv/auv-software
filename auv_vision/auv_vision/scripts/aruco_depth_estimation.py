@@ -25,9 +25,51 @@ class ArucoDepthEstimator:
             "~camera_frame", "front_camera_optical_link"
         )
         self.odom_frame = "odom"
-
-        # Detector parameters
+        
+        # Marker parameters
         self.marker_size = rospy.get_param("~marker_size", 0.05)  # meters
+
+        # Get Camera calibration
+        try:
+            self.cam_calib = camera_calibrations.CameraCalibrationFetcher(
+                self.camera_namespace, True
+            ).get_camera_info()
+            self.cam_mat = np.array(self.cam_calib.K).reshape(3, 3)
+            self.dist_coef = np.array(self.cam_calib.D)
+            rospy.loginfo(f"Camera calibration loaded: "
+                        f"cx={self.cam_mat[0,2]:.2f}, cy={self.cam_mat[1,2]:.2f}")
+        except Exception as e:
+            rospy.logerr(f"Failed to load camera calibration: {e}")
+            raise
+
+        # Initialize ArUco dictionary
+        dict_type = rospy.get_param("~aruco_dict", "DICT_ARUCO_ORIGINAL")
+        dict_const = getattr(aruco, dict_type, None)
+        
+        if dict_const is None:
+            rospy.logerr(f"ArUco dictionary '{dict_type}' not found!")
+            raise ValueError(f"Invalid ArUco dictionary: {dict_type}")
+        
+        if hasattr(aruco, "getPredefinedDictionary"):
+            self.marker_dict = aruco.getPredefinedDictionary(dict_const)
+            rospy.loginfo(f"Using ArUco dictionary: {dict_type} (modern API)")
+        elif hasattr(aruco, "Dictionary_get"):
+            self.marker_dict = aruco.Dictionary_get(dict_const)
+            rospy.loginfo(f"Using ArUco dictionary: {dict_type} (legacy API)")
+        else:
+            raise RuntimeError("No compatible ArUco dictionary API found")
+
+        # Initialize detector parameters FIRST
+        if hasattr(aruco, "DetectorParameters_create"):
+            self.param_markers = aruco.DetectorParameters_create()
+            rospy.loginfo("Using DetectorParameters_create (legacy API)")
+        elif hasattr(aruco, "DetectorParameters"):
+            self.param_markers = aruco.DetectorParameters()
+            rospy.loginfo("Using DetectorParameters (modern API)")
+        else:
+            raise RuntimeError("No compatible ArUco DetectorParameters API found")
+
+        # Set detector parameters from ROS params
         self.param_markers.adaptiveThreshConstant = rospy.get_param(
             "~adaptiveThreshConstant", 7
         )
@@ -37,37 +79,10 @@ class ArucoDepthEstimator:
         self.param_markers.maxMarkerPerimeterRate = rospy.get_param(
             "~maxMarkerPerimeterRate", 4.0
         )
-
-        # Get Camera calibration
-        try:
-            self.cam_calib = camera_calibrations.CameraCalibrationFetcher(
-                self.camera_namespace, True
-            ).get_camera_info()
-            self.cam_mat = np.array(self.cam_calib.K).reshape(3, 3)
-            self.dist_coef = np.array(self.cam_calib.D)
-            rospy.loginfo(f"  cx={self.cam_mat[0,2]:.2f}, cy={self.cam_mat[1,2]:.2f}")
-        except Exception as e:
-            rospy.logerr(f"Failed to load camera calibration: {e}")
-            raise
-
-        dict_const = getattr(aruco, "DICT_ARUCO_ORIGINAL", None) or getattr(
-            aruco, "DICT_4X4_50", None
-        )
-
-        # get marker dictionary (prefer modern API)
-        if hasattr(aruco, "getPredefinedDictionary"):
-            self.marker_dict = aruco.getPredefinedDictionary(dict_const)
-        elif hasattr(aruco, "Dictionary_get"):
-            self.marker_dict = aruco.Dictionary_get(dict_const)
-
-        # create detector parameters (prefer create factory)
-        if hasattr(aruco, "DetectorParameters_create"):
-            self.param_markers = aruco.DetectorParameters_create()
-        elif hasattr(aruco, "DetectorParameters"):
-            self.param_markers = aruco.DetectorParameters()
-
-        # fixme: Check which DetectorParameters version is being used
-        # fixme: Check which getdictionary version is being used
+        
+        rospy.loginfo(f"Detector params: adaptiveThresh={self.param_markers.adaptiveThreshConstant}, "
+                    f"minPerimeter={self.param_markers.minMarkerPerimeterRate}, "
+                    f"maxPerimeter={self.param_markers.maxMarkerPerimeterRate}")
 
         self.bridge = CvBridge()
         self.image_pub = rospy.Publisher(
@@ -94,6 +109,9 @@ class ArucoDepthEstimator:
 
     def image_callback(self, msg):
         self.frame_count += 1
+    
+        # Check if anyone is subscribed to the annotated image
+        publish_visualization = self.image_pub.get_num_connections() > 0
 
         try:
             frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
@@ -116,8 +134,9 @@ class ArucoDepthEstimator:
                 marker_corners, self.marker_size, self.cam_mat, self.dist_coef
             )
 
-            # Draw detected markers on the frame
-            aruco.drawDetectedMarkers(frame, marker_corners, marker_IDs)
+            # Draw detected markers ONLY if someone is watching
+            if publish_visualization:
+                aruco.drawDetectedMarkers(frame, marker_corners, marker_IDs)
 
             # Process each detected marker
             for i in range(len(marker_IDs)):
@@ -125,53 +144,53 @@ class ArucoDepthEstimator:
                 rVec = rVecs[i][0]
                 tVec = tVecs[i][0]
 
-                # Draw axis for visualization
-                aruco.drawAxis(
-                    frame,
-                    self.cam_mat,
-                    self.dist_coef,
-                    rVec,
-                    tVec,
-                    self.marker_size * 0.5,
-                )
+                # Visualization - only if needed
+                if publish_visualization:
+                    # Draw axis
+                    aruco.drawAxis(
+                        frame,
+                        self.cam_mat,
+                        self.dist_coef,
+                        rVec,
+                        tVec,
+                        self.marker_size * 0.5,
+                    )
 
-                # Calculate distance
-                distance = np.linalg.norm(tVec)
+                    # Calculate and draw distance text
+                    distance = np.linalg.norm(tVec)
+                    corner = marker_corners[i][0][0]
+                    text = f"ID:{marker_id} D:{distance:.2f}m"
+                    cv.putText(
+                        frame,
+                        text,
+                        (int(corner[0]), int(corner[1]) - 10),
+                        cv.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (0, 255, 0),
+                        2,
+                    )
 
-                # Draw distance text on frame
-                corner = marker_corners[i][0][0]  # Top-left corner
-                text = f"ID:{marker_id} D:{distance:.2f}m"
-                cv.putText(
-                    frame,
-                    text,
-                    (int(corner[0]), int(corner[1]) - 10),
-                    cv.FONT_HERSHEY_SIMPLEX,
-                    0.5,
-                    (0, 255, 0),
-                    2,
-                )
-
-                # Publish TF transform
+                # Publish TF transform (always needed)
                 self.publish_marker_transform(marker_id, rVec, tVec, msg.header)
 
                 # Log detection
                 rospy.logdebug(
-                    f"Marker {marker_id}: distance={distance:.3f}m, "
+                    f"Marker {marker_id}: distance={np.linalg.norm(tVec):.3f}m, "
                     f"position=({tVec[0]:.3f}, {tVec[1]:.3f}, {tVec[2]:.3f})"
                 )
         else:
-            # Draw rejected markers for debugging
-            if rejected is not None and len(rejected) > 0:
+            # Draw rejected markers ONLY if someone is watching
+            if publish_visualization and rejected is not None and len(rejected) > 0:
                 aruco.drawDetectedMarkers(frame, rejected, borderColor=(100, 0, 255))
 
-        # Add frame info
-        info_text = f"Frame: {self.frame_count} | Markers: {len(marker_IDs) if marker_IDs is not None else 0}"
-        cv.putText(
-            frame, info_text, (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2
-        )
-
-        # Publish annotated image
-        self.publish_annotated_image(frame, msg.header.stamp)
+        # Publish annotated image only if someone is subscribed
+        if publish_visualization:
+            # Add frame info
+            info_text = f"Frame: {self.frame_count} | Markers: {len(marker_IDs) if marker_IDs is not None else 0}"
+            cv.putText(
+                frame, info_text, (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2
+            )
+            self.publish_annotated_image(frame, msg.header.stamp)
 
     def publish_marker_transform(self, marker_id, rVec, tVec, header):
         """Publish TF transform for detected marker in odom frame"""
