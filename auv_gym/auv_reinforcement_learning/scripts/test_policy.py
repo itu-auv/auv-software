@@ -16,8 +16,8 @@ import numpy as np
 from stable_baselines3 import SAC
 import rospkg
 
-from auv_gym.envs import AUVEnv
-from auv_gym.utils import ConfigManager
+from auv_reinforcement_learning.envs import AUVEnv
+from auv_reinforcement_learning.utils import ConfigManager
 
 
 def parse_args():
@@ -146,11 +146,11 @@ def main():
     """Main function."""
     args = parse_args()
 
-    rospy.init_node("auv_gym_test", anonymous=True)
+    rospy.init_node("auv_reinforcement_learning_test", anonymous=True)
 
     # Get package path
     rospack = rospkg.RosPack()
-    pkg_path = rospack.get_path("auv_gym")
+    pkg_path = rospack.get_path("auv_reinforcement_learning")
 
     # Resolve paths
     model_path = os.path.join(pkg_path, args.model)

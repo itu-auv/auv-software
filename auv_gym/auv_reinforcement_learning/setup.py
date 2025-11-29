@@ -3,7 +3,7 @@ from catkin_pkg.python_setup import generate_distutils_setup
 
 # Fetch values from package.xml
 setup_args = generate_distutils_setup(
-    packages=["auv_gym"],
+    packages=["auv_reinforcement_learning"],
     package_dir={"": "src"},
     install_requires=[
         "gymnasium>=0.29.0",

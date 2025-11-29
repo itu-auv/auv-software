@@ -28,7 +28,7 @@ from tf.transformations import euler_from_quaternion
 from typing import Dict, Any, Tuple, Optional
 import tf2_ros
 
-from auv_gym.utils.config_manager import ConfigManager
+from auv_reinforcement_learning.utils.config_manager import ConfigManager
 
 
 class AUVEnv(gym.Env):
@@ -65,7 +65,7 @@ class AUVEnv(gym.Env):
         self.is_navigation_mode = self.config.is_navigation_mode()
 
         if not rospy.core.is_initialized():
-            rospy.init_node("auv_gym_env", anonymous=True)
+            rospy.init_node("auv_reinforcement_learning_env", anonymous=True)
 
         self.ros_namespace = config.get_ros_namespace()
         self.sim_dt = config.get_simulation_dt()  # time step of the simulation
@@ -545,18 +545,35 @@ class AUVEnv(gym.Env):
         # Part 1: Transform
         if "base_to_gate_transform" in observation_keys:
             if transform is not None:
-                obs_parts.append(transform)
+                obs_parts.append(transform)  # [x, y, z, yaw] - 4D
             else:
                 # Use zeros if transform is not available
-                obs_parts.append(np.zeros(6))
+                obs_parts.append(np.zeros(4))
 
         # Part 2: Body Velocity
         if "body_velocity" in observation_keys:
-            # [vx, vy, vz, yaw_rate]
             body_vel = np.array(
-                [current_vel[0], current_vel[1], current_vel[2], current_vel[5]]
+                [
+                    current_vel[0],
+                    current_vel[1],
+                    current_vel[2],
+                    current_vel[3],
+                    current_vel[4],
+                    current_vel[5],
+                ]
             )
             obs_parts.append(body_vel)
+
+        # Part 3: Body Orientation
+        if "body_orientation" in observation_keys:
+            if self.current_state is not None:
+                orientation_q = self.current_state.pose.pose.orientation
+                roll, pitch, yaw = euler_from_quaternion(
+                    [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+                )
+                obs_parts.append(np.array([roll, pitch, yaw]))
+            else:
+                obs_parts.append(np.zeros(3))
 
         if not obs_parts:
             rospy.logwarn_once(
@@ -900,7 +917,10 @@ class AUVEnv(gym.Env):
         return vel
 
     def _lookup_navigation_transform(self) -> Optional[np.ndarray]:
-        """Lookup transform between base_link and gate target frames."""
+        """
+        Lookup transform between base_link and gate target frames.
+        Returns [x, y, z, yaw] - roll and pitch omitted as they're controlled separately.
+        """
         if not self.is_navigation_mode or self.tf_buffer is None:
             return None
 
@@ -925,10 +945,11 @@ class AUVEnv(gym.Env):
         translation = transform.transform.translation
         rotation = transform.transform.rotation
         quaternion = (rotation.x, rotation.y, rotation.z, rotation.w)
-        roll, pitch, yaw = euler_from_quaternion(quaternion)
+        _, _, yaw = euler_from_quaternion(quaternion)
 
+        # Only return [x, y, z, yaw] - omit roll and pitch
         return np.array(
-            [translation.x, translation.y, translation.z, roll, pitch, yaw],
+            [translation.x, translation.y, translation.z, yaw],
             dtype=np.float32,
         )
 
