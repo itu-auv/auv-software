@@ -1,0 +1,186 @@
+<?xml version="1.0"?>
+<launch>
+
+
+  <!-- Arguments -->
+  <arg name="namespace" default="rtabmap"/>
+  <arg name="use_sim_time" default="false"/>
+
+  <!-- Toggle between simulation and real hardware -->
+  <arg name="use_sim" default="false" doc="Use simulation camera topics (true) or ZED camera (false)"/>
+
+  <arg name="camera_name" default="zedm"/>
+
+  <!-- Topics - Automatically configured based on use_sim -->
+  <!-- Simulation topics: /taluy/camera/* -->
+  <!-- ZED camera topics: /zedm/zed_node/* -->
+  <arg name="rgb_topic" default="/taluy/camera/color/image_raw" if="$(arg use_sim)"/>
+  <arg name="rgb_topic" default="/$(arg camera_name)/zed_node/rgb/image_rect_color" unless="$(arg use_sim)"/>
+
+  <arg name="depth_topic" default="/taluy/camera/depth/image_raw" if="$(arg use_sim)"/>
+  <arg name="depth_topic" default="/$(arg camera_name)/zed_node/depth/depth_registered" unless="$(arg use_sim)"/>
+
+  <arg name="camera_info_topic" default="/taluy/camera/color/camera_info" if="$(arg use_sim)"/>
+  <arg name="camera_info_topic" default="/$(arg camera_name)/zed_node/rgb/camera_info" unless="$(arg use_sim)"/>
+
+  <!-- External odometry topic (from your EKF or simulation) -->
+  <arg name="odom_topic" default="/taluy/odometry"/>
+
+  <!-- Frames -->
+  <arg name="frame_id" default="taluy/base_link" if="$(arg use_sim)"/>
+  <arg name="frame_id" default="taluy/base_link" unless="$(arg use_sim)"/>
+
+  <arg name="odom_frame_id" default="odom"/>
+  <arg name="map_frame_id" default="map"/>
+
+  <!-- RTAB-Map Parameters File -->
+  <arg name="rtabmap_params_file" default="$(find auv_mapping)/config/rtabmap_params.yaml"/>
+
+  <!-- Enable/disable nodes -->
+  <arg name="visual_odometry" default="false" doc="Launch rgbd_odometry node for visual odometry (set false when using external odometry)"/>
+  <arg name="rtabmap_viz" default="true" doc="Launch rtabmapviz for visualization"/>
+  <arg name="publish_tf_map" default="true" doc="Publish TF from map to odom (SLAM correction)"/>
+
+  <!-- ========================================================================== -->
+
+  <param name="use_sim_time" value="$(arg use_sim_time)"/>
+
+  <group ns="$(arg namespace)">
+
+    <!-- ====================================================================== -->
+    <!-- RGB-D Visual Odometry Node (DISABLED by default - using external odom) -->
+    <!-- Only enable if you want RTAB-Map to compute its own visual odometry -->
+    <!-- ====================================================================== -->
+    <node if="$(arg visual_odometry)"
+          pkg="rtabmap_odom"
+          type="rgbd_odometry"
+          name="rgbd_odometry"
+          output="screen">
+
+      <param name="frame_id" value="$(arg frame_id)"/>
+      <param name="odom_frame_id" value="$(arg odom_frame_id)"/>
+      <param name="publish_tf" value="true"/>
+
+      <!-- Load parameters from YAML -->
+      <rosparam command="load" file="$(arg rtabmap_params_file)"/>
+
+      <!-- Topic remappings -->
+      <remap from="rgb/image" to="$(arg rgb_topic)"/>
+      <remap from="depth/image" to="$(arg depth_topic)"/>
+      <remap from="rgb/camera_info" to="$(arg camera_info_topic)"/>
+    </node>
+
+    <!-- ====================================================================== -->
+    <!-- RTAB-Map SLAM Node (Core) -->
+    <!-- Uses external odometry from /taluy/odometry (EKF or simulation) -->
+    <!-- ====================================================================== -->
+    <node pkg="rtabmap_slam"
+          type="rtabmap"
+          name="rtabmap_slam"
+          output="screen"
+          args="--delete_db_on_start">
+
+      <param name="frame_id" value="$(arg frame_id)"/>
+      <param name="odom_frame_id" value="$(arg odom_frame_id)"/>
+      <param name="map_frame_id" value="$(arg map_frame_id)"/>
+      <param name="publish_tf" value="$(arg publish_tf_map)"/>
+
+      <!-- Load all parameters from YAML file -->
+      <rosparam command="load" file="$(arg rtabmap_params_file)"/>
+
+      <!-- Topic remappings -->
+      <remap from="rgb/image" to="$(arg rgb_topic)"/>
+      <remap from="depth/image" to="$(arg depth_topic)"/>
+      <remap from="rgb/camera_info" to="$(arg camera_info_topic)"/>
+
+      <!-- Using external odometry from EKF or simulation -->
+      <remap from="odom" to="$(arg odom_topic)"/>
+    </node>
+
+    <!-- ====================================================================== -->
+    <!-- RTAB-Map Visualization (Optional) -->
+    <!-- ====================================================================== -->
+    <node if="$(arg rtabmap_viz)"
+          pkg="rtabmap_viz"
+          type="rtabmap_viz"
+          name="rtabmap_viz"
+          output="screen">
+
+      <param name="frame_id" value="$(arg frame_id)"/>
+
+      <!-- Load parameters from YAML -->
+      <rosparam command="load" file="$(arg rtabmap_params_file)"/>
+
+      <!-- Topic remappings -->
+      <remap from="rgb/image" to="$(arg rgb_topic)"/>
+      <remap from="depth/image" to="$(arg depth_topic)"/>
+      <remap from="rgb/camera_info" to="$(arg camera_info_topic)"/>
+      <remap from="odom" to="$(arg odom_topic)"/>
+    </node>
+
+  </group>
+
+  <!-- ========================================================================== -->
+  <!-- Usage Examples: -->
+  <!--
+  === SIMULATION MODE (Using External Odometry from /taluy/odometry) ===
+  1. Launch with simulation camera and external odometry (DEFAULT):
+     roslaunch auv_mapping rtabmap.launch use_sim:=true use_sim_time:=true
+
+  2. Launch simulation without visualization (headless):
+     roslaunch auv_mapping rtabmap.launch use_sim:=true use_sim_time:=true rtabmap_viz:=false
+
+  === REAL HARDWARE MODE (Using External Odometry from /taluy/odometry) ===
+  3. Launch with real camera and external EKF odometry (DEFAULT):
+     roslaunch auv_mapping rtabmap.launch
+
+  4. Launch with ZED camera topics:
+     roslaunch auv_mapping rtabmap.launch camera_name:=zed2i
+
+  === ADVANCED OPTIONS - Visual Odometry Mode ===
+  5. Launch with RTAB-Map computing its own visual odometry (no external odom):
+     roslaunch auv_mapping rtabmap.launch use_sim:=true visual_odometry:=true
+     (RTAB-Map will compute odometry from camera images instead of using /taluy/odometry)
+
+  6. Custom odometry topic:
+     roslaunch auv_mapping rtabmap.launch odom_topic:=/my_robot/odom
+
+  7. Custom camera topics (override auto-configuration):
+     roslaunch auv_mapping rtabmap.launch rgb_topic:=/my_camera/rgb depth_topic:=/my_camera/depth
+
+  8. Launch SLAM only without TF publishing (for analysis):
+     roslaunch auv_mapping rtabmap.launch use_sim:=true publish_tf_map:=false
+
+  === SERVICES ===
+  9. Save map:
+     rosservice call /rtabmap/rtabmap_slam/save_map "output_path: '~/rtabmap_maps/mission1.db'"
+
+  10. Reset map:
+      rosservice call /rtabmap/rtabmap_slam/reset
+
+  11. Pause/Resume mapping:
+      rosservice call /rtabmap/rtabmap_slam/pause
+      rosservice call /rtabmap/rtabmap_slam/resume
+
+  === TF TREE STRUCTURES ===
+  Default mode (using external odometry from /taluy/odometry):
+     map (SLAM global frame)
+         -> odom (odometry frame from EKF/simulation)
+             -> taluy/base_link (robot base frame)
+                 -> taluy/camera_link (camera frame)
+
+  Visual odometry mode (visual_odometry:=true):
+     map (SLAM global frame)
+         -> odom (visual odometry frame from RTAB-Map)
+             -> taluy/base_link (robot base frame)
+                 -> taluy/camera_link (camera frame)
+
+  === NOTES ===
+  - By default, RTAB-Map uses external odometry from /taluy/odometry (your EKF or simulation)
+  - RTAB-Map will publish the map->odom transform to correct odometry drift
+  - Set visual_odometry:=true if you want RTAB-Map to compute its own odometry
+  - The external odometry source must publish to /taluy/odometry with proper frame_id
+  -->
+  <!-- ========================================================================== -->
+
+</launch>

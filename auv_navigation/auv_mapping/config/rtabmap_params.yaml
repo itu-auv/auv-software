@@ -1,0 +1,109 @@
+---
+# ==============================================================================
+# RTAB-Map SLAM Parameters for AUV Navigation
+# ==============================================================================
+# This file contains ONLY parameters for the rtabmap SLAM node
+# For visual odometry parameters, use a separate file if computing visual odom
+# ==============================================================================
+
+# ==============================================================================
+# TOPIC SUBSCRIPTIONS
+# ==============================================================================
+frame_id: taluy/base_link
+subscribe_rgb: true
+subscribe_depth: true
+
+# External Odometry or VIO
+subscribe_odom_info: false    # Set false when using external odometry (EKF/simulation)
+subscribe_odom: true          # Set true when using external odometry (EKF/simulation)
+
+subscribe_scan: false          # Enable when integrating sonar as LaserScan
+subscribe_scan_cloud: false    # Enable for 3D LIDAR or multi-beam sonar
+
+# ==============================================================================
+# SYNCHRONIZATION
+# ==============================================================================
+approx_sync: true              # Use approximate time sync (sensors not hardware-synced)
+queue_size: 10                 # Buffer size for message synchronization
+
+# ==============================================================================
+# MAPPING - When to create new map nodes
+# ==============================================================================
+RGBD/LinearUpdate: 0.05        # Min translation (m) before adding new node (5cm)
+RGBD/AngularUpdate: 0.05       # Min rotation (rad) before adding new node (~2.9°)
+Rtabmap/DetectionRate: "3.0"   # Max rate (Hz) for feature detection and node creation
+Rtabmap/TimeThr: "0"           # Max time per update (s), 0=unlimited
+
+# ==============================================================================
+# LOOP CLOSURE DETECTION
+# ==============================================================================
+Rtabmap/LoopThr: "0.11"                    # Loop closure threshold (lower=more strict)
+Rtabmap/LoopRatio: "0.0"                   # Min inliers ratio for loop closure acceptance
+RGBD/LoopClosureReextractFeatures: false   # Reextract features for loop closure candidates
+Kp/MaxFeatures: "400"                      # Max visual features to extract per image
+Kp/DetectorStrategy: "6"                   # Feature detector: 0=SURF, 6=GFTT, 8=ORB
+
+# ==============================================================================
+# GRAPH OPTIMIZATION
+# ==============================================================================
+RGBD/OptimizeMaxError: 3.0              # Max error (m) allowed in pose graph optimization
+RGBD/OptimizeFromGraphEnd: true         # Optimize from most recent pose (faster)
+RGBD/ProximityPathMaxNeighbors: 1       # Number of neighbors for proximity constraints
+Optimizer/Strategy: "0"                 # 0=TORO, 1=g2o, 2=GTSAM
+Optimizer/Iterations: "20"              # Number of optimization iterations
+Optimizer/Epsilon: "0.00001"            # Convergence threshold
+
+# ==============================================================================
+# REGISTRATION (Frame Alignment)
+# ==============================================================================
+Reg/Strategy: "0"              # 0=Visual only, 1=ICP only, 2=Visual+ICP
+Reg/Force3DoF: false           # Constrain to 2D plane (true for 2D mapping only)
+
+# Visual Registration
+Vis/MinInliers: "12"           # Min matched features required for valid transform
+Vis/InlierDistance: "0.1"      # Max reprojection error (m) for inlier
+Vis/EstimationType: "1"        # 0=3D-3D, 1=PnP (best for RGBD), 2=2D-2D (mono)
+Vis/BundleAdjustment: "1"      # 0=None, 1=g2o, 2=ceres
+Vis/CorNNType: "1"             # Feature matching: 0=kNNFlannNaive, 1=kNNFlannKdTree
+
+# ICP Registration (for scan/point cloud matching)
+Icp/MaxTranslation: 2.0        # Max translation (m) for ICP
+Icp/MaxRotation: 1.0           # Max rotation (rad) for ICP
+Icp/CorrespondenceRatio: 0.3   # Min ratio of matched points
+Icp/VoxelSize: 0.05            # Voxel size for downsampling (0=disabled)
+
+# ==============================================================================
+# MEMORY MANAGEMENT (Key feature of RTAB-Map)
+# ==============================================================================
+Mem/IncrementalMemory: "true"       # true=mapping mode, false=localization only
+Mem/InitWMWithAllNodes: "false"     # Load all nodes to working memory at start
+Mem/STMSize: "30"                   # Short-term memory size (recent nodes in RAM)
+Mem/RehearsalSimilarity: "0.6"      # Similarity threshold for memory rehearsal
+Mem/ImageKept: true                 # Keep images in database (needed for visualization)
+Mem/BinDataKept: true               # Keep binary data (point clouds, descriptors)
+
+# ==============================================================================
+# DATABASE
+# ==============================================================================
+database_path: "~/.ros/rtabmap.db"  # Map database location
+Db/TargetVersion: ""                # Leave empty for latest version
+
+# ==============================================================================
+# GRID MAPPING (2D Occupancy Grid for Navigation)
+# ==============================================================================
+Grid/FromDepth: true               # Create 2D grid from depth images
+Grid/CellSize: "0.05"              # Grid resolution (m)
+Grid/RangeMax: "5.0"               # Max range for obstacles (m)
+Grid/RangeMin: "0.0"               # Min range for obstacles (m)
+Grid/MaxObstacleHeight: "0.0"      # Max obstacle height (0=disabled)
+Grid/MaxGroundHeight: "0.0"        # Max ground height (0=disabled)
+Grid/ClusterRadius: "0.1"          # Cluster radius for obstacle detection (m)
+Grid/MinClusterSize: 10            # Min points in cluster
+
+# ==============================================================================
+# PERFORMANCE TUNING
+# ==============================================================================
+Rtabmap/PublishStats: true         # Publish statistics
+Rtabmap/PublishLastSignature: true # Publish last node data
+Rtabmap/PublishPdf: true           # Publish posterior probability
+Rtabmap/PublishLikelihood: true    # Publish likelihood values
