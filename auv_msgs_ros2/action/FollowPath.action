@@ -1,0 +1,12 @@
+# Goal
+nav_msgs/Path[] paths
+
+---
+# Result
+bool success
+
+---
+# Feedback
+float32 current_segment_progress
+float32 overall_progress
+uint8 current_segment_index
