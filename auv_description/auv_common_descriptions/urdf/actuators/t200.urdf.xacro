@@ -5,13 +5,13 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae" scale="1 1 1"/>
+            <box size="0.1 0.1 0.1"/>
         </geometry>
       </visual>
       <collision name="${name}_collision">
         <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae" scale="1 1 1"/>
+            <box size="0.1 0.1 0.1"/>
         </geometry>
       </collision>
       <inertial>
@@ -23,13 +23,13 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae" scale="1.0 1.0 1.0"/>
+            <box size="0.1 0.1 0.1"/>
         </geometry>
       </visual>
       <collision name="${name}_propeller_collision">
         <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae" scale="1 1 1"/>
+            <box size="0.1 0.1 0.1"/>
         </geometry>
       </collision>
       <inertial>

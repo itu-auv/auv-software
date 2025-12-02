@@ -1,7 +1,7 @@
 <sdf version='1.7'>
   <world name='default'>
     <light name='sun' type='directional'>
-      <cast_shadows>1</cast_shadows>
+      <cast_shadows>false</cast_shadows>
       <pose>0 0 10 0 -0 0</pose>
       <diffuse>0.8 0.8 0.8 1</diffuse>
       <specular>0.2 0.2 0.2 1</specular>
@@ -28,7 +28,7 @@
         <linear>0.01</linear>
         <quadratic>0.001</quadratic>
       </attenuation>
-      <cast_shadows>0</cast_shadows>
+      <cast_shadows>false</cast_shadows>
       <direction>0 0 -1</direction>
     </light>
     <gravity>0 0 -9.8</gravity>
@@ -40,9 +40,11 @@
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>
     <scene>
+      <shadows>false</shadows>
       <ambient>0.4 0.4 0.4 1</ambient>
       <background>0.7 0.7 0.7 1</background>
-      <shadows>1</shadows>
+      <grid>false</grid>
+      <origin_visual>false</origin_visual>
     </scene>
     <wind/>
     <spherical_coordinates>

@@ -16,7 +16,8 @@
       <visual>
         <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="package://taluy_description/meshes/body/body.stl" scale="1 1 1"/>
+            <box size="0.1 0.1 0.1"/>
+            <!-- <mesh filename="package://taluy_description/meshes/body/body.stl" scale="1 1 1"/> -->
         </geometry>
         <material name="black"/>
       </visual>

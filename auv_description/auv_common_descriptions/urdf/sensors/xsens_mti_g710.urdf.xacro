@@ -5,13 +5,13 @@
       <visual>
         <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae" scale="0.001 0.001 0.001"/>
+            <box size="0.1 0.1 0.1"/>
         </geometry>
       </visual>
       <collision name="${name}_collision">
         <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/xsens_mti_g710/xsens_mti_g710.dae" scale="0.001 0.001 0.001"/>
+            <box size="0.1 0.1 0.1"/>
         </geometry>
       </collision>
       <inertial>

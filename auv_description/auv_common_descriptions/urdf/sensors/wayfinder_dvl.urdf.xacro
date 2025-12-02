@@ -5,14 +5,14 @@
       <visual>
         <origin xyz="0 0 0" rpy="${math.pi} 0 0"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae" scale="0.001 0.001 0.001"/>
+            <box size="0.1 0.1 0.1"/>
           <material name="black"/>
         </geometry>
       </visual>
       <collision name="${name}_collision">
         <origin xyz="0 0 0" rpy="${math.pi} 0 0"/>
         <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae" scale="0.001 0.001 0.001"/>
+            <box size="0.1 0.1 0.1"/>
           <material name="black"/>
         </geometry>
       </collision>
