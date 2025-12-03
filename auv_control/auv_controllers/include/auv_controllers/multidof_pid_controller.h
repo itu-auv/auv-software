@@ -82,7 +82,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
           const double limit = integral_clamp_limits_(i);
           if (limit > 0) {  // Only clamp if limit is positive
             double before_clamp = integral_(i);
-            integral_(i) = std::max(-limit, std::min(limit, integral_(i))); 
+            integral_(i) = std::max(-limit, std::min(limit, integral_(i)));
           }
         }
       }
