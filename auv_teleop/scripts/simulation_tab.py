@@ -32,7 +32,7 @@ class SimulationTab(QWidget):
 
         detect_group = QGroupBox("Object Detection")
         detect_layout = QHBoxLayout()
-        self.cuda_check = QCheckBox("Cuda")
+        self.cuda_check = QCheckBox("CUDA")
         self.detect_start = QPushButton("Start Detection")
         self.detect_stop = QPushButton("Stop Detection")
         detect_layout.addWidget(self.detect_start)

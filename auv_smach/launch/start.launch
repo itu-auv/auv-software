@@ -96,7 +96,12 @@
             <!--bin.py-->
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
+            <!--pipeline.py-->
             <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
+            <remap from="toggle_image_annotator" to="yolo_image_annotator/toggle_annotator"/>
+
+            <!--acoustic.py-->
+            <remap from="modem/data/rx" to="modem/data/rx"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>
