@@ -41,6 +41,16 @@ jobs:
       base_image: ${{ steps.set_build_config.outputs.base_image_tag }}
 
     steps:
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false      # Python/Node versiyonlarını silme (setup adımların hızlansın diye)
+          android: true          # Android'i sil (Buna hiç ihtiyacın yok, 14GB kazanç)
+          dotnet: true           # .NET'i sil (İhtiyacın yok)
+          haskell: true          # Haskell'i sil (İhtiyacın yok)
+          large-packages: true   # Chrome, PHP vb. sil (İhtiyacın yok)
+          docker-images: false   # Base docker imagelerine dokunma (Build süresi uzamasın diye, ama yer yetmezse true yapabiliriz)
+          swap-storage: false    # Swap alanını silme (Derleme sırasında RAM şişerse bilgisayar kilitlenmesin diye)
       - name: Checkout
         uses: actions/checkout@v4
 
