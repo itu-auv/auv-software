@@ -1,0 +1,17 @@
+<launch>
+  <!-- Start rosbridge websocket server -->
+  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
+    <arg name="port" value="9090"/>
+    <arg name="address" value=""/>
+  </include>
+
+  <!-- Start web_video_server for camera streaming -->
+  <node name="web_video_server" pkg="web_video_server" type="web_video_server" output="screen">
+    <param name="port" value="8080"/>
+    <param name="server_threads" value="4"/>
+    <!-- Reduce error spam by setting output to log instead of screen if desired -->
+    <!-- <remap from="~output" to="log"/> -->
+  </node>
+
+  <node name="web_gui_info" pkg="rospy_tutorials" type="talker" output="screen" if="false"/>
+</launch>
