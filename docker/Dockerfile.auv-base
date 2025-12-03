@@ -39,7 +39,8 @@ RUN apt-get update && \
   ros-noetic-pcl-ros \
   ros-noetic-pcl-conversions \
   ros-noetic-robot-localization && \
-  rm -rf /var/lib/apt/lists/*
+  rm -rf /var/lib/apt/lists/* && \
+  pip3 install setuptools==45.2.0
 
 RUN if [ "$HOST" = "tegra" ]; then \
   set -e; \
