@@ -23,6 +23,7 @@ RUN apt-get update && \
   apt-get install -yqq --no-install-recommends \
   git \
   python3-vcstool \
+  python3-pip \
   python3-catkin-tools && \
   # Install preliminary dependencies
   apt-get install -y \
@@ -39,7 +40,8 @@ RUN apt-get update && \
   ros-noetic-pcl-ros \
   ros-noetic-pcl-conversions \
   ros-noetic-robot-localization && \
-  rm -rf /var/lib/apt/lists/*
+  rm -rf /var/lib/apt/lists/* && \
+  pip3 install setuptools==45.2.0
 
 RUN if [ "$HOST" = "tegra" ]; then \
   set -e; \
@@ -56,7 +58,7 @@ RUN if [ "$HOST" = "tegra" ]; then \
   -y && \
   catkin config --extend /opt/ros/noetic --install --install-space /opt/ros/noetic && \
   catkin build --no-status --continue-on-failure && \
-  catkin clean -y --log; \
+  catkin clean -y --logs; \
   echo 'source /opt/ros/noetic/setup.bash' >> /ros_entrypoint.sh; \
   else \
   echo "HOST=$HOST → skipping source overlay"; \
