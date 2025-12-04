@@ -1,9 +1,4 @@
 import React, { useState } from 'react';
-//import ROSLIB from 'roslibjs';
-//ROSLIB is loaded from CDN in index.html
-import { Box, Alert, Tabs, Tab, Grid, Container } from '@mui/material';
-import { ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 
 // Components
 import Header from './components/Header';
@@ -15,20 +10,28 @@ import MissionControls from './components/MissionControls';
 import ObjectDetection from './components/ObjectDetection';
 import StateMachine from './components/StateMachine';
 import CameraView from './components/CameraView';
-import ThreeBackground from './components/ThreeBackground';
 import VisualSettings from './components/VisualSettings';
 import StartScreen from './components/StartScreen';
+import GamepadVisualization from './components/GamepadVisualization';
+
+// UI Components
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // Hooks and Utils
 import { useROS } from './hooks/useROS';
 import { callService, publishCmdVel, enableControl, disableControl } from './utils/rosServices';
-import { createThemeByName } from './theme';
+
+// Icons
+import { Gamepad2, Camera, AlertTriangle, ArrowLeft } from 'lucide-react';
 
 function App() {
   // Mode selection state
-  const [mode, setMode] = useState(null); // null = start screen, 'pool' or 'simulation'
-  
-  // ROS Connection (from custom hook)
+  const [mode, setMode] = useState(null);
+
+  // ROS Connection
   const {
     ros,
     connected,
@@ -42,7 +45,7 @@ function App() {
     lastPowerUpdate,
     powerSource
   } = useROS();
-  
+
   // UI State
   const [depth, setDepth] = useState(-1.0);
   const [detectionRunning, setDetectionRunning] = useState(false);
@@ -50,7 +53,8 @@ function App() {
   const [testMode, setTestMode] = useState(false);
   const [cudaEnabled, setCudaEnabled] = useState(false);
   const [controlEnabled, setControlEnabled] = useState(false);
-  const [activeTab, setActiveTab] = useState(0);
+  const [teleopRunning, setTeleopRunning] = useState(false);
+  const [activeTab, setActiveTab] = useState('control');
   const [selectedStates, setSelectedStates] = useState({
     init: false,
     gate: false,
@@ -61,102 +65,55 @@ function App() {
   });
 
   // Visual Settings State
-  const [threeEnabled, setThreeEnabled] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('dark');
   const [fancyEffects, setFancyEffects] = useState(true);
-
-  // Create theme dynamically based on theme name and fancy effects setting
-  const theme = createThemeByName(currentTheme, fancyEffects);
 
   // Mode selection handler
   const handleSelectMode = (selectedMode) => {
     setMode(selectedMode);
-    if (selectedMode === 'pool') {
-      // Pool mode selected - will show message for now
-      console.log('Pool mode selected - coming soon');
-    }
   };
 
   // Show start screen if no mode selected
   if (!mode) {
     return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
+      <div className={currentTheme === 'halloween' ? 'theme-halloween' : ''}>
+        <VisualSettings
+          currentTheme={currentTheme}
+          setTheme={setCurrentTheme}
+          fancyEffects={fancyEffects}
+          setFancyEffects={setFancyEffects}
+        />
         <StartScreen onSelectMode={handleSelectMode} />
-      </ThemeProvider>
+      </div>
     );
   }
 
-  // Show pool mode placeholder (for future implementation)
+  // Pool mode placeholder
   if (mode === 'pool') {
     return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Box
-          sx={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%)',
-          }}
-        >
-          <Container maxWidth="md" sx={{ textAlign: 'center' }}>
-            <Box
-              sx={{
-                p: 4,
-                background: 'rgba(255, 255, 255, 0.05)',
-                backdropFilter: 'blur(10px)',
-                borderRadius: 4,
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-              }}
-            >
-              <Box
-                sx={{
-                  fontSize: 80,
-                  mb: 2,
-                }}
-              >
-                🏊
-              </Box>
-              <Box
-                sx={{
-                  fontSize: 48,
-                  fontWeight: 700,
-                  mb: 2,
-                  background: 'linear-gradient(135deg, #00D9FF 0%, #7C4DFF 100%)',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                }}
-              >
-                Pool Test Mode
-              </Box>
-              <Box sx={{ color: 'rgba(255, 255, 255, 0.7)', mb: 4, fontSize: 18 }}>
-                This mode will be available soon for real hardware testing
-              </Box>
-              <Box
-                onClick={() => setMode(null)}
-                sx={{
-                  display: 'inline-block',
-                  px: 4,
-                  py: 1.5,
-                  background: 'linear-gradient(135deg, #00D9FF 0%, #7C4DFF 100%)',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  '&:hover': {
-                    transform: 'scale(1.05)',
-                  },
-                  transition: 'transform 0.2s',
-                }}
-              >
-                ← Back to Mode Selection
-              </Box>
-            </Box>
-          </Container>
-        </Box>
-      </ThemeProvider>
+      <div className={`min-h-screen flex items-center justify-center bg-black ${currentTheme === 'halloween' ? 'theme-halloween' : ''}`}>
+        <VisualSettings
+          currentTheme={currentTheme}
+          setTheme={setCurrentTheme}
+          fancyEffects={fancyEffects}
+          setFancyEffects={setFancyEffects}
+        />
+        <Card className="max-w-md">
+          <CardContent className="pt-6 text-center">
+            <div className="text-7xl mb-4">🏊</div>
+            <h1 className="text-3xl font-bold mb-4 text-white">
+              Pool Test Mode
+            </h1>
+            <p className="text-white/50 mb-6">
+              This mode will be available soon for real hardware testing
+            </p>
+            <Button onClick={() => setMode(null)} variant="outline">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Mode Selection
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -164,7 +121,6 @@ function App() {
   const setDepthService = async () => {
     try {
       await callService(ros, '/taluy/set_depth', 'auv_msgs/SetDepth', { target_depth: depth });
-      console.log('Depth set to:', depth);
     } catch (error) {
       console.error('Failed to set depth:', error);
     }
@@ -186,151 +142,136 @@ function App() {
   const handleDisableControl = () => disableControl(ros, setControlEnabled);
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      {threeEnabled && <ThreeBackground enabled={threeEnabled} />}
+    <div className={`min-h-screen bg-black ${currentTheme === 'halloween' ? 'theme-halloween' : ''}`}>
       <VisualSettings
-        threeEnabled={threeEnabled}
-        setThreeEnabled={setThreeEnabled}
         currentTheme={currentTheme}
         setTheme={setCurrentTheme}
         fancyEffects={fancyEffects}
         setFancyEffects={setFancyEffects}
       />
-      <Box sx={{ minHeight: '100vh', bgcolor: 'transparent', width: '100vw', maxWidth: '100vw', overflow: 'auto', position: 'relative', zIndex: 1 }}>
-        <Header 
-          connected={connected} 
-          connecting={connecting} 
-          connectToROS={connectToROS}
-          fancyEffects={fancyEffects}
-        />
 
+      <Header
+        connected={connected}
+        connecting={connecting}
+        connectToROS={connectToROS}
+        fancyEffects={fancyEffects}
+      />
+
+      <main className="container mx-auto px-6 py-8">
         {!connected && (
-          <Box sx={{ pt: 2, px: 3 }}>
-            <Alert severity="warning">
-              Not connected to ROS. Make sure rosbridge_server is running: 
-              <code style={{ marginLeft: 8 }}>roslaunch auv_teleop web_gui.launch</code>
-            </Alert>
-          </Box>
+          <Alert variant="warning" className="mb-8">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Not connected to ROS. Make sure rosbridge_server is running:{' '}
+              <code className="ml-2 bg-white/5 px-2 py-1 rounded-lg text-xs font-mono">
+                roslaunch auv_teleop web_gui.launch
+              </code>
+            </AlertDescription>
+          </Alert>
         )}
 
-        {/* Tabs */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', width: '100%' }}>
-          <Box sx={{ px: 3, width: '100%' }}>
-            <Tabs 
-              value={activeTab} 
-              onChange={(e, newValue) => setActiveTab(newValue)}
-              textColor="primary"
-              indicatorColor="primary"
-              sx={{ minHeight: 64, width: '100%' }}
-            >
-              <Tab 
-                label="🎮 Control Panel" 
-                sx={{ fontSize: '1rem', minHeight: 64, fontWeight: 600 }}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full max-w-lg grid-cols-3 mb-8">
+            <TabsTrigger value="control" className="gap-2">
+              <Gamepad2 className="w-4 h-4" />
+              Control
+            </TabsTrigger>
+            <TabsTrigger value="gamepad" className="gap-2">
+              <Gamepad2 className="w-4 h-4" />
+              Gamepad
+            </TabsTrigger>
+            <TabsTrigger value="camera" className="gap-2">
+              <Camera className="w-4 h-4" />
+              Camera
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="control" className="space-y-6">
+            {/* First Row - Status Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <BatteryStatus
+                voltage={voltage}
+                current={current}
+                power={power}
+                powerHistory={powerHistory}
+                powerTopicName={powerTopicName}
+                lastPowerUpdate={lastPowerUpdate}
+                powerSource={powerSource}
               />
-              <Tab 
-                label="📹 Camera View" 
-                sx={{ fontSize: '1rem', minHeight: 64, fontWeight: 600 }}
+
+              <DepthControl
+                depth={depth}
+                setDepth={setDepth}
+                setDepthService={setDepthService}
+                connected={connected}
               />
-            </Tabs>
-          </Box>
-        </Box>
 
-        <Box sx={{ py: 4, width: '100%' }}>
-          {/* Control Panel Tab */}
-          {activeTab === 0 && (
-            <Box sx={{ px: 3 }}>
-            <Grid container spacing={3}>
-              {/* Row 1: Status & Monitoring */}
-              <Grid item xs={12} md={6} lg={3}>
-                <BatteryStatus
-                  voltage={voltage}
-                  current={current}
-                  power={power}
-                  powerHistory={powerHistory}
-                  powerTopicName={powerTopicName}
-                  lastPowerUpdate={lastPowerUpdate}
-                  powerSource={powerSource}
-                />
-              </Grid>
+              <ServicesPanel
+                connected={connected}
+                startLocalization={startLocalization}
+                enableDVL={handleEnableDVL}
+                disableDVL={handleDisableDVL}
+                clearObjects={clearObjects}
+                resetPose={resetPose}
+              />
 
-              <Grid item xs={12} md={6} lg={3}>
-                <DepthControl
-                  depth={depth}
-                  setDepth={setDepth}
-                  setDepthService={setDepthService}
-                  connected={connected}
-                />
-              </Grid>
+              <MissionControls
+                connected={connected}
+                launchTorpedo1={launchTorpedo1}
+                launchTorpedo2={launchTorpedo2}
+                dropBall={dropBall}
+              />
+            </div>
 
-              <Grid item xs={12} md={6} lg={3}>
-                <ServicesPanel
-                  connected={connected}
-                  startLocalization={startLocalization}
-                  enableDVL={handleEnableDVL}
-                  disableDVL={handleDisableDVL}
-                  clearObjects={clearObjects}
-                  resetPose={resetPose}
-                />
-              </Grid>
+            {/* Second Row - Control Panels */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <VehicleControl
+                connected={connected}
+                controlEnabled={controlEnabled}
+                enableControl={handleEnableControl}
+                disableControl={handleDisableControl}
+                publishCmdVel={handlePublishCmdVel}
+                stopVehicle={stopVehicle}
+                ros={ros}
+                fancyEffects={fancyEffects}
+                teleopRunning={teleopRunning}
+                setTeleopRunning={setTeleopRunning}
+              />
 
-              <Grid item xs={12} md={6} lg={3}>
-                <MissionControls
-                  connected={connected}
-                  launchTorpedo1={launchTorpedo1}
-                  launchTorpedo2={launchTorpedo2}
-                  dropBall={dropBall}
-                />
-              </Grid>
+              <ObjectDetection
+                connected={connected}
+                ros={ros}
+                cudaEnabled={cudaEnabled}
+                setCudaEnabled={setCudaEnabled}
+                detectionRunning={detectionRunning}
+                setDetectionRunning={setDetectionRunning}
+              />
+            </div>
 
-              {/* Row 2: Vehicle Control & Detection */}
-              <Grid item xs={12} md={6}>
-                <VehicleControl
-                  connected={connected}
-                  controlEnabled={controlEnabled}
-                  enableControl={handleEnableControl}
-                  disableControl={handleDisableControl}
-                  publishCmdVel={handlePublishCmdVel}
-                  stopVehicle={stopVehicle}
-                  ros={ros}
-                  fancyEffects={fancyEffects}
-                />
-              </Grid>
+            {/* Third Row - State Machine */}
+            <StateMachine
+              connected={connected}
+              testMode={testMode}
+              setTestMode={setTestMode}
+              smachRunning={smachRunning}
+              setSmachRunning={setSmachRunning}
+              selectedStates={selectedStates}
+              setSelectedStates={setSelectedStates}
+            />
+          </TabsContent>
 
-              <Grid item xs={12} md={6}>
-                <ObjectDetection
-                  connected={connected}
-                  ros={ros}
-                  cudaEnabled={cudaEnabled}
-                  setCudaEnabled={setCudaEnabled}
-                  detectionRunning={detectionRunning}
-                  setDetectionRunning={setDetectionRunning}
-                />
-              </Grid>
+          <TabsContent value="gamepad">
+            <div className="max-w-2xl mx-auto">
+              <GamepadVisualization ros={ros} connected={connected} />
+            </div>
+          </TabsContent>
 
-              {/* Row 3: Full-width State Machine */}
-              <Grid item xs={12}>
-                <StateMachine
-                  connected={connected}
-                  testMode={testMode}
-                  setTestMode={setTestMode}
-                  smachRunning={smachRunning}
-                  setSmachRunning={setSmachRunning}
-                  selectedStates={selectedStates}
-                  setSelectedStates={setSelectedStates}
-                />
-              </Grid>
-            </Grid>
-            </Box>
-          )}
-
-          {/* Camera View Tab */}
-          {activeTab === 1 && (
+          <TabsContent value="camera">
             <CameraView connected={connected} ros={ros} />
-          )}
-        </Box>
-      </Box>
-    </ThemeProvider>
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
   );
 }
 

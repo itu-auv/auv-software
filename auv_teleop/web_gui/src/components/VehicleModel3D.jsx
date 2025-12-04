@@ -2,19 +2,11 @@ import React, { Suspense, useRef, useState } from 'react';
 import { Canvas, useLoader, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Grid } from '@react-three/drei';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader';
-import { 
-  Card, 
-  CardContent, 
-  Typography, 
-  Box, 
-  IconButton, 
-  Tooltip,
-  FormControlLabel,
-  Switch,
-  Slider,
-} from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import ViewInArIcon from '@mui/icons-material/ViewInAr';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Switch } from './ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
+import { RotateCcw, Box as BoxIcon } from 'lucide-react';
 import * as THREE from 'three';
 
 function STLModel({ url, color = '#00D9FF', autoRotate = false }) {
@@ -37,9 +29,9 @@ function STLModel({ url, color = '#00D9FF', autoRotate = false }) {
 
   return (
     <mesh ref={meshRef} geometry={geometry} rotation={[Math.PI / -2, 0, 0]}>
-      <meshStandardMaterial 
-        color={color} 
-        metalness={0.6} 
+      <meshStandardMaterial
+        color={color}
+        metalness={0.6}
         roughness={0.3}
         side={THREE.DoubleSide}
       />
@@ -59,52 +51,49 @@ function VehicleModel3D({ modelPath = '/body.stl' }) {
   };
 
   return (
-    <Card>
+    <Card className="glass-card">
+      <CardHeader className="pb-2">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <BoxIcon className="w-5 h-5 text-primary" />
+            <CardTitle>Vehicle 3D Model</CardTitle>
+          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handleReset} className="h-8 w-8">
+                  <RotateCcw className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Reset View</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </CardHeader>
       <CardContent>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-          <Box display="flex" alignItems="center" gap={1}>
-            <ViewInArIcon color="primary" />
-            <Typography variant="h6">Vehicle 3D Model</Typography>
-          </Box>
-          <Tooltip title="Reset View">
-            <IconButton onClick={handleReset} size="small" color="primary">
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
-
         {/* 3D Canvas */}
-        <Box 
-          sx={{ 
-            width: '100%', 
-            height: 400, 
-            bgcolor: 'rgba(0, 0, 0, 0.3)', 
-            borderRadius: 2,
-            overflow: 'hidden',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
-        >
+        <div className="w-full h-[400px] bg-black/30 rounded-lg overflow-hidden border border-white/10">
           <Canvas key={key}>
             <PerspectiveCamera makeDefault position={[2, 2, 2]} />
-            <OrbitControls 
-              enableDamping 
+            <OrbitControls
+              enableDamping
               dampingFactor={0.05}
               autoRotate={autoRotate}
               autoRotateSpeed={2}
             />
-            
+
             {/* Lighting */}
             <ambientLight intensity={0.5} />
             <directionalLight position={[10, 10, 5]} intensity={1} />
             <directionalLight position={[-10, -10, -5]} intensity={0.5} />
             <pointLight position={[0, 5, 0]} intensity={0.5} />
-            
+
             {/* Grid */}
             {gridVisible && (
-              <Grid 
-                args={[10, 10]} 
-                cellSize={0.5} 
-                cellThickness={0.5} 
+              <Grid
+                args={[10, 10]}
+                cellSize={0.5}
+                cellThickness={0.5}
                 cellColor="#6f6f6f"
                 sectionSize={1}
                 sectionThickness={1}
@@ -115,68 +104,55 @@ function VehicleModel3D({ modelPath = '/body.stl' }) {
                 infiniteGrid
               />
             )}
-            
+
             {/* STL Model */}
             <Suspense fallback={null}>
               <STLModel url={modelPath} color={modelColor} autoRotate={false} />
             </Suspense>
           </Canvas>
-        </Box>
+        </div>
 
         {/* Controls */}
-        <Box mt={2} display="flex" flexDirection="column" gap={1.5}>
-          <FormControlLabel
-            control={
-              <Switch 
-                checked={autoRotate} 
-                onChange={(e) => setAutoRotate(e.target.checked)}
-                color="primary"
-              />
-            }
-            label="Auto Rotate"
-          />
-          
-          <FormControlLabel
-            control={
-              <Switch 
-                checked={gridVisible} 
-                onChange={(e) => setGridVisible(e.target.checked)}
-                color="primary"
-              />
-            }
-            label="Show Grid"
-          />
+        <div className="mt-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <label htmlFor="auto-rotate" className="text-sm">Auto Rotate</label>
+            <Switch
+              id="auto-rotate"
+              checked={autoRotate}
+              onCheckedChange={setAutoRotate}
+            />
+          </div>
 
-          <Box>
-            <Typography variant="caption" color="text.secondary" gutterBottom>
-              Model Color
-            </Typography>
-            <Box display="flex" gap={1} mt={0.5}>
+          <div className="flex items-center justify-between">
+            <label htmlFor="grid-visible" className="text-sm">Show Grid</label>
+            <Switch
+              id="grid-visible"
+              checked={gridVisible}
+              onCheckedChange={setGridVisible}
+            />
+          </div>
+
+          <div>
+            <p className="text-xs text-muted-foreground mb-2">Model Color</p>
+            <div className="flex gap-2">
               {['#00D9FF', '#7C4DFF', '#F25912', '#00E096', '#FFFFFF'].map((color) => (
-                <Box
+                <button
                   key={color}
                   onClick={() => setModelColor(color)}
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    bgcolor: color,
-                    borderRadius: 1,
-                    cursor: 'pointer',
+                  className="w-8 h-8 rounded cursor-pointer transition-transform hover:scale-110"
+                  style={{
+                    backgroundColor: color,
                     border: modelColor === color ? '3px solid #fff' : '1px solid rgba(255,255,255,0.2)',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      transform: 'scale(1.1)',
-                    },
                   }}
                 />
               ))}
-            </Box>
-          </Box>
-        </Box>
+            </div>
+          </div>
+        </div>
 
-        <Typography variant="caption" color="text.secondary" mt={2} display="block">
+        <p className="text-xs text-muted-foreground mt-4">
           Drag to rotate • Scroll to zoom • Right-click to pan
-        </Typography>
+        </p>
       </CardContent>
     </Card>
   );

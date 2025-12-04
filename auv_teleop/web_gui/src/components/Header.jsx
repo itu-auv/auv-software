@@ -1,89 +1,62 @@
 import React from 'react';
-import { Box, AppBar, Toolbar, Typography, Button, Chip, CircularProgress } from '@mui/material';
-import { Refresh } from '@mui/icons-material';
+import { RefreshCw, Loader2, Wifi, WifiOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
-function Header({ connected, connecting, connectToROS, fancyEffects = true }) {
+function Header({ connected, connecting, connectToROS }) {
   return (
-    <AppBar position="sticky" elevation={2} sx={{ width: '100%' }}>
-      <Toolbar sx={{ width: '100%', maxWidth: '100%', px: 3 }}>
-        <Box display="flex" alignItems="center" gap={2} sx={{ flexGrow: 1 }}>
-          <img 
-            src="/logo.png" 
-            alt="ITU AUV Logo" 
-            style={{ height: 40, width: 'auto' }}
+    <header className="sticky top-0 z-50 w-full border-b border-white/[0.06] bg-black/80 backdrop-blur-xl">
+      <div className="container flex h-16 items-center px-6">
+        <div className="flex items-center gap-4 flex-1">
+          <img
+            src="/logo.png"
+            alt="ITU AUV Logo"
+            className="h-8 w-auto opacity-90"
+            onError={(e) => e.target.style.display = 'none'}
           />
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <Typography 
-              variant="h5" 
-              sx={fancyEffects ? (theme) => ({ 
-                fontWeight: 800,
-                letterSpacing: '0.5px',
-                color: theme.palette.primary.main,
-                animation: 'glow-pulse 2s ease-in-out infinite',
-                '@keyframes glow-pulse': {
-                  '0%, 100%': { 
-                    textShadow: `0 0 10px ${theme.palette.primary.main}80, 0 0 20px ${theme.palette.primary.main}40`,
-                  },
-                  '50%': { 
-                    textShadow: `0 0 20px ${theme.palette.primary.main}, 0 0 30px ${theme.palette.primary.main}80, 0 0 40px ${theme.palette.primary.main}40`,
-                  },
-                },
-              }) : (theme) => ({
-                fontWeight: 800,
-                letterSpacing: '0.5px',
-                color: theme.palette.primary.main,
-              })}
-            >
-              ITU AUV CONTROL PANEL
-            </Typography>
-            <Typography 
-              variant="caption" 
-              sx={(theme) => ({ 
-                color: theme.palette.primary.main,
-                opacity: 0.7,
-                fontWeight: 500,
-                letterSpacing: '2px',
-                fontSize: '0.65rem',
-                textTransform: 'uppercase',
-              })}
-            >
-              Autonomous Underwater Vehicle System
-            </Typography>
-          </Box>
-        </Box>
-        <Box display="flex" alignItems="center" gap={2}>
-          {connecting && <CircularProgress size={20} />}
-          <Chip
-            icon={
-              <Box sx={{ 
-                width: 10, 
-                height: 10, 
-                borderRadius: '50%', 
-                bgcolor: connected ? 'success.main' : 'error.main',
-                animation: (connected && fancyEffects) ? 'pulse 2s infinite' : 'none',
-                '@keyframes pulse': {
-                  '0%, 100%': { opacity: 1 },
-                  '50%': { opacity: 0.5 },
-                }
-              }} />
-            }
-            label={connected ? 'Connected' : 'Disconnected'}
-            color={connected ? 'success' : 'error'}
-            variant="outlined"
-          />
+          <div className="flex flex-col">
+            <span className="font-medium text-base tracking-tight text-white/90">
+              ITU AUV
+            </span>
+            <span className="text-[10px] text-white/30 font-medium uppercase tracking-[0.15em]">
+              Control Panel
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {connecting && (
+            <Loader2 className="w-4 h-4 animate-spin text-white/30" />
+          )}
+
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
+            connected
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              : 'bg-white/5 text-white/40 border border-white/10'
+          }`}>
+            {connected ? (
+              <Wifi className="w-3 h-3" />
+            ) : (
+              <WifiOff className="w-3 h-3" />
+            )}
+            {connected ? 'Connected' : 'Disconnected'}
+          </div>
+
           {!connected && (
             <Button
-              variant="outlined"
-              size="small"
-              startIcon={<Refresh />}
+              variant="outline"
+              size="sm"
               onClick={connectToROS}
+              disabled={connecting}
+              className="text-xs"
             >
-              Reconnect
+              <RefreshCw className={`w-3 h-3 mr-2 ${connecting ? 'animate-spin' : ''}`} />
+              Connect
             </Button>
           )}
-        </Box>
-      </Toolbar>
-    </AppBar>
+        </div>
+      </div>
+    </header>
   );
 }
 

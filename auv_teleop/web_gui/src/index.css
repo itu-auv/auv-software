@@ -1,68 +1,256 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
+@layer base {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    /* Pure black and white aesthetic */
+    --background: 0 0% 2%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 10%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 95%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 15%;
+    --input: 0 0% 12%;
+    --ring: 0 0% 60%;
+    --radius: 0.75rem;
+    --chart-1: 0 0% 90%;
+    --chart-2: 0 0% 70%;
+    --chart-3: 0 0% 50%;
+    --chart-4: 0 0% 30%;
+    --chart-5: 0 0% 20%;
+
+    /* Accent colors */
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+
+    /* Custom theming colors */
+    --theme-bg: 0 0% 0%;
+    --theme-text: 0 0% 100%;
+    --theme-text-muted: 0 0% 60%;
+    --theme-accent: 0 0% 100%;
+    --theme-border: 0 0% 100%;
   }
-  a:hover {
-    color: #747bff;
+
+  .theme-halloween {
+    --background: 270 50% 3%;
+    --foreground: 30 100% 60%;
+    --card: 270 40% 6%;
+    --card-foreground: 30 100% 60%;
+    --popover: 270 40% 6%;
+    --popover-foreground: 30 100% 60%;
+    --primary: 24 100% 50%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 264 50% 15%;
+    --secondary-foreground: 30 100% 60%;
+    --muted: 270 30% 12%;
+    --muted-foreground: 30 50% 45%;
+    --accent: 264 50% 20%;
+    --accent-foreground: 30 100% 60%;
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 270 30% 18%;
+    --input: 270 30% 12%;
+    --ring: 24 100% 50%;
+
+    /* Halloween custom colors */
+    --theme-bg: 270 50% 3%;
+    --theme-text: 30 100% 60%;
+    --theme-text-muted: 30 50% 45%;
+    --theme-accent: 24 100% 50%;
+    --theme-border: 24 100% 50%;
   }
-  button {
-    background-color: #f9f9f9;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Halloween theme overrides for hardcoded colors */
+/* Override black backgrounds */
+.theme-halloween .bg-black,
+.theme-halloween.bg-black {
+  background-color: hsl(270 50% 3%) !important;
+}
+
+/* Override gradient overlays */
+.theme-halloween .via-black\/50 {
+  --tw-gradient-stops: var(--tw-gradient-from), hsl(270 50% 3% / 0.5) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+.theme-halloween .to-black {
+  --tw-gradient-to: hsl(270 50% 3%) !important;
+}
+
+/* Override white text colors */
+.theme-halloween .text-white {
+  color: hsl(30 100% 60%) !important;
+}
+.theme-halloween .text-white\/90 {
+  color: hsl(30 100% 60% / 0.9) !important;
+}
+.theme-halloween .text-white\/80 {
+  color: hsl(30 100% 60% / 0.8) !important;
+}
+.theme-halloween .text-white\/70 {
+  color: hsl(30 100% 60% / 0.7) !important;
+}
+.theme-halloween .text-white\/60 {
+  color: hsl(30 100% 60% / 0.6) !important;
+}
+.theme-halloween .text-white\/50 {
+  color: hsl(30 100% 60% / 0.5) !important;
+}
+.theme-halloween .text-white\/40 {
+  color: hsl(30 100% 60% / 0.4) !important;
+}
+.theme-halloween .text-white\/30 {
+  color: hsl(30 100% 60% / 0.3) !important;
+}
+.theme-halloween .text-white\/20 {
+  color: hsl(30 100% 60% / 0.2) !important;
+}
+
+/* Override white backgrounds with opacity */
+.theme-halloween .bg-white {
+  background-color: hsl(24 100% 50%) !important;
+}
+.theme-halloween .bg-white\/\[0\.02\] {
+  background-color: hsl(264 50% 20% / 0.3) !important;
+}
+.theme-halloween .bg-white\/\[0\.03\] {
+  background-color: hsl(264 50% 20% / 0.4) !important;
+}
+.theme-halloween .bg-white\/\[0\.05\] {
+  background-color: hsl(264 50% 20% / 0.5) !important;
+}
+.theme-halloween .bg-white\/5 {
+  background-color: hsl(264 50% 20% / 0.5) !important;
+}
+.theme-halloween .bg-white\/10 {
+  background-color: hsl(264 50% 20% / 0.6) !important;
+}
+.theme-halloween .bg-white\/15 {
+  background-color: hsl(264 50% 20% / 0.7) !important;
+}
+
+/* Override white borders */
+.theme-halloween .border-white\/\[0\.05\],
+.theme-halloween .border-white\/\[0\.06\],
+.theme-halloween .border-white\/\[0\.08\],
+.theme-halloween .border-white\/10,
+.theme-halloween .border-white\/20 {
+  border-color: hsl(24 100% 50% / 0.3) !important;
+}
+
+.theme-halloween .hover\:border-white\/\[0\.15\]:hover {
+  border-color: hsl(24 100% 50% / 0.5) !important;
+}
+
+/* Override emerald success colors to orange */
+.theme-halloween .text-emerald-400 {
+  color: hsl(24 100% 50%) !important;
+}
+.theme-halloween .bg-emerald-500\/10 {
+  background-color: hsl(24 100% 50% / 0.15) !important;
+}
+.theme-halloween .border-emerald-500\/20 {
+  border-color: hsl(24 100% 50% / 0.3) !important;
+}
+
+/* Slider */
+.theme-halloween .bg-white\/60 {
+  background-color: hsl(24 100% 50% / 0.8) !important;
+}
+
+/* Switch checked state */
+.theme-halloween [data-state="checked"].bg-white {
+  background-color: hsl(24 100% 50%) !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-white/20;
+}
+
+/* Glass morphism utility */
+@layer utilities {
+  .glass {
+    @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.08];
+  }
+
+  .glass-hover {
+    @apply hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-300;
+  }
+
+  .glow {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.05);
+  }
+
+  .glow-sm {
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.03);
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60;
+  }
+
+  .border-glow {
+    box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .shine::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.05),
+      transparent
+    );
+    transition: left 0.5s;
+  }
+
+  .shine:hover::before {
+    left: 100%;
   }
 }

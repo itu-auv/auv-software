@@ -1,6 +1,5 @@
 import React, { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Box } from '@mui/material';
 import { Sphere, MeshDistortMaterial } from '@react-three/drei';
 
 // Animated central sphere with distortion
@@ -140,17 +139,8 @@ function ThreeBackground({ enabled = true }) {
   if (!enabled) return null;
 
   return (
-    <Box
-      sx={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        zIndex: -1,
-        pointerEvents: 'none',
-        opacity: 0.25,
-      }}
+    <div
+      className="fixed top-0 left-0 w-screen h-screen -z-10 pointer-events-none opacity-25"
     >
       <Canvas
         camera={{ position: [0, 0, 10], fov: 75 }}
@@ -179,7 +169,7 @@ function ThreeBackground({ enabled = true }) {
         <ParticleField />
         <OrbitingShapes />
       </Canvas>
-    </Box>
+    </div>
   );
 }
 

@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { Card, CardContent, Typography, Button, Grid, Switch, FormControlLabel, Snackbar, Alert } from '@mui/material';
-import { PlayArrow, StopCircle, CameraAlt } from '@mui/icons-material';
+import { Play, StopCircle, Camera, Eye, Cpu } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 
-function ObjectDetection({ 
+function ObjectDetection({
   connected,
   ros,
-  cudaEnabled, 
-  setCudaEnabled, 
-  detectionRunning, 
-  setDetectionRunning 
+  cudaEnabled,
+  setCudaEnabled,
+  detectionRunning,
+  setDetectionRunning
 }) {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
 
@@ -26,7 +29,7 @@ function ObjectDetection({
       });
 
       const request = new window.ROSLIB.ServiceRequest({
-        data: cudaEnabled  // true for CUDA, false for CPU
+        data: cudaEnabled
       });
 
       service.callService(request, (result) => {
@@ -39,10 +42,10 @@ function ObjectDetection({
         }
       }, (error) => {
         console.error('Service call failed:', error);
-        setSnackbar({ 
-          open: true, 
-          message: 'Detection service not available. Make sure web_gui.launch is running.', 
-          severity: 'error' 
+        setSnackbar({
+          open: true,
+          message: 'Detection service not available. Make sure web_gui.launch is running.',
+          severity: 'error'
         });
       });
     } catch (error) {
@@ -75,10 +78,10 @@ function ObjectDetection({
         }
       }, (error) => {
         console.error('Service call failed:', error);
-        setSnackbar({ 
-          open: true, 
-          message: 'Detection service not available.', 
-          severity: 'error' 
+        setSnackbar({
+          open: true,
+          message: 'Detection service not available.',
+          severity: 'error'
         });
       });
     } catch (error) {
@@ -110,10 +113,10 @@ function ObjectDetection({
         }
       }, (error) => {
         console.error('Service call failed:', error);
-        setSnackbar({ 
-          open: true, 
-          message: 'Service not available. Make sure web_gui.launch is running.', 
-          severity: 'error' 
+        setSnackbar({
+          open: true,
+          message: 'Service not available. Make sure web_gui.launch is running.',
+          severity: 'error'
         });
       });
     } catch (error) {
@@ -121,74 +124,65 @@ function ObjectDetection({
       setSnackbar({ open: true, message: 'Failed to call service', severity: 'error' });
     }
   };
-  return (
-    <Card elevation={3}>
-      <CardContent>
-        <Typography variant="h6" mb={2}>🎮 Object Detection</Typography>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={cudaEnabled}
-                  onChange={(e) => setCudaEnabled(e.target.checked)}
-                  disabled={!connected || detectionRunning}
-                />
-              }
-              label="Use CUDA (GPU Acceleration)"
-            />
-          </Grid>
-          <Grid item xs={6}>
-            <Button
-              fullWidth
-              variant="contained"
-              color="success"
-              startIcon={<PlayArrow />}
-              onClick={handleStartDetection}
-              disabled={!connected || detectionRunning}
-            >
-              Start Detection
-            </Button>
-          </Grid>
-          <Grid item xs={6}>
-            <Button
-              fullWidth
-              variant="contained"
-              color="error"
-              startIcon={<StopCircle />}
-              onClick={handleStopDetection}
-              disabled={!connected || !detectionRunning}
-            >
-              Stop Detection
-            </Button>
-          </Grid>
-          <Grid item xs={12}>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<CameraAlt />}
-              disabled={!connected}
-              onClick={handleLaunchRqt}
-            >
-              Open rqt_image_view
-            </Button>
-          </Grid>
-        </Grid>
 
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={4000}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert 
-            onClose={() => setSnackbar({ ...snackbar, open: false })} 
-            severity={snackbar.severity}
-            sx={{ width: '100%' }}
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <Eye className="w-4 h-4 text-white/50" />
+            Object Detection
+          </span>
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+            detectionRunning
+              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+              : 'bg-white/5 text-white/30 border border-white/10'
+          }`}>
+            {detectionRunning ? 'Running' : 'Stopped'}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+          <div className="flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-white/40" />
+            <span className="text-sm text-white/70">CUDA Acceleration</span>
+          </div>
+          <Switch
+            checked={cudaEnabled}
+            onCheckedChange={setCudaEnabled}
+            disabled={!connected || detectionRunning}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="success"
+            onClick={handleStartDetection}
+            disabled={!connected || detectionRunning}
           >
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
+            <Play className="w-4 h-4 mr-2" />
+            Start
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleStopDetection}
+            disabled={!connected || !detectionRunning}
+          >
+            <StopCircle className="w-4 h-4 mr-2" />
+            Stop
+          </Button>
+        </div>
+
+        <Button
+          variant="outline"
+          className="w-full"
+          disabled={!connected}
+          onClick={handleLaunchRqt}
+        >
+          <Camera className="w-4 h-4 mr-2" />
+          Open rqt_image_view
+        </Button>
       </CardContent>
     </Card>
   );

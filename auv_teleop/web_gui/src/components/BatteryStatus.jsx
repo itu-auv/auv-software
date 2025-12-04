@@ -1,134 +1,114 @@
 import React from 'react';
-import { Box, Card, CardContent, Typography, Grid, Chip, Alert } from '@mui/material';
-import { Battery90 } from '@mui/icons-material';
+import { Battery, BatteryWarning, BatteryFull, BatteryLow, Zap } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-function BatteryStatus({ 
-  voltage, 
-  current, 
-  power, 
-  powerHistory, 
-  powerTopicName, 
-  lastPowerUpdate, 
-  powerSource 
+function BatteryStatus({
+  voltage,
+  current,
+  power,
+  powerHistory,
+  powerTopicName,
+  lastPowerUpdate,
+  powerSource
 }) {
-  const getBatteryColor = () => {
-    if (voltage === 0) return 'default';
-    if (voltage < 14.8) return 'error';
-    if (voltage < 15.2) return 'warning';
-    return 'success';
+  const getStatusColor = () => {
+    if (voltage === 0) return 'text-white/30';
+    if (voltage < 14.8) return 'text-red-400';
+    if (voltage < 15.2) return 'text-amber-400';
+    return 'text-emerald-400';
   };
 
-  const getBatteryLabel = () => {
+  const getStatusLabel = () => {
     if (voltage === 0) return 'NO DATA';
     if (voltage < 14.8) return 'CRITICAL';
     if (voltage < 15.2) return 'LOW';
     return 'GOOD';
   };
 
-  const getPowerSourceDisplay = () => {
-    if (powerSource === 'simulation') return '🎮 Simulation (Fixed 16V)';
-    if (powerSource === 'hardware') return '🔌 Real Hardware';
-    return '❓ Unknown';
+  const getBatteryIcon = () => {
+    if (voltage === 0) return Battery;
+    if (voltage < 14.8) return BatteryWarning;
+    if (voltage < 15.2) return BatteryLow;
+    return BatteryFull;
   };
 
+  const BatteryIcon = getBatteryIcon();
+
   return (
-    <Card elevation={3}>
-      <CardContent>
-        <Box display="flex" alignItems="center" gap={2} mb={2}>
-          <Battery90 color={getBatteryColor()} fontSize="large" />
-          <Box flexGrow={1}>
-            <Typography variant="h6">Battery Status</Typography>
-            <Typography variant="caption" sx={{ opacity: 0.7 }}>
-              {getPowerSourceDisplay()}
-            </Typography>
-          </Box>
-        </Box>
-        
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <BatteryIcon className="w-4 h-4 text-white/50" />
+            Battery
+          </span>
+          <span className={`text-xs font-medium ${getStatusColor()}`}>
+            {getStatusLabel()}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
         {voltage > 0 ? (
           <>
-            <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <Typography variant="caption" sx={{ opacity: 0.7 }}>Voltage</Typography>
-                <Typography variant="h4" color={`${getBatteryColor()}.main`} fontWeight="bold">
-                  {voltage.toFixed(2)}V
-                </Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography variant="caption" sx={{ opacity: 0.7 }}>Current</Typography>
-                <Typography variant="h4" fontWeight="bold">
-                  {current.toFixed(2)}A
-                </Typography>
-              </Grid>
-              <Grid item xs={12}>
-                <Typography variant="caption" sx={{ opacity: 0.7 }}>Power Consumption</Typography>
-                <Typography variant="h5" fontWeight="bold" color="warning.main">
-                  {power.toFixed(2)}W
-                </Typography>
-              </Grid>
-            </Grid>
-            
-            <Chip
-              label={getBatteryLabel()}
-              color={getBatteryColor()}
-              sx={{ mt: 2 }}
-            />
-            
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-wider text-white/30">Voltage</p>
+                <p className="text-xl font-light tabular-nums text-white">
+                  {voltage.toFixed(1)}
+                  <span className="text-xs text-white/30 ml-0.5">V</span>
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-wider text-white/30">Current</p>
+                <p className="text-xl font-light tabular-nums text-white">
+                  {current.toFixed(1)}
+                  <span className="text-xs text-white/30 ml-0.5">A</span>
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase tracking-wider text-white/30">Power</p>
+                <p className="text-xl font-light tabular-nums text-white">
+                  {power.toFixed(0)}
+                  <span className="text-xs text-white/30 ml-0.5">W</span>
+                </p>
+              </div>
+            </div>
+
             {/* Power History Graph */}
             {powerHistory.length > 1 && (
-              <Box sx={{ mt: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1 }}>
-                <Typography variant="caption" sx={{ opacity: 0.7 }}>Power History (60s)</Typography>
-                <Box sx={{ position: 'relative', height: 60, mt: 1 }}>
-                  <svg width="100%" height="60" style={{ display: 'block' }}>
+              <div className="pt-2">
+                <p className="text-[10px] uppercase tracking-wider text-white/30 mb-2">Power History</p>
+                <div className="relative h-12 bg-white/[0.03] rounded-lg p-2 border border-white/[0.05]">
+                  <svg width="100%" height="100%" className="block">
                     <polyline
                       fill="none"
-                      stroke="#FF9800"
-                      strokeWidth="2"
+                      stroke="rgba(255,255,255,0.4)"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                       points={powerHistory.map((point, index) => {
                         const x = (index / (powerHistory.length - 1)) * 100;
                         const maxPower = Math.max(...powerHistory.map(p => p.power), 1);
-                        const y = 60 - (point.power / maxPower) * 50;
-                        return `${x}%,${y}`;
+                        const y = 100 - (point.power / maxPower) * 80;
+                        return `${x}%,${y}%`;
                       }).join(' ')}
                     />
                   </svg>
-                  <Typography variant="caption" sx={{ position: 'absolute', top: 0, right: 0, opacity: 0.5 }}>
-                    {Math.max(...powerHistory.map(p => p.power)).toFixed(0)}W
-                  </Typography>
-                  <Typography variant="caption" sx={{ position: 'absolute', bottom: 0, right: 0, opacity: 0.5 }}>
-                    0W
-                  </Typography>
-                </Box>
-              </Box>
+                </div>
+              </div>
             )}
-            
-            {/* Debug Info */}
-            <Box sx={{ mt: 2, p: 1, bgcolor: 'background.paper', borderRadius: 1, fontSize: '0.7rem' }}>
-              <Typography variant="caption" display="block">
-                <strong>Topic:</strong> {powerTopicName}
-              </Typography>
-              <Typography variant="caption" display="block">
-                <strong>Last Update:</strong> {lastPowerUpdate ? lastPowerUpdate.toLocaleTimeString() : 'Never'}
-              </Typography>
-              {powerSource === 'simulation' && (
-                <Typography variant="caption" display="block" sx={{ color: 'info.main', mt: 0.5 }}>
-                  ℹ️ Simulated voltage (fixed 16V in Gazebo)
-                </Typography>
-              )}
-            </Box>
+
+            <div className="flex items-center gap-2 text-[10px] text-white/20">
+              <Zap className="w-3 h-3" />
+              {powerSource === 'simulation' ? 'Simulation' : 'Hardware'}
+            </div>
           </>
         ) : (
-          <Alert severity={powerTopicName === 'NOT_FOUND' ? 'error' : 'info'} sx={{ mt: 1 }}>
-            {powerTopicName === 'NOT_FOUND' ? (
-              <strong>No power topic found! Make sure simulation or power node is running.</strong>
-            ) : (
-              <>
-                Waiting for battery data...
-                <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                  Topic: <code>{powerTopicName || 'Searching...'}</code>
-                </Typography>
-              </>
-            )}
-          </Alert>
+          <div className="text-center py-4">
+            <Battery className="w-8 h-8 mx-auto mb-2 text-white/20" />
+            <p className="text-sm text-white/40">Waiting for data...</p>
+            <p className="text-[10px] mt-1 text-white/20">{powerTopicName || 'Searching...'}</p>
+          </div>
         )}
       </CardContent>
     </Card>
