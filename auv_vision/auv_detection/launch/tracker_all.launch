@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Camera selection flags -->
+    <arg name="front" default="false"/>
+    <arg name="bottom" default="false"/>
+    <arg name="realsense" default="false"/>
+    <arg name="segment" default="false"/>
+    <arg name="detection" default="false"/>
+
+    <!-- Common settings -->
+    <arg name="sim" default="false"/>
+    <arg name="use_gui" default="true"/>
+
+    <!-- Front camera tracker -->
+    <include if="$(arg front)" file="$(find auv_detection)/launch/inc/tracker_front.launch">
+        <arg name="sim" value="$(arg sim)"/>
+        <arg name="use_gui" value="$(arg use_gui)"/>
+    </include>
+
+    <!-- Bottom camera tracker -->
+    <include if="$(arg bottom)" file="$(find auv_detection)/launch/inc/tracker_bottom.launch">
+        <arg name="sim" value="$(arg sim)"/>
+        <arg name="use_gui" value="$(arg use_gui)"/>
+    </include>
+
+    <!-- RealSense camera tracker -->
+    <include if="$(arg realsense)" file="$(find auv_detection)/launch/inc/tracker_realsense.launch">
+        <arg name="use_gui" value="$(arg use_gui)"/>
+    </include>
+
+    <!-- Segmentation tracker -->
+    <include if="$(arg segment)" file="$(find auv_detection)/launch/inc/tracker_segment.launch">
+        <arg name="sim" value="$(arg sim)"/>
+        <arg name="use_gui" value="$(arg use_gui)"/>
+    </include>
+
+    <!-- Shape detection tracker -->
+    <include if="$(arg detection)" file="$(find auv_detection)/launch/inc/tracker_detection.launch">
+        <arg name="sim" value="$(arg sim)"/>
+        <arg name="use_gui" value="$(arg use_gui)"/>
+    </include>
+</launch>
