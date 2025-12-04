@@ -1,89 +1,134 @@
 #!/usr/bin/env python3
+"""
+Training script for Behavior Cloning (BC) using the imitation library and Stable Baselines3.
+loads an expert dataset, converts it to the required format, and trains a BC agent.
+"""
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-import numpy as np
 import argparse
 import os
-from auv_imitation_learning.models import MLPPolicy
+import logging
+from typing import Tuple, Dict, Any, Optional
+
+import numpy as np
+import torch
+import gymnasium as gym
+from stable_baselines3.common.policies import ActorCriticPolicy
+from imitation.algorithms import bc
+from imitation.data.types import Transitions
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
-class AUVDataset(Dataset):
-    def __init__(self, npz_path):
-        data = np.load(npz_path)  # expert data
-        self.inputs = torch.FloatTensor(data["inputs"])
-        self.labels = torch.FloatTensor(data["labels"])  # output (cmd_vel)
+def load_dataset(dataset_path: str) -> Tuple[np.ndarray, np.ndarray]:
+    logger.info(f"Loading dataset from {dataset_path}...")
+    try:
+        data = np.load(dataset_path)
+        observations = data["inputs"]
+        actions = data["labels"]
+        logger.info(f"Dataset loaded. Shape: Obs={observations.shape}, Acts={actions.shape}")
+        return observations, actions
+    except Exception as e:
+        logger.error(f"Failed to load dataset: {e}")
+        raise
 
-    def __len__(self):
-        return len(self.inputs)
 
-    def __getitem__(self, idx):
-        # PyTorch calls this repeatedly to fetch data.
-        return self.inputs[idx], self.labels[idx]
+def create_transitions(observations: np.ndarray, actions: np.ndarray) -> Transitions:
+    """
+    Convert observations and actions into imitation Transitions object.
+    
+    Since we only have (s, a) pairs, we create dummy next_obs and dones.
 
+    Args:
+        observations: Array of observations.
+        actions: Array of actions.
 
-def train(args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
-
-    dataset = AUVDataset(args.dataset)
-    dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
-
-    input_dim = dataset.inputs.shape[1]
-    output_dim = dataset.labels.shape[1]
-
-    # create the MLP
-    model = MLPPolicy(input_dim, output_dim, hidden_dim=args.hidden_dim).to(
-        device
-    )  # move to GPU if available
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    criterion = nn.MSELoss()
-
-    print(
-        f"Model Architecture: Input={input_dim}, Hidden={args.hidden_dim}, Output={output_dim}"
+    Returns:
+        Transitions object containing the demonstration data.
+    """
+    
+    # The imitation library expects data in the standard Reinforcement Learning transition format: (s, a, s', d) (observation, action, next_observation, done).
+    # Create dummy next_obs and dones since they are not used for BC loss
+    dummy_next_obs = np.zeros_like(observations)
+    dummy_dones = np.zeros(len(observations), dtype=bool)
+    
+    return Transitions(
+        obs=observations,
+        acts=actions,
+        infos=[{}] * len(observations),
+        next_obs=dummy_next_obs,
+        dones=dummy_dones
     )
-    print(f"Training on {len(dataset)} samples for {args.epochs} epochs...")
-
-    # Training Loop
-    for epoch in range(args.epochs):
-        total_loss = 0
-        # batch iteration
-        # for example, inputs is of shape (batch_size, input_dim)
-        for inputs, labels in dataloader:
-            inputs, labels = inputs.to(device), labels.to(device)
-
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-
-            total_loss += loss.item()
-
-        avg_loss = total_loss / len(dataloader)
-        print(f"Epoch [{epoch+1}/{args.epochs}], Loss: {avg_loss:.6f}")
-
-    # Save Model
-    os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
-    model.save(args.output_path)
-    print(f"Model saved to {args.output_path}")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train BC Agent")
+def get_space(data: np.ndarray) -> gym.spaces.Box:
+    """
+    Create a gym Space based on the data shape.
+    Assumes continuous space with infinite bounds.
+    """
+    dim = data.shape[1]
+    return gym.spaces.Box(low=-np.inf, high=np.inf, shape=(dim,), dtype=np.float32)
+
+
+def train_bc_agent(
+    dataset_path: str,
+    output_path: str,
+    epochs: int,
+    batch_size: int,
+    rng_seed: int = 0
+) -> None:
+    """
+    Args:
+        dataset_path: Path to the dataset.
+        output_path: Path to save the trained policy.
+        epochs: Number of training epochs.
+        batch_size: Batch size for training.
+        rng_seed: Random seed.
+    """
+    observations, actions = load_dataset(dataset_path)
+    transitions = create_transitions(observations, actions)
+    
+    logger.info("Initializing BC trainer...")
+    rng = np.random.default_rng(rng_seed)
+    
+    bc_trainer = bc.BC(
+        observation_space=get_space(observations),
+        action_space=get_space(actions),
+        demonstrations=transitions,
+        rng=rng,
+        batch_size=batch_size,
+        policy=None,  # use default MlpPolicy
+    )
+    
+    logger.info(f"Training for {epochs} epochs...")
+    bc_trainer.train(n_epochs=epochs)
+    
+    logger.info(f"Saving policy to {output_path}...")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    bc_trainer.policy.save(output_path)
+    logger.info("Training completed and policy saved.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Train BC Agent using imitation library")
     parser.add_argument("--dataset", required=True, help="Path to NPZ dataset")
     parser.add_argument(
         "--output_path",
-        default="models/bc_policy.pth",
+        default="models/bc_policy.zip",
         help="Path to save trained model",
     )
-    parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--hidden_dim", type=int, default=64)
-
+    parser.add_argument("--epochs", type=int, default=50, help="Number of training epochs")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
+    
     args = parser.parse_args()
+    
+    train_bc_agent(
+        dataset_path=args.dataset,
+        output_path=args.output_path,
+        epochs=args.epochs,
+        batch_size=args.batch_size
+    )
 
-    train(args)
+
+if __name__ == "__main__":
+    main()
