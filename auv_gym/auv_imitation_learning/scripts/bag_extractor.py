@@ -10,6 +10,16 @@ import os
 from geometry_msgs.msg import TransformStamped, Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
+import math
+
+
+def get_bearing_angle(x, y):
+    """
+    Calculate the bearing angle (yaw) to a target point.
+    This is the angle of the vector from origin to (x, y) in the XY plane.
+    Returns angle in radians, where 0 = straight ahead (+X), positive = left (+Y).
+    """
+    return math.atan2(y, x)
 
 
 def get_transforms_at_time(tf_buffer, target_frames, source_frame, time):
@@ -30,7 +40,7 @@ def get_transforms_at_time(tf_buffer, target_frames, source_frame, time):
 
             _, _, yaw = euler_from_quaternion([q.x, q.y, q.z, q.w])
 
-            # omit roll and pitch
+            # omit roll and pitch - only relative position and yaw to gate matters
             features.extend([p.x, p.y, p.z, yaw])
 
         except (
@@ -42,6 +52,15 @@ def get_transforms_at_time(tf_buffer, target_frames, source_frame, time):
             features.extend([0.0] * 4)
 
     return features
+
+
+def get_4axis_velocity(odom_velocity):
+    """
+    Extract 4-axis velocity from 6D odometry velocity.
+    Input: [vx, vy, vz, wx, wy, wz]
+    Output: [vx, vy, vz, wz]
+    """
+    return [odom_velocity[0], odom_velocity[1], odom_velocity[2], odom_velocity[5]]
 
 
 def get_robot_state_at_time(tf_buffer, odom_data_cache, source_frame, time):
@@ -121,10 +140,14 @@ def process_bag(bag_path, target_frames, output_path):
                         "taluy/base_link", target, query_time
                     )
                     p = trans.transform.translation
-                    q = trans.transform.rotation
-                    _, _, yaw = euler_from_quaternion([q.x, q.y, q.z, q.w])
-                    # [x, y, z, yaw] (4D)
-                    target_features.extend([p.x, p.y, p.z, yaw])
+                    
+                    # Calculate bearing angle: the angle TO the target in body frame
+                    # This is what the robot needs to turn to face the gate
+                    # atan2(y, x) gives angle where 0 = ahead, positive = left
+                    bearing_yaw = get_bearing_angle(p.x, p.y)
+                    
+                    # [x, y, z, bearing_yaw] (4D)
+                    target_features.extend([p.x, p.y, p.z, bearing_yaw])
 
                 # 2. Get Robot State (Vel + Orientation)
                 # Query TF for Orientation
@@ -132,8 +155,9 @@ def process_bag(bag_path, target_frames, output_path):
                     "odom", "taluy/base_link", query_time
                 )
                 q_o = trans_odom.transform.rotation
-                roll, pitch, yaw = euler_from_quaternion([q_o.x, q_o.y, q_o.z, q_o.w])
-                robot_orientation = [roll, pitch, yaw]
+                roll, pitch, _ = euler_from_quaternion([q_o.x, q_o.y, q_o.z, q_o.w])
+                # Only keep roll and pitch - yaw is already in relative target transform
+                robot_orientation = [roll, pitch]
 
                 # Query Cache for Velocity
                 # Find closest odom message by time difference
@@ -149,10 +173,12 @@ def process_bag(bag_path, target_frames, output_path):
                 if abs((closest_odom[0] - query_time).to_sec()) > 0.2:
                     continue
 
-                robot_vel = closest_odom[1]
+                # Get 4-axis velocity [vx, vy, vz, wz] to match output space
+                robot_vel = get_4axis_velocity(closest_odom[1])
 
                 # Assemble
-                # Input vector: [Relative Target (4*N), Ego Velocity (6), Ego Orientation (3)]
+                # Input vector: [Relative Target (4*N), Ego Velocity (4), Ego Orientation (2)]
+                # For single gate: 4 + 4 + 2 = 10D input
                 input_vec = target_features + robot_vel + robot_orientation
                 label_vec = [msg.linear.x, msg.linear.y, msg.linear.z, msg.angular.z]
 

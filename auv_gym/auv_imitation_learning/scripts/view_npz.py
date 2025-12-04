@@ -67,15 +67,15 @@ def view_npz(npz_path, num_samples=5, detailed=False):
         inputs = data["inputs"]
         feature_dim = inputs.shape[1]
 
-        # Assuming structure: [target_features(4), velocity(6), orientation(3)]
-        if feature_dim == 13:
-            print("  Features [0-3]:  Target (x, y, z, yaw)")
-            print("  Features [4-9]:  Velocity (vx, vy, vz, wx, wy, wz)")
-            print("  Features [10-12]: Orientation (roll, pitch, yaw)")
+        # Structure: [target_features(4), velocity(4), orientation(2)] = 10D
+        if feature_dim == 10:
+            print("  Features [0-3]:  Relative Gate (x, y, z, yaw)")
+            print("  Features [4-7]:  Body Velocity (vx, vy, vz, wz)")
+            print("  Features [8-9]:  Body Orientation (roll, pitch)")
             print()
 
             # Show statistics per feature group
-            print("  Target stats:")
+            print("  Relative Gate stats:")
             print(
                 f"    x:   min={inputs[:,0].min():.3f}, max={inputs[:,0].max():.3f}, mean={inputs[:,0].mean():.3f}"
             )
@@ -90,7 +90,7 @@ def view_npz(npz_path, num_samples=5, detailed=False):
             )
             print()
 
-            print("  Velocity stats:")
+            print("  Body Velocity stats:")
             print(
                 f"    vx: min={inputs[:,4].min():.3f}, max={inputs[:,4].max():.3f}, mean={inputs[:,4].mean():.3f}"
             )
@@ -100,18 +100,26 @@ def view_npz(npz_path, num_samples=5, detailed=False):
             print(
                 f"    vz: min={inputs[:,6].min():.3f}, max={inputs[:,6].max():.3f}, mean={inputs[:,6].mean():.3f}"
             )
+            print(
+                f"    wz: min={inputs[:,7].min():.3f}, max={inputs[:,7].max():.3f}, mean={inputs[:,7].mean():.3f}"
+            )
             print()
 
-            print("  Orientation stats:")
+            print("  Body Orientation stats:")
             print(
-                f"    roll:  min={inputs[:,10].min():.3f}, max={inputs[:,10].max():.3f}, mean={inputs[:,10].mean():.3f}"
+                f"    roll:  min={inputs[:,8].min():.3f}, max={inputs[:,8].max():.3f}, mean={inputs[:,8].mean():.3f}"
             )
             print(
-                f"    pitch: min={inputs[:,11].min():.3f}, max={inputs[:,11].max():.3f}, mean={inputs[:,11].mean():.3f}"
+                f"    pitch: min={inputs[:,9].min():.3f}, max={inputs[:,9].max():.3f}, mean={inputs[:,9].mean():.3f}"
             )
-            print(
-                f"    yaw:   min={inputs[:,12].min():.3f}, max={inputs[:,12].max():.3f}, mean={inputs[:,12].mean():.3f}"
-            )
+        elif feature_dim == 13:
+            # Legacy 13D format
+            print("  [Legacy 13D format detected]")
+            print("  Features [0-3]:  Target (x, y, z, yaw)")
+            print("  Features [4-9]:  Velocity (vx, vy, vz, wx, wy, wz)")
+            print("  Features [10-12]: Orientation (roll, pitch, yaw)")
+        else:
+            print(f"  Unknown feature dimension: {feature_dim}")
 
     # Label breakdown (if applicable)
     if "labels" in data.keys() and detailed:
