@@ -20,7 +20,7 @@
     <arg name="enable_logging" default="false" />
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
     <arg name="start_bridge" default="true" />
-    <arg name="pointcloud_filter" default="false" />
+    <arg name="pointcloud_filter" default="true" />
 
 
     <!-- Run RViz -->
