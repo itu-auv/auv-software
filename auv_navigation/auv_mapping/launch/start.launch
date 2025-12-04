@@ -7,9 +7,8 @@
   <arg name="torpedo_frame" default="torpedo_map_link" />
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
-  <arg name="pointcloud_filter" default="true" />
 
-  <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch" if="$(arg pointcloud_filter)" />
+  <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch" />
 
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
@@ -58,7 +57,7 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen" if="$(arg pointcloud_filter)">
+    <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen">
       <remap from="camera/depth/color/points" to="camera/depth/color/points" />
       <remap from="dvl/altitude" to="sensors/dvl/altitude" />
       <remap from="pressure_sensor/depth" to="sensors/external_pressure_sensor/depth" />

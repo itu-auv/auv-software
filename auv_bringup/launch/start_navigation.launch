@@ -5,7 +5,6 @@
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
   <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
-  <arg name="pointcloud_filter" default="true" />
 
   <include file="$(find auv_localization)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
@@ -27,7 +26,6 @@
   <include file="$(find auv_mapping)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="pointcloud_filter" value="$(arg pointcloud_filter)" />
   </include>
 
   <include file="$(find auv_navigation)/launch/start.launch">
