@@ -27,6 +27,7 @@
     <!-- Run Taluy GUI -->
     <group if="$(arg use_taluy_gui)">
         <include file="$(find auv_teleop)/launch/start_taluy_gui.launch">
+            <arg name="namespace" value="$(arg namespace)" />
         </include>
     </group>
 

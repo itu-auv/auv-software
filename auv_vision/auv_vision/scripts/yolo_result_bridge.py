@@ -15,10 +15,10 @@ class YoloBridge:
         )
 
         # Subscriber to the custom YoloResult message
-        rospy.Subscriber("/yolo_result", YoloResult, self.yolo_callback)
+        rospy.Subscriber("/yolo_result_front", YoloResult, self.yolo_callback)
 
         rospy.loginfo(
-            "YOLO Result Bridge started. Subscribing to /yolo_result and publishing to /yolo_detections."
+            "YOLO Result Bridge started. Subscribing to /yolo_result_front and publishing to /yolo_detections."
         )
 
     def yolo_callback(self, msg):
