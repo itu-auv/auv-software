@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10.2)
-project(auv_gym)
+project(auv_reinforcement_learning)
 
 ## Find catkin and required ROS packages
 find_package(catkin REQUIRED COMPONENTS
@@ -37,7 +37,7 @@ catkin_install_python(PROGRAMS
   scripts/train_residual_control.py
   scripts/train_end_to_end.py
   scripts/test_policy.py
-  src/auv_gym/envs/auv_env.py
+  src/auv_reinforcement_learning/envs/auv_env.py
   scripts/train_navigation.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

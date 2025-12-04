@@ -1,0 +1,19 @@
+<launch>
+    <!-- Training Mode Argument -->
+    <arg name="mode" default="navigation" /> <!-- navigation, end_to_end, residual, test -->
+
+    <!-- End to End Training -->
+    <node if="$(eval mode == 'end_to_end')" name="train_end_to_end" pkg="auv_reinforcement_learning" type="train_end_to_end.py" output="screen"/>
+
+    <!-- Residual Control Training -->
+    <node if="$(eval mode == 'residual')" name="train_residual_control" pkg="auv_reinforcement_learning" type="train_residual_control.py" output="screen"/>
+
+    <!-- Navigation Training -->
+    <node if="$(eval mode == 'navigation')" name="train_navigation" pkg="auv_reinforcement_learning" type="train_navigation.py" output="screen"/>
+
+    <!-- Test Policy -->
+    <node if="$(eval mode == 'test')" name="test_policy" pkg="auv_reinforcement_learning" type="test_policy.py" output="screen"/>
+
+    <node name="auv_reinforcement_learning_env" pkg="auv_reinforcement_learning" type="auv_env.py" output="screen"/>
+
+</launch>

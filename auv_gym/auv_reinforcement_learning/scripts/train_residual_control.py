@@ -7,7 +7,7 @@ Trains an RL agent to provide corrections to a PID baseline controller.
 Uses SAC algorithm from Stable-Baselines3.
 
 Usage:
-    roslaunch auv_gym train_residual.launch
+    roslaunch auv_reinforcement_learning train_residual.launch
     or
     python train_residual_control.py
 """
@@ -19,17 +19,17 @@ from stable_baselines3.common.callbacks import CheckpointCallback, EvalCallback
 from stable_baselines3.common.monitor import Monitor
 import rospkg
 
-from auv_gym.envs import AUVEnv
-from auv_gym.utils import ConfigManager
+from auv_reinforcement_learning.envs import AUVEnv
+from auv_reinforcement_learning.utils import ConfigManager
 
 
 def main():
     """Main training loop."""
-    rospy.init_node("auv_gym_training", anonymous=True)
+    rospy.init_node("auv_reinforcement_learning_training", anonymous=True)
 
     # Get package path
     rospack = rospkg.RosPack()
-    pkg_path = rospack.get_path("auv_gym")
+    pkg_path = rospack.get_path("auv_reinforcement_learning")
 
     # Load configuration
     config_path = os.path.join(pkg_path, "config", "residual_control.yaml")

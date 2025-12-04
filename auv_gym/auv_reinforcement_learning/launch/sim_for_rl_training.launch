@@ -74,7 +74,7 @@
 
     <!-- Start bridge -->
     <group if="$(arg start_bridge)">
-        <include file="$(find auv_gym)/launch/bridge_for_rl_training.launch">
+        <include file="$(find auv_reinforcement_learning)/launch/bridge_for_rl_training.launch">
             <arg name="namespace" value="$(arg namespace)" />
             <arg name="control_rate" value="$(arg control_rate)" />
             <arg name="use_gui" value="$(arg use_gui)" />

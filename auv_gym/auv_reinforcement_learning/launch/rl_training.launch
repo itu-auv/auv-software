@@ -10,18 +10,18 @@
   </include>
 
   <!-- Control for RL Training -->
-  <include file="$(find auv_gym)/launch/control_for_rl_training.launch">
+  <include file="$(find auv_reinforcement_learning)/launch/control_for_rl_training.launch">
     <arg name="namespace" value="$(arg namespace)" />
   </include>
 
   <!-- Simulation for RL Training -->
-  <include file="$(find auv_gym)/launch/sim_for_rl_training.launch">
+  <include file="$(find auv_reinforcement_learning)/launch/sim_for_rl_training.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="use_gui" value="$(arg use_gui)" />
   </include>
 
   <!-- AUV Gym -->
-  <include file="$(find auv_gym)/launch/auv_gym.launch" />
+  <include file="$(find auv_reinforcement_learning)/launch/auv_reinforcement_learning.launch" />
 
   <include file="$(find auv_localization)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
