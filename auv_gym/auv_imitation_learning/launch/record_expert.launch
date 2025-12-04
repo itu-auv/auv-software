@@ -1,0 +1,23 @@
+<launch>
+    <arg name="mode" default="autonomous" />
+    <arg name="env" default="sim" />
+    <arg name="num_episodes" default="10" />
+    <arg name="output_dir" default="$(optenv HOME)/bags/expert_data" />
+
+    <!-- Gate Task Parameters (can be overridden) -->
+    <arg name="gate_depth" default="-1.35" />
+    <arg name="gate_search_depth" default="-0.7" />
+    <arg name="gate_exit_angle" default="0.0" />
+
+    <node pkg="auv_imitation_learning" type="record_expert_data.py" name="expert_data_recorder" output="screen">
+        <param name="mode" value="$(arg mode)" />
+        <param name="env" value="$(arg env)" />
+        <param name="num_episodes" value="$(arg num_episodes)" />
+        <param name="output_dir" value="$(arg output_dir)" />
+
+        <!-- Task Params -->
+        <param name="gate_depth" value="$(arg gate_depth)" />
+        <param name="gate_search_depth" value="$(arg gate_search_depth)" />
+        <param name="gate_exit_angle" value="$(arg gate_exit_angle)" />
+    </node>
+</launch>
