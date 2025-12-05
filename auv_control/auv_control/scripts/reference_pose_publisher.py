@@ -2,7 +2,7 @@
 
 import rospy
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseStamped, Twist, PoseWithCovarianceStamped
+from geometry_msgs.msg import Pose, Twist, PoseWithCovarianceStamped
 from std_srvs.srv import Trigger, TriggerResponse, SetBool, SetBoolResponse
 from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
 from robot_localization.srv import SetPose, SetPoseRequest
@@ -34,7 +34,7 @@ class ReferencePosePublisherNode:
         )
 
         # Initialize publisher
-        self.cmd_pose_pub = rospy.Publisher("cmd_pose", PoseStamped, queue_size=10)
+        self.cmd_pose_pub = rospy.Publisher("cmd_pose", Pose, queue_size=10)
 
         self.control_enable_handler = ControlEnableHandler(1.0)
 
@@ -67,7 +67,7 @@ class ReferencePosePublisherNode:
         self.tf_lookup_timeout = rospy.get_param("~tf_lookup_timeout", 2.0)
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-
+        
         # Initialize stored PID parameters
         self.stored_kp_5 = 0.0
         self.stored_ki_5 = 0.0
@@ -83,42 +83,43 @@ class ReferencePosePublisherNode:
         # Condition 1: If external frame is missing, default is odom
         if not external_frame:
             external_frame = self.odom_frame
-        
+
         # Condition 2: If internal frame is missing, default is base_link
         if not internal_frame:
             internal_frame = self.base_frame
 
         # Condition 3: Internal frame must belong to robot
-        if not internal_frame.startswith("taluy/") and internal_frame != self.base_frame:
-            msg = f"Internal frame '{internal_frame}' does not start with 'taluy/'. Operation cancelled."
+        # Determine robot namespace from base_frame (e.g., "taluy/base_link" -> "taluy/")
+        robot_namespace = self.base_frame.rsplit('/', 1)[0] + '/' if '/' in self.base_frame else ""
+
+        if robot_namespace and not internal_frame.startswith(robot_namespace) and internal_frame != self.base_frame:
+            msg = f"Internal frame '{internal_frame}' does not start with robot namespace '{robot_namespace}'. Operation cancelled."
             rospy.logerr(msg)
             return SetDepthResponse(success=False, message=msg)
 
         rospy.loginfo(f"Alignment Request: Internal='{internal_frame}' -> External='{external_frame}' (Offset: {req.target_depth})")
 
         # 3. Compute Transform
-        # Logic: We need to find where the BASE_LINK should be in ODOM frame.
         # Formula: Base_Z_Desired = (External_Z_in_Odom + Offset) - (Internal_Z_relative_to_Base)
         try:
-            # A: Where is the external target in the world?
+            # 1. Get latest transform for External Frame in Odom
             t_odom_ext = self.tf_buffer.lookup_transform(
                 self.odom_frame, external_frame, rospy.Time(0), rospy.Duration(self.tf_lookup_timeout)
             )
             
-            # B: Where is the internal tool relative to the robot base?
-            # This is the "chic" part: We calculate the robot's own geometry dynamically.
+            # 2. Get Internal Frame transform at the SAME TIME as the first one for consistency
+            lookup_time = t_odom_ext.header.stamp
             t_base_int = self.tf_buffer.lookup_transform(
-                self.base_frame, internal_frame, rospy.Time(0), rospy.Duration(self.tf_lookup_timeout)
+                self.base_frame, internal_frame, lookup_time, rospy.Duration(self.tf_lookup_timeout)
             )
-
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
             rospy.logerr(f"TF lookup failed: {e}")
             return SetDepthResponse(success=False, message=f"TF lookup failed: {e}")
 
         # 4. Calculate Desired Depth
-        # Z position of the target in Odom frame
+        # Z position of the target in Odom frames
         target_z_world = t_odom_ext.transform.translation.z
-        
+
         # Z distance from Base to Internal Tool (Robot Geometry)
         tool_offset_z = t_base_int.transform.translation.z
 
@@ -126,7 +127,7 @@ class ReferencePosePublisherNode:
         # We want: Internal_Z_World = Target_Z_World + User_Offset
         # We know: Internal_Z_World = Base_Z_World + Tool_Offset_Z
         # So:      Base_Z_World = (Target_Z_World + User_Offset) - Tool_Offset_Z
-        
+
         base_z_desired = (target_z_world + req.target_depth) - tool_offset_z
 
         # 5. Update State
@@ -135,7 +136,7 @@ class ReferencePosePublisherNode:
 
         success_msg = f"Aligned '{internal_frame}' to '{external_frame}'. Base set to Z={base_z_desired:.3f}"
         rospy.loginfo(success_msg)
-        
+
         return SetDepthResponse(success=True, message=success_msg)
 
     def reset_odometry_handler(self, req):
@@ -228,18 +229,18 @@ class ReferencePosePublisherNode:
 
     def control_loop(self):
         # Create and publish the cmd_pose message
-        cmd_pose_stamped = PoseStamped()
+        cmd_pose = Pose()
 
-        cmd_pose_stamped.pose.position.z = self.target_depth
-        cmd_pose_stamped.header.frame_id = self.target_frame_id
+        cmd_pose.position.z = self.target_depth
+        # Frame ID is implicit (odom) as we are using Pose instead of PoseStamped
         quaternion = quaternion_from_euler(0.0, 0.0, self.target_heading)
         rospy.logdebug(f"heading: {self.target_heading}")
-        cmd_pose_stamped.pose.orientation.x = quaternion[0]
-        cmd_pose_stamped.pose.orientation.y = quaternion[1]
-        cmd_pose_stamped.pose.orientation.z = quaternion[2]
-        cmd_pose_stamped.pose.orientation.w = quaternion[3]
+        cmd_pose.orientation.x = quaternion[0]
+        cmd_pose.orientation.y = quaternion[1]
+        cmd_pose.orientation.z = quaternion[2]
+        cmd_pose.orientation.w = quaternion[3]
 
-        self.cmd_pose_pub.publish(cmd_pose_stamped)
+        self.cmd_pose_pub.publish(cmd_pose)
 
     def run(self):
         rate = rospy.Rate(self.update_rate)

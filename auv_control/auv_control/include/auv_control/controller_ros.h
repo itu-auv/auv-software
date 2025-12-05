@@ -14,6 +14,7 @@
 #include "auv_controllers/multidof_pid_controller.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
 #include "geometry_msgs/Wrench.h"
+#include "geometry_msgs/Pose.h"
 #include "nav_msgs/Odometry.h"
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
@@ -177,10 +178,11 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
-  void cmd_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
+  void cmd_pose_callback(const geometry_msgs::Pose::ConstPtr& msg) {
+    
     // update desired state
     desired_state_.head(6) = auv::common::conversions::convert<
-        geometry_msgs::Pose, ControllerBase::Vector>(msg->pose);
+        geometry_msgs::Pose, ControllerBase::Vector>(*msg);
 
     latest_command_time_ = ros::Time::now();
   }

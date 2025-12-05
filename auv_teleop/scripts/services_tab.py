@@ -26,12 +26,15 @@ from auv_msgs.srv import SetDepth, SetDepthRequest
 
 
 class ROSServiceCaller:
-    def set_depth(self, target_depth):
+    def set_depth(self, target_depth, external_frame="", internal_frame=""):
         try:
             rospy.wait_for_service("set_depth", timeout=1)
             set_depth_service = rospy.ServiceProxy("set_depth", SetDepth)
             request = SetDepthRequest()
             request.target_depth = target_depth
+            request.external_frame = external_frame
+            request.internal_frame = internal_frame
+            
             response = set_depth_service(request)
             return response.success
         except rospy.ServiceException as e:
