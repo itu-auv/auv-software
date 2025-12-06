@@ -10,9 +10,6 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 catkin_install_python(PROGRAMS
-  scripts/camera_detection_pose_estimator.py
-  scripts/yolo_result_bridge.py
-  scripts/yolo_image_annotator.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

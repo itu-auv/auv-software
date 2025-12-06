@@ -29,6 +29,12 @@ include_directories(
 catkin_install_python(
   PROGRAMS
     scripts/dynamic_roll_compensation.py
+    scripts/camera_detection_pose_estimator.py
+    scripts/yolo_result_bridge.py
+    scripts/yolo_image_annotator.py
+    scripts/yolo_to_mask_node.py
+    scripts/opencv_pipe_detector.py
+    scripts/pipe_follower.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

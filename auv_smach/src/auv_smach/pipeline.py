@@ -26,7 +26,7 @@ class ToggleAnnotatorServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
-            "/yolo_image_annotator/toggle_annotator",
+            "toggle_image_annotator",
             SetBool,
             request=SetBoolRequest(data=req),
         )

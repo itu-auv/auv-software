@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<launch>
+    <include file="$(find auv_detection)/launch/inc/tracker_front.launch"/>
+    <include file="$(find auv_detection)/launch/inc/tracker_bottom.launch"/>
+    <include file="$(find auv_detection)/launch/inc/tracker_realsense.launch"/>
+</launch>

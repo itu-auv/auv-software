@@ -182,13 +182,13 @@ class CameraDetectionNode:
         }
         # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
-            "/yolo_result",
+            "/yolo_result_front",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="front_camera"),
             queue_size=1,
         )
         rospy.Subscriber(
-            "/yolo_result_2",
+            "/yolo_result_bottom",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
             queue_size=1,

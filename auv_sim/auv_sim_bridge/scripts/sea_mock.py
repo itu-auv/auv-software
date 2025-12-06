@@ -13,23 +13,23 @@ class UnderwaterEffectNode:
         self.bridge = CvBridge()
         # Bottom camera subscriber/publisher
         self.sub_bottom = rospy.Subscriber(
-            "/taluy/cameras/cam_bottom/image_raw",
+            "cam_bottom/image_raw",
             Image,
             self.callback_bottom,
             queue_size=1,
         )
         self.pub_bottom = rospy.Publisher(
-            "/taluy/cameras/cam_bottom/image_underwater", Image, queue_size=1
+            "cam_bottom/image_underwater", Image, queue_size=1
         )
         # Front camera subscriber/publisher
         self.sub_front = rospy.Subscriber(
-            "/taluy/cameras/cam_front/image_raw",
+            "cam_front/image_raw",
             Image,
             self.callback_front,
             queue_size=1,
         )
         self.pub_front = rospy.Publisher(
-            "/taluy/cameras/cam_front/image_underwater", Image, queue_size=1
+            "cam_front/image_underwater", Image, queue_size=1
         )
 
     # -------- Core pipeline --------

@@ -13,9 +13,7 @@ class AcousticTransmitterNode:
         self.data_to_transmit = None
         self.is_transmitting = False
 
-        self.acoustic_publisher = rospy.Publisher(
-            "/taluy/modem/data/tx", UInt8, queue_size=10
-        )
+        self.acoustic_publisher = rospy.Publisher("modem/data/tx", UInt8, queue_size=10)
 
         self.trigger_service = rospy.Service(
             "send_acoustic_data", SendAcoustic, self.handle_send_request

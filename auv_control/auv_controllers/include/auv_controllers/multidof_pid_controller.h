@@ -6,7 +6,6 @@
 
 #include "angles/angles.h"
 #include "auv_controllers/controller_base.h"
-#include "ros/console.h"
 
 namespace auv {
 namespace control {
@@ -60,8 +59,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
   WrenchVector control(const StateVector& state,
                        const StateVector& desired_state,
                        const StateVector& d_state, const double dt) {
-    ROS_DEBUG_STREAM_THROTTLE(5, "kp_: " << kp_.diagonal().transpose());
-    ROS_DEBUG_STREAM_THROTTLE(5, "kd_: " << kd_.diagonal().transpose());
     Vectornd pos_pid_output = Vectornd::Zero();
     {
       const auto position_state = state.head(N);
@@ -86,11 +83,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
           if (limit > 0) {  // Only clamp if limit is positive
             double before_clamp = integral_(i);
             integral_(i) = std::max(-limit, std::min(limit, integral_(i)));
-            if (i == 2) {
-              ROS_DEBUG_STREAM_THROTTLE(
-                  1, "Integral_z: " << integral_(i) << ", Limit: " << limit
-                                    << ", Before: " << before_clamp);
-            }
           }
         }
       }
