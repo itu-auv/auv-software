@@ -187,7 +187,6 @@ class ControllerROS {
     latest_command_time_ = ros::Time::now();
   }
 
-
   void accel_callback(
       const geometry_msgs::AccelWithCovarianceStamped::ConstPtr& msg) {
     d_state_(6) = msg->accel.accel.linear.x;
