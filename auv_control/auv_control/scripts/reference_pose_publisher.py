@@ -85,7 +85,7 @@ class ReferencePosePublisherNode:
 
         robot_namespace = self.base_frame.rsplit('/', 1)[0] + '/' if '/' in self.base_frame else ""
 
-        if robot_namespace and not internal_frame.startswith(robot_namespace) and internal_frame != self.base_frame:
+        if robot_namespace and not internal_frame.startswith(robot_namespace):
             msg = f"Internal frame '{internal_frame}' does not start with robot namespace '{robot_namespace}'. Operation cancelled."
             rospy.logerr(msg)
             return SetDepthResponse(success=False, message=msg)
