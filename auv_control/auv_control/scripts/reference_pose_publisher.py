@@ -116,7 +116,7 @@ class ReferencePosePublisherNode:
             return SetDepthResponse(success=False, message=f"TF lookup failed: {e}")
 
         # 4. Calculate Desired Depth
-        # Z position of the target in Odom frames
+        # Z position of the target in Odom frame
         target_z_world = t_odom_ext.transform.translation.z
 
         # Z distance from Base to Internal Tool (Robot Geometry)
