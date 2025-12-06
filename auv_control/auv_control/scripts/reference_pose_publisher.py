@@ -210,7 +210,7 @@ class ReferencePosePublisherNode:
         cmd_pose = Pose()
 
         cmd_pose.position.z = self.target_depth
-        # Frame ID is implicit (odom) as we are using Pose instead of PoseStamped
+# Frame id is odom 
         quaternion = quaternion_from_euler(0.0, 0.0, self.target_heading)
         rospy.logdebug(f"heading: {self.target_heading}")
         cmd_pose.orientation.x = quaternion[0]
