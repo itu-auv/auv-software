@@ -67,7 +67,6 @@ class ReferencePosePublisherNode:
         self.tf_lookup_timeout = rospy.get_param("~tf_lookup_timeout", 2.0)
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        
         # Initialize stored PID parameters
         self.stored_kp_5 = 0.0
         self.stored_ki_5 = 0.0
