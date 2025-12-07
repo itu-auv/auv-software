@@ -4,9 +4,10 @@ import numpy as np
 import rospy
 import tf2_ros
 import tf.transformations
+
+from typing import List
 from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 
 class OctagonTransformServiceNode:
@@ -16,10 +17,10 @@ class OctagonTransformServiceNode:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        # Publisher for object transform updates
+        self.object_transform_pub = rospy.Publisher(
+            "object_transform_updates", TransformStamped, queue_size=10
         )
-        self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = "odom"
         self.robot_frame = "taluy/base_link"
@@ -51,14 +52,9 @@ class OctagonTransformServiceNode:
         t.transform.rotation = pose.orientation
         return t
 
-    def send_transform(self, transform):
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        resp = self.set_object_transform_service.call(req)
-        if not resp.success:
-            rospy.logwarn(
-                f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-            )
+    def send_transforms(self, transforms: List[TransformStamped]):
+        for transform in transforms:
+            self.object_transform_pub.publish(transform)
 
     def create_octagon_frame(self):
         if not self.enable:
@@ -125,11 +121,15 @@ class OctagonTransformServiceNode:
         )
         closer_pose.orientation = orientation
 
+        transforms_to_send = []
+
         # Send the transform
         closer_transform = self.build_transform_message(
             self.octagon_closer_frame, closer_pose
         )
-        self.send_transform(closer_transform)
+        transforms_to_send.append(closer_transform)
+
+        self.send_transforms(transforms_to_send)
 
     def handle_enable_service(self, req: SetBool):
         self.enable = req.data
