@@ -1,8 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="wayfinder_dvl">
   <xacro:macro name="wayfinder_dvl" params="name parent position:='0 0 0' orientation:='0 0 0'">
-    <link name="${name}_mount_link">
-    </link>
+    <link name="${name}_mount_link"/>
     <link name="${name}_cog">
       <inertial>
         <!-- 0.313 in water -->
