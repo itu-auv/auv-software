@@ -2,20 +2,6 @@
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="wayfinder_dvl">
   <xacro:macro name="wayfinder_dvl" params="name parent position:='0 0 0' orientation:='0 0 0'">
     <link name="${name}_mount_link">
-      <visual>
-        <origin xyz="0 0 0" rpy="${math.pi} 0 0"/>
-        <geometry>
-            <box size="0.1 0.1 0.1"/>
-          <material name="black"/>
-        </geometry>
-      </visual>
-      <collision name="${name}_collision">
-        <origin xyz="0 0 0" rpy="${math.pi} 0 0"/>
-        <geometry>
-            <box size="0.1 0.1 0.1"/>
-          <material name="black"/>
-        </geometry>
-      </collision>
     </link>
     <link name="${name}_cog">
       <inertial>
