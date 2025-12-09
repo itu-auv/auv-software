@@ -2,12 +2,12 @@
 <launch>
   <arg name="sim" default="0"/>
   <arg name="use_gui" default="false"/>
-  <arg name="yolo_model" default="sla.pt"/>
+  <arg name="yolo_model" default="tracker_bottom.pt"/>
   <arg name="model_source_path" default="$(find auv_detection)/models/$(arg yolo_model)"/>
   <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
-  <arg name="input_topic" default="/taluy/cameras/cam_front/image_corrected"/>
-  <arg name="result_topic" default="/yolo_result"/>
-  <arg name="result_image_topic" default="/yolo_image"/>
+  <arg name="input_topic" default="/taluy/cameras/cam_bottom/image_rect_color"/>
+  <arg name="result_topic" default="/yolo_result_bottom"/>
+  <arg name="result_image_topic" default="/yolo_image_bottom"/>
   <arg name="conf_thres" default="0.25"/>
   <arg name="iou_thres" default="0.45"/>
   <arg name="max_det" default="300"/>

@@ -21,6 +21,15 @@
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
     <arg name="start_bridge" default="true" />
     <arg name="sim" default="true" />
+    <arg name="use_taluy_gui" default="true" />
+
+
+    <!-- Run Taluy GUI -->
+    <group if="$(arg use_taluy_gui)">
+        <include file="$(find auv_teleop)/launch/start_taluy_gui.launch">
+            <arg name="namespace" value="$(arg namespace)" />
+        </include>
+    </group>
 
     <!-- Run RViz -->
     <node
