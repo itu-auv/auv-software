@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <!-- Camera selection flags -->
-    <arg name="front" default="false"/>
+<arg name="front" default="true"/>
     <arg name="bottom" default="false"/>
     <arg name="realsense" default="false"/>
     <arg name="segment" default="false"/>
