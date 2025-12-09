@@ -2,9 +2,11 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
+  <arg name="sim" default="false" />
 
   <include file="$(find auv_bringup)/launch/inc/localization/start_robot_localization.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="sim" value="$(arg sim)" />
   </include>
 </launch>
