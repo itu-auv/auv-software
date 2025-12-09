@@ -18,10 +18,10 @@ class YoloImageAnnotator:
         self.bridge = CvBridge()
 
         # Get parameters
-        default_save_dir = os.path.join(os.environ.get("HOME", "/tmp"), "yolo_annotated_images")
-        self.save_directory = rospy.get_param(
-            "~save_directory", default_save_dir
+        default_save_dir = os.path.join(
+            os.environ.get("HOME", "/tmp"), "yolo_annotated_images"
         )
+        self.save_directory = rospy.get_param("~save_directory", default_save_dir)
         self.font_scale = rospy.get_param("~font_scale", 0.7)
         self.font_thickness = rospy.get_param("~font_thickness", 2)
 
