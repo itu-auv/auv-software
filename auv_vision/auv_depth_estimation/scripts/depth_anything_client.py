@@ -106,6 +106,10 @@ class DepthAnythingClient:
             "~context_window", DEFAULT_CONTEXT_WINDOW_SEC
         )
 
+        # Scale parameters for metric calibration (optional)
+        self.scale_factor = rospy.get_param("~scale_factor", 1.0)
+        self.shift_factor = rospy.get_param("~shift_factor", 0.0)
+
     def _log_configuration(self) -> None:
         """Log the node configuration for debugging purposes."""
         rospy.loginfo("Depth Anything 3 ZeroMQ Client Node")
@@ -480,8 +484,9 @@ class DepthAnythingClient:
         fx, fy = K[0, 0], K[1, 1]
         cx, cy = K[0, 2], K[1, 2]
 
+        # Apply scale and shift for metric calibration
+        z = depth * self.scale_factor + self.shift_factor
         # Optical frame convention: Z forward, X right, Y down
-        z = depth
         x = (u - cx) * z / fx
         y = (v - cy) * z / fy
 
