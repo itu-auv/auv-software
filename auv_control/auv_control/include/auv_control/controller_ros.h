@@ -136,6 +136,10 @@ class ControllerROS {
         continue;
       }
 
+      if ((ros::Time::now() - latest_cmd_vel_time_).toSec() > 1.0) {
+        desired_state_.tail(6) = ControllerBase::Vector::Zero();
+      }
+
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
@@ -160,7 +164,9 @@ class ControllerROS {
   double transform_timeout_;
 
   bool is_timeouted() const {
-    return (ros::Time::now() - latest_command_time_).toSec() > 1.0;
+    const auto latest_time =
+        std::max(latest_cmd_vel_time_, latest_cmd_pose_time_);
+    return (ros::Time::now() - latest_time).toSec() > 1.0;
   }
 
   void odometry_callback(const nav_msgs::Odometry::ConstPtr& msg) {
@@ -171,10 +177,14 @@ class ControllerROS {
   }
 
   void cmd_vel_callback(const geometry_msgs::Twist::ConstPtr& msg) {
+    if ((ros::Time::now() - latest_cmd_pose_time_).toSec() > 1.0) {
+      desired_state_.head(6) = state_.head(6);
+    }
+
     desired_state_.tail(6) =
         auv::common::conversions::convert<geometry_msgs::Twist,
                                           ControllerBase::Vector>(*msg);
-    latest_command_time_ = ros::Time::now();
+    latest_cmd_vel_time_ = ros::Time::now();
   }
 
   const std::optional<std::string> get_source_frame(
@@ -227,7 +237,7 @@ class ControllerROS {
     desired_state_.head(6) = auv::common::conversions::convert<
         geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
 
-    latest_command_time_ = ros::Time::now();
+    latest_cmd_pose_time_ = ros::Time::now();
   }
 
   void accel_callback(
@@ -434,7 +444,8 @@ class ControllerROS {
 
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;
-  ros::Time latest_command_time_{ros::Time(0)};
+  ros::Time latest_cmd_pose_time_{ros::Time(0)};
+  ros::Time latest_cmd_vel_time_{ros::Time(0)};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
   ControllerBase::StateVector desired_state_{
