@@ -179,25 +179,24 @@ class ControllerROS {
 
   const std::optional<std::string> get_source_frame(
       const std::string& source_frame) {
-    if (source_frame.empty()) {  // No source provided.
-      return std::nullopt;  // no transform will be needed with an empty frame
-                            // (assume odom frame was meant)
+    // no transform will be needed with an empty frame (assume odom frame)
+    if (source_frame.empty()) {
+      return std::nullopt;
     }
 
-    if (source_frame == depth_control_reference_frame_) {  //
-      return std::nullopt;  // no transform will be needed between two identical
-                            // frames
+    // no transform will be needed between two identical frames
+    if (source_frame == depth_control_reference_frame_) {
+      return std::nullopt;
     }
 
-    // Transform is required:
-    if (source_frame[0] == '/') {  // The added slash causes errors with tf
+    // Transform is required: remove leading slash if present
+    if (source_frame[0] == '/') {
       return source_frame.substr(1);
     }
     return source_frame;
   }
 
   void cmd_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
-    // Get frame and pose.
     const auto source_frame = get_source_frame(msg->header.frame_id);
     auto transformed_pose = msg->pose;
 
@@ -214,21 +213,17 @@ class ControllerROS {
             depth_control_reference_frame_, source_frame.value(), ros::Time(0),
             ros::Duration(transform_timeout_));
 
-        // only transform the z-axis component of the pose
-        geometry_msgs::Point transformed_z;
-        tf2::doTransform(msg->pose.position, transformed_z, transform_stamped);
-        transformed_pose.position.z =
-            transformed_z.z;  // override the z component
-
-      } catch (tf2::TransformException& ex) {  // If unsuccessful, exit and
-                                               // don't update desired state
+        tf2::doTransform(msg->pose, transformed_pose, transform_stamped);
+      } catch (tf2::TransformException& ex) {
         ROS_DEBUG("Failed to transform pose");
         return;
       }
     }
-    ROS_DEBUG_STREAM(
-        "Final transformed z command pose: " << transformed_pose.position.z);
-    // update desired state
+    ROS_DEBUG_STREAM("Final transformed command pose: "
+                     << transformed_pose.position.x << ", "
+                     << transformed_pose.position.y << ", "
+                     << transformed_pose.position.z);
+
     desired_state_.head(6) = auv::common::conversions::convert<
         geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
 
