@@ -25,7 +25,7 @@ class ArucoDepthEstimator:
             "~camera_frame", "front_camera_optical_link"
         )
         self.odom_frame = "odom"
-        
+
         # Marker parameters
         self.marker_size = rospy.get_param("~marker_size", 0.05)  # meters
 
@@ -36,8 +36,10 @@ class ArucoDepthEstimator:
             ).get_camera_info()
             self.cam_mat = np.array(self.cam_calib.K).reshape(3, 3)
             self.dist_coef = np.array(self.cam_calib.D)
-            rospy.loginfo(f"Camera calibration loaded: "
-                        f"cx={self.cam_mat[0,2]:.2f}, cy={self.cam_mat[1,2]:.2f}")
+            rospy.loginfo(
+                f"Camera calibration loaded: "
+                f"cx={self.cam_mat[0,2]:.2f}, cy={self.cam_mat[1,2]:.2f}"
+            )
         except Exception as e:
             rospy.logerr(f"Failed to load camera calibration: {e}")
             raise
@@ -45,11 +47,11 @@ class ArucoDepthEstimator:
         # Initialize ArUco dictionary
         dict_type = rospy.get_param("~aruco_dict", "DICT_ARUCO_ORIGINAL")
         dict_const = getattr(aruco, dict_type, None)
-        
+
         if dict_const is None:
             rospy.logerr(f"ArUco dictionary '{dict_type}' not found!")
             raise ValueError(f"Invalid ArUco dictionary: {dict_type}")
-        
+
         if hasattr(aruco, "getPredefinedDictionary"):
             self.marker_dict = aruco.getPredefinedDictionary(dict_const)
             rospy.loginfo(f"Using ArUco dictionary: {dict_type} (modern API)")
@@ -79,10 +81,12 @@ class ArucoDepthEstimator:
         self.param_markers.maxMarkerPerimeterRate = rospy.get_param(
             "~maxMarkerPerimeterRate", 4.0
         )
-        
-        rospy.loginfo(f"Detector params: adaptiveThresh={self.param_markers.adaptiveThreshConstant}, "
-                    f"minPerimeter={self.param_markers.minMarkerPerimeterRate}, "
-                    f"maxPerimeter={self.param_markers.maxMarkerPerimeterRate}")
+
+        rospy.loginfo(
+            f"Detector params: adaptiveThresh={self.param_markers.adaptiveThreshConstant}, "
+            f"minPerimeter={self.param_markers.minMarkerPerimeterRate}, "
+            f"maxPerimeter={self.param_markers.maxMarkerPerimeterRate}"
+        )
 
         self.bridge = CvBridge()
         self.image_pub = rospy.Publisher(
@@ -109,7 +113,7 @@ class ArucoDepthEstimator:
 
     def image_callback(self, msg):
         self.frame_count += 1
-    
+
         # Check if anyone is subscribed to the annotated image
         publish_visualization = self.image_pub.get_num_connections() > 0
 
@@ -188,7 +192,13 @@ class ArucoDepthEstimator:
             # Add frame info
             info_text = f"Frame: {self.frame_count} | Markers: {len(marker_IDs) if marker_IDs is not None else 0}"
             cv.putText(
-                frame, info_text, (10, 30), cv.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2
+                frame,
+                info_text,
+                (10, 30),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (255, 255, 255),
+                2,
             )
             self.publish_annotated_image(frame, msg.header.stamp)
 
