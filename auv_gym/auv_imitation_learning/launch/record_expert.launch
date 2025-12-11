@@ -7,8 +7,8 @@
     <arg name="output_dir" default="$(optenv HOME)/bags/expert_data" />
 
     <!-- Gate Task Parameters (can be overridden) -->
-    <arg name="gate_depth" default="-1.35" />
-    <arg name="gate_search_depth" default="-0.7" />
+    <arg name="gate_depth" default="-1.0" />
+    <arg name="gate_search_depth" default="-1.0" />
     <arg name="gate_exit_angle" default="0.0" />
 
     <!-- Randomization Parameters -->

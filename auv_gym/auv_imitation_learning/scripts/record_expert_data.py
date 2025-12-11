@@ -96,7 +96,10 @@ class ExpertRecorder:
             "/taluy/cameras/cam_front/image_raw/compressed",
             "/taluy/odometry",
             "/tf",
-            "/tf_static"
+            "/tf_static",
+            "yolo_image_front",
+            "/rosout",
+            "/rosout_agg"
         ]
         
         # Add sim-specific topics
@@ -202,12 +205,20 @@ class ExpertRecorder:
         """Randomize the robot's pose at the start of an episode."""
         if not self.set_model_state_proxy:
             return
+
         model_name = "taluy" 
         
-        dx = random.uniform(-self.rand_xy, self.rand_xy)
-        dy = random.uniform(-self.rand_xy, self.rand_xy)
-        dz = -1.0
-        dyaw = random.uniform(-self.rand_yaw, self.rand_yaw)
+        # Fixed Pool Start Coordinates
+        base_x = -7.0
+        base_y = -15.5
+        base_z = -0.6
+        base_yaw = 0.0
+        
+        # Add randomization
+        dx = base_x + random.uniform(-self.rand_xy, self.rand_xy)
+        dy = base_y + random.uniform(-self.rand_xy, self.rand_xy)
+        dz = base_z
+        dyaw = base_yaw + random.uniform(-self.rand_yaw, self.rand_yaw)
         
         state_msg = ModelState()
         state_msg.model_name = model_name
