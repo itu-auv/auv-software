@@ -17,6 +17,7 @@
     <arg name="imu_update_rate" default="20" />
     <arg name="dvl_update_rate" default="20" />
     <arg name="pressure_update_rate" default="20" />
+    <arg name="use_models" default="false"/>
 
     <node pkg="tf2_ros" type="static_transform_publisher"
         name="$(arg reference_frame)_ned_frame_publisher"
@@ -40,7 +41,8 @@
             inertial_reference_frame:=$(arg inertial_reference_frame)
             imu_update_rate:=$(arg imu_update_rate)
             dvl_update_rate:=$(arg imu_update_rate)
-            pressure_update_rate:=$(arg imu_update_rate)" />
+            pressure_update_rate:=$(arg imu_update_rate)
+            use_models:=$(arg use_models)" />
 
         <node name="urdf_spawner" pkg="uuv_descriptions" type="spawn_model" respawn="false"
             output="screen"

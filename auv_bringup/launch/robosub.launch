@@ -7,7 +7,7 @@
   <arg name="enable_logging" default="true" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
   <arg name="propulsion" default="0" />
-  <arg name="localization" default="0" />
+  <arg name="localization" default="1" />
   <arg name="reconfigure" default="0" />
   <arg name="plotjuggler" default="0" />
 
@@ -35,8 +35,8 @@
           output="screen" />
   </group>
 
-  <!-- 4. Launch tracker_all -->
-  <include file="$(find auv_detection)/launch/tracker_all.launch">
+  <!-- 4. Launch tracker_robosub -->
+  <include file="$(find auv_detection)/launch/tracker_robosub.launch">
   </include>
 
   <!-- 5. Optional: Launch rqt_reconfigure if parameter is set to 1 -->
