@@ -33,6 +33,8 @@ class ControllerROS {
       auv::common::rosparam::parser<ControllerBase::Matrix>;
   using VectorRosparamParser =
       auv::common::rosparam::parser<Eigen::Matrix<double, 12, 1>>;
+  using Vector6RosparamParser =
+      auv::common::rosparam::parser<Eigen::Matrix<double, 6, 1>>;
   using ControllerLoader = pluginlib::ClassLoader<SixDOFControllerBase>;
   using ControllerBasePtr =
       boost::shared_ptr<auv::control::SixDOFControllerBase>;
@@ -79,6 +81,7 @@ class ControllerROS {
     controller->set_kd(kd_);
     controller->set_integral_clamp_limits(integral_clamp_limits_);
     controller->set_gravity_compensation_z(gravity_compensation_z_);
+    controller->set_max_velocity_limits(max_velocity_);
 
     // Set up dynamic reconfigure server with initial values
     auv_control::ControllerConfig initial_config;
@@ -275,6 +278,11 @@ class ControllerROS {
     controller->set_gravity_compensation_z(config.gravity_compensation_z);
     gravity_compensation_z_ = config.gravity_compensation_z;
 
+    max_velocity_ << config.max_velocity_0, config.max_velocity_1,
+        config.max_velocity_2, config.max_velocity_3, config.max_velocity_4,
+        config.max_velocity_5;
+    controller->set_max_velocity_limits(max_velocity_);
+
     save_parameters();
   }
 
@@ -299,6 +307,15 @@ class ControllerROS {
 
     // Load gravity compensation parameter
     gravity_compensation_z_ = nh_private.param("gravity_compensation_z", 0.0);
+
+    // Load max velocity limits
+    if (nh_private.hasParam("max_velocity")) {
+      max_velocity_ = Vector6RosparamParser::parse("max_velocity", nh_private);
+      ROS_INFO_STREAM("Loaded max_velocity: " << max_velocity_.transpose());
+    } else {
+      max_velocity_ = Eigen::Matrix<double, 6, 1>::Constant(1e6);  // Unlimited
+      ROS_INFO("No max_velocity parameter found, limits disabled");
+    }
   }
 
   void set_initial_config(auv_control::ControllerConfig& config) {
@@ -355,6 +372,13 @@ class ControllerROS {
     config.integral_clamp_11 = integral_clamp_limits_(11);
 
     config.gravity_compensation_z = gravity_compensation_z_;
+
+    config.max_velocity_0 = max_velocity_(0);
+    config.max_velocity_1 = max_velocity_(1);
+    config.max_velocity_2 = max_velocity_(2);
+    config.max_velocity_3 = max_velocity_(3);
+    config.max_velocity_4 = max_velocity_(4);
+    config.max_velocity_5 = max_velocity_(5);
   }
 
   void save_parameters() {
@@ -459,6 +483,7 @@ class ControllerROS {
       dr_srv_;  // Dynamic reconfigure server
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;  // Parameters to be dynamically reconfigured
+  Eigen::Matrix<double, 6, 1> max_velocity_;
   Eigen::Matrix<double, 12, 1>
       integral_clamp_limits_;           // Integral clamping limits
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis

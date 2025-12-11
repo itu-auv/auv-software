@@ -28,6 +28,15 @@ class MultiDOFPIDController : public ControllerBase<N> {
   void set_kd(const Vector2nd& kd) { kd_ = kd.asDiagonal(); }
 
   /**
+   * @brief Set the max velocity limits for the position controller output
+   *
+   * @param limits Vector of max velocities (absolute values)
+   */
+  void set_max_velocity_limits(const Vectornd& limits) {
+    max_velocity_limits_ = limits;
+  }
+
+  /**
    * @brief Set the integral clamp limits for anti-windup
    *
    * @param limits Vector of integral limits
@@ -97,6 +106,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
           kd_.template block<N, N>(0, 0) * (Vectornd::Zero() - velocity_state);
 
       pos_pid_output = p_term + i_term + d_term;
+
+      pos_pid_output = pos_pid_output.cwiseMin(max_velocity_limits_)
+                           .cwiseMax(-max_velocity_limits_);
     }
 
     const auto velocity_state = state.tail(N);
@@ -169,6 +181,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
   Matrix2nd ki_;
   Matrix2nd kd_;
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
+
+  // Default to effectively unlimited (1e6)
+  Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
 };
 
 using SixDOFPIDController = MultiDOFPIDController<6>;
