@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import rospy
 import argparse
 import subprocess
@@ -8,7 +7,7 @@ import os
 import threading
 import time
 import json
-from std_srvs.srv import Empty
+from std_srvs.srv import Empty, Trigger
 from auv_smach.gate import NavigateThroughGateState
 import smach
 
@@ -50,6 +49,26 @@ class ExpertRecorder:
             except rospy.ROSException:
                 rospy.logerr("Service /gazebo/reset_world not available! Is Gazebo running?")
                 sys.exit(1)
+
+        # Reset Odometry service
+        rospy.loginfo("Waiting for reset_odometry service...")
+        try:
+            rospy.wait_for_service('reset_odometry', timeout=5.0)
+            self.reset_odom_proxy = rospy.ServiceProxy('reset_odometry', Trigger)
+            rospy.loginfo("Connected to reset_odometry")
+        except rospy.ROSException:
+             rospy.logwarn("Service reset_odometry not available.")
+             self.reset_odom_proxy = None
+
+        # Clear object transforms service (for resetting TFs)
+        rospy.loginfo("Waiting for clear_object_transforms service...")
+        try:
+            rospy.wait_for_service('clear_object_transforms', timeout=5.0)
+            self.clear_transforms_proxy = rospy.ServiceProxy('clear_object_transforms', Trigger)
+            rospy.loginfo("Connected to clear_object_transforms")
+        except rospy.ROSException:
+             rospy.logwarn("Service clear_object_transforms not available. TFs might not be reset.")
+             self.clear_transforms_proxy = None
 
     def get_topics_to_record(self):
         """Get topics based on environment and task."""
@@ -131,8 +150,27 @@ class ExpertRecorder:
         rospy.loginfo(f"Metadata saved: {metadata_path} [{label}]")
 
     def reset_sim(self):
+        rospy.loginfo("Resetting state...")
+        
+        # 0. Reset Odometry
+        if self.reset_odom_proxy:
+            try:
+                self.reset_odom_proxy()
+                rospy.loginfo("Odometry reset.")
+            except rospy.ServiceException as e:
+                rospy.logerr(f"Failed to reset odometry: {e}")
+
+        # 1. Clear object transforms (TFs)
+        if self.clear_transforms_proxy:
+            try:
+                self.clear_transforms_proxy()
+                rospy.loginfo("Object transforms cleared.")
+            except rospy.ServiceException as e:
+                rospy.logerr(f"Failed to clear transforms: {e}")
+
+        # 2. Reset Gazebo world (only in sim)
         if self.env == 'sim':
-            rospy.loginfo("Resetting simulation...")
+            rospy.loginfo("Resetting simulation world...")
             try:
                 self.reset_world_proxy()
                 rospy.sleep(1.0)
@@ -148,6 +186,10 @@ class ExpertRecorder:
 
     def run_gate_task(self):
         """Run the gate navigation task."""
+        # Ensure 'roll' and 'yaw' params are False (0) for this task as requested
+        rospy.set_param("~roll", False)
+        rospy.set_param("~yaw", False)
+        
         sm = smach.StateMachine(outcomes=['succeeded', 'preempted', 'aborted'])
         
         gate_depth = rospy.get_param("~gate_depth", -1.35)
@@ -188,8 +230,8 @@ class ExpertRecorder:
                 
             rospy.loginfo(f"--- Starting Episode {i+1}/{self.num_episodes} [{self.task}] ---")
             
-            if self.env == 'sim':
-                self.reset_sim()
+            # Reset before starting new episode
+            self.reset_sim()
             
             self.start_bag_recording(episode_idx=i+1)
             
@@ -223,9 +265,12 @@ class ExpertRecorder:
             while not shutdown_requested and not rospy.is_shutdown():
                 try:
                     user_input = input()
-                    if user_input.strip() == 'r' and self.env == 'sim':
+                    if user_input.strip() == 'r':
+                        # Stop first
                         self.stop_bag_recording(outcome='reset', episode_idx=None)
+                        # Then reset sim and TFs
                         self.reset_sim()
+                        # Then start new bag
                         self.start_bag_recording()
                 except EOFError:
                     break

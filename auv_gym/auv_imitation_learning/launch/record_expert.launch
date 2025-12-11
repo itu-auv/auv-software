@@ -28,6 +28,7 @@
             <remap from="align_frame/start" to="control/align_frame/start" />
             <remap from="set_object_transform" to="map/set_object_transform" />
             <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+            <remap from="reset_odometry" to="reset_odometry" />
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections" />
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus" />
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />
