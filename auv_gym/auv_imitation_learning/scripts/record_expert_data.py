@@ -8,8 +8,14 @@ import threading
 import time
 import json
 from std_srvs.srv import Empty, Trigger
+from gazebo_msgs.srv import SetModelState
+from gazebo_msgs.msg import ModelState
+from geometry_msgs.msg import Pose, Twist, Quaternion
 from auv_smach.gate import NavigateThroughGateState
+import tf.transformations as tft
 import smach
+import random
+import numpy as np
 
 # Global flag for graceful shutdown
 shutdown_requested = False
@@ -22,13 +28,17 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 
 class ExpertRecorder:
-    def __init__(self, mode, env, task, num_episodes, output_dir, bag_prefix="expert_data"):
+    def __init__(self, mode, env, task, num_episodes, output_dir, bag_prefix="expert_data", 
+                 rand_xy=0.0, rand_yaw=0.0):
         self.mode = mode
         self.env = env
         self.task = task
         self.num_episodes = num_episodes
         self.output_dir = output_dir
         self.bag_prefix = bag_prefix
+        self.rand_xy = rand_xy
+        self.rand_yaw = rand_yaw
+        
         self.bag_process = None
         self.current_bag_path = None
         self.episode_start_time = None
@@ -69,6 +79,15 @@ class ExpertRecorder:
         except rospy.ROSException:
              rospy.logwarn("Service clear_object_transforms not available. TFs might not be reset.")
              self.clear_transforms_proxy = None
+             
+        # Set Model State (for randomization)
+        if self.env == 'sim':
+            try:
+                rospy.wait_for_service('/gazebo/set_model_state', timeout=5.0)
+                self.set_model_state_proxy = rospy.ServiceProxy('/gazebo/set_model_state', SetModelState)
+            except rospy.ROSException:
+                rospy.logwarn("Service /gazebo/set_model_state not available!")
+                self.set_model_state_proxy = None
 
     def get_topics_to_record(self):
         """Get topics based on environment and task."""
@@ -173,9 +192,39 @@ class ExpertRecorder:
             rospy.loginfo("Resetting simulation world...")
             try:
                 self.reset_world_proxy()
-                rospy.sleep(1.0)
+                rospy.sleep(0.5) # Wait a bit after reset
+                self.randomize_episode_start()
+                rospy.sleep(0.5) # Wait for physics to settle
             except rospy.ServiceException as e:
                 rospy.logerr(f"Service call failed: {e}")
+
+    def randomize_episode_start(self):
+        """Randomize the robot's pose at the start of an episode."""
+        if not self.set_model_state_proxy:
+            return
+        model_name = "taluy" 
+        
+        dx = random.uniform(-self.rand_xy, self.rand_xy)
+        dy = random.uniform(-self.rand_xy, self.rand_xy)
+        dz = -1.0
+        dyaw = random.uniform(-self.rand_yaw, self.rand_yaw)
+        
+        state_msg = ModelState()
+        state_msg.model_name = model_name
+        state_msg.pose.position.x = dx
+        state_msg.pose.position.y = dy
+        state_msg.pose.position.z = dz 
+        
+        q = tft.quaternion_from_euler(0, 0, dyaw)
+        state_msg.pose.orientation = Quaternion(*q)
+        
+        state_msg.reference_frame = "world"
+        
+        try:
+            resp = self.set_model_state_proxy(state_msg)
+            rospy.loginfo(f"Randomized Start: x={dx:.2f}, y={dy:.2f}, yaw={dyaw:.2f}")
+        except rospy.ServiceException as e:
+            rospy.logwarn(f"Failed to set model state: {e}")
 
     def run_autonomous_episode(self):
         if self.task == 'gate':
@@ -294,6 +343,9 @@ if __name__ == "__main__":
     parser.add_argument("--num_episodes", type=int, default=10, help="Number of episodes (autonomous mode)")
     parser.add_argument("--output_dir", default=os.path.join(os.environ.get("HOME"), "bags/expert_data"), help="Output directory for bags")
     
+    parser.add_argument("--rand_xy", type=float, default=0.0, help="Random noise range in meters for XY position")
+    parser.add_argument("--rand_yaw", type=float, default=0.0, help="Random noise range in radians for Yaw angle")
+    
     args = parser.parse_args(rospy.myargv()[1:])
     
     recorder = ExpertRecorder(
@@ -301,7 +353,9 @@ if __name__ == "__main__":
         env=args.env,
         task=args.task,
         num_episodes=args.num_episodes,
-        output_dir=args.output_dir
+        output_dir=args.output_dir,
+        rand_xy=args.rand_xy,
+        rand_yaw=args.rand_yaw
     )
     
     recorder.run()
