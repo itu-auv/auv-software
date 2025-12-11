@@ -1,21 +1,23 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="wayfinder_dvl">
-  <xacro:macro name="wayfinder_dvl" params="name parent position:='0 0 0' orientation:='0 0 0'">
+  <xacro:macro name="wayfinder_dvl" params="name parent position:='0 0 0' orientation:='0 0 0' use_models:='false'">
     <link name="${name}_mount_link">
-      <visual>
-        <origin xyz="0 0 0" rpy="${math.pi} 0 0"/>
-        <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae" scale="0.001 0.001 0.001"/>
-          <material name="black"/>
-        </geometry>
-      </visual>
-      <collision name="${name}_collision">
-        <origin xyz="0 0 0" rpy="${math.pi} 0 0"/>
-        <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae" scale="0.001 0.001 0.001"/>
-          <material name="black"/>
-        </geometry>
-      </collision>
+      <xacro:if value="${use_models}">
+        <visual>
+          <origin xyz="0 0 0" rpy="${math.pi} 0 0"/>
+          <geometry>
+            <mesh filename="package://auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae" scale="0.001 0.001 0.001"/>
+            <material name="black"/>
+          </geometry>
+        </visual>
+        <collision name="${name}_collision">
+          <origin xyz="0 0 0" rpy="${math.pi} 0 0"/>
+          <geometry>
+            <mesh filename="package://auv_common_descriptions/meshes/wayfinder_dvl/dvl.dae" scale="0.001 0.001 0.001"/>
+            <material name="black"/>
+          </geometry>
+        </collision>
+      </xacro:if>
     </link>
     <link name="${name}_cog">
       <inertial>
