@@ -8,11 +8,12 @@ OpenCV 4.2 (Jetson/Ubuntu 18/20) uyumludur.
 import rospy
 import cv2
 import numpy as np
-from sensor_msgs.msg import Image, CameraInfo
+from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from cv_bridge import CvBridge, CvBridgeError
 import tf2_ros
 import tf.transformations
+import auv_common_lib.vision.camera_calibrations as camera_calibrations
 
 class ArucoAutoEstimator:
     def __init__(self):
@@ -20,7 +21,20 @@ class ArucoAutoEstimator:
         
         # --- params ---
         self.marker_size = rospy.get_param('~marker_size', 0.1)
-        self.camera_frame = "usb_cam" 
+        self.camera_ns = rospy.get_param('~camera_ns', 'taluy/cameras/cam_front')
+        
+        # Fetch camera calibration using CameraCalibrationFetcher (like camera_detection_pose_estimator.py)
+        rospy.loginfo(f"Fetching camera calibration for: {self.camera_ns}")
+        calibration_fetcher = camera_calibrations.CameraCalibrationFetcher(self.camera_ns, True)
+        self.calibration = calibration_fetcher.get_camera_info()
+        
+        # Extract camera matrix and distortion coefficients
+        self.camera_matrix = np.array(self.calibration.K).reshape(3, 3)
+        self.dist_coeffs = np.array(self.calibration.D)
+        self.camera_frame = self.calibration.header.frame_id
+        
+        rospy.loginfo(f"Camera calibration loaded! Frame: {self.camera_frame}")
+        rospy.loginfo(f"Camera matrix:\n{self.camera_matrix}")
         
         # OpenCV 3.x ve 4.x (pre-4.7) 
         self.ARUCO_DICTS = {
@@ -43,34 +57,16 @@ class ArucoAutoEstimator:
         
         self.pose_pub = rospy.Publisher('~detected_pose', PoseStamped, queue_size=10)
         self.debug_pub = rospy.Publisher('~debug_image', Image, queue_size=1)
-        #camera calibration
-        self.camera_matrix = None
-        self.dist_coeffs = None
-        self.cam_info_sub = rospy.Subscriber('/taluy/cameras/cam_front/camera_info', CameraInfo, self.cam_info_cb)
-        self.img_sub = rospy.Subscriber('/taluy/cameras/cam_front/image_raw', Image, self.image_cb)
+        
+        # Image subscriber
+        image_topic = f'/{self.camera_ns}/image_raw'
+        rospy.loginfo(f"Subscribing to: {image_topic}")
+        self.img_sub = rospy.Subscriber(image_topic, Image, self.image_cb)
         
         rospy.loginfo("ArUco Auto-Detector baslatildi. Marker araniyor...")
 
-    def cam_info_cb(self, msg):
-        self.camera_matrix = np.array(msg.K).reshape(3, 3)
-        self.dist_coeffs = np.array(msg.D)
-        self.camera_frame = msg.header.frame_id
-
-    def get_dummy_calibration(self, height, width):
-        """Eger camera_info gelmezse, kodu calistirmak icin sahte kalibrasyon uretir"""
-        focal_length = width  
-        center_x = width / 2
-        center_y = height / 2
-        cam_mat = np.array([
-            [focal_length, 0, center_x],
-            [0, focal_length, center_y],
-            [0, 0, 1]
-        ], dtype=np.float32)
-        dist = np.zeros((5, 1))
-        return cam_mat, dist
-
     def image_cb(self, msg):
-        rospy.loginfo_once("Image callback")
+        rospy.loginfo_once("Image callback - Calibration loaded from CameraCalibrationFetcher")
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except CvBridgeError as e:
@@ -79,12 +75,9 @@ class ArucoAutoEstimator:
 
         gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
         
-        if self.camera_matrix is None:
-            h, w = gray.shape
-            cam_mat, dist_coef = self.get_dummy_calibration(h, w)
-            rospy.logwarn_once("UYARI: Camera Info gelmedi! Dummy kalibrasyon kullaniliyor.")
-        else:
-            cam_mat, dist_coef = self.camera_matrix, self.dist_coeffs
+        # Use the calibration loaded at startup
+        cam_mat = self.camera_matrix
+        dist_coef = self.dist_coeffs
 
         # --- ARUCO TARAMA DONGUSU ---
         # Eger daha once bir sozluk bulduysak once onu deneriz, yoksa hepsini deneriz
