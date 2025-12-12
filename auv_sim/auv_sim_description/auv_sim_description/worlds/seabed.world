@@ -109,6 +109,12 @@
       <pose>8 2 -3 0 0 0.7</pose>
     </include>
 
+    <include>
+      <uri>model://docking_station</uri>
+      <name>docking_station</name>
+      <pose>9.5 1.5 -1.5 0 0 0</pose>
+    </include>
+
     <plugin name="underwater_current_plugin" filename="libuuv_underwater_current_ros_plugin.so">
       <namespace>hydrodynamics</namespace>
       <constant_current>

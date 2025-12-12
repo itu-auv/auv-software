@@ -1,0 +1,28 @@
+material DockingStationMaterial
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      texture_unit
+      {
+        texture docking_station.jpeg
+      }
+    }
+  }
+}
+
+material DockingStationMaterial/Textures
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture docking_station.jpeg
+      }
+    }
+  }
+}
