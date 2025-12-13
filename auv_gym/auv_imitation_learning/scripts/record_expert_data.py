@@ -245,16 +245,16 @@ class ExpertRecorder:
             return 'aborted'
 
     def run_gate_task(self):
-        """Run the gate navigation task."""
-        # Ensure 'roll' and 'yaw' params are False (0) for this task as requested
+        """Run the gate navigation task. Creates fresh state machine each time."""
         rospy.set_param("~roll", False)
         rospy.set_param("~yaw", False)
-        
-        sm = smach.StateMachine(outcomes=['succeeded', 'preempted', 'aborted'])
         
         gate_depth = rospy.get_param("~gate_depth", -1.35)
         gate_search_depth = rospy.get_param("~gate_search_depth", -0.7)
         gate_exit_angle = rospy.get_param("~gate_exit_angle", 0.0)
+        
+        # Create fresh state machine and state for each episode
+        sm = smach.StateMachine(outcomes=['succeeded', 'preempted', 'aborted'])
         
         with sm:
             smach.StateMachine.add(
@@ -272,6 +272,10 @@ class ExpertRecorder:
             )
             
         outcome = sm.execute()
+        
+        # Explicitly delete to help garbage collection
+        del sm
+        
         return outcome
 
     def run(self):
