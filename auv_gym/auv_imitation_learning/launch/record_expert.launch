@@ -1,0 +1,42 @@
+<launch>
+    <arg name="namespace" default="taluy" />
+    <arg name="mode" default="autonomous" />
+    <arg name="env" default="sim" />
+    <arg name="task" default="gate" />
+    <arg name="num_episodes" default="10" />
+    <arg name="output_dir" default="$(optenv HOME)/bags/expert_data" />
+
+    <!-- Gate Task Parameters (can be overridden) -->
+    <arg name="gate_depth" default="-1.0" />
+    <arg name="gate_search_depth" default="-1.0" />
+    <arg name="gate_exit_angle" default="0.0" />
+
+    <!-- Randomization Parameters -->
+    <arg name="rand_xy" default="1.5" />
+    <arg name="rand_yaw" default="0.5" />
+
+    <group ns="$(arg namespace)">
+        <node pkg="auv_imitation_learning" type="record_expert_data.py" name="expert_data_recorder" output="screen"
+              args="--mode $(arg mode) --env $(arg env) --task $(arg task) --num_episodes $(arg num_episodes) --output_dir $(arg output_dir)
+                    --rand_xy $(arg rand_xy) --rand_yaw $(arg rand_yaw)">
+            <!-- Task Params -->
+            <param name="gate_depth" value="$(arg gate_depth)" />
+            <param name="gate_search_depth" value="$(arg gate_search_depth)" />
+            <param name="gate_exit_angle" value="$(arg gate_exit_angle)" />
+
+            <!-- Service remappings for SMACH states -->
+            <remap from="set_depth" to="set_depth" />
+            <remap from="enable" to="enable" />
+            <remap from="odometry" to="odometry" />
+            <remap from="cmd_vel" to="cmd_vel" />
+            <remap from="align_frame/cancel" to="control/align_frame/cancel" />
+            <remap from="align_frame/start" to="control/align_frame/start" />
+            <remap from="set_object_transform" to="map/set_object_transform" />
+            <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+            <remap from="reset_odometry" to="reset_odometry" />
+            <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections" />
+            <remap from="set_front_camera_focus" to="vision/set_front_camera_focus" />
+            <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />
+        </node>
+    </group>
+</launch>

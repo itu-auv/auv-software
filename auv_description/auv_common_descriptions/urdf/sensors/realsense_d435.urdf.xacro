@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:macro name="realsense_d435" params="name parent position orientation">
+  <xacro:macro name="realsense_d435" params="name parent position orientation use_models:='false'">
     <link name="${name}"/>
 
     <joint name="${name}_joint" type="fixed">

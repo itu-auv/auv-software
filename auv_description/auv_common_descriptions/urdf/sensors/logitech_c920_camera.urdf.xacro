@@ -1,25 +1,27 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="logitech_c920_camera">
-  <xacro:macro name="logitech_c920_camera" params="name parent position:='0 0 0' orientation:='0 0 0'">
+  <xacro:macro name="logitech_c920_camera" params="name parent position:='0 0 0' orientation:='0 0 0' use_models:='false'">
     <link name="${name}_link">
-      <visual>
-        <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
-        <geometry>
-          <box size="0.02 0.094 0.0433"/>
-          <!-- <mesh
+      <xacro:if value="${use_models}">
+        <visual>
+          <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
+          <geometry>
+            <box size="0.02 0.094 0.0433"/>
+            <!-- <mesh
             filename="package://auv_common_descriptions/meshes/bar30/bar30.dae"
             scale="0.001 0.001 0.001" /> -->
-        </geometry>
-      </visual>
-      <collision name="${name}_collision">
-        <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
-        <geometry>
-          <box size="0.02 0.094 0.0433"/>
-          <!-- <mesh
+          </geometry>
+        </visual>
+        <collision name="${name}_collision">
+          <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
+          <geometry>
+            <box size="0.02 0.094 0.0433"/>
+            <!-- <mesh
             filename="package://auv_common_descriptions/meshes/bar30/bar30.dae"
             scale="0.001 0.001 0.001" /> -->
-        </geometry>
-      </collision>
+          </geometry>
+        </collision>
+      </xacro:if>
       <inertial>
         <mass value="0.162"/>
         <inertia ixx="0.0001" ixy="0.0" ixz="0.0" iyy="0.0001" iyz="0.0" izz="0.0001"/>
