@@ -106,6 +106,11 @@
       <name>robosub_octagon_animals</name>
       <pose>11.65 -4.25 -0.65 0 0 0</pose>
     </include>
+    <include>
+      <uri>model://docking_station</uri>
+      <name>docking_station</name>
+      <pose>-3 -15.5 -1.5 0 0 0</pose>
+    </include>
     <state world_name='default'>
       <sim_time>1711 633000000</sim_time>
       <real_time>62 375293282</real_time>
