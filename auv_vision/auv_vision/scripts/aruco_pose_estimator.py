@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 ArUco Auto-Detect & Pose Estimation Node
-Bu kod otomatik olarak dogru ArUco sozlugunu bulur ve pose hesabi yapar.
-OpenCV 4.2 (Jetson/Ubuntu 18/20) uyumludur.
-Odom frame'e transform yapar (camera_detection_pose_estimator.py gibi)
+Automatically detects the correct ArUco dictionary and performs pose estimation.
+Compatible with OpenCV 4.2 (Jetson/Ubuntu 18/20).
+Transforms to odom frame.
 """
 
 import rospy
@@ -26,7 +26,7 @@ class ArucoAutoEstimator:
         self.camera_ns = rospy.get_param('~camera_ns', 'taluy/cameras/cam_front')
         
         # Camera optical frame for transform
-        self.camera_frame = "taluy/base_link/front_camera_optical_link_stabilized"
+        self.camera_frame = "taluy/base_link/front_camera_optical_link"
         
         # Fetch camera calibration using CameraCalibrationFetcher (like camera_detection_pose_estimator.py)
         rospy.loginfo(f"Fetching camera calibration for: {self.camera_ns}")
@@ -40,7 +40,7 @@ class ArucoAutoEstimator:
         rospy.loginfo(f"Camera calibration loaded! Using frame: {self.camera_frame}")
         rospy.loginfo(f"Camera matrix:\n{self.camera_matrix}")
         
-        # OpenCV 3.x ve 4.x (pre-4.7) 
+        # OpenCV 3.x and 4.x (pre-4.7)
         self.ARUCO_DICTS = {
             "DICT_4X4_50": cv2.aruco.DICT_4X4_50,
             "DICT_4X4_100": cv2.aruco.DICT_4X4_100,
@@ -75,7 +75,7 @@ class ArucoAutoEstimator:
         rospy.loginfo(f"Subscribing to: {image_topic}")
         self.img_sub = rospy.Subscriber(image_topic, Image, self.image_cb)
         
-        rospy.loginfo("ArUco Auto-Detector baslatildi. Marker araniyor...")
+        rospy.loginfo("ArUco Auto-Detector started. Searching for markers...")
         rospy.loginfo("Publishing to: object_transform_updates (odom frame)")
 
     def image_cb(self, msg):
@@ -83,7 +83,7 @@ class ArucoAutoEstimator:
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except CvBridgeError as e:
-            rospy.logerr(f"CV Bridge Hatasi: {e}")
+            rospy.logerr(f"CV Bridge Error: {e}")
             return
 
         gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
@@ -92,11 +92,11 @@ class ArucoAutoEstimator:
         cam_mat = self.camera_matrix
         dist_coef = self.dist_coeffs
 
-        # --- ARUCO TARAMA DONGUSU ---
+        # --- ARUCO SCANNING LOOP ---
         found_ids = None
         found_corners = None
         
-        # Denenecek sozlukler listesi
+        # Dictionaries to try
         dictionaries_to_try = []
         if self.current_dict_obj is not None:
             dictionaries_to_try.append((self.current_dict_name, self.current_dict_obj))
@@ -120,11 +120,11 @@ class ArucoAutoEstimator:
                     self.current_dict_name = name
                     self.current_dict_obj = dict_obj
                     rospy.loginfo(f"----------------------------------------")
-                    rospy.loginfo(f"BASARI! Marker bulundu. Sozluk: {name}")
+                    rospy.loginfo(f"SUCCESS! Marker found. Dictionary: {name}")
                     rospy.loginfo(f"----------------------------------------")
                 break
         
-        # --- GORSELLESTIRME VE YAYIN ---
+        # --- VISUALIZATION AND PUBLISHING ---
         debug_img = cv_image.copy()
         
         if found_ids is not None:
@@ -136,13 +136,12 @@ class ArucoAutoEstimator:
             )
             
             for i in range(len(found_ids)):
-                # Eksen ciz
                 cv2.drawFrameAxes(
                     debug_img, cam_mat, dist_coef, 
                     rvecs[i], tvecs[i], self.marker_size * 0.5
                 )
                 
-                # Odom'a transform ve yayinla
+                # Transform to odom and publish
                 self.publish_transform_to_odom(
                     found_ids[i][0], 
                     rvecs[i][0], 
@@ -150,7 +149,7 @@ class ArucoAutoEstimator:
                     msg.header
                 )
                 
-                # Ekrana mesafe yaz
+                # Display distance on screen
                 dist = np.linalg.norm(tvecs[i][0])
                 cv2.putText(debug_img, f"ID:{found_ids[i][0]} Dist:{dist:.2f}m", 
                            (10, 70 + i*30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
@@ -159,31 +158,30 @@ class ArucoAutoEstimator:
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
         else:
             self.current_dict_name = None
-            cv2.putText(debug_img, "ARANIYOR...", (10, 30), 
+            cv2.putText(debug_img, "SEARCHING...", (10, 30), 
                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
 
-        # Debug goruntusunu yayinla
+        # Publish debug image
         self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug_img, "bgr8"))
 
     def publish_transform_to_odom(self, marker_id, rvec, tvec, header):
         """
-        Marker pozisyonunu kamera frame'inden odom frame'ine donusturur ve yayinlar.
-        camera_detection_pose_estimator.py ile ayni yaklasim.
+        Transforms marker position from camera frame to odom frame and publishes.
         """
-        # Rotasyon Vektoru -> Matris -> Quaternion
+        # Rotation Vector -> Matrix -> Quaternion
         rot_mat, _ = cv2.Rodrigues(rvec)
         
-        # Homojen matris olustur
+        # Create homogeneous matrix
         transform_matrix = np.eye(4)
         transform_matrix[0:3, 0:3] = rot_mat
         transform_matrix[0:3, 3] = tvec
         
-        # Quaternion hesabi
+        # Quaternion calculation
         quat = tf.transformations.quaternion_from_matrix(transform_matrix)
         
         child_frame_id = f"aruco_{marker_id}"
         
-        # Kamera frame'inde TransformStamped mesaji olustur
+        # Create TransformStamped message in camera frame
         transform_stamped_msg = TransformStamped()
         transform_stamped_msg.header.stamp = header.stamp
         transform_stamped_msg.header.frame_id = self.camera_frame
@@ -192,35 +190,32 @@ class ArucoAutoEstimator:
         transform_stamped_msg.transform.translation = Vector3(tvec[0], tvec[1], tvec[2])
         transform_stamped_msg.transform.rotation = Quaternion(quat[0], quat[1], quat[2], quat[3])
         
-        # TF broadcast (kamera frame'inde)
+        # TF broadcast (in camera frame)
         self.tf_broadcaster.sendTransform(transform_stamped_msg)
         
         try:
-            # PoseStamped olustur (kamera frame'inde)
+            # Create PoseStamped (in camera frame)
             pose_stamped = PoseStamped()
             pose_stamped.header = transform_stamped_msg.header
             pose_stamped.pose.position = transform_stamped_msg.transform.translation
             pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
             
-            # Odom frame'ine donustur
+            # Transform to odom frame
             transformed_pose_stamped = self.tf_buffer.transform(
                 pose_stamped, "odom", rospy.Duration(1.0)
             )
             
-            # Odom frame'inde final TransformStamped olustur
+            # Create final TransformStamped in odom frame
             final_transform_stamped = TransformStamped()
             final_transform_stamped.header = transformed_pose_stamped.header
             final_transform_stamped.child_frame_id = child_frame_id
             final_transform_stamped.transform.translation = transformed_pose_stamped.pose.position
             final_transform_stamped.transform.rotation = transform_stamped_msg.transform.rotation
             
-            # object_transform_updates topic'ine yayinla
+            # Publish to object_transform_updates topic
             self.object_transform_pub.publish(final_transform_stamped)
             
-            rospy.loginfo_throttle(1, f"Marker {marker_id} odom'a yayinlandi: "
-                                   f"x={transformed_pose_stamped.pose.position.x:.2f}, "
-                                   f"y={transformed_pose_stamped.pose.position.y:.2f}, "
-                                   f"z={transformed_pose_stamped.pose.position.z:.2f}")
+            rospy.loginfo_once("Publishing frame to odom")
             
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, 
                 tf2_ros.ExtrapolationException) as e:
