@@ -1,0 +1,30 @@
+services:
+  auv_software:
+    build:
+      context: .
+      dockerfile: Dockerfile.auv
+      args:
+        HOST: tegra
+    image: ghcr.io/itu-auv/auv-software-base:latest
+    container_name: auv_software
+    runtime: nvidia
+    network_mode: host
+    privileged: true
+    stdin_open: true 
+    tty: true       
+    environment:
+      - DISPLAY=${DISPLAY}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - QT_X11_NO_MITSHM=1
+    entrypoint: ["/bin/bash", "-lc"]
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /dev:/dev
+      - ./.zsh_history:/root/.zsh_history
+      #- /dev/bus/usb:/dev/bus/usb
+
+    devices:
+      - /dev/auv_expansion_board:/dev/auv_expansion_board
+
+    command: zsh
