@@ -8,10 +8,13 @@ find_package(catkin REQUIRED COMPONENTS
   auv_common_lib
   pluginlib
   roscpp
+  rospy
   tf2
 )
 
 find_package(Eigen3 REQUIRED)
+
+catkin_python_setup()
 
 catkin_package(
   INCLUDE_DIRS include
@@ -21,6 +24,7 @@ catkin_package(
     auv_common_lib
     pluginlib
     roscpp
+    rospy
     tf2
 )
 

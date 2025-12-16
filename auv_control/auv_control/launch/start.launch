@@ -7,6 +7,8 @@
   <arg name="command_timeout" default="0.1" />
   <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
   <arg name="start_visual_servoing" default="true" />
+  <arg name="use_compiled_solver" default="true" />
+  <arg name="compiled_solver_path" default="$(find auv_control)/generated/mpc_solver.so" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch"
     if="$(arg start_state_publisher)">
@@ -15,7 +17,7 @@
   </include>
 
   <group ns="$(arg namespace)">
-    <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
+    <!-- <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
       <param name="rate" value="$(arg rate)" />
       <param name="config_file" value="$(arg config_file)" />
 
@@ -27,6 +29,17 @@
 
       <remap from="wrench" to="wrench" />
       <rosparam file="$(arg config_file)" command="load" ns="" />
+    </node> -->
+
+    <node pkg="auv_control" type="mpc_controller_ros.py" name="mpc_controller_node" output="screen">
+      <param name="rate" value="10" />
+      <param name="compiled_solver_path" value="$(arg compiled_solver_path)" if="$(arg use_compiled_solver)" />
+      <remap from="enable" to="enable" />
+      <remap from="odometry" to="odometry" />
+      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="cmd_pose" to="cmd_pose" />
+      <remap from="wrench" to="wrench" />
+      <rosparam file="$(arg config_file)" command="load" ns="" />
     </node>
 
     <node pkg="auv_control" type="thruster_manager_node" name="thruster_manager_node"
@@ -36,7 +49,7 @@
       <rosparam file="$(arg config_file)" command="load" ns="" />
     </node>
 
-    <node pkg="auv_control" type="reference_pose_publisher.py" name="reference_pose_publisher_node"
+    <!-- <node pkg="auv_control" type="reference_pose_publisher.py" name="reference_pose_publisher_node"
       output="screen">
       <param name="update_rate" value="$(arg rate)" />
       <param name="command_timeout" value="$(arg command_timeout)" />
@@ -48,7 +61,7 @@
       <remap from="enable" to="enable" />
       <remap from="set_pose" to="set_pose" />
       <remap from="reset_odometry" to="reset_odometry" />
-    </node>
+    </node> -->
 
 
     <node pkg="auv_control" type="align_frame_controller.py" name="align_frame_controller"
