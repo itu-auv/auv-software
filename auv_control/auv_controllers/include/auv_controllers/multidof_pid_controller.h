@@ -106,13 +106,12 @@ class MultiDOFPIDController : public ControllerBase<N> {
           kd_.template block<N, N>(0, 0) * (Vectornd::Zero() - velocity_state);
 
       pos_pid_output = p_term + i_term + d_term;
-
-      pos_pid_output = pos_pid_output.cwiseMin(max_velocity_limits_)
-                           .cwiseMax(-max_velocity_limits_);
     }
 
     const auto velocity_state = state.tail(N);
-    const auto desired_velocity = desired_state.tail(N) + pos_pid_output;
+    const auto desired_velocity = (desired_state.tail(N) + pos_pid_output)
+                                      .cwiseMin(max_velocity_limits_)
+                                      .cwiseMax(-max_velocity_limits_);
     const auto acceleration_state = d_state.tail(N);
 
     const auto error = desired_velocity - velocity_state;
