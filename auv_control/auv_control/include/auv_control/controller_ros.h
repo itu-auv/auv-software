@@ -313,8 +313,8 @@ class ControllerROS {
       max_velocity_ = Vector6RosparamParser::parse("max_velocity", nh_private);
       ROS_INFO_STREAM("Loaded max_velocity: " << max_velocity_.transpose());
     } else {
-      max_velocity_ = Eigen::Matrix<double, 6, 1>::Constant(1e6);  // Unlimited
-      ROS_INFO("No max_velocity parameter found, limits disabled");
+      max_velocity_ = Eigen::Matrix<double, 6, 1>::Constant(1e6);
+      ROS_WARN_STREAM("No max_velocity parameter found, limits disabled");
     }
   }
 
