@@ -1,15 +1,15 @@
 <?xml version="1.0"?>
 <launch>
     <!-- Camera selection flags -->
-<arg name="front" default="true"/>
-    <arg name="bottom" default="false"/>
-    <arg name="realsense" default="false"/>
+    <arg name="front" default="true"/>
+    <arg name="bottom" default="true"/>
+    <arg name="realsense" default="true"/>
     <arg name="segment" default="false"/>
-    <arg name="detection" default="false"/>
+    <arg name="detection" default="true"/>
 
     <!-- Common settings -->
     <arg name="sim" default="false"/>
-    <arg name="use_gui" default="true"/>
+    <arg name="use_gui" default="false"/>
 
     <!-- Front camera tracker -->
     <group if="$(arg front)" ns="tracker_front">
