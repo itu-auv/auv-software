@@ -13,7 +13,7 @@ from skimage.morphology import skeletonize
 from scipy.ndimage import convolve
 
 
-class PipeFollowerDemo():
+class PipeFollowerDemo:
     def __init__(self):
         self.bridge = CvBridge()
         self.pub_cmd = rospy.Publisher("taluy/cmd_vel", Twist, queue_size=1)
@@ -61,16 +61,15 @@ class PipeFollowerDemo():
 
         for line_pts in final_points_list:
             for i in range(1, len(line_pts)):
-                cv2.line(skel_rgb, line_pts[i-1], line_pts[i], (0, 0, 255), 2)
+                cv2.line(skel_rgb, line_pts[i - 1], line_pts[i], (0, 0, 255), 2)
 
         img_msg = self.bridge.cv2_to_imgmsg(skel_rgb, encoding="bgr8")
         img_msg.header = msg.header
         self.pub_debug.publish(img_msg)
 
         vel_msg = Twist()
-        #vel_msg.linear.x = 0.1
+        # vel_msg.linear.x = 0.1
         self.pub_cmd.publish(vel_msg)
-
 
     def _filter_close_points(self, points, min_dist=5.0):
         if len(points) <= 2:
@@ -89,7 +88,16 @@ class PipeFollowerDemo():
         white_pixels = np.column_stack(np.where(skeleton_img > 0))
         pixel_set = set(tuple(p) for p in white_pixels)
 
-        neighbors = [(1, 0), (1, 1), (1, -1), (0, 1), (0, -1), (-1, -1), (-1, 0), (-1, 1)]
+        neighbors = [
+            (1, 0),
+            (1, 1),
+            (1, -1),
+            (0, 1),
+            (0, -1),
+            (-1, -1),
+            (-1, 0),
+            (-1, 1),
+        ]
 
         paths = []
         while pixel_set:
@@ -102,7 +110,7 @@ class PipeFollowerDemo():
             while changed:
                 changed = False
                 curr = path[-1]
-                for (dy, dx) in neighbors:
+                for dy, dx in neighbors:
                     neighbor = (curr[0] + dy, curr[1] + dx)
                     if neighbor in pixel_set:
                         path.append(neighbor)
@@ -114,7 +122,7 @@ class PipeFollowerDemo():
             while changed:
                 changed = False
                 curr = path[0]
-                for (dy, dx) in neighbors:
+                for dy, dx in neighbors:
                     neighbor = (curr[0] + dy, curr[1] + dx)
                     if neighbor in pixel_set:
                         path.insert(0, neighbor)
@@ -130,6 +138,7 @@ def main():
     rospy.init_node("pipe_follower_demo")
     PipeFollowerDemo()
     rospy.spin()
+
 
 if __name__ == "__main__":
     main()

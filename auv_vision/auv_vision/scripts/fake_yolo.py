@@ -7,11 +7,14 @@ from cv_bridge import CvBridge
 import rospy
 from sensor_msgs.msg import Image
 
+
 class FakeYolo(object):
     def __init__(self):
         self.bridge = CvBridge()
         self.pub_fake_yolo = rospy.Publisher("yolo_fake_image", Image, queue_size=1)
-        self.sub_camera = rospy.Subscriber("taluy/cameras/cam_bottom/image_raw", Image, self.cb_image, queue_size=1)
+        self.sub_camera = rospy.Subscriber(
+            "taluy/cameras/cam_bottom/image_raw", Image, self.cb_image, queue_size=1
+        )
 
     def cb_image(self, msg):
         try:
@@ -31,6 +34,7 @@ class FakeYolo(object):
         out_msg = self.bridge.cv2_to_imgmsg(mask_bgr, encoding="bgr8")
         out_msg.header = msg.header
         self.pub_fake_yolo.publish(out_msg)
+
 
 def main():
     rospy.init_node("fake_yolo")
