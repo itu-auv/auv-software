@@ -3,6 +3,7 @@ cam_front:
   height: 480
   fps: 30
   device: /dev/auv_cam_front
+
   image_width: 640
   image_height: 480
   camera_name: cam_front
@@ -23,11 +24,13 @@ cam_front:
     rows: 3
     cols: 4
     data: [732.617981, 0.0, 298.604817, 0.0, 0.0, 729.010986, 154.053329, 0.0, 0.0, 0.0, 1.0, 0.0]
+
 cam_bottom:
   width: 640
   height: 480
   fps: 30
   device: /dev/auv_cam_bottom
+
   image_width: 640
   image_height: 480
   camera_name: cam_bottom

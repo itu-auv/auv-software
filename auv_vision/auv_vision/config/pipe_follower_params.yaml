@@ -3,11 +3,13 @@
 rotate_cw: 0 # 0,1,2,3 (×90° clockwise)
 flip_x: false # horizontal flip
 flip_y: false # vertical flip
+
 # ---- Sensor band config ----
 n_sensors: 5 # 3 or 5 typical
 sensor_x_frac: 0.20 # gate center as fraction of width
 sensor_width_frac: 0.10 # gate width fraction
 sensor_min_fill: 0.02 # min occupancy to count band
+
 # ---- Control gains & limits ----
 k_y: 1.50 # lateral alignment gain from sensor bands
 k_ang: 1.00 # orientation (angle) gain
@@ -16,11 +18,14 @@ v_min: 0.05 # min forward speed
 ang_limit: 0.6 # rad/s
 lin_limit: 0.4 # m/s
 slowdown_angle: 0.8 # scale fwd by 1/(1+slowdown_angle*|ang_err|)
+
 # If the sign feels wrong in your setup, flip one of these:
 invert_y_error: false
 invert_ang_error: false
+
 # ---- Validity and search behavior ----
 min_pipe_area_px: 1500
 search_omega: 0.25 # when pipe not visible
+
 # ---- Debug ----
 publish_debug: true
