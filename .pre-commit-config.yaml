@@ -1,3 +1,4 @@
+---
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -14,10 +15,12 @@ repos:
       - id: forbid-submodules
       - id: check-added-large-files
       - id: check-case-conflict
-  - repo: https://github.com/google/yamlfmt
-    rev: v0.16.0
+  - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
+    rev: 0.2.3
     hooks:
       - id: yamlfmt
+        args: [--mapping, "2", --sequence, "4", --offset, "2", --width, "150", --preserve-quotes]
+        exclude: ^auv_bringup/config/ekf.yaml$
   - repo: https://github.com/lsst-ts/pre-commit-xmllint
     rev: v1.0.0
     hooks:

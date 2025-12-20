@@ -1,4 +1,6 @@
+---
 name: main docker images
+
 on:
   workflow_call:
     inputs:
@@ -6,17 +8,21 @@ on:
         description: 'Type of image to build [main, base]'
         required: true
         type: string
+
 concurrency:
   group: ${{ github.workflow }}-${{ (github.event_name == 'pull_request' && github.event.pull_request.number) || github.ref }}
   cancel-in-progress: true
+
 env:
   ARCH64_CORE_IMAGE_TAG: dustynv/ros:noetic-ros-base-l4t-r35.2.1
   AMD64_CORE_IMAGE_TAG: ros:noetic-ros-base
   BASE_IMAGE_TAG: ghcr.io/itu-auv/auv-software-base
   IMAGE_TAG: ghcr.io/itu-auv/auv-software
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+
     strategy:
       fail-fast: false
       matrix:
@@ -33,6 +39,7 @@ jobs:
     outputs:
       image_tag: ${{ steps.set_build_config.outputs.image_tag }}
       base_image: ${{ steps.set_build_config.outputs.base_image_tag }}
+
     steps:
       - name: Free Disk Space (Ubuntu)
         uses: jlumbroso/free-disk-space@main
@@ -46,12 +53,15 @@ jobs:
           swap-storage: false
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
           platforms: ${{ matrix.platform }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
       - name: Login to Github Containter Registry
         uses: docker/login-action@v3
         with:
@@ -97,6 +107,7 @@ jobs:
           tags: |
             ${{ steps.set_build_config.outputs.image_tag }}:latest-${{ matrix.architecture }}
             ${{ steps.set_build_config.outputs.image_tag }}:${{ github.sha }}-${{ matrix.architecture }}
+
   # build-and-push-arm64:
   #   runs-on: self-hosted
   #   strategy:
@@ -162,6 +173,7 @@ jobs:
   #         tags: |
   #           ${{ steps.set_build_config.outputs.image_tag }}:latest-${{ matrix.architecture }}
   #           ${{ steps.set_build_config.outputs.image_tag }}:${{ github.sha }}-${{ matrix.architecture }}
+
   create-manifests:
     runs-on: ubuntu-latest
     # needs: [build-and-push, build-and-push-arm64]
@@ -169,14 +181,17 @@ jobs:
     if: github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+
       - name: Login to Github Containter Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create SHA manifest and push
         run: |
           image_tag=${{ needs.build-and-push.outputs.image_tag }}
@@ -185,8 +200,9 @@ jobs:
             --amend $image_tag:${{ github.sha }}-amd64 \
             --amend $image_tag:${{ github.sha }}-arm64
           docker manifest push $image_tag:${{ github.sha }}
+
       - name: Create latest manifest and push
-        run: |-
+        run: |
           image_tag=${{ needs.build-and-push.outputs.image_tag }}
           docker manifest create \
           $image_tag:latest \

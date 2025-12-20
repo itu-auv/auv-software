@@ -1,4 +1,6 @@
+---
 name: industrial_ci
+
 on:
   workflow_call:
     inputs:
@@ -10,6 +12,7 @@ on:
         description: 'Docker image tag'
         required: true
         type: string
+
 jobs:
   industrial_ci:
     runs-on: ${{ inputs.runner }}
@@ -31,8 +34,10 @@ jobs:
           DOCKER_IMAGE: ${{ inputs.docker_image_tag }}
           CATKIN_LINT: true
           TARGET_CMAKE_ARGS: >
-            -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_BUILD_TYPE=Release
-
+            -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_MODULE_LINKER_FLAGS=-fuse-ld=lld
+            -DCMAKE_BUILD_TYPE=Release
       - name: cleanup temp build directory
         if: always()
         run: rm -rf ${{ steps.make_temp_build_dir.outputs.build_directory }}
