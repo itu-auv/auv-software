@@ -5,7 +5,7 @@
     <arg name="bottom" default="true"/>
     <arg name="realsense" default="true"/>
     <arg name="segment" default="false"/>
-    <arg name="detection" default="true"/>
+    <arg name="detection" default="false"/>
 
     <!-- Common settings -->
     <arg name="sim" default="false"/>
