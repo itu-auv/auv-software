@@ -83,25 +83,39 @@ class ReferencePosePublisherNode:
         if not internal_frame:
             internal_frame = self.base_frame
 
-        robot_namespace = self.base_frame.rsplit('/', 1)[0] + '/' if '/' in self.base_frame else ""
+        robot_namespace = (
+            self.base_frame.rsplit("/", 1)[0] + "/" if "/" in self.base_frame else ""
+        )
 
         if robot_namespace and not internal_frame.startswith(robot_namespace):
             msg = f"Internal frame '{internal_frame}' does not start with robot namespace '{robot_namespace}'. Operation cancelled."
             rospy.logerr(msg)
             return SetDepthResponse(success=False, message=msg)
 
-        rospy.loginfo(f"Alignment Request: Internal='{internal_frame}' -> External='{external_frame}' (Offset: {req.target_depth})")
+        rospy.loginfo(
+            f"Alignment Request: Internal='{internal_frame}' -> External='{external_frame}' (Offset: {req.target_depth})"
+        )
 
         try:
             t_odom_ext = self.tf_buffer.lookup_transform(
-                self.odom_frame, external_frame, rospy.Time(0), rospy.Duration(self.tf_lookup_timeout)
+                self.odom_frame,
+                external_frame,
+                rospy.Time(0),
+                rospy.Duration(self.tf_lookup_timeout),
             )
-            
+
             lookup_time = t_odom_ext.header.stamp
             t_base_int = self.tf_buffer.lookup_transform(
-                self.base_frame, internal_frame, lookup_time, rospy.Duration(self.tf_lookup_timeout)
+                self.base_frame,
+                internal_frame,
+                lookup_time,
+                rospy.Duration(self.tf_lookup_timeout),
             )
-        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
             rospy.logerr(f"TF lookup failed: {e}")
             return SetDepthResponse(success=False, message=f"TF lookup failed: {e}")
 
@@ -210,7 +224,7 @@ class ReferencePosePublisherNode:
         cmd_pose = Pose()
 
         cmd_pose.position.z = self.target_depth
-# Frame id is odom 
+        # Frame id is odom
         quaternion = quaternion_from_euler(0.0, 0.0, self.target_heading)
         rospy.logdebug(f"heading: {self.target_heading}")
         cmd_pose.orientation.x = quaternion[0]

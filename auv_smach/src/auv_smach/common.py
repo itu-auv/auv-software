@@ -130,7 +130,13 @@ class SetDepthState(smach_ros.ServiceState):
         - aborted: The service call failed.
     """
 
-    def __init__(self, depth: float, sleep_duration: float = 5.0, external_frame_id: str = "", internal_frame_id: str = ""):
+    def __init__(
+        self,
+        depth: float,
+        sleep_duration: float = 5.0,
+        external_frame_id: str = "",
+        internal_frame_id: str = "",
+    ):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
         set_depth_request.external_frame = external_frame_id

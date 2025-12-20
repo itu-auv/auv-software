@@ -34,7 +34,7 @@ class ROSServiceCaller:
             request.target_depth = target_depth
             request.external_frame = external_frame
             request.internal_frame = internal_frame
-            
+
             response = set_depth_service(request)
             return response.success
         except rospy.ServiceException as e:
