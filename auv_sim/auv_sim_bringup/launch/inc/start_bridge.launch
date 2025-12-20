@@ -30,13 +30,6 @@
       <param name="rate" value="$(arg control_rate)" />
     </node>
 
-    <node name="underwater_effect_node" pkg="auv_sim_bridge" type="sea_mock.py" output="screen">
-      <remap from="cam_bottom/image_raw" to="cameras/cam_bottom/image_raw" />
-      <remap from="cam_front/image_raw" to="cameras/cam_front/image_raw" />
-      <remap from="cam_bottom/image_underwater" to="cameras/cam_bottom/image_underwater" />
-      <remap from="cam_front/image_underwater" to="cameras/cam_front/image_underwater" />
-    </node>
-
     <!-- Ball Dropper Service Node -->
     <node name="drop_ball_server" pkg="auv_sim_bridge" type="sim_bin_mock.py" output="screen">
       <remap from="actuators/ball_dropper/drop" to="actuators/ball_dropper/drop" />

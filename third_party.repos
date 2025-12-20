@@ -10,4 +10,4 @@ repositories:
   ../third_party/ultralytics_ros:
     type: git
     version: noetic-devel
-    url: https://github.com/Alpaca-zip/ultralytics_ros.git
+    url: https://github.com/itu-auv/ultralytics_ros.git

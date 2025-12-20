@@ -1,37 +1,41 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="t200_thruster">
-  <xacro:macro name="t200_thruster" params="name parent position:='0 0 0' orientation:='0 0 0'">
+  <xacro:macro name="t200_thruster" params="name parent position:='0 0 0' orientation:='0 0 0' use_models:='false'">
     <link name="${name}_link">
-      <visual>
-        <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}"/>
-        <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae" scale="1 1 1"/>
-        </geometry>
-      </visual>
-      <collision name="${name}_collision">
-        <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}"/>
-        <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae" scale="1 1 1"/>
-        </geometry>
-      </collision>
       <inertial>
         <mass value="0.001"/>
         <inertia ixx="0.0000001" ixy="0.0" ixz="0.0" iyy="0.0000001" iyz="0.0" izz="0.0000001"/>
       </inertial>
+      <xacro:if value="${use_models}">
+        <visual>
+          <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}"/>
+          <geometry>
+            <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae" scale="1 1 1"/>
+          </geometry>
+        </visual>
+        <collision name="${name}_collision">
+          <origin xyz="0 0 0" rpy="0 ${pi/2} ${-pi/2}"/>
+          <geometry>
+            <mesh filename="package://auv_common_descriptions/meshes/t200/shell.dae" scale="1 1 1"/>
+          </geometry>
+        </collision>
+      </xacro:if>
     </link>
     <link name="${name}_propeller_link">
-      <visual>
-        <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
-        <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae" scale="1.0 1.0 1.0"/>
-        </geometry>
-      </visual>
-      <collision name="${name}_propeller_collision">
-        <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
-        <geometry>
-          <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae" scale="1 1 1"/>
-        </geometry>
-      </collision>
+      <xacro:if value="${use_models}">
+        <visual>
+          <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
+          <geometry>
+            <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae" scale="1.0 1.0 1.0"/>
+          </geometry>
+        </visual>
+        <collision name="${name}_propeller_collision">
+          <origin xyz="0 0 0" rpy="0 ${pi/2} 0"/>
+          <geometry>
+            <mesh filename="package://auv_common_descriptions/meshes/t200/propeller.dae" scale="1 1 1"/>
+          </geometry>
+        </collision>
+      </xacro:if>
       <inertial>
         <mass value="0.001"/>
         <inertia ixx="0.0000001" ixy="0.0" ixz="0.0" iyy="0.0000001" iyz="0.0" izz="0.0000001"/>

@@ -4,9 +4,10 @@
   <xacro:arg name="namespace" default="taluy"/>
   <xacro:arg name="control_rate" default="20"/>
   <xacro:arg name="inertial_reference_frame" default="world"/>
+  <xacro:arg name="use_models" default="false"/>
   <xacro:include filename="$(find taluy_sim_description)/urdf/base.urdf.xacro"/>
   <xacro:include filename="$(find taluy_sim_description)/urdf/dynamics.urdf.xacro"/>
-  <xacro:auv_sim_base namespace="$(arg namespace)" inertial_reference_frame="$(arg inertial_reference_frame)">
+  <xacro:auv_sim_base namespace="$(arg namespace)" inertial_reference_frame="$(arg inertial_reference_frame)" use_models="$(arg use_models)">
     <gazebo>
       <plugin name="uuv_plugin" filename="libuuv_underwater_object_ros_plugin.so">
         <fluid_density>1028.0</fluid_density>

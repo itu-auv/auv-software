@@ -22,7 +22,7 @@
     <arg name="start_bridge" default="true" />
     <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
-
+    <arg name="use_models" default="false" />
 
     <!-- Run Taluy GUI -->
     <group if="$(arg use_taluy_gui)">
@@ -79,6 +79,7 @@
         <arg name="imu_update_rate" value="$(arg imu_update_rate)" />
         <arg name="dvl_update_rate" value="$(arg dvl_update_rate)" />
         <arg name="pressure_update_rate" value="$(arg pressure_update_rate)" />
+        <arg name="use_models" value="$(arg use_models)" />
     </include>
 
     <!-- Start bridge -->
