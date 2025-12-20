@@ -110,7 +110,7 @@ class ArucoBoardEstimator:
         rospy.loginfo(f"Camera calibration loaded! Using frame: {self.camera_frame}")
         rospy.loginfo(f"Camera matrix:\n{self.camera_matrix}")
         
-        # --- ArUco Setup (OpenCV 4.7+) ---
+        # --- ArUco Setup (OpenCV 4.7-4.12) ---
         # Use 6x6 dictionary as specified
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
         self.detector_params = cv2.aruco.DetectorParameters()
@@ -142,9 +142,7 @@ class ArucoBoardEstimator:
         self.debug_pub = rospy.Publisher('~debug_image', Image, queue_size=1)
         
         # Image subscriber
-        # DEBUG: Using webcam-specific topic instead of camera_ns
-        # image_topic = f'/{self.camera_ns}/image_raw'
-        image_topic = '/webcam/image_raw'
+        image_topic = f'/{self.camera_ns}/image_raw'
         rospy.loginfo(f"Subscribing to: {image_topic}")
         self.img_sub = rospy.Subscriber(image_topic, Image, self.image_cb)
         
