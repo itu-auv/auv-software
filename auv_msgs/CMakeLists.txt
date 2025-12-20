@@ -24,7 +24,6 @@ add_message_files(
   Power.msg
   PropsYaw.msg
   TDOA.msg
-  RelativePoseCommand.msg
 )
 
 add_service_files(
