@@ -28,6 +28,15 @@ class MultiDOFPIDController : public ControllerBase<N> {
   void set_kd(const Vector2nd& kd) { kd_ = kd.asDiagonal(); }
 
   /**
+   * @brief Set the max velocity limits for the position controller output
+   *
+   * @param limits Vector of max velocities (absolute values)
+   */
+  void set_max_velocity_limits(const Vectornd& limits) {
+    max_velocity_limits_ = limits;
+  }
+
+  /**
    * @brief Set the integral clamp limits for anti-windup
    *
    * @param limits Vector of integral limits
@@ -59,6 +68,8 @@ class MultiDOFPIDController : public ControllerBase<N> {
   WrenchVector control(const StateVector& state,
                        const StateVector& desired_state,
                        const StateVector& d_state, const double dt) {
+    const auto inverse_rotation_matrix = get_world_to_body_rotation(state);
+
     Vectornd pos_pid_output = Vectornd::Zero();
     {
       const auto position_state = state.head(N);
@@ -67,6 +78,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
       Vectornd error = Vectornd::Zero();
       error.head(3) = desired_position.head(3) - position_state.head(3);
+      error.head(3) = inverse_rotation_matrix * error.head(3);
       for (size_t i = 3; i < N; ++i) {
         error(i) = angles::shortest_angular_distance(position_state(i),
                                                      desired_position(i));
@@ -97,7 +109,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
     }
 
     const auto velocity_state = state.tail(N);
-    const auto desired_velocity = desired_state.tail(N) + pos_pid_output;
+    const auto desired_velocity = (desired_state.tail(N) + pos_pid_output)
+                                      .cwiseMin(max_velocity_limits_)
+                                      .cwiseMax(-max_velocity_limits_);
     const auto acceleration_state = d_state.tail(N);
 
     const auto error = desired_velocity - velocity_state;
@@ -121,25 +135,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
     WrenchVector wrench = pid_force + damping_force;
 
-    // Add gravity compensation to z-axis
-    wrench(2) += gravity_compensation_z_;
-
-    {
-      Eigen::AngleAxisd roll_angle(state[3], Eigen::Vector3d::UnitX());
-      Eigen::AngleAxisd pitch_angle(state[4], Eigen::Vector3d::UnitY());
-      Eigen::AngleAxisd yaw_angle(state[5], Eigen::Vector3d::UnitZ());
-      Eigen::Quaterniond rotation = yaw_angle * pitch_angle * roll_angle;
-      Eigen::Matrix3d rotation_matrix = rotation.matrix();
-      // get the inverse wrench transformation matrix
-      Eigen::Matrix3d inverse_rotation_matrix = rotation_matrix.transpose();
-
-      Eigen::Vector3d f_z = Eigen::Vector3d::Zero();
-      f_z(2) = wrench(2);
-      wrench(2) = 0;
-
-      Eigen::Vector3d rotated_fz = inverse_rotation_matrix * f_z;
-      wrench.head(3) += rotated_fz;
-    }
+    Eigen::Vector3d gravity_force_global = Eigen::Vector3d::Zero();
+    gravity_force_global(2) = gravity_compensation_z_;
+    wrench.head(3) += inverse_rotation_matrix * gravity_force_global;
 
     return wrench;
   }
@@ -165,6 +163,15 @@ class MultiDOFPIDController : public ControllerBase<N> {
     return this->model().mass_inertia_matrix;
   }
 
+  Eigen::Matrix3d get_world_to_body_rotation(const StateVector& state) const {
+    Eigen::AngleAxisd roll_angle(state[3], Eigen::Vector3d::UnitX());
+    Eigen::AngleAxisd pitch_angle(state[4], Eigen::Vector3d::UnitY());
+    Eigen::AngleAxisd yaw_angle(state[5], Eigen::Vector3d::UnitZ());
+    Eigen::Quaterniond rotation = yaw_angle * pitch_angle * roll_angle;
+    // (body -> world).transpose() = world -> body
+    return rotation.matrix().transpose();
+  }
+
   // gains
   Vector2nd integral_{Vector2nd::Zero()};
   Vector2nd integral_clamp_limits_{
@@ -173,6 +180,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
   Matrix2nd ki_;
   Matrix2nd kd_;
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
+
+  // Default to effectively unlimited (1e6)
+  Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
 };
 
 using SixDOFPIDController = MultiDOFPIDController<6>;
