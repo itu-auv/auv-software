@@ -53,13 +53,15 @@ class PipeFollowerDemo:
             aaa = self._filter_close_points(pts, min_dist=30.0)
             final_points_list.append(aaa)
 
+        segments = self._merge_into_segments(final_points_list, 50)
+
         COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         for line_pts in final_points_list:
             for i, pt in enumerate(line_pts):
                 color = COLORS[i % len(COLORS)]
                 cv2.circle(skel_rgb, pt, 4, color, -1)
 
-        for line_pts in final_points_list:
+        for line_pts in segments:
             for i in range(1, len(line_pts)):
                 cv2.line(skel_rgb, line_pts[i - 1], line_pts[i], (0, 0, 255), 2)
 
@@ -132,6 +134,44 @@ class PipeFollowerDemo:
 
             paths.append(np.array([[p[1], p[0]] for p in path], dtype=np.float32))
         return paths
+
+    def _merge_into_segments(self, final_points_list, max_seg_dist):
+        segments = []
+        max_seg_dist = 100
+
+        remaining = [line.tolist() for line in final_points_list]
+
+        while remaining:
+            current = remaining.pop(0)
+            match_found = True
+            while match_found:
+                match_found = False
+                for i, line in enumerate(remaining):
+                    dists = {
+                        "hh": self._get_dist(current[0], line[0]),
+                        "th": self._get_dist(current[-1], line[0]),
+                        "ht": self._get_dist(current[0], line[-1]),
+                        "tt": self._get_dist(current[-1], line[-1]),
+                    }
+                    best = min(dists, key=dists.get)
+                    if dists[best] < max_seg_dist:
+                        match_line = remaining.pop(i)
+                        if best == "hh":
+                            current = match_line[::-1] + current
+                        elif best == "th":
+                            current = current + match_line
+                        elif best == "ht":
+                            current = match_line + current
+                        elif best == "tt":
+                            current = current + match_line[::-1]
+
+                        match_found = True
+                        break
+            segments.append(current)
+        return segments
+
+    def _get_dist(self, p1, p2):
+        return np.linalg.norm(np.array(p1) - np.array(p2))
 
 
 def main():
