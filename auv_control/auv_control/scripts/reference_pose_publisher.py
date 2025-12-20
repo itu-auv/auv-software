@@ -105,11 +105,6 @@ class ReferencePosePublisherNode:
             rospy.logerr(f"TF lookup failed: {e}")
             return SetDepthResponse(success=False, message=f"TF lookup failed: {e}")
 
-<<<<<<< HEAD
-=======
-        # 4. Calculate Desired Depth
-        # Z position of the target in Odom frame
->>>>>>> Update auv_control/auv_control/scripts/reference_pose_publisher.py
         target_z_world = t_odom_ext.transform.translation.z
         tool_offset_z = t_base_int.transform.translation.z
 
