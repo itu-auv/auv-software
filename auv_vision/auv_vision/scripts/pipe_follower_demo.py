@@ -54,16 +54,17 @@ class PipeFollowerDemo:
             final_points_list.append(aaa)
 
         segments = self._merge_into_segments(final_points_list, 50)
+        segments = self._filter_segments(segments, 50)
+
+        for seg in segments:
+            for i in range(1, len(seg)):
+                cv2.line(skel_rgb, seg[i - 1], seg[i], (0, 255, 0), 2)
 
         COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-        for line_pts in final_points_list:
-            for i, pt in enumerate(line_pts):
+        for seg in segments:
+            for i, pt in enumerate(seg):
                 color = COLORS[i % len(COLORS)]
                 cv2.circle(skel_rgb, pt, 4, color, -1)
-
-        for line_pts in segments:
-            for i in range(1, len(line_pts)):
-                cv2.line(skel_rgb, line_pts[i - 1], line_pts[i], (0, 0, 255), 2)
 
         img_msg = self.bridge.cv2_to_imgmsg(skel_rgb, encoding="bgr8")
         img_msg.header = msg.header
@@ -172,6 +173,11 @@ class PipeFollowerDemo:
 
     def _get_dist(self, p1, p2):
         return np.linalg.norm(np.array(p1) - np.array(p2))
+
+    def _filter_segments(self, segments, min_len=50):
+        return list(
+            filter(lambda x: cv2.arcLength(np.array(x), closed=False) >= 50, segments)
+        )
 
 
 def main():
