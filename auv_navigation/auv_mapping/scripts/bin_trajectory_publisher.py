@@ -2,13 +2,12 @@
 
 import numpy as np
 
-from typing import Tuple
+from typing import Tuple, List
 import rospy
 import tf2_ros
 import tf.transformations
 from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 
 class BinTransformServiceNode:
@@ -18,10 +17,10 @@ class BinTransformServiceNode:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        # Publisher for object transform updates
+        self.object_transform_pub = rospy.Publisher(
+            "object_transform_updates", TransformStamped, queue_size=10
         )
-        self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
@@ -64,17 +63,9 @@ class BinTransformServiceNode:
         t.transform.rotation = pose.orientation
         return t
 
-    def send_transform(self, transform):
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        try:
-            resp = self.set_object_transform_service.call(req)
-            if not resp.success:
-                rospy.logwarn(
-                    f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-                )
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {e}")
+    def send_transforms(self, transforms: List[TransformStamped]):
+        for transform in transforms:
+            self.object_transform_pub.publish(transform)
 
     def create_bin_frames(self):
         try:
@@ -160,15 +151,16 @@ class BinTransformServiceNode:
         )
         further_pose.orientation = orientation
 
+        transforms_to_send = []
+
         further_transform = self.build_transform_message(
             self.bin_further_frame, further_pose
         )
         closer_transform = self.build_transform_message(
             self.bin_closer_frame, closer_pose
         )
-
-        self.send_transform(further_transform)
-        self.send_transform(closer_transform)
+        transforms_to_send.append(further_transform)
+        transforms_to_send.append(closer_transform)
 
         bin_whole_estimated_pose = Pose()
         bin_whole_estimated_pose.position.x = bin_pose.position.x
@@ -178,7 +170,7 @@ class BinTransformServiceNode:
         bin_whole_estimated_transform = self.build_transform_message(
             self.bin_whole_estimated_frame, bin_whole_estimated_pose
         )
-        self.send_transform(bin_whole_estimated_transform)
+        transforms_to_send.append(bin_whole_estimated_transform)
 
         bin_exit_pose = Pose()
         bin_exit_pose.position.x = bin_whole_estimated_pose.position.x
@@ -200,7 +192,7 @@ class BinTransformServiceNode:
         bin_exit_transform = self.build_transform_message(
             self.bin_exit_frame, bin_exit_pose
         )
-        self.send_transform(bin_exit_transform)
+        transforms_to_send.append(bin_exit_transform)
 
         perp_direction_unit_2d = np.array([-direction_unit_2d[1], direction_unit_2d[0]])
 
@@ -224,9 +216,12 @@ class BinTransformServiceNode:
         second_trial_pose.orientation.y = second_trial_q[1]
         second_trial_pose.orientation.z = second_trial_q[2]
         second_trial_pose.orientation.w = second_trial_q[3]
-        self.send_transform(
+
+        transforms_to_send.append(
             self.build_transform_message("bin_second_trial", second_trial_pose)
         )
+
+        self.send_transforms(transforms_to_send)
 
     def handle_enable_service(self, req):
         self.enable = req.data
