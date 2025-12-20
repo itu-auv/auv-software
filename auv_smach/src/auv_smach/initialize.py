@@ -1,6 +1,7 @@
 import smach
 import smach_ros
 import rospy
+import tf.transformations
 from std_srvs.srv import SetBool, SetBoolRequest
 from std_srvs.srv import Empty, EmptyRequest
 from std_srvs.srv import Trigger, TriggerRequest
@@ -90,17 +91,32 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
 
 
 class SetStartFrameState(smach_ros.ServiceState):
-    def __init__(self, frame_name: str):
+    def __init__(
+        self,
+        frame_name: str,
+        translation_x: float = 0.0,
+        translation_y: float = 0.0,
+        rotation_yaw: float = 0.0,
+    ):
         transform_request = SetObjectTransformRequest()
         transform_request.transform.header.frame_id = "taluy/base_link"
         transform_request.transform.child_frame_id = frame_name
-        transform_request.transform.transform.rotation.w = 1.0
+
+        transform_request.transform.transform.translation.x = translation_x
+        transform_request.transform.transform.translation.y = translation_y
+
+        q = tf.transformations.quaternion_from_euler(0, 0, rotation_yaw)
+        transform_request.transform.transform.rotation.x = q[0]
+        transform_request.transform.transform.rotation.y = q[1]
+        transform_request.transform.transform.rotation.z = q[2]
+        transform_request.transform.transform.rotation.w = q[3]
 
         smach_ros.ServiceState.__init__(
             self,
             "set_object_transform",
             SetObjectTransform,
             request=transform_request,
+            outcomes=["succeeded", "preempted", "aborted"],
         )
 
 
@@ -164,7 +180,7 @@ class InitializeState(smach.State):
                 "DISABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
-                    "succeeded": "SET_DETECTION_TO_NONE",
+                    "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
