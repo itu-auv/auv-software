@@ -1,4 +1,3 @@
----
 buttons:
   launch_torpedo1: 2
   launch_torpedo2: 1
@@ -9,7 +8,6 @@ buttons:
   z_axis_neg:
     index: 4
     gain: 0.4
-
 axes:
   x_axis:
     index: [1, 7]

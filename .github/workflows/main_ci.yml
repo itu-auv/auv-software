@@ -1,25 +1,19 @@
----
 name: CI
-
 on:
   push:
     branches:
       - main
   pull_request:
-
 concurrency:
   group: main-${{ github.workflow }}-${{ (github.event_name == 'pull_request' && github.event.pull_request.number) || github.ref }}
   cancel-in-progress: true
-
 jobs:
   formatting:
     uses: ./.github/workflows/formatting.yml
-
   build-and-push-base-docker:
     uses: ./.github/workflows/build_and_push_images.yml
     with:
       image_type: base
-
   native-ci:
     strategy:
       fail-fast: false
@@ -30,7 +24,6 @@ jobs:
     with:
       runner: ${{ matrix.host }}
       docker_image_tag: ghcr.io/itu-auv/auv-software-base:latest
-
   build-and-push-main-docker:
     needs: [build-and-push-base-docker]
     uses: ./.github/workflows/build_and_push_images.yml

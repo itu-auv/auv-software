@@ -1,16 +1,12 @@
----
 global_costmap:
   global_frame: odom
   robot_base_frame: taluy/base_link
-
   update_frequency: 10.0
   publish_frequency: 10.0
   transform_tolerance: 2.0
-
   width: 50
   height: 50
   resolution: 0.1
-
   static_map: false
   rolling_window: true
   track_unknown_space: false
