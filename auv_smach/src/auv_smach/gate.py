@@ -30,13 +30,6 @@ class TransformServiceEnableState(smach_ros.ServiceState):
         )
 
 
-class PublishGateAngleState(smach_ros.ServiceState):
-    def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self, "publish_gate_angle", Trigger, request=TriggerRequest()
-        )
-
-
 class PlanGatePathsState(smach.State):
     """State that plans the paths for the gate task"""
 
@@ -75,13 +68,6 @@ class TransformServiceEnableState(smach_ros.ServiceState):
             "toggle_gate_trajectory",
             SetBool,
             request=SetBoolRequest(data=req),
-        )
-
-
-class PublishGateAngleState(smach_ros.ServiceState):
-    def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self, "publish_gate_angle", Trigger, request=TriggerRequest()
         )
 
 
@@ -139,7 +125,7 @@ class NavigateThroughGateState(smach.State):
                 TransformServiceEnableState(req=True),
                 transitions={
                     "succeeded": (
-                        "COIN_FLIP_STATE"
+                        "CREATE_COIN_FLIP_RESCUER_FRAME"
                         if self.coin_flip_direction != "none"
                         else "SET_DETECTION_FOCUS_GATE"
                     ),
@@ -148,7 +134,7 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "COIN_FLIP_STATE",
+                "CREATE_COIN_FLIP_RESCUER_FRAME",
                 SetStartFrameState(
                     frame_name="coin_flip_rescuer",
                     translation_x=self.tx,
@@ -156,13 +142,13 @@ class NavigateThroughGateState(smach.State):
                     rotation_yaw=self.yaw_val,
                 ),
                 transitions={
-                    "succeeded": "A",
+                    "succeeded": "RESCUE_COIN_FLIP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "A",
+                "RESCUE_COIN_FLIP",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="coin_flip_rescuer",
@@ -173,22 +159,22 @@ class NavigateThroughGateState(smach.State):
                     cancel_on_success=True,
                 ),
                 transitions={
-                    "succeeded": "B",
+                    "succeeded": "SET_DETECTION_FOCUS_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "B",
+                "SET_DETECTION_FOCUS_GATE",
                 SetDetectionFocusState(focus_object="gate"),
                 transitions={
-                    "succeeded": "C",
+                    "succeeded": "AIM_AT_GATE_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "C",
+                "AIM_AT_GATE_TARGET",
                 SearchForPropState(
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
@@ -202,7 +188,11 @@ class NavigateThroughGateState(smach.State):
                     "succeeded": (
                         "CALIFORNIA_ROLL"
                         if self.roll
-                        else ("TWO_YAW_STATE" if self.yaw else "M")
+                        else (
+                            "TWO_YAW_STATE"
+                            if self.yaw
+                            else "DISABLE_GATE_TRAJECTORY_PUBLISHER"
+                        )
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -215,7 +205,7 @@ class NavigateThroughGateState(smach.State):
                     roll_torque=50.0, gate_look_at_frame=self.gate_look_at_frame
                 ),
                 transitions={
-                    "succeeded": "M",
+                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -224,13 +214,13 @@ class NavigateThroughGateState(smach.State):
                 "TWO_YAW_STATE",
                 TwoYawState(yaw_frame=self.gate_search_frame),
                 transitions={
-                    "succeeded": "M",
+                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "M",
+                "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "SET_DETECTION_TO_NONE",
