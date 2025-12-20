@@ -180,7 +180,7 @@ class InitializeState(smach.State):
                 "DISABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
-                    "succeeded": "CLEAR_OBJECT_MAP",
+                    "succeeded": "SET_DETECTION_TO_NONE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
