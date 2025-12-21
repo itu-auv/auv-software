@@ -1,0 +1,4 @@
+string function_call_json
+---
+bool success
+string message

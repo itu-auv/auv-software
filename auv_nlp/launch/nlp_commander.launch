@@ -1,0 +1,8 @@
+<launch>
+    <!-- Load API Key from environment or param -->
+    <arg name="google_api_key" default="$(env GOOGLE_API_KEY)" />
+
+    <node pkg="auv_nlp" type="nlp_commander_node.py" name="nlp_commander" output="screen">
+        <param name="google_api_key" value="$(arg google_api_key)" />
+    </node>
+</launch>
