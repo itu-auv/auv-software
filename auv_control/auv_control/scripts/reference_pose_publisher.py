@@ -98,11 +98,18 @@ class ReferencePosePublisherNode:
                     message="Cannot set depth while align_frame is active and use_depth is true",
                 )
 
-            self.target_depth = self.get_transformed_depth(
+            depth = self.get_transformed_depth(
                 self.target_frame_id,
                 req.frame_id,
                 req.target_depth,
             )
+            if depth is None:
+                return SetDepthResponse(
+                    success=False,
+                    message="Failed to transform depth",
+                )
+
+            self.target_depth = depth
             return SetDepthResponse(
                 success=True,
                 message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
@@ -120,9 +127,15 @@ class ReferencePosePublisherNode:
 
             self.use_align_frame_depth = req.use_depth
 
-            t = self.tf_buffer.lookup_transform(
+            t = self.tf_lookup(
                 self.base_frame, req.source_frame, rospy.Time(0), rospy.Duration(1.0)
             )
+
+            if t is None:
+                return AlignFrameControllerResponse(
+                    success=False,
+                    message="Failed to lookup transform",
+                )
 
             self.target_x = t.transform.translation.x
             self.target_y = t.transform.translation.y
@@ -130,11 +143,18 @@ class ReferencePosePublisherNode:
             if req.use_depth:
                 self.target_depth = t.transform.translation.z
             else:
-                self.target_depth = self.get_transformed_depth(
+                depth = self.get_transformed_depth(
                     req.target_frame,
                     self.target_frame_id,
                     self.target_depth,
                 )
+                if depth is None:
+                    return AlignFrameControllerResponse(
+                        success=False,
+                        message="Failed to transform depth",
+                    )
+
+                self.target_depth = depth
 
             if not req.keep_orientation:
                 quaternion = [
@@ -211,11 +231,15 @@ class ReferencePosePublisherNode:
         self.target_y = self.latest_odometry.pose.pose.position.y
 
         if self.target_frame_id != "odom":
-            self.target_depth = self.get_transformed_depth(
+            depth = self.get_transformed_depth(
                 "odom",
                 self.target_frame_id,
                 self.target_depth,
             )
+            if depth is None:
+                return
+
+            self.target_depth = depth
             self.target_frame_id = "odom"
 
         quaternion = [
@@ -231,13 +255,17 @@ class ReferencePosePublisherNode:
 
     def get_transformed_depth(
         self, target_frame: str, source_frame: str, target_depth: float
-    ) -> float:
-        transform = self.tf_buffer.lookup_transform(
+    ):
+        transform = self.tf_lookup(
             target_frame,
             source_frame,
             rospy.Time(0),
             rospy.Duration(1.0),
         )
+
+        if transform is None:
+            return None
+
         p = PointStamped()
         p.header.stamp = transform.header.stamp
         p.header.frame_id = source_frame
@@ -267,6 +295,29 @@ class ReferencePosePublisherNode:
         self.target_heading += msg.angular.z * dt
 
         self.last_cmd_time = rospy.Time.now()
+
+    def tf_lookup(
+        self,
+        target_frame: str,
+        source_frame: str,
+        time: rospy.Time,
+        timeout: rospy.Duration,
+    ):
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                target_frame,
+                source_frame,
+                time,
+                timeout,
+            )
+            return transform
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logerr(f"TF lookup failed from {source_frame} to {target_frame}: {e}")
+            return None
 
     def control_loop(self):
         cmd_pose_stamped = PoseStamped()
@@ -298,7 +349,7 @@ class ReferencePosePublisherNode:
 if __name__ == "__main__":
     try:
         rospy.init_node("reference_pose_publisher_node")
-        reference_pose_publisher_node = ReferencePosePublisherNode()
-        reference_pose_publisher_node.run()
+        node = ReferencePosePublisherNode()
+        node.run()
     except rospy.ROSInterruptException:
         pass
