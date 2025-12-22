@@ -1,45 +1,76 @@
 ARG BASE_IMAGE=ghcr.io/itu-auv/auv-software:latest
 FROM ${BASE_IMAGE}
 
-ARG HOST=desktop
-
-ENV DEBIAN_FRONTEND=noninteractive \
-  DEBCONF_NONINTERACTIVE_SEEN=true \
-  TZ=Etc/UTC
-
+ARG HOST=tegra
+ENV DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC
 WORKDIR /auv_ws
 
-# Remove old third_party from base image (we use src/third_party instead)
-RUN rm -rf /auv_ws/third_party
 
-COPY Wayfinder /tmp/Wayfinder
+
+RUN printf '#!/bin/bash\n\
+  # TODO: remove when fixed in base image\n\
+  rm -rf /auv_ws/third_party\n\
+  \n\
+  # Fix broken entrypoint from base image (has "exec $@ source..." on same line) #TODO: remove when fixed\n\
+  if [ -f "/opt/ros/$ROS_DISTRO/setup.bash" ]; then\n\
+  source "/opt/ros/$ROS_DISTRO/setup.bash"\n\
+  fi\n\
+  exec "$@"\n' > /ros_entrypoint.sh && chmod +x /ros_entrypoint.sh
+
+COPY --from=wayfinder . /tmp/Wayfinder
+RUN sed -i 's/self._port.setDTR(True)/pass # self._port.setDTR(True)/' /tmp/Wayfinder/dvl/util.py && \
+  sed -i 's/self._port.setRTS(True)/pass # self._port.setRTS(True)/' /tmp/Wayfinder/dvl/util.py
 COPY . ./src/auv_software
 
-# Install dependencies
+# APT PACKAGES
 RUN apt-get update && \
-  apt-get install -y python3-pip usbutils zsh ros-noetic-roslint && \ 
-  pip3 install setuptools==45.2.0 && \
-  vcs import src/auv_software < src/auv_software/third_party.repos && \
-  touch ./src/auv_software/auv_sim/CATKIN_IGNORE && \
+  apt-get install -y --no-install-recommends \
+  python3-pip \
+  usbutils \
+  zsh \
+  zsh-autosuggestions \
+  ros-noetic-roslint \
+  ros-noetic-vision-msgs \
+  ros-noetic-tf-conversions \
+  && \
+  # Tegra needs special handling for image-proc (OpenCV conflicts)
   if [ "$HOST" = "tegra" ]; then \
-  rosdep install --from-paths src --ignore-src -r \
-  --skip-keys=libopencv-dev \
-  --skip-keys=cv_bridge \   
-  -y; \
+  apt-get download \
+  ros-noetic-image-proc \
+  ros-noetic-image-transport \
+  ros-noetic-image-geometry \
+  && \
+  dpkg --force-depends -i ros-noetic-*.deb && rm -f ros-noetic-*.deb; \
   else \
-  rosdep install --from-paths src --ignore-src -r -y; \
+  apt-get install -y ros-noetic-image-proc; \
   fi && \
   rm -rf /var/lib/apt/lists/*
 
-RUN . /opt/ros/noetic/setup.sh && \
-  catkin build -- auv_software \
-  2>&1 | tee /auv_ws/build_logs/catkin_build.log || true
+# PYTHON DEPS
+RUN pip3 install setuptools==45.2.0 /tmp/Wayfinder
 
-# Setup zsh
-RUN  echo "source /auv_ws/devel/setup.zsh" >> /root/.zshrc && \
-  echo "export HISTFILE=/root/.zsh_history" >> /root/.zshrc && \
-  echo "export HISTSIZE=10000" >> /root/.zshrc && \
-  echo "export SAVEHIST=10000" >> /root/.zshrc \
-  echo "setopt SHARE_HISTORY APPEND_HISTORY" >> /root/.zshrc && \
-  echo "autoload -U colors && colors" >> /root/.zshrc && \
+# THIRD PARTY REPOS
+RUN vcs import src/auv_software < src/auv_software/third_party.repos && \
+  touch ./src/auv_software/auv_sim/CATKIN_IGNORE && \
+  if [ "$HOST" = "tegra" ]; then \
+  rosdep install --from-paths src --ignore-src -r -y \
+  --skip-keys=libopencv-dev --skip-keys=cv_bridge; \
+  else \
+  rosdep install --from-paths src --ignore-src -r -y; \
+  fi
+
+# CATKIN BUILD
+RUN . /opt/ros/noetic/setup.sh && \
+  catkin build -- auv_software 2>&1 | tee /auv_ws/build_logs/catkin_build.log || true
+
+# pip opencv conflicts with Tegra's system opencv, so we remove
+RUN pip3 install ultralytics && pip3 uninstall -y opencv-python || true
+
+# ZSH SETUP
+RUN echo 'source /auv_ws/devel/setup.zsh' >> /root/.zshrc && \
+  echo 'source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh' >> /root/.zshrc && \
+  echo 'HISTFILE=/root/.zsh_history' >> /root/.zshrc && \
+  echo 'HISTSIZE=10000' >> /root/.zshrc && \
+  echo 'SAVEHIST=10000' >> /root/.zshrc && \
+  echo 'setopt SHARE_HISTORY APPEND_HISTORY INC_APPEND_HISTORY HIST_IGNORE_DUPS' >> /root/.zshrc && \
   echo "PROMPT='%F{green}%n@%m%f:%F{blue}%~%f$ '" >> /root/.zshrc
