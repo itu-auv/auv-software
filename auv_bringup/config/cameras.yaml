@@ -52,3 +52,30 @@ cam_bottom:
     rows: 3
     cols: 4
     data: [1081.186890, 0.0, 252.365375, 0.0, 0.0, 1083.032104, 238.487351, 0.0, 0.0, 0.0, 1.0, 0.0]
+
+cam_ov2710:
+  width: 1920
+  height: 1080
+  fps: 30
+  device: /dev/auv_cam_ov2710
+
+  image_width: 1920
+  image_height: 1080
+  camera_name: cam_ov2710
+  camera_matrix:
+    rows: 3
+    cols: 3
+    data: [1000.0, 0.0, 960.0, 0.0, 1000.0, 540.0, 0.0, 0.0, 1.0]
+  distortion_model: plumb_bob
+  distortion_coefficients:
+    rows: 1
+    cols: 5
+    data: [0.0, 0.0, 0.0, 0.0, 0.0]
+  rectification_matrix:
+    rows: 3
+    cols: 3
+    data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+  projection_matrix:
+    rows: 3
+    cols: 4
+    data: [1000.0, 0.0, 960.0, 0.0, 0.0, 1000.0, 540.0, 0.0, 0.0, 0.0, 1.0, 0.0]
