@@ -21,6 +21,8 @@ namespace auv_mapping {
 class ObjectMapTFServerROS {
   using FilterMap =
       std::unordered_map<std::string, std::vector<ObjectPositionFilter::Ptr>>;
+  
+  using NonKalmanFilterMap = std::unordered_map<std::string, std::vector<geometry_msgs::TransformStamped>>;
 
  public:
   ObjectMapTFServerROS(const ros::NodeHandle &nh);
@@ -29,6 +31,11 @@ class ObjectMapTFServerROS {
 
  private:
   void broadcast_transforms();
+
+  void broadcast_non_kalman_transforms();
+
+  void object_transform_non_kalman_create_callback(
+      const geometry_msgs::TransformStamped::ConstPtr &msg);
 
   bool clear_map_handler(std_srvs::Trigger::Request &req,
                          std_srvs::Trigger::Response &res);
@@ -53,12 +60,14 @@ class ObjectMapTFServerROS {
   double distance_threshold_squared_;
   std::string static_frame_;
   FilterMap filters_;
+  NonKalmanFilterMap non_kalman_filters_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   //
   std::mutex mutex_;
   ros::ServiceServer service_;
   ros::ServiceServer clear_service_;
   ros::Subscriber dynamic_sub_;
+  ros::Subscriber object_transform_non_kalman_create_sub_;
 };
 
 }  // namespace auv_mapping

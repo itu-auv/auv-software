@@ -21,6 +21,10 @@ class OctagonTransformServiceNode:
         )
         self.set_object_transform_service.wait_for_service()
 
+        self.object_non_kalman_transform_pub = rospy.Publisher(
+            "object_transform_non_kalman_create", TransformStamped, queue_size=10
+        ) 
+
         self.odom_frame = "odom"
         self.robot_frame = "taluy/base_link"
         self.octagon_frame = "octagon_link"
@@ -52,6 +56,8 @@ class OctagonTransformServiceNode:
         return t
 
     def send_transform(self, transform):
+        self.object_non_kalman_transform_pub.publish(transform)
+        """
         req = SetObjectTransformRequest()
         req.transform = transform
         resp = self.set_object_transform_service.call(req)
@@ -59,6 +65,7 @@ class OctagonTransformServiceNode:
             rospy.logwarn(
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
+        """
 
     def create_octagon_frame(self):
         if not self.enable:

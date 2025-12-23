@@ -22,6 +22,10 @@ class PipelineTransformServiceNode:
             "set_object_transform", SetObjectTransform
         )
         self.set_object_transform_service.wait_for_service()
+        
+        self.object_non_kalman_transform_pub = rospy.Publisher(
+            "object_transform_non_kalman_create", TransformStamped, queue_size=10
+        )
 
         # Parameters
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
@@ -76,7 +80,8 @@ class PipelineTransformServiceNode:
         return t
 
     def send_transform(self, transform: TransformStamped):
-        """Send transform via service"""
+        self.object_non_kalman_transform_pub.publish(transform)
+        """
         req = SetObjectTransformRequest()
         req.transform = transform
         try:
@@ -87,6 +92,7 @@ class PipelineTransformServiceNode:
                 )
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call failed: {e}")
+        """
 
     def create_relative_pose(
         self, base_pose: Pose, forward: float, left: float, up: float = 0.0
