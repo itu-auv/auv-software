@@ -35,7 +35,9 @@ class ImuToOdom:
         # Initialize the odometry message
         self.odom_msg = Odometry()
         self.odom_msg.header.frame_id = "odom"
-        self.odom_msg.child_frame_id = "taluy/base_link"  # TODO: NO absolute frames
+        self.odom_msg.child_frame_id = rospy.get_param(
+            "~child_frame_id", "taluy/base_link"
+        )
 
         # Build default covariance matrices
         self.default_pose_cov = np.zeros((6, 6))

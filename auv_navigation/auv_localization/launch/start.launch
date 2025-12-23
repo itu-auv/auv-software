@@ -12,6 +12,7 @@
       <remap from="odom_imu" to="localization/odom_imu" />
       <remap from="odom_bno_imu" to="localization/odom_bno_imu" />
       <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
+      <param name="child_frame_id" value="$(arg namespace)/base_link" />
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
       output="screen">
