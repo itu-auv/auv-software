@@ -5,8 +5,17 @@ import cv2
 
 from cv_bridge import CvBridge
 import rospy
+import tf2_ros
+import tf.transformations
+from geometry_msgs.msg import Pose, TransformStamped
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
+from auv_msgs.srv import (
+    AlignFrameController,
+    AlignFrameControllerResponse,
+    SetObjectTransform,
+    SetObjectTransformRequest,
+)
 
 from matplotlib import pyplot as plt
 from skimage.morphology import skeletonize
@@ -21,6 +30,39 @@ class PipeFollowerDemo:
             "yolo_fake_image", Image, self.cb_mask, queue_size=1, buff_size=2**24
         )
         self.pub_debug = rospy.Publisher("pipe_result_debug", Image, queue_size=1)
+
+        self.tf_buffer = tf2_ros.Buffer()
+        # TODO: figure out what's the difference between tf_buffer and tf_listener
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        self.set_object_transform_service = rospy.ServiceProxy(
+            "/taluy/map/set_object_transform", SetObjectTransform
+        )
+        self.set_object_transform_service.wait_for_service()
+
+        self.pipe_carrot_frame = "pipe_carrot"
+
+        pose = Pose()
+        pose.position.x = 2
+        pose.position.y = 2
+        pose.position.z = 0
+        pose.orientation.x = 1
+        pose.orientation.y = 0
+        pose.orientation.z = 0
+        pose.orientation.w = 0
+        msg = self._build_transform_message(self.pipe_carrot_frame, pose)
+        self._send_transform(msg)
+
+        self.align_frame_service = rospy.ServiceProxy(
+            "/taluy/control/align_frame/start", AlignFrameController
+        )
+        try:
+            res = self.align_frame_service(
+                "taluy/base_link", self.pipe_carrot_frame, 0, False, 0, 0
+            )
+            print(res)
+        except rospy.ServiceException as exc:
+            print("Service did not process request: " + str(exc))
         self.count = 0
 
     def cb_mask(self, msg):
@@ -176,8 +218,33 @@ class PipeFollowerDemo:
 
     def _filter_segments(self, segments, min_len=50):
         return list(
-            filter(lambda x: cv2.arcLength(np.array(x), closed=False) >= 50, segments)
+            filter(
+                lambda x: cv2.arcLength(np.array(x), closed=False) >= min_len, segments
+            )
         )
+
+    def _build_transform_message(
+        self, child_frame_id: str, pose: Pose
+    ) -> TransformStamped:
+        t = TransformStamped()
+        t.header.stamp = rospy.Time.now()
+        t.header.frame_id = "odom"
+        t.child_frame_id = child_frame_id
+        t.transform.translation = pose.position
+        t.transform.rotation = pose.orientation
+        return t
+
+    def _send_transform(self, transform):
+        req = SetObjectTransformRequest()
+        req.transform = transform
+        try:
+            resp = self.set_object_transform_service.call(req)
+            if not resp.success:
+                print(
+                    f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
+                )
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
 
 
 def main():
