@@ -33,7 +33,7 @@ class ReferencePosePublisherNode:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        # Initialize subscribers
+        # subscribers
         self.odometry_sub = rospy.Subscriber(
             "odometry", Odometry, self.odometry_callback, tcp_nodelay=True
         )
@@ -43,6 +43,8 @@ class ReferencePosePublisherNode:
         self.cmd_vel_sub = rospy.Subscriber(
             "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
         )
+
+        # services
         self.reset_odometry_service = rospy.Service(
             "reset_odometry", Trigger, self.reset_odometry_handler
         )
@@ -52,15 +54,14 @@ class ReferencePosePublisherNode:
         self.cancel_control_service = rospy.Service(
             "align_frame/cancel", Trigger, self.handle_cancel_request
         )
-
+        self.control_enable_handler = ControlEnableHandler(1.0)
         self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
 
-        # Initialize publisher
+        # publishers
         self.cmd_pose_pub = rospy.Publisher("cmd_pose", PoseStamped, queue_size=10)
 
-        self.control_enable_handler = ControlEnableHandler(1.0)
-
-        # 6-DOF target pose (for tracking mode)
+        # target state
+        self.target_frame_id = "odom"
         self.target_x = 0.0
         self.target_y = 0.0
         self.target_depth = -0.4  # z
@@ -68,23 +69,21 @@ class ReferencePosePublisherNode:
         self.target_pitch = 0.0
         self.target_heading = 0.0  # yaw
 
-        # Align frame state
         self.align_frame_active = False
         self.use_align_frame_depth = False
+        self.align_frame_keep_orientation = False
 
         self.last_cmd_time = rospy.Time.now()
-        self.target_frame_id = "odom"
         self.state_lock = Lock()
         self.latest_odometry = Odometry()
 
-        # reset odometry service
         self.set_pose_req = SetPoseRequest()
         self.set_pose_req.pose = PoseWithCovarianceStamped()
         self.set_pose_req.pose.header.stamp = rospy.Time.now()
         self.set_pose_req.pose.header.frame_id = "odom"
         self.is_resetting = False
 
-        # Parameters
+        # parameters #TODO
         self.namespace = rospy.get_param("~namespace", "taluy")
         self.base_frame = self.namespace + "/base_link"
         self.update_rate = rospy.get_param("~update_rate", 10)
@@ -125,7 +124,11 @@ class ReferencePosePublisherNode:
                     message="Cannot align to frame while control is disabled",
                 )
 
-            self.use_align_frame_depth = req.use_depth
+            if self.align_frame_active:
+                self.align_frame_active = False
+                self.use_align_frame_depth = False
+                self.align_frame_keep_orientation = False
+                self.set_target_to_odometry()
 
             t = self.tf_lookup(
                 self.base_frame, req.source_frame, rospy.Time(0), rospy.Duration(1.0)
@@ -140,22 +143,11 @@ class ReferencePosePublisherNode:
             self.target_x = t.transform.translation.x
             self.target_y = t.transform.translation.y
 
+            self.use_align_frame_depth = req.use_depth
             if req.use_depth:
                 self.target_depth = t.transform.translation.z
-            else:
-                depth = self.get_transformed_depth(
-                    req.target_frame,
-                    self.target_frame_id,
-                    self.target_depth,
-                )
-                if depth is None:
-                    return AlignFrameControllerResponse(
-                        success=False,
-                        message="Failed to transform depth",
-                    )
 
-                self.target_depth = depth
-
+            self.align_frame_keep_orientation = req.keep_orientation
             if not req.keep_orientation:
                 quaternion = [
                     t.transform.rotation.x,
@@ -189,6 +181,7 @@ class ReferencePosePublisherNode:
 
             self.align_frame_active = False
             self.use_align_frame_depth = False
+            self.align_frame_keep_orientation = False
             self.set_target_to_odometry()
 
         rospy.loginfo("Align frame control canceled")
@@ -219,10 +212,10 @@ class ReferencePosePublisherNode:
         return TriggerResponse(success=True, message="Odometry reset successfully.")
 
     def odometry_callback(self, msg):
+        self.latest_odometry = msg
+
         if self.control_enable_handler.is_enabled() and not self.is_resetting:
             return
-
-        self.latest_odometry = msg
 
         self.set_target_to_odometry()
 
@@ -276,6 +269,38 @@ class ReferencePosePublisherNode:
         p_in_target = do_transform_point(p, transform)
         return p_in_target.point.z
 
+    def get_transformed_orientation(
+        self,
+        target_frame: str,
+        source_frame: str,
+        roll: float,
+        pitch: float,
+        yaw: float,
+    ):
+        transform = self.tf_lookup(
+            target_frame,
+            source_frame,
+            rospy.Time(0),
+            rospy.Duration(1.0),
+        )
+
+        if transform is None:
+            return None
+
+        q_orientation = quaternion_from_euler(roll, pitch, yaw)
+
+        q_transform = [
+            transform.transform.rotation.x,
+            transform.transform.rotation.y,
+            transform.transform.rotation.z,
+            transform.transform.rotation.w,
+        ]
+
+        q_new = quaternion_multiply(q_transform, q_orientation)
+
+        new_roll, new_pitch, new_yaw = euler_from_quaternion(q_new)
+        return (new_roll, new_pitch, new_yaw)
+
     def cmd_vel_callback(self, msg: Twist):
         if (
             not self.control_enable_handler.is_enabled()
@@ -326,11 +351,36 @@ class ReferencePosePublisherNode:
 
         cmd_pose_stamped.pose.position.x = self.target_x
         cmd_pose_stamped.pose.position.y = self.target_y
-        cmd_pose_stamped.pose.position.z = self.target_depth
 
-        quaternion = quaternion_from_euler(
-            self.target_roll, self.target_pitch, self.target_heading
-        )
+        if not self.use_align_frame_depth:
+            transformed_depth = self.get_transformed_depth(
+                self.target_frame_id, "odom", self.target_depth
+            )
+            if transformed_depth is None:
+                rospy.logerr_throttle(1.0, "Failed to transform target depth")
+                return
+            cmd_pose_stamped.pose.position.z = transformed_depth
+        else:
+            cmd_pose_stamped.pose.position.z = self.target_depth
+
+        if self.align_frame_keep_orientation:
+            transformed_rpy = self.get_transformed_orientation(
+                self.target_frame_id,
+                "odom",
+                self.target_roll,
+                self.target_pitch,
+                self.target_heading,
+            )
+            if transformed_rpy is None:
+                rospy.logerr_throttle(1.0, "Failed to transform target orientation")
+                return
+            roll, pitch, yaw = transformed_rpy
+        else:
+            roll = self.target_roll
+            pitch = self.target_pitch
+            yaw = self.target_heading
+
+        quaternion = quaternion_from_euler(roll, pitch, yaw)
         cmd_pose_stamped.pose.orientation.x = quaternion[0]
         cmd_pose_stamped.pose.orientation.y = quaternion[1]
         cmd_pose_stamped.pose.orientation.z = quaternion[2]
