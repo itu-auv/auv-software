@@ -1,6 +1,6 @@
 // BSD 3-Clause License
 //
-// Copyright (c) 2021, ITU AUV Team, Sencer Yazici
+// Copyright (c) 2025, ITU AUV Team, Faruk Mimarlar
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are met:
@@ -42,15 +42,12 @@
 
 namespace auv_cam {
 
-/**
- * @brief RTSP IP Camera ROS node with H265 support and reconnection capability
- */
 class RTSPCameraROS {
  private:
   ros::NodeHandle nh_;
   cv::VideoCapture capture_;
   
-  // Camera parameters
+  // Video parameters
   int height_;
   int width_;
   int fps_;
@@ -59,12 +56,6 @@ class RTSPCameraROS {
   // RTSP parameters
   std::string rtsp_url_;
   int latency_;
-  std::string buffer_mode_;
-  bool drop_on_latency_;
-  
-  // Reconnection parameters
-  int reconnect_interval_sec_;
-  int max_consecutive_failures_;
   
   // Image transport
   image_transport::ImageTransport it_;
@@ -72,27 +63,6 @@ class RTSPCameraROS {
   image_transport::CameraPublisher cam_pub_;
   bool pub_camera_info_;
   sensor_msgs::CameraInfo cam_info_;
-  
-  // Connection state
-  bool is_connected_;
-  int consecutive_failures_;
-
-  /**
-   * @brief Build the GStreamer pipeline string for RTSP H265
-   * @return GStreamer pipeline string
-   */
-  std::string buildGStreamerPipeline() const;
-
-  /**
-   * @brief Attempt to open the RTSP stream
-   * @return true if connection successful, false otherwise
-   */
-  bool openStream();
-
-  /**
-   * @brief Close the current stream connection
-   */
-  void closeStream();
 
  public:
   /**
@@ -102,12 +72,7 @@ class RTSPCameraROS {
   RTSPCameraROS(const ros::NodeHandle &nh);
 
   /**
-   * @brief Destructor
-   */
-  ~RTSPCameraROS();
-
-  /**
-   * @brief Start polling frames and publish with reconnection support
+   * @brief Start polling frames and publish
    */
   void start();
 };

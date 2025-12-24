@@ -5,7 +5,7 @@
   <arg name="verbose" default="true" />
   <arg name="pub_camera_info" default="false" />
   <!-- RTSP Parameters -->
-  <arg name="rtsp_url" default="rtsp://192.168.1.65/554" />
+  <arg name="rtsp_url" default="rtsp://192.168.1.65:554/" />
   <arg name="latency" default="0" />
   <arg name="buffer_mode" default="auto" />
   <arg name="drop_on_latency" default="true" />
