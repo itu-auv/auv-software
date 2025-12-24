@@ -168,7 +168,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create PR manifest and push
-        run: |
+        run: |-
           image_tag=${{ needs.build-and-push.outputs.image_tag }}
           docker manifest create \
           $image_tag:pr-${{ github.event.pull_request.number }} \
