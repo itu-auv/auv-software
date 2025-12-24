@@ -46,6 +46,8 @@ ObjectPositionFilter::ObjectPositionFilter(
   // Initialize orientation from the initial transform.
   tf2::fromMsg(initial_transform.transform.rotation, filtered_orientation_);
   filtered_orientation_.normalize();
+
+  ROS_INFO_STREAM("Created new ObjectPositionFilter for frame: " << child_frame_);
 }
 
 void ObjectPositionFilter::predict(const double dt) {
@@ -67,6 +69,16 @@ void ObjectPositionFilter::update(
   meas.at<float>(1) = static_cast<float>(measurement.transform.translation.y);
   meas.at<float>(2) = static_cast<float>(measurement.transform.translation.z);
   kf_.correct(meas);
+
+  // Log velocity to check for drift (Static objects should have near-zero
+  // velocity)
+  const float vx = kf_.statePost.at<float>(3);
+  const float vy = kf_.statePost.at<float>(4);
+  const float vz = kf_.statePost.at<float>(5);
+  const float speed = std::sqrt(vx * vx + vy * vy + vz * vz);
+  ROS_INFO_STREAM_THROTTLE(
+      1.0, "Object [" << child_frame_ << "] velocity: (" << vx << ", " << vy
+                      << ", " << vz << ") | Speed: " << speed);
 
   // Update orientation using slerp.
   tf2::Quaternion meas_q;

@@ -140,7 +140,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     // Create first filter for this object
     filters_[object_frame].push_back(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-    ROS_DEBUG_STREAM("Created new filter for " << object_frame);
+    ROS_INFO_STREAM("Created new filter for " << object_frame);
     return;
   }
 
@@ -193,7 +193,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   if (!filter_updated) {
     filters_[object_frame].push_back(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-    ROS_DEBUG_STREAM("Created new filter for "
+    ROS_INFO_STREAM("Created new filter for "
                      << object_frame << " due to distance threshold.");
   }
 
