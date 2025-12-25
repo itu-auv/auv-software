@@ -248,7 +248,7 @@ class GpsTargetFramePublisher(object):
         # 5) Build and send GPS target frame via service
         ts = self._build_transform(self.child_frame, self.parent_frame, target_pos, q)
         try:
-            send_transform(self, ts)
+            self.send_transform(ts)
             """
             req = SetObjectTransformRequest(transform=ts)
             resp = self._set_object_srv.call(req)
@@ -269,7 +269,7 @@ class GpsTargetFramePublisher(object):
             self.anchor_frame, self.parent_frame, self._anchor_robot_at_start, anchor_q
         )
         try:
-            send_transform(self, anchor_ts)
+            self.send_transform(anchor_ts)
             """
             anchor_req = SetObjectTransformRequest(transform=anchor_ts)
             anchor_resp = self._set_object_srv.call(anchor_req)
@@ -288,7 +288,7 @@ class GpsTargetFramePublisher(object):
 
     # -------------------- Helpers --------------------
     
-    void send_transform(self, transform):
+    def send_transform(self, transform):
         self.object_non_kalman_transform_pub.publish(transform)
     
     @staticmethod
