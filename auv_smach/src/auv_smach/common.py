@@ -182,8 +182,7 @@ class SetDepthState(smach_ros.ServiceState):
 
 class DropBallState(smach_ros.ServiceState):
     def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self,
+        super(DropBallState, self).__init__(
             "ball_dropper/drop",
             Trigger,
             request=TriggerRequest(),
@@ -192,8 +191,7 @@ class DropBallState(smach_ros.ServiceState):
 
 class CancelAlignControllerState(smach_ros.ServiceState):
     def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self,
+        super(CancelAlignControllerState, self).__init__(
             "align_frame/cancel",
             Trigger,
             request=TriggerRequest(),
@@ -231,8 +229,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         if max_angular_velocity is not None:
             align_request.max_angular_velocity = max_angular_velocity
 
-        smach_ros.ServiceState.__init__(
-            self,
+        super(SetAlignControllerTargetState, self).__init__(
             "align_frame/start",
             AlignFrameController,
             request=align_request,
@@ -361,7 +358,8 @@ class RotationState(smach.State):
         rate_hz=10,
         rotation_radian=2 * math.pi,
     ):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        super(RotationState, self).__init__(outcomes=["succeeded", "preempted", "aborted"])
+
         self.odom_topic = "odometry"
         self.cmd_vel_topic = "cmd_vel"
         self.rotation_speed = rotation_speed
@@ -514,7 +512,7 @@ class RotationState(smach.State):
 
 class SetFrameLookingAtState(smach.State):
     def __init__(self, source_frame, look_at_frame, alignment_frame, duration_time=3.0):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        super(SetFrameLookingAtState, self).__init__(outcomes=["succeeded", "preempted", "aborted"])
         self.source_frame = source_frame
         self.look_at_frame = look_at_frame
         self.alignment_frame = alignment_frame
@@ -524,6 +522,10 @@ class SetFrameLookingAtState(smach.State):
         self.rate = rospy.Rate(10)
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
+        )
+
+        self.object_transform_pub = rospy.Publisher(
+            "object_transform_updates", TransformStamped, queue_size=10
         )
 
     def execute(self, userdata):
