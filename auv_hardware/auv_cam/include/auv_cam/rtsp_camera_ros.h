@@ -46,17 +46,17 @@ class RTSPCameraROS {
  private:
   ros::NodeHandle nh_;
   cv::VideoCapture capture_;
-  
+
   // Video parameters
   int height_;
   int width_;
   int fps_;
   bool verbose_;
-  
+
   // RTSP parameters
   std::string rtsp_url_;
   int latency_;
-  
+
   // Image transport
   image_transport::ImageTransport it_;
   image_transport::Publisher image_pub_;
