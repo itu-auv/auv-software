@@ -19,13 +19,17 @@ from auv_msgs.srv import (
 
 from matplotlib import pyplot as plt
 from skimage.morphology import skeletonize
-from scipy.ndimage import convolve
+from scipy.ndimage import distance_transform_edt
+from camera_detection_pose_estimator import CameraCalibration
 
 
 class PipeFollowerDemo:
     def __init__(self):
+        self.count = 0
         self.bridge = CvBridge()
         self.pub_cmd = rospy.Publisher("taluy/cmd_vel", Twist, queue_size=1)
+        self.cam = CameraCalibration("taluy/cameras/cam_bottom")
+        print("aaaa")
         self.sub_mask = rospy.Subscriber(
             "yolo_fake_image", Image, self.cb_mask, queue_size=1, buff_size=2**24
         )
@@ -43,27 +47,31 @@ class PipeFollowerDemo:
         self.pipe_carrot_frame = "pipe_carrot"
 
         pose = Pose()
-        pose.position.x = 2
-        pose.position.y = 2
+        pose.position.x = 0
+        pose.position.y = 0
         pose.position.z = 0
         pose.orientation.x = 1
         pose.orientation.y = 0
         pose.orientation.z = 0
         pose.orientation.w = 0
-        msg = self._build_transform_message(self.pipe_carrot_frame, pose)
+        msg = self._build_transform_message(
+            self.pipe_carrot_frame,
+            pose,
+            frame="taluy/base_link/bottom_camera_optical_link",
+        )
         self._send_transform(msg)
 
         self.align_frame_service = rospy.ServiceProxy(
             "/taluy/control/align_frame/start", AlignFrameController
         )
         try:
-            res = self.align_frame_service(
-                "taluy/base_link", self.pipe_carrot_frame, 0, False, 0, 0
-            )
-            print(res)
+            if True:
+                res = self.align_frame_service(
+                    "taluy/base_link", self.pipe_carrot_frame, 0, False, 0.3, 0.3
+                )
+                print(res)
         except rospy.ServiceException as exc:
             print("Service did not process request: " + str(exc))
-        self.count = 0
 
     def cb_mask(self, msg):
         self.count += 1
@@ -77,6 +85,8 @@ class PipeFollowerDemo:
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+        dist = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
+        widths = dist * 2
 
         skel_bool = skeletonize(binary > 0)
         skel = (skel_bool.astype(np.uint8)) * 255
@@ -97,16 +107,55 @@ class PipeFollowerDemo:
 
         segments = self._merge_into_segments(final_points_list, 50)
         segments = self._filter_segments(segments, 50)
+        segments.sort(
+            key=lambda x: cv2.arcLength(np.array(x), closed=False), reverse=True
+        )
+
+        line_widths = []
+        for line in segments:
+            w = []
+            for x, y in line:
+                w.append(widths[int(y), int(x)])
+            line_widths.append(np.array(w))
+
+        width = max(line_widths[0])
+        distance = self.cam.distance_from_width(0.12, width)
+        print(distance)
 
         for seg in segments:
             for i in range(1, len(seg)):
                 cv2.line(skel_rgb, seg[i - 1], seg[i], (0, 255, 0), 2)
-
         COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
         for seg in segments:
             for i, pt in enumerate(seg):
                 color = COLORS[i % len(COLORS)]
                 cv2.circle(skel_rgb, pt, 4, color, -1)
+
+        SIZE = [640, 480]
+        if len(segments) > 0:
+            target = segments[0][0]
+            fx = self.cam.calibration.K[0]
+            fy = self.cam.calibration.K[4]
+            cx = self.cam.calibration.K[2]
+            cy = self.cam.calibration.K[5]
+            u, v = target[0], target[1]
+
+            rx = (u - cx) * distance / fx
+            ry = (v - cy) * distance / fy
+
+            pose = Pose()
+            pose.position.x = -rx
+            pose.position.y = ry
+            pose.orientation.x = 1
+            pose.orientation.y = 0
+            pose.orientation.z = 0
+            pose.orientation.w = 0
+            msg = self._build_transform_message(
+                self.pipe_carrot_frame,
+                pose,
+                frame="taluy/base_link/bottom_camera_optical_link",
+            )
+            self._send_transform(msg)
 
         img_msg = self.bridge.cv2_to_imgmsg(skel_rgb, encoding="bgr8")
         img_msg.header = msg.header
@@ -224,7 +273,7 @@ class PipeFollowerDemo:
         )
 
     def _build_transform_message(
-        self, child_frame_id: str, pose: Pose
+        self, child_frame_id: str, pose: Pose, frame: str = "odom"
     ) -> TransformStamped:
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
