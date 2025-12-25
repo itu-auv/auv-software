@@ -577,7 +577,7 @@ class TransformServiceNode:
         return transform
 
     def send_transform(self, transform: TransformStamped):
-        self.object_nonkalman_transform_pub.publish(transform)
+        self.object_non_kalman_transform_pub.publish(transform)
         
         """
         request = SetObjectTransformRequest()
