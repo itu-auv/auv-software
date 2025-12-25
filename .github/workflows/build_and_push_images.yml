@@ -1,4 +1,3 @@
----
 name: main docker images
 
 on:
@@ -202,7 +201,7 @@ jobs:
           docker manifest push $image_tag:${{ github.sha }}
 
       - name: Create latest manifest and push
-        run: |
+        run: |-
           image_tag=${{ needs.build-and-push.outputs.image_tag }}
           docker manifest create \
           $image_tag:latest \
