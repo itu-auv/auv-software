@@ -19,17 +19,13 @@ from auv_msgs.srv import (
 
 from matplotlib import pyplot as plt
 from skimage.morphology import skeletonize
-from scipy.ndimage import distance_transform_edt
 from camera_detection_pose_estimator import CameraCalibration
 
 
 class PipeFollowerDemo:
     def __init__(self):
-        self.count = 0
         self.bridge = CvBridge()
-        self.pub_cmd = rospy.Publisher("taluy/cmd_vel", Twist, queue_size=1)
         self.cam = CameraCalibration("taluy/cameras/cam_bottom")
-        print("aaaa")
         self.sub_mask = rospy.Subscriber(
             "yolo_fake_image", Image, self.cb_mask, queue_size=1, buff_size=2**24
         )
@@ -74,9 +70,6 @@ class PipeFollowerDemo:
             print("Service did not process request: " + str(exc))
 
     def cb_mask(self, msg):
-        self.count += 1
-        if self.count % 10 != 0:
-            pass
         try:
             img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except Exception as e:
@@ -102,11 +95,13 @@ class PipeFollowerDemo:
             approx = cv2.approxPolyDP(cnt_format, 0.02 * line_len, closed=False)
 
             pts = approx.reshape(-1, 2)
+            # TODO: this is not working as expected
             aaa = self._filter_close_points(pts, min_dist=30.0)
             final_points_list.append(aaa)
 
         segments = self._merge_into_segments(final_points_list, 50)
         segments = self._filter_segments(segments, 50)
+        # TODO: this is not a great way!!!
         segments.sort(
             key=lambda x: cv2.arcLength(np.array(x), closed=False), reverse=True
         )
@@ -118,22 +113,17 @@ class PipeFollowerDemo:
                 w.append(widths[int(y), int(x)])
             line_widths.append(np.array(w))
 
+        # TODO: this is not a great way to find width, add filter and take avg.
         width = max(line_widths[0])
         distance = self.cam.distance_from_width(0.12, width)
-        print(distance)
 
-        for seg in segments:
-            for i in range(1, len(seg)):
-                cv2.line(skel_rgb, seg[i - 1], seg[i], (0, 255, 0), 2)
-        COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-        for seg in segments:
-            for i, pt in enumerate(seg):
-                color = COLORS[i % len(COLORS)]
-                cv2.circle(skel_rgb, pt, 4, color, -1)
-
-        SIZE = [640, 480]
+        target = None
         if len(segments) > 0:
+            # TODO: hardcoded for now, just to get it working. We need a proper way to find target pixel
             target = segments[0][0]
+            for x in segments[0][1:]:
+                if x[0] < target[0]:
+                    target = x
             fx = self.cam.calibration.K[0]
             fy = self.cam.calibration.K[4]
             cx = self.cam.calibration.K[2]
@@ -144,7 +134,8 @@ class PipeFollowerDemo:
             ry = (v - cy) * distance / fy
 
             pose = Pose()
-            pose.position.x = -rx
+            # TODO: figure out rotations based on `taluy/base_link/bottom_camera_optical_link`
+            pose.position.x = rx
             pose.position.y = ry
             pose.orientation.x = 1
             pose.orientation.y = 0
@@ -157,13 +148,21 @@ class PipeFollowerDemo:
             )
             self._send_transform(msg)
 
+        for seg in segments:
+            for i in range(1, len(seg)):
+                cv2.line(skel_rgb, seg[i - 1], seg[i], (0, 255, 0), 2)
+        COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        for seg in segments:
+            for i, pt in enumerate(seg):
+                color = COLORS[i % len(COLORS)]
+                if pt == target:
+                    # for debugging purposes
+                    color = (255, 255, 255)
+                cv2.circle(skel_rgb, pt, 4, color, -1)
+
         img_msg = self.bridge.cv2_to_imgmsg(skel_rgb, encoding="bgr8")
         img_msg.header = msg.header
         self.pub_debug.publish(img_msg)
-
-        vel_msg = Twist()
-        # vel_msg.linear.x = 0.1
-        self.pub_cmd.publish(vel_msg)
 
     def _filter_close_points(self, points, min_dist=5.0):
         if len(points) <= 2:
@@ -277,7 +276,7 @@ class PipeFollowerDemo:
     ) -> TransformStamped:
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
-        t.header.frame_id = "odom"
+        t.header.frame_id = frame
         t.child_frame_id = child_frame_id
         t.transform.translation = pose.position
         t.transform.rotation = pose.orientation
