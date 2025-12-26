@@ -5,13 +5,16 @@ ArUco Board Pose Estimation Node
 Uses a custom ArUco board for more accurate pose estimation than single markers.
 Dictionary: DICT_6X6_250
 
-Currently configured for TEST BOARD (2 markers).
+Currently configured for TEST BOARD (4 markers).
 Competition board code is commented out below.
 """
 
 import rospy
 import cv2
 import numpy as np
+import os
+import yaml
+import rospkg
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion
 from cv_bridge import CvBridge, CvBridgeError
@@ -19,6 +22,8 @@ import tf2_ros
 import tf2_geometry_msgs
 import tf.transformations
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
+from dynamic_reconfigure.server import Server
+from auv_vision.cfg import ArucoDebugConfig
 
 
 class ArucoBoardEstimator:
@@ -83,6 +88,17 @@ class ArucoBoardEstimator:
     def __init__(self):
         rospy.init_node('aruco_board_estimator', anonymous=True)
         
+        # --- Config file path for parameter persistence ---
+        try:
+            rospack = rospkg.RosPack()
+            pkg_path = rospack.get_path('auv_vision')
+            config_dir = os.path.join(pkg_path, 'config')
+            os.makedirs(config_dir, exist_ok=True)
+            self.config_file = os.path.join(config_dir, 'aruco_debug_params.yaml')
+        except rospkg.common.ResourceNotFound:
+            rospy.logerr("auv_vision package not found. Parameter persistence disabled.")
+            self.config_file = ""
+        
         # --- Parameters ---
         self.camera_ns = rospy.get_param('~camera_ns', 'taluy/cameras/cam_front')
         self.camera_frame = rospy.get_param(
@@ -109,31 +125,38 @@ class ArucoBoardEstimator:
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
         self.detector_params = cv2.aruco.DetectorParameters()
         
-        # Corner refinement (SUBPIX for pool environment)
+        # Corner refinement method (SUBPIX for pool environment)
         self.detector_params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
-        self.detector_params.cornerRefinementWinSize = 7
-        self.detector_params.cornerRefinementMaxIterations = 30
-        self.detector_params.cornerRefinementMinAccuracy = 0.05
-        
-        # Adaptive thresholding parameters (optimized for pool)
-        self.detector_params.adaptiveThreshWinSizeMin = 7
-        self.detector_params.adaptiveThreshWinSizeMax = 75
-        self.detector_params.adaptiveThreshWinSizeStep = 8
-        self.detector_params.adaptiveThreshConstant = 5
-        
-        # Marker detection parameters
-        self.detector_params.minMarkerPerimeterRate = 0.02
-        self.detector_params.maxMarkerPerimeterRate = 4.0
-        self.detector_params.polygonalApproxAccuracyRate = 0.05
-        self.detector_params.errorCorrectionRate = 0.6
         
         # Create refine parameters (must be passed to ArucoDetector in OpenCV 4.12+)
-        refine_params = cv2.aruco.RefineParameters()
+        self.refine_params = cv2.aruco.RefineParameters()
         
         # Create ArucoDetector for marker detection (with RefineParameters as 3rd arg)
         self.aruco_detector = cv2.aruco.ArucoDetector(
-            self.aruco_dict, self.detector_params, refine_params
+            self.aruco_dict, self.detector_params, self.refine_params
         )
+        
+        # --- Dynamic Reconfigure Parameters (will be set by reconfigure callback) ---
+        # Initialize with defaults - actual values come from reconfigure callback
+        # which loads from parameter server (populated with saved YAML values above)
+        self.clahe_clip_limit = 2.0
+        self.clahe_tile_size = 8
+        self.blur_strength = 3
+        self.adaptive_thresh_win_size_min = 7
+        self.adaptive_thresh_win_size_max = 75
+        self.adaptive_thresh_win_size_step = 8
+        self.adaptive_thresh_constant = 5.0
+        self.min_marker_perimeter_rate = 0.02
+        self.max_marker_perimeter_rate = 4.0
+        self.polygonal_approx_accuracy_rate = 0.05
+        self.error_correction_rate = 0.6
+        self.corner_refinement_win_size = 7
+        self.corner_refinement_max_iterations = 30
+        self.corner_refinement_min_accuracy = 0.05
+        self.reproj_rms_threshold = 3.0
+        
+        # Apply initial detector parameters
+        self._apply_detector_params()
         
         # Create the marker object points dictionary
         self.marker_obj_points = self._create_test_board_points()
@@ -166,15 +189,140 @@ class ArucoBoardEstimator:
         self.pose_pub = rospy.Publisher('~detected_pose', PoseStamped, queue_size=10)
         self.debug_pub = rospy.Publisher('~debug_image', Image, queue_size=1)
         self.debug_processed_pub = rospy.Publisher('~debug_image_processed', Image, queue_size=1)
+        self.debug_threshold_pub = rospy.Publisher('~debug_image_threshold', Image, queue_size=1)
         
         # Image subscriber
         image_topic = f'/{self.camera_ns}/image_raw'
         rospy.loginfo(f"Subscribing to: {image_topic}")
         self.img_sub = rospy.Subscriber(image_topic, Image, self.image_cb)
         
+        # Load saved parameters onto the ROS parameter server BEFORE creating
+        # the dynamic reconfigure server, so it uses our saved values
+        saved_params = self._load_saved_parameters()
+        for param_name, value in saved_params.items():
+            rospy.set_param(f'~{param_name}', value)
+        
+        # Dynamic reconfigure server (must be after setting params on server)
+        self.dyn_reconf_server = Server(ArucoDebugConfig, self._reconfigure_callback)
+        
         rospy.loginfo("ArUco Board Estimator started!")
         rospy.loginfo(f"Board: {self.BOARD_WIDTH*100:.1f}x{self.BOARD_HEIGHT*100:.1f}cm, "
                      f"Markers: {self.MARKER_SIZE*100:.0f}cm, IDs: {self.MARKER_IDS}")
+    
+    def _load_saved_parameters(self):
+        """Load parameters from the saved YAML file, return empty dict if not found."""
+        if not self.config_file or not os.path.exists(self.config_file):
+            rospy.loginfo("No saved parameters found, using defaults.")
+            return {}
+        
+        try:
+            with open(self.config_file, 'r') as f:
+                params = yaml.safe_load(f) or {}
+            rospy.loginfo(f"Loaded saved parameters from: {self.config_file}")
+            return params
+        except Exception as e:
+            rospy.logwarn(f"Failed to load saved parameters: {e}")
+            return {}
+    
+    def _save_parameters(self):
+        """Save current parameters to the YAML file."""
+        if not self.config_file:
+            return
+        
+        params = {
+            # Preprocessing
+            'clahe_clip_limit': self.clahe_clip_limit,
+            'clahe_tile_size': self.clahe_tile_size,
+            'blur_strength': self.blur_strength,
+            # Adaptive thresholding
+            'adaptive_thresh_win_size_min': self.adaptive_thresh_win_size_min,
+            'adaptive_thresh_win_size_max': self.adaptive_thresh_win_size_max,
+            'adaptive_thresh_win_size_step': self.adaptive_thresh_win_size_step,
+            'adaptive_thresh_constant': self.adaptive_thresh_constant,
+            # Marker detection
+            'min_marker_perimeter_rate': self.min_marker_perimeter_rate,
+            'max_marker_perimeter_rate': self.max_marker_perimeter_rate,
+            'polygonal_approx_accuracy_rate': self.polygonal_approx_accuracy_rate,
+            'error_correction_rate': self.error_correction_rate,
+            # Corner refinement
+            'corner_refinement_win_size': self.corner_refinement_win_size,
+            'corner_refinement_max_iterations': self.corner_refinement_max_iterations,
+            'corner_refinement_min_accuracy': self.corner_refinement_min_accuracy,
+            # PnP quality
+            'reproj_rms_threshold': self.reproj_rms_threshold,
+        }
+        
+        try:
+            with open(self.config_file, 'w') as f:
+                yaml.dump(params, f, default_flow_style=False)
+            rospy.logdebug(f"Parameters saved to: {self.config_file}")
+        except IOError as e:
+            rospy.logerr(f"Failed to save parameters: {e}")
+    
+    def _apply_detector_params(self):
+        """Apply current parameter values to the ArUco detector."""
+        # Corner refinement
+        self.detector_params.cornerRefinementWinSize = self.corner_refinement_win_size
+        self.detector_params.cornerRefinementMaxIterations = self.corner_refinement_max_iterations
+        self.detector_params.cornerRefinementMinAccuracy = self.corner_refinement_min_accuracy
+        
+        # Adaptive thresholding
+        self.detector_params.adaptiveThreshWinSizeMin = self.adaptive_thresh_win_size_min
+        self.detector_params.adaptiveThreshWinSizeMax = self.adaptive_thresh_win_size_max
+        self.detector_params.adaptiveThreshWinSizeStep = self.adaptive_thresh_win_size_step
+        self.detector_params.adaptiveThreshConstant = self.adaptive_thresh_constant
+        
+        # Marker detection
+        self.detector_params.minMarkerPerimeterRate = self.min_marker_perimeter_rate
+        self.detector_params.maxMarkerPerimeterRate = self.max_marker_perimeter_rate
+        self.detector_params.polygonalApproxAccuracyRate = self.polygonal_approx_accuracy_rate
+        self.detector_params.errorCorrectionRate = self.error_correction_rate
+        
+        # Recreate the detector with updated parameters
+        self.aruco_detector = cv2.aruco.ArucoDetector(
+            self.aruco_dict, self.detector_params, self.refine_params
+        )
+    
+    def _reconfigure_callback(self, config, level):
+        """Dynamic reconfigure callback - updates parameters at runtime."""
+        rospy.loginfo("Reconfigure request received")
+        
+        # Preprocessing
+        self.clahe_clip_limit = config.clahe_clip_limit
+        self.clahe_tile_size = config.clahe_tile_size
+        self.blur_strength = config.blur_strength
+        # Ensure blur strength is odd
+        if self.blur_strength % 2 == 0:
+            self.blur_strength += 1
+            config.blur_strength = self.blur_strength
+        
+        # Adaptive thresholding
+        self.adaptive_thresh_win_size_min = config.adaptive_thresh_win_size_min
+        self.adaptive_thresh_win_size_max = config.adaptive_thresh_win_size_max
+        self.adaptive_thresh_win_size_step = config.adaptive_thresh_win_size_step
+        self.adaptive_thresh_constant = config.adaptive_thresh_constant
+        
+        # Marker detection
+        self.min_marker_perimeter_rate = config.min_marker_perimeter_rate
+        self.max_marker_perimeter_rate = config.max_marker_perimeter_rate
+        self.polygonal_approx_accuracy_rate = config.polygonal_approx_accuracy_rate
+        self.error_correction_rate = config.error_correction_rate
+        
+        # Corner refinement
+        self.corner_refinement_win_size = config.corner_refinement_win_size
+        self.corner_refinement_max_iterations = config.corner_refinement_max_iterations
+        self.corner_refinement_min_accuracy = config.corner_refinement_min_accuracy
+        
+        # PnP quality
+        self.reproj_rms_threshold = config.reproj_rms_threshold
+        
+        # Apply detector parameters
+        self._apply_detector_params()
+        
+        # Save parameters to YAML for persistence
+        self._save_parameters()
+        
+        return config
     
     def _create_test_board_points(self):
         """
@@ -202,9 +350,8 @@ class ArucoBoardEstimator:
         }
         
         # Build objPoints dict: marker ID -> 4 corner 3D coordinates
-        # TESTING: Rotated corner order by 180° (if markers are printed upside-down)
-        # Original order assumed: TL, TR, BR, BL
-        # New order: BR, BL, TL, TR (OpenCV's corner 0 maps to physical BR)
+        # Corner order rotated by 180° for upside-down printed markers
+        # OpenCV's corner 0 maps to physical BR, corner 2 to physical TL
         marker_obj_points = {}
         for marker_id in self.MARKER_IDS:
             x, y = marker_positions[marker_id]
@@ -287,11 +434,23 @@ class ArucoBoardEstimator:
         # Underwater image enhancement: RGB -> LAB -> L channel -> CLAHE
         lab = cv2.cvtColor(cv_image, cv2.COLOR_BGR2LAB)
         l_channel = lab[:, :, 0]  # L channel (Lightness)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        tile_size = (self.clahe_tile_size, self.clahe_tile_size)
+        clahe = cv2.createCLAHE(clipLimit=self.clahe_clip_limit, tileGridSize=tile_size)
         gray = clahe.apply(l_channel)
         
-        # Apply median blur to reduce noise (k=3 for pool environment)
-        gray = cv2.medianBlur(gray, 3)
+        # Apply median blur to reduce noise
+        gray = cv2.medianBlur(gray, self.blur_strength)
+        
+        # Apply adaptive thresholding for debug visualization
+        # Uses the middle window size from the detector parameter range
+        thresh_win_size = (self.adaptive_thresh_win_size_min + self.adaptive_thresh_win_size_max) // 2
+        # Ensure window size is odd
+        if thresh_win_size % 2 == 0:
+            thresh_win_size += 1
+        thresh_img = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY,
+            thresh_win_size, int(self.adaptive_thresh_constant)
+        )
         
         # Detect markers using ArucoDetector (OpenCV 4.7+ API)
         corners, ids, rejected = self.aruco_detector.detectMarkers(gray)
@@ -299,7 +458,7 @@ class ArucoBoardEstimator:
         # Board-aware refinement: uses known board geometry to recover/clean detections
         # This can recover partially detected markers and improve corner accuracy
         # Note: RefineParameters are passed to ArucoDetector constructor in OpenCV 4.12+
-        corners, ids, rejected, recovered_idx = self.aruco_detector.refineDetectedMarkers(
+        corners, ids, rejected, _ = self.aruco_detector.refineDetectedMarkers(
             gray, self.board, corners, ids, rejected,
             self.camera_matrix, self.dist_coeffs
         )
@@ -336,8 +495,22 @@ class ArucoBoardEstimator:
                     flags=cv2.SOLVEPNP_AP3P
                 )
                 
-                # Refine pose with Levenberg-Marquardt optimization (using inliers only)
-                if success and rvec is not None and tvec is not None and inliers is not None:
+                # Check if RANSAC succeeded with valid inliers
+                if not success or rvec is None or tvec is None or inliers is None or len(inliers) == 0:
+                    rospy.logwarn_throttle(1.0, "solvePnPRansac failed or returned no inliers, skipping pose")
+                    # Draw status text and continue without publishing
+                    cv2.putText(
+                        debug_img,
+                        f"RANSAC failed ({len(matched_ids)} markers)",
+                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
+                    )
+                    cv2.putText(
+                        debug_gray,
+                        f"RANSAC failed ({len(matched_ids)} markers)",
+                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
+                    )
+                else:
+                    # Refine pose with Levenberg-Marquardt optimization (using inliers only)
                     inlier_indices = inliers.flatten()
                     inlier_obj_points = obj_points[inlier_indices]
                     inlier_img_points = img_points[inlier_indices]
@@ -347,15 +520,13 @@ class ArucoBoardEstimator:
                         rvec, tvec
                     )
                 
-                # --- Reprojection RMS filtering ---
-                # Project 3D inlier points back to 2D and compute per-corner error
-                REPROJ_RMS_THRESHOLD = 3.0  # pixels - corners with error above this are filtered out
-                
-                inlier_set = set(inliers.flatten()) if inliers is not None else set()
-                ransac_outlier_set = set(range(len(img_points))) - inlier_set
-                reproj_filtered_set = set()  # corners filtered by reprojection RMS
-                
-                if success and len(inlier_set) > 0:
+                    # --- Reprojection RMS filtering ---
+                    # Project 3D inlier points back to 2D and compute per-corner error
+                    
+                    inlier_set = set(inlier_indices)
+                    ransac_outlier_set = set(range(len(img_points))) - inlier_set
+                    reproj_filtered_set = set()  # corners filtered by reprojection RMS
+                    
                     # Project inlier object points back to 2D
                     projected_pts, _ = cv2.projectPoints(
                         inlier_obj_points, rvec, tvec,
@@ -367,7 +538,7 @@ class ArucoBoardEstimator:
                     reproj_errors = np.linalg.norm(inlier_img_points - projected_pts, axis=1)
                     
                     # Find corners with high reprojection error
-                    good_reproj_mask = reproj_errors < REPROJ_RMS_THRESHOLD
+                    good_reproj_mask = reproj_errors < self.reproj_rms_threshold
                     bad_reproj_mask = ~good_reproj_mask
                     
                     # Map back to original indices
@@ -376,116 +547,142 @@ class ArucoBoardEstimator:
                         if is_bad:
                             reproj_filtered_set.add(inlier_indices_list[local_idx])
                     
-                    # If any corners were filtered, re-estimate pose with remaining good corners
-                    if np.any(bad_reproj_mask) and np.sum(good_reproj_mask) >= 4:
-                        good_obj_points = inlier_obj_points[good_reproj_mask]
-                        good_img_points = inlier_img_points[good_reproj_mask]
-                        
-                        # Re-estimate pose with filtered corners
-                        success, rvec, tvec = cv2.solvePnP(
-                            good_obj_points, good_img_points,
-                            self.camera_matrix, self.dist_coeffs,
-                            rvec, tvec, useExtrinsicGuess=True,
-                            flags=cv2.SOLVEPNP_ITERATIVE
+                    # Count good corners after all filtering
+                    num_good_corners = np.sum(good_reproj_mask)
+                    
+                    # If no good corners remain, skip this frame
+                    if num_good_corners == 0:
+                        rospy.logwarn_throttle(1.0, "No corners passed reprojection filter, skipping pose")
+                        cv2.putText(
+                            debug_img,
+                            f"All corners filtered ({len(matched_ids)} markers)",
+                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
                         )
-                        
-                        # Final refinement with good corners only
-                        if success:
-                            rvec, tvec = cv2.solvePnPRefineLM(
+                        cv2.putText(
+                            debug_gray,
+                            f"All corners filtered ({len(matched_ids)} markers)",
+                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
+                        )
+                    else:
+                        # If any corners were filtered, re-estimate pose with remaining good corners
+                        if np.any(bad_reproj_mask) and num_good_corners >= 4:
+                            good_obj_points = inlier_obj_points[good_reproj_mask]
+                            good_img_points = inlier_img_points[good_reproj_mask]
+                            
+                            # Re-estimate pose with filtered corners
+                            success, rvec, tvec = cv2.solvePnP(
                                 good_obj_points, good_img_points,
                                 self.camera_matrix, self.dist_coeffs,
-                                rvec, tvec
+                                rvec, tvec, useExtrinsicGuess=True,
+                                flags=cv2.SOLVEPNP_ITERATIVE
                             )
-                    
-                    # Compute final reprojection RMS for display
-                    final_obj_pts = inlier_obj_points[good_reproj_mask] if np.any(bad_reproj_mask) else inlier_obj_points
-                    final_img_pts = inlier_img_points[good_reproj_mask] if np.any(bad_reproj_mask) else inlier_img_points
-                    
-                    # Edge case: all inliers failed the stricter reprojection check
-                    if len(final_obj_pts) == 0:
-                        reproj_rms = float('inf')  # Signal poor quality
-                    else:
+                            
+                            # Final refinement with good corners only
+                            if success:
+                                rvec, tvec = cv2.solvePnPRefineLM(
+                                    good_obj_points, good_img_points,
+                                    self.camera_matrix, self.dist_coeffs,
+                                    rvec, tvec
+                                )
+                        
+                        # Compute final reprojection RMS for display
+                        # Use filtered points ONLY if we actually re-estimated with them
+                        did_reestimate = np.any(bad_reproj_mask) and num_good_corners >= 4
+                        if did_reestimate:
+                            final_obj_pts = inlier_obj_points[good_reproj_mask]
+                            final_img_pts = inlier_img_points[good_reproj_mask]
+                        else:
+                            final_obj_pts = inlier_obj_points
+                            final_img_pts = inlier_img_points
+                        
                         final_projected, _ = cv2.projectPoints(
                             final_obj_pts, rvec, tvec, self.camera_matrix, self.dist_coeffs
                         )
                         final_reproj_errors = np.linalg.norm(final_img_pts - final_projected.reshape(-1, 2), axis=1)
                         reproj_rms = np.sqrt(np.mean(final_reproj_errors**2))
-                else:
-                    reproj_rms = 0.0
-                
-                # Visualize corner states:
-                # - Green filled circle: Good inlier (passed RANSAC and reprojection check)
-                # - Orange X: Filtered by reprojection RMS
-                # - Red hollow circle: RANSAC outlier
-                num_good_corners = len(inlier_set) - len(reproj_filtered_set)
-                for idx, pt in enumerate(img_points):
-                    pt_int = tuple(pt.astype(int))
-                    if idx in reproj_filtered_set:
-                        # Filtered by reprojection RMS: orange X mark
-                        cv2.drawMarker(debug_img, pt_int, (0, 165, 255), cv2.MARKER_CROSS, 10, 2)
-                        cv2.drawMarker(debug_gray, pt_int, (0, 165, 255), cv2.MARKER_CROSS, 10, 2)
-                    elif idx in inlier_set:
-                        # Good inlier: green filled circle
-                        cv2.circle(debug_img, pt_int, 4, (0, 255, 0), -1)
-                        cv2.circle(debug_gray, pt_int, 4, (0, 255, 0), -1)
-                    else:
-                        # RANSAC outlier: red hollow circle
-                        cv2.circle(debug_img, pt_int, 5, (0, 0, 255), 2)
-                        cv2.circle(debug_gray, pt_int, 5, (0, 0, 255), 2)
-                
-                if success:
-                    # Draw board coordinate frame on both debug images
-                    cv2.drawFrameAxes(
-                        debug_img, self.camera_matrix, self.dist_coeffs,
-                        rvec, tvec, 0.15  # 15cm axis length
-                    )
-                    cv2.drawFrameAxes(
-                        debug_gray, self.camera_matrix, self.dist_coeffs,
-                        rvec, tvec, 0.15  # 15cm axis length
-                    )
-                    
-                    # Publish transform
-                    self.publish_board_transform(rvec, tvec, msg.header)
-                    
-                    # Display info on both debug images
-                    dist = np.linalg.norm(tvec)
-                    info_text = f"BOARD DETECTED ({len(matched_ids)} markers, {num_good_corners}/{len(img_points)} corners) Dist: {dist:.2f}m RMS: {reproj_rms:.2f}px"
-                    cv2.putText(
-                        debug_img, 
-                        info_text,
-                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
-                    )
-                    cv2.putText(
-                        debug_gray, 
-                        info_text,
-                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
-                    )
-                    
-                    # Show which marker IDs were detected
-                    cv2.putText(
-                        debug_img,
-                        f"IDs: {sorted(matched_ids)}",
-                        (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
-                    )
-                    cv2.putText(
-                        debug_gray,
-                        f"IDs: {sorted(matched_ids)}",
-                        (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
-                    )
-                else:
-                    cv2.putText(
-                        debug_img,
-                        f"Board markers found but pose failed",
-                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2
-                    )
-                    cv2.putText(
-                        debug_gray,
-                        f"Board markers found but pose failed",
-                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2
-                    )
+                        
+                        # Pass 0: Cover corner 0 indicator with black circles
+                        for idx, pt in enumerate(img_points):
+                            pt_int = tuple(pt.astype(int))
+                            cv2.circle(debug_img, pt_int, 6, (0, 0, 0), -1)
+                            cv2.circle(debug_gray, pt_int, 6, (0, 0, 0), -1)
+                        
+                        # Pass 1: Good inliers (green filled circles)
+                        for idx, pt in enumerate(img_points):
+                            if idx in inlier_set and idx not in reproj_filtered_set:
+                                pt_int = tuple(pt.astype(int))
+                                cv2.circle(debug_img, pt_int, 4, (0, 255, 0), -1)
+                                cv2.circle(debug_gray, pt_int, 4, (0, 255, 0), -1)
+                        
+                        # Pass 2: Reprojection filtered (orange X marks)
+                        for idx, pt in enumerate(img_points):
+                            if idx in reproj_filtered_set:
+                                pt_int = tuple(pt.astype(int))
+                                cv2.drawMarker(debug_img, pt_int, (0, 165, 255), cv2.MARKER_CROSS, 10, 2)
+                                cv2.drawMarker(debug_gray, pt_int, (0, 165, 255), cv2.MARKER_CROSS, 10, 2)
+                        
+                        # Pass 3: RANSAC outliers (red hollow circles) - drawn last so always visible
+                        for idx, pt in enumerate(img_points):
+                            if idx not in inlier_set:
+                                pt_int = tuple(pt.astype(int))
+                                cv2.circle(debug_img, pt_int, 5, (0, 0, 255), 2)
+                                cv2.circle(debug_gray, pt_int, 5, (0, 0, 255), 2)
+                        
+                        if success:
+                            # Draw board coordinate frame on both debug images
+                            cv2.drawFrameAxes(
+                                debug_img, self.camera_matrix, self.dist_coeffs,
+                                rvec, tvec, 0.15  # 15cm axis length
+                            )
+                            cv2.drawFrameAxes(
+                                debug_gray, self.camera_matrix, self.dist_coeffs,
+                                rvec, tvec, 0.15  # 15cm axis length
+                            )
+                            
+                            # Publish transform
+                            self.publish_board_transform(rvec, tvec, msg.header)
+                            
+                            # Display info on both debug images
+                            dist = np.linalg.norm(tvec)
+                            # Show actual corners used for pose (all inliers if not re-estimated, filtered if re-estimated)
+                            corners_used = num_good_corners if did_reestimate else len(inlier_indices)
+                            info_text = f"BOARD DETECTED ({len(matched_ids)} markers, {corners_used}/{len(img_points)} corners) Dist: {dist:.2f}m RMS: {reproj_rms:.2f}px"
+                            cv2.putText(
+                                debug_img, 
+                                info_text,
+                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+                            )
+                            cv2.putText(
+                                debug_gray, 
+                                info_text,
+                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+                            )
+                            
+                            # Show which marker IDs were detected
+                            cv2.putText(
+                                debug_img,
+                                f"IDs: {sorted(matched_ids)}",
+                                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
+                            )
+                            cv2.putText(
+                                debug_gray,
+                                f"IDs: {sorted(matched_ids)}",
+                                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
+                            )
+                        else:
+                            cv2.putText(
+                                debug_img,
+                                f"Board markers found but pose failed",
+                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2
+                            )
+                            cv2.putText(
+                                debug_gray,
+                                f"Board markers found but pose failed",
+                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2
+                            )
             else:
                 # Detected markers but none are part of our board
-                detected_ids = sorted([id for id in ids.flatten()])
+                detected_ids = sorted(ids.flatten().tolist())
                 cv2.putText(
                     debug_img,
                     f"Unknown markers: {detected_ids}",
@@ -509,6 +706,7 @@ class ArucoBoardEstimator:
         # Publish debug images
         self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug_img, "bgr8"))
         self.debug_processed_pub.publish(self.bridge.cv2_to_imgmsg(debug_gray, "bgr8"))
+        self.debug_threshold_pub.publish(self.bridge.cv2_to_imgmsg(thresh_img, "mono8"))
     
     def publish_board_transform(self, rvec, tvec, header):
         """
@@ -559,7 +757,7 @@ class ArucoBoardEstimator:
             odom_transform.header = transformed_pose.header
             odom_transform.child_frame_id = "docking_station"
             odom_transform.transform.translation = transformed_pose.pose.position
-            odom_transform.transform.rotation = transform_stamped.transform.rotation
+            odom_transform.transform.rotation = transformed_pose.pose.orientation
             
             self.object_transform_pub.publish(odom_transform)
             
