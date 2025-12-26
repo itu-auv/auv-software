@@ -12,6 +12,11 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   sensor_msgs
   tf
+  dynamic_reconfigure
+)
+
+generate_dynamic_reconfigure_options(
+  cfg/ArucoDebug.cfg
 )
 
 catkin_package(
