@@ -524,10 +524,6 @@ class SetFrameLookingAtState(smach.State):
             "set_object_transform", SetObjectTransform
         )
 
-        self.object_transform_pub = rospy.Publisher(
-            "object_transform_updates", TransformStamped, queue_size=10
-        )
-
     def execute(self, userdata):
         start_time = rospy.Time.now()
         end_time = start_time + rospy.Duration(self.duration_time)
