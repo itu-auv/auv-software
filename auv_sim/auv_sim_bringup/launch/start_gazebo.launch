@@ -23,6 +23,7 @@
     <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
     <arg name="use_models" default="false" />
+    <arg name="use_probabilistic_tracker" default="false" />
 
     <!-- Run Taluy GUI -->
     <group if="$(arg use_taluy_gui)">
@@ -89,6 +90,7 @@
             <arg name="control_rate" value="$(arg control_rate)" />
             <arg name="sim" value="$(arg sim)" />
             <arg name="use_gui" value="$(arg use_gui)" />
+            <arg name="use_probabilistic_tracker" value="$(arg use_probabilistic_tracker)" />
         </include>
     </group>
 
