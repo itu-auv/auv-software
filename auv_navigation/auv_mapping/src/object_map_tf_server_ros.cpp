@@ -259,29 +259,6 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
   const auto target_frame = msg->child_frame_id;
 
-  // Ben daha önce flters_ içinde olan nesneyi silmek ve onun yerine yenisini
-  // eklemek istiyorum. Ama bunu yaparken eğer işlem aynı anda olursa
-  // segmentation fault hatası alıyorum. Bu yüzden mutex kullanıyorum.
-  // scoped_lock ile mutex kilitleniyor ve köşeli parantezden çıkınca otomatik
-  // açılıyor eğer sadece lock kullanırsak bu esnada bir hata olması durumunda
-  // sistem sonsuza kadar kilitli kalabilir
-  {
-    auto lock = std::scoped_lock{mutex_};
-    auto it = filters_.find(target_frame);
-    if (it != filters_.end()) {
-      filters_[target_frame].clear();
-    }
-
-    filters_[target_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-  }
-
-  ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
-                                                   << target_frame);
-  // res.success = true;
-  // res.message = "Stored transform for frame: " + target_frame;
-  // return true;
-  */
 }
 
 void ObjectMapTFServerROS::update_filter_frame_index(
