@@ -304,7 +304,6 @@ class TorpedoTaskState(smach.State):
                     timeout=30.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.1,
-                    max_angular_velocity=0.1,
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_MAP_LOOKUP",
