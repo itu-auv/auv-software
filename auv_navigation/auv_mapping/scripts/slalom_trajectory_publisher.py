@@ -79,10 +79,10 @@ class SlalomTrajectoryPublisher(object):
             "set_object_transform", SetObjectTransform
         )
         self.set_object_transform_service.wait_for_service()
-        
+
         self.object_non_kalman_transform_pub = rospy.Publisher(
             "object_transform_non_kalman_create", TransformStamped, queue_size=10
-        ) 
+        )
 
         self.active = False
         self.q_orientation = None

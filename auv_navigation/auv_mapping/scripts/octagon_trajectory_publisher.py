@@ -23,7 +23,7 @@ class OctagonTransformServiceNode:
 
         self.object_non_kalman_transform_pub = rospy.Publisher(
             "object_transform_non_kalman_create", TransformStamped, queue_size=10
-        ) 
+        )
 
         self.odom_frame = "odom"
         self.robot_frame = "taluy/base_link"

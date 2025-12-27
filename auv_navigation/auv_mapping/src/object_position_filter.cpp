@@ -6,7 +6,8 @@ namespace auv_mapping {
 
 ObjectPositionFilter::ObjectPositionFilter(
     const geometry_msgs::TransformStamped &initial_transform, const double dt)
-    : kf_(6, 3, 0), // kalman filtresi 6 tane değeri takip edecek, 3 tane ölçüm alacak, dışan etki yok
+    : kf_(6, 3, 0),  // kalman filtresi 6 tane değeri takip edecek, 3 tane ölçüm
+                     // alacak, dışan etki yok
       static_frame_(initial_transform.header.frame_id),
       child_frame_(initial_transform.child_frame_id) {
   // Initialize state vector: [x, y, z, vx, vy, vz]
@@ -22,7 +23,8 @@ ObjectPositionFilter::ObjectPositionFilter(
   kf_.statePost = kf_.statePre.clone();
   // statePre tahmini değerler
   // statePost onaylanmış değerler, son karar
-  // bu ayar yapılmazsa eskiden kalan değerler kullanılabilir, bu da hataya sebep olur
+  // bu ayar yapılmazsa eskiden kalan değerler kullanılabilir, bu da hataya
+  // sebep olur
 
   // Set up constant velocity model: F = [ I  dt*I; 0  I ]
   kf_.transitionMatrix =
@@ -30,22 +32,26 @@ ObjectPositionFilter::ObjectPositionFilter(
        0, 0, dt, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1);
 
   // Measurement matrix: H = [ I 0 ]
-  kf_.measurementMatrix = cv::Mat::zeros(3, 6, CV_32F); // 3 sütün 6 satır 0 matris
-  kf_.measurementMatrix.at<float>(0, 0) = 1.0f; // x
-  kf_.measurementMatrix.at<float>(1, 1) = 1.0f; // y
-  kf_.measurementMatrix.at<float>(2, 2) = 1.0f; // z
+  kf_.measurementMatrix =
+      cv::Mat::zeros(3, 6, CV_32F);              // 3 sütün 6 satır 0 matris
+  kf_.measurementMatrix.at<float>(0, 0) = 1.0f;  // x
+  kf_.measurementMatrix.at<float>(1, 1) = 1.0f;  // y
+  kf_.measurementMatrix.at<float>(2, 2) = 1.0f;  // z
   // hızlar sıfır
 
   // Process noise covariance Q
-  const float q = 1e-4f; // kendi modelimize karşı olan güvenimiz yüksek, gürültü küçük 0.0001 
+  const float q = 1e-4f;  // kendi modelimize karşı olan güvenimiz yüksek,
+                          // gürültü küçük 0.0001
   kf_.processNoiseCov = cv::Mat::eye(6, 6, CV_32F) * q;
 
   // Measurement noise covariance R
-  const float r = 1e-2f; // sensör ölçümlerine karşı güvenimiz daha az, gürültü daha büyük 0.01
+  const float r = 1e-2f;  // sensör ölçümlerine karşı güvenimiz daha az, gürültü
+                          // daha büyük 0.01
   kf_.measurementNoiseCov = cv::Mat::eye(3, 3, CV_32F) * r;
 
   // Initial error covariance
-  kf_.errorCovPost = cv::Mat::eye(6, 6, CV_32F); // başlangıçta hata kovaryansı birim matrisi
+  kf_.errorCovPost =
+      cv::Mat::eye(6, 6, CV_32F);  // başlangıçta hata kovaryansı birim matrisi
 
   // Initialize orientation from the initial transform.
   tf2::fromMsg(initial_transform.transform.rotation, filtered_orientation_);

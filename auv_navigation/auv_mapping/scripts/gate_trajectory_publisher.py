@@ -60,8 +60,8 @@ class TransformServiceNode:
 
         self.object_non_kalman_transform_pub = rospy.Publisher(
             "object_transform_non_kalman_create", TransformStamped, queue_size=10
-        ) 
-        
+        )
+
         self.gate_angle_publisher = rospy.Publisher(
             "gate_angle", Float64, queue_size=10
         )
@@ -578,7 +578,7 @@ class TransformServiceNode:
 
     def send_transform(self, transform: TransformStamped):
         self.object_non_kalman_transform_pub.publish(transform)
-        
+
         """
         request = SetObjectTransformRequest()
         request.transform = transform

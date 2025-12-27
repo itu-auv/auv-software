@@ -358,7 +358,9 @@ class RotationState(smach.State):
         rate_hz=10,
         rotation_radian=2 * math.pi,
     ):
-        super(RotationState, self).__init__(outcomes=["succeeded", "preempted", "aborted"])
+        super(RotationState, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
 
         self.odom_topic = "odometry"
         self.cmd_vel_topic = "cmd_vel"
@@ -512,7 +514,9 @@ class RotationState(smach.State):
 
 class SetFrameLookingAtState(smach.State):
     def __init__(self, source_frame, look_at_frame, alignment_frame, duration_time=3.0):
-        super(SetFrameLookingAtState, self).__init__(outcomes=["succeeded", "preempted", "aborted"])
+        super(SetFrameLookingAtState, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
         self.source_frame = source_frame
         self.look_at_frame = look_at_frame
         self.alignment_frame = alignment_frame

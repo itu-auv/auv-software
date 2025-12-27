@@ -21,8 +21,10 @@ namespace auv_mapping {
 class ObjectMapTFServerROS {
   using FilterMap =
       std::unordered_map<std::string, std::vector<ObjectPositionFilter::Ptr>>;
-  
-  using NonKalmanFilterMap = std::unordered_map<std::string, std::vector<geometry_msgs::TransformStamped>>;
+
+  using NonKalmanFilterMap =
+      std::unordered_map<std::string,
+                         std::vector<geometry_msgs::TransformStamped>>;
 
  public:
   ObjectMapTFServerROS(const ros::NodeHandle &nh);

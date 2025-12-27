@@ -61,10 +61,10 @@ class GpsTargetFramePublisher(object):
         rospy.loginfo("Waiting for 'set_object_transform' service")
         self._set_object_srv.wait_for_service()
         rospy.loginfo("Connected to 'set_object_transform'.")
-        
+
         self.object_non_kalman_transform_pub = rospy.Publisher(
             "object_transform_non_kalman_create", TransformStamped, queue_size=10
-        ) 
+        )
 
         self._active = False
         self._anchor_robot_at_start = None  # latched robot pose in odom at activation
@@ -287,10 +287,10 @@ class GpsTargetFramePublisher(object):
             )
 
     # -------------------- Helpers --------------------
-    
-    void send_transform(self, transform):
+
+    def send_transform(self, transform):
         self.object_non_kalman_transform_pub.publish(transform)
-    
+
     @staticmethod
     def _build_transform(child_frame, parent_frame, pos_xyz, q_xyzw):
         t = TransformStamped()
