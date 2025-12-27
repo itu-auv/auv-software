@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# TODO: ortaya en yakın possible_target'ı target seçmek doğru değil önümüzdeki(x > 0) en yakın pointi seçmemiz lazım.
+# TODO: target segmenti seçme doğru değil img_mid'e olan uzakların ortalaması değil farklı bir yöntem gerekli.
+
 import math
 import numpy as np
 import cv2
@@ -6,7 +10,9 @@ import cv2
 from cv_bridge import CvBridge
 import rospy
 import tf2_ros
-import tf.transformations
+import tf
+import angles
+from tf.transformations import *
 from geometry_msgs.msg import Pose, TransformStamped
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
@@ -24,6 +30,8 @@ from camera_detection_pose_estimator import CameraCalibration
 
 class PipeFollowerDemo:
     def __init__(self):
+        self.started = False
+
         self.bridge = CvBridge()
         self.cam = CameraCalibration("taluy/cameras/cam_bottom")
         self.sub_mask = rospy.Subscriber(
@@ -41,6 +49,9 @@ class PipeFollowerDemo:
         self.set_object_transform_service.wait_for_service()
 
         self.pipe_carrot_frame = "pipe_carrot"
+        self.pipe_temp_frame = "pipe_temp"
+        self.bottom_cam_frame = "taluy/base_link/bottom_camera_optical_link"
+        self.taluy_base_frame = "taluy/base_link"
 
         pose = Pose()
         pose.position.x = 0
@@ -53,7 +64,13 @@ class PipeFollowerDemo:
         msg = self._build_transform_message(
             self.pipe_carrot_frame,
             pose,
-            frame="taluy/base_link/bottom_camera_optical_link",
+            frame=self.bottom_cam_frame,
+        )
+        self._send_transform(msg)
+        msg = self._build_transform_message(
+            self.pipe_temp_frame,
+            pose,
+            frame=self.bottom_cam_frame,
         )
         self._send_transform(msg)
 
@@ -63,7 +80,7 @@ class PipeFollowerDemo:
         try:
             if True:
                 res = self.align_frame_service(
-                    "taluy/base_link", self.pipe_carrot_frame, 0, False, 0.3, 0.3
+                    self.taluy_base_frame, self.pipe_carrot_frame, 0, False, 0.3, 0.3
                 )
                 print(res)
         except rospy.ServiceException as exc:
@@ -75,6 +92,9 @@ class PipeFollowerDemo:
         except Exception as e:
             rospy.logwarn("cv_bridge err: %s", e)
             return
+
+        starting_pixel = [img.shape[1] // 2, 1]  # Mid right/left
+        mid_img = [320, 240]
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
@@ -96,15 +116,56 @@ class PipeFollowerDemo:
 
             pts = approx.reshape(-1, 2)
             # TODO: this is not working as expected
-            aaa = self._filter_close_points(pts, min_dist=30.0)
+            aaa = self._filter_close_points(pts, 50.0)
             final_points_list.append(aaa)
 
         segments = self._merge_into_segments(final_points_list, 50)
-        segments = self._filter_segments(segments, 50)
+        segments = self._filter_segments(segments, 100)
         # TODO: this is not a great way!!!
+        # segments.sort(
+        #     key=lambda x: cv2.arcLength(np.array(x), closed=False), reverse=True
+        # )
         segments.sort(
-            key=lambda x: cv2.arcLength(np.array(x), closed=False), reverse=True
+            key=lambda x: sum(math.dist(c, mid_img) for c in x) / len(x), reverse=False
         )
+
+        target = None
+
+        if len(segments) > 0:
+            seg = segments[0]
+            # make first segment from right to left (according to image)
+            if seg[0][0] < seg[-1][0]:
+                seg.reverse()
+                segments[0] = seg
+
+            seg.reverse()
+            changed = True
+            possible_targets = []
+            for i in range(len(seg) - 1):
+                k = seg[i]
+                l = seg[i + 1]
+                ang = (self._get_angle(l, k) / math.pi) * 180
+
+                if -30 <= ang <= 30:  # or ang <= (-180+30) or ang >= (180-30):
+                    if changed:
+                        print(k)
+                        possible_targets.append(k)
+                    changed = False
+                else:
+                    changed = True
+
+            possible_targets = list(
+                filter(lambda x: x[0] <= mid_img[0] - 50, possible_targets)
+            )
+            possible_targets.sort(key=lambda x: math.dist(x, mid_img), reverse=False)
+            target = possible_targets[0]
+
+            """
+            _, yaw = self._get_tf_error(self.pipe_carrot_frame, self.pipe_temp_frame)
+            if yaw >= (20/180)*math.pi:
+            """
+
+        print(img.shape)
 
         line_widths = []
         for line in segments:
@@ -117,44 +178,45 @@ class PipeFollowerDemo:
         width = max(line_widths[0])
         distance = self.cam.distance_from_width(0.12, width)
 
-        target = None
-        if len(segments) > 0:
-            # TODO: hardcoded for now, just to get it working. We need a proper way to find target pixel
-            target = segments[0][0]
-            for x in segments[0][1:]:
-                if x[0] < target[0]:
-                    target = x
-            fx = self.cam.calibration.K[0]
-            fy = self.cam.calibration.K[4]
-            cx = self.cam.calibration.K[2]
-            cy = self.cam.calibration.K[5]
-            u, v = target[0], target[1]
+        fx = self.cam.calibration.K[0]
+        fy = self.cam.calibration.K[4]
+        cx = self.cam.calibration.K[2]
+        cy = self.cam.calibration.K[5]
+        u, v = target[0], target[1]
 
-            rx = (u - cx) * distance / fx
-            ry = (v - cy) * distance / fy
+        rx = (u - cx) * distance / fx
+        ry = (v - cy) * distance / fy
 
-            pose = Pose()
-            # TODO: figure out rotations based on `taluy/base_link/bottom_camera_optical_link`
-            pose.position.x = rx
-            pose.position.y = ry
-            pose.orientation.x = 1
-            pose.orientation.y = 0
-            pose.orientation.z = 0
-            pose.orientation.w = 0
-            msg = self._build_transform_message(
-                self.pipe_carrot_frame,
-                pose,
-                frame="taluy/base_link/bottom_camera_optical_link",
-            )
-            self._send_transform(msg)
+        _, yaw = self._get_tf_error(self.taluy_base_frame, "odom")
 
-        for seg in segments:
-            for i in range(1, len(seg)):
-                cv2.line(skel_rgb, seg[i - 1], seg[i], (0, 255, 0), 2)
+        pose = Pose()
+        # TODO: figure out rotations based on `taluy/base_link/bottom_camera_optical_link`
+        pose.position.x = rx
+        pose.position.y = ry
+        pose.orientation.x = 1
+        pose.orientation.y = 0
+        pose.orientation.z = 0
+        pose.orientation.w = 0
+        (
+            pose.orientation.x,
+            pose.orientation.y,
+            pose.orientation.z,
+            pose.orientation.w,
+        ) = quaternion_from_euler(0, 0, yaw)
+        msg = self._build_transform_message(
+            self.pipe_carrot_frame,
+            pose,
+            frame=self.bottom_cam_frame,
+        )
+        self._send_transform(msg)
+
         COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        for j, seg in enumerate(segments):
+            for i in range(1, len(seg)):
+                cv2.line(skel_rgb, seg[i - 1], seg[i], COLORS[j % len(COLORS)], 2)
         for seg in segments:
             for i, pt in enumerate(seg):
-                color = COLORS[i % len(COLORS)]
+                color = (0, 0, 255)
                 if pt == target:
                     # for debugging purposes
                     color = (255, 255, 255)
@@ -176,6 +238,21 @@ class PipeFollowerDemo:
                 filtered.append(points[i])
 
         return np.array(filtered)
+
+    def _filter_points(self, points, min_dist):
+        filtered = [points[0]]
+
+        for p in points[1:-1]:
+            keep = True
+            for q in filtered:
+                if math.dist(p, q) < min_dist:
+                    keep = False
+                    break
+            if keep:
+                filtered.append(p)
+
+        filtered.append(points[-1])
+        return filtered
 
     def _get_ordered_points_from_skel(self, skeleton_img):
         white_pixels = np.column_stack(np.where(skeleton_img > 0))
@@ -261,15 +338,23 @@ class PipeFollowerDemo:
             segments.append(current)
         return segments
 
+    def _get_angle(self, p1, p2):
+        dy = p1[1] - p2[1]
+        dx = p1[0] - p2[0]
+        return math.atan2(dy, dx)
+
     def _get_dist(self, p1, p2):
         return np.linalg.norm(np.array(p1) - np.array(p2))
 
     def _filter_segments(self, segments, min_len=50):
-        return list(
+        segments = list(
             filter(
                 lambda x: cv2.arcLength(np.array(x), closed=False) >= min_len, segments
             )
         )
+        for i in range(len(segments)):
+            segments[i] = self._filter_points(segments[i], 20)
+        return segments
 
     def _build_transform_message(
         self, child_frame_id: str, pose: Pose, frame: str = "odom"
@@ -293,6 +378,25 @@ class PipeFollowerDemo:
                 )
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
+
+    def _get_tf_error(self, source_frame, target_frame):
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                source_frame, target_frame, rospy.Time(0), rospy.Duration(2.0)
+            )
+            trans = transform.transform.translation
+            rot = transform.transform.rotation
+            trans_error = (trans.x, trans.y, trans.z)
+            _, _, yaw_error = euler_from_quaternion((rot.x, rot.y, rot.z, rot.w))
+            yaw_error = angles.normalize_angle(yaw_error)
+            return trans_error, yaw_error
+        except (
+            tf.LookupException,
+            tf.ConnectivityException,
+            tf.ExtrapolationException,
+        ) as e:
+            rospy.logwarn(f"Transform lookup failed: {e}")
+            return None, None
 
 
 def main():
