@@ -47,10 +47,6 @@ class BinTransformServiceNode:
             "toggle_bin_trajectory", SetBool, self.handle_enable_service
         )
 
-        self.object_transform_pub = rospy.Publisher(
-            "map/object_transform_updates", TransformStamped, queue_size=10
-        )
-
         self.object_non_kalman_transform_pub = rospy.Publisher(
             "object_transform_non_kalman_create", TransformStamped, queue_size=10
         ) 
