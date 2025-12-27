@@ -249,7 +249,6 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   // Update the frame IDs based on distance from the static frame
   update_filter_frame_index(object_frame);
 
-  /*
   const auto static_transform = transform_to_static_frame(*msg);
 
   if (!static_transform.has_value()) {
@@ -278,10 +277,6 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
   ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
                                                    << target_frame);
-  // res.success = true;
-  // res.message = "Stored transform for frame: " + target_frame;
-  // return true;
-  */
 }
 
 void ObjectMapTFServerROS::update_filter_frame_index(
