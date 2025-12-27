@@ -93,7 +93,7 @@ class TorpedoTransformServiceNode:
         Convert a TransformStamped to a Pose.
         """
         pose = Pose()
-        pose.position = transform.transform.translationyır hayır 
+        pose.position = transform.transform.translation
         pose.orientation = transform.transform.rotation
         return pose
 
