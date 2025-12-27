@@ -288,7 +288,7 @@ class GpsTargetFramePublisher(object):
 
     # -------------------- Helpers --------------------
     
-    void send_transform(self, transform):
+    def send_transform(self, transform):
         self.object_non_kalman_transform_pub.publish(transform)
     
     @staticmethod
