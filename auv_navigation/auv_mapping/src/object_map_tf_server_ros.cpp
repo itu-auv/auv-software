@@ -140,12 +140,6 @@ bool ObjectMapTFServerROS::set_transform_handler(
 
   const auto target_frame = req.transform.child_frame_id;
 
-  // Ben daha önce flters_ içinde olan nesneyi silmek ve onun yerine yenisini
-  // eklemek istiyorum. Ama bunu yaparken eğer işlem aynı anda olursa
-  // segmentation fault hatası alıyorum. Bu yüzden mutex kullanıyorum.
-  // scoped_lock ile mutex kilitleniyor ve köşeli parantezden çıkınca otomatik
-  // açılıyor eğer sadece lock kullanırsak bu esnada bir hata olması durumunda
-  // sistem sonsuza kadar kilitli kalabilir
   {
     auto lock = std::scoped_lock{mutex_};
     auto it = filters_.find(target_frame);
@@ -248,35 +242,6 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
   // Update the frame IDs based on distance from the static frame
   update_filter_frame_index(object_frame);
-
-  const auto static_transform = transform_to_static_frame(*msg);
-
-  if (!static_transform.has_value()) {
-    ROS_ERROR("Failed to capture transform");
-    return;
-  }
-
-  const auto target_frame = msg->child_frame_id;
-
-  // Ben daha önce flters_ içinde olan nesneyi silmek ve onun yerine yenisini
-  // eklemek istiyorum. Ama bunu yaparken eğer işlem aynı anda olursa
-  // segmentation fault hatası alıyorum. Bu yüzden mutex kullanıyorum.
-  // scoped_lock ile mutex kilitleniyor ve köşeli parantezden çıkınca otomatik
-  // açılıyor eğer sadece lock kullanırsak bu esnada bir hata olması durumunda
-  // sistem sonsuza kadar kilitli kalabilir
-  {
-    auto lock = std::scoped_lock{mutex_};
-    auto it = filters_.find(target_frame);
-    if (it != filters_.end()) {
-      filters_[target_frame].clear();
-    }
-
-    filters_[target_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-  }
-
-  ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
-                                                   << target_frame);
 }
 
 void ObjectMapTFServerROS::update_filter_frame_index(
@@ -353,7 +318,6 @@ void ObjectMapTFServerROS::update_filter_frame_index(
   }
 }
 
-// Tf tree'de olmayan bir nesneyi tf tree'ye bağlıyoruz
 std::optional<geometry_msgs::TransformStamped>
 ObjectMapTFServerROS::transform_to_static_frame(
     const geometry_msgs::TransformStamped transform) {
