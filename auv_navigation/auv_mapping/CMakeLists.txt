@@ -84,6 +84,7 @@ catkin_install_python(PROGRAMS
   scripts/acoustic_transmitter.py
   scripts/pipeline_trajectory_publisher.py
   scripts/probabilistic_object_tracker.py
+  scripts/competition_map_gui.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import rospy
 import numpy as np
 import yaml
@@ -61,6 +62,7 @@ class ProbabilisticObjectTracker:
         # Optional pre-map
         self.premap: Dict[str, Dict] = {}
         premap_file = rospy.get_param("~premap_file", "")
+        self.premap_yaml_path = premap_file  # Store path for saving
         if premap_file:
             self._load_premap(premap_file)
 
@@ -260,20 +262,30 @@ class ProbabilisticObjectTracker:
         return TriggerResponse(success=True, message="Cleared all object tracks.")
 
     def set_premap_handler(self, req) -> SetPremapResponse:
-        """Service handler to set pre-map (for indexing only, not KF initialization)."""
+        """Service handler to set pre-map and save to YAML."""
         try:
             # Clear existing state
             self.trackers.clear()
-            self.track_orientations.clear()
             self.premap.clear()
 
             # Update world frame if provided
             if req.reference_frame:
                 self.world_frame = req.reference_frame
 
-            # Load pre-map from service request (used only for indexing)
+            # Filter: only accept torpedo, bin, octagon
+            allowed_objects = ["torpedo", "bin", "octagon"]
+
+            # Load pre-map from service request
+            yaml_data = {"reference_frame": req.reference_frame, "objects": {}}
+
             for obj_pose in req.objects:
                 label = obj_pose.label
+
+                # Only process allowed objects
+                if label not in allowed_objects:
+                    rospy.loginfo(f"Skipping object '{label}' (not in allowed list)")
+                    continue
+
                 pos = obj_pose.pose.position
                 orient = obj_pose.pose.orientation
 
@@ -282,7 +294,37 @@ class ProbabilisticObjectTracker:
                     "orientation": np.array([orient.x, orient.y, orient.z, orient.w]),
                 }
 
-            msg = f"Pre-map set with {len(self.premap)} objects (indexing only)."
+                # Prepare for YAML
+                yaml_data["objects"][label] = {
+                    "position": [float(pos.x), float(pos.y), float(pos.z)],
+                    "orientation": [
+                        float(orient.x),
+                        float(orient.y),
+                        float(orient.z),
+                        float(orient.w),
+                    ],
+                }
+
+            # Save to YAML file
+            if self.premap_yaml_path:
+                try:
+                    # Ensure directory exists
+                    yaml_dir = os.path.dirname(self.premap_yaml_path)
+                    if not os.path.exists(yaml_dir):
+                        os.makedirs(yaml_dir)
+
+                    with open(self.premap_yaml_path, "w") as f:
+                        yaml.dump(
+                            yaml_data, f, default_flow_style=False, sort_keys=False
+                        )
+
+                    rospy.loginfo(f"Saved premap to {self.premap_yaml_path}")
+                except Exception as yaml_err:
+                    rospy.logerr(f"Failed to save YAML: {yaml_err}")
+            else:
+                rospy.logwarn("No premap_file parameter set, not saving to disk")
+
+            msg = f"Pre-map set with {len(self.premap)} objects: {list(self.premap.keys())}"
             rospy.loginfo(msg)
             return SetPremapResponse(success=True, message=msg)
 
