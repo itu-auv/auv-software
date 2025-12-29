@@ -5,6 +5,7 @@ import rospy
 import numpy as np
 import yaml
 from collections import defaultdict
+from datetime import datetime
 from typing import Dict, List
 
 from norfair import Detection, Tracker
@@ -103,9 +104,10 @@ class ProbabilisticObjectTracker:
                 distance_threshold=threshold,
                 hit_counter_max=self.hit_counter_max,
                 initialization_delay=self.initialization_delay,
-                hit_inactivity_cutoff=None,  # Tracks never expire due to inactivity
                 past_detections_length=10,
                 filter_factory=filter_factory,
+
+                reid_hit_counter_max=100000,
             )
             rospy.loginfo(
                 f"Created tracker for '{label}': threshold={threshold}m, "
@@ -324,8 +326,6 @@ class ProbabilisticObjectTracker:
                     "orientation": np.array([orient.x, orient.y, orient.z, orient.w]),
                 }
 
-            self._initialize_tracks_from_premap()
-            msg = f"Pre-map set with {len(self.premap)} objects (tracks initialized)."
                 # Prepare for YAML
                 yaml_data["objects"][label] = {
                     "position": [float(pos.x), float(pos.y), float(pos.z)],
@@ -337,13 +337,40 @@ class ProbabilisticObjectTracker:
                     ],
                 }
 
-            # Save to YAML file
+            self._initialize_tracks_from_premap()
+
+            # Save to YAML file with backup rotation
             if self.premap_yaml_path:
                 try:
-                    # Ensure directory exists
                     yaml_dir = os.path.dirname(self.premap_yaml_path)
                     if not os.path.exists(yaml_dir):
                         os.makedirs(yaml_dir)
+
+                    # Backup existing file before overwriting, using its created_at timestamp
+                    if os.path.exists(self.premap_yaml_path):
+                        try:
+                            with open(self.premap_yaml_path, "r") as old_f:
+                                old_data = yaml.safe_load(old_f)
+                            old_timestamp = old_data.get("created_at", "")
+                            if old_timestamp:
+                                # Parse ISO format and convert to filename format
+                                old_dt = datetime.fromisoformat(old_timestamp)
+                                timestamp = old_dt.strftime("%Y%m%d_%H%M")
+                            else:
+                                # Fallback to file modification time
+                                mtime = os.path.getmtime(self.premap_yaml_path)
+                                timestamp = datetime.fromtimestamp(mtime).strftime("%Y%m%d_%H%M")
+                        except Exception:
+                            # Fallback to current time if parsing fails
+                            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                        
+                        base, ext = os.path.splitext(self.premap_yaml_path)
+                        backup_path = f"{base}_{timestamp}{ext}"
+                        os.rename(self.premap_yaml_path, backup_path)
+                        rospy.loginfo(f"Backed up old premap to {backup_path}")
+
+                    # Add timestamp to yaml data
+                    yaml_data["created_at"] = datetime.now().isoformat()
 
                     with open(self.premap_yaml_path, "w") as f:
                         yaml.dump(
