@@ -55,7 +55,7 @@ class ProbabilisticObjectTracker:
             TransformStamped,
             self.transform_callback,
             queue_size=10,
-        )   
+        )
 
         # Service to clear all tracks
         self.clear_srv = rospy.Service(
