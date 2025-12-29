@@ -39,6 +39,9 @@ class ProbabilisticObjectTracker:
         self.slalom_distance_threshold = rospy.get_param(
             "~slalom_distance_threshold", 1.0
         )
+        self.premap_initial_covariance = rospy.get_param(
+            "~premap_initial_covariance", 100.0
+        )
         self.slalom_labels = ["red_pipe_link", "white_pipe_link"]
         self.trackers: Dict[str, Tracker] = {}
 
@@ -51,7 +54,7 @@ class ProbabilisticObjectTracker:
             TransformStamped,
             self.transform_callback,
             queue_size=10,
-        )
+        )   
 
         # Service to clear all tracks
         self.clear_srv = rospy.Service(
@@ -201,8 +204,35 @@ class ProbabilisticObjectTracker:
             rospy.loginfo(
                 f"Loaded pre-map with {len(self.premap)} objects from {filepath}"
             )
+            self._initialize_tracks_from_premap()
         except Exception as e:
             rospy.logerr(f"Failed to load pre-map: {e}")
+
+    def _initialize_tracks_from_premap(self):
+        """Pre-create Kalman tracks at premap positions with high initial uncertainty."""
+        for label, data in self.premap.items():
+            pos = data["position"]
+            point = np.array([[pos[0], pos[1], pos[2]]])
+            detection = Detection(points=point, label=label)
+
+            tracker = self.get_or_create_tracker(label)
+            tracker.update(detections=[detection])
+
+            # Inflate covariance for the newly created track
+            if tracker.tracked_objects:
+                obj = tracker.tracked_objects[-1]
+                if hasattr(obj.filter, 'P'):
+                    # FilterPy KalmanFilter: P is the covariance matrix
+                    dim_z = obj.filter.P.shape[0] // 2
+                    obj.filter.P[:dim_z, :dim_z] *= self.premap_initial_covariance
+                elif hasattr(obj.filter, 'pos_variance'):
+                    # OptimizedKalmanFilter: pos_variance is separate
+                    obj.filter.pos_variance *= self.premap_initial_covariance
+
+        rospy.loginfo(
+            f"Pre-initialized {len(self.premap)} tracks from premap "
+            f"(initial_covariance={self.premap_initial_covariance})"
+        )
 
     def sort_tracks_by_premap(
         self, tracks: List[TrackedObject], label: str
@@ -260,11 +290,10 @@ class ProbabilisticObjectTracker:
         return TriggerResponse(success=True, message="Cleared all object tracks.")
 
     def set_premap_handler(self, req) -> SetPremapResponse:
-        """Service handler to set pre-map (for indexing only, not KF initialization)."""
+        """Service handler to set pre-map and initialize KF tracks."""
         try:
             # Clear existing state
             self.trackers.clear()
-            self.track_orientations.clear()
             self.premap.clear()
 
             # Update world frame if provided
@@ -282,7 +311,8 @@ class ProbabilisticObjectTracker:
                     "orientation": np.array([orient.x, orient.y, orient.z, orient.w]),
                 }
 
-            msg = f"Pre-map set with {len(self.premap)} objects (indexing only)."
+            self._initialize_tracks_from_premap()
+            msg = f"Pre-map set with {len(self.premap)} objects (tracks initialized)."
             rospy.loginfo(msg)
             return SetPremapResponse(success=True, message=msg)
 
