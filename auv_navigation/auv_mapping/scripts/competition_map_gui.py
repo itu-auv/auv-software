@@ -53,7 +53,6 @@ class CompetitionMapGUI:
 
         # Get service name from ROS parameter (default matches tracker's remapped name)
         self.service_name = rospy.get_param("~set_premap_service", "map/p_set_premap")
-        rospy.loginfo(f"GUI looking for service: {self.service_name}")
 
         # Selected object type
         self.selected_object = tk.StringVar(value="reference")
@@ -81,16 +80,18 @@ class CompetitionMapGUI:
 
     def check_ros_service(self):
         """Check if ROS service is available"""
+        was_connected = self.service_connected
         try:
-            rospy.loginfo(f"Checking service: {self.service_name}")
             rospy.wait_for_service(self.service_name, timeout=1.0)
             self.service_connected = True
             self.status_label.config(text="ROS: Connected", fg="green")
-            rospy.loginfo(f"Service connected: {self.service_name}")
-        except Exception as e:
+            if not was_connected:
+                rospy.loginfo(f"Service connected: {self.service_name}")
+        except Exception:
             self.service_connected = False
             self.status_label.config(text="ROS: Not connected", fg="red")
-            rospy.logwarn(f"Service not available: {self.service_name} - {e}")
+            if was_connected:
+                rospy.logwarn(f"Service disconnected: {self.service_name}")
 
         # Check again periodically
         self.root.after(5000, self.check_ros_service)
