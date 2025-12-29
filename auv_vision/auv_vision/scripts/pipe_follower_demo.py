@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-# TODO: ortaya en yakın possible_target'ı target seçmek doğru değil önümüzdeki(x > 0) en yakın pointi seçmemiz lazım.
-# TODO: target segmenti seçme doğru değil img_mid'e olan uzakların ortalaması değil farklı bir yöntem gerekli.
-
 import math
 import numpy as np
 import cv2
@@ -15,6 +12,7 @@ import angles
 from tf.transformations import *
 from geometry_msgs.msg import Pose, TransformStamped
 from sensor_msgs.msg import Image
+from std_srvs.srv import Trigger, TriggerResponse
 from geometry_msgs.msg import Twist
 from auv_msgs.srv import (
     AlignFrameController,
@@ -23,14 +21,16 @@ from auv_msgs.srv import (
     SetObjectTransformRequest,
 )
 
-from matplotlib import pyplot as plt
 from skimage.morphology import skeletonize
 from camera_detection_pose_estimator import CameraCalibration
 
 
 class PipeFollowerDemo:
     def __init__(self):
-        self.started = False
+        self.count = 0
+        self.rotating = False
+        self.rotate_timer = 0
+        self.mid_img = [320, 240]
 
         self.bridge = CvBridge()
         self.cam = CameraCalibration("taluy/cameras/cam_bottom")
@@ -40,7 +40,6 @@ class PipeFollowerDemo:
         self.pub_debug = rospy.Publisher("pipe_result_debug", Image, queue_size=1)
 
         self.tf_buffer = tf2_ros.Buffer()
-        # TODO: figure out what's the difference between tf_buffer and tf_listener
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.set_object_transform_service = rospy.ServiceProxy(
@@ -49,7 +48,6 @@ class PipeFollowerDemo:
         self.set_object_transform_service.wait_for_service()
 
         self.pipe_carrot_frame = "pipe_carrot"
-        self.pipe_temp_frame = "pipe_temp"
         self.bottom_cam_frame = "taluy/base_link/bottom_camera_optical_link"
         self.taluy_base_frame = "taluy/base_link"
 
@@ -67,34 +65,32 @@ class PipeFollowerDemo:
             frame=self.bottom_cam_frame,
         )
         self._send_transform(msg)
-        msg = self._build_transform_message(
-            self.pipe_temp_frame,
-            pose,
-            frame=self.bottom_cam_frame,
-        )
-        self._send_transform(msg)
 
-        self.align_frame_service = rospy.ServiceProxy(
+        self.align_frame_cancel_service = rospy.ServiceProxy(
+            "/taluy/control/align_frame/cancel", Trigger
+        )
+        self.align_frame_start_service = rospy.ServiceProxy(
             "/taluy/control/align_frame/start", AlignFrameController
         )
         try:
-            if True:
-                res = self.align_frame_service(
-                    self.taluy_base_frame, self.pipe_carrot_frame, 0, False, 0.3, 0.3
-                )
-                print(res)
+            res = self.align_frame_start_service(
+                self.taluy_base_frame, self.pipe_carrot_frame, 0, False, 0.3, 0.3
+            )
+            print(res)
         except rospy.ServiceException as exc:
             print("Service did not process request: " + str(exc))
 
     def cb_mask(self, msg):
+        if self.count % 20 == 0:
+            pass
+        else:
+            self.count += 1
+            return
         try:
             img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except Exception as e:
             rospy.logwarn("cv_bridge err: %s", e)
             return
-
-        starting_pixel = [img.shape[1] // 2, 1]  # Mid right/left
-        mid_img = [320, 240]
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
@@ -103,7 +99,7 @@ class PipeFollowerDemo:
 
         skel_bool = skeletonize(binary > 0)
         skel = (skel_bool.astype(np.uint8)) * 255
-        skel_rgb = cv2.cvtColor(skel, cv2.COLOR_GRAY2BGR)
+        debug_img = cv2.cvtColor(skel, cv2.COLOR_GRAY2BGR)
 
         ordered_lines = self._get_ordered_points_from_skel(skel)
 
@@ -112,7 +108,7 @@ class PipeFollowerDemo:
         for line in ordered_lines:
             cnt_format = line.reshape(-1, 1, 2).astype(np.int32)
             line_len = cv2.arcLength(cnt_format, closed=False)
-            approx = cv2.approxPolyDP(cnt_format, 0.02 * line_len, closed=False)
+            approx = cv2.approxPolyDP(cnt_format, 0.15 * line_len, closed=False)
 
             pts = approx.reshape(-1, 2)
             # TODO: this is not working as expected
@@ -121,22 +117,28 @@ class PipeFollowerDemo:
 
         segments = self._merge_into_segments(final_points_list, 50)
         segments = self._filter_segments(segments, 100)
-        # TODO: this is not a great way!!!
-        # segments.sort(
-        #     key=lambda x: cv2.arcLength(np.array(x), closed=False), reverse=True
-        # )
-        segments.sort(
-            key=lambda x: sum(math.dist(c, mid_img) for c in x) / len(x), reverse=False
-        )
 
-        target = None
+        min_line_dist = 1e6
+        target_segment_index = 0
+        for i, seg in enumerate(segments):
+            for j in range(len(seg) - 1):
+                p1 = np.array(seg[j])
+                p2 = np.array(seg[j + 1])
+                p3 = np.array(self.mid_img)
+                x = abs(np.cross(p2 - p1, p1 - self.mid_img) / np.linalg.norm(p2 - p1))
+                if x <= min_line_dist:
+                    min_line_dist = x
+                    target_segment_index = i
+
+        target_point = None
+        target_point_index = None
 
         if len(segments) > 0:
-            seg = segments[0]
+            seg = segments[target_segment_index]
             # make first segment from right to left (according to image)
             if seg[0][0] < seg[-1][0]:
                 seg.reverse()
-                segments[0] = seg
+                segments[target_segment_index] = seg
 
             seg.reverse()
             changed = True
@@ -144,87 +146,148 @@ class PipeFollowerDemo:
             for i in range(len(seg) - 1):
                 k = seg[i]
                 l = seg[i + 1]
+                # TODO: do we need to normalize_angle??
                 ang = (self._get_angle(l, k) / math.pi) * 180
 
                 if -30 <= ang <= 30:  # or ang <= (-180+30) or ang >= (180-30):
                     if changed:
-                        print(k)
-                        possible_targets.append(k)
+                        possible_targets.append(
+                            (len(seg) - 1 - i, k)
+                        )  # index and value itself
                     changed = False
                 else:
                     changed = True
 
             possible_targets = list(
-                filter(lambda x: x[0] <= mid_img[0] - 50, possible_targets)
+                filter(lambda x: x[1][0] <= self.mid_img[0] + 50, possible_targets)
             )
-            possible_targets.sort(key=lambda x: math.dist(x, mid_img), reverse=False)
-            target = possible_targets[0]
+            # TODO: this shouldn't be the final approach, but it works 90%
+            possible_targets.sort(
+                key=lambda x: abs(x[1][1] - self.mid_img[1]) * 0.8
+                + abs(x[1][0] - self.mid_img[0]) * 0.2,
+                reverse=False,
+            )
+            target_point = possible_targets[0][1] if len(possible_targets) > 0 else None
+            target_point_index = (
+                possible_targets[0][0] if len(possible_targets) > 0 else None
+            )
 
-            """
-            _, yaw = self._get_tf_error(self.pipe_carrot_frame, self.pipe_temp_frame)
-            if yaw >= (20/180)*math.pi:
-            """
+        if (
+            self.rotating
+            and target_point != None
+            and len(segments[target_segment_index]) >= target_point_index + 2
+        ):
+            ang_err = (
+                self._get_angle(
+                    self.mid_img, segments[target_segment_index][target_point_index + 1]
+                )
+                - math.pi / 2
+            )
+            ang_err_deg = (ang_err / math.pi) * 180
+            if rospy.get_time() - self.rotate_timer >= 10:
+                print("rotate finished")
+                self.rotating = False
 
-        print(img.shape)
+        if (
+            not self.rotating
+            and target_point is not None
+            and math.dist(target_point, self.mid_img) <= 25
+        ):
+            rospy.loginfo("waiting for rotation")
+            ang_err = self._get_angle(
+                    self.mid_img, segments[target_segment_index][target_point_index + 1]
+                ) - math.pi / 2
+            ang_err_deg = (ang_err / math.pi) * 180
+            rospy.loginfo(f"angle error: {ang_err_deg}")
+            if ang_err_deg >= 180 - 20 or ang_err_deg <= -180 + 20:
+                return
+            try:
+                tfm = self.tf_buffer.lookup_transform(
+                    self.bottom_cam_frame,
+                    self.pipe_carrot_frame,
+                    rospy.Time(0),
+                    rospy.Duration(0.5),
+                )
+                pos = tfm.transform.translation
+                q_curr = tfm.transform.rotation
+                q_curr_np = np.array([q_curr.x, q_curr.y, q_curr.z, q_curr.w])
+                q_yaw = quaternion_from_euler(0, 0, ang_err)
+                q_new = quaternion_multiply(q_curr_np, q_yaw)
+                self.current_orientation = q_new
 
-        line_widths = []
-        for line in segments:
-            w = []
-            for x, y in line:
-                w.append(widths[int(y), int(x)])
-            line_widths.append(np.array(w))
+                pose = Pose()
+                pose.position = pos
+                pose.orientation.x = q_new[0]
+                pose.orientation.y = q_new[1]
+                pose.orientation.z = q_new[2]
+                pose.orientation.w = q_new[3]
 
-        # TODO: this is not a great way to find width, add filter and take avg.
-        width = max(line_widths[0])
-        distance = self.cam.distance_from_width(0.12, width)
+                msg = self._build_transform_message(
+                    self.pipe_carrot_frame,
+                    pose,
+                    frame=self.bottom_cam_frame,
+                )
+                self._send_transform(msg)
+            except Exception as e:
+                rospy.logwarn(f"rotating lookup failed: {e}")
+            self.rotating = True
+            self.rotate_timer = rospy.get_time()
+        elif not self.rotating and target_point is not None:
+            line_widths = []
+            for line in segments:
+                w = []
+                for x, y in line:
+                    w.append(widths[int(y), int(x)])
+                line_widths.append(np.array(w))
 
-        fx = self.cam.calibration.K[0]
-        fy = self.cam.calibration.K[4]
-        cx = self.cam.calibration.K[2]
-        cy = self.cam.calibration.K[5]
-        u, v = target[0], target[1]
+            # TODO: this is not a great way to find width, add filter and take avg.
+            width = max(line_widths[0])
+            distance = self.cam.distance_from_width(0.12, width)
 
-        rx = (u - cx) * distance / fx
-        ry = (v - cy) * distance / fy
+            fx = self.cam.calibration.K[0]
+            fy = self.cam.calibration.K[4]
+            cx = self.cam.calibration.K[2]
+            cy = self.cam.calibration.K[5]
+            u, v = target_point[0], target_point[1]
 
-        _, yaw = self._get_tf_error(self.taluy_base_frame, "odom")
+            rx = (u - cx) * distance / fx
+            ry = (v - cy) * distance / fy
 
-        pose = Pose()
-        # TODO: figure out rotations based on `taluy/base_link/bottom_camera_optical_link`
-        pose.position.x = rx
-        pose.position.y = ry
-        pose.orientation.x = 1
-        pose.orientation.y = 0
-        pose.orientation.z = 0
-        pose.orientation.w = 0
-        (
-            pose.orientation.x,
-            pose.orientation.y,
-            pose.orientation.z,
-            pose.orientation.w,
-        ) = quaternion_from_euler(0, 0, yaw)
-        msg = self._build_transform_message(
-            self.pipe_carrot_frame,
-            pose,
-            frame=self.bottom_cam_frame,
+            pose = Pose()
+            pose.position.x = rx
+            pose.position.y = ry
+            base_rot = self._get_frame_rotation(
+                self.taluy_base_frame, self.bottom_cam_frame
+            )
+            pose.orientation = base_rot
+            msg = self._build_transform_message(
+                self.pipe_carrot_frame,
+                pose,
+                frame=self.bottom_cam_frame,
+            )
+            self._send_transform(msg)
+
+        debug_img = self._build_debug_img(
+            debug_img, segments, target_segment_index, target_point
         )
-        self._send_transform(msg)
+        img_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding="bgr8")
+        img_msg.header = msg.header
+        self.pub_debug.publish(img_msg)
 
-        COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+    def _build_debug_img(self, debug_img, segments, target_segment_index, target_point):
         for j, seg in enumerate(segments):
             for i in range(1, len(seg)):
-                cv2.line(skel_rgb, seg[i - 1], seg[i], COLORS[j % len(COLORS)], 2)
+                color = (0, 0, 255)
+                if j == target_segment_index:
+                    color = (255, 0, 0)
+                cv2.line(debug_img, seg[i - 1], seg[i], color, 2)
         for seg in segments:
             for i, pt in enumerate(seg):
                 color = (0, 0, 255)
-                if pt == target:
-                    # for debugging purposes
+                if pt == target_point:
                     color = (255, 255, 255)
-                cv2.circle(skel_rgb, pt, 4, color, -1)
-
-        img_msg = self.bridge.cv2_to_imgmsg(skel_rgb, encoding="bgr8")
-        img_msg.header = msg.header
-        self.pub_debug.publish(img_msg)
+                cv2.circle(debug_img, pt, 4, color, -1)
+        return debug_img
 
     def _filter_close_points(self, points, min_dist=5.0):
         if len(points) <= 2:
@@ -379,24 +442,23 @@ class PipeFollowerDemo:
         except rospy.ServiceException as e:
             print(f"Service call failed: {e}")
 
-    def _get_tf_error(self, source_frame, target_frame):
+    def _get_frame_rotation(self, source_frame, target_frame):
         try:
             transform = self.tf_buffer.lookup_transform(
-                source_frame, target_frame, rospy.Time(0), rospy.Duration(2.0)
+                target_frame, source_frame, rospy.Time(0), rospy.Duration(1.0)
             )
-            trans = transform.transform.translation
-            rot = transform.transform.rotation
-            trans_error = (trans.x, trans.y, trans.z)
-            _, _, yaw_error = euler_from_quaternion((rot.x, rot.y, rot.z, rot.w))
-            yaw_error = angles.normalize_angle(yaw_error)
-            return trans_error, yaw_error
+            q = transform.transform.rotation
+            return q
         except (
             tf.LookupException,
             tf.ConnectivityException,
             tf.ExtrapolationException,
         ) as e:
             rospy.logwarn(f"Transform lookup failed: {e}")
-            return None, None
+            return None
+
+    def _normalize_angle(self, angle):
+        return (angle + math.pi) % (2 * math.pi) - math.pi
 
 
 def main():
