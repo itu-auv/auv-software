@@ -35,7 +35,7 @@
     </node>
 
     <!-- Probabilistic Python Tracker (runs alongside legacy when enabled) -->
-    <node pkg="auv_mapping" type="probabilistic_object_tracker.py" name="probabilistic_object_tracker"
+    <node pkg="auv_mapping" type="semantic_mapper.py" name="semantic_mapper"
           output="screen" if="$(arg use_probabilistic_tracker)">
       <param name="rate" value="$(arg control_rate)" />
       <param name="static_frame" value="$(arg static_frame)" />
