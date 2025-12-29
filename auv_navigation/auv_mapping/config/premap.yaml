@@ -1,51 +1,32 @@
-# Pre-map: Expected object positions in the world
-# Used for indexing (closest track to pre-map position = main track)
-# All positions are relative to reference_frame
-
-reference_frame: "odom"
-
-# Object definitions
-# Format: frame_name -> [x, y, z, roll, pitch, yaw]
-# Units: meters, radians
-
+reference_frame: coin_flip_rescuer
 objects:
-  # Gates
-  gate_shark_link:
-    position: [10.0, 5.0, -1.2]
-    orientation: [0.0, 0.0, 1.57] # Facing +Y direction
-
-  gate_sawfish_link:
-    position: [15.0, 10.0, -1.2]
-    orientation: [0.0, 0.0, 0.0] # Facing +X direction
-
-  # Buoys
-  buoy_gman_link:
-    position: [8.0, 12.0, -0.8]
-    orientation: [0.0, 0.0, 0.0]
-
-  buoy_bootlegger_link:
-    position: [12.0, 15.0, -0.8]
-    orientation: [0.0, 0.0, 0.0]
-
-  # Slalom pipes
-  red_pipe_link:
-    position: [20.0, 8.0, -0.5]
-    orientation: [0.0, 0.0, 0.0]
-
-  white_pipe_link:
-    position: [22.0, 8.0, -0.5]
-    orientation: [0.0, 0.0, 0.0]
-
-  # Bins
-  bin_abydos_link:
-    position: [25.0, 20.0, -2.0]
-    orientation: [0.0, 0.0, 0.0]
-
-  bin_earth_link:
-    position: [27.0, 20.0, -2.0]
-    orientation: [0.0, 0.0, 0.0]
-
-  # Octagon
-  octagon_link:
-    position: [30.0, 25.0, -1.5]
-    orientation: [0.0, 0.0, 0.0]
+  bin:
+    position:
+      - 3.5664819944598314
+      - 11.045706371191136
+      - -2.0
+    orientation:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+  torpedo:
+    position:
+      - -4.847645429362883
+      - 11.18421052631579
+      - -1.5
+    orientation:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
+  octagon:
+    position:
+      - -1.0041551246537423
+      - 18.490304709141274
+      - -1.3
+    orientation:
+      - 0.0
+      - 0.0
+      - 0.0
+      - 1.0
