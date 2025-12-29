@@ -90,8 +90,7 @@ class SemanticMapper:
                 else self.distance_threshold
             )
 
-            # CP-like Kalman filter: high Q makes filter follow measurements (odom drift)
-            # When measurements stop, position stays put (no velocity extrapolation)
+            # CP-like Kalman filter
             filter_factory = FilterPyKalmanFilterFactory(
                 R=self.kalman_R,
                 Q=self.kalman_Q,
@@ -104,7 +103,6 @@ class SemanticMapper:
                 initialization_delay=self.initialization_delay,
                 past_detections_length=10,
                 filter_factory=filter_factory,
-
                 reid_hit_counter_max=100000,
             )
             rospy.loginfo(
@@ -221,22 +219,23 @@ class SemanticMapper:
             tracker = self.get_or_create_tracker(label)
             tracker.update(detections=[detection])
 
-            # Inflate covariance for the newly created track
             if tracker.tracked_objects:
                 obj = tracker.tracked_objects[-1]
-                if hasattr(obj.filter, 'P'):
-                    # FilterPy KalmanFilter: P is the covariance matrix
+                if hasattr(obj.filter, "P"):
                     dim_z = obj.filter.P.shape[0] // 2
                     obj.filter.P[:dim_z, :dim_z] *= self.premap_initial_covariance
-                elif hasattr(obj.filter, 'pos_variance'):
-                    # OptimizedKalmanFilter: pos_variance is separate
+                elif hasattr(obj.filter, "pos_variance"):
                     obj.filter.pos_variance *= self.premap_initial_covariance
-                
+
                 # Mark as confirmed for immediate broadcast
                 obj.hit_counter = self.hit_counter_max
-                rospy.loginfo(f"Initialized track for {label} at {pos} with hit_counter={obj.hit_counter}")
+                rospy.loginfo(
+                    f"Initialized track for {label} at {pos} with hit_counter={obj.hit_counter}"
+                )
             else:
-                 rospy.logwarn(f"Failed to create track for {label} - tracked_objects is empty!")
+                rospy.logwarn(
+                    f"Failed to create track for {label} - tracked_objects is empty!"
+                )
 
         rospy.loginfo(
             f"Pre-initialized {len(self.premap)} tracks from premap "
@@ -247,7 +246,7 @@ class SemanticMapper:
         self, tracks: List[TrackedObject], label: str
     ) -> List[TrackedObject]:
         """Sort tracks by distance to pre-map expected position (closest first).
-        Falls back to base_link distance if label not in pre-map."""
+        Falls back to distance from robot if label not in pre-map."""
 
         expected_pos = None
         if label in self.premap:
@@ -262,7 +261,6 @@ class SemanticMapper:
             if expected_pos is not None:
                 return np.linalg.norm(est - expected_pos)
             else:
-                # Fallback: distance to base_link
                 try:
                     transform = self.tf_buffer.lookup_transform(
                         self.base_link_frame,
@@ -301,14 +299,21 @@ class SemanticMapper:
         try:
             target_frame = self.world_frame
             source_frame = req.reference_frame or target_frame
-            
-            new_premap_data, yaml_data_objects = self._transform_and_parse_service_objects(
-                req.objects, source_frame, target_frame
-            )
-            if new_premap_data is None: 
-                 return SetPremapResponse(success=False, message=f"Failed to transform objects from {source_frame} to {target_frame}")
 
-            self._atomic_update_and_save(new_premap_data, yaml_data_objects, target_frame)
+            new_premap_data, yaml_data_objects = (
+                self._transform_and_parse_service_objects(
+                    req.objects, source_frame, target_frame
+                )
+            )
+            if new_premap_data is None:
+                return SetPremapResponse(
+                    success=False,
+                    message=f"Failed to transform objects from {source_frame} to {target_frame}",
+                )
+
+            self._atomic_update_and_save(
+                new_premap_data, yaml_data_objects, target_frame
+            )
 
             msg = f"Pre-map set with {len(self.premap)} objects: {list(self.premap.keys())}"
             rospy.loginfo(msg)
@@ -328,12 +333,13 @@ class SemanticMapper:
         if source_frame != target_frame:
             try:
                 transform_stamped = self.tf_buffer.lookup_transform(
-                    target_frame,
-                    source_frame,
-                    rospy.Time(0),
-                    rospy.Duration(1.0)
+                    target_frame, source_frame, rospy.Time(0), rospy.Duration(1.0)
                 )
-            except (tf2_ros.LookupException, tf2_ros.ExtrapolationException, tf2_ros.ConnectivityException) as e:
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ExtrapolationException,
+                tf2_ros.ConnectivityException,
+            ) as e:
                 rospy.logerr(f"Transform error: {e}")
                 return None, None
 
@@ -345,14 +351,16 @@ class SemanticMapper:
 
             try:
                 if transform_stamped:
-                    tf_pose = tf2_geometry_msgs.do_transform_pose(p_stamped, transform_stamped).pose
+                    tf_pose = tf2_geometry_msgs.do_transform_pose(
+                        p_stamped, transform_stamped
+                    ).pose
                 else:
                     tf_pose = obj_pose.pose
-                
+
                 # Normalize to world frame
                 pos = tf_pose.position
                 orient = tf_pose.orientation
-                
+
                 new_premap_data[label] = {
                     "position": np.array([pos.x, pos.y, pos.z]),
                     "orientation": np.array([orient.x, orient.y, orient.z, orient.w]),
@@ -360,13 +368,18 @@ class SemanticMapper:
 
                 yaml_data_objects[label] = {
                     "position": [float(pos.x), float(pos.y), float(pos.z)],
-                    "orientation": [float(orient.x), float(orient.y), float(orient.z), float(orient.w)],
+                    "orientation": [
+                        float(orient.x),
+                        float(orient.y),
+                        float(orient.z),
+                        float(orient.w),
+                    ],
                 }
 
             except Exception as e:
                 rospy.logwarn(f"Failed to process object {label}: {e}")
                 continue
-        
+
         return new_premap_data, yaml_data_objects
 
     def _atomic_update_and_save(self, new_premap_data, yaml_data_objects, target_frame):
@@ -375,8 +388,10 @@ class SemanticMapper:
             self.trackers.clear()
             self.premap = new_premap_data
             self._initialize_tracks_from_premap()
-            
-        rospy.loginfo(f"Pre-map reset update complete. Loaded {len(self.premap)} objects (all in {target_frame}).")
+
+        rospy.loginfo(
+            f"Pre-map reset update complete. Loaded {len(self.premap)} objects (all in {target_frame})."
+        )
         if self.premap_yaml_path:
             try:
                 yaml_dir = os.path.dirname(self.premap_yaml_path)
@@ -394,20 +409,21 @@ class SemanticMapper:
                             timestamp = old_dt.strftime("%Y%m%d_%H%M")
                         else:
                             mtime = os.path.getmtime(self.premap_yaml_path)
-                            timestamp = datetime.fromtimestamp(mtime).strftime("%Y%m%d_%H%M")
+                            timestamp = datetime.fromtimestamp(mtime).strftime(
+                                "%Y%m%d_%H%M"
+                            )
                     except Exception:
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                    
+
                     base, ext = os.path.splitext(self.premap_yaml_path)
                     backup_path = f"{base}_{timestamp}{ext}"
                     os.rename(self.premap_yaml_path, backup_path)
                     rospy.loginfo(f"Backed up old premap to {backup_path}")
 
-                # Enforce world_frame reference for saved data
                 yaml_final_data = {
-                    "reference_frame": target_frame, 
+                    "reference_frame": target_frame,
                     "created_at": datetime.now().isoformat(),
-                    "objects": yaml_data_objects
+                    "objects": yaml_data_objects,
                 }
 
                 with open(self.premap_yaml_path, "w") as f:
@@ -420,7 +436,6 @@ class SemanticMapper:
                 rospy.logerr(f"Failed to save YAML: {yaml_err}")
         else:
             rospy.logwarn("No premap_file parameter set, not saving to disk")
-
 
     def run(self):
         """Main loop: broadcast transforms at configured rate."""
