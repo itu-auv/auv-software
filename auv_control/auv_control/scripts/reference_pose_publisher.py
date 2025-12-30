@@ -1,20 +1,39 @@
 #!/usr/bin/env python3
 
 import rospy
+import tf2_ros
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseStamped, Twist, PoseWithCovarianceStamped
-from std_srvs.srv import Trigger, TriggerResponse, SetBool, SetBoolResponse
-from auv_msgs.srv import SetDepth, SetDepthRequest, SetDepthResponse
+from geometry_msgs.msg import (
+    PoseStamped,
+    Twist,
+    PoseWithCovarianceStamped,
+    PointStamped,
+)
+from std_srvs.srv import Trigger, TriggerResponse
+from auv_msgs.srv import (
+    SetDepth,
+    SetDepthRequest,
+    SetDepthResponse,
+    AlignFrameController,
+    AlignFrameControllerResponse,
+)
 from robot_localization.srv import SetPose, SetPoseRequest
-from tf.transformations import quaternion_from_euler, euler_from_quaternion
+from tf.transformations import (
+    quaternion_from_euler,
+    euler_from_quaternion,
+    quaternion_multiply,
+)
 from auv_common_lib.control.enable_state import ControlEnableHandler
-import dynamic_reconfigure.client
 from threading import Lock
+from tf2_geometry_msgs import do_transform_point
 
 
 class ReferencePosePublisherNode:
     def __init__(self):
-        # Initialize subscribers
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        # subscribers
         self.odometry_sub = rospy.Subscriber(
             "odometry", Odometry, self.odometry_callback, tcp_nodelay=True
         )
@@ -24,54 +43,149 @@ class ReferencePosePublisherNode:
         self.cmd_vel_sub = rospy.Subscriber(
             "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
         )
+
+        # services
         self.reset_odometry_service = rospy.Service(
             "reset_odometry", Trigger, self.reset_odometry_handler
         )
-        self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
-        self.set_heading_control_service = rospy.Service(
-            "set_heading_control", SetBool, self.set_heading_control_handler
+        self.align_frame_service = rospy.Service(
+            "align_frame/start", AlignFrameController, self.handle_align_request
         )
+        self.cancel_control_service = rospy.Service(
+            "align_frame/cancel", Trigger, self.handle_cancel_request
+        )
+        self.control_enable_handler = ControlEnableHandler(1.0)
+        self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
 
-        # Initialize publisher
+        # publishers
         self.cmd_pose_pub = rospy.Publisher("cmd_pose", PoseStamped, queue_size=10)
 
-        self.control_enable_handler = ControlEnableHandler(1.0)
+        # target state
+        self.target_frame_id = "odom"
+        self.target_x = 0.0
+        self.target_y = 0.0
+        self.target_depth = -0.4  # z
+        self.target_roll = 0.0
+        self.target_pitch = 0.0
+        self.target_heading = 0.0  # yaw
 
-        # Initialize internal state
-        self.target_depth = -0.4
-        self.target_heading = 0.0
+        self.align_frame_active = False
+        self.use_align_frame_depth = False
+        self.align_frame_keep_orientation = False
+
         self.last_cmd_time = rospy.Time.now()
-        self.target_frame_id = ""
-        self.is_resetting = False
-        self.state_lock = Lock()  # To protect shared state
-        self.is_heading_control_enabled = True
+        self.state_lock = Lock()
+        self.latest_odometry = Odometry()
 
         self.set_pose_req = SetPoseRequest()
         self.set_pose_req.pose = PoseWithCovarianceStamped()
         self.set_pose_req.pose.header.stamp = rospy.Time.now()
         self.set_pose_req.pose.header.frame_id = "odom"
+        self.is_resetting = False
 
-        # Parameters
+        # parameters #TODO
+        self.namespace = rospy.get_param("~namespace", "taluy")
+        self.base_frame = self.namespace + "/base_link"
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
-        # Dynamic reconfigure client
-        self.dyn_client = dynamic_reconfigure.client.Client(
-            "/taluy/auv_control_node", timeout=30
-        )
-        # Initialize stored PID parameters
-        self.stored_kp_5 = 0.0
-        self.stored_ki_5 = 0.0
-        self.stored_kd_5 = 0.0
-        self.heading_gains_stored = False
-
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
-        self.target_depth = req.target_depth
-        self.target_frame_id = req.frame_id
-        return SetDepthResponse(
-            success=True,
-            message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
+        with self.state_lock:
+            if self.align_frame_active and self.use_align_frame_depth:
+                return SetDepthResponse(
+                    success=False,
+                    message="Cannot set depth while align_frame is active and use_depth is true",
+                )
+
+            depth = self.get_transformed_depth(
+                self.target_frame_id,
+                req.frame_id,
+                req.target_depth,
+            )
+            if depth is None:
+                return SetDepthResponse(
+                    success=False,
+                    message="Failed to transform depth",
+                )
+
+            self.target_depth = depth
+            return SetDepthResponse(
+                success=True,
+                message=f"Target depth set to {self.target_depth} in frame {self.target_frame_id}",
+            )
+
+    def handle_align_request(
+        self, req: AlignFrameController
+    ) -> AlignFrameControllerResponse:
+        with self.state_lock:
+            if not self.control_enable_handler.is_enabled():
+                return AlignFrameControllerResponse(
+                    success=False,
+                    message="Cannot align to frame while control is disabled",
+                )
+
+            if self.align_frame_active:
+                self.align_frame_active = False
+                self.use_align_frame_depth = False
+                self.align_frame_keep_orientation = False
+                self.set_target_to_odometry()
+
+            t = self.tf_lookup(
+                self.base_frame, req.source_frame, rospy.Time(0), rospy.Duration(1.0)
+            )
+
+            if t is None:
+                return AlignFrameControllerResponse(
+                    success=False,
+                    message="Failed to lookup transform",
+                )
+
+            self.target_x = t.transform.translation.x
+            self.target_y = t.transform.translation.y
+
+            self.use_align_frame_depth = req.use_depth
+            if req.use_depth:
+                self.target_depth = t.transform.translation.z
+
+            self.align_frame_keep_orientation = req.keep_orientation
+            if not req.keep_orientation:
+                quaternion = [
+                    t.transform.rotation.x,
+                    t.transform.rotation.y,
+                    t.transform.rotation.z,
+                    t.transform.rotation.w,
+                ]
+
+                if req.angle_offset != 0.0:
+                    q_rot = quaternion_from_euler(0, 0, req.angle_offset)
+                    quaternion = quaternion_multiply(quaternion, q_rot)
+
+                self.target_roll, self.target_pitch, self.target_heading = (
+                    euler_from_quaternion(quaternion)
+                )
+
+            self.target_frame_id = req.target_frame
+            self.align_frame_active = True
+
+        rospy.loginfo(
+            f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}"
         )
+        return AlignFrameControllerResponse(success=True, message="Alignment started")
+
+    def handle_cancel_request(self, req) -> TriggerResponse:
+        with self.state_lock:
+            if not self.align_frame_active:
+                return TriggerResponse(
+                    success=False, message="Alignment is not active."
+                )
+
+            self.align_frame_active = False
+            self.use_align_frame_depth = False
+            self.align_frame_keep_orientation = False
+            self.set_target_to_odometry()
+
+        rospy.loginfo("Align frame control canceled")
+        return TriggerResponse(success=True, message="Alignment deactivated")
 
     def reset_odometry_handler(self, req):
         if self.is_resetting:
@@ -98,77 +212,175 @@ class ReferencePosePublisherNode:
         return TriggerResponse(success=True, message="Odometry reset successfully.")
 
     def odometry_callback(self, msg):
+        self.latest_odometry = msg
+
+        if self.control_enable_handler.is_enabled() and not self.is_resetting:
+            return
+
+        self.set_target_to_odometry()
+
+    def set_target_to_odometry(self):
+        self.target_x = self.latest_odometry.pose.pose.position.x
+        self.target_y = self.latest_odometry.pose.pose.position.y
+
+        if self.target_frame_id != "odom":
+            depth = self.get_transformed_depth(
+                "odom",
+                self.target_frame_id,
+                self.target_depth,
+            )
+            if depth is None:
+                return
+
+            self.target_depth = depth
+            self.target_frame_id = "odom"
+
         quaternion = [
-            msg.pose.pose.orientation.x,
-            msg.pose.pose.orientation.y,
-            msg.pose.pose.orientation.z,
-            msg.pose.pose.orientation.w,
+            self.latest_odometry.pose.pose.orientation.x,
+            self.latest_odometry.pose.pose.orientation.y,
+            self.latest_odometry.pose.pose.orientation.z,
+            self.latest_odometry.pose.pose.orientation.w,
         ]
-        _, _, current_heading = euler_from_quaternion(quaternion)
+        _, _, self.target_heading = euler_from_quaternion(quaternion)
 
-        if not self.is_heading_control_enabled:
-            self.target_heading = current_heading
-        elif not self.control_enable_handler.is_enabled() and not self.is_resetting:
-            self.target_heading = current_heading
+        self.target_roll = 0.0
+        self.target_pitch = 0.0
 
-    def set_heading_control_handler(self, req):
-        with self.state_lock:
-            self.is_heading_control_enabled = req.data
-            if not self.heading_gains_stored:
-                try:
-                    current_config = self.dyn_client.get_configuration(timeout=5)
-                    self.stored_kp_5 = current_config["kp_5"]
-                    self.stored_ki_5 = current_config["ki_5"]
-                    self.stored_kd_5 = current_config["kd_5"]
-                    self.heading_gains_stored = True
-                except (
-                    rospy.ServiceException,
-                    rospy.ROSException,
-                    dynamic_reconfigure.client.DynamicReconfigureTimeout,
-                ) as e:
-                    rospy.logerr(f"Failed to get current controller config: {e}")
-                    return SetBoolResponse(
-                        success=False,
-                        message="Failed to get current controller config.",
-                    )
+    def get_transformed_depth(
+        self, target_frame: str, source_frame: str, target_depth: float
+    ):
+        transform = self.tf_lookup(
+            target_frame,
+            source_frame,
+            rospy.Time(0),
+            rospy.Duration(1.0),
+        )
 
-            if self.is_heading_control_enabled:
-                params = {
-                    "kp_5": self.stored_kp_5,
-                    "ki_5": self.stored_ki_5,
-                    "kd_5": self.stored_kd_5,
-                }
-                self.dyn_client.update_configuration(params)
-                return SetBoolResponse(success=True, message="Heading control enabled.")
-            else:
-                params = {"kp_5": 0.0, "ki_5": 0.0, "kd_5": 0.0}
-                self.dyn_client.update_configuration(params)
-                return SetBoolResponse(
-                    success=True, message="Heading control disabled."
-                )
+        if transform is None:
+            return None
 
-    def cmd_vel_callback(self, msg):
+        p = PointStamped()
+        p.header.stamp = transform.header.stamp
+        p.header.frame_id = source_frame
+        p.point.x = 0.0
+        p.point.y = 0.0
+        p.point.z = target_depth
+
+        p_in_target = do_transform_point(p, transform)
+        return p_in_target.point.z
+
+    def get_transformed_orientation(
+        self,
+        target_frame: str,
+        source_frame: str,
+        roll: float,
+        pitch: float,
+        yaw: float,
+    ):
+        transform = self.tf_lookup(
+            target_frame,
+            source_frame,
+            rospy.Time(0),
+            rospy.Duration(1.0),
+        )
+
+        if transform is None:
+            return None
+
+        q_orientation = quaternion_from_euler(roll, pitch, yaw)
+
+        q_transform = [
+            transform.transform.rotation.x,
+            transform.transform.rotation.y,
+            transform.transform.rotation.z,
+            transform.transform.rotation.w,
+        ]
+
+        q_new = quaternion_multiply(q_transform, q_orientation)
+
+        new_roll, new_pitch, new_yaw = euler_from_quaternion(q_new)
+        return (new_roll, new_pitch, new_yaw)
+
+    def cmd_vel_callback(self, msg: Twist):
         if (
-            (not self.control_enable_handler.is_enabled())
+            not self.control_enable_handler.is_enabled()
             or self.is_resetting
-            or not self.is_heading_control_enabled
+            or self.align_frame_active
         ):
             return
 
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
         dt = min(dt, self.command_timeout)
+
+        self.target_x += msg.linear.x * dt
+        self.target_y += msg.linear.y * dt
         self.target_depth += msg.linear.z * dt
+        self.target_roll += msg.angular.x * dt
+        self.target_pitch += msg.angular.y * dt
         self.target_heading += msg.angular.z * dt
+
         self.last_cmd_time = rospy.Time.now()
 
-    def control_loop(self):
-        # Create and publish the cmd_pose message
-        cmd_pose_stamped = PoseStamped()
+    def tf_lookup(
+        self,
+        target_frame: str,
+        source_frame: str,
+        time: rospy.Time,
+        timeout: rospy.Duration,
+    ):
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                target_frame,
+                source_frame,
+                time,
+                timeout,
+            )
+            return transform
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logerr(f"TF lookup failed from {source_frame} to {target_frame}: {e}")
+            return None
 
-        cmd_pose_stamped.pose.position.z = self.target_depth
+    def control_loop(self):
+        cmd_pose_stamped = PoseStamped()
+        cmd_pose_stamped.header.stamp = rospy.Time.now()
         cmd_pose_stamped.header.frame_id = self.target_frame_id
-        quaternion = quaternion_from_euler(0.0, 0.0, self.target_heading)
-        rospy.logdebug(f"heading: {self.target_heading}")
+
+        cmd_pose_stamped.pose.position.x = self.target_x
+        cmd_pose_stamped.pose.position.y = self.target_y
+
+        if not self.use_align_frame_depth:
+            transformed_depth = self.get_transformed_depth(
+                self.target_frame_id, "odom", self.target_depth
+            )
+            if transformed_depth is None:
+                rospy.logerr_throttle(1.0, "Failed to transform target depth")
+                return
+            cmd_pose_stamped.pose.position.z = transformed_depth
+        else:
+            cmd_pose_stamped.pose.position.z = self.target_depth
+
+        if self.align_frame_keep_orientation:
+            transformed_rpy = self.get_transformed_orientation(
+                self.target_frame_id,
+                "odom",
+                self.target_roll,
+                self.target_pitch,
+                self.target_heading,
+            )
+            if transformed_rpy is None:
+                rospy.logerr_throttle(1.0, "Failed to transform target orientation")
+                return
+            roll, pitch, yaw = transformed_rpy
+        else:
+            roll = self.target_roll
+            pitch = self.target_pitch
+            yaw = self.target_heading
+
+        quaternion = quaternion_from_euler(roll, pitch, yaw)
         cmd_pose_stamped.pose.orientation.x = quaternion[0]
         cmd_pose_stamped.pose.orientation.y = quaternion[1]
         cmd_pose_stamped.pose.orientation.z = quaternion[2]
@@ -187,7 +399,7 @@ class ReferencePosePublisherNode:
 if __name__ == "__main__":
     try:
         rospy.init_node("reference_pose_publisher_node")
-        reference_pose_publisher_node = ReferencePosePublisherNode()
-        reference_pose_publisher_node.run()
+        node = ReferencePosePublisherNode()
+        node.run()
     except rospy.ROSInterruptException:
         pass
