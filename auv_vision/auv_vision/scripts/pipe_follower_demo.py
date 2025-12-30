@@ -2,6 +2,7 @@
 
 import math
 import numpy as np
+from collections import defaultdict
 import cv2
 
 from cv_bridge import CvBridge
@@ -37,6 +38,7 @@ class PipeFollowerDemo:
         self.close_point_filter_eps = 20
         self.short_segment_filter_eps = 100
         self.merge_segment_eps = 50
+        self.ang_error_eps = 40
         # radius*2
         self.pipe_width = 0.12
 
@@ -65,10 +67,11 @@ class PipeFollowerDemo:
             "/taluy/control/align_frame/start", AlignFrameController
         )
         try:
-            res = self.align_frame_start_service(
-                self.taluy_base_frame, self.pipe_carrot_frame, 0, False, 0.3, 0.3
-            )
-            print(res)
+            if False:
+                res = self.align_frame_start_service(
+                    self.taluy_base_frame, self.pipe_carrot_frame, 0, False, 0.3, 0.3
+                )
+                print(res)
         except rospy.ServiceException as exc:
             print("Service did not process request: " + str(exc))
 
@@ -100,65 +103,75 @@ class PipeFollowerDemo:
         for line in ordered_lines:
             cnt_format = line.reshape(-1, 1, 2).astype(np.int32)
             line_len = cv2.arcLength(cnt_format, closed=False)
-            approx = cv2.approxPolyDP(cnt_format, 0.15 * line_len, closed=False)
+            approx = cv2.approxPolyDP(cnt_format, 0.10 * line_len, closed=False)
 
             pts = approx.reshape(-1, 2)
-            final_points_list.append(
-                self._filter_close_points(pts, self.close_point_filter_eps)
-            )
+            final_points_list.append(pts)
 
         segments = self._merge_into_segments(final_points_list, self.merge_segment_eps)
         segments = self._filter_segments(segments, self.short_segment_filter_eps)
 
-        target_segment_index = 0
-        # find closest segment
+        # find closest segment (perpendicular distance between line and point)
         min_line_dist = 1e6
+        target_segment_index = 0
         for i, seg in enumerate(segments):
-            for p in seg:
-                x = abs(self.mid_img[1] - p[1])
+            for j in range(len(seg) - 1):
+                p1 = np.array(seg[j])
+                p2 = np.array(seg[j + 1])
+                p3 = np.array(self.mid_img)
+                v = p2 - p1
+                w = p3 - p1
+
+                t = np.dot(w, v) / np.dot(v, v)
+                t = np.clip(t, 0, 1)
+
+                closest = p1 + t * v
+                x = np.linalg.norm(p3 - closest)
                 if x <= min_line_dist:
                     min_line_dist = x
                     target_segment_index = i
 
         # find target point
+        # TODO: broken right now
         target_point = None
         target_point_index = None
         if len(segments) > 0:
-            seg = segments[target_segment_index].copy()
+            seg = segments[target_segment_index]
             # make first segment from right to left (according to image)
             # TODO: this is not the perfect approach, may have some edge cases
             if seg[0][0] < seg[-1][0]:
-                segments[target_segment_index].reverse()
                 seg.reverse()
 
-            seg.reverse()
             possible_targets = []
             changed = True
-            for i in range(len(seg) - 1):
+
+            p1, p2 = seg[0], seg[1]
+            last_ang = (self._normalize_angle(self._get_angle(p1, p2)) / math.pi) * 180
+            print(f"first ang: {last_ang}")
+
+            for i in range(2, len(seg) - 1):
                 k = seg[i]
                 l = seg[i + 1]
-                ang_rad = self._normalize_angle(self._get_angle(seg[i + 1], seg[i]))
+                ang_rad = self._normalize_angle(self._get_angle(k, l))
                 ang = (ang_rad / math.pi) * 180
+                print(f"ang: {ang}")
 
                 # TODO: not a good approach, makes algorithm depend on constant, stable rotation too much
-                if -30 <= ang <= 30:
-                    if changed:
-                        possible_targets.append(
-                            (len(seg) - 1 - i, k)
-                        )  # index and value itself
-                    changed = False
-                else:
-                    changed = True
+                if abs(last_ang - ang) > self.ang_error_eps:
+                    possible_targets.append((i, k))  # index and value itself
+                    last_ang = ang
+
+            if len(possible_targets) == 0:
+                possible_targets.append((len(seg) - 1, seg[-1]))
 
             possible_targets = list(
                 filter(lambda x: x[1][0] <= self.mid_img[0] + 50, possible_targets)
             )
+            print(possible_targets)
             # TODO: this shouldn't be the final approach, but it works 90%
-            target_point = (
-                possible_targets[-1][1] if len(possible_targets) > 0 else None
-            )
+            target_point = possible_targets[0][1] if len(possible_targets) > 0 else None
             target_point_index = (
-                possible_targets[-1][0] if len(possible_targets) > 0 else None
+                possible_targets[0][0] if len(possible_targets) > 0 else None
             )
 
         # TODO: fully refactor this state system
@@ -173,12 +186,9 @@ class PipeFollowerDemo:
             and math.dist(target_point, self.mid_img) <= 25
         ):
             rospy.loginfo("waiting for rotation")
-            ang_err = (
-                self._get_angle(
-                    segments[target_segment_index][target_point_index],
-                    segments[target_segment_index][target_point_index + 1],
-                )
-                - math.pi
+            ang_err = self._get_angle(
+                self.mid_img,
+                segments[target_segment_index][target_point_index + 1],
             )
             print(target_point)
             ang_err = self._normalize_angle(ang_err)
@@ -265,6 +275,7 @@ class PipeFollowerDemo:
     def _publish_debug_img(
         self, msg, debug_img, segments, target_segment_index, target_point
     ):
+        cv2.circle(debug_img, self.mid_img, 4, (0, 255, 0), -1)
         for j, seg in enumerate(segments):
             for i in range(1, len(seg)):
                 color = (0, 0, 255)
@@ -293,6 +304,43 @@ class PipeFollowerDemo:
                 filtered.append(points[i])
 
         return np.array(filtered)
+
+    def _remove_close_points_global(self, lines, eps=10):
+        cell = eps
+        grid = defaultdict(list)
+
+        def cell_key(p):
+            return (int(p[0] // cell), int(p[1] // cell))
+
+        new_lines = []
+
+        for line in lines:
+            new_line = []
+            for p in line:
+                key = cell_key(p)
+                keep = True
+
+                # sadece 3x3 komşu hücre kontrol
+                for dx in (-1, 0, 1):
+                    for dy in (-1, 0, 1):
+                        neigh = (key[0] + dx, key[1] + dy)
+                        for q in grid.get(neigh, []):
+                            if (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 < eps * eps:
+                                keep = False
+                                break
+                        if not keep:
+                            break
+                    if not keep:
+                        break
+
+                if keep:
+                    new_line.append(p)
+                    grid[key].append(p)
+
+            if len(new_line) >= 2:
+                new_lines.append(np.array(new_line))
+
+        return new_lines
 
     def _filter_points(self, points, min_dist):
         filtered = [points[0]]
@@ -356,6 +404,7 @@ class PipeFollowerDemo:
                         break
 
             paths.append(np.array([[p[1], p[0]] for p in path], dtype=np.float32))
+        paths = self._remove_close_points_global(paths, eps=20)
         return paths
 
     def _merge_into_segments(self, final_points_list, max_seg_dist):
