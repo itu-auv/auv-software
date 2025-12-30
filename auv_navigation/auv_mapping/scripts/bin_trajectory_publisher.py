@@ -51,8 +51,8 @@ class BinTransformServiceNode:
             "map/object_transform_updates", TransformStamped, queue_size=10
         )
 
-        self.object_non_kalman_transform_pub = rospy.Publisher(
-            "object_transform_non_kalman_create", TransformStamped, queue_size=10
+        self.direct_object_transform_pub = rospy.Publisher(
+            "direct_object_transform", TransformStamped, queue_size=10
         )
 
     def get_pose(self, transform: TransformStamped) -> Pose:
@@ -61,7 +61,6 @@ class BinTransformServiceNode:
         pose.orientation = transform.transform.rotation
         return pose
 
-    # göndereceğimiz transform mesajını oluşturur. Objenin odom frame'e göre pozisyon ve oryantasyonunu ayarlar
     def build_transform_message(
         self, child_frame_id: str, pose: Pose
     ) -> TransformStamped:
@@ -73,24 +72,8 @@ class BinTransformServiceNode:
         t.transform.rotation = pose.orientation
         return t
 
-    # Objenin transform bilgisini set_object_transform servisine gönderiyoruz
     def send_transform(self, transform):
-        self.object_non_kalman_transform_pub.publish(transform)
-
-        # self.object_transform_pub.publish(transform)
-
-        """
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        try:
-            resp = self.set_object_transform_service.call(req)
-            if not resp.success:
-                rospy.logwarn(
-                    f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-                )
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {e}")
-        """
+        self.direct_object_transform_pub.publish(transform)
 
     def create_bin_frames(self):
         try:
@@ -147,13 +130,9 @@ class BinTransformServiceNode:
             )
             return
 
-        direction_unit_2d = (
-            direction_vector_2d / total_distance_2d
-        )  # yönü belli olan birim vektör belirliyoruz
+        direction_unit_2d = direction_vector_2d / total_distance_2d
 
-        yaw = np.arctan2(
-            direction_unit_2d[1], direction_unit_2d[0]
-        )  # yönün açısını hesaplıyoruz
+        yaw = np.arctan2(direction_unit_2d[1], direction_unit_2d[0])
         q = tf.transformations.quaternion_from_euler(0, 0, yaw)
 
         orientation = Pose().orientation
@@ -162,14 +141,9 @@ class BinTransformServiceNode:
         orientation.z = q[2]
         orientation.w = q[3]
 
-        closer_pos_2d = bin_pos[:2] - (
-            direction_unit_2d * self.closer_frame_distance
-        )  # binin biraz gerisinde closer frame noktası
-        further_pos_2d = bin_pos[:2] + (
-            direction_unit_2d * self.further_frame_distance
-        )  # binin biraz ilerisinde further frame noktası
+        closer_pos_2d = bin_pos[:2] - (direction_unit_2d * self.closer_frame_distance)
+        further_pos_2d = bin_pos[:2] + (direction_unit_2d * self.further_frame_distance)
 
-        # Z koordinatını robotun Z koordinatı ile aynı yapıyoruz
         closer_pos = np.append(closer_pos_2d, robot_pos[2])
         further_pos = np.append(further_pos_2d, robot_pos[2])
 

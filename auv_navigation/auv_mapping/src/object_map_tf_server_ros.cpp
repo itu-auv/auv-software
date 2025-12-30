@@ -39,7 +39,7 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle& nh)
 
   double distance_threshold_;
   node_handler_private.param<double>("distance_threshold", distance_threshold_,
-                                     4.0);  // 4.0
+                                     4.0);
   distance_threshold_squared_ = std::pow(distance_threshold_, 2);
 
   service_ =
@@ -55,7 +55,7 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle& nh)
                     &ObjectMapTFServerROS::dynamic_transform_callback, this);
 
   object_transform_non_kalman_create_sub_ = nh_.subscribe(
-      "object_transform_non_kalman_create", 10,
+      "direct_object_transform", 10,
       &ObjectMapTFServerROS::object_transform_non_kalman_create_callback, this);
 
   ROS_DEBUG("ObjectMapTFServerROS initialized. Static frame: %s",
@@ -169,20 +169,17 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   last_time = current_time;
 
   const auto object_frame = msg->child_frame_id;
-  const auto static_transform =
-      transform_to_static_frame(*msg);  // odom -> childe
+  const auto static_transform = transform_to_static_frame(*msg);
   if (!static_transform.has_value()) {
     ROS_ERROR("Failed to capture transform");
     return;
   }
 
   auto it = filters_.find(object_frame);
-  if (it == filters_.end()) {  // eğer bu nesneye ait bir filter yoksa
+  if (it == filters_.end()) {
     // Create first filter for this object
     filters_[object_frame].push_back(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-    // eğer filters_ içinde bu id'li frame'in atandığı bir kalman filtresi yoksa
-    // yeni bir tane oluşturuyoruz
     ROS_DEBUG_STREAM("Created new filter for " << object_frame);
     return;
   }
@@ -195,7 +192,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   // If object is a slalom gate, use a smaller distance threshold
   double current_distance_threshold_squared = distance_threshold_squared_;
   if (is_slalom_gate) {
-    current_distance_threshold_squared = 1.0;  // 1.0 metre'nin karesi
+    current_distance_threshold_squared = 1.0;
     ROS_DEBUG_STREAM(
         "Using special distance threshold for slalom gate: " << object_frame);
   }
@@ -324,8 +321,7 @@ ObjectMapTFServerROS::transform_to_static_frame(
   const auto parent_frame = transform.header.frame_id;
   const auto target_frame = transform.child_frame_id;
   const auto static_to_parent_transform =
-      get_transform(static_frame_, parent_frame,
-                    ros::Duration(4.0));  // parent'ı odoma göre tf alıyoruz
+      get_transform(static_frame_, parent_frame, ros::Duration(4.0));
 
   if (!static_to_parent_transform.has_value()) {
     ROS_ERROR("Error occurred while looking up transform");
