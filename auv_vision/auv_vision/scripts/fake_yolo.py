@@ -26,7 +26,7 @@ class FakeYolo(object):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         _, black_mask = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY_INV)
 
-        kernel = np.ones((20, 20), np.uint8)
+        kernel = np.ones((10, 10), np.uint8)
         mask = cv2.morphologyEx(black_mask, cv2.MORPH_CLOSE, kernel)
 
         mask_bgr = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
