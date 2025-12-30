@@ -13,6 +13,7 @@
 #include "auv_controllers/controller_base.h"
 #include "auv_controllers/multidof_pid_controller.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
+#include "geometry_msgs/Pose.h"
 #include "geometry_msgs/Wrench.h"
 #include "nav_msgs/Odometry.h"
 #include "pluginlib/class_loader.h"
