@@ -80,6 +80,10 @@ class SlalomTrajectoryPublisher(object):
         )
         self.set_object_transform_service.wait_for_service()
 
+        self.direct_object_transform_pub = rospy.Publisher(
+            "direct_object_transform", TransformStamped, queue_size=10
+        )
+
         self.active = False
         self.q_orientation = None
         self.pos_entrance, self.pos_wp1, self.pos_wp2, self.pos_wp3, self.pos_exit = (
@@ -391,13 +395,7 @@ class SlalomTrajectoryPublisher(object):
     def send_transform(self, transform: TransformStamped):
         if transform is None:
             return
-        request = SetObjectTransformRequest()
-        request.transform = transform
-        response = self.set_object_transform_service.call(request)
-        if not response.success:
-            rospy.logerr(
-                f"Failed to set transform for {transform.child_frame_id}: {response.message}"
-            )
+        self.direct_object_transform_pub.publish(transform)
 
     def save_parameters(self):
         """Save parameters to the YAML file."""
