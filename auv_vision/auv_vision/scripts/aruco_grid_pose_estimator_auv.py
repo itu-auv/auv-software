@@ -33,27 +33,36 @@ class ArucoBoardEstimator:
     """
     
     # =========================================================================
-    # TEST BOARD CONFIGURATION (4 markers in corners, 73 x 58 cm)
+    # TEST BOARD CONFIGURATION (4 markers, measured edge-to-edge distances)
     # =========================================================================
-    # Board Layout (as seen from camera, origin at center):
+    # Board Layout (as seen from camera, origin at center of all markers):
     #
-    #     ┌─────────────────────────────────────────────────────────────────┐
-    #     │  [ID:0]                                               [ID:19]   │
-    #     │  top-left                                           top-right   │
-    #     │                                                                 │
-    #     │                          (0,0)                                  │  58cm
-    #     │                                                                 │
-    #     │  [ID:28]                                               [ID:7]   │
-    #     │  bottom-left                                       bottom-right │
-    #     └─────────────────────────────────────────────────────────────────┘
-    #                                   73cm
+    #     [ID:0]                                                    [ID:19]
+    #     top-left         <-- 34.8 cm edge-to-edge -->           top-right
+    #        |                                                        |
+    #        |                                                        |
+    #     20.8 cm                    (0,0)                         20.2 cm
+    #        |                                                        |
+    #        |                                                        |
+    #     [ID:28]                                                   [ID:7]
+    #     bottom-left      <-- 35.5 cm edge-to-edge -->        bottom-right
     #
-    # - Markers: 19x19 cm (in corners)
+    # Edge-to-edge distances (black edge of one marker to black edge of other):
+    #   - 0 to 28: 20.8 cm (vertical left)
+    #   - 19 to 7: 20.2 cm (vertical right)
+    #   - 0 to 19: 34.8 cm (horizontal top)
+    #   - 28 to 7: 35.5 cm (horizontal bottom)
+    #
+    # All markers are the same size. Center of all 4 markers = board origin.
     # =========================================================================
     
-    BOARD_WIDTH = 0.730      # 73cm (horizontal)
-    BOARD_HEIGHT = 0.580     # 58cm (vertical)
-    MARKER_SIZE = 0.190      # 19cm
+    MARKER_SIZE = 0.190      # 19cm (same for all markers)
+    
+    # Edge-to-edge distances (in meters)
+    DIST_0_28 = 0.208        # 20.8 cm (vertical left: 0 to 28)
+    DIST_19_7 = 0.202        # 20.2 cm (vertical right: 19 to 7)
+    DIST_0_19 = 0.348        # 34.8 cm (horizontal top: 0 to 19)
+    DIST_28_7 = 0.355        # 35.5 cm (horizontal bottom: 28 to 7)
     
     # Marker IDs: top-left, top-right, bottom-left, bottom-right
     MARKER_IDS = [7, 28, 19, 0]
@@ -206,8 +215,7 @@ class ArucoBoardEstimator:
         self.dyn_reconf_server = Server(ArucoDebugConfig, self._reconfigure_callback)
         
         rospy.loginfo("ArUco Board Estimator started!")
-        rospy.loginfo(f"Board: {self.BOARD_WIDTH*100:.1f}x{self.BOARD_HEIGHT*100:.1f}cm, "
-                     f"Markers: {self.MARKER_SIZE*100:.0f}cm, IDs: {self.MARKER_IDS}")
+        rospy.loginfo(f"Markers: {self.MARKER_SIZE*100:.0f}cm, IDs: {self.MARKER_IDS}")
     
     def _load_saved_parameters(self):
         """Load parameters from the saved YAML file, return empty dict if not found."""
@@ -328,25 +336,53 @@ class ArucoBoardEstimator:
         """
         Create marker object points for the TEST board with 4 corner markers.
         
+        Uses measured edge-to-edge distances to compute marker center positions.
+        The origin (0,0,0) is at the centroid of all 4 marker centers.
+        
         Coordinate system:
-        - Origin at center of board
-        - X axis: right (along 73cm edge)
-        - Y axis: down (along 58cm edge)
+        - X axis: right
+        - Y axis: down
         - Z axis: out of the board (towards camera)
         
         Returns:
             dict: Marker ID -> numpy array of 4 corner 3D points (4x3)
         """
-        half_w = self.BOARD_WIDTH / 2.0   # 0.365m
-        half_h = self.BOARD_HEIGHT / 2.0  # 0.290m
+        # Edge-to-edge distances -> center-to-center distances
+        # Center-to-center = edge-to-edge + marker_size
+        c2c_0_28 = self.DIST_0_28 + self.MARKER_SIZE  # vertical left
+        c2c_19_7 = self.DIST_19_7 + self.MARKER_SIZE  # vertical right
+        c2c_0_19 = self.DIST_0_19 + self.MARKER_SIZE  # horizontal top
+        c2c_28_7 = self.DIST_28_7 + self.MARKER_SIZE  # horizontal bottom
         
-        # Marker top-left corner positions (relative to board center)
-        # Markers are in the corners of the board
+        # Place marker 0 at origin temporarily, then compute others
+        # Marker layout:
+        #   0 (top-left)    19 (top-right)
+        #   28 (bottom-left)  7 (bottom-right)
+        
+        # Temporary positions (marker 0 at origin)
+        pos_0 = np.array([0.0, 0.0])
+        pos_19 = np.array([c2c_0_19, 0.0])           # right of 0 on top edge
+        pos_28 = np.array([0.0, c2c_0_28])           # below 0 on left edge
+        pos_7 = np.array([c2c_28_7, c2c_19_7])       # right of 28, below 19
+        
+        # Compute centroid of all 4 marker centers
+        all_pos = np.vstack([pos_0, pos_19, pos_28, pos_7])
+        centroid = all_pos.mean(axis=0)
+        
+        # Shift all positions so centroid is at origin
+        marker_centers = {
+            0: pos_0 - centroid,
+            19: pos_19 - centroid,
+            28: pos_28 - centroid,
+            7: pos_7 - centroid,
+        }
+        
+        # Convert marker centers to top-left corner positions
+        # Top-left corner = center - half_marker_size
+        half_m = self.MARKER_SIZE / 2.0
         marker_positions = {
-            0: (-half_w, -half_h),                                      # top-left
-            19: (half_w - self.MARKER_SIZE, -half_h),                   # top-right
-            28: (-half_w, half_h - self.MARKER_SIZE),                   # bottom-left
-            7: (half_w - self.MARKER_SIZE, half_h - self.MARKER_SIZE),  # bottom-right
+            mid: (center[0] - half_m, center[1] - half_m)
+            for mid, center in marker_centers.items()
         }
         
         # Build objPoints dict: marker ID -> 4 corner 3D coordinates
@@ -364,10 +400,15 @@ class ArucoBoardEstimator:
             marker_obj_points[marker_id] = corners
         
         # Log marker positions for debugging
-        rospy.loginfo("TEST BOARD marker positions (relative to center):")
-        for marker_id, corners in marker_obj_points.items():
-            center = corners.mean(axis=0)
-            rospy.loginfo(f"  Marker {marker_id}: center at ({center[0]*100:.1f}, {center[1]*100:.1f}) cm")
+        rospy.loginfo("TEST BOARD marker centers (relative to centroid origin):")
+        for marker_id in self.MARKER_IDS:
+            cx, cy = marker_centers[marker_id]
+            rospy.loginfo(f"  Marker {marker_id}: center at ({cx*100:.1f}, {cy*100:.1f}) cm")
+        
+        # Log computed center-to-center distances for verification
+        rospy.loginfo("Computed center-to-center distances (should match input + marker size):")
+        rospy.loginfo(f"  0-28: {c2c_0_28*100:.1f} cm, 19-7: {c2c_19_7*100:.1f} cm")
+        rospy.loginfo(f"  0-19: {c2c_0_19*100:.1f} cm, 28-7: {c2c_28_7*100:.1f} cm")
         
         return marker_obj_points
     
