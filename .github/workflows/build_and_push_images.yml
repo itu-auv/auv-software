@@ -87,15 +87,21 @@ jobs:
           echo "base_image_tag=$BASE_IMAGE" >> $GITHUB_OUTPUT
           echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "dockerfile=$DOCKERFILE" >> $GITHUB_OUTPUT
+
+      - name: Set PR tag
+        id: pr_tag
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "pr_tags=${{ steps.set_build_config.outputs.image_tag }}:pr-${{ github.event.pull_request.number }}-${{ matrix.architecture }}" >> $GITHUB_OUTPUT
+
       - name: Build and push ${{ inputs.image_type }} image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ${{ steps.set_build_config.outputs.dockerfile }}
           platforms: ${{ matrix.platform }}
-          # push: ${{ github.event_name == 'push' && matrix.host == 'desktop' }}
-          # TODO: Temporarily allow push for emulated ARM tags, since self hosted is disabled
-          push: ${{ github.event_name == 'push' }}
+          # Always push - for PRs we use pr-<number> tag, for push we use latest
+          push: true
           build-args: |
             BASE_IMAGE=${{ steps.set_build_config.outputs.base_image_tag }}
             HOST=${{ matrix.host }}
@@ -104,78 +110,12 @@ jobs:
           provenance: false
           sbom: false
           tags: |
-            ${{ steps.set_build_config.outputs.image_tag }}:latest-${{ matrix.architecture }}
-            ${{ steps.set_build_config.outputs.image_tag }}:${{ github.sha }}-${{ matrix.architecture }}
-
-  # build-and-push-arm64:
-  #   runs-on: self-hosted
-  #   strategy:
-  #     matrix:
-  #       host: [tegra]
-  #       include:
-  #         - platform: linux/arm64
-  #           architecture: arm64
-  #           host: tegra
-
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-
-  #     - name: Set up QEMU
-  #       uses: docker/setup-qemu-action@v3
-  #       with:
-  #         platforms: ${{ matrix.platform }}
-  #     - name: Set up Docker Buildx
-  #       uses: docker/setup-buildx-action@v3.3.0
-  #       with:
-  #         driver: docker
-
-  #     - name: Login to Github Containter Registry
-  #       uses: docker/login-action@v3
-  #       with:
-  #         registry: ghcr.io
-  #         username: ${{ github.repository_owner }}
-  #         password: ${{ secrets.GITHUB_TOKEN }}
-
-  #     - name: set build configuration
-  #       id: set_build_config
-  #       run: |
-  #         if [ ${{ inputs.image_type }} == 'main' ]; then
-  #           BASE_IMAGE=${{ env.BASE_IMAGE_TAG }}:latest-${{ matrix.architecture }}
-  #           IMAGE_TAG=${{ env.IMAGE_TAG }}
-  #           DOCKERFILE=./docker/Dockerfile.auv
-  #         else
-  #           if [ ${{ matrix.host }} == 'desktop' ]; then
-  #             BASE_IMAGE=${{ env.AMD64_CORE_IMAGE_TAG }}
-  #           else
-  #             BASE_IMAGE=${{ env.ARCH64_CORE_IMAGE_TAG }}
-  #           fi
-  #           IMAGE_TAG=${{ env.BASE_IMAGE_TAG }}
-  #           DOCKERFILE=./docker/Dockerfile.auv-base
-  #         fi
-
-  #         echo "base_image_tag=$BASE_IMAGE" >> $GITHUB_OUTPUT
-  #         echo "image_tag=$IMAGE_TAG" >> $GITHUB_OUTPUT
-  #         echo "dockerfile=$DOCKERFILE" >> $GITHUB_OUTPUT
-
-  #     - name: Build and push ${{ inputs.image_type }} image
-  #       uses: docker/build-push-action@v5
-  #       with:
-  #         context: .
-  #         file: ${{ steps.set_build_config.outputs.dockerfile }}
-  #         platforms: ${{ matrix.platform }}
-  #         push: ${{ github.event_name == 'push' }}
-  #         build-args: |
-  #           BASE_IMAGE=${{ steps.set_build_config.outputs.base_image_tag }}
-  #         provenance: false
-  #         sbom: false
-  #         tags: |
-  #           ${{ steps.set_build_config.outputs.image_tag }}:latest-${{ matrix.architecture }}
-  #           ${{ steps.set_build_config.outputs.image_tag }}:${{ github.sha }}-${{ matrix.architecture }}
+            ${{ github.event_name == 'push' && format('{0}:latest-{1}', steps.set_build_config.outputs.image_tag, matrix.architecture) || '' }}
+            ${{ github.event_name == 'push' && format('{0}:{1}-{2}', steps.set_build_config.outputs.image_tag, github.sha, matrix.architecture) || '' }}
+            ${{ github.event_name == 'pull_request' && format('{0}:pr-{1}-{2}', steps.set_build_config.outputs.image_tag, github.event.pull_request.number, matrix.architecture) || '' }}
 
   create-manifests:
     runs-on: ubuntu-latest
-    # needs: [build-and-push, build-and-push-arm64]
     needs: [build-and-push]
     if: github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch'
     steps:
@@ -208,3 +148,30 @@ jobs:
             --amend $image_tag:latest-amd64 \
             --amend $image_tag:latest-arm64
           docker manifest push $image_tag:latest
+
+  # Create manifest for PR images
+  create-pr-manifests:
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Login to Github Containter Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create PR manifest and push
+        run: |-
+          image_tag=${{ needs.build-and-push.outputs.image_tag }}
+          docker manifest create \
+          $image_tag:pr-${{ github.event.pull_request.number }} \
+            --amend $image_tag:pr-${{ github.event.pull_request.number }}-amd64 \
+            --amend $image_tag:pr-${{ github.event.pull_request.number }}-arm64
+          docker manifest push $image_tag:pr-${{ github.event.pull_request.number }}
