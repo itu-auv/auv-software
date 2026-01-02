@@ -154,7 +154,6 @@ class PipeFollowerDemo:
                 ang = (ang_rad / math.pi) * 180
                 print(f"ang: {ang}")
 
-                # TODO: not a good approach, makes algorithm depend on constant, stable rotation too much
                 if abs(last_ang - ang) > self.ang_error_eps:
                     possible_targets.append((i, k))  # index and value itself
                     last_ang = ang
