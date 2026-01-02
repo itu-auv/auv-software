@@ -29,8 +29,6 @@ from camera_detection_pose_estimator import CameraCalibration
 class PipeFollowerDemo:
     def __init__(self):
         self.count = 0
-        self.rotating = False
-        self.rotation_timer = 0
 
         # TODO: config file
         self.mid_img = [320, 240]
@@ -185,7 +183,7 @@ class PipeFollowerDemo:
                     target_point = pt
                     break
 
-        if not self.rotating and target_point is not None:
+        if target_point is not None:
             line_widths = []
             for line in segments:
                 w = []
