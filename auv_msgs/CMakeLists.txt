@@ -21,6 +21,8 @@ add_message_files(
   FILES
   EulerOrientation.msg
   MotorCommand.msg
+  ObjectDetection.msg
+  ObjectDetectionArray.msg
   Power.msg
   PropsYaw.msg
   TDOA.msg

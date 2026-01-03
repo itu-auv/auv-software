@@ -13,6 +13,9 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
+from auv_vision.slalom_segmentation import segment_slalom_pipes, PipeDetection
+from auv_msgs.msg import ObjectDetection, ObjectDetectionArray
+from geometry_msgs.msg import Point
 
 ZMQ_TIMEOUT_MS = 30000
 
@@ -35,6 +38,7 @@ class DepthAnythingClient:
         self.process_res = rospy.get_param("~process_res", 504)
         self.camera_namespace = rospy.get_param("~camera_namespace", "cameras/cam_front")
         self.max_batch_size = rospy.get_param("~max_batch_size", 1)
+        self.enable_slalom = rospy.get_param("~enable_slalom", False)
 
     def _init_camera_intrinsics(self) -> None:
         try:
@@ -80,6 +84,8 @@ class DepthAnythingClient:
         )
         self.depth_pub = rospy.Publisher("~depth", Image, queue_size=1)
         self.colorized_pub = rospy.Publisher("~colorized", Image, queue_size=1)
+        self.debug_pub = rospy.Publisher("~debug", Image, queue_size=1)
+        self.pipes_pub = rospy.Publisher("~slalom_pipes", ObjectDetectionArray, queue_size=1)
 
     def _image_cb(self, msg: Image) -> None:
         self.latest_image = msg
@@ -132,12 +138,49 @@ class DepthAnythingClient:
                 color_msg.header = msg.header
                 self.colorized_pub.publish(color_msg)
 
+                if self.enable_slalom:
+                    rgb = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+                    pipes = segment_slalom_pipes(rgb, depth)
+                    self._publish_detections(pipes, msg.header, cv_img)
+
             except zmq.error.Again:
                 rospy.logwarn_throttle(5.0, "ZMQ timeout")
             except Exception as e:
                 rospy.logerr_throttle(5.0, f"Inference failed: {e}")
 
             rate.sleep()
+
+    def _publish_detections(
+        self, pipes: list, header, debug_img: np.ndarray
+    ) -> None:
+        """Convert PipeDetection list to ROS message and publish debug overlay."""
+        arr = ObjectDetectionArray()
+        arr.header = header
+
+        for p in pipes:
+            det = ObjectDetection()
+            det.label = p.label
+            det.color = p.color
+            det.confidence = p.confidence
+            det.bbox = list(p.bbox)
+            det.depth = p.depth
+            det.centroid = Point(x=p.centroid[0], y=p.centroid[1], z=0.0)
+            arr.detections.append(det)
+
+            # Draw on debug image
+            x, y, w, h = p.bbox
+            color_bgr = (0, 0, 255) if p.color == "red" else (255, 255, 255)
+            cv2.rectangle(debug_img, (x, y), (x + w, y + h), color_bgr, 2)
+            cv2.putText(
+                debug_img, f"{p.color} {p.confidence:.2f}",
+                (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_bgr, 1
+            )
+
+        self.pipes_pub.publish(arr)
+
+        debug_msg = self.bridge.cv2_to_imgmsg(debug_img, "bgr8")
+        debug_msg.header = header
+        self.debug_pub.publish(debug_msg)
 
     def cleanup(self) -> None:
         rospy.loginfo("Shutting down depth client...")
