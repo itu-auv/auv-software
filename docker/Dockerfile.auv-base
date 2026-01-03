@@ -44,6 +44,7 @@ RUN apt-get update && \
 RUN if [ "$HOST" = "tegra" ]; then \
   set -e; \
   echo "Building source overlay for tegra…"; \
+  pip3 install 'setuptools==45.2.0'; \
   mkdir -p src && cd src && \
   git clone -b noetic --single-branch https://github.com/ros-perception/vision_opencv.git && \
   cd /auv_ws; \
