@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-Pipe Line Angle and Thickness Detector (ROS1)
+Bottle Angle and Thickness Detector (ROS1)
 
-- Subscribes: sensor_msgs/Image (mono8 pipe mask)
+- Subscribes: sensor_msgs/Image (mono8 bottle mask)
 - Publishes:
     - std_msgs/Float32 (deviation angle in radians)
     - std_msgs/Float32 (median thickness in pixels)
@@ -44,15 +44,15 @@ def rot90n(img, n_cw):
         return np.ascontiguousarray(np.rot90(img, k=1))
 
 
-class PipeLineAngleNode(object):
+class BottleAngleNode(object):
     def __init__(self):
         # ---- Topics ----
-        self.mask_topic = rospy.get_param("~mask_topic", "pipe_mask")
-        self.angle_topic = rospy.get_param("~angle_topic", "taluy/pipe_line_angle")
+        self.mask_topic = rospy.get_param("~mask_topic", "bottle_mask")
+        self.angle_topic = rospy.get_param("~angle_topic", "taluy/bottle_angle")
         # --- YENİ TOPIC ---
-        self.thickness_topic = rospy.get_param("~thickness_topic", "pipe_thickness")
+        self.thickness_topic = rospy.get_param("~thickness_topic", "bottle_thickness")
         # --- BİTTİ ---
-        self.debug_topic = rospy.get_param("~debug_topic", "pipe_line_angle_debug")
+        self.debug_topic = rospy.get_param("~debug_topic", "bottle_angle_debug")
 
         # ---- Image orientation controls ----
         self.rotate_cw = rospy.get_param("~rotate_cw", 0)
@@ -60,7 +60,7 @@ class PipeLineAngleNode(object):
         self.flip_y = rospy.get_param("~flip_y", False)
 
         # ---- Validity ----
-        self.min_pipe_area_px = int(rospy.get_param("~min_pipe_area_px", 1500))
+        self.min_bottle_area_px = int(rospy.get_param("~min_bottle_area_px", 1500))
         self.min_contour_points = int(rospy.get_param("~min_contour_points", 10))
 
         # ---- Debug ----
@@ -85,7 +85,7 @@ class PipeLineAngleNode(object):
         )
 
         rospy.loginfo(
-            "[pipe_line_angle] started. Subscribing to %s. Publishing angle to %s and thickness to %s",
+            "[bottle_angle] started. Subscribing to %s. Publishing angle to %s and thickness to %s",
             self.mask_topic,
             self.angle_topic,
             self.thickness_topic,
@@ -109,13 +109,13 @@ class PipeLineAngleNode(object):
         h, w = mask.shape[:2]
 
         # ---------- Validity check ----------
-        pipe_area = int(np.count_nonzero(mask))
-        if pipe_area < self.min_pipe_area_px:
+        bottle_area = int(np.count_nonzero(mask))
+        if bottle_area < self.min_bottle_area_px:
             rospy.logdebug_throttle(
                 2.0,
-                "[pipe_line_angle] pipe area too small: %d < %d",
-                pipe_area,
-                self.min_pipe_area_px,
+                "[bottle_angle] bottle area too small: %d < %d",
+                bottle_area,
+                self.min_bottle_area_px,
             )
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))  # Yeni
@@ -123,7 +123,7 @@ class PipeLineAngleNode(object):
                 self._publish_debug_info(
                     angle=float("nan"),
                     confidence=0.0,
-                    pipe_area=pipe_area,
+                    bottle_area=bottle_area,
                     thickness=float("nan"),
                 )
             return
@@ -150,7 +150,7 @@ class PipeLineAngleNode(object):
                     median_thickness_px = float(np.median(thickness_values))
         except Exception as e:
             rospy.logwarn_throttle(
-                5.0, "[pipe_line_angle] Thickness calculation failed: %s", e
+                5.0, "[bottle_angle] Thickness calculation failed: %s", e
             )
             median_thickness_px = float("nan")
         # ===================================================================
@@ -165,14 +165,14 @@ class PipeLineAngleNode(object):
 
         contours = list(contours) if contours is not None else []
         if len(contours) == 0:
-            rospy.logdebug_throttle(2.0, "[pipe_line_angle] no contours found")
+            rospy.logdebug_throttle(2.0, "[bottle_angle] no contours found")
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))  # Yeni
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
                     confidence=0.0,
-                    pipe_area=pipe_area,
+                    bottle_area=bottle_area,
                     thickness=median_thickness_px,
                 )
             return
@@ -182,7 +182,7 @@ class PipeLineAngleNode(object):
 
         if len(pts) < self.min_contour_points:
             rospy.logdebug_throttle(
-                2.0, "[pipe_line_angle] contour too small: %d points", len(pts)
+                2.0, "[bottle_angle] contour too small: %d points", len(pts)
             )
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))  # Yeni
@@ -190,7 +190,7 @@ class PipeLineAngleNode(object):
                 self._publish_debug_info(
                     angle=float("nan"),
                     confidence=0.0,
-                    pipe_area=pipe_area,
+                    bottle_area=bottle_area,
                     thickness=median_thickness_px,
                 )
             return
@@ -219,7 +219,7 @@ class PipeLineAngleNode(object):
             self._publish_debug_info(
                 angle=angle,
                 confidence=confidence,
-                pipe_area=pipe_area,
+                bottle_area=bottle_area,
                 thickness=median_thickness_px,  # Yeni
                 vx=vx,
                 vy=vy,
@@ -234,7 +234,7 @@ class PipeLineAngleNode(object):
         self,
         angle,
         confidence,
-        pipe_area,
+        bottle_area,
         thickness,  # Yeni parametre
         vx=None,
         vy=None,
@@ -246,7 +246,7 @@ class PipeLineAngleNode(object):
         msg.data = [
             angle if not math.isnan(angle) else -999.0,
             confidence,
-            float(pipe_area),
+            float(bottle_area),
             thickness if not math.isnan(thickness) else -1.0,  # Yeni veri
             vx if vx is not None else -999.0,
             vy if vy is not None else -999.0,
@@ -309,8 +309,8 @@ class PipeLineAngleNode(object):
 
 
 def main():
-    rospy.init_node("pipe_line_angle_thickness")  # Düğüm adı güncellendi
-    PipeLineAngleNode()
+    rospy.init_node("bottle_angle_thickness")
+    BottleAngleNode()
     rospy.spin()
 
 
