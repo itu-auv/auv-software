@@ -96,7 +96,12 @@
             <!--bin.py-->
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
 
+            <!--pipeline.py-->
             <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
+            <remap from="toggle_image_annotator" to="yolo_image_annotator/toggle_annotator"/>
+
+            <!--acoustic.py-->
+            <remap from="modem/data/rx" to="modem/data/rx"/>
 
             <!-- octagon.py Gripper Service -->
             <remap from="actuators/gripper/close" to="actuators/gripper/close"/>

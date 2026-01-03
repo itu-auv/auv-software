@@ -1,4 +1,3 @@
----
 name: main docker images
 
 on:
@@ -41,6 +40,16 @@ jobs:
       base_image: ${{ steps.set_build_config.outputs.base_image_tag }}
 
     steps:
+      - name: Free Disk Space (Ubuntu)
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: false
+          swap-storage: false
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -192,7 +201,7 @@ jobs:
           docker manifest push $image_tag:${{ github.sha }}
 
       - name: Create latest manifest and push
-        run: |
+        run: |-
           image_tag=${{ needs.build-and-push.outputs.image_tag }}
           docker manifest create \
           $image_tag:latest \

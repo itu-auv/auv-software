@@ -1,17 +1,52 @@
 <?xml version="1.0"?>
 <launch>
-  <include file="$(find auv_detection)/launch/tracker_segment.launch" />
-  <include file="$(find auv_detection)/launch/tracker_detection.launch" />
+    <!-- Camera selection flags -->
+    <arg name="front" default="true"/>
+    <arg name="bottom" default="true"/>
+    <arg name="realsense" default="true"/>
+    <arg name="segment" default="false"/>
+    <arg name="detection" default="false"/>
 
-  <!-- YOLO mask node -->
-  <node pkg="auv_detection"
-        type="yolo_to_mask_node.py"
-        name="yolo_seg_to_pipe_mask"
-        output="screen" />
+    <!-- Common settings -->
+    <arg name="sim" default="false"/>
+    <arg name="use_gui" default="false"/>
 
-  <!-- Pipe follower node -->
-  <node pkg="auv_detection"
-        type="pipe_follower_node.py"
-        name="pipe_follower_node"
-        output="screen" />
+    <!-- Front camera tracker -->
+    <group if="$(arg front)" ns="tracker_front">
+        <include file="$(find auv_detection)/launch/inc/tracker_front.launch">
+            <arg name="sim" value="$(arg sim)"/>
+            <arg name="use_gui" value="$(arg use_gui)"/>
+        </include>
+    </group>
+
+    <!-- Bottom camera tracker -->
+    <group if="$(arg bottom)" ns="tracker_bottom">
+        <include file="$(find auv_detection)/launch/inc/tracker_bottom.launch">
+            <arg name="sim" value="$(arg sim)"/>
+            <arg name="use_gui" value="$(arg use_gui)"/>
+        </include>
+    </group>
+
+    <!-- RealSense camera tracker (no sim arg - uses fixed input topic) -->
+    <group if="$(arg realsense)" ns="tracker_realsense">
+        <include file="$(find auv_detection)/launch/inc/tracker_realsense.launch">
+            <arg name="use_gui" value="$(arg use_gui)"/>
+        </include>
+    </group>
+
+    <!-- Segmentation tracker -->
+    <group if="$(arg segment)" ns="tracker_segment">
+        <include file="$(find auv_detection)/launch/inc/tracker_segment.launch">
+            <arg name="sim" value="$(arg sim)"/>
+            <arg name="use_gui" value="$(arg use_gui)"/>
+        </include>
+    </group>
+
+    <!-- Shape detection tracker -->
+    <group if="$(arg detection)" ns="tracker_detection">
+        <include file="$(find auv_detection)/launch/inc/tracker_detection.launch">
+            <arg name="sim" value="$(arg sim)"/>
+            <arg name="use_gui" value="$(arg use_gui)"/>
+        </include>
+    </group>
 </launch>

@@ -39,12 +39,16 @@
       <param name="recalc_threshold_deg" value="0.1"/>
     </node>
     <node
-      pkg="auv_detection"
+      pkg="auv_vision"
       type="yolo_image_annotator.py"
       name="yolo_image_annotator_node"
       output="screen">
 
-      <param name="save_directory" value="/home/agxorin/yolo_annotated_images"/>
+      <remap from="toggle_image_annotator" to="yolo_image_annotator/toggle_annotator"/>
+      <remap from="cam_bottom/image_raw" to="cameras/cam_bottom/image_raw"/>
+      <remap from="yolo_result" to="/yolo_result_shape_detection"/>
+
+      <param name="save_directory" value="/tmp/yolo_annotated_images"/>
       <param name="font_scale" value="0.7"/>
       <param name="font_thickness" value="2"/>
     </node>
