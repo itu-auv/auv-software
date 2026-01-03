@@ -16,7 +16,64 @@ from auv_smach.common import (
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
+from std_msgs.msg import UInt16
 import tf2_ros
+
+
+class GripperAngleOpenState(smach.State):
+    """
+    Gerçek gripper için angle topic'ine 2400 değerini yayınlar (açık pozisyon).
+    """
+
+    def __init__(self):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+        self.pub = rospy.Publisher("actuators/gripper/angle", UInt16, queue_size=1)
+        self.angle_value = 2400
+
+    def execute(self, userdata) -> str:
+        try:
+            msg = UInt16()
+            msg.data = self.angle_value
+            # Birkaç kez yayınla - topic'in alındığından emin olmak için
+            for _ in range(3):
+                self.pub.publish(msg)
+                rospy.sleep(0.1)
+            rospy.loginfo(f"[GripperAngleOpenState] Published angle: {self.angle_value}")
+            return "succeeded"
+        except Exception as e:
+            rospy.logerr(f"[GripperAngleOpenState] Error: {e}")
+            return "aborted"
+
+
+class GripperAngleCloseState(smach.State):
+    """
+    Gerçek gripper için angle topic'ine 400 değerini yayınlar (kapalı pozisyon).
+    """
+
+    def __init__(self):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+        self.pub = rospy.Publisher("actuators/gripper/angle", UInt16, queue_size=1)
+        self.angle_value = 400
+
+    def execute(self, userdata) -> str:
+        try:
+            msg = UInt16()
+            msg.data = self.angle_value
+            # Birkaç kez yayınla - topic'in alındığından emin olmak için
+            for _ in range(3):
+                self.pub.publish(msg)
+                rospy.sleep(0.1)
+            rospy.loginfo(f"[GripperAngleCloseState] Published angle: {self.angle_value}")
+            return "succeeded"
+        except Exception as e:
+            rospy.logerr(f"[GripperAngleCloseState] Error: {e}")
+            return "aborted"
 
 
 class CheckBottleLinkState(smach.State):
@@ -257,7 +314,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "MOVE_GRIPPER",
-                OpenGripperServiceState(),
+                GripperAngleOpenState(),
                 transitions={
                     "succeeded": "CHECK_BOTTLE_LINK",
                     "preempted": "preempted",
@@ -314,7 +371,7 @@ class OctagonTaskState(smach.State):
 
             smach.StateMachine.add(
                 "CLOSE_GRIPPER",
-                MoveGripperServiceState(),
+                GripperAngleCloseState(),
                 transitions={
                     "succeeded": "SURFACE_WITH_BOTTLE",
                     "preempted": "preempted",
