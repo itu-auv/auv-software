@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>megapose_ros</name>
+  <version>0.1.0</version>
+  <description>MegaPose 6D pose estimation ROS interface via ZMQ</description>
+
+  <maintainer email="todo@todo.com">AUV Team</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  
+  <depend>rospy</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>cv_bridge</depend>
+
+  <exec_depend>python3-zmq</exec_depend>
+</package>
