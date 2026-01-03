@@ -57,7 +57,7 @@ RUN if [ "$HOST" = "tegra" ]; then \
   -y && \
   catkin config --extend /opt/ros/noetic --install --install-space /opt/ros/noetic && \
   catkin build --no-status --continue-on-failure && \
-  catkin clean -y --log; \
+  catkin clean -y --logs; \
   echo 'source /opt/ros/noetic/setup.bash' >> /ros_entrypoint.sh; \
   else \
   echo "HOST=$HOST → skipping source overlay"; \
