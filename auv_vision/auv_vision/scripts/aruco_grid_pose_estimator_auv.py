@@ -19,6 +19,7 @@ from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion
 from cv_bridge import CvBridge, CvBridgeError
 import tf2_ros
+import tf2_geometry_msgs
 import tf.transformations
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 from dynamic_reconfigure.server import Server
