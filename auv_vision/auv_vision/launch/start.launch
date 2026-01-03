@@ -29,5 +29,19 @@
       <param name="font_scale" value="0.7"/>
       <param name="font_thickness" value="2"/>
     </node>
+    <node
+      pkg="auv_vision"
+      type="depth_anything_client.py"
+      name="depth_anything_node"
+      output="screen">
+
+      <remap from="image_raw" to="cameras/cam_front/image_raw"/>
+      <remap from="depth" to="cameras/cam_front/depth"/>
+
+      <param name="zmq_host" value="0.0.0.0"/>
+      <param name="zmq_port" value="5555"/>
+      <param name="rate" value="10.0"/>
+      <param name="camera_namespace" value="cameras/cam_front"/>
+    </node>
   </group>
 </launch>
