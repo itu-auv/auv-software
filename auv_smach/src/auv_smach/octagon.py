@@ -16,6 +16,55 @@ from auv_smach.common import (
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
+import tf2_ros
+
+
+class CheckBottleLinkState(smach.State):
+    """
+    State to check if bottle_link transform is available.
+    Returns 'succeeded' if found, 'aborted' if timeout.
+    """
+
+    def __init__(
+        self,
+        source_frame: str = "odom",
+        target_frame: str = "bottle_link",
+        timeout: float = 3.0,
+    ):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+        self.source_frame = source_frame
+        self.target_frame = target_frame
+        self.timeout = rospy.Duration(timeout)
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+    def execute(self, userdata) -> str:
+        import rospy
+        
+        start_time = rospy.Time.now()
+        rate = rospy.Rate(10)
+
+        while (rospy.Time.now() - start_time) < self.timeout:
+            if self.preempt_requested():
+                return "preempted"
+
+            if self.tf_buffer.can_transform(
+                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(0.5)
+            ):
+                rospy.loginfo(
+                    f"[CheckBottleLinkState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
+                )
+                return "succeeded"
+
+            rate.sleep()
+
+        rospy.logwarn(
+            f"[CheckBottleLinkState] Timeout: '{self.target_frame}' transform not found after {self.timeout.to_sec()} seconds."
+        )
+        return "aborted"
 
 
 class MoveGripperServiceState(smach_ros.ServiceState):
@@ -210,9 +259,24 @@ class OctagonTaskState(smach.State):
                 "MOVE_GRIPPER",
                 OpenGripperServiceState(),
                 transitions={
-                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "succeeded": "CHECK_BOTTLE_LINK",
                     "preempted": "preempted",
                     "aborted": "aborted",
+                },
+            )
+
+            # Check if bottle_link transform exists before alignment
+            smach.StateMachine.add(
+                "CHECK_BOTTLE_LINK",
+                CheckBottleLinkState(
+                    source_frame="odom",
+                    target_frame="bottle_link",
+                    timeout=3.0,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "preempted": "preempted",
+                    "aborted": "SEARCH_RIGHT",  # Start search sequence
                 },
             )
 
@@ -257,6 +321,128 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
+
+            # ============== BOTTLE SEARCH SEQUENCE ==============
+            # Search Right
+            smach.StateMachine.add(
+                "SEARCH_RIGHT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="octagon_search_right",
+                    angle_offset=0.0,
+                    dist_threshold=0.15,
+                    yaw_threshold=0.15,
+                    confirm_duration=2.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
+                transitions={
+                    "succeeded": "CHECK_BOTTLE_AFTER_RIGHT",
+                    "preempted": "preempted",
+                    "aborted": "CHECK_BOTTLE_AFTER_RIGHT",  # Continue to check even if align fails
+                },
+            )
+            smach.StateMachine.add(
+                "CHECK_BOTTLE_AFTER_RIGHT",
+                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "preempted": "preempted",
+                    "aborted": "SEARCH_FORWARD",
+                },
+            )
+
+            # Search Forward
+            smach.StateMachine.add(
+                "SEARCH_FORWARD",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="octagon_search_forward",
+                    angle_offset=0.0,
+                    dist_threshold=0.15,
+                    yaw_threshold=0.15,
+                    confirm_duration=2.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
+                transitions={
+                    "succeeded": "CHECK_BOTTLE_AFTER_FORWARD",
+                    "preempted": "preempted",
+                    "aborted": "CHECK_BOTTLE_AFTER_FORWARD",
+                },
+            )
+            smach.StateMachine.add(
+                "CHECK_BOTTLE_AFTER_FORWARD",
+                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "preempted": "preempted",
+                    "aborted": "SEARCH_LEFT",
+                },
+            )
+
+            # Search Left
+            smach.StateMachine.add(
+                "SEARCH_LEFT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="octagon_search_left",
+                    angle_offset=0.0,
+                    dist_threshold=0.15,
+                    yaw_threshold=0.15,
+                    confirm_duration=2.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
+                transitions={
+                    "succeeded": "CHECK_BOTTLE_AFTER_LEFT",
+                    "preempted": "preempted",
+                    "aborted": "CHECK_BOTTLE_AFTER_LEFT",
+                },
+            )
+            smach.StateMachine.add(
+                "CHECK_BOTTLE_AFTER_LEFT",
+                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "preempted": "preempted",
+                    "aborted": "SEARCH_BACKWARD",
+                },
+            )
+
+            # Search Backward
+            smach.StateMachine.add(
+                "SEARCH_BACKWARD",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="octagon_search_backward",
+                    angle_offset=0.0,
+                    dist_threshold=0.15,
+                    yaw_threshold=0.15,
+                    confirm_duration=2.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
+                transitions={
+                    "succeeded": "CHECK_BOTTLE_AFTER_BACKWARD",
+                    "preempted": "preempted",
+                    "aborted": "CHECK_BOTTLE_AFTER_BACKWARD",
+                },
+            )
+            smach.StateMachine.add(
+                "CHECK_BOTTLE_AFTER_BACKWARD",
+                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "preempted": "preempted",
+                    "aborted": "SEARCH_RIGHT",  # Loop back to start (or could abort)
+                },
+            )
+            # ============== END BOTTLE SEARCH SEQUENCE ==============
 
             smach.StateMachine.add(
                 "SURFACE_WITH_BOTTLE",

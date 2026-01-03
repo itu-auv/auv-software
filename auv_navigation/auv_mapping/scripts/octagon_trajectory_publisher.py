@@ -31,7 +31,7 @@ class OctagonTransformServiceNode:
         )  # distance from octagon to closer frame
         # Search frames configuration
         self.search_distance = rospy.get_param(
-            "~search_distance", 1.5
+            "~search_distance", 0.7
         )  # distance from octagon to search frames
         self.search_frames = {
             "octagon_search_forward": "forward",   # towards robot (back from octagon)
