@@ -25,6 +25,7 @@ catkin_package(
     rospy
     sensor_msgs
     tf
+    dynamic_reconfigure
 )
 
 include_directories(
