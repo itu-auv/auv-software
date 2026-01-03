@@ -189,7 +189,8 @@ class CameraDetectionNode:
             "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
         }
-        # Use lambda to pass camera source information to the callback
+        # Segmentation source uses the same camera calibration as bottom camera
+        self.camera_calibrations["taluy/cameras/cam_bottom_seg"] = self.camera_calibrations["taluy/cameras/cam_bottom"]
         rospy.Subscriber(
             "/yolo_result_front",
             YoloResult,
@@ -197,9 +198,15 @@ class CameraDetectionNode:
             queue_size=1,
         )
         rospy.Subscriber(
-            "/yolo_result_seg",
+            "/yolo_result_bottom",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
+            queue_size=1,
+        )
+        rospy.Subscriber(
+            "/yolo_result_seg",
+            YoloResult,
+            lambda msg: self.detection_callback(msg, camera_source="bottom_camera_seg"),
             queue_size=1,
         )
         self.frame_id_to_camera_ns = {
@@ -240,6 +247,9 @@ class CameraDetectionNode:
                 1: "bin_sawfish_link",
                 2: "red_pipe_link",
                 3: "white_pipe_link",
+            },
+            "taluy/cameras/cam_bottom_seg": {
+                0: "bottle_link",
             },
         }
         # Subscribe to YOLO detections and altitude
@@ -349,6 +359,8 @@ class CameraDetectionNode:
             rospy.logdebug(f"Updated bottle thickness: {self.bottle_thickness_px:.1f}px")
 
     def bottle_angle_callback(self, msg: Float32):
+        print("bottle angle callback")
+        print(msg.data)
         """Store bottle angle from bottle_angle_node.
 
         Args:
@@ -648,14 +660,23 @@ class CameraDetectionNode:
             camera_ns = "taluy/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
-                rospy.loginfo("Bottom camera is disabled")
+                rospy.loginfo_throttle(5, "Bottom camera detection is disabled")
                 return
             camera_ns = "taluy/cameras/cam_bottom"
+        elif camera_source == "bottom_camera_seg":
+            if not self.bottom_camera_enabled:
+                rospy.loginfo_throttle(5, "Bottom camera segmentation is disabled")
+                return
+            camera_ns = "taluy/cameras/cam_bottom_seg"
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
 
-        camera_frame = self.camera_frames[camera_ns]
+        # For segmentation source, use the same camera frame as bottom camera
+        if camera_ns == "taluy/cameras/cam_bottom_seg":
+            camera_frame = self.camera_frames["taluy/cameras/cam_bottom"]
+        else:
+            camera_frame = self.camera_frames[camera_ns]
         try:
             camera_to_odom_transform = self.tf_buffer.lookup_transform(
                 camera_frame,
@@ -807,7 +828,7 @@ class CameraDetectionNode:
 
             # For bottom camera bottle/pipe detections, use bottle angle in odom frame
             if (
-                camera_ns == "taluy/cameras/cam_bottom"
+                camera_ns in ["taluy/cameras/cam_bottom", "taluy/cameras/cam_bottom_seg"]
                 and detection_id in [0, 2, 3]
                 and self.bottle_angle is not None
             ):
