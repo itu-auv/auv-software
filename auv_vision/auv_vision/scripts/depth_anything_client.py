@@ -39,12 +39,16 @@ class DepthAnythingClient:
     def _init_camera_intrinsics(self) -> None:
         try:
             fetcher = camera_calibrations.CameraCalibrationFetcher(
-                self.camera_namespace, wait_for_camera_info=True
+                self.camera_namespace, wait_for_camera_info=False
             )
             cam_info = fetcher.get_camera_info()
-            self.intrinsics = np.array(cam_info.K).reshape(3, 3).astype(np.float32)
-            fx, fy = self.intrinsics[0, 0], self.intrinsics[1, 1]
-            rospy.loginfo(f"Intrinsics: fx={fx:.1f}, fy={fy:.1f}")
+            if cam_info:
+                self.intrinsics = np.array(cam_info.K).reshape(3, 3).astype(np.float32)
+                fx, fy = self.intrinsics[0, 0], self.intrinsics[1, 1]
+                rospy.loginfo(f"Intrinsics: fx={fx:.1f}, fy={fy:.1f}")
+            else:
+                rospy.logwarn("No camera_info available yet")
+                self.intrinsics = None
         except Exception as e:
             rospy.logwarn(f"No camera intrinsics: {e}")
             self.intrinsics = None
