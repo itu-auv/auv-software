@@ -3,23 +3,23 @@
 
   <!-- YOLO to Mask Node -->
   <node
-    pkg="auv_detection"
+    pkg="auv_vision"
     type="yolo_to_mask_node.py"
     name="yolo_to_mask_node"
     output="screen">
   </node>
 
-  <!-- Pipe Line Angle Node -->
+  <!-- Bottle Angle Node -->
   <node
     pkg="auv_detection"
     type="pipe_line_angle_node.py"
-    name="pipe_line_angle_node"
+    name="bottle_angle_node"
     output="screen">
-    <param name="mask_topic" value="pipe_mask" />
-    <param name="angle_topic" value="taluy/pipe_line_angle" />
-    <param name="thickness_topic" value="pipe_thickness" />
-    <param name="debug_topic" value="pipe_line_angle_debug" />
-    <param name="min_pipe_area_px" value="1500" />
+    <param name="mask_topic" value="bottle_mask" />
+    <param name="angle_topic" value="taluy/bottle_angle" />
+    <param name="thickness_topic" value="bottle_thickness" />
+    <param name="debug_topic" value="bottle_angle_debug" />
+    <param name="min_bottle_area_px" value="1500" />
     <param name="min_contour_points" value="10" />
     <param name="publish_debug" value="true" />
   </node>
