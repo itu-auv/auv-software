@@ -10,6 +10,8 @@ services:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
       - TERM=xterm-256color
+      - ROS_MASTER_URI=${ROS_MASTER_URI}
+      - ROS_IP=${ROS_IP}
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - ..:/auv_ws/src/auv_software:rw
