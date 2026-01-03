@@ -65,7 +65,7 @@
     />
 
     <!-- Parallel Gripper -->
-    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.1 0 -0.1" mount_rpy="0 ${math.pi/2} 0" mass_scale="0.001"/>
+    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="0 0.1929 -0.0347" mount_rpy="0 ${math.pi/2} ${math.pi/2}" mass_scale="0.001"/>
 
     <!-- Gripper Link (fixed frame) -->
     <link name="${namespace}/gripper_link">
@@ -77,7 +77,7 @@
     </link>
 
     <joint name="gripper_link_joint" type="fixed">
-      <origin xyz="-0.1 0 -0.1" rpy="0 0 0"/>
+      <origin xyz="0 0.1929 -0.0347" rpy="0 0 ${math.pi/2}"/>
       <parent link="${namespace}/base_link"/>
       <child link="${namespace}/gripper_link"/>
     </joint>
