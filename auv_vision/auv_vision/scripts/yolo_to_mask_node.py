@@ -10,9 +10,9 @@ from vision_msgs.msg import Detection2DArray
 from ultralytics_ros.msg import YoloResult
 
 
-class YoloSegToBottleMaskNode:
+class YoloSegToMaskNode:
     def __init__(self):
-        self.input_result_topic = rospy.get_param("~input_result_topic", "yolo_result")
+        self.input_result_topic = rospy.get_param("~input_result_topic", "yolo_result_seg")
         self.output_mask_topic = rospy.get_param("~output_mask_topic", "bottle_mask")
         # Parameters
         self.target_class_ids = set(rospy.get_param("~target_class_ids", [0]))
@@ -22,7 +22,7 @@ class YoloSegToBottleMaskNode:
         self.debug_topic = rospy.get_param("~debug_topic", "bottle_mask_debug")
 
         self.bridge = CvBridge()
-        self.pub_mask = rospy.Publisher("bottle_mask", Image, queue_size=1)
+        self.pub_mask = rospy.Publisher(self.output_mask_topic, Image, queue_size=1)
         self.pub_debug = (
             rospy.Publisher(self.debug_topic, Image, queue_size=1)
             if self.publish_debug
@@ -30,7 +30,7 @@ class YoloSegToBottleMaskNode:
         )
 
         self.sub = rospy.Subscriber(
-            "yolo_result_seg",
+            self.input_result_topic,
             YoloResult,
             self.cb_result,
             queue_size=1,
@@ -45,7 +45,7 @@ class YoloSegToBottleMaskNode:
         if len(masks_msgs) == 0 or len(detections.detections) == 0:
             rospy.logdebug_throttle(
                 2.0,
-                "[yolo_seg_to_bottle_mask] no masks/detections -> publish empty if possible",
+                "[yolo_seg_to_mask] no masks/detections -> publish empty if possible",
             )
             return  # if we don't have size information, let's wait silently
 
@@ -106,8 +106,8 @@ class YoloSegToBottleMaskNode:
 
 
 def main():
-    rospy.init_node("yolo_seg_to_bottle_mask")
-    YoloSegToBottleMaskNode()
+    rospy.init_node("yolo_seg_to_mask")
+    YoloSegToMaskNode()
     rospy.spin()
 
 

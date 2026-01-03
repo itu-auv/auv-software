@@ -11,7 +11,6 @@ Bottle Angle and Thickness Detector (ROS1)
     - std_msgs/Float32MultiArray (detailed debug info)
     - sensor_msgs/Image (annotated debug image)
 
-Author: Cascade AI (Updated by Gemini)
 """
 
 import math
@@ -44,11 +43,11 @@ def rot90n(img, n_cw):
         return np.ascontiguousarray(np.rot90(img, k=1))
 
 
-class BottleAngleNode(object):
+class BottomCameraSegmentAngleNode(object):
     def __init__(self):
-        # ---- Topics ----
+        # ---- Topics (relative - will be prefixed by namespace) ----
         self.mask_topic = rospy.get_param("~mask_topic", "bottle_mask")
-        self.angle_topic = rospy.get_param("~angle_topic", "taluy/bottle_angle")
+        self.angle_topic = rospy.get_param("~angle_topic", "bottle_angle")
         # --- YENİ TOPIC ---
         self.thickness_topic = rospy.get_param("~thickness_topic", "bottle_thickness")
         # --- BİTTİ ---
@@ -85,7 +84,7 @@ class BottleAngleNode(object):
         )
 
         rospy.loginfo(
-            "[bottle_angle] started. Subscribing to %s. Publishing angle to %s and thickness to %s",
+            "[bottom_camera_segment_angle] started. Subscribing to %s. Publishing angle to %s and thickness to %s",
             self.mask_topic,
             self.angle_topic,
             self.thickness_topic,
@@ -113,7 +112,7 @@ class BottleAngleNode(object):
         if bottle_area < self.min_bottle_area_px:
             rospy.logdebug_throttle(
                 2.0,
-                "[bottle_angle] bottle area too small: %d < %d",
+                "[bottom_camera_segment_angle] area too small: %d < %d",
                 bottle_area,
                 self.min_bottle_area_px,
             )
@@ -150,7 +149,7 @@ class BottleAngleNode(object):
                     median_thickness_px = float(np.median(thickness_values))
         except Exception as e:
             rospy.logwarn_throttle(
-                5.0, "[bottle_angle] Thickness calculation failed: %s", e
+                5.0, "[bottom_camera_segment_angle] Thickness calculation failed: %s", e
             )
             median_thickness_px = float("nan")
         # ===================================================================
@@ -165,7 +164,7 @@ class BottleAngleNode(object):
 
         contours = list(contours) if contours is not None else []
         if len(contours) == 0:
-            rospy.logdebug_throttle(2.0, "[bottle_angle] no contours found")
+            rospy.logdebug_throttle(2.0, "[bottom_camera_segment_angle] no contours found")
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))  # Yeni
             if self.publish_debug:
@@ -182,7 +181,7 @@ class BottleAngleNode(object):
 
         if len(pts) < self.min_contour_points:
             rospy.logdebug_throttle(
-                2.0, "[bottle_angle] contour too small: %d points", len(pts)
+                2.0, "[bottom_camera_segment_angle] contour too small: %d points", len(pts)
             )
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))  # Yeni
@@ -309,8 +308,8 @@ class BottleAngleNode(object):
 
 
 def main():
-    rospy.init_node("bottle_angle_thickness")
-    BottleAngleNode()
+    rospy.init_node("bottom_camera_segment_angle")
+    BottomCameraSegmentAngleNode()
     rospy.spin()
 
 

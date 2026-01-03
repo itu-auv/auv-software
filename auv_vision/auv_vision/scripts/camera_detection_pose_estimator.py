@@ -247,12 +247,12 @@ class CameraDetectionNode:
         self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
-        # Subscribe to bottle angle and thickness
+        # Subscribe to bottle angle and thickness (relative topics - will be prefixed by namespace)
         rospy.Subscriber(
-            "/taluy/bottle_angle", Float32, self.bottle_angle_callback, queue_size=1
+            "bottle_angle", Float32, self.bottle_angle_callback, queue_size=1
         )
         rospy.Subscriber(
-            "/bottle_thickness", Float32, self.bottle_thickness_callback, queue_size=1
+            "bottle_thickness", Float32, self.bottle_thickness_callback, queue_size=1
         )
 
         # Services to enable/disable cameras
