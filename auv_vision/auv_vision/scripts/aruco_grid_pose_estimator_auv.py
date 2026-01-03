@@ -19,7 +19,6 @@ from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion
 from cv_bridge import CvBridge, CvBridgeError
 import tf2_ros
-import tf2_geometry_msgs
 import tf.transformations
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 from dynamic_reconfigure.server import Server
@@ -162,7 +161,8 @@ class ArucoBoardEstimator:
         self.corner_refinement_win_size = 7
         self.corner_refinement_max_iterations = 30
         self.corner_refinement_min_accuracy = 0.05
-        self.reproj_rms_threshold = 3.0
+        self.ransac_iterations = 200
+        self.ransac_reproj_error = 20.0
         
         # Apply initial detector parameters
         self._apply_detector_params()
@@ -257,7 +257,8 @@ class ArucoBoardEstimator:
             'corner_refinement_max_iterations': self.corner_refinement_max_iterations,
             'corner_refinement_min_accuracy': self.corner_refinement_min_accuracy,
             # PnP quality
-            'reproj_rms_threshold': self.reproj_rms_threshold,
+            'ransac_iterations': self.ransac_iterations,
+            'ransac_reproj_error': self.ransac_reproj_error,
         }
         
         try:
@@ -322,7 +323,8 @@ class ArucoBoardEstimator:
         self.corner_refinement_min_accuracy = config.corner_refinement_min_accuracy
         
         # PnP quality
-        self.reproj_rms_threshold = config.reproj_rms_threshold
+        self.ransac_iterations = config.ransac_iterations
+        self.ransac_reproj_error = config.ransac_reproj_error
         
         # Apply detector parameters
         self._apply_detector_params()
@@ -530,10 +532,14 @@ class ArucoBoardEstimator:
                 img_points = np.vstack(img_points_list).astype(np.float32)
                 
                 # Estimate board pose using solvePnPRansac for robustness + refineLM
+                # Use IPPE (Infinitesimal Plane-based Pose Estimation) for coplanar points
                 success, rvec, tvec, inliers = cv2.solvePnPRansac(
                     obj_points, img_points,
                     self.camera_matrix, self.dist_coeffs,
-                    flags=cv2.SOLVEPNP_AP3P
+                    flags=cv2.SOLVEPNP_IPPE,
+                    iterationsCount=self.ransac_iterations,
+                    reprojectionError=self.ransac_reproj_error,
+                    confidence=0.99
                 )
                 
                 # Check if RANSAC succeeded with valid inliers
@@ -561,166 +567,53 @@ class ArucoBoardEstimator:
                         rvec, tvec
                     )
                 
-                    # --- Reprojection RMS filtering ---
-                    # Project 3D inlier points back to 2D and compute per-corner error
-                    
+                    # Visualize corners: green = inlier, red = RANSAC outlier
                     inlier_set = set(inlier_indices)
-                    ransac_outlier_set = set(range(len(img_points))) - inlier_set
-                    reproj_filtered_set = set()  # corners filtered by reprojection RMS
+                    for idx, pt in enumerate(img_points):
+                        pt_int = tuple(pt.astype(int))
+                        cv2.circle(debug_img, pt_int, 6, (0, 0, 0), -1)  # Cover corner 0 indicator
+                        cv2.circle(debug_gray, pt_int, 6, (0, 0, 0), -1)
+                        if idx in inlier_set:
+                            cv2.circle(debug_img, pt_int, 4, (0, 255, 0), -1)  # Green inlier
+                            cv2.circle(debug_gray, pt_int, 4, (0, 255, 0), -1)
+                        else:
+                            cv2.circle(debug_img, pt_int, 5, (0, 0, 255), 2)  # Red outlier
+                            cv2.circle(debug_gray, pt_int, 5, (0, 0, 255), 2)
                     
-                    # Project inlier object points back to 2D
-                    projected_pts, _ = cv2.projectPoints(
-                        inlier_obj_points, rvec, tvec,
-                        self.camera_matrix, self.dist_coeffs
+                    # Draw board coordinate frame
+                    cv2.drawFrameAxes(
+                        debug_img, self.camera_matrix, self.dist_coeffs,
+                        rvec, tvec, 0.15  # 15cm axis length
                     )
-                    projected_pts = projected_pts.reshape(-1, 2)
+                    cv2.drawFrameAxes(
+                        debug_gray, self.camera_matrix, self.dist_coeffs,
+                        rvec, tvec, 0.15  # 15cm axis length
+                    )
                     
-                    # Compute per-corner reprojection error
-                    reproj_errors = np.linalg.norm(inlier_img_points - projected_pts, axis=1)
+                    # Publish transform
+                    self.publish_board_transform(rvec, tvec, msg.header)
                     
-                    # Find corners with high reprojection error
-                    good_reproj_mask = reproj_errors < self.reproj_rms_threshold
-                    bad_reproj_mask = ~good_reproj_mask
+                    # Display info
+                    dist = np.linalg.norm(tvec)
+                    info_text = f"BOARD DETECTED ({len(matched_ids)} markers, {len(inlier_indices)}/{len(img_points)} corners) Dist: {dist:.2f}m"
+                    cv2.putText(
+                        debug_img, info_text,
+                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+                    )
+                    cv2.putText(
+                        debug_gray, info_text,
+                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+                    )
                     
-                    # Map back to original indices
-                    inlier_indices_list = list(inlier_indices)
-                    for local_idx, is_bad in enumerate(bad_reproj_mask):
-                        if is_bad:
-                            reproj_filtered_set.add(inlier_indices_list[local_idx])
-                    
-                    # Count good corners after all filtering
-                    num_good_corners = np.sum(good_reproj_mask)
-                    
-                    # If no good corners remain, skip this frame
-                    if num_good_corners == 0:
-                        rospy.logwarn_throttle(1.0, "No corners passed reprojection filter, skipping pose")
-                        cv2.putText(
-                            debug_img,
-                            f"All corners filtered ({len(matched_ids)} markers)",
-                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
-                        )
-                        cv2.putText(
-                            debug_gray,
-                            f"All corners filtered ({len(matched_ids)} markers)",
-                            (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
-                        )
-                    else:
-                        # If any corners were filtered, re-estimate pose with remaining good corners
-                        if np.any(bad_reproj_mask) and num_good_corners >= 4:
-                            good_obj_points = inlier_obj_points[good_reproj_mask]
-                            good_img_points = inlier_img_points[good_reproj_mask]
-                            
-                            # Re-estimate pose with filtered corners
-                            success, rvec, tvec = cv2.solvePnP(
-                                good_obj_points, good_img_points,
-                                self.camera_matrix, self.dist_coeffs,
-                                rvec, tvec, useExtrinsicGuess=True,
-                                flags=cv2.SOLVEPNP_ITERATIVE
-                            )
-                            
-                            # Final refinement with good corners only
-                            if success:
-                                rvec, tvec = cv2.solvePnPRefineLM(
-                                    good_obj_points, good_img_points,
-                                    self.camera_matrix, self.dist_coeffs,
-                                    rvec, tvec
-                                )
-                        
-                        # Compute final reprojection RMS for display
-                        # Use filtered points ONLY if we actually re-estimated with them
-                        did_reestimate = np.any(bad_reproj_mask) and num_good_corners >= 4
-                        if did_reestimate:
-                            final_obj_pts = inlier_obj_points[good_reproj_mask]
-                            final_img_pts = inlier_img_points[good_reproj_mask]
-                        else:
-                            final_obj_pts = inlier_obj_points
-                            final_img_pts = inlier_img_points
-                        
-                        final_projected, _ = cv2.projectPoints(
-                            final_obj_pts, rvec, tvec, self.camera_matrix, self.dist_coeffs
-                        )
-                        final_reproj_errors = np.linalg.norm(final_img_pts - final_projected.reshape(-1, 2), axis=1)
-                        reproj_rms = np.sqrt(np.mean(final_reproj_errors**2))
-                        
-                        # Pass 0: Cover corner 0 indicator with black circles
-                        for idx, pt in enumerate(img_points):
-                            pt_int = tuple(pt.astype(int))
-                            cv2.circle(debug_img, pt_int, 6, (0, 0, 0), -1)
-                            cv2.circle(debug_gray, pt_int, 6, (0, 0, 0), -1)
-                        
-                        # Pass 1: Good inliers (green filled circles)
-                        for idx, pt in enumerate(img_points):
-                            if idx in inlier_set and idx not in reproj_filtered_set:
-                                pt_int = tuple(pt.astype(int))
-                                cv2.circle(debug_img, pt_int, 4, (0, 255, 0), -1)
-                                cv2.circle(debug_gray, pt_int, 4, (0, 255, 0), -1)
-                        
-                        # Pass 2: Reprojection filtered (orange X marks)
-                        for idx, pt in enumerate(img_points):
-                            if idx in reproj_filtered_set:
-                                pt_int = tuple(pt.astype(int))
-                                cv2.drawMarker(debug_img, pt_int, (0, 165, 255), cv2.MARKER_CROSS, 10, 2)
-                                cv2.drawMarker(debug_gray, pt_int, (0, 165, 255), cv2.MARKER_CROSS, 10, 2)
-                        
-                        # Pass 3: RANSAC outliers (red hollow circles) - drawn last so always visible
-                        for idx, pt in enumerate(img_points):
-                            if idx not in inlier_set:
-                                pt_int = tuple(pt.astype(int))
-                                cv2.circle(debug_img, pt_int, 5, (0, 0, 255), 2)
-                                cv2.circle(debug_gray, pt_int, 5, (0, 0, 255), 2)
-                        
-                        if success:
-                            # Draw board coordinate frame on both debug images
-                            cv2.drawFrameAxes(
-                                debug_img, self.camera_matrix, self.dist_coeffs,
-                                rvec, tvec, 0.15  # 15cm axis length
-                            )
-                            cv2.drawFrameAxes(
-                                debug_gray, self.camera_matrix, self.dist_coeffs,
-                                rvec, tvec, 0.15  # 15cm axis length
-                            )
-                            
-                            # Publish transform
-                            self.publish_board_transform(rvec, tvec, msg.header)
-                            
-                            # Display info on both debug images
-                            dist = np.linalg.norm(tvec)
-                            # Show actual corners used for pose (all inliers if not re-estimated, filtered if re-estimated)
-                            corners_used = num_good_corners if did_reestimate else len(inlier_indices)
-                            info_text = f"BOARD DETECTED ({len(matched_ids)} markers, {corners_used}/{len(img_points)} corners) Dist: {dist:.2f}m RMS: {reproj_rms:.2f}px"
-                            cv2.putText(
-                                debug_img, 
-                                info_text,
-                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
-                            )
-                            cv2.putText(
-                                debug_gray, 
-                                info_text,
-                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
-                            )
-                            
-                            # Show which marker IDs were detected
-                            cv2.putText(
-                                debug_img,
-                                f"IDs: {sorted(matched_ids)}",
-                                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
-                            )
-                            cv2.putText(
-                                debug_gray,
-                                f"IDs: {sorted(matched_ids)}",
-                                (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
-                            )
-                        else:
-                            cv2.putText(
-                                debug_img,
-                                f"Board markers found but pose failed",
-                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2
-                            )
-                            cv2.putText(
-                                debug_gray,
-                                f"Board markers found but pose failed",
-                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2
-                            )
+                    # Show detected marker IDs
+                    cv2.putText(
+                        debug_img, f"IDs: {sorted(matched_ids)}",
+                        (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
+                    )
+                    cv2.putText(
+                        debug_gray, f"IDs: {sorted(matched_ids)}",
+                        (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2
+                    )
             else:
                 # Detected markers but none are part of our board
                 detected_ids = sorted(ids.flatten().tolist())
@@ -744,7 +637,6 @@ class ArucoBoardEstimator:
                 (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
             )
         
-        # Publish debug images
         self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug_img, "bgr8"))
         self.debug_processed_pub.publish(self.bridge.cv2_to_imgmsg(debug_gray, "bgr8"))
         self.debug_threshold_pub.publish(self.bridge.cv2_to_imgmsg(thresh_img, "mono8"))
@@ -778,10 +670,8 @@ class ArucoBoardEstimator:
             quat[0], quat[1], quat[2], quat[3]
         )
         
-        # Broadcast TF
         self.tf_broadcaster.sendTransform(transform_stamped)
         
-        # Also publish pose
         pose_stamped = PoseStamped()
         pose_stamped.header = transform_stamped.header
         pose_stamped.pose.position = transform_stamped.transform.translation
