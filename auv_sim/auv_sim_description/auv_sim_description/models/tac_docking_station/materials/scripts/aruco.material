@@ -1,0 +1,78 @@
+// ArUco marker materials for docking station
+// These materials apply ArUco tag textures to visual elements
+
+material ArUco/Tag28
+{
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.0 0.0 0.0 1.0
+
+      texture_unit
+      {
+        texture aruco_28.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material ArUco/Tag7
+{
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.0 0.0 0.0 1.0
+
+      texture_unit
+      {
+        texture aruco_7.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material ArUco/Tag19
+{
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.0 0.0 0.0 1.0
+
+      texture_unit
+      {
+        texture aruco_19.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material ArUco/Tag96
+{
+  technique
+  {
+    pass
+    {
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.0 0.0 0.0 1.0
+
+      texture_unit
+      {
+        texture aruco_96.png
+        filtering trilinear
+      }
+    }
+  }
+}
