@@ -3,10 +3,7 @@
 ArUco Board Pose Estimation Node
 
 Uses a custom ArUco board for more accurate pose estimation than single markers.
-Dictionary: DICT_6X6_250
-
-Currently configured for TEST BOARD (4 markers).
-Competition board code is commented out below.
+Dictionary: DICT_ARUCO_ORIGINAL
 """
 
 import rospy
@@ -16,7 +13,8 @@ import os
 import yaml
 import rospkg
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion
+from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion, Pose
+from gazebo_msgs.msg import ModelStates
 from cv_bridge import CvBridge, CvBridgeError
 import tf2_ros
 import tf2_geometry_msgs
@@ -33,66 +31,30 @@ class ArucoBoardEstimator:
     """
 
     # =========================================================================
-    # TEST BOARD CONFIGURATION (4 markers, measured edge-to-edge distances)
-    # =========================================================================
-    # Board Layout (as seen from camera, origin at center of all markers):
-    #
-    #     [ID:0]                                                    [ID:19]
-    #     top-left         <-- 34.8 cm edge-to-edge -->           top-right
-    #        |                                                        |
-    #        |                                                        |
-    #     20.8 cm                    (0,0)                         20.2 cm
-    #        |                                                        |
-    #        |                                                        |
-    #     [ID:28]                                                   [ID:7]
-    #     bottom-left      <-- 35.5 cm edge-to-edge -->        bottom-right
-    #
-    # Edge-to-edge distances (black edge of one marker to black edge of other):
-    #   - 0 to 28: 20.8 cm (vertical left)
-    #   - 19 to 7: 20.2 cm (vertical right)
-    #   - 0 to 19: 34.8 cm (horizontal top)
-    #   - 28 to 7: 35.5 cm (horizontal bottom)
-    #
-    # All markers are the same size. Center of all 4 markers = board origin.
-    # =========================================================================
-
-    MARKER_SIZE = 0.190  # 19cm (same for all markers)
-
-    # Edge-to-edge distances (in meters)
-    DIST_0_28 = 0.208  # 20.8 cm (vertical left: 0 to 28)
-    DIST_19_7 = 0.202  # 20.2 cm (vertical right: 19 to 7)
-    DIST_0_19 = 0.348  # 34.8 cm (horizontal top: 0 to 19)
-    DIST_28_7 = 0.355  # 35.5 cm (horizontal bottom: 28 to 7)
-
-    # Marker IDs: top-left, top-right, bottom-left, bottom-right
-    MARKER_IDS = [7, 28, 19, 0]
-
-    # =========================================================================
     # COMPETITION BOARD CONFIGURATION (4 markers, 800 x 1200 mm)
-    # Uncomment this section and comment out TEST BOARD section above for competition
     # =========================================================================
-    # """
     # Board Layout (dimensions in meters, origin at center):
     #     ┌─────────────────────────────────────────┐
-    #     │  [ID:0]                         [ID:1]  │
+    #     │  [ID:28]                       [ID:7]   │
     #     │  top-left                     top-right │
     #     │                                         │
     #     │               (0,0) ORIGIN              │  1200mm
     #     │                                         │
-    #     │  [ID:2]                         [ID:3]  │
+    #     │  [ID:19]                       [ID:96]  │
     #     │  bottom-left                bottom-right│
     #     └─────────────────────────────────────────┘
     #                       800mm
     #
     # Marker size: 150mm (0.15m)
     # Edge offset: 35mm from each edge
-    # """
-    # BOARD_WIDTH = 0.800      # 800mm
-    # BOARD_HEIGHT = 1.200     # 1200mm
-    # MARKER_SIZE = 0.150      # 150mm
-    # EDGE_OFFSET = 0.035      # 35mm from edge
-    # MARKER_IDS = [0, 1, 2, 3]  # top-left, top-right, bottom-left, bottom-right
     # =========================================================================
+
+    BOARD_WIDTH = 0.800  # 800mm
+    BOARD_HEIGHT = 1.200  # 1200mm
+    MARKER_SIZE = 0.150  # 150mm
+    EDGE_OFFSET = 0.035  # 35mm from edge
+    MARKER_IDS = [28, 7, 19, 96]  # top-left, top-right, bottom-left, bottom-right
+
 
     def __init__(self):
         rospy.init_node("aruco_board_estimator", anonymous=True)
@@ -111,9 +73,9 @@ class ArucoBoardEstimator:
             self.config_file = ""
 
         # --- Parameters ---
-        self.camera_ns = rospy.get_param("~camera_ns", "webcam")
+        self.camera_ns = rospy.get_param("~camera_ns", "taluy/cameras/cam_bottom")
         self.camera_frame = rospy.get_param(
-            "~camera_frame", "taluy/base_link/front_camera_optical_link"
+            "~camera_frame", "taluy/base_link/bottom_camera_optical_link"
         )
 
         # Fetch camera calibration
@@ -131,8 +93,7 @@ class ArucoBoardEstimator:
         rospy.loginfo(f"Camera matrix:\n{self.camera_matrix}")
 
         # --- ArUco Setup (OpenCV 4.7-4.12) ---
-        # Use 6x6 dictionary as specified
-        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_ARUCO_ORIGINAL)
         self.detector_params = cv2.aruco.DetectorParameters()
 
         # Corner refinement method (SUBPIX for pool environment)
@@ -170,8 +131,7 @@ class ArucoBoardEstimator:
         self._apply_detector_params()
 
         # Create the marker object points dictionary
-        self.marker_obj_points = self._create_test_board_points()
-        # self.marker_obj_points = self._create_competition_board_points()  # Uncomment for competition
+        self.marker_obj_points = self._create_competition_board_points()
 
         # Create Board object for refineDetectedMarkers
         # Board constructor: objPoints (list of Nx3 arrays), dictionary, ids
@@ -208,6 +168,13 @@ class ArucoBoardEstimator:
         image_topic = f"/{self.camera_ns}/image_raw"
         rospy.loginfo(f"Subscribing to: {image_topic}")
         self.img_sub = rospy.Subscriber(image_topic, Image, self.image_cb)
+
+        # Gazebo model states subscriber for ground truth (simulation only)
+        self.docking_station_pose = None  # Will be updated by model_states callback
+        self.robot_pose = None  # Robot (taluy) pose from Gazebo
+        self.model_states_sub = rospy.Subscriber(
+            "/gazebo/model_states", ModelStates, self.model_states_cb, queue_size=1
+        )
 
         # Load saved parameters onto the ROS parameter server BEFORE creating
         # the dynamic reconfigure server, so it uses our saved values
@@ -350,96 +317,6 @@ class ArucoBoardEstimator:
 
         return config
 
-    def _create_test_board_points(self):
-        """
-        Create marker object points for the TEST board with 4 corner markers.
-
-        Uses measured edge-to-edge distances to compute marker center positions.
-        The origin (0,0,0) is at the centroid of all 4 marker centers.
-
-        Coordinate system:
-        - X axis: right
-        - Y axis: down
-        - Z axis: out of the board (towards camera)
-
-        Returns:
-            dict: Marker ID -> numpy array of 4 corner 3D points (4x3)
-        """
-        # Edge-to-edge distances -> center-to-center distances
-        # Center-to-center = edge-to-edge + marker_size
-        c2c_0_28 = self.DIST_0_28 + self.MARKER_SIZE  # vertical left
-        c2c_19_7 = self.DIST_19_7 + self.MARKER_SIZE  # vertical right
-        c2c_0_19 = self.DIST_0_19 + self.MARKER_SIZE  # horizontal top
-        c2c_28_7 = self.DIST_28_7 + self.MARKER_SIZE  # horizontal bottom
-
-        # Place marker 0 at origin temporarily, then compute others
-        # Marker layout:
-        #   0 (top-left)    19 (top-right)
-        #   28 (bottom-left)  7 (bottom-right)
-
-        # Temporary positions (marker 0 at origin)
-        pos_0 = np.array([0.0, 0.0])
-        pos_19 = np.array([c2c_0_19, 0.0])  # right of 0 on top edge
-        pos_28 = np.array([0.0, c2c_0_28])  # below 0 on left edge
-        pos_7 = np.array([c2c_28_7, c2c_19_7])  # right of 28, below 19
-
-        # Compute centroid of all 4 marker centers
-        all_pos = np.vstack([pos_0, pos_19, pos_28, pos_7])
-        centroid = all_pos.mean(axis=0)
-
-        # Shift all positions so centroid is at origin
-        marker_centers = {
-            0: pos_0 - centroid,
-            19: pos_19 - centroid,
-            28: pos_28 - centroid,
-            7: pos_7 - centroid,
-        }
-
-        # Convert marker centers to top-left corner positions
-        # Top-left corner = center - half_marker_size
-        half_m = self.MARKER_SIZE / 2.0
-        marker_positions = {
-            mid: (center[0] - half_m, center[1] - half_m)
-            for mid, center in marker_centers.items()
-        }
-
-        # Build objPoints dict: marker ID -> 4 corner 3D coordinates
-        # Corner order rotated by 180° for upside-down printed markers
-        # OpenCV's corner 0 maps to physical BR, corner 2 to physical TL
-        marker_obj_points = {}
-        for marker_id in self.MARKER_IDS:
-            x, y = marker_positions[marker_id]
-            corners = np.array(
-                [
-                    [
-                        x + self.MARKER_SIZE,
-                        y + self.MARKER_SIZE,
-                        0,
-                    ],  # corner 0 -> physical BR
-                    [x, y + self.MARKER_SIZE, 0],  # corner 1 -> physical BL
-                    [x, y, 0],  # corner 2 -> physical TL
-                    [x + self.MARKER_SIZE, y, 0],  # corner 3 -> physical TR
-                ],
-                dtype=np.float32,
-            )
-            marker_obj_points[marker_id] = corners
-
-        # Log marker positions for debugging
-        rospy.loginfo("TEST BOARD marker centers (relative to centroid origin):")
-        for marker_id in self.MARKER_IDS:
-            cx, cy = marker_centers[marker_id]
-            rospy.loginfo(
-                f"  Marker {marker_id}: center at ({cx*100:.1f}, {cy*100:.1f}) cm"
-            )
-
-        # Log computed center-to-center distances for verification
-        rospy.loginfo(
-            "Computed center-to-center distances (should match input + marker size):"
-        )
-        rospy.loginfo(f"  0-28: {c2c_0_28*100:.1f} cm, 19-7: {c2c_19_7*100:.1f} cm")
-        rospy.loginfo(f"  0-19: {c2c_0_19*100:.1f} cm, 28-7: {c2c_28_7*100:.1f} cm")
-
-        return marker_obj_points
 
     def _create_competition_board_points(self):
         """
@@ -459,20 +336,20 @@ class ArucoBoardEstimator:
         board_height = 1.200  # 1200mm
         marker_size = 0.150  # 150mm
         edge_offset = 0.035  # 35mm from edge
-        marker_ids = [0, 1, 2, 3]  # top-left, top-right, bottom-left, bottom-right
+        marker_ids = [28, 7, 19, 96]  # top-left, top-right, bottom-left, bottom-right
 
         half_w = board_width / 2.0  # 0.400m
         half_h = board_height / 2.0  # 0.600m
 
         # Marker top-left corner positions (relative to board center)
         marker_positions = {
-            0: (-half_w + edge_offset, -half_h + edge_offset),  # top-left
-            1: (half_w - edge_offset - marker_size, -half_h + edge_offset),  # top-right
-            2: (
+            28: (-half_w + edge_offset, -half_h + edge_offset),  # top-left
+            7: (half_w - edge_offset - marker_size, -half_h + edge_offset),  # top-right
+            19: (
                 -half_w + edge_offset,
                 half_h - edge_offset - marker_size,
             ),  # bottom-left
-            3: (
+            96: (
                 half_w - edge_offset - marker_size,
                 half_h - edge_offset - marker_size,
             ),  # bottom-right
@@ -504,8 +381,20 @@ class ArucoBoardEstimator:
 
         return marker_obj_points
 
+    def model_states_cb(self, msg):
+        """Callback for Gazebo model states - extracts docking station and robot poses for ground truth."""
+        for i, name in enumerate(msg.name):
+            if name == "tac_docking_station":
+                self.docking_station_pose = msg.pose[i]
+            elif name == "taluy":
+                self.robot_pose = msg.pose[i]
+
     def image_cb(self, msg):
         """Process incoming images and estimate board pose using solvePnP."""
+        # Skip processing if shutting down
+        if rospy.is_shutdown():
+            return
+
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except CvBridgeError as e:
@@ -680,9 +569,60 @@ class ArucoBoardEstimator:
                     # Publish transform
                     self.publish_board_transform(rvec, tvec, msg.header)
 
-                    # Display info
-                    dist = np.linalg.norm(tvec)
-                    rospy.loginfo(f"Distance to board: {dist:.3f} m")
+                    # Display info - with ground truth comparison for simulation
+                    detected_dist = np.linalg.norm(tvec)
+                    
+                    # Try to get ground truth distance using model_states (TF trees are disconnected in sim)
+                    if self.docking_station_pose is not None and self.robot_pose is not None:
+                        # Get robot (base_link) position and orientation in world frame
+                        robot_pos = np.array([
+                            self.robot_pose.position.x,
+                            self.robot_pose.position.y,
+                            self.robot_pose.position.z
+                        ])
+                        robot_q = self.robot_pose.orientation
+                        robot_rot = tf.transformations.quaternion_matrix(
+                            [robot_q.x, robot_q.y, robot_q.z, robot_q.w]
+                        )[:3, :3]
+                        
+                        # Camera offset from base_link (from URDF: position="0 0 -0.07")
+                        camera_offset_local = np.array([0.0, 0.0, -0.07])
+                        
+                        # Transform camera offset to world frame and get camera world position
+                        camera_offset_world = robot_rot @ camera_offset_local
+                        cam_pos = robot_pos + camera_offset_world
+                        
+                        # Docking station base position in world frame
+                        dock_base_pos = np.array([
+                            self.docking_station_pose.position.x,
+                            self.docking_station_pose.position.y,
+                            self.docking_station_pose.position.z
+                        ])
+                        dock_q = self.docking_station_pose.orientation
+                        dock_rot = tf.transformations.quaternion_matrix(
+                            [dock_q.x, dock_q.y, dock_q.z, dock_q.w]
+                        )[:3, :3]
+                        
+                        # Board center offset in model frame (marker surface at y=0.08m)
+                        board_center_local = np.array([0.0, 0.08, 0.0])
+                        
+                        # Transform to world frame and get board center world position
+                        board_center_offset_world = dock_rot @ board_center_local
+                        dock_pos = dock_base_pos + board_center_offset_world
+                        
+                        # Calculate actual distance from camera to board center
+                        actual_dist = np.linalg.norm(dock_pos - cam_pos)
+                        diff = detected_dist - actual_dist
+                        rospy.loginfo(
+                            f"Distance - Detected: {detected_dist:.3f} m, "
+                            f"Actual: {actual_dist:.3f} m, "
+                            f"Diff: {diff:+.3f} m ({diff*100:+.1f} cm)"
+                        )
+                    else:
+                        # Ground truth not available (not in simulation)
+                        rospy.loginfo(f"Distance to board: {detected_dist:.3f} m")
+                    
+                    dist = detected_dist  # For display text below
                     info_text = f"BOARD DETECTED ({len(matched_ids)} markers, {len(inlier_indices)}/{len(img_points)} corners) Dist: {dist:.2f}m"
                     cv2.putText(
                         debug_img,
@@ -763,9 +703,11 @@ class ArucoBoardEstimator:
                 2,
             )
 
-        self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug_img, "bgr8"))
-        self.debug_processed_pub.publish(self.bridge.cv2_to_imgmsg(debug_gray, "bgr8"))
-        self.debug_threshold_pub.publish(self.bridge.cv2_to_imgmsg(thresh_img, "mono8"))
+        # Publish debug images (check shutdown to avoid publish-to-closed-topic error)
+        if not rospy.is_shutdown():
+            self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug_img, "bgr8"))
+            self.debug_processed_pub.publish(self.bridge.cv2_to_imgmsg(debug_gray, "bgr8"))
+            self.debug_threshold_pub.publish(self.bridge.cv2_to_imgmsg(thresh_img, "mono8"))
 
     def publish_board_transform(self, rvec, tvec, header):
         """
@@ -795,6 +737,10 @@ class ArucoBoardEstimator:
         transform_stamped.transform.rotation = Quaternion(
             quat[0], quat[1], quat[2], quat[3]
         )
+
+        # Check shutdown to avoid publish-to-closed-topic error on Ctrl+C
+        if rospy.is_shutdown():
+            return
 
         self.tf_broadcaster.sendTransform(transform_stamped)
 
