@@ -1,7 +1,7 @@
-adaptive_thresh_constant: -3.2
+adaptive_thresh_constant: 5.0
 adaptive_thresh_win_size_max: 75
 adaptive_thresh_win_size_min: 7
-adaptive_thresh_win_size_step: 8
+adaptive_thresh_win_size_step: 2
 blur_strength: 3
 clahe_clip_limit: 2.0
 clahe_tile_size: 8
@@ -12,5 +12,5 @@ error_correction_rate: 0.6
 max_marker_perimeter_rate: 4.0
 min_marker_perimeter_rate: 0.02
 polygonal_approx_accuracy_rate: 0.05
-ransac_iterations: 200
-ransac_reproj_error: 50.0
+ransac_iterations: 300
+ransac_reproj_error: 2.0
