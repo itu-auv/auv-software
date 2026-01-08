@@ -153,7 +153,7 @@ class ArucoBoardEstimator:
 
         # Publishers
         self.object_transform_pub = rospy.Publisher(
-            "object_transform_updates", TransformStamped, queue_size=10
+            "/taluy/map/object_transform_updates", TransformStamped, queue_size=10
         )
         self.pose_pub = rospy.Publisher("~detected_pose", PoseStamped, queue_size=10)
         self.debug_pub = rospy.Publisher("~debug_image", Image, queue_size=1)
@@ -175,6 +175,9 @@ class ArucoBoardEstimator:
         self.model_states_sub = rospy.Subscriber(
             "/gazebo/model_states", ModelStates, self.model_states_cb, queue_size=1
         )
+
+        # Track last published timestamp to avoid TF_REPEATED_DATA warnings
+        self.last_published_stamp = rospy.Time(0)
 
         # Load saved parameters onto the ROS parameter server BEFORE creating
         # the dynamic reconfigure server, so it uses our saved values
@@ -403,7 +406,7 @@ class ArucoBoardEstimator:
 
         # Underwater image enhancement: RGB -> LAB -> L channel -> CLAHE
         lab = cv2.cvtColor(cv_image, cv2.COLOR_BGR2LAB)
-        l_channel = lab[:, :, 0]  # L channel (Lightness)
+        l_channel = lab[:, :, 0]
         tile_size = (self.clahe_tile_size, self.clahe_tile_size)
         clahe = cv2.createCLAHE(clipLimit=self.clahe_clip_limit, tileGridSize=tile_size)
         gray = clahe.apply(l_channel)
@@ -445,9 +448,7 @@ class ArucoBoardEstimator:
         )
 
         debug_img = cv_image.copy()
-        debug_gray = cv2.cvtColor(
-            gray, cv2.COLOR_GRAY2BGR
-        )  # Convert to BGR for colored annotations
+        debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
         if ids is not None and len(ids) > 0:
             # Draw detected markers on both debug images
@@ -461,13 +462,11 @@ class ArucoBoardEstimator:
 
             for i, marker_id in enumerate(ids.flatten()):
                 if marker_id in self.marker_obj_points:
-                    # This marker is part of our board
                     obj_points_list.append(self.marker_obj_points[marker_id])
                     img_points_list.append(corners[i].reshape(4, 2))
                     matched_ids.append(marker_id)
 
             if len(matched_ids) > 0:
-                # Combine all points into single arrays for solvePnP
                 obj_points = np.vstack(obj_points_list).astype(np.float32)
                 img_points = np.vstack(img_points_list).astype(np.float32)
 
@@ -533,29 +532,27 @@ class ArucoBoardEstimator:
                     inlier_set = set(inlier_indices)
                     for idx, pt in enumerate(img_points):
                         pt_int = tuple(pt.astype(int))
-                        cv2.circle(
-                            debug_img, pt_int, 6, (0, 0, 0), -1
-                        )  # Cover corner 0 indicator
+                        cv2.circle(debug_img, pt_int, 6, (0, 0, 0), -1)
                         cv2.circle(debug_gray, pt_int, 6, (0, 0, 0), -1)
                         if idx in inlier_set:
-                            cv2.circle(
-                                debug_img, pt_int, 4, (0, 255, 0), -1
-                            )  # Green inlier
+                            cv2.circle(debug_img, pt_int, 4, (0, 255, 0), -1)
                             cv2.circle(debug_gray, pt_int, 4, (0, 255, 0), -1)
                         else:
-                            cv2.circle(
-                                debug_img, pt_int, 5, (0, 0, 255), 2
-                            )  # Red outlier
+                            cv2.circle(debug_img, pt_int, 5, (0, 0, 255), 2)
                             cv2.circle(debug_gray, pt_int, 5, (0, 0, 255), 2)
 
-                    # Draw board coordinate frame
+
+                    # Publish transform (so TF server can filter it)
+                    self.publish_board_transform(rvec, tvec, msg.header)
+
+                    # Draw raw detected pose axes
                     cv2.drawFrameAxes(
                         debug_img,
                         self.camera_matrix,
                         self.dist_coeffs,
                         rvec,
                         tvec,
-                        0.15,  # 15cm axis length
+                        0.15,
                     )
                     cv2.drawFrameAxes(
                         debug_gray,
@@ -563,11 +560,8 @@ class ArucoBoardEstimator:
                         self.dist_coeffs,
                         rvec,
                         tvec,
-                        0.15,  # 15cm axis length
+                        0.15,
                     )
-
-                    # Publish transform
-                    self.publish_board_transform(rvec, tvec, msg.header)
 
                     # Display info - with ground truth comparison for simulation
                     detected_dist = np.linalg.norm(tvec)
@@ -722,6 +716,9 @@ class ArucoBoardEstimator:
         transform_matrix[0:3, 0:3] = rot_mat
         transform_matrix[0:3, 3] = tvec.flatten()
 
+        rot_x_180 = tf.transformations.rotation_matrix(np.pi, [1, 0, 0])
+        transform_matrix = transform_matrix @ rot_x_180
+
         # Get quaternion
         quat = tf.transformations.quaternion_from_matrix(transform_matrix)
 
@@ -742,7 +739,12 @@ class ArucoBoardEstimator:
         if rospy.is_shutdown():
             return
 
-        self.tf_broadcaster.sendTransform(transform_stamped)
+        # Skip if same timestamp as last publish to avoid TF_REPEATED_DATA warnings
+        if header.stamp == self.last_published_stamp:
+            return
+        self.last_published_stamp = header.stamp
+
+
 
         pose_stamped = PoseStamped()
         pose_stamped.header = transform_stamped.header
