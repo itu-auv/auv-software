@@ -13,7 +13,7 @@ Pipeline:
 import cv2
 import numpy as np
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 from pathlib import Path
 
 
@@ -31,60 +31,43 @@ class PipeDetection:
     depth: float  # mean depth in bbox region
 
 
-def classify_pipe_color(
+def classify_pipe_color_lab(
     rgb: np.ndarray,
-    bbox: Tuple[int, int, int, int],
-    red_hue_ranges: Tuple[Tuple[int, int], Tuple[int, int]] = ((0, 10), (160, 180)),
-    saturation_threshold: int = 80,
-    value_threshold: int = 80,
-    red_ratio_threshold: float = 0.15,
-) -> str:
+    contour: np.ndarray,
+    threshold: float = 10.0,
+) -> Tuple[str, float]:
     """
-    Classify pipe color as 'red' or 'white' using HSV analysis.
+    Classify pipe color using LAB 'a' channel.
+
+    Uses segmentation mask (not bbox) for accurate pixel sampling.
+    LAB 'a' channel: 128=neutral, >128=red, <128=green
 
     Args:
-        rgb: RGB image (H, W, 3)
-        bbox: Bounding box (x, y, w, h)
-        red_hue_ranges: Two hue ranges for red (wraps around 0/180)
-        saturation_threshold: Minimum saturation for red detection
-        value_threshold: Minimum value for red detection
-        red_ratio_threshold: Fraction of pixels that must be red
+        rgb: RGB image
+        contour: Pipe contour from segmentation
+        threshold: Redness threshold above neutral (128)
 
     Returns:
-        'red' or 'white'
+        (color, confidence) where color is "red" or "white"
     """
-    x, y, w, h = bbox
+    mask = np.zeros(rgb.shape[:2], dtype=np.uint8)
+    cv2.drawContours(mask, [contour], -1, 255, -1)
 
-    # Extract ROI with bounds checking
-    y1, y2 = max(0, y), min(rgb.shape[0], y + h)
-    x1, x2 = max(0, x), min(rgb.shape[1], x + w)
+    if cv2.countNonZero(mask) == 0:
+        return "white", 0.5
 
-    if y2 <= y1 or x2 <= x1:
-        return "white"
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)
+    a_channel = lab[:, :, 1]
 
-    roi = rgb[y1:y2, x1:x2]
+    pipe_a = np.median(a_channel[mask > 0])
+    redness = float(pipe_a) - 128.0
 
-    if roi.size == 0:
-        return "white"
-
-    # Convert to HSV
-    hsv = cv2.cvtColor(roi, cv2.COLOR_RGB2HSV)
-    h_channel = hsv[:, :, 0]
-    s_channel = hsv[:, :, 1]
-    v_channel = hsv[:, :, 2]
-
-    # Red mask: hue in red ranges AND sufficient saturation/value
-    hue_low, hue_high = red_hue_ranges
-    red_hue_mask = ((h_channel >= hue_low[0]) & (h_channel <= hue_low[1])) | (
-        (h_channel >= hue_high[0]) & (h_channel <= hue_high[1])
-    )
-    saturation_mask = s_channel >= saturation_threshold
-    value_mask = v_channel >= value_threshold
-
-    red_mask = red_hue_mask & saturation_mask & value_mask
-    red_ratio = red_mask.sum() / red_mask.size
-
-    return "red" if red_ratio > red_ratio_threshold else "white"
+    if redness > threshold:
+        confidence = min(1.0, redness / 50.0)
+        return "red", confidence
+    else:
+        confidence = min(1.0, abs(redness) / 50.0)
+        return "white", confidence
 
 
 def normalize_depth_to_uint8(depth: np.ndarray) -> np.ndarray:
@@ -184,20 +167,22 @@ def segment_slalom_pipes(
     min_aspect_ratio: float = 2.0,
     min_area_ratio: float = 0.00015,
     max_area_ratio: float = 0.05,
-) -> List[PipeDetection]:
+    return_contours: bool = False,
+) -> Union[List[PipeDetection], Tuple[List[PipeDetection], List[np.ndarray]]]:
     """
     Full pipeline: Depth -> Pipe detections.
 
     Args:
         depth: Depth image (float32 or uint8/uint16 from PNG)
-        rgb: Optional RGB image for future color classification
+        rgb: Optional RGB image for color classification
         edge_crop_ratio: Fraction of image to crop from edges
         min_aspect_ratio: Minimum height/width ratio for pipe candidates
         min_area_ratio: Minimum area as fraction of image
         max_area_ratio: Maximum area as fraction of image
+        return_contours: If True, returns (detections, contours) tuple
 
     Returns:
-        List of PipeDetection objects
+        List of PipeDetection objects, or (detections, contours) if return_contours=True
     """
     h_orig, w_orig = depth.shape[:2]
 
@@ -245,16 +230,11 @@ def segment_slalom_pipes(
         roi_depth = depth[y : y + bh, x : x + bw]
         mean_depth = float(np.nanmean(roi_depth))
 
-        # Confidence based on area and aspect ratio
-        conf = min(1.0, (c["area"] / (h * w * 0.01)) * min(c["aspect_ratio"] / 5, 1.0))
-
-        # Color classification
+        # Color classification using LAB-a with contour mask
         if rgb is not None:
-            # Need to adjust bbox back to original coords if rgb wasn't cropped
-            rgb_bbox = (x_abs, y_abs, bw, bh)
-            pipe_color = classify_pipe_color(rgb, rgb_bbox)
+            pipe_color, color_conf = classify_pipe_color_lab(rgb, c["contour"])
         else:
-            pipe_color = "white"  # Default if no RGB provided
+            pipe_color, color_conf = "white", 0.5
 
         det = PipeDetection(
             label="pipe",
@@ -263,9 +243,38 @@ def segment_slalom_pipes(
             area=c["area"],
             aspect_ratio=c["aspect_ratio"],
             centroid=(norm_cx, norm_cy),
-            confidence=conf,
+            confidence=color_conf,
             depth=mean_depth,
         )
         detections.append(det)
 
+    if return_contours:
+        return detections, [c["contour"] for c in contours]
     return detections
+
+
+def create_colored_visualization(
+    rgb: np.ndarray,
+    detections: List[PipeDetection],
+    contours: List[np.ndarray],
+) -> np.ndarray:
+    """
+    Create visualization with pipes colored by classification.
+    Red pipes shown in red, white pipes shown in white.
+    """
+    vis = rgb.copy()
+
+    for det, cnt in zip(detections, contours):
+        color = (255, 50, 50) if det.color == "red" else (255, 255, 255)
+
+        overlay = vis.copy()
+        cv2.drawContours(overlay, [cnt], -1, color, -1)
+        vis = cv2.addWeighted(vis, 0.6, overlay, 0.4, 0)
+
+        cv2.drawContours(vis, [cnt], -1, color, 2)
+
+        x, y, _, _ = det.bbox
+        label = f"{det.color} ({det.confidence:.0%})"
+        cv2.putText(vis, label, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
+    return vis

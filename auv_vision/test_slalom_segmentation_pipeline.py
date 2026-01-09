@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """
 Slalom Segmentation Pipeline Test - visualizes each stage and saves debug output.
+
+Outputs:
+- Pipeline stages (depth, h-suppressed, tophat, binary)
+- Mask overlay on RGB (transparent mask for coverage inspection)
+- Masked RGB with black background (pipe regions only)
+- High-resolution outputs for zoom inspection
 """
 
 import cv2
@@ -19,6 +25,9 @@ from auv_vision.slalom_segmentation import (
     geometric_filtering,
     segment_slalom_pipes,
 )
+
+# High resolution scale factor for detailed inspection
+HIRES_SCALE = 3
 
 
 def add_title(img: np.ndarray, title: str) -> np.ndarray:
@@ -47,6 +56,46 @@ def hconcat_resize(images: list, height: int = 400) -> np.ndarray:
     return cv2.hconcat(resized)
 
 
+def upscale(img: np.ndarray, scale: int = HIRES_SCALE) -> np.ndarray:
+    """Upscale image for high-res inspection."""
+    h, w = img.shape[:2]
+    return cv2.resize(img, (w * scale, h * scale), interpolation=cv2.INTER_LANCZOS4)
+
+
+def create_mask_overlay(
+    rgb: np.ndarray, mask: np.ndarray, alpha: float = 0.4
+) -> np.ndarray:
+    """
+    Create RGB with semi-transparent mask overlay.
+    Shows segmentation coverage on original image.
+    """
+    overlay = rgb.copy()
+    mask_colored = np.zeros_like(rgb)
+    mask_colored[:, :, 1] = mask  # Green channel for mask
+    mask_colored[:, :, 2] = mask  # Also yellow tint
+
+    mask_bool = mask > 0
+    overlay[mask_bool] = cv2.addWeighted(
+        rgb[mask_bool], 1 - alpha, mask_colored[mask_bool], alpha, 0
+    )
+
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(overlay, contours, -1, (0, 255, 255), 2)
+
+    return overlay
+
+
+def create_masked_rgb(rgb: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """
+    Create RGB with black background - only mask regions visible.
+    Shows exactly what the segmentation captured.
+    """
+    result = np.zeros_like(rgb)
+    mask_bool = mask > 0
+    result[mask_bool] = rgb[mask_bool]
+    return result
+
+
 def test_pipeline(rgb_path: Path, depth_path: Path, output_dir: Path) -> int:
     """Run pipeline on single image pair, save debug visualizations."""
     img_name = rgb_path.stem
@@ -59,12 +108,15 @@ def test_pipeline(rgb_path: Path, depth_path: Path, output_dir: Path) -> int:
 
     print(f"Size: {w}x{h}, Depth range: [{depth.min():.1f}, {depth.max():.1f}]")
 
-    # Run full pipeline
-    detections = segment_slalom_pipes(depth)
+    # Run full pipeline with RGB for color classification
+    rgb_for_classification = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+    detections, contours = segment_slalom_pipes(
+        depth, rgb=rgb_for_classification, return_contours=True
+    )
     print(f"Detected {len(detections)} pipe(s)")
     for i, det in enumerate(detections):
         print(
-            f"  Pipe {i + 1}: bbox={det.bbox}, AR={det.aspect_ratio:.1f}, conf={det.confidence:.2f}"
+            f"  Pipe {i + 1}: color={det.color}, bbox={det.bbox}, AR={det.aspect_ratio:.1f}, conf={det.confidence:.2f}"
         )
 
     # Debug intermediates
@@ -72,6 +124,15 @@ def test_pipeline(rgb_path: Path, depth_path: Path, output_dir: Path) -> int:
     h_suppressed = suppress_horizontal_structures(normalized)
     tophat = multi_scale_black_tophat(h_suppressed)
     _, binary = cv2.threshold(tophat, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # Create combined mask from all detected contours
+    combined_mask = np.zeros((h, w), dtype=np.uint8)
+    for cnt in contours:
+        cv2.drawContours(combined_mask, [cnt], -1, 255, -1)
+
+    # Create visualizations
+    mask_overlay = create_mask_overlay(rgb, combined_mask)
+    masked_rgb = create_masked_rgb(rgb, combined_mask)
 
     # Save outputs
     out_dir = output_dir / img_name
@@ -101,6 +162,15 @@ def test_pipeline(rgb_path: Path, depth_path: Path, output_dir: Path) -> int:
         )
     cv2.imwrite(str(out_dir / "6_result.png"), annotated)
 
+    # Save mask visualizations (normal + high-res)
+    cv2.imwrite(str(out_dir / "7_mask_overlay.png"), mask_overlay)
+    cv2.imwrite(str(out_dir / "8_masked_rgb.png"), masked_rgb)
+
+    # High-resolution versions for detailed inspection
+    cv2.imwrite(str(out_dir / "7_mask_overlay_HIRES.png"), upscale(mask_overlay))
+    cv2.imwrite(str(out_dir / "8_masked_rgb_HIRES.png"), upscale(masked_rgb))
+    cv2.imwrite(str(out_dir / "1_rgb_HIRES.png"), upscale(rgb))
+
     # Composite
     row1 = hconcat_resize(
         [
@@ -118,7 +188,15 @@ def test_pipeline(rgb_path: Path, depth_path: Path, output_dir: Path) -> int:
         ],
         height=300,
     )
-    cv2.imwrite(str(out_dir / "COMPOSITE.png"), cv2.vconcat([row1, row2]))
+    row3 = hconcat_resize(
+        [
+            add_title(mask_overlay, "Mask Overlay"),
+            add_title(masked_rgb, "Masked RGB (black bg)"),
+            add_title(rgb, "Original RGB"),  # Padding to match width
+        ],
+        height=300,
+    )
+    cv2.imwrite(str(out_dir / "COMPOSITE.png"), cv2.vconcat([row1, row2, row3]))
 
     print(f"Saved to: {out_dir}/")
     return len(detections)
@@ -130,23 +208,26 @@ def main():
     depth_dir = base / "slalom_depth_test_images" / "da3mono-large"
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = base / f"test_output_{timestamp}"
+    output_dir = base / f"test_segment_{timestamp}"
     output_dir.mkdir(exist_ok=True)
 
-    test_images = [3, 4, 5, 6]
-    total = sum(
-        test_pipeline(
-            rgb_dir / f"test_image_{n}.jpg",
-            depth_dir / f"test_image_{n}_depth.png",
-            output_dir,
-        )
-        for n in test_images
-        if (rgb_dir / f"test_image_{n}.jpg").exists()
-        and (depth_dir / f"test_image_{n}_depth.png").exists()
-    )
+    # Test ALL available images (1-9)
+    test_images = list(range(1, 10))
+    tested = 0
+    total = 0
+
+    for n in test_images:
+        rgb_path = rgb_dir / f"test_image_{n}.jpg"
+        depth_path = depth_dir / f"test_image_{n}_depth.png"
+
+        if rgb_path.exists() and depth_path.exists():
+            total += test_pipeline(rgb_path, depth_path, output_dir)
+            tested += 1
+        else:
+            print(f"Skipping test_image_{n}: missing files")
 
     print(
-        f"\n{'=' * 50}\nTotal: {total} pipes across {len(test_images)} images\nOutput: {output_dir}\n{'=' * 50}"
+        f"\n{'=' * 50}\nTotal: {total} pipes across {tested} images\nOutput: {output_dir}\n{'=' * 50}"
     )
 
 
