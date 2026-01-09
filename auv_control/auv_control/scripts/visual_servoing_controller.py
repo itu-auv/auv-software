@@ -326,7 +326,11 @@ class VisualServoingController:
 
     def _compute_slalom_heading(self) -> Optional[float]:
         """
-        Select closest 2 pipes by depth and compute heading from centroid average.
+        Select pipes for slalom navigation and compute heading.
+
+        Strategy:
+        1. If we have both red and white pipes, use closest of each color
+        2. Otherwise, fall back to closest 2 pipes by depth
 
         Returns:
             Heading in [-1, 1] where 0 = centered, or None if insufficient data.
@@ -336,22 +340,34 @@ class VisualServoingController:
             rospy.logwarn_throttle(2.0, f"[SLALOM] Need 2 pipes, got {len(detections)}")
             return None
 
-        # Sort by depth (closest first)
-        sorted_pipes = sorted(detections, key=lambda d: d.depth)
+        # Try color-based selection first
+        reds = [d for d in detections if d.color == "red"]
+        whites = [d for d in detections if d.color == "white"]
 
-        # Take closest 2 pipes
-        pipe_a = sorted_pipes[0]
-        pipe_b = sorted_pipes[1]
+        if reds and whites:
+            # Use closest red and closest white
+            pipe_red = min(reds, key=lambda d: d.depth)
+            pipe_white = min(whites, key=lambda d: d.depth)
+            heading = 0.5 * (pipe_red.centroid.x + pipe_white.centroid.x)
 
-        # Heading = average of centroid.x values (both in [-1, 1])
-        heading = 0.5 * (pipe_a.centroid.x + pipe_b.centroid.x)
+            rospy.loginfo_throttle(
+                1.0,
+                f"[SLALOM] RED x={pipe_red.centroid.x:.2f} d={pipe_red.depth:.2f} | "
+                f"WHITE x={pipe_white.centroid.x:.2f} d={pipe_white.depth:.2f} | "
+                f"heading={heading:.2f}",
+            )
+        else:
+            # Fallback: closest 2 by depth
+            sorted_pipes = sorted(detections, key=lambda d: d.depth)
+            pipe_a = sorted_pipes[0]
+            pipe_b = sorted_pipes[1]
+            heading = 0.5 * (pipe_a.centroid.x + pipe_b.centroid.x)
 
-        rospy.loginfo_throttle(
-            1.0,
-            f"[SLALOM] pipe1: x={pipe_a.centroid.x:.2f} d={pipe_a.depth:.2f} "
-            f"pipe2: x={pipe_b.centroid.x:.2f} d={pipe_b.depth:.2f} "
-            f"heading={heading:.2f}",
-        )
+            rospy.loginfo_throttle(
+                1.0,
+                f"[SLALOM] (depth fallback) pipe1: x={pipe_a.centroid.x:.2f} "
+                f"pipe2: x={pipe_b.centroid.x:.2f} heading={heading:.2f}",
+            )
 
         return heading
 
