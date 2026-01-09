@@ -144,7 +144,9 @@ class DepthAnythingClient:
                 self.colorized_pub.publish(color_msg)
 
                 if self.enable_slalom:
-                    pipes = segment_slalom_pipes(depth)
+                    # Convert BGR to RGB for color classification
+                    rgb_img = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+                    pipes = segment_slalom_pipes(depth, rgb=rgb_img)
                     self._publish_detections(pipes, msg.header, cv_img)
 
             except zmq.error.Again:
