@@ -7,6 +7,7 @@ Pipeline:
 3. Multi-scale black top-hat to extract narrow vertical dark structures
 4. Otsu binarization
 5. Geometric filtering (aspect ratio, area bounds)
+6. Color classification (red vs white) using RGB image
 """
 
 import cv2
@@ -28,6 +29,62 @@ class PipeDetection:
     centroid: Tuple[float, float]  # normalized to [-1, 1] for visual servoing
     confidence: float
     depth: float  # mean depth in bbox region
+
+
+def classify_pipe_color(
+    rgb: np.ndarray,
+    bbox: Tuple[int, int, int, int],
+    red_hue_ranges: Tuple[Tuple[int, int], Tuple[int, int]] = ((0, 10), (160, 180)),
+    saturation_threshold: int = 80,
+    value_threshold: int = 80,
+    red_ratio_threshold: float = 0.15,
+) -> str:
+    """
+    Classify pipe color as 'red' or 'white' using HSV analysis.
+
+    Args:
+        rgb: RGB image (H, W, 3)
+        bbox: Bounding box (x, y, w, h)
+        red_hue_ranges: Two hue ranges for red (wraps around 0/180)
+        saturation_threshold: Minimum saturation for red detection
+        value_threshold: Minimum value for red detection
+        red_ratio_threshold: Fraction of pixels that must be red
+
+    Returns:
+        'red' or 'white'
+    """
+    x, y, w, h = bbox
+
+    # Extract ROI with bounds checking
+    y1, y2 = max(0, y), min(rgb.shape[0], y + h)
+    x1, x2 = max(0, x), min(rgb.shape[1], x + w)
+
+    if y2 <= y1 or x2 <= x1:
+        return "white"
+
+    roi = rgb[y1:y2, x1:x2]
+
+    if roi.size == 0:
+        return "white"
+
+    # Convert to HSV
+    hsv = cv2.cvtColor(roi, cv2.COLOR_RGB2HSV)
+    h_channel = hsv[:, :, 0]
+    s_channel = hsv[:, :, 1]
+    v_channel = hsv[:, :, 2]
+
+    # Red mask: hue in red ranges AND sufficient saturation/value
+    hue_low, hue_high = red_hue_ranges
+    red_hue_mask = ((h_channel >= hue_low[0]) & (h_channel <= hue_low[1])) | (
+        (h_channel >= hue_high[0]) & (h_channel <= hue_high[1])
+    )
+    saturation_mask = s_channel >= saturation_threshold
+    value_mask = v_channel >= value_threshold
+
+    red_mask = red_hue_mask & saturation_mask & value_mask
+    red_ratio = red_mask.sum() / red_mask.size
+
+    return "red" if red_ratio > red_ratio_threshold else "white"
 
 
 def normalize_depth_to_uint8(depth: np.ndarray) -> np.ndarray:
@@ -191,9 +248,17 @@ def segment_slalom_pipes(
         # Confidence based on area and aspect ratio
         conf = min(1.0, (c["area"] / (h * w * 0.01)) * min(c["aspect_ratio"] / 5, 1.0))
 
+        # Color classification
+        if rgb is not None:
+            # Need to adjust bbox back to original coords if rgb wasn't cropped
+            rgb_bbox = (x_abs, y_abs, bw, bh)
+            pipe_color = classify_pipe_color(rgb, rgb_bbox)
+        else:
+            pipe_color = "white"  # Default if no RGB provided
+
         det = PipeDetection(
             label="pipe",
-            color="white",  # placeholder - color classification TODO
+            color=pipe_color,
             bbox=(x_abs, y_abs, bw, bh),
             area=c["area"],
             aspect_ratio=c["aspect_ratio"],
