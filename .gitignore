@@ -40,3 +40,13 @@
 
 # ultralytics models
 *.pt
+
+# debug/test outputs
+auv_vision/debug_output*/
+auv_vision/segmentation_results/
+auv_vision/slalom_depth_test_images/
+auv_vision/slalom_test_images/
+auv_vision/*_comparison_*/
+auv_vision/**/*.md
+**/tasks
+.planning/
