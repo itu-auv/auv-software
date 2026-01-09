@@ -1,0 +1,64 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Slalom Visual Servoing Launch File -->
+  <!-- Uses depth-based pipe segmentation for navigating between gates -->
+
+  <arg name="namespace" default="taluy" />
+
+  <!-- VS Controller params -->
+  <arg name="use_imu" default="false" doc="Use IMU for world-frame heading (false = image-space)"/>
+  <arg name="slalom_mode" default="true" doc="Enable slalom pipe navigation"/>
+  <arg name="kp_gain" default="0.8" />
+  <arg name="kd_gain" default="0.4" />
+  <arg name="max_angular_velocity" default="1.0" />
+  <arg name="v_x_desired" default="0.3" />
+  <arg name="navigation_timeout" default="12.0" />
+
+  <!-- Depth perception params -->
+  <arg name="enable_depth" default="true" doc="Launch depth_anything_client"/>
+  <arg name="zmq_host" default="localhost" />
+  <arg name="zmq_port" default="5555" />
+  <arg name="camera_namespace" default="cameras/cam_front" />
+
+  <group ns="$(arg namespace)">
+
+    <!-- Visual Servoing Controller in Slalom Mode -->
+    <node pkg="auv_control" type="visual_servoing_controller.py"
+          name="visual_servoing_controller" output="screen">
+
+      <!-- Mode params -->
+      <param name="use_imu" value="$(arg use_imu)" />
+      <param name="slalom_mode" value="$(arg slalom_mode)" />
+
+      <!-- PD gains -->
+      <param name="kp_gain" value="$(arg kp_gain)" />
+      <param name="kd_gain" value="$(arg kd_gain)" />
+      <param name="max_angular_velocity" value="$(arg max_angular_velocity)" />
+      <param name="v_x_desired" value="$(arg v_x_desired)" />
+      <param name="navigation_timeout_after_prop_disappear_s" value="$(arg navigation_timeout)" />
+
+      <!-- Topic remaps -->
+      <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="props_yaw" to="props_yaw" />
+      <remap from="slalom_pipes" to="depth_anything/slalom_pipes" />
+      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="enable" to="enable" />
+    </node>
+
+    <!-- Depth Anything Client (optional, can run separately) -->
+    <node if="$(arg enable_depth)"
+          pkg="auv_vision" type="depth_anything_client.py"
+          name="depth_anything_node" output="screen">
+
+      <param name="zmq_host" value="$(arg zmq_host)" />
+      <param name="zmq_port" value="$(arg zmq_port)" />
+      <param name="camera_namespace" value="$(arg camera_namespace)" />
+      <param name="enable_slalom" value="true" />
+      <param name="rate" value="10.0" />
+
+      <remap from="image_raw" to="$(arg camera_namespace)/image_raw" />
+    </node>
+
+  </group>
+
+</launch>
