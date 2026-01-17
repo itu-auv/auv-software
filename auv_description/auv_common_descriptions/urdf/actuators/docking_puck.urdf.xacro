@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="docking_puck">
+  <xacro:macro name="docking_puck" params="name parent position:='0 0 0' orientation:='0 0 0' use_models:='false'">
+    <link name="${name}_link">
+      <inertial>
+        <mass value="0.5"/>
+        <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/>
+      </inertial>
+      <visual>
+        <!-- Rotate mesh so flat surface faces down (Y axis in mesh becomes -Z in robot frame) -->
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/docking_puck/docking_puck.stl" scale="0.001 0.001 0.001"/>
+        </geometry>
+        <material name="grey">
+          <color rgba="0.5 0.5 0.5 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <mesh filename="package://auv_common_descriptions/meshes/docking_puck/docking_puck.stl" scale="0.001 0.001 0.001"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${name}_link"/>
+      <origin xyz="${position}" rpy="${orientation}"/>
+      <axis rpy="0 0 0" xyz="0 0 1"/>
+    </joint>
+  </xacro:macro>
+</robot>
