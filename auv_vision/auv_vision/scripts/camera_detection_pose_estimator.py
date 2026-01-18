@@ -152,6 +152,7 @@ class CameraDetectionNode:
         )
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
+        self.torpedo_camera_enabled = False
 
         self.red_pipe_x = None
 
@@ -179,6 +180,7 @@ class CameraDetectionNode:
         self.camera_calibrations = {
             "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
+            "taluy/cameras/cam_torpedo": CameraCalibration("cameras/cam_torpedo"),
         }
         # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
@@ -193,13 +195,21 @@ class CameraDetectionNode:
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
             queue_size=1,
         )
+        rospy.Subscriber(
+            "/yolo_result_torpedo",
+            YoloResult,
+            lambda msg: self.detection_callback(msg, camera_source="torpedo_camera"),
+            queue_size=1,
+        )
         self.frame_id_to_camera_ns = {
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
+            "taluy/base_link/torpedo_camera_link": "taluy/cameras/cam_torpedo",
         }
         self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link_stabilized",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
+            "taluy/cameras/cam_torpedo": "taluy/base_link/torpedo_camera_optical_link",
         }
         self.props = {
             "gate_sawfish_link": Sawfish(),
@@ -221,13 +231,15 @@ class CameraDetectionNode:
                 2: "red_pipe_link",
                 3: "white_pipe_link",
                 4: "torpedo_map_link",
-                5: "torpedo_hole_link",
                 6: "bin_whole_link",
                 7: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {
                 0: "bin_shark_link",
                 1: "bin_sawfish_link",
+            },
+            "taluy/cameras/cam_torpedo": {
+                5: "torpedo_hole_link",
             },
         }
         # Subscribe to YOLO detections and altitude
@@ -245,6 +257,11 @@ class CameraDetectionNode:
             "enable_bottom_camera_detections",
             SetBool,
             self.handle_enable_bottom_camera,
+        )
+        rospy.Service(
+            "enable_torpedo_camera_detections",
+            SetBool,
+            self.handle_enable_torpedo_camera,
         )
         rospy.Service(
             "set_front_camera_focus",
@@ -306,6 +323,12 @@ class CameraDetectionNode:
     def handle_enable_bottom_camera(self, req):
         self.bottom_camera_enabled = req.data
         message = "Bottom camera detections " + ("enabled" if req.data else "disabled")
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
+    def handle_enable_torpedo_camera(self, req):
+        self.torpedo_camera_enabled = req.data
+        message = "Torpedo camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
@@ -412,46 +435,31 @@ class CameraDetectionNode:
         ) as e:
             rospy.logerr(f"Transform error: {e}")
 
-    def process_torpedo_holes_on_map(
-        self, detection_msg: YoloResult, camera_ns: str, torpedo_map_bbox
-    ):
-        map_min_x = torpedo_map_bbox.center.x - torpedo_map_bbox.size_x * 0.5
-        map_max_x = torpedo_map_bbox.center.x + torpedo_map_bbox.size_x * 0.5
-        map_min_y = torpedo_map_bbox.center.y - torpedo_map_bbox.size_y * 0.5
-        map_max_y = torpedo_map_bbox.center.y + torpedo_map_bbox.size_y * 0.5
-
-        detected_holes_in_map = []
+    def process_torpedo_holes(self, detection_msg: YoloResult, camera_ns: str):
+        detected_holes = []
         camera_frame = self.camera_frames[camera_ns]
 
-        # First, find all hole detections inside the torpedo map
+        # First, find all hole detections
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
             detection_id = detection.results[0].id
 
             if detection_id == 5:  # Torpedo hole ID
-                hole_center_x = detection.bbox.center.x
-                hole_center_y = detection.bbox.center.y
-
-                # Check if the center of the hole is within the map's bounding box
-                if (
-                    map_min_x <= hole_center_x <= map_max_x
-                    and map_min_y <= hole_center_y <= map_max_y
-                ):
-                    detected_holes_in_map.append(detection)
+                detected_holes.append(detection)
 
         # We expect to find exactly two holes. If not, we cannot proceed.
-        if len(detected_holes_in_map) != 2:
+        if len(detected_holes) != 2:
             rospy.logwarn_throttle(
                 5,
-                f"Expected 2 torpedo holes, but found {len(detected_holes_in_map)}. Skipping.",
+                f"Expected 2 torpedo holes, but found {len(detected_holes)}. Skipping.",
             )
             return
 
         # Determine which hole is upper and which is bottom based on their Y coordinate.
         # In image coordinates, a smaller Y value means it is higher up in the image.
-        hole1 = detected_holes_in_map[0]
-        hole2 = detected_holes_in_map[1]
+        hole1 = detected_holes[0]
+        hole2 = detected_holes[1]
 
         if hole1.bbox.center.y < hole2.bbox.center.y:
             upper_hole_detection = hole1
@@ -586,6 +594,10 @@ class CameraDetectionNode:
             if not self.bottom_camera_enabled:
                 return
             camera_ns = "taluy/cameras/cam_bottom"
+        elif camera_source == "torpedo_camera":
+            if not self.torpedo_camera_enabled:
+                return
+            camera_ns = "taluy/cameras/cam_torpedo"
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
@@ -606,30 +618,9 @@ class CameraDetectionNode:
             rospy.logwarn_throttle(15, f"Transform error: {e}")
             return
 
-        # Search for torpedo map
-        torpedo_map_bbox = None
-        for detection in detection_msg.detections.detections:
-            if len(detection.results) == 0:
-                continue
-            detection_id = detection.results[0].id
-            if detection_id == 4:  # Torpedo map ID
-                torpedo_map_bbox = detection.bbox
-                break
+        if camera_source == "torpedo_camera":
+            self.process_torpedo_holes(detection_msg, camera_ns)
 
-        torpedo_ids = set(self.object_id_map.get("torpedo", []))
-        torpedo_holes_ids = set(self.object_id_map.get("torpedo_holes", []))
-        process_torpedo = True
-        process_torpedo_holes = True
-        if camera_source == "front_camera":
-            if not torpedo_ids.intersection(self.active_front_camera_ids):
-                process_torpedo = False
-            if not torpedo_holes_ids.intersection(self.active_front_camera_ids):
-                process_torpedo_holes = False
-
-        if torpedo_map_bbox and process_torpedo and process_torpedo_holes:
-            self.process_torpedo_holes_on_map(
-                detection_msg, camera_ns, torpedo_map_bbox
-            )
         red_pipe_x = self.red_pipe_x
         red_pipes = [
             d for d in detection_msg.detections.detections if d.results[0].id == 2
