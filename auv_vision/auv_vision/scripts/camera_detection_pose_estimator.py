@@ -446,7 +446,8 @@ class CameraDetectionNode:
             detection_id = detection.results[0].id
 
             if detection_id == 5:  # Torpedo hole ID
-                detected_holes.append(detection)
+                if self.check_if_detection_is_inside_image(detection):
+                    detected_holes.append(detection)
 
         # We expect to find exactly two holes. If not, we cannot proceed.
         if len(detected_holes) != 2:
