@@ -1,4 +1,3 @@
----
 name: scheduled build and push
 
 # scheduled run every day at 00:00 GMT +03:00
