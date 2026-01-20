@@ -83,7 +83,7 @@ class ReferencePosePublisherNode:
         self.set_pose_req.pose.header.frame_id = "odom"
         self.is_resetting = False
 
-        # parameters #TODO
+        # parameters
         self.namespace = rospy.get_param("~namespace", "taluy")
         self.base_frame = self.namespace + "/base_link"
         self.update_rate = rospy.get_param("~update_rate", 10)
@@ -345,40 +345,51 @@ class ReferencePosePublisherNode:
             return None
 
     def control_loop(self):
+        with self.state_lock:
+            frame_id = self.target_frame_id
+            tx = self.target_x
+            ty = self.target_y
+            tz = self.target_depth
+
+            t_roll = self.target_roll
+            t_pitch = self.target_pitch
+            t_heading = self.target_heading
+
+            use_align_depth = self.use_align_frame_depth
+            align_keep_orient = self.align_frame_keep_orientation
+
         cmd_pose_stamped = PoseStamped()
         cmd_pose_stamped.header.stamp = rospy.Time.now()
-        cmd_pose_stamped.header.frame_id = self.target_frame_id
+        cmd_pose_stamped.header.frame_id = frame_id
 
-        cmd_pose_stamped.pose.position.x = self.target_x
-        cmd_pose_stamped.pose.position.y = self.target_y
+        cmd_pose_stamped.pose.position.x = tx
+        cmd_pose_stamped.pose.position.y = ty
 
-        if not self.use_align_frame_depth:
-            transformed_depth = self.get_transformed_depth(
-                self.target_frame_id, "odom", self.target_depth
-            )
+        if not use_align_depth:
+            transformed_depth = self.get_transformed_depth(frame_id, "odom", tz)
             if transformed_depth is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target depth")
                 return
             cmd_pose_stamped.pose.position.z = transformed_depth
         else:
-            cmd_pose_stamped.pose.position.z = self.target_depth
+            cmd_pose_stamped.pose.position.z = tz
 
-        if self.align_frame_keep_orientation:
+        if align_keep_orient:
             transformed_rpy = self.get_transformed_orientation(
-                self.target_frame_id,
+                frame_id,
                 "odom",
-                self.target_roll,
-                self.target_pitch,
-                self.target_heading,
+                t_roll,
+                t_pitch,
+                t_heading,
             )
             if transformed_rpy is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target orientation")
                 return
             roll, pitch, yaw = transformed_rpy
         else:
-            roll = self.target_roll
-            pitch = self.target_pitch
-            yaw = self.target_heading
+            roll = t_roll
+            pitch = t_pitch
+            yaw = t_heading
 
         quaternion = quaternion_from_euler(roll, pitch, yaw)
         cmd_pose_stamped.pose.orientation.x = quaternion[0]
