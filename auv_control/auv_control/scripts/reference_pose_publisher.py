@@ -23,6 +23,7 @@ from tf.transformations import (
     euler_from_quaternion,
     quaternion_multiply,
 )
+import dynamic_reconfigure.client
 from auv_common_lib.control.enable_state import ControlEnableHandler
 from threading import Lock
 from tf2_geometry_msgs import do_transform_point
@@ -89,6 +90,41 @@ class ReferencePosePublisherNode:
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
+        try:
+            node_ns = rospy.get_namespace().rstrip("/")
+            target_server = (
+                f"{node_ns}/auv_control_node" if node_ns else "/auv_control_node"
+            )
+            # Ensure absolute name
+            if not target_server.startswith("/"):
+                target_server = "/" + target_server
+            self.reconfigure_client = dynamic_reconfigure.client.Client(
+                target_server, timeout=5
+            )
+            rospy.loginfo(f"Connected to dynamic reconfigure server: {target_server}")
+
+            # Capture current max velocity configuration as defaults to restore later
+            try:
+                current_cfg = self.reconfigure_client.get_configuration()
+                self.default_max_velocity = [
+                    current_cfg.get("max_velocity_0", 1.0),
+                    current_cfg.get("max_velocity_1", 1.0),
+                    current_cfg.get("max_velocity_2", 1.0),
+                    current_cfg.get("max_velocity_3", 1.0),
+                    current_cfg.get("max_velocity_4", 1.0),
+                    current_cfg.get("max_velocity_5", 1.0),
+                ]
+            except Exception as e:
+                rospy.logwarn(f"Failed to read initial controller configuration: {e}")
+                # Fallback to ROS params if available, else 1.0
+                self.default_max_velocity = rospy.get_param(
+                    f"{target_server}/max_velocity", [1.0] * 6
+                )
+        except Exception as e:
+            rospy.logwarn(f"Failed to connect to dynamic reconfigure server: {e}")
+            self.reconfigure_client = None
+            self.default_max_velocity = [1.0] * 6
+
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         with self.state_lock:
             if self.align_frame_active and self.use_align_frame_depth:
@@ -131,7 +167,7 @@ class ReferencePosePublisherNode:
                 self.set_target_to_odometry()
 
             t = self.tf_lookup(
-                self.base_frame, req.source_frame, rospy.Time(0), rospy.Duration(1.0)
+                req.source_frame, self.base_frame, rospy.Time(0), rospy.Duration(1.0)
             )
 
             if t is None:
@@ -167,6 +203,31 @@ class ReferencePosePublisherNode:
             self.target_frame_id = req.target_frame
             self.align_frame_active = True
 
+            if self.reconfigure_client:
+                linear_vel = (
+                    req.max_linear_velocity
+                    if req.max_linear_velocity > 0
+                    else self.default_max_velocity[0]
+                )
+                angular_vel = (
+                    req.max_angular_velocity
+                    if req.max_angular_velocity > 0
+                    else self.default_max_velocity[3]
+                )
+                try:
+                    self.reconfigure_client.update_configuration(
+                        {
+                            "max_velocity_0": linear_vel,
+                            "max_velocity_1": linear_vel,
+                            "max_velocity_2": linear_vel,
+                            "max_velocity_3": angular_vel,
+                            "max_velocity_4": angular_vel,
+                            "max_velocity_5": angular_vel,
+                        }
+                    )
+                except Exception as e:
+                    rospy.logwarn(f"Failed to update controller configuration: {e}")
+
         rospy.loginfo(
             f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}"
         )
@@ -183,6 +244,21 @@ class ReferencePosePublisherNode:
             self.use_align_frame_depth = False
             self.align_frame_keep_orientation = False
             self.set_target_to_odometry()
+
+            if self.reconfigure_client:
+                try:
+                    self.reconfigure_client.update_configuration(
+                        {
+                            "max_velocity_0": self.default_max_velocity[0],
+                            "max_velocity_1": self.default_max_velocity[1],
+                            "max_velocity_2": self.default_max_velocity[2],
+                            "max_velocity_3": self.default_max_velocity[3],
+                            "max_velocity_4": self.default_max_velocity[4],
+                            "max_velocity_5": self.default_max_velocity[5],
+                        }
+                    )
+                except Exception as e:
+                    rospy.logwarn(f"Failed to reset controller configuration: {e}")
 
         rospy.loginfo("Align frame control canceled")
         return TriggerResponse(success=True, message="Alignment deactivated")
