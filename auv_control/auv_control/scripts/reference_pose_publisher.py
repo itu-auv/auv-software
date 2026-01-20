@@ -94,13 +94,11 @@ class ReferencePosePublisherNode:
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
         try:
-            node_ns = rospy.get_namespace().rstrip("/")
-            target_server = (
-                f"{node_ns}/auv_control_node" if node_ns else "/auv_control_node"
+            # Prefer a configurable server name; resolve relative names via ROS
+            server_param = rospy.get_param(
+                "~controller_reconfigure_server", "auv_control_node"
             )
-            # Ensure absolute name
-            if not target_server.startswith("/"):
-                target_server = "/" + target_server
+            target_server = rospy.resolve_name(server_param)
             self.reconfigure_client = dynamic_reconfigure.client.Client(
                 target_server, timeout=5
             )
