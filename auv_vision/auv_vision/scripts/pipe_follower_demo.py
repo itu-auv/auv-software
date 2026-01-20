@@ -28,7 +28,7 @@ from camera_detection_pose_estimator import CameraCalibration
 
 class PipeFollowerDemo:
     def __init__(self):
-        self.count = 0
+        self.callback_time = rospy.Time.now()
 
         # TODO: config file
         self.mid_img = [320, 240]
@@ -37,6 +37,7 @@ class PipeFollowerDemo:
         self.short_segment_filter_eps = 100
         self.merge_segment_eps = 50
         self.ang_error_eps = 40
+        self.ang_error_close_point_eps = 40
         # radius*2
         self.pipe_width = 0.125
 
@@ -73,11 +74,7 @@ class PipeFollowerDemo:
             print("Service did not process request: " + str(exc))
 
     def cb_mask(self, msg):
-        if self.count % 5 == 0:
-            pass
-        else:
-            self.count += 1
-            return
+        self.callback_time = rospy.Time.now()
         try:
             img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except Exception as e:
@@ -145,14 +142,14 @@ class PipeFollowerDemo:
 
             p1, p2 = seg[0], seg[1]
             last_ang = (self._normalize_angle(self._get_angle(p1, p2)) / math.pi) * 180
-            print(f"first ang: {last_ang}")
 
             for i in range(2, len(seg) - 1):
                 k = seg[i]
                 l = seg[i + 1]
+                if self._get_dist(k, l) <= self.ang_error_close_point_eps:
+                    continue
                 ang_rad = self._normalize_angle(self._get_angle(k, l))
                 ang = (ang_rad / math.pi) * 180
-                print(f"ang: {ang}")
 
                 if abs(last_ang - ang) > self.ang_error_eps:
                     possible_targets.append((i, k))  # index and value itself
@@ -171,7 +168,6 @@ class PipeFollowerDemo:
                     closest_point_index = i
                     min_point_dist = dist
 
-            print(possible_targets)
             # TODO: this shouldn't be the final approach, but it works 90%
             target_point = None
             target_point_index = None
@@ -190,7 +186,7 @@ class PipeFollowerDemo:
                     w.append(widths[int(y), int(x)])
                 line_widths.append(np.array(w))
 
-            # TODO: this is not a great way to find width, add filter and take avg., etc...
+            line_widths[0] = list(filter(lambda x: x < 100, line_widths[0]))
             width = max(line_widths[0])
             distance = self.cam.distance_from_width(self.pipe_width, width)
 
@@ -406,7 +402,7 @@ class PipeFollowerDemo:
         self, child_frame_id: str, pose: Pose, frame: str = "odom"
     ) -> TransformStamped:
         t = TransformStamped()
-        t.header.stamp = rospy.Time.now()
+        t.header.stamp = self.callback_time
         t.header.frame_id = frame
         t.child_frame_id = child_frame_id
         t.transform.translation = pose.position
