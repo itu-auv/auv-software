@@ -22,6 +22,8 @@ from tf.transformations import (
     quaternion_from_euler,
     euler_from_quaternion,
     quaternion_multiply,
+    quaternion_inverse,
+    quaternion_matrix,
 )
 import dynamic_reconfigure.client
 from auv_common_lib.control.enable_state import ControlEnableHandler
@@ -104,8 +106,8 @@ class ReferencePosePublisherNode:
             rospy.loginfo(f"Connected to dynamic reconfigure server: {target_server}")
 
             # Capture current max velocity configuration as defaults to restore later
-            try:
-                current_cfg = self.reconfigure_client.get_configuration()
+            current_cfg = self._read_controller_cfg()
+            if current_cfg is not None:
                 self.default_max_velocity = [
                     current_cfg.get("max_velocity_0", 1.0),
                     current_cfg.get("max_velocity_1", 1.0),
@@ -114,9 +116,10 @@ class ReferencePosePublisherNode:
                     current_cfg.get("max_velocity_4", 1.0),
                     current_cfg.get("max_velocity_5", 1.0),
                 ]
-            except Exception as e:
-                rospy.logwarn(f"Failed to read initial controller configuration: {e}")
-                # Fallback to ROS params if available, else 1.0
+            else:
+                rospy.logwarn(
+                    "Failed to read initial controller configuration; using params/fallback"
+                )
                 self.default_max_velocity = rospy.get_param(
                     f"{target_server}/max_velocity", [1.0] * 6
                 )
@@ -214,19 +217,7 @@ class ReferencePosePublisherNode:
                     if req.max_angular_velocity > 0
                     else self.default_max_velocity[3]
                 )
-                try:
-                    self.reconfigure_client.update_configuration(
-                        {
-                            "max_velocity_0": linear_vel,
-                            "max_velocity_1": linear_vel,
-                            "max_velocity_2": linear_vel,
-                            "max_velocity_3": angular_vel,
-                            "max_velocity_4": angular_vel,
-                            "max_velocity_5": angular_vel,
-                        }
-                    )
-                except Exception as e:
-                    rospy.logwarn(f"Failed to update controller configuration: {e}")
+                self._update_controller_cfg(linear_vel, angular_vel)
 
         rospy.loginfo(
             f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}"
@@ -246,22 +237,50 @@ class ReferencePosePublisherNode:
             self.set_target_to_odometry()
 
             if self.reconfigure_client:
-                try:
-                    self.reconfigure_client.update_configuration(
-                        {
-                            "max_velocity_0": self.default_max_velocity[0],
-                            "max_velocity_1": self.default_max_velocity[1],
-                            "max_velocity_2": self.default_max_velocity[2],
-                            "max_velocity_3": self.default_max_velocity[3],
-                            "max_velocity_4": self.default_max_velocity[4],
-                            "max_velocity_5": self.default_max_velocity[5],
-                        }
-                    )
-                except Exception as e:
-                    rospy.logwarn(f"Failed to reset controller configuration: {e}")
+                self._restore_controller_cfg()
 
         rospy.loginfo("Align frame control canceled")
         return TriggerResponse(success=True, message="Alignment deactivated")
+
+    # --- Helper methods for dynamic reconfigure handling ---
+    def _read_controller_cfg(self):
+        if not self.reconfigure_client:
+            return None
+        try:
+            return self.reconfigure_client.get_configuration()
+        except Exception as e:
+            rospy.logwarn(f"Failed to read controller configuration: {e}")
+            return None
+
+    def _update_controller_cfg(self, linear_vel: float, angular_vel: float):
+        try:
+            self.reconfigure_client.update_configuration(
+                {
+                    "max_velocity_0": linear_vel,
+                    "max_velocity_1": linear_vel,
+                    "max_velocity_2": linear_vel,
+                    "max_velocity_3": angular_vel,
+                    "max_velocity_4": angular_vel,
+                    "max_velocity_5": angular_vel,
+                }
+            )
+        except Exception as e:
+            rospy.logwarn(f"Failed to update controller configuration: {e}")
+
+    def _restore_controller_cfg(self):
+        try:
+            self.reconfigure_client.update_configuration(
+                {
+                    "max_velocity_0": self.default_max_velocity[0],
+                    "max_velocity_1": self.default_max_velocity[1],
+                    "max_velocity_2": self.default_max_velocity[2],
+                    "max_velocity_3": self.default_max_velocity[3],
+                    "max_velocity_4": self.default_max_velocity[4],
+                    "max_velocity_5": self.default_max_velocity[5],
+                }
+            )
+        except Exception as e:
+            rospy.logwarn(f"Failed to reset controller configuration: {e}")
 
     def reset_odometry_handler(self, req):
         if self.is_resetting:
@@ -388,9 +407,57 @@ class ReferencePosePublisherNode:
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
         dt = min(dt, self.command_timeout)
 
-        self.target_x += msg.linear.x * dt
-        self.target_y += msg.linear.y * dt
-        self.target_depth += msg.linear.z * dt
+        # Interpret Twist in robot (base) frame and convert to target/odom frames
+        v_base = [msg.linear.x, msg.linear.y, msg.linear.z]
+
+        # Rotate linear velocity into the current target frame for x/y integration
+        v_target = None
+        t_target = self.tf_lookup(
+            self.target_frame_id, self.base_frame, rospy.Time(0), rospy.Duration(0.5)
+        )
+        if t_target is not None:
+            q_t = [
+                t_target.transform.rotation.x,
+                t_target.transform.rotation.y,
+                t_target.transform.rotation.z,
+                t_target.transform.rotation.w,
+            ]
+            # Rotate vector using quaternion: v' = q * v * q^{-1}
+            vq = [v_base[0], v_base[1], v_base[2], 0.0]
+            q_inv_t = quaternion_inverse(q_t)
+            v_rot_t = quaternion_multiply(quaternion_multiply(q_t, vq), q_inv_t)
+            v_target = [v_rot_t[0], v_rot_t[1], v_rot_t[2]]
+
+        # Fallback: if TF fails, assume target frame == base and use original values
+        if v_target is None:
+            v_target = v_base
+
+        # For depth, use odom-frame z to keep existing depth semantics
+        v_odom_z = None
+        t_odom = self.tf_lookup(
+            "odom", self.base_frame, rospy.Time(0), rospy.Duration(0.5)
+        )
+        if t_odom is not None:
+            q_o = [
+                t_odom.transform.rotation.x,
+                t_odom.transform.rotation.y,
+                t_odom.transform.rotation.z,
+                t_odom.transform.rotation.w,
+            ]
+            vq = [v_base[0], v_base[1], v_base[2], 0.0]
+            q_inv_o = quaternion_inverse(q_o)
+            v_rot_o = quaternion_multiply(quaternion_multiply(q_o, vq), q_inv_o)
+            v_odom_z = v_rot_o[2]
+
+        if v_odom_z is None:
+            v_odom_z = v_base[2]
+
+        # Integrate position in target frame (x, y) and depth in odom frame (z)
+        self.target_x += v_target[0] * dt
+        self.target_y += v_target[1] * dt
+        self.target_depth += v_odom_z * dt
+
+        # Angular rates are applied directly
         self.target_roll += msg.angular.x * dt
         self.target_pitch += msg.angular.y * dt
         self.target_heading += msg.angular.z * dt
