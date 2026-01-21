@@ -269,7 +269,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_ORIENTED_TORPEDO_MAP",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame="torpedo_target_realsense",
                     angle_offset=math.pi / 2,
                     dist_threshold=0.05,
