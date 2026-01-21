@@ -48,18 +48,21 @@
       <remap from="enable" to="enable" />
       <remap from="set_pose" to="set_pose" />
       <remap from="reset_odometry" to="reset_odometry" />
+      <remap from="align_frame/start" to="control/align_frame/start" />
+      <!-- TODO: ADD KILLSWITCH CHECK TO REFERENCE_POSE_PUBLISHER -->
+      <remap from="propulsion_board/status" to="propulsion_board/status" />
+      <remap from="align_frame/cancel" to="control/align_frame/cancel" />
     </node>
 
 
-    <node pkg="auv_control" type="align_frame_controller.py" name="align_frame_controller"
+    <!-- <node pkg="auv_control" type="align_frame_controller.py" name="align_frame_controller"
       output="screen">
       <param name="rate" value="$(arg rate)" />
 
       <remap from="align_frame/start" to="control/align_frame/start" />
       <remap from="propulsion_board/status" to="propulsion_board/status" />
       <remap from="cancel_control" to="control/align_frame/cancel" />
-      <!-- <remap from="cmd_vel" to=""/> -->
-    </node>
+    </node> -->
 
     <node pkg="auv_control" type="battery_monitor_node.py" name="battery_monitor_node"
       output="screen">
