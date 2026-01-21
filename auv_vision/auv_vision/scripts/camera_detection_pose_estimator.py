@@ -142,6 +142,11 @@ class BinSawfish(Prop):
         super().__init__(11, "bin_sawfish", 0.30480, 0.30480)
 
 
+class DockingBoard(Prop):
+    def __init__(self):
+        super().__init__(8, "docking_board", real_height=1.20, real_width=0.80)
+
+
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
@@ -172,7 +177,8 @@ class CameraDetectionNode:
             "torpedo_holes": [5],
             "bin": [6],
             "octagon": [7],
-            "all": [0, 1, 2, 3, 4, 5, 6, 7],
+            "docking": [8],
+            "all": [0, 1, 2, 3, 4, 5, 6, 7, 8],
             "none": [],
         }
         self.active_front_camera_ids = self.object_id_map[
@@ -231,6 +237,7 @@ class CameraDetectionNode:
             "bin_shark_link": BinSawfish(),
             "torpedo_hole_shark_link": TorpedoHole(),
             "torpedo_hole_sawfish_link": TorpedoHole(),
+            "docking_board_link": DockingBoard(),
         }
 
         self.id_tf_map = {
@@ -242,6 +249,7 @@ class CameraDetectionNode:
                 4: "torpedo_map_link",
                 6: "bin_whole_link",
                 7: "octagon_link",
+                8: "docking_board_link",
             },
             "taluy/cameras/cam_bottom": {
                 0: "bin_shark_link",
