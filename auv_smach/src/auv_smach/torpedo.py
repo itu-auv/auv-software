@@ -314,7 +314,8 @@ class TorpedoTaskState(smach.State):
                 "XXX",
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_camera_link",
-                    target_frame="torpedo_realsense_target_frame",
+                    target_frame=torpedo_realsense_target_frame,
+                    angle_offset=-math.pi / 2,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=5.0,
@@ -338,7 +339,7 @@ class TorpedoTaskState(smach.State):
                 "WAIT_FOR_FIRE_FRAME",
                 DelayState(delay_time=3.0),
                 transitions={
-                    "succeeded": "SET_FIRE_DEPTH_1",
+                    "succeeded": "ALIGN_TO_TORPEDO_FIRE_FRAME_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -353,19 +354,6 @@ class TorpedoTaskState(smach.State):
             #     },
             # )
             smach.StateMachine.add(
-                "SET_FIRE_DEPTH_1",
-                SetDepthState(
-                    depth=0.1,
-                    sleep_duration=5.0,
-                    frame_id=self.torpedo_fire_frames[0],
-                ),
-                transitions={
-                    "succeeded": "ALIGN_TO_TORPEDO_FIRE_FRAME_1",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_FIRE_FRAME_1",
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
@@ -378,6 +366,7 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
+                    use_frame_depth=True,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_1",
@@ -398,19 +387,6 @@ class TorpedoTaskState(smach.State):
                 "WAIT_FOR_TORPEDO_LAUNCH_1",
                 DelayState(delay_time=3.0),
                 transitions={
-                    "succeeded": "SET_FIRE_DEPTH_2",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_FIRE_DEPTH_2",
-                SetDepthState(
-                    depth=0.125,
-                    sleep_duration=5.0,
-                    frame_id=self.torpedo_fire_frames[1],
-                ),
-                transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_FIRE_FRAME_2",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -429,6 +405,7 @@ class TorpedoTaskState(smach.State):
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
+                    use_frame_depth=True,
                 ),
                 transitions={
                     "succeeded": "LAUNCH_TORPEDO_2",
