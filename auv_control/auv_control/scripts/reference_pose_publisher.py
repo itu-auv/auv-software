@@ -10,6 +10,7 @@ from geometry_msgs.msg import (
     PointStamped,
 )
 from std_srvs.srv import Trigger, TriggerResponse
+from std_msgs.msg import Bool
 from auv_msgs.srv import (
     SetDepth,
     SetDepthRequest,
@@ -62,6 +63,7 @@ class ReferencePosePublisherNode:
 
         # publishers
         self.cmd_pose_pub = rospy.Publisher("cmd_pose", PoseStamped, queue_size=10)
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
         # target state
         self.target_frame_id = "odom"
@@ -91,6 +93,11 @@ class ReferencePosePublisherNode:
         self.base_frame = self.namespace + "/base_link"
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
+
+        # killswitch subscriber (similar to align_frame_controller)
+        self.killswitch_sub = rospy.Subscriber(
+            "propulsion_board/status", Bool, self.killswitch_callback
+        )
 
         try:
             # Prefer a configurable server name; resolve relative names via ROS
@@ -126,6 +133,18 @@ class ReferencePosePublisherNode:
             self.reconfigure_client = None
             self.default_max_velocity = [1.0] * 6
 
+    def killswitch_callback(self, msg: Bool) -> None:
+        if not msg.data:
+            with self.state_lock:
+                if self.align_frame_active:
+                    self.align_frame_active = False
+                    self.use_align_frame_depth = False
+                    self.align_frame_keep_orientation = False
+                    self.set_target_to_odometry()
+                    if self.reconfigure_client:
+                        self._restore_controller_cfg()
+            rospy.loginfo_throttle(1.0, "Killswitch inactive; alignment deactivated")
+
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         with self.state_lock:
             if self.align_frame_active and self.use_align_frame_depth:
@@ -158,12 +177,6 @@ class ReferencePosePublisherNode:
         self, req: AlignFrameController
     ) -> AlignFrameControllerResponse:
         with self.state_lock:
-            if not self.control_enable_handler.is_enabled():
-                return AlignFrameControllerResponse(
-                    success=False,
-                    message="Cannot align to frame while control is disabled",
-                )
-
             if self.align_frame_active:
                 self.align_frame_active = False
                 self.use_align_frame_depth = False
@@ -477,6 +490,7 @@ class ReferencePosePublisherNode:
 
             use_align_depth = self.use_align_frame_depth
             align_keep_orient = self.align_frame_keep_orientation
+            align_active = self.align_frame_active
 
         cmd_pose_stamped = PoseStamped()
         cmd_pose_stamped.header.stamp = rospy.Time.now()
@@ -518,6 +532,10 @@ class ReferencePosePublisherNode:
         cmd_pose_stamped.pose.orientation.w = quaternion[3]
 
         self.cmd_pose_pub.publish(cmd_pose_stamped)
+
+        # Publish enable signal while align frame control is active
+        if align_active:
+            self.enable_pub.publish(Bool(data=True))
 
     def run(self):
         rate = rospy.Rate(self.update_rate)
