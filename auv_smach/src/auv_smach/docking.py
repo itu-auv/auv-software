@@ -162,7 +162,7 @@ class DockingTaskState(smach.State):
                     source_frame="taluy/base_link/docking_puck_link",
                     target_frame="docking_approach_target",
                     angle_offset=1.5708,
-                    dist_threshold=0.01,
+                    dist_threshold=0.03,
                     yaw_threshold=0.04,
                     confirm_duration=1.0,
                     timeout=90.0,
@@ -208,9 +208,9 @@ class DockingTaskState(smach.State):
                     source_frame="taluy/base_link/docking_puck_link",
                     target_frame="docking_puck_target",
                     angle_offset=1.5708,
-                    dist_threshold=0.001,
-                    yaw_threshold=0.01,
-                    confirm_duration=3.0,
+                    dist_threshold=0.03,
+                    yaw_threshold=0.04,
+                    confirm_duration=1.0,
                     timeout=30.0,
                     cancel_on_success=False,
                     keep_orientation=False,
@@ -247,7 +247,7 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Rise 1 meter after docking to avoid buoyancy oscillations
+            
             smach.StateMachine.add(
                 "RISE_AFTER_DOCK",
                 SetDepthState(depth=search_depth, sleep_duration=3.0),
