@@ -177,10 +177,11 @@ class ReferencePosePublisherNode:
     ) -> AlignFrameControllerResponse:
         with self.state_lock:
             if self.align_frame_active:
-                self.align_frame_active = False
                 self.use_align_frame_depth = False
                 self.align_frame_keep_orientation = False
                 self.set_target_to_odometry()
+
+            self.align_frame_active = True
 
             t = self.tf_lookup(
                 req.source_frame, self.base_frame, rospy.Time(0), rospy.Duration(1.0)
@@ -217,7 +218,6 @@ class ReferencePosePublisherNode:
                 )
 
             self.target_frame_id = req.target_frame
-            self.align_frame_active = True
 
             if self.reconfigure_client:
                 linear_vel = (
@@ -322,7 +322,9 @@ class ReferencePosePublisherNode:
     def odometry_callback(self, msg):
         self.latest_odometry = msg
 
-        if self.control_enable_handler.is_enabled() and not self.is_resetting:
+        if (
+            self.control_enable_handler.is_enabled() and not self.is_resetting
+        ) or self.align_frame_active:
             return
 
         self.set_target_to_odometry()
