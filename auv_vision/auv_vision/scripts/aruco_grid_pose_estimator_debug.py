@@ -15,8 +15,7 @@ import rospkg
 from sensor_msgs.msg import Image
 from std_srvs.srv import SetBool, SetBoolResponse
 from std_msgs.msg import Bool
-from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion, Pose
-from gazebo_msgs.msg import ModelStates
+from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion
 from cv_bridge import CvBridge, CvBridgeError
 import tf2_ros
 import tf2_geometry_msgs
@@ -158,7 +157,7 @@ class ArucoBoardEstimator:
         # These are constant offsets from the board center
         self.child_frames = {
             "docking_approach_target": (0.0, 0.0, 1.0),  # 1m above (Z up from board)
-            "docking_puck_target": (0.0, -0.005, 0.07),  # Puck slot position
+            "docking_puck_target": (0.0, -0.005, 0.5),  # Puck slot position
         }
 
         # Publishers
@@ -181,13 +180,6 @@ class ArucoBoardEstimator:
         image_topic = f"/{self.camera_ns}/image_raw"
         rospy.loginfo(f"Subscribing to: {image_topic}")
         self.img_sub = rospy.Subscriber(image_topic, Image, self.image_cb)
-
-        # Gazebo model states subscriber for ground truth (simulation only)
-        self.docking_station_pose = None  # Will be updated by model_states callback
-        self.robot_pose = None  # Robot (taluy) pose from Gazebo
-        self.model_states_sub = rospy.Subscriber(
-            "/gazebo/model_states", ModelStates, self.model_states_cb, queue_size=1
-        )
 
         # Track last published timestamp to avoid TF_REPEATED_DATA warnings
         self.last_published_stamp = rospy.Time(0)
@@ -410,14 +402,6 @@ class ArucoBoardEstimator:
 
         return marker_obj_points
 
-    def model_states_cb(self, msg):
-        """Callback for Gazebo model states - extracts docking station and robot poses for ground truth."""
-        for i, name in enumerate(msg.name):
-            if name == "tac_docking_station":
-                self.docking_station_pose = msg.pose[i]
-            elif name == "taluy":
-                self.robot_pose = msg.pose[i]
-
     def image_cb(self, msg):
         """Process incoming images and estimate board pose using solvePnP."""
         # Skip processing if disabled or shutting down
@@ -592,60 +576,7 @@ class ArucoBoardEstimator:
                         0.15,
                     )
 
-                    # Display info - with ground truth comparison for simulation
-                    detected_dist = np.linalg.norm(tvec)
-                    
-                    # Try to get ground truth distance using model_states (TF trees are disconnected in sim)
-                    if self.docking_station_pose is not None and self.robot_pose is not None:
-                        # Get robot (base_link) position and orientation in world frame
-                        robot_pos = np.array([
-                            self.robot_pose.position.x,
-                            self.robot_pose.position.y,
-                            self.robot_pose.position.z
-                        ])
-                        robot_q = self.robot_pose.orientation
-                        robot_rot = tf.transformations.quaternion_matrix(
-                            [robot_q.x, robot_q.y, robot_q.z, robot_q.w]
-                        )[:3, :3]
-                        
-                        # Camera offset from base_link (from URDF: position="0 0 -0.07")
-                        camera_offset_local = np.array([0.0, 0.0, -0.07])
-                        
-                        # Transform camera offset to world frame and get camera world position
-                        camera_offset_world = robot_rot @ camera_offset_local
-                        cam_pos = robot_pos + camera_offset_world
-                        
-                        # Docking station base position in world frame
-                        dock_base_pos = np.array([
-                            self.docking_station_pose.position.x,
-                            self.docking_station_pose.position.y,
-                            self.docking_station_pose.position.z
-                        ])
-                        dock_q = self.docking_station_pose.orientation
-                        dock_rot = tf.transformations.quaternion_matrix(
-                            [dock_q.x, dock_q.y, dock_q.z, dock_q.w]
-                        )[:3, :3]
-                        
-                        # Board center offset in model frame (marker surface at y=0.08m)
-                        board_center_local = np.array([0.0, 0.08, 0.0])
-                        
-                        # Transform to world frame and get board center world position
-                        board_center_offset_world = dock_rot @ board_center_local
-                        dock_pos = dock_base_pos + board_center_offset_world
-                        
-                        # Calculate actual distance from camera to board center
-                        actual_dist = np.linalg.norm(dock_pos - cam_pos)
-                        diff = detected_dist - actual_dist
-                        rospy.loginfo(
-                            f"Distance - Detected: {detected_dist:.3f} m, "
-                            f"Actual: {actual_dist:.3f} m, "
-                            f"Diff: {diff:+.3f} m ({diff*100:+.1f} cm)"
-                        )
-                    else:
-                        # Ground truth not available (not in simulation)
-                        rospy.loginfo(f"Distance to board: {detected_dist:.3f} m")
-                    
-                    dist = detected_dist  # For display text below
+                    dist = np.linalg.norm(tvec)
                     info_text = f"BOARD DETECTED ({len(matched_ids)} markers, {len(inlier_indices)}/{len(img_points)} corners) Dist: {dist:.2f}m"
                     cv2.putText(
                         debug_img,
