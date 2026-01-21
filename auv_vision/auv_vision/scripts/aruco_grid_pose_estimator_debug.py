@@ -53,8 +53,8 @@ class ArucoBoardEstimator:
 
     BOARD_WIDTH = 0.800  # 800mm
     BOARD_HEIGHT = 1.200  # 1200mm
-    MARKER_SIZE = 0.150  # 150mm
-    EDGE_OFFSET = 0.035  # 35mm from edge
+    MARKER_SIZE = 0.145  # 150mm
+    EDGE_OFFSET = 0.048  # 35mm from edge
     MARKER_IDS = [28, 7, 19, 96]  # top-left, top-right, bottom-left, bottom-right
 
 
