@@ -20,6 +20,7 @@
     <arg name="enable_logging" default="false" />
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
     <arg name="start_bridge" default="true" />
+    <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
     <arg name="use_models" default="false" />
 
@@ -86,6 +87,7 @@
         <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch">
             <arg name="namespace" value="$(arg namespace)" />
             <arg name="control_rate" value="$(arg control_rate)" />
+            <arg name="sim" value="$(arg sim)" />
             <arg name="use_gui" value="$(arg use_gui)" />
         </include>
     </group>

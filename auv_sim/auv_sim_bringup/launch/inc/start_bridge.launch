@@ -2,6 +2,7 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20" />
+  <arg name="sim" default="true" />
   <arg name="use_gui" default="true" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
@@ -43,6 +44,7 @@
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="sim" value="$(arg sim)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
     <arg name="config_file" value="$(find auv_sim_bridge)/config/control_config.yaml"/>

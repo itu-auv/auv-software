@@ -1,4 +1,3 @@
----
 meshes:
   heightmap:
     mesh: package://uuv_gazebo_worlds/models/sand_heightmap/meshes/heightmap.dae
