@@ -47,6 +47,14 @@ class BinTransformServiceNode:
             "toggle_bin_trajectory", SetBool, self.handle_enable_service
         )
 
+        self.object_transform_pub = rospy.Publisher(
+            "map/object_transform_updates", TransformStamped, queue_size=10
+        )
+
+        self.direct_object_transform_pub = rospy.Publisher(
+            "direct_object_transform", TransformStamped, queue_size=10
+        )
+
     def get_pose(self, transform: TransformStamped) -> Pose:
         pose = Pose()
         pose.position = transform.transform.translation
@@ -65,16 +73,7 @@ class BinTransformServiceNode:
         return t
 
     def send_transform(self, transform):
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        try:
-            resp = self.set_object_transform_service.call(req)
-            if not resp.success:
-                rospy.logwarn(
-                    f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-                )
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {e}")
+        self.direct_object_transform_pub.publish(transform)
 
     def create_bin_frames(self):
         try:
@@ -114,7 +113,6 @@ class BinTransformServiceNode:
 
         robot_pose = self.get_pose(transform_robot)
         bin_pose = self.get_pose(transform_bin)
-
         robot_pos = np.array(
             [robot_pose.position.x, robot_pose.position.y, robot_pose.position.z]
         )
@@ -123,8 +121,9 @@ class BinTransformServiceNode:
         )
 
         direction_vector_2d = bin_pos[:2] - robot_pos[:2]
-        total_distance_2d = np.linalg.norm(direction_vector_2d)
-
+        total_distance_2d = np.linalg.norm(
+            direction_vector_2d
+        )  # robotun kuş uçusu mesafesi
         if total_distance_2d == 0:
             rospy.logwarn(
                 "Robot and bin are at the same XY position! Cannot create frames."

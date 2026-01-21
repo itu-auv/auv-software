@@ -57,6 +57,11 @@ class TransformServiceNode:
             "set_object_transform", SetObjectTransform
         )
         self.set_object_transform_service.wait_for_service()
+
+        self.direct_object_transform_pub = rospy.Publisher(
+            "direct_object_transform", TransformStamped, queue_size=10
+        )
+
         self.gate_angle_publisher = rospy.Publisher(
             "gate_angle", Float64, queue_size=10
         )
@@ -572,16 +577,7 @@ class TransformServiceNode:
         return transform
 
     def send_transform(self, transform: TransformStamped):
-        request = SetObjectTransformRequest()
-        request.transform = transform
-        try:
-            response = self.set_object_transform_service.call(request)
-            if not response.success:
-                rospy.logerr(
-                    f"Failed to set transform for {transform.child_frame_id}: {response.message}"
-                )
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {e}")
+        self.direct_object_transform_pub.publish(transform)
 
     def handle_enable_service(self, request: SetBool):
         self.is_enabled = request.data
