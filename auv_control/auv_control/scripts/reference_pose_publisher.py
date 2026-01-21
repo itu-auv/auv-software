@@ -23,9 +23,12 @@ from tf.transformations import (
     euler_from_quaternion,
     quaternion_multiply,
 )
+
+import dynamic_reconfigure.client
 from auv_common_lib.control.enable_state import ControlEnableHandler
 from threading import Lock
-from tf2_geometry_msgs import do_transform_point
+from tf2_geometry_msgs import do_transform_point, do_transform_vector3
+from geometry_msgs.msg import Vector3Stamped
 
 
 class ReferencePosePublisherNode:
@@ -89,6 +92,40 @@ class ReferencePosePublisherNode:
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
+        try:
+            # Prefer a configurable server name; resolve relative names via ROS
+            server_param = rospy.get_param(
+                "~controller_reconfigure_server", "auv_control_node"
+            )
+            target_server = rospy.resolve_name(server_param)
+            self.reconfigure_client = dynamic_reconfigure.client.Client(
+                target_server, timeout=5
+            )
+            rospy.loginfo(f"Connected to dynamic reconfigure server: {target_server}")
+
+            # Capture current max velocity configuration as defaults to restore later
+            current_cfg = self._read_controller_cfg()
+            if current_cfg is not None:
+                self.default_max_velocity = [
+                    current_cfg.get("max_velocity_0", 1.0),
+                    current_cfg.get("max_velocity_1", 1.0),
+                    current_cfg.get("max_velocity_2", 1.0),
+                    current_cfg.get("max_velocity_3", 1.0),
+                    current_cfg.get("max_velocity_4", 1.0),
+                    current_cfg.get("max_velocity_5", 1.0),
+                ]
+            else:
+                rospy.logwarn(
+                    "Failed to read initial controller configuration; using params/fallback"
+                )
+                self.default_max_velocity = rospy.get_param(
+                    f"{target_server}/max_velocity", [1.0] * 6
+                )
+        except Exception as e:
+            rospy.logwarn(f"Failed to connect to dynamic reconfigure server: {e}")
+            self.reconfigure_client = None
+            self.default_max_velocity = [1.0] * 6
+
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         with self.state_lock:
             if self.align_frame_active and self.use_align_frame_depth:
@@ -131,7 +168,7 @@ class ReferencePosePublisherNode:
                 self.set_target_to_odometry()
 
             t = self.tf_lookup(
-                self.base_frame, req.source_frame, rospy.Time(0), rospy.Duration(1.0)
+                req.source_frame, self.base_frame, rospy.Time(0), rospy.Duration(1.0)
             )
 
             if t is None:
@@ -167,6 +204,19 @@ class ReferencePosePublisherNode:
             self.target_frame_id = req.target_frame
             self.align_frame_active = True
 
+            if self.reconfigure_client:
+                linear_vel = (
+                    req.max_linear_velocity
+                    if req.max_linear_velocity > 0
+                    else self.default_max_velocity[0]
+                )
+                angular_vel = (
+                    req.max_angular_velocity
+                    if req.max_angular_velocity > 0
+                    else self.default_max_velocity[3]
+                )
+                self._update_controller_cfg(linear_vel, angular_vel)
+
         rospy.loginfo(
             f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}"
         )
@@ -184,8 +234,51 @@ class ReferencePosePublisherNode:
             self.align_frame_keep_orientation = False
             self.set_target_to_odometry()
 
+            if self.reconfigure_client:
+                self._restore_controller_cfg()
+
         rospy.loginfo("Align frame control canceled")
         return TriggerResponse(success=True, message="Alignment deactivated")
+
+    # --- Helper methods for dynamic reconfigure handling ---
+    def _read_controller_cfg(self):
+        if not self.reconfigure_client:
+            return None
+        try:
+            return self.reconfigure_client.get_configuration()
+        except Exception as e:
+            rospy.logwarn(f"Failed to read controller configuration: {e}")
+            return None
+
+    def _update_controller_cfg(self, linear_vel: float, angular_vel: float):
+        try:
+            self.reconfigure_client.update_configuration(
+                {
+                    "max_velocity_0": linear_vel,
+                    "max_velocity_1": linear_vel,
+                    "max_velocity_2": linear_vel,
+                    "max_velocity_3": angular_vel,
+                    "max_velocity_4": angular_vel,
+                    "max_velocity_5": angular_vel,
+                }
+            )
+        except Exception as e:
+            rospy.logwarn(f"Failed to update controller configuration: {e}")
+
+    def _restore_controller_cfg(self):
+        try:
+            self.reconfigure_client.update_configuration(
+                {
+                    "max_velocity_0": self.default_max_velocity[0],
+                    "max_velocity_1": self.default_max_velocity[1],
+                    "max_velocity_2": self.default_max_velocity[2],
+                    "max_velocity_3": self.default_max_velocity[3],
+                    "max_velocity_4": self.default_max_velocity[4],
+                    "max_velocity_5": self.default_max_velocity[5],
+                }
+            )
+        except Exception as e:
+            rospy.logwarn(f"Failed to reset controller configuration: {e}")
 
     def reset_odometry_handler(self, req):
         if self.is_resetting:
@@ -312,12 +405,36 @@ class ReferencePosePublisherNode:
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
         dt = min(dt, self.command_timeout)
 
-        self.target_x += msg.linear.x * dt
-        self.target_y += msg.linear.y * dt
-        self.target_depth += msg.linear.z * dt
-        self.target_roll += msg.angular.x * dt
-        self.target_pitch += msg.angular.y * dt
-        self.target_heading += msg.angular.z * dt
+        transform = self.tf_lookup(
+            self.target_frame_id, self.base_frame, rospy.Time(0), rospy.Duration(0.1)
+        )
+        if transform is None:
+            rospy.logwarn_throttle(1.0, "Failed to lookup transform for cmd_vel")
+            self.last_cmd_time = rospy.Time.now()
+            return
+
+        # Transform linear velocity
+        linear_vel = Vector3Stamped()
+        linear_vel.header.frame_id = self.base_frame
+        linear_vel.vector.x = msg.linear.x
+        linear_vel.vector.y = msg.linear.y
+        linear_vel.vector.z = msg.linear.z
+        linear_vel_odom = do_transform_vector3(linear_vel, transform)
+
+        # Transform angular velocity
+        angular_vel = Vector3Stamped()
+        angular_vel.header.frame_id = self.base_frame
+        angular_vel.vector.x = msg.angular.x
+        angular_vel.vector.y = msg.angular.y
+        angular_vel.vector.z = msg.angular.z
+        angular_vel_odom = do_transform_vector3(angular_vel, transform)
+
+        self.target_x += linear_vel_odom.vector.x * dt
+        self.target_y += linear_vel_odom.vector.y * dt
+        self.target_depth += linear_vel_odom.vector.z * dt
+        self.target_roll += angular_vel_odom.vector.x * dt
+        self.target_pitch += angular_vel_odom.vector.y * dt
+        self.target_heading += angular_vel_odom.vector.z * dt
 
         self.last_cmd_time = rospy.Time.now()
 
