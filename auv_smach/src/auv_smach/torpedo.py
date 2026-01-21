@@ -269,9 +269,9 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_ORIENTED_TORPEDO_MAP",
                 AlignFrame(
-                    source_frame="taluy/base_link/torpedo_camera_link",
-                    target_frame=torpedo_realsense_target_frame,
-                    angle_offset=-math.pi / 2,
+                    source_frame="taluy/base_link",
+                    target_frame="torpedo_target_realsense",
+                    angle_offset=math.pi / 2,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=3.0,
@@ -315,11 +315,16 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "XXX",
                 AlignFrame(
-                    source_frame="taluy/base_link/torpedo_camera_link",
-                    target_frame="torpedo_realsense_target_frame",
+                    source_frame="taluy/base_link/torpedo_upper_link",
+                    target_frame="torpedo_target_realsense",
+                    angle_offset=math.pi / 2,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=5.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                    heading_control=False,
+                    enable_heading_control_afterwards=False,
                 ),
                 transitions={
                     "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
@@ -372,7 +377,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=self.torpedo_fire_frames[0],
-                    angle_offset=0.0,
+                    angle_offset=math.pi,
                     dist_threshold=0.03,
                     yaw_threshold=0.05,
                     confirm_duration=5.0,
@@ -425,7 +430,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[1],
-                    angle_offset=0.0,
+                    angle_offset=math.pi,
                     dist_threshold=0.03,
                     yaw_threshold=0.05,
                     confirm_duration=5.0,
