@@ -1,6 +1,6 @@
 <launch>
   <arg name="namespace" default="taluy" />
-  <arg name="name" default="rtsp_camera" />
+  <arg name="name" default="cam_torpedo" />
   <arg name="compressed" default="true" />
   <arg name="verbose" default="true" />
   <arg name="pub_camera_info" default="true" />

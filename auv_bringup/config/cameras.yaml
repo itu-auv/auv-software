@@ -52,14 +52,14 @@ cam_bottom:
     cols: 4
     data: [1081.186890, 0.0, 252.365375, 0.0, 0.0, 1083.032104, 238.487351, 0.0, 0.0, 0.0, 1.0, 0.0]
 
-rtsp_camera:
+cam_torpedo:
   width: 1920
   height: 1080
   fps: 30
 
   image_width: 1920
   image_height: 1080
-  camera_name: rtsp_camera
+  camera_name: cam_torpedo
   camera_matrix:
     rows: 3
     cols: 3
