@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- RoboSub competition detection setup -->
+<!-- Note: camera_detection_pose_estimator, object_map_tf_server, and visual_servoing_controller
+     are already launched by auv_mapping/launch/start.launch via start_navigation.launch -->
+<launch>
+    <arg name="sim" default="false"/>
+    <arg name="device" default="cuda:0"/>
+
+    <!-- Front camera YOLO tracker (multi-class model for all RoboSub tasks) -->
+    <include file="$(find auv_detection)/launch/inc/tracker_front.launch">
+        <arg name="sim" value="$(arg sim)"/>
+        <arg name="device" value="$(arg device)"/>
+    </include>
+</launch>
