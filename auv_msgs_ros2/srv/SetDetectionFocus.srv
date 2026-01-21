@@ -1,0 +1,4 @@
+string focus_object
+---
+bool success
+string message
