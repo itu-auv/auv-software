@@ -152,6 +152,14 @@ class ArucoBoardEstimator:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+        self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
+
+        # Child frames relative to docking_station (published as static TFs)
+        # These are constant offsets from the board center
+        self.child_frames = {
+            "docking_approach_target": (0.0, 0.0, 1.0),  # 1m above (Z up from board)
+            "docking_puck_target": (0.0, -0.005, 0.07),  # Puck slot position
+        }
 
         # Publishers
         self.object_transform_pub = rospy.Publisher(
@@ -787,6 +795,9 @@ class ArucoBoardEstimator:
 
             self.object_transform_pub.publish(odom_transform)
 
+            # Publish child frames as static TFs relative to docking_station
+            self._publish_child_frames()
+
             rospy.loginfo_once("Board pose publishing to odom frame")
 
         except (
@@ -795,6 +806,25 @@ class ArucoBoardEstimator:
             tf2_ros.ExtrapolationException,
         ) as e:
             rospy.logwarn_throttle(5, f"Transform to odom failed: {e}")
+
+    def _publish_child_frames(self):
+        """
+        Publish static TFs for child frames relative to docking_station.
+        These represent approach targets and other fixed points on the docking board.
+        """
+        static_transforms = []
+        stamp = rospy.Time.now()
+
+        for child_frame, (x, y, z) in self.child_frames.items():
+            t = TransformStamped()
+            t.header.stamp = stamp
+            t.header.frame_id = "docking_station"
+            t.child_frame_id = child_frame
+            t.transform.translation = Vector3(x, y, z)
+            t.transform.rotation = Quaternion(0.0, 0.0, 0.0, 1.0)  # Identity
+            static_transforms.append(t)
+
+        self.static_tf_broadcaster.sendTransform(static_transforms)
 
     def run(self):
         rospy.spin()
