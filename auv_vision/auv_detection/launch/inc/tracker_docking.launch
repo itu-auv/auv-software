@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Docking-specific YOLO tracker using tracker_docking.pt model -->
+<launch>
+  <arg name="sim" default="0"/>
+  <arg name="use_gui" default="false"/>
+  <arg name="yolo_model" default="tracker_docking.pt"/>
+  <arg name="model_source_path" default="$(find auv_detection)/models/$(arg yolo_model)"/>
+  <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
+  <arg name="input_topic" default="/taluy/cameras/cam_front/image_corrected"/>
+  <arg name="result_topic" default="/yolo_result_front"/>
+  <arg name="result_image_topic" default="/yolo_image_front"/>
+  <arg name="conf_thres" default="0.25"/>
+  <arg name="iou_thres" default="0.45"/>
+  <arg name="max_det" default="300"/>
+  <arg name="classes" default=""/>
+  <arg name="tracker" default="bytetrack.yaml"/>
+  <arg name="device" default="cuda:0"/>
+  <arg name="result_conf" default="true"/>
+  <arg name="result_line_width" default="1"/>
+  <arg name="result_font_size" default="1"/>
+  <arg name="result_font" default="Arial.ttf"/>
+  <arg name="result_labels" default="true"/>
+  <arg name="result_boxes" default="true"/>
+  <!-- Create symlink before launching the node -->
+  <param name="/create_model_symlink_cmd"
+         command="bash -c 'ln -sf $(arg model_source_path) $(arg ultralytics_models_dir)/$(arg yolo_model)'"/>
+
+  <node name="tracker_node" pkg="ultralytics_ros" type="tracker_node.py" output="screen">
+    <param name="yolo_model" value="$(arg yolo_model)"/>
+    <param if="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_front/image_rect_color"/>
+    <param unless="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_front/image_corrected"/>
+    <param name="result_topic" value="$(arg result_topic)"/>
+    <param name="result_image_topic" value="$(arg result_image_topic)"/>
+    <param name="conf_thres" value="$(arg conf_thres)"/>
+    <param name="iou_thres" value="$(arg iou_thres)"/>
+    <param name="max_det" value="$(arg max_det)"/>
+    <param name="tracker" value="$(arg tracker)"/>
+    <param name="result_conf" value="$(arg result_conf)"/>
+    <param name="result_line_width" value="$(arg result_line_width)"/>
+    <param name="result_font_size" value="$(arg result_font_size)"/>
+    <param name="result_font" value="$(arg result_font)"/>
+    <param name="result_labels" value="$(arg result_labels)"/>
+    <param name="result_boxes" value="$(arg result_boxes)"/>
+    <rosparam param="classes" subst_value="true">$(arg classes)</rosparam>
+    <rosparam param="device" subst_value="true">$(arg device)</rosparam>
+  </node>
+
+  <node if="$(arg use_gui)" name="image_view" pkg="image_view" type="image_view" output="screen">
+    <remap from="image" to="$(arg result_image_topic)"/>
+  </node>
+</launch>
