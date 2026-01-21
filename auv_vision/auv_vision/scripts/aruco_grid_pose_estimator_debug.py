@@ -13,6 +13,8 @@ import os
 import yaml
 import rospkg
 from sensor_msgs.msg import Image
+from std_srvs.srv import SetBool, SetBoolResponse
+from std_msgs.msg import Bool
 from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion, Pose
 from gazebo_msgs.msg import ModelStates
 from cv_bridge import CvBridge, CvBridgeError
@@ -163,6 +165,9 @@ class ArucoBoardEstimator:
         self.debug_threshold_pub = rospy.Publisher(
             "~debug_image_threshold", Image, queue_size=1
         )
+        self.board_detected_pub = rospy.Publisher(
+            "~board_detected", Bool, queue_size=1
+        )
 
         # Image subscriber
         image_topic = f"/{self.camera_ns}/image_raw"
@@ -178,6 +183,12 @@ class ArucoBoardEstimator:
 
         # Track last published timestamp to avoid TF_REPEATED_DATA warnings
         self.last_published_stamp = rospy.Time(0)
+
+        # Enable/disable flag for pausing estimation
+        self.enabled = True
+        self.set_enabled_srv = rospy.Service(
+            "~set_enabled", SetBool, self._set_enabled_cb
+        )
 
         # Load saved parameters onto the ROS parameter server BEFORE creating
         # the dynamic reconfigure server, so it uses our saved values
@@ -320,6 +331,13 @@ class ArucoBoardEstimator:
 
         return config
 
+    def _set_enabled_cb(self, req):
+        """Service callback to enable/disable pose estimation."""
+        self.enabled = req.data
+        state = "enabled" if self.enabled else "disabled"
+        rospy.loginfo(f"ArUco Board Estimator {state}")
+        return SetBoolResponse(success=True, message=f"Estimator {state}")
+
 
     def _create_competition_board_points(self):
         """
@@ -394,8 +412,8 @@ class ArucoBoardEstimator:
 
     def image_cb(self, msg):
         """Process incoming images and estimate board pose using solvePnP."""
-        # Skip processing if shutting down
-        if rospy.is_shutdown():
+        # Skip processing if disabled or shutting down
+        if not self.enabled or rospy.is_shutdown():
             return
 
         try:
@@ -544,6 +562,9 @@ class ArucoBoardEstimator:
 
                     # Publish transform (so TF server can filter it)
                     self.publish_board_transform(rvec, tvec, msg.header)
+
+                    # Publish board detected signal
+                    self.board_detected_pub.publish(Bool(data=True))
 
                     # Draw raw detected pose axes
                     cv2.drawFrameAxes(
