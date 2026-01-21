@@ -134,6 +134,9 @@ class ReferencePosePublisherNode:
                     message="Cannot set depth while align_frame is active and use_depth is true",
                 )
 
+            if req.frame_id == "":
+                req.frame_id = "odom"
+
             depth = self.get_transformed_depth(
                 self.target_frame_id,
                 req.frame_id,
