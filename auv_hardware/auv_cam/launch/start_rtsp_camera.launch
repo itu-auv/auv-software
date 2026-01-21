@@ -3,7 +3,7 @@
   <arg name="name" default="rtsp_camera" />
   <arg name="compressed" default="true" />
   <arg name="verbose" default="true" />
-  <arg name="pub_camera_info" default="false" />
+  <arg name="pub_camera_info" default="true" />
   <!-- RTSP Parameters -->
   <arg name="rtsp_url" default="rtsp://192.168.1.65/554" />
   <arg name="latency" default="0" />
@@ -19,7 +19,13 @@
   <arg name="height" default="1080" />
   <arg name="fps" default="30" />
 
+  <!-- Camera calibration parameters -->
+  <arg name="camera_config" default="$(find auv_bringup)/config/cameras.yaml"/>
+
   <group ns="$(arg namespace)/cameras">
+    <!-- Load camera calibration from YAML for the specific camera -->
+    <rosparam command="load" file="$(arg camera_config)" ns="$(arg name)" subst_value="true"/>
+
     <group ns="$(arg name)/image_raw">
       <!-- Disable unused plugins -->
       <group if="$(arg compressed)">
