@@ -81,9 +81,9 @@
       orientation="0 ${math.pi/2} ${-math.pi/2}"
       use_models="$(arg use_models)"
     />
-    <xacro:torpedo_camera name="${namespace}/base_link/torpedo_camera" parent="${namespace}/base_link" position="-0.35 -0.1234 -0.02" orientation="0 0 ${math.pi}" use_models="$(arg use_models)"/>
-    <xacro:torpedo_upper name="${namespace}/base_link/torpedo_upper" parent="${namespace}/base_link" position="-0.4057 -0.1234 -0.049" orientation="0 0 0" use_models="$(arg use_models)"/>
-    <xacro:torpedo_bottom name="${namespace}/base_link/torpedo_bottom" parent="${namespace}/base_link" position="-0.4057 -0.1234 -0.084" orientation="0 0 0" use_models="$(arg use_models)"/>
+    <xacro:torpedo_camera name="${namespace}/base_link/torpedo_camera" parent="${namespace}/base_link" position="-0.396 -0.1376 -0.0845" orientation="0 0 ${math.pi}" use_models="$(arg use_models)"/>
+    <xacro:torpedo_upper name="${namespace}/base_link/torpedo_upper" parent="${namespace}/base_link" position="-0.396 -0.1376 -0.0845" orientation="0 0 0" use_models="$(arg use_models)"/>
+    <xacro:torpedo_bottom name="${namespace}/base_link/torpedo_bottom" parent="${namespace}/base_link" position="-0.396 -0.1376 -0.0845" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:sonar name="${namespace}/base_link/sonar_front" parent="${namespace}/base_link" position="0.38 0.09 0.09" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:sonar name="${namespace}/base_link/sonar_back" parent="${namespace}/base_link" position="-0.42 -0.09 0.09" orientation="0 0 ${math.pi}" use_models="$(arg use_models)"/>
     <xacro:sonar name="${namespace}/base_link/sonar_right" parent="${namespace}/base_link" position="0.02 -0.21 -0.14" orientation="0 0 ${-math.pi/2}" use_models="$(arg use_models)"/>

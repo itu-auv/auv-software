@@ -362,7 +362,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_1",
                 SetDepthState(
-                    depth=0.1,
+                    depth=0.0845,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[0],
                 ),
@@ -415,7 +415,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_FIRE_DEPTH_2",
                 SetDepthState(
-                    depth=0.125,
+                    depth=0.0845,
                     sleep_duration=5.0,
                     frame_id=self.torpedo_fire_frames[1],
                 ),
