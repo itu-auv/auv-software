@@ -831,19 +831,6 @@ class SearchForPropState(smach.StateMachine):
                     full_rotation=full_rotation,
                 ),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame=source_frame,
-                    target_frame=alignment_frame,
-                    max_angular_velocity=max_angular_velocity,
-                ),
-                transitions={
                     "succeeded": "BROADCAST_ALIGNMENT_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -856,6 +843,19 @@ class SearchForPropState(smach.StateMachine):
                     look_at_frame=look_at_frame,
                     alignment_frame=alignment_frame,
                     duration_time=set_frame_duration,
+                ),
+                transitions={
+                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_ALIGN_CONTROLLER_TARGET",
+                SetAlignControllerTargetState(
+                    source_frame=source_frame,
+                    target_frame=alignment_frame,
+                    max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_TARGET",
