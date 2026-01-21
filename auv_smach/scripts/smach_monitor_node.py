@@ -49,7 +49,12 @@ class SmachMonitor:
             self.rate.sleep()
 
     def is_node_active(self, node_name):
-        nodes = rosnode.get_node_names()
+        try:
+            nodes = rosnode.get_node_names()
+        except rosnode.ROSNodeIOException:
+            # ROS master is not available (shutting down)
+            return False
+
         for node in nodes:
             if node.endswith(node_name):
                 try:
