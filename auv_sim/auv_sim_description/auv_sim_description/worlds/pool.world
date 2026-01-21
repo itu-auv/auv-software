@@ -110,7 +110,7 @@
       <uri>model://tac_docking_station</uri>
       <name>tac_docking_station</name>
       <!-- Pool floor z=-2, STL Y-min=-0.072m, so z=-2+0.072=-1.928 -->
-      <pose>-5 -14 -1.928 1.5708 0 0</pose>
+      <pose>-5 -10 -1.928 1.5708 0 0</pose>
     </include>
     <state world_name='default'>
       <sim_time>1711 633000000</sim_time>
