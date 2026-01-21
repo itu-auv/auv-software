@@ -22,14 +22,13 @@ from tf.transformations import (
     quaternion_from_euler,
     euler_from_quaternion,
     quaternion_multiply,
-    quaternion_inverse,
-    quaternion_matrix,
 )
 
 import dynamic_reconfigure.client
 from auv_common_lib.control.enable_state import ControlEnableHandler
 from threading import Lock
-from tf2_geometry_msgs import do_transform_point
+from tf2_geometry_msgs import do_transform_point, do_transform_vector3
+from geometry_msgs.msg import Vector3Stamped
 
 
 class ReferencePosePublisherNode:
@@ -406,60 +405,36 @@ class ReferencePosePublisherNode:
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
         dt = min(dt, self.command_timeout)
 
-        # Interpret Twist in robot (base) frame and convert to target/odom frames
-        v_base = [msg.linear.x, msg.linear.y, msg.linear.z]
-
-        # Rotate linear velocity into the current target frame for x/y integration
-        v_target = None
-        t_target = self.tf_lookup(
-            self.target_frame_id, self.base_frame, rospy.Time(0), rospy.Duration(0.5)
+        transform = self.tf_lookup(
+            self.target_frame_id, self.base_frame, rospy.Time(0), rospy.Duration(0.1)
         )
-        if t_target is not None:
-            q_t = [
-                t_target.transform.rotation.x,
-                t_target.transform.rotation.y,
-                t_target.transform.rotation.z,
-                t_target.transform.rotation.w,
-            ]
-            # Rotate vector using quaternion: v' = q * v * q^{-1}
-            vq = [v_base[0], v_base[1], v_base[2], 0.0]
-            q_inv_t = quaternion_inverse(q_t)
-            v_rot_t = quaternion_multiply(quaternion_multiply(q_t, vq), q_inv_t)
-            v_target = [v_rot_t[0], v_rot_t[1], v_rot_t[2]]
+        if transform is None:
+            rospy.logwarn_throttle(1.0, "Failed to lookup transform for cmd_vel")
+            self.last_cmd_time = rospy.Time.now()
+            return
 
-        # Fallback: if TF fails, assume target frame == base and use original values
-        if v_target is None:
-            v_target = v_base
+        # Transform linear velocity
+        linear_vel = Vector3Stamped()
+        linear_vel.header.frame_id = self.base_frame
+        linear_vel.vector.x = msg.linear.x
+        linear_vel.vector.y = msg.linear.y
+        linear_vel.vector.z = msg.linear.z
+        linear_vel_odom = do_transform_vector3(linear_vel, transform)
 
-        # For depth, use odom-frame z to keep existing depth semantics
-        v_odom_z = None
-        t_odom = self.tf_lookup(
-            "odom", self.base_frame, rospy.Time(0), rospy.Duration(0.5)
-        )
-        if t_odom is not None:
-            q_o = [
-                t_odom.transform.rotation.x,
-                t_odom.transform.rotation.y,
-                t_odom.transform.rotation.z,
-                t_odom.transform.rotation.w,
-            ]
-            vq = [v_base[0], v_base[1], v_base[2], 0.0]
-            q_inv_o = quaternion_inverse(q_o)
-            v_rot_o = quaternion_multiply(quaternion_multiply(q_o, vq), q_inv_o)
-            v_odom_z = v_rot_o[2]
+        # Transform angular velocity
+        angular_vel = Vector3Stamped()
+        angular_vel.header.frame_id = self.base_frame
+        angular_vel.vector.x = msg.angular.x
+        angular_vel.vector.y = msg.angular.y
+        angular_vel.vector.z = msg.angular.z
+        angular_vel_odom = do_transform_vector3(angular_vel, transform)
 
-        if v_odom_z is None:
-            v_odom_z = v_base[2]
-
-        # Integrate position in target frame (x, y) and depth in odom frame (z)
-        self.target_x += v_target[0] * dt
-        self.target_y += v_target[1] * dt
-        self.target_depth += v_odom_z * dt
-
-        # Angular rates are applied directly
-        self.target_roll += msg.angular.x * dt
-        self.target_pitch += msg.angular.y * dt
-        self.target_heading += msg.angular.z * dt
+        self.target_x += linear_vel_odom.vector.x * dt
+        self.target_y += linear_vel_odom.vector.y * dt
+        self.target_depth += linear_vel_odom.vector.z * dt
+        self.target_roll += angular_vel_odom.vector.x * dt
+        self.target_pitch += angular_vel_odom.vector.y * dt
+        self.target_heading += angular_vel_odom.vector.z * dt
 
         self.last_cmd_time = rospy.Time.now()
 
