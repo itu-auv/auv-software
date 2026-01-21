@@ -19,12 +19,4 @@
         <param name="camera_ns" value="taluy/cameras/cam_bottom"/>
         <param name="camera_frame" value="taluy/base_link/bottom_camera_optical_link"/>
     </node>
-
-    <!-- Static TF: approach target 1m above docking_station -->
-    <node pkg="tf2_ros" type="static_transform_publisher" name="docking_approach_tf"
-          args="0 0 1.0 0 0 0 docking_station docking_approach_target"/>
-
-    <!-- Static TF: puck target position -->
-    <node pkg="tf2_ros" type="static_transform_publisher" name="docking_puck_target_tf"
-          args="0 -0.005 0.07 0 0 0 docking_station docking_puck_target"/>
 </launch>
