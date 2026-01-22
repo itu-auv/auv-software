@@ -48,7 +48,7 @@ class PitchCorrectionBehavior(py_trees.behaviour.Behaviour):
         self._killswitch_active = False
         self._start_time = None
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """Setup ROS connections."""
         try:
             self.sub_odom = rospy.Subscriber(
@@ -173,7 +173,7 @@ class RollBehavior(py_trees.behaviour.Behaviour):
         self._start_time = None
         self._odom_received = False
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """Setup ROS connections."""
         try:
             self.sub_odom = rospy.Subscriber(

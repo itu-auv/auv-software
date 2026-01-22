@@ -21,7 +21,7 @@ class IsTransformAvailable(py_trees.behaviour.Behaviour):
         self.target_frame = target_frame
         self.timeout = timeout
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """Setup TF buffer and listener."""
         try:
             self.tf_buffer = tf2_ros.Buffer()
