@@ -43,8 +43,7 @@ class SetDepthBehavior(py_trees.behaviour.Behaviour):
         name: str,
         depth: float,
         sleep_duration: float = 5.0,
-        external_frame_id: str = "",
-        internal_frame_id: str = "",
+        frame_id: str = "",
     ):
         # Call parent class __init__
         super().__init__(name)
@@ -52,8 +51,7 @@ class SetDepthBehavior(py_trees.behaviour.Behaviour):
         # Store parameters
         self.depth = depth
         self.sleep_duration = sleep_duration
-        self.external_frame_id = external_frame_id
-        self.internal_frame_id = internal_frame_id
+        self.frame_id = frame_id
 
         # State tracking variables
         self._service_called = False
@@ -61,7 +59,7 @@ class SetDepthBehavior(py_trees.behaviour.Behaviour):
         self._stop_publishing = threading.Event()
         self._pub_thread = None
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """
         Setup ROS connections.
         Called once when the tree is first initialized.
@@ -104,8 +102,7 @@ class SetDepthBehavior(py_trees.behaviour.Behaviour):
                 # Create service request
                 req = SetDepthRequest()
                 req.target_depth = self.depth
-                req.external_frame = self.external_frame_id
-                req.internal_frame = self.internal_frame_id
+                req.frame_id = self.frame_id
 
                 # Call the service
                 self.set_depth_srv(req)
@@ -154,7 +151,7 @@ class CancelAlignControllerBehavior(py_trees.behaviour.Behaviour):
     def __init__(self, name: str = "CancelAlignController"):
         super().__init__(name)
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """Setup ROS service connection."""
         try:
             self.cancel_srv = rospy.ServiceProxy("align_frame/cancel", Trigger)
@@ -188,7 +185,7 @@ class SetDetectionFocusBehavior(py_trees.behaviour.Behaviour):
         super().__init__(name)
         self.focus_object = focus_object
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """Setup ROS service connection."""
         try:
             self.focus_srv = rospy.ServiceProxy(
@@ -222,7 +219,7 @@ class SetBoolServiceBehavior(py_trees.behaviour.Behaviour):
         self.service_name = service_name
         self.value = value
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """Setup ROS service connection."""
         try:
             self.service = rospy.ServiceProxy(self.service_name, SetBool)
@@ -280,7 +277,7 @@ class RotateBehavior(py_trees.behaviour.Behaviour):
         self._odom_received = False
         self._killswitch_active = False
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """Setup ROS connections."""
         try:
             # TF buffer for checking transform availability
@@ -455,7 +452,7 @@ class SetFrameLookingAtBehavior(py_trees.behaviour.Behaviour):
         self._started = False
         self._start_time = None
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """Setup ROS connections."""
         try:
             # TF buffer for looking up transforms
@@ -597,7 +594,7 @@ class AlignFrameBehavior(py_trees.behaviour.Behaviour):
         self._first_success_time = None
         self._heading_disabled = False
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         """Setup ROS connections."""
         try:
             # Service to start alignment
@@ -810,7 +807,7 @@ class RotateBehavior(py_trees.behaviour.Behaviour):
         self._tf_listener = None
         self.pub_vel = None
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         try:
             self._tf_buffer = tf2_ros.Buffer()
             self._tf_listener = tf2_ros.TransformListener(self._tf_buffer)
@@ -911,7 +908,7 @@ class CreateFrameBehavior(py_trees.behaviour.Behaviour):
         self.yaw = yaw
         self._done = False
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         try:
             self.create_frame_srv = rospy.ServiceProxy("/create_frame", CreateFrame)
             return True
@@ -970,7 +967,7 @@ class PlanPathBehavior(py_trees.behaviour.Behaviour):
         self.angle_offset = angle_offset
         self._done = False
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         try:
             self.plan_srv = rospy.ServiceProxy("/set_plan", PlanPath)
             return True
@@ -1016,7 +1013,7 @@ class ExecutePathBehavior(py_trees.behaviour.Behaviour):
         self._thread = None
         self._execution_result = None
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         # Initializing client here ensures ROS is ready
         try:
             self._client = follow_path_client.FollowPathActionClient()
@@ -1102,7 +1099,7 @@ class TriggerServiceBehavior(py_trees.behaviour.Behaviour):
         self.service_name = service_name
         self._done = False
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         try:
             self.service = rospy.ServiceProxy(self.service_name, Trigger)
             return True
@@ -1136,7 +1133,7 @@ class ResetOdometryBehavior(py_trees.behaviour.Behaviour):
     def __init__(self, name: str = "ResetOdometry"):
         super().__init__(name)
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         try:
             self.service = rospy.ServiceProxy("reset_odometry", Trigger)
             return True
@@ -1183,7 +1180,7 @@ class ClearObjectMapBehavior(py_trees.behaviour.Behaviour):
     def __init__(self, name: str = "ClearObjectMap"):
         super().__init__(name)
 
-    def setup(self, **kwargs):
+    def setup(self, timeout=15, **kwargs):
         try:
             self.service = rospy.ServiceProxy("clear_object_transforms", Trigger)
             return True
@@ -1198,4 +1195,69 @@ class ClearObjectMapBehavior(py_trees.behaviour.Behaviour):
             return py_trees.common.Status.SUCCESS
         except rospy.ServiceException as e:
             rospy.logerr(f"[{self.name}] Service error: {e}")
+            return py_trees.common.Status.FAILURE
+
+
+class CreateFrameAtCurrentPositionBehavior(py_trees.behaviour.Behaviour):
+    """
+    Creates a static TF frame at the current position of the source frame.
+    Uses /set_object_transform service.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        target_frame_name: str,
+        source_frame: str,
+        reference_frame: str = "odom",
+    ):
+        super().__init__(name)
+        self.target_frame_name = target_frame_name
+        self.source_frame = source_frame
+        self.reference_frame = reference_frame
+        self._done = False
+
+    def setup(self, timeout=15, **kwargs):
+        try:
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+            self.srv = rospy.ServiceProxy("set_object_transform", SetObjectTransform)
+            return True
+        except Exception as e:
+            rospy.logerr(f"[{self.name}] Setup error: {e}")
+            return False
+
+    def initialise(self):
+        self._done = False
+
+    def update(self):
+        if self._done:
+            return py_trees.common.Status.SUCCESS
+
+        try:
+            # Lookup transform
+            t = self.tf_buffer.lookup_transform(
+                self.reference_frame,
+                self.source_frame,
+                rospy.Time(0),
+                rospy.Duration(1.0),
+            )
+
+            # Create new transform request
+            req = SetObjectTransformRequest()
+            req.transform = TransformStamped()
+            req.transform.header.stamp = rospy.Time.now()
+            req.transform.header.frame_id = self.reference_frame
+            req.transform.child_frame_id = self.target_frame_name
+            req.transform.transform = t.transform
+
+            self.srv(req)
+            self._done = True
+            rospy.loginfo(
+                f"[{self.name}] Created frame '{self.target_frame_name}' at current pos"
+            )
+            return py_trees.common.Status.SUCCESS
+
+        except Exception as e:
+            rospy.logwarn(f"[{self.name}] TF/Service Error: {e}")
             return py_trees.common.Status.FAILURE
