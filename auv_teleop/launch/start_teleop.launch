@@ -3,7 +3,7 @@
   <arg name="namespace" default="taluy" />
   <arg name="id" default="0" />
   <arg name="control_rate" default="25.0" />
-  <arg name="controller" default="joy" />
+  <arg name="controller" default="ps5" />
 
   <group ns="$(arg namespace)">
 
