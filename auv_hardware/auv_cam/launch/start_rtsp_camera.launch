@@ -9,11 +9,11 @@
   <arg name="latency" default="0" />
   <arg name="buffer_mode" default="auto" />
   <arg name="drop_on_latency" default="true" />
-  
+
   <!-- Reconnection Parameters -->
   <arg name="reconnect_interval_sec" default="5" />
   <arg name="max_consecutive_failures" default="100" />
-  
+
   <!-- Video Parameters -->
   <arg name="width" default="1920" />
   <arg name="height" default="1080" />
@@ -44,17 +44,17 @@
     <node name="$(arg name)" type="rtsp_cam_node" pkg="auv_cam" output="screen">
       <param name="verbose" type="bool" value="$(arg verbose)" />
       <param name="pub_camera_info" value="$(arg pub_camera_info)" />
-      
+
       <!-- RTSP Parameters -->
       <param name="rtsp_url" value="$(arg rtsp_url)" />
       <param name="latency" value="$(arg latency)" />
       <param name="buffer_mode" value="$(arg buffer_mode)" />
       <param name="drop_on_latency" value="$(arg drop_on_latency)" />
-      
+
       <!-- Reconnection Parameters -->
       <param name="reconnect_interval_sec" value="$(arg reconnect_interval_sec)" />
       <param name="max_consecutive_failures" value="$(arg max_consecutive_failures)" />
-      
+
       <!-- Video Parameters -->
       <param name="width" value="$(arg width)" />
       <param name="height" value="$(arg height)" />

@@ -36,15 +36,13 @@
 
 namespace auv_cam {
 
-RTSPCameraROS::RTSPCameraROS(const ros::NodeHandle &nh)
-    : nh_(nh), it_(nh_) {
-  
+RTSPCameraROS::RTSPCameraROS(const ros::NodeHandle &nh) : nh_(nh), it_(nh_) {
   width_ = nh_.param<int>("width", 1920);
   height_ = nh_.param<int>("height", 1080);
   fps_ = nh_.param<int>("fps", 30);
   verbose_ = nh_.param<bool>("verbose", false);
   pub_camera_info_ = nh_.param<bool>("pub_camera_info", false);
-  
+
   // RTSP parameters
   rtsp_url_ = nh_.param<std::string>("rtsp_url", "rtsp://192.168.1.65:554/");
   latency_ = nh_.param<int>("latency", 200);
@@ -88,16 +86,15 @@ RTSPCameraROS::RTSPCameraROS(const ros::NodeHandle &nh)
   // Uses Jetson hardware decoder (nvv4l2decoder) and converter (nvvidconv)
   std::stringstream ss;
   ss << "rtspsrc location=\"" << rtsp_url_ << "\""
-     << " latency=" << latency_
-     << " protocols=tcp"
+     << " latency=" << latency_ << " protocols=tcp"
      << " ! rtph265depay ! h265parse"
      << " ! nvv4l2decoder"
      << " ! nvvidconv ! video/x-raw, format=(string)BGRx"
      << " ! videoconvert ! video/x-raw, format=(string)BGR"
      << " ! appsink drop=1";
-  
+
   const std::string gst_pipeline = ss.str();
-  
+
   if (verbose_) {
     ROS_INFO_STREAM("GStreamer pipeline: " << gst_pipeline);
   }
@@ -115,13 +112,13 @@ RTSPCameraROS::RTSPCameraROS(const ros::NodeHandle &nh)
   } else {
     image_pub_ = it_.advertise("image_raw", 1);
   }
-  
+
   ROS_INFO_STREAM("Started RTSP camera: " << rtsp_url_);
 }
 
 void RTSPCameraROS::start() {
   sensor_msgs::Image img_msg;
-  
+
   while (ros::ok()) {
     cv::Mat frame;
     capture_ >> frame;
@@ -143,7 +140,7 @@ void RTSPCameraROS::start() {
     } else {
       image_pub_.publish(img_msg);
     }
-    
+
     ros::spinOnce();
   }
 }
