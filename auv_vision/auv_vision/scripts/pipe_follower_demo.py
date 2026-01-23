@@ -44,7 +44,7 @@ class PipeFollowerDemo:
         self.bridge = CvBridge()
         self.cam = CameraCalibration("taluy/cameras/cam_bottom")
         self.sub_mask = rospy.Subscriber(
-            "yolo_fake_image", Image, self.cb_mask, queue_size=1, buff_size=2**24
+            "seg_mask", Image, self.cb_mask, queue_size=1, buff_size=2**24
         )
         self.pub_debug = rospy.Publisher("pipe_result_debug", Image, queue_size=1)
 
