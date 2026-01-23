@@ -1,8 +1,0 @@
-# SetIdRemap.srv
-# Service to set detection ID remapping at runtime
-# Request: JSON string of id mapping, e.g. '{"0": 8}' or '{}' to clear
-string id_remap_json
----
-# Response
-bool success
-string message
