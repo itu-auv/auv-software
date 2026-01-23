@@ -47,6 +47,12 @@ target_link_libraries(auv_camera_ros
   ${OpenCV_LIBRARIES}
 )
 
+add_library(rtsp_camera_ros src/rtsp_camera_ros.cpp)
+target_link_libraries(rtsp_camera_ros
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
+
 add_executable(auv_gst_cam_node src/auv_gst_cam_node.cpp)
 target_link_libraries(auv_gst_cam_node
   auv_camera_ros
@@ -54,13 +60,20 @@ target_link_libraries(auv_gst_cam_node
   ${OpenCV_LIBRARIES}
 )
 
-install(TARGETS auv_camera_ros
+add_executable(rtsp_cam_node src/rtsp_cam_node.cpp)
+target_link_libraries(rtsp_cam_node
+  rtsp_camera_ros
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
+
+install(TARGETS auv_camera_ros rtsp_camera_ros
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
 )
 
-install(TARGETS auv_gst_cam_node
+install(TARGETS auv_gst_cam_node rtsp_cam_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
