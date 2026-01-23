@@ -3,8 +3,8 @@
   <name>auv_vision</name>
   <version>0.1.0</version>
   <description>The auv_vision package</description>
-  <maintainer email="mimarlarf@gmail.com">Faruk Mimarlar</maintainer>
-  <author email="mimarlarf@gmail.com">Faruk Mimarlar</author>
+  <maintainer email="eminmeydanoglu@gmail.com">Emin Meydanoglu</maintainer>
+  <author email="eminmeydanoglu@gmail.com">Emin Meydanoglu</author>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
   <depend>auv_detection</depend>
@@ -13,5 +13,8 @@
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
   <depend>tf</depend>
+  <depend>python3-numpy</depend>
+  <depend>python3-opencv</depend>
+  <depend>python3-zmq</depend>
   <export/>
 </package>
