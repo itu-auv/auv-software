@@ -12,9 +12,17 @@
     </include>
 
     <!-- ArUco Board Pose Estimator for precision docking -->
-    <node pkg="auv_vision" type="aruco_grid_pose_estimator_debug.py"
+    <node pkg="auv_vision" type="aruco_board_pose_estimator.py"
           name="aruco_board_estimator" output="screen">
         <param name="camera_ns" value="taluy/cameras/cam_bottom"/>
         <param name="camera_frame" value="taluy/base_link/bottom_camera_optical_link"/>
     </node>
+
+    <!-- Republish debug images as compressed for efficient bagging -->
+    <node pkg="image_transport" type="republish" name="compress_debug_image"
+          args="raw in:=/aruco_board_estimator/debug_image compressed out:=/aruco_board_estimator/debug_image"/>
+    <node pkg="image_transport" type="republish" name="compress_debug_processed"
+          args="raw in:=/aruco_board_estimator/debug_image_processed compressed out:=/aruco_board_estimator/debug_image_processed"/>
+    <node pkg="image_transport" type="republish" name="compress_debug_threshold"
+          args="raw in:=/aruco_board_estimator/debug_image_threshold compressed out:=/aruco_board_estimator/debug_image_threshold"/>
 </launch>
