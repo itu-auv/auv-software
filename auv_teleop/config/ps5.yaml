@@ -1,8 +1,18 @@
 buttons:
-  launch_torpedo1: 0
-  launch_torpedo2: 2
-  drop_ball: 3
-  z_control: 1
+  launch_torpedo1: 2
+  launch_torpedo2: 1
+  drop_ball: 0
+  z_axis_pos:
+    index: 5
+    gain: 0.4
+  z_axis_neg:
+    index: 4
+    gain: 0.4
+  # ROV mode buttons (when rov=1)
+  rov_pitch_pos: 0
+  rov_pitch_neg: 3
+  rov_roll_pos: 1
+  rov_roll_neg: 2
 
 axes:
   x_axis:
@@ -11,9 +21,9 @@ axes:
   y_axis:
     index: 0
     gain: 0.4
-  z_axis:
-    index: 1
-    gain: 0.4
   yaw_axis:
     index: 3
     gain: 0.5
+  # ROV mode gains
+  rov_pitch_gain: 0.5
+  rov_roll_gain: 0.5
