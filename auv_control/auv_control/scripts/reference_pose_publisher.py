@@ -223,6 +223,22 @@ class ReferencePosePublisherNode:
                     q_rot = quaternion_from_euler(0, 0, req.angle_offset)
                     quaternion = quaternion_multiply(quaternion, q_rot)
 
+                    # also rotate the position offset by angle_offset
+                    rotation_tf = TransformStamped()
+                    rotation_tf.transform.rotation.x = q_rot[0]
+                    rotation_tf.transform.rotation.y = q_rot[1]
+                    rotation_tf.transform.rotation.z = q_rot[2]
+                    rotation_tf.transform.rotation.w = q_rot[3]
+
+                    pos = PointStamped()
+                    pos.point.x = self.target_x
+                    pos.point.y = self.target_y
+                    pos.point.z = 0.0
+
+                    rotated_pos = do_transform_point(pos, rotation_tf)
+                    self.target_x = rotated_pos.point.x
+                    self.target_y = rotated_pos.point.y
+
                 self.target_roll, self.target_pitch, self.target_heading = (
                     euler_from_quaternion(quaternion)
                 )
