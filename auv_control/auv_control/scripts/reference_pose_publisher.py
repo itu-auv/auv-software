@@ -63,6 +63,9 @@ class ReferencePosePublisherNode:
         self.cancel_control_service = rospy.Service(
             "align_frame/cancel", Trigger, self.handle_cancel_request
         )
+        self.reset_orientation_service = rospy.Service(
+            "reset_command_orientation", Trigger, self.handle_reset_orientation_request
+        )
         self.control_enable_handler = ControlEnableHandler(1.0)
         self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
 
@@ -280,6 +283,20 @@ class ReferencePosePublisherNode:
 
         rospy.loginfo("Align frame control canceled")
         return TriggerResponse(success=True, message="Alignment deactivated")
+
+    def handle_reset_orientation_request(self, req) -> TriggerResponse:
+        if self.align_frame_active:
+            return TriggerResponse(
+                success=False,
+                message="Cannot reset orientation while align_frame is active.",
+            )
+
+        with self.state_lock:
+            self.target_roll = 0.0
+            self.target_pitch = 0.0
+
+        rospy.loginfo("Roll and pitch reset to zero")
+        return TriggerResponse(success=True, message="Orientation reset successfully")
 
     # --- Helper methods for dynamic reconfigure handling ---
     def _read_controller_cfg(self):
