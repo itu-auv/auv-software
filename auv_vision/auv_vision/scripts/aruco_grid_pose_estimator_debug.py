@@ -157,7 +157,7 @@ class ArucoBoardEstimator:
         # These are constant offsets from the board center
         self.child_frames = {
             "docking_approach_target": (0.0, 0.0, 1.0),  # 1m above (Z up from board)
-            "docking_puck_target": (0.0, -0.005, 0.5),  # Puck slot position
+            "docking_puck_target": (0.0, 0.0, 0.5),  # Puck slot position
         }
 
         # Publishers
