@@ -23,6 +23,8 @@ from auv_msgs.srv import (
     SetObjectTransformResponse,
     SetDetectionFocus,
     SetDetectionFocusRequest,
+    SetModelConfig,
+    SetModelConfigRequest,
 )
 
 from geometry_msgs.msg import TransformStamped
