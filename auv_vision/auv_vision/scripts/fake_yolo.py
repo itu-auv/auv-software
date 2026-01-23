@@ -23,11 +23,13 @@ class FakeYolo(object):
             rospy.logwarn("cv_bridge err: %s", e)
             return
 
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        _, black_mask = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY_INV)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        lower_yellow = np.array([20, 100, 100])
+        upper_yellow = np.array([35, 255, 255])
+        mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
 
-        kernel = np.ones((10, 10), np.uint8)
-        mask = cv2.morphologyEx(black_mask, cv2.MORPH_CLOSE, kernel)
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
         mask_bgr = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
 
