@@ -5,8 +5,10 @@ import cv2
 import numpy as np
 import rospy
 import zmq
+from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
+from sensor_msgs import point_cloud2 as pc2
+from sensor_msgs.msg import Image, PointCloud2
 
 ZMQ_TIMEOUT_MS = 30000
 
@@ -19,6 +21,14 @@ class DepthAnythingNode:
         self.zmq_port = rospy.get_param("~zmq_port", 5555)
         self.rate_hz = rospy.get_param("~rate", 10.0)
         self.process_res = rospy.get_param("~process_res", 504)
+        self.camera_namespace = rospy.get_param(
+            "~camera_namespace", "cameras/cam_front"
+        )
+
+        camera_info_fetcher = CameraCalibrationFetcher(
+            self.camera_namespace, wait_for_camera_info=True
+        )
+        self.camera_info = camera_info_fetcher.get_camera_info()
 
         self.context = zmq.Context()
         self.socket = None
@@ -28,12 +38,9 @@ class DepthAnythingNode:
         self.image_sub = rospy.Subscriber(
             "image_raw", Image, self._image_cb, queue_size=1
         )
-        self.depth_pub = rospy.Publisher(
-            "depth_anything/raw_depth", Image, queue_size=1
-        )
-        self.colorized_pub = rospy.Publisher(
-            "depth_anything/colorized", Image, queue_size=1
-        )
+        self.depth_pub = rospy.Publisher("raw_depth", Image, queue_size=1)
+        self.colorized_pub = rospy.Publisher("colorized", Image, queue_size=1)
+        self.points_pub = rospy.Publisher("points", PointCloud2, queue_size=1)
 
         rospy.on_shutdown(self.cleanup)
 
@@ -79,6 +86,47 @@ class DepthAnythingNode:
             raise RuntimeError(response.get("error", "Unknown error"))
         return response
 
+    def _depth_to_pointcloud(self, depth: np.ndarray, header) -> PointCloud2:
+        if self.camera_info is None:
+            rospy.logwarn_throttle(
+                5.0, "[DA3] CameraInfo not available yet. Skipping pointcloud."
+            )
+            return None
+
+        fx = self.camera_info.K[0]
+        fy = self.camera_info.K[4]
+        cx = self.camera_info.K[2]
+        cy = self.camera_info.K[5]
+
+        if fx == 0.0 or fy == 0.0:
+            raise ValueError("Invalid camera intrinsics: fx or fy is zero")
+
+        h, w = depth.shape[:2]
+        if self.camera_info.width and self.camera_info.height:
+            if self.camera_info.width != w or self.camera_info.height != h:
+                rospy.logwarn_throttle(
+                    5.0,
+                    (
+                        "[DA3] CameraInfo size (%dx%d) does not match depth (%dx%d). "
+                        "Projection may be inaccurate."
+                    )
+                    % (self.camera_info.width, self.camera_info.height, w, h),
+                )
+
+        depth_f = depth.astype(np.float32)
+        v, u = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
+        z = depth_f
+        valid = np.isfinite(z) & (z > 0)
+        if not np.any(valid):
+            return None
+
+        x = (u - cx) * z / fx
+        y = (v - cy) * z / fy
+
+        points = np.column_stack((x[valid], y[valid], z[valid])).astype(np.float32)
+        cloud = pc2.create_cloud_xyz32(header, points)
+        return cloud
+
     def run(self) -> None:
         rate = rospy.Rate(self.rate_hz)
 
@@ -103,6 +151,12 @@ class DepthAnythingNode:
                 color_msg = self.bridge.cv2_to_imgmsg(colorized, "bgr8")
                 color_msg.header = msg.header
                 self.colorized_pub.publish(color_msg)
+
+                cloud_msg = self._depth_to_pointcloud(depth, msg.header)
+                if cloud_msg is not None:
+                    self.points_pub.publish(cloud_msg)
+                else:
+                    rospy.logwarn_throttle(5.0, "[DA3] No valid points to publish.")
 
             except (zmq.error.ZMQError, zmq.error.Again) as e:
                 rospy.logwarn_throttle(5.0, f"[DA3] ZMQ error: {e}. Reconnecting...")
