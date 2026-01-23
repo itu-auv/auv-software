@@ -63,12 +63,12 @@ cam_torpedo:
   camera_matrix:
     rows: 3
     cols: 3
-    data: [1000.0, 0.0, 960.0, 0.0, 1000.0, 540.0, 0.0, 0.0, 1.0]
+    data: [614.038106, 0.0, 286.555918, 0.0, 615.208370, 218.124369, 0.0, 0.0, 1.0]
   distortion_model: plumb_bob
   distortion_coefficients:
     rows: 1
     cols: 5
-    data: [0.0, 0.0, 0.0, 0.0, 0.0]
+    data: [-0.021568, -0.017493, -0.009869, -0.011030, 0.0]
   rectification_matrix:
     rows: 3
     cols: 3
@@ -76,4 +76,4 @@ cam_torpedo:
   projection_matrix:
     rows: 3
     cols: 4
-    data: [1000.0, 0.0, 960.0, 0.0, 0.0, 1000.0, 540.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+    data: [607.848267, 0.0, 279.229787, 0.0, 0.0, 613.547913, 213.831275, 0.0, 0.0, 0.0, 1.0, 0.0]
