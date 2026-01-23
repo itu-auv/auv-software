@@ -16,7 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 generate_dynamic_reconfigure_options(
-  cfg/ArucoDebug.cfg
+  cfg/Aruco.cfg
 )
 
 catkin_package(
@@ -34,6 +34,7 @@ include_directories(
 
 catkin_install_python(
   PROGRAMS
+    scripts/aruco_board_pose_estimator.py
     scripts/dynamic_roll_compensation.py
     scripts/camera_detection_pose_estimator.py
     scripts/yolo_result_bridge.py
