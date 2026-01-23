@@ -262,7 +262,7 @@ class DockingTaskState(smach.State):
                     source_frame="taluy/base_link",
                     target_frame="docking_board_approach",
                     max_linear_velocity=0.3,
-                    keep_orientation=False,  # Now we can use the frame's orientation
+                    keep_orientation=False,
                 ),
                 transitions={
                     "succeeded": "PUBLISH_APPROACH_FRAME",
@@ -406,4 +406,6 @@ class DockingTaskState(smach.State):
             )
 
     def execute(self, userdata):
+        # POOL TEST: Skip Phase A, start directly at Phase B (ArUco docking)
+        self.state_machine.set_initial_state(["ALIGN_APPROACH"])
         return self.state_machine.execute(userdata)
