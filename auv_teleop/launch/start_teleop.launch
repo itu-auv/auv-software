@@ -4,6 +4,7 @@
   <arg name="id" default="0" />
   <arg name="control_rate" default="25.0" />
   <arg name="controller" default="ps5" />
+  <arg name="rov" default="0" />
 
   <group ns="$(arg namespace)">
 
@@ -12,6 +13,7 @@
     <node pkg="auv_teleop" type="joy_manager.py" name="joystick_node" output="screen">
 
       <rosparam command="load" file="$(find auv_teleop)/config/$(arg controller).yaml" />
+      <param name="rov_mode" value="$(arg rov)" />
 
     </node>
   </group>
