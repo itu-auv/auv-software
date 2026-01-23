@@ -6,14 +6,14 @@
   <arg name="debug" default="false"/>
 
   <!-- Point cloud topic argument -->
-  <arg name="point_cloud_topic" default="/points_filtered"/>
+  <arg name="point_cloud_topic" default="$(arg namespace)/depth_anything/points"/>
 
   <!-- YOLOv8 result topic argument -->
-  <arg name="yolo_result_topic_in" default="/yolo_result_realsense"/>
+  <arg name="yolo_result_topic_in" default="/yolo_result_front"/>
   <arg name="yolo_result_topic_out" default="/yolo_detections"/>
 
   <!-- Camera optical frame argument -->
-  <arg name="camera_optical_frame" default="$(arg namespace)/camera_depth_optical_frame"/>
+  <arg name="camera_optical_frame" default="$(arg namespace)/base_link/front_camera_optical_link"/>
 
   <!-- YOLO Result Bridge Node (from auv_vision package) -->
   <node name="yolo_result_bridge" pkg="auv_vision" type="yolo_result_bridge.py" output="screen">
@@ -22,7 +22,7 @@
   <!-- Process Tracker With Cloud Node -->
   <node name="process_tracker_with_cloud" pkg="auv_mapping" type="process_tracker_with_cloud" output="screen">
     <!-- Parameters -->
-    <param name="camera_info_topic" value="/$(arg namespace)/camera/color/camera_info"/>
+    <param name="camera_info_topic" value="/$(arg namespace)/cameras/cam_front/camera_info"/>
     <param name="lidar_topic" value="$(arg point_cloud_topic)"/>
     <param name="yolo_result_topic" value="$(arg yolo_result_topic_out)"/>
     <param name="camera_optical_frame" value="$(arg camera_optical_frame)"/>
