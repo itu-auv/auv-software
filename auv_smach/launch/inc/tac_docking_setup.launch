@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- TAC Docking task detection setup -->
-<!-- Note: camera_detection_pose_estimator, object_map_tf_server, and visual_servoing_controller
-     are already launched by auv_mapping/launch/start.launch via start_navigation.launch.
-     ID remapping is handled via service call in docking.py (SET_ID_REMAP state). -->
+
 <launch>
     <arg name="sim" default="false"/>
     <arg name="device" default="cuda:0"/>

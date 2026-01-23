@@ -50,13 +50,12 @@ class DockingTaskState(smach.State):
         with self.state_machine:
             # ============================================================
             # PHASE A: Approach (Front Camera)
-            # Uses SearchForPropState + AlignFrameUntilTF from common.py
             # ============================================================
 
-            # Set ID remapping for docking model (class 0 -> internal ID 8)
+            # Set model configuration for docking model
             smach.StateMachine.add(
-                "SET_ID_REMAP",
-                SetIdRemapState(id_remap_json='{"0": 8}'),
+                "SET_MODEL_CONFIG",
+                SetModelConfigState(model_name="tac_docking"),
                 transitions={
                     "succeeded": "SET_DOCKING_FOCUS",
                     "preempted": "preempted",
@@ -247,7 +246,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            
             smach.StateMachine.add(
                 "RISE_AFTER_DOCK",
                 SetDepthState(depth=search_depth, sleep_duration=3.0),
