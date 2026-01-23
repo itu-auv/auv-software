@@ -25,7 +25,7 @@ cam_front:
     cols: 4
     data: [732.617981, 0.0, 298.604817, 0.0, 0.0, 729.010986, 154.053329, 0.0, 0.0, 0.0, 1.0, 0.0]
 
-cam_bottom:
+cam_bottom_old:
   width: 640
   height: 480
   fps: 30
@@ -77,3 +77,30 @@ cam_torpedo:
     rows: 3
     cols: 4
     data: [607.848267, 0.0, 279.229787, 0.0, 0.0, 613.547913, 213.831275, 0.0, 0.0, 0.0, 1.0, 0.0]
+
+cam_bottom:
+  width: 1920
+  height: 1080
+  fps: 30
+  device: /dev/auv_cam_ov2710
+
+  image_width: 1920
+  image_height: 1080
+  camera_name: cam_bottom
+  camera_matrix:
+    rows: 3
+    cols: 3
+    data: [1000.0, 0.0, 960.0, 0.0, 1000.0, 540.0, 0.0, 0.0, 1.0]
+  distortion_model: plumb_bob
+  distortion_coefficients:
+    rows: 1
+    cols: 5
+    data: [0.0, 0.0, 0.0, 0.0, 0.0]
+  rectification_matrix:
+    rows: 3
+    cols: 3
+    data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+  projection_matrix:
+    rows: 3
+    cols: 4
+    data: [1000.0, 0.0, 960.0, 0.0, 0.0, 1000.0, 540.0, 0.0, 0.0, 0.0, 1.0, 0.0]
