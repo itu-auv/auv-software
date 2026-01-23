@@ -92,13 +92,13 @@ class NavigateThroughGateState(smach.State):
         self.roll_depth = roll_depth
 
         self.tx, self.ty, self.yaw_val = 0.0, 0.0, 0.0
-        if self.coin_flip_direction == "left":
+        if self.coin_flip_direction == "turn_left":
             self.ty = 1.0
             self.yaw_val = 1.5708
-        elif self.coin_flip_direction == "right":
+        elif self.coin_flip_direction == "turn_right":
             self.ty = -1.0
             self.yaw_val = -1.5708
-        elif self.coin_flip_direction == "back":
+        elif self.coin_flip_direction == "turn_back":
             self.tx = -1.0
             self.yaw_val = 3.14159
 

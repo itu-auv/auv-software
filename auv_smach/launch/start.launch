@@ -24,7 +24,7 @@
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
     <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
-    <arg name="coin_flip" default="none" doc="Direction for coin flip: left, right, back"/>
+    <arg name="coin_flip" default="none" doc="Direction for coin flip: turn_left, turn_right, turn_back"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
