@@ -37,8 +37,8 @@
 namespace auv_cam {
 
 RTSPCameraROS::RTSPCameraROS(const ros::NodeHandle &nh) : nh_(nh), it_(nh_) {
-  width_ = nh_.param<int>("width", 1920);
-  height_ = nh_.param<int>("height", 1080);
+  width_ = nh_.param<int>("width", 640);
+  height_ = nh_.param<int>("height", 480);
   fps_ = nh_.param<int>("fps", 30);
   verbose_ = nh_.param<bool>("verbose", false);
   pub_camera_info_ = nh_.param<bool>("pub_camera_info", false);
