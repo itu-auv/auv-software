@@ -257,10 +257,8 @@ class CameraDetectionNode:
         self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
-        # Subscribe to bottle angle and thickness (relative topics - will be prefixed by namespace)
-        rospy.Subscriber(
-            "bottle_angle", Float32, self.bottle_angle_callback, queue_size=1
-        )
+        # Subscribe to bottle thickness (relative topic - will be prefixed by namespace)
+        # Note: bottle_angle is now extracted from yolo_result_bottom OBB theta
         rospy.Subscriber(
             "bottle_thickness", Float32, self.bottle_thickness_callback, queue_size=1
         )
@@ -358,16 +356,14 @@ class CameraDetectionNode:
             self.bottle_thickness_px = msg.data
             rospy.logdebug(f"Updated bottle thickness: {self.bottle_thickness_px:.1f}px")
 
-    def bottle_angle_callback(self, msg: Float32):
-        print("bottle angle callback")
-        print(msg.data)
-        """Store bottle angle from bottle_angle_node.
+    def update_bottle_angle_from_obb(self, theta_radians: float):
+        """Update bottle angle from OBB detection theta.
 
         Args:
-            msg: Float32 message containing the bottle angle in radians relative to base_link
+            theta_radians: OBB rotation angle in radians from detection.bbox.center.theta
         """
-        if not math.isnan(msg.data):
-            self.bottle_angle = -msg.data  # Store in base_link frame
+        if not math.isnan(theta_radians):
+            self.bottle_angle = -theta_radians  # Store in base_link frame
 
             # Get current yaw from odom to base_link transform
             try:
@@ -724,6 +720,20 @@ class CameraDetectionNode:
             largest_red_pipe = max(red_pipes, key=lambda d: d.bbox.size_y)
             red_pipe_x = largest_red_pipe.bbox.center.x
             self.red_pipe_x = red_pipe_x
+
+        # Extract bottle angle from OBB theta if this is bottom camera and ID 0 (bottle)
+        if camera_ns == "taluy/cameras/cam_bottom":
+            for detection in detection_msg.detections.detections:
+                if len(detection.results) == 0:
+                    continue
+                detection_id = detection.results[0].id
+                if detection_id == 0:  # Bottle ID
+                    # Extract theta from OBB detection
+                    theta = detection.bbox.center.theta
+                    if theta != 0.0:  # Check if theta is set (OBB model)
+                        self.update_bottle_angle_from_obb(theta)
+                        rospy.logdebug(f"Updated bottle angle from OBB theta: {theta:.3f} rad")
+                    break
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
