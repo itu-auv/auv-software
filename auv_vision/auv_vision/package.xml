@@ -10,11 +10,11 @@
   <depend>auv_detection</depend>
   <depend>cv_bridge</depend>
   <depend>image_transport</depend>
-  <depend>rospy</depend>
-  <depend>sensor_msgs</depend>
-  <depend>tf</depend>
   <depend>python3-numpy</depend>
   <depend>python3-opencv</depend>
   <depend>python3-zmq</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>tf</depend>
   <export/>
 </package>
