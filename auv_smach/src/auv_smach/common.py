@@ -130,7 +130,9 @@ class SetDepthState(smach_ros.ServiceState):
         - aborted: The service call failed.
     """
 
-    def __init__(self, depth: float, sleep_duration: float = 5.0, frame_id: str = ""):
+    def __init__(
+        self, depth: float, sleep_duration: float = 5.0, frame_id: str = "odom"
+    ):
         set_depth_request = SetDepthRequest()
         set_depth_request.target_depth = depth
         set_depth_request.frame_id = frame_id
@@ -200,17 +202,6 @@ class CancelAlignControllerState(smach_ros.ServiceState):
         )
 
 
-class SetHeadingControlState(smach_ros.ServiceState):
-    def __init__(self, enable: bool):
-        request = SetBoolRequest(data=enable)
-        super(SetHeadingControlState, self).__init__(
-            "set_heading_control",
-            SetBool,
-            request=request,
-            outcomes=["succeeded", "preempted", "aborted"],
-        )
-
-
 class SetAlignControllerTargetState(smach_ros.ServiceState):
     def __init__(
         self,
@@ -220,12 +211,14 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         angle_offset: float = 0.0,
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
+        use_depth: bool = False,
     ):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
         align_request.angle_offset = angle_offset
         align_request.keep_orientation = keep_orientation
+        align_request.use_depth = use_depth
         if max_linear_velocity is not None:
             align_request.max_linear_velocity = max_linear_velocity
         if max_angular_velocity is not None:
@@ -974,8 +967,7 @@ class AlignFrame(smach.StateMachine):
         keep_orientation=False,
         max_linear_velocity=None,
         max_angular_velocity=None,
-        heading_control=True,
-        enable_heading_control_afterwards=True,
+        use_frame_depth=False,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
@@ -983,36 +975,6 @@ class AlignFrame(smach.StateMachine):
             watch_succeeded_transition = (
                 "CANCEL_ALIGNMENT_ON_SUCCESS" if cancel_on_success else "succeeded"
             )
-            cancel_on_success_succeeded_transition = "succeeded"
-            cancel_on_fail_succeeded_transition = "aborted"
-            cancel_on_preempt_succeeded_transition = "preempted"
-
-            if not heading_control:  # If heading control will not be used
-                if enable_heading_control_afterwards:
-                    watch_succeeded_transition = (
-                        "CANCEL_ALIGNMENT_ON_SUCCESS"
-                        if cancel_on_success
-                        else "ENABLE_HEADING_CONTROL_ON_SUCCESS"
-                    )
-                    cancel_on_success_succeeded_transition = (
-                        "ENABLE_HEADING_CONTROL_ON_SUCCESS"
-                    )
-                    cancel_on_fail_succeeded_transition = (
-                        "ENABLE_HEADING_CONTROL_ON_FAIL"
-                    )
-                    cancel_on_preempt_succeeded_transition = (
-                        "ENABLE_HEADING_CONTROL_ON_PREEMPT"
-                    )
-
-                smach.StateMachine.add(
-                    "DISABLE_HEADING_CONTROL",
-                    SetHeadingControlState(enable=False),
-                    transitions={
-                        "succeeded": "REQUEST_ALIGNMENT",
-                        "preempted": "preempted",
-                        "aborted": "aborted",
-                    },
-                )
 
             smach.StateMachine.add(
                 "REQUEST_ALIGNMENT",
@@ -1023,6 +985,7 @@ class AlignFrame(smach.StateMachine):
                     keep_orientation=keep_orientation,
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
+                    use_depth=use_frame_depth,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
@@ -1054,7 +1017,7 @@ class AlignFrame(smach.StateMachine):
                 "CANCEL_ALIGNMENT_ON_SUCCESS",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": cancel_on_success_succeeded_transition,
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -1064,7 +1027,7 @@ class AlignFrame(smach.StateMachine):
                 "CANCEL_ALIGNMENT_ON_FAIL",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": cancel_on_fail_succeeded_transition,
+                    "succeeded": "aborted",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -1074,40 +1037,11 @@ class AlignFrame(smach.StateMachine):
                 "CANCEL_ALIGNMENT_ON_PREEMPT",
                 CancelAlignControllerState(),
                 transitions={
-                    "succeeded": cancel_on_preempt_succeeded_transition,
+                    "succeeded": "preempted",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
-            if not heading_control and enable_heading_control_afterwards:
-                smach.StateMachine.add(
-                    "ENABLE_HEADING_CONTROL_ON_SUCCESS",
-                    SetHeadingControlState(enable=True),
-                    transitions={
-                        "succeeded": "succeeded",
-                        "preempted": "preempted",
-                        "aborted": "aborted",
-                    },
-                )
-                smach.StateMachine.add(
-                    "ENABLE_HEADING_CONTROL_ON_FAIL",
-                    SetHeadingControlState(enable=True),
-                    transitions={
-                        "succeeded": "aborted",
-                        "preempted": "preempted",
-                        "aborted": "aborted",
-                    },
-                )
-                smach.StateMachine.add(
-                    "ENABLE_HEADING_CONTROL_ON_PREEMPT",
-                    SetHeadingControlState(enable=True),
-                    transitions={
-                        "succeeded": "preempted",
-                        "preempted": "preempted",
-                        "aborted": "aborted",
-                    },
-                )
 
 
 class SetPlanState(smach.State):

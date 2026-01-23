@@ -20,6 +20,7 @@
     <arg name="enable_logging" default="false" />
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
     <arg name="start_bridge" default="true" />
+    <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
     <arg name="use_models" default="false" />
 
@@ -43,17 +44,21 @@
     <arg name="x" default="-7.0" if="$(eval arg('world') == 'pool')" />
     <arg name="x" default="7.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="x" default="-9.5" if="$(eval arg('world') == 'semi_final_pool')" />
+    <arg name="x" default="3.0" if="$(eval arg('world') == 'tac_sea')" />
     <arg name="y" default="-15.5" if="$(eval arg('world') == 'pool')" />
     <arg name="y" default="1.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="y" default="-3" if="$(eval arg('world') == 'semi_final_pool')" />
+    <arg name="y" default="0" if="$(eval arg('world') == 'tac_sea')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'pool')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'seabed')" />
+    <arg name="z" default="-0.5" if="$(eval arg('world') == 'tac_sea')" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="0.7" if="$(eval arg('world') == 'seabed')" />
     <arg name="yaw" value="0" if="$(eval arg('world') == 'pool')" />
     <arg name="yaw" default="0" if="$(eval arg('world') == 'semi_final_pool')" />
+    <arg name="yaw" default="0.5" if="$(eval arg('world') == 'tac_sea')" />
 
     <!-- Start world launch -->
     <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch">
@@ -86,6 +91,7 @@
         <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch">
             <arg name="namespace" value="$(arg namespace)" />
             <arg name="control_rate" value="$(arg control_rate)" />
+            <arg name="sim" value="$(arg sim)" />
             <arg name="use_gui" value="$(arg use_gui)" />
         </include>
     </group>

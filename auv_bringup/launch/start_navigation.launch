@@ -2,6 +2,7 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
+  <arg name="sim" default="false" />
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
   <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
@@ -13,6 +14,7 @@
   <include file="$(find auv_bringup)/launch/robot_localization.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="sim" value="$(arg sim)" />
   </include>
 
   <include file="$(find auv_control)/launch/start.launch">
