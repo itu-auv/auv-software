@@ -4,11 +4,7 @@
   <arg name="prefix" default="log"/>
   <arg name="logging_directory" default="$(optenv PWD)"/>
   <arg name="include_pattern" default=".*"/>
-  <!-- <arg name="exclude_pattern" default="/.*image_[^/]*$" /> -->
-  <arg
-    name="exclude_pattern"
-    default="/(?!.*image_corrected$).*image_[^/]*$|/.*theora$|/(?!.*image_raw/compressed$).*compressed$|/.*compressedDepth$|/taluy/camera/depth/color/points$|/points_filtered$"
-  />
+  <arg name="exclude_pattern" default="/.*image_[^/]*$|/.*theora$|/(?!.*image_raw/compressed$).*compressed$|/.*compressedDepth$|/.*points_filtered$|/.*points$"/>
   <arg name="topics" default=""/>
   <group ns="$(arg namespace)">
     <node
