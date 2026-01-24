@@ -10,14 +10,12 @@ find_package(catkin REQUIRED COMPONENTS
   auv_msgs
   cv_bridge
   geometry_msgs
-  image_transport
   message_filters
   pcl_conversions
   pcl_ros
   roscpp
   rospy
   sensor_msgs
-  shape_msgs
   std_msgs
   std_srvs
   tf2_geometry_msgs
@@ -59,7 +57,7 @@ generate_dynamic_reconfigure_options(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp rospy std_msgs std_srvs tf2_ros tf2_geometry_msgs geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs shape_msgs cv_bridge image_transport dynamic_reconfigure
+  CATKIN_DEPENDS roscpp rospy std_msgs std_srvs tf2_ros tf2_geometry_msgs geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs cv_bridge dynamic_reconfigure
   DEPENDS OpenCV PCL
 )
 
