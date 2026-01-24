@@ -1,283 +1,391 @@
 #!/usr/bin/env python3
 
+import cv2
+import numpy as np
+import threading
+from typing import Dict, Optional, Tuple
+from std_msgs.msg import Header
 import rospy
-import tf.transformations
-import math
-from collections import deque
-from enum import Enum
-
+from cv_bridge import CvBridge
+from dynamic_reconfigure.server import Server
 from geometry_msgs.msg import Twist
+from sensor_msgs.msg import CompressedImage, Image
 from std_msgs.msg import Bool, Float64
 from std_srvs.srv import Trigger, TriggerResponse
+
+from auv_control.cfg import VisualServoingConfig
 from auv_msgs.msg import PropsYaw
 from auv_msgs.srv import VisualServoing, VisualServoingResponse
-from dynamic_reconfigure.server import Server
-from auv_control.cfg import VisualServoingConfig
-from sensor_msgs.msg import Imu
+from auv_vision.slalom_segmentation import SlalomSegmentor
+
+from auv_control.vs_types import (
+    ControllerConfig,
+    ControllerState,
+    ErrorState,
+    SlalomState,
+)
+from auv_control.vs_pd_controller import PDController
+from auv_control.vs_slalom import compute_slalom_control
+from auv_vision.slalom_debug import create_slalom_debug
 
 
-def normalize_angle(angle: float) -> float:
-    """Normalize an angle to the range [-pi, pi]."""
-    return math.atan2(math.sin(angle), math.cos(angle))
-
-
-class ControllerState(Enum):
-    """Defines the states of the Visual Servoing Controller."""
-
-    IDLE = "idle"
-    CENTERING = "centering"
-    NAVIGATING = "navigating"
-
-
-class VisualServoingController:
-    """
-    A controller for visual servoing towards a target prop.
-    It uses a PD controller to align the robot's yaw with the target.
-    Navigate towards the target with a constant forward velocity.
-    """
-
+class VisualServoingNode:
     def __init__(self):
         rospy.init_node("visual_servoing_controller", anonymous=True)
-        rospy.loginfo("Visual Servoing Controller node started")
 
-        self._load_parameters()
-        self._setup_state()
-        self._setup_ros_communication()
+        self._load_config()
+        self._init_state()
+        self._setup_ros()
         self._setup_dynamic_reconfigure()
 
-    def _load_parameters(self):
-        """Load parameters from the ROS parameter server."""
-        self.kp_gain = rospy.get_param("~kp_gain", 0.8)
-        self.kd_gain = rospy.get_param("~kd_gain", 0.4)
-        self.v_x_desired = rospy.get_param("~v_x_desired", 0.3)
-        self.navigation_timeout_after_prop_disappear_s = 12.0
-        self.overall_timeout_s = rospy.get_param("~overall_timeout_s", 1500.0)
-        self.rate_hz = rospy.get_param("~rate_hz", 10.0)
-        imu_history_secs = rospy.get_param("~imu_history_secs", 2.0)
-        self.imu_history_size = int(self.rate_hz * imu_history_secs)
+        rospy.loginfo("[VS] Node ready")
 
-    def _setup_state(self):
-        """Initialize the controller's state."""
+    def _load_config(self):
+        self.config = ControllerConfig(
+            kp_gain=rospy.get_param("~kp_gain", 0.8),
+            kd_gain=rospy.get_param("~kd_gain", 0.4),
+            v_x_desired=rospy.get_param("~v_x_desired", 0.3),
+            rate_hz=rospy.get_param("~rate_hz", 10.0),
+            overall_timeout_s=rospy.get_param("~overall_timeout_s", 1500.0),
+            navigation_timeout_s=rospy.get_param("~navigation_timeout_s", 12.0),
+            max_angular_velocity=rospy.get_param("~max_angular_velocity", 1.0),
+            slalom_mode=rospy.get_param("~slalom_mode", False),
+            slalom_side=rospy.get_param("~slalom_side", "left"),
+        )
+        self.rgb_topic = rospy.get_param("~rgb_topic", "cameras/cam_front/image_raw")
+
+    def _init_state(self):
         self.state = ControllerState.IDLE
         self.target_prop = ""
         self.service_start_time = None
-        self.last_prop_stamp_time = None
-        # Sensor-derived state
-        self.current_yaw = 0.0
-        self.angular_velocity_z = 0.0
-        self.target_yaw_in_world = 0.0
-        self.imu_history = deque(maxlen=self.imu_history_size)
+        self.last_detection_time = None
+        self.debug_stream_enabled = False
+        self.rgb_buffer: Dict[float, Tuple[np.ndarray, Header]] = {}
+        self.rgb_buffer_lock = threading.Lock()
+        self.rgb_buffer_max_age = 2.0  # seconds
+        self.debug_thread = None
+        self.depth_thread = None
+        self.depth_lock = threading.Lock()
+        self.depth_cond = threading.Condition(self.depth_lock)
+        self.latest_depth_msg: Optional[Image] = None
+        self.debug_lock = threading.Lock()
+        self.debug_cond = threading.Condition(self.debug_lock)
+        self.latest_debug_payload = None
 
-    def _setup_ros_communication(self):
-        """Setup ROS publishers, subscribers, and services."""
-        # Publishers
+        self.error_state = ErrorState()
+        self.slalom_state = SlalomState()
+        self.pd = PDController(config=self.config, error_state=self.error_state)
+        self.segmentor = SlalomSegmentor()
+        self.bridge = CvBridge()
+
+    def _setup_ros(self):
         self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
-        self.control_enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
+        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
         self.error_pub = rospy.Publisher("visual_servoing/error", Float64, queue_size=1)
-        self.current_yaw_pub = rospy.Publisher(
-            "visual_servoing/current_yaw", Float64, queue_size=1
+
+        rospy.Subscriber("props_yaw", PropsYaw, self._on_prop, queue_size=1)
+
+        rospy.Subscriber(
+            self.rgb_topic + "/compressed", CompressedImage, self._on_rgb, queue_size=1
         )
-        self.target_yaw_pub = rospy.Publisher(
-            "visual_servoing/target_yaw", Float64, queue_size=1
+        rospy.Subscriber(
+            "depth_anything/raw_depth", Image, self._on_depth, queue_size=1
+        )
+        self.debug_pub = rospy.Publisher(
+            "visual_servoing/debug/compressed", CompressedImage, queue_size=1
         )
 
-        # Subscribers
-        rospy.Subscriber("props_yaw", PropsYaw, self.prop_yaw_callback, queue_size=1)
-        rospy.Subscriber("imu/data", Imu, self.imu_callback, queue_size=1)
-
-        # Services
+        rospy.Service("visual_servoing/start_servoing", VisualServoing, self._srv_start)
+        rospy.Service("visual_servoing/cancel_servoing", Trigger, self._srv_cancel)
+        rospy.Service("visual_servoing/navigate", Trigger, self._srv_navigate)
         rospy.Service(
-            "visual_servoing/start", VisualServoing, self.handle_start_request
-        )
-        rospy.Service("visual_servoing/cancel", Trigger, self.handle_cancel_request)
-        rospy.Service("visual_servoing/navigate", Trigger, self.handle_navigate_request)
-        rospy.Service(
-            "visual_servoing/cancel_navigation",
+            "visual_servoing/toggle_debug_stream",
             Trigger,
-            self.handle_cancel_navigation_request,
+            self._srv_toggle_debug_stream,
         )
 
     def _setup_dynamic_reconfigure(self):
-        """Setup dynamic reconfigure server."""
-        self.srv = Server(VisualServoingConfig, self.reconfigure_callback)
+        self.dyn_srv = Server(VisualServoingConfig, self._on_reconfig)
+        self._start_debug_thread()
+        self._start_depth_thread()
 
-    def imu_callback(self, msg: Imu):
-        """Handles incoming IMU messages to update yaw and angular velocity."""
-        orientation_q = msg.orientation
-        orientation_list = [
-            orientation_q.x,
-            orientation_q.y,
-            orientation_q.z,
-            orientation_q.w,
-        ]
-        (_, _, yaw) = tf.transformations.euler_from_quaternion(orientation_list)
+    def _start_debug_thread(self):
+        if self.debug_thread is not None:
+            return
+        self.debug_thread = threading.Thread(
+            target=self._debug_worker, name="vs_debug_worker", daemon=True
+        )
+        self.debug_thread.start()
 
-        self.current_yaw = yaw
-        self.angular_velocity_z = msg.angular_velocity.z
-        self.imu_history.append((msg.header.stamp, yaw))
+    def _start_depth_thread(self):
+        if self.depth_thread is not None:
+            return
+        self.depth_thread = threading.Thread(
+            target=self._depth_worker, name="vs_depth_worker", daemon=True
+        )
+        self.depth_thread.start()
 
-    def prop_yaw_callback(self, msg: PropsYaw):
-        """Handles incoming prop yaw messages to update the target yaw."""
+    def _debug_worker(self):
+        while not rospy.is_shutdown():
+            with self.debug_cond:
+                while self.latest_debug_payload is None and not rospy.is_shutdown():
+                    self.debug_cond.wait(timeout=0.2)
+                payload = self.latest_debug_payload
+                self.latest_debug_payload = None
+
+            if payload is None:
+                continue
+
+            try:
+                rgb = payload["rgb"]
+                mask = payload["mask"]
+                detections = payload["detections"]
+                pair = payload["pair"]
+                heading = payload["heading"]
+                lateral = payload["lateral"]
+                header = payload["header"]
+
+                debug_vis = create_slalom_debug(
+                    rgb=rgb,
+                    mask=mask,
+                    all_detections=detections,
+                    selected_pair=pair,
+                    alpha=0.4,
+                )
+                mode = self.config.slalom_side
+                if heading is not None and lateral is not None:
+                    info_text = (
+                        f"Mode: {mode} | Heading: {heading:.2f} | LatErr: {lateral:.2f}"
+                    )
+                else:
+                    info_text = f"Mode: {mode} | No Pair"
+                cv2.putText(
+                    debug_vis,
+                    info_text,
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (0, 255, 255),
+                    2,
+                )
+                debug_msg = CompressedImage()
+                debug_msg.header = header
+                debug_msg.format = "jpeg"
+                debug_msg.data = cv2.imencode(
+                    ".jpg", debug_vis, [cv2.IMWRITE_JPEG_QUALITY, 80]
+                )[1].tobytes()
+                self.debug_pub.publish(debug_msg)
+
+            except Exception as e:
+                rospy.logerr_throttle(5.0, f"[VS] Debug worker error: {e}")
+
+    def _depth_worker(self):
+        while not rospy.is_shutdown():
+            with self.depth_cond:
+                while self.latest_depth_msg is None and not rospy.is_shutdown():
+                    self.depth_cond.wait(timeout=0.2)
+                msg = self.latest_depth_msg
+                self.latest_depth_msg = None
+
+            if msg is None:
+                continue
+
+            should_process = (
+                self.state != ControllerState.IDLE or self.debug_stream_enabled
+            )
+            if not should_process:
+                continue
+
+            try:
+                depth = self.bridge.imgmsg_to_cv2(msg, "32FC1")
+                result = self.segmentor.process(depth, return_debug=False)
+                detections = result.get("detections", [])
+                mask = result.get("mask")
+
+                heading = None
+                lateral = None
+                pair = None
+
+                # pair needed for debug viz even when not in slalom mode
+                compute_for_debug = self.debug_stream_enabled or self.config.slalom_mode
+                if compute_for_debug and detections:
+                    heading, lateral, pair = compute_slalom_control(
+                        detections,
+                        mode=self.config.slalom_side,
+                    )
+
+                if self.config.slalom_mode:
+                    self.slalom_state.detections = detections
+                    self.slalom_state.selected_pair = pair
+                    self.slalom_state.lateral_error = lateral or 0.0
+
+                    if self.state != ControllerState.IDLE:
+                        if detections:
+                            self.last_detection_time = rospy.Time.now()
+                        if heading is not None:
+                            self.pd.update_error(heading, rospy.Time.now().to_sec())
+                            rospy.loginfo_throttle(
+                                1.0, f"[SLALOM] heading={heading:.2f}"
+                            )
+
+                depth_stamp = msg.header.stamp.to_sec()
+                with self.rgb_buffer_lock:
+                    rgb_data = self.rgb_buffer.get(depth_stamp)
+
+                if rgb_data is None:
+                    rospy.logwarn_throttle(
+                        5.0, f"[VS] No RGB for stamp {depth_stamp:.3f}"
+                    )
+                else:
+                    rgb_img, rgb_header = rgb_data
+                    payload = {
+                        "rgb": rgb_img.copy(),
+                        "mask": mask.copy() if mask is not None else None,
+                        "detections": detections,
+                        "pair": pair,
+                        "heading": heading,
+                        "lateral": lateral,
+                        "header": rgb_header,
+                    }
+                    with self.debug_cond:
+                        self.latest_debug_payload = payload
+                        self.debug_cond.notify()
+
+            except Exception as e:
+                rospy.logerr_throttle(5.0, f"[VS] Depth error: {e}")
+
+    # callbacks
+
+    def _on_prop(self, msg: PropsYaw):
         if self.state == ControllerState.IDLE or msg.object != self.target_prop:
             return
-
-        if not self.imu_history:
-            rospy.logwarn_throttle(
-                1.0, "IMU history is empty, skipping prop yaw callback."
-            )
+        if self.config.slalom_mode:
             return
 
-        prop_stamp = msg.header.stamp
-        self.last_prop_stamp_time = prop_stamp
-        angle_to_prop_from_robot = msg.angle
+        self.last_detection_time = rospy.Time.now()
+        self.pd.update_error(msg.angle, rospy.Time.now().to_sec())
 
-        # delay = (rospy.Time.now() - prop_stamp).to_sec()
-        # rospy.loginfo_throttle(
-        #    1.0, f"Visual Servoing perception delay: {delay:.3f} seconds"
-        # )
+    def _on_rgb(self, msg: CompressedImage):
+        try:
+            np_arr = np.frombuffer(msg.data, np.uint8)
+            rgb = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        yaw_at_prop_time = self._get_yaw_at_time(prop_stamp)
-        self.target_yaw_in_world = normalize_angle(
-            yaw_at_prop_time + angle_to_prop_from_robot
+            if rgb.shape[0] > 480:
+                scale = 480.0 / rgb.shape[0]
+                rgb = cv2.resize(
+                    rgb, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA
+                )
+
+            stamp = msg.header.stamp.to_sec()
+            now = rospy.Time.now().to_sec()
+
+            with self.rgb_buffer_lock:
+                self.rgb_buffer[stamp] = (rgb, msg.header)
+                stale = [
+                    k for k in self.rgb_buffer if now - k > self.rgb_buffer_max_age
+                ]
+                for k in stale:
+                    del self.rgb_buffer[k]
+        except Exception as e:
+            rospy.logerr_throttle(5.0, f"[VS] RGB error: {e}")
+
+    def _on_depth(self, msg: Image):
+        with self.depth_cond:
+            self.latest_depth_msg = msg
+            self.depth_cond.notify()
+
+    def _on_reconfig(self, config, level):
+        self.config.kp_gain = config.get("kp_gain", self.config.kp_gain)
+        self.config.kd_gain = config.get("kd_gain", self.config.kd_gain)
+
+        self.config.max_angular_velocity = config.get(
+            "max_angular_velocity", self.config.max_angular_velocity
         )
+        self.config.v_x_desired = config.get("v_x_desired", self.config.v_x_desired)
 
-    def _get_yaw_at_time(self, stamp: rospy.Time) -> float:
-        """Finds the yaw from IMU history closest to the given timestamp."""
-        closest_imu_reading = min(self.imu_history, key=lambda x: abs(x[0] - stamp))
-        return closest_imu_reading[1]
-
-    def control_step(self):
-        """Executes one iteration of the control loop."""
-        twist = Twist()
-        twist.angular.z = self._calculate_angular_z()
-        twist.linear.x = self._calculate_linear_x()
-        self.cmd_vel_pub.publish(twist)
-
-    def _calculate_angular_z(self) -> float:
-        """Calculates the angular velocity command using a PD controller."""
-        error = normalize_angle(self.target_yaw_in_world - self.current_yaw)
-        self.error_pub.publish(Float64(error))
-        self.current_yaw_pub.publish(Float64(self.current_yaw))
-        self.target_yaw_pub.publish(Float64(self.target_yaw_in_world))
-
-        p_signal = self.kp_gain * error
-        d_signal = self.kd_gain * self.angular_velocity_z
-        return p_signal - d_signal
-
-    def _calculate_linear_x(self) -> float:
-        """Calculates the linear velocity command."""
-        if self.state != ControllerState.NAVIGATING:
-            return 0.0
-
-        if self.last_prop_stamp_time is None:
-            rospy.logwarn_throttle(
-                1.0, "In navigation mode but no prop has been seen yet."
-            )
-            return 0.0
-
-        time_since_last_prop = (rospy.Time.now() - self.last_prop_stamp_time).to_sec()
-        if time_since_last_prop > self.navigation_timeout_after_prop_disappear_s:
-            rospy.loginfo(
-                "Navigation timeout reached. Stopping forward motion and returning to centering."
-            )
-            self.state = ControllerState.CENTERING
-            return 0.0
-        return self.v_x_desired
-
-    def reconfigure_callback(self, config, level):
-        """Handles dynamic reconfigure updates for controller gains."""
-        self.kp_gain = config.kp_gain
-        self.kd_gain = config.kd_gain
-        self.navigation_timeout_after_prop_disappear_s = (
-            config.navigation_timeout_after_prop_disappear_s
-        )
-        rospy.loginfo(
-            f"Updated gains: Kp={self.kp_gain}, kd={self.kd_gain}, NavTimeout={self.navigation_timeout_after_prop_disappear_s}"
-        )
         return config
 
-    def handle_start_request(self, req: VisualServoing) -> VisualServoingResponse:
-        """Starts the visual servoing process."""
-        if self.state != ControllerState.IDLE and req.target_prop == self.target_prop:
-            return VisualServoingResponse(
-                success=False,
-                message="VS Controller is already active for this target.",
-            )
+    # services
+
+    def _srv_start(self, req) -> VisualServoingResponse:
+        if self.state != ControllerState.IDLE:
+            return VisualServoingResponse(success=False, message="Already active")
 
         self.target_prop = req.target_prop
-        self.target_yaw_in_world = self.current_yaw
         self.state = ControllerState.CENTERING
         self.service_start_time = rospy.Time.now()
-        self.last_prop_stamp_time = None
-        rospy.loginfo(f"Visual servoing started for target: {self.target_prop}")
-        return VisualServoingResponse(
-            success=True, message="Visual servoing activated."
-        )
+        self.last_detection_time = None
+        self.error_state.reset()
+        self.slalom_state.reset()
 
-    def handle_cancel_request(self, req: Trigger) -> TriggerResponse:
-        """Stops the visual servoing process."""
+        rospy.loginfo(f"[VS] Started: {self.target_prop}")
+        return VisualServoingResponse(success=True, message="Activated")
+
+    def _srv_cancel(self, req) -> TriggerResponse:
         if self.state == ControllerState.IDLE:
-            return TriggerResponse(success=False, message="Controller is not active.")
+            return TriggerResponse(success=False, message="Not active")
+        self._stop("cancelled")
+        return TriggerResponse(success=True, message="Stopped")
 
-        self._stop_controller("cancelled by request")
-        return TriggerResponse(success=True, message="Visual servoing deactivated.")
-
-    def handle_navigate_request(self, req: Trigger) -> TriggerResponse:
-        """Switches to navigation mode."""
-        if self.state == ControllerState.IDLE:
-            return TriggerResponse(
-                success=False, message="Controller is not in centering mode."
-            )
-        if self.state == ControllerState.NAVIGATING:
-            return TriggerResponse(
-                success=False, message="Controller is already in navigation mode."
-            )
-
+    def _srv_navigate(self, req) -> TriggerResponse:
+        if self.state != ControllerState.CENTERING:
+            return TriggerResponse(success=False, message="Not in centering mode")
         self.state = ControllerState.NAVIGATING
-        rospy.loginfo("Visual servoing navigation started.")
-        return TriggerResponse(success=True, message="Navigation mode activated.")
+        return TriggerResponse(success=True, message="Navigating")
 
-    def handle_cancel_navigation_request(self, req: Trigger) -> TriggerResponse:
-        """Cancels navigation mode and returns to centering."""
-        if self.state != ControllerState.NAVIGATING:
-            return TriggerResponse(
-                success=False, message="Controller is not in navigation mode."
-            )
+    def _srv_toggle_debug_stream(self, req) -> TriggerResponse:
+        self.debug_stream_enabled = not self.debug_stream_enabled
+        msg = (
+            "Debug stream enabled"
+            if self.debug_stream_enabled
+            else "Debug stream disabled"
+        )
+        rospy.loginfo(f"[VS] {msg}")
+        return TriggerResponse(success=True, message=msg)
 
-        self.state = ControllerState.CENTERING
-        rospy.loginfo("Visual servoing navigation cancelled.")
-        return TriggerResponse(success=True, message="Navigation mode deactivated.")
-
-    def _stop_controller(self, reason: str):
-        """Helper function to stop all motion and reset state."""
-        rospy.loginfo(f"Visual servoing stopped: {reason}")
+    def _stop(self, reason: str):
+        rospy.loginfo(f"[VS] Stopped: {reason}")
         self.state = ControllerState.IDLE
-        self.cmd_vel_pub.publish(Twist())  # Stop the vehicle
-        rospy.sleep(0.1)  # Give time for the stop command to be sent
-        self.control_enable_pub.publish(Bool(data=False))
+        self.cmd_vel_pub.publish(Twist())
+        self.enable_pub.publish(Bool(data=False))
+
+    # main loop
 
     def spin(self):
-        """The main loop of the controller."""
-        rate = rospy.Rate(self.rate_hz)
+        rate = rospy.Rate(self.config.rate_hz)
         while not rospy.is_shutdown():
             if self.state == ControllerState.IDLE:
                 rate.sleep()
                 continue
 
-            if (
-                rospy.Time.now() - self.service_start_time
-            ).to_sec() > self.overall_timeout_s:
-                self._stop_controller("overall timeout reached")
+            elapsed = (rospy.Time.now() - self.service_start_time).to_sec()
+            if elapsed > self.config.overall_timeout_s:
+                self._stop("timeout")
                 continue
 
-            self.control_enable_pub.publish(Bool(True))
-            self.control_step()
+            if self.last_detection_time:
+                time_since = (rospy.Time.now() - self.last_detection_time).to_sec()
+            else:
+                time_since = float("inf")
+
+            if self.state == ControllerState.NAVIGATING:
+                if time_since > self.config.navigation_timeout_s:
+                    self.state = ControllerState.CENTERING
+
+            twist = Twist()
+            twist.angular.z = self.pd.compute_angular(self.state)
+            twist.linear.x = self.pd.compute_linear(self.state, time_since)
+
+            self.enable_pub.publish(Bool(data=True))
+            self.cmd_vel_pub.publish(twist)
+            self.error_pub.publish(Float64(self.error_state.error))
+
             rate.sleep()
 
 
 if __name__ == "__main__":
     try:
-        controller = VisualServoingController()
-        controller.spin()
+        node = VisualServoingNode()
+        node.spin()
     except rospy.ROSInterruptException:
         pass
