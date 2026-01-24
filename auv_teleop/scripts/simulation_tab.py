@@ -187,10 +187,6 @@ class SimulationTab(QWidget):
                 )
                 cmd.append("test_mode:=true")
                 cmd.append(f"test_states:={states}")
-            else:
-                # TAC runs in test mode by default (init + selected task)
-                cmd.append("test_mode:=true")
-                cmd.append(f"test_states:=init,{tac_task}")
 
         print(f"Executing: {' '.join(cmd)}")
         self.smach_process = subprocess.Popen(cmd)

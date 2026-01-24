@@ -23,8 +23,6 @@ from auv_msgs.srv import (
     SetObjectTransformResponse,
     SetDetectionFocus,
     SetDetectionFocusRequest,
-    SetIdRemap,
-    SetIdRemapRequest,
     SetModelConfig,
     SetModelConfigRequest,
 )
@@ -1493,28 +1491,6 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                     "aborted": "aborted",
                 },
             )
-
-
-class SetIdRemapState(smach_ros.ServiceState):
-    """
-    Calls the service to set ID remapping for detection IDs.
-    Useful when a YOLO model outputs different class IDs than expected.
-    """
-
-    def __init__(self, id_remap_json: str):
-        """
-        Args:
-            id_remap_json: JSON string of id mapping, e.g. '{"0": 8}' or '{}' to clear
-        """
-        service_name = "set_id_remap"
-        request = SetIdRemapRequest(id_remap_json=id_remap_json)
-
-        super(SetIdRemapState, self).__init__(
-            service_name,
-            SetIdRemap,
-            request=request,
-            outcomes=["succeeded", "preempted", "aborted"],
-        )
 
 
 class SetModelConfigState(smach_ros.ServiceState):
