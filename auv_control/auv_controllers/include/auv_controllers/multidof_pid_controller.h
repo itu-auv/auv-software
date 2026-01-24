@@ -130,7 +130,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto pid_force = mass_matrix * pid_output;
 
     StateVector feedforward_state = desired_state;
-    feedforward_state.tail(N) += pos_pid_output;
+    feedforward_state.tail(N) = desired_velocity;
     const auto damping_force = damping_control(feedforward_state);
 
     WrenchVector wrench = pid_force + damping_force;
