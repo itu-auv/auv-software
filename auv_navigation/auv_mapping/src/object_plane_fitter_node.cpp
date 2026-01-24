@@ -21,6 +21,9 @@
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 #include <vision_msgs/Detection2DArray.h>
 
 #include <Eigen/Geometry>
@@ -33,7 +36,11 @@
 class ObjectPlaneFitter {
  public:
   ObjectPlaneFitter(ros::NodeHandle& nh, ros::NodeHandle& pnh)
-      : nh_(nh), pnh_(pnh), camera_info_received_(false) {
+      : nh_(nh),
+        pnh_(pnh),
+        camera_info_received_(false),
+        tf_buffer_(ros::Duration(10.0)),
+        tf_listener_(std::make_unique<tf2_ros::TransformListener>(tf_buffer_)) {
     // Load parameters
     // Use -1 to indicate "all classes" (no filtering)
     pnh_.param<int>("target_class_id", target_class_id_, 4);
@@ -44,6 +51,10 @@ class ObjectPlaneFitter {
     pnh_.param<double>("min_inlier_ratio", min_inlier_ratio_, 0.5);
     pnh_.param<bool>("publish_debug", publish_debug_, true);
     pnh_.param<std::string>("output_frame_id", output_frame_id_, "");
+    pnh_.param<std::string>("camera_optical_frame", camera_optical_frame_,
+                            "taluy/camera_depth_optical_frame");
+    pnh_.param<std::string>("base_link_frame", base_link_frame_,
+                            "taluy/base_link");
 
     // Publishers
     object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
@@ -321,7 +332,7 @@ class ObjectPlaneFitter {
       const Eigen::Vector3f& normal) {
     // Match process_tracker_with_cloud convention:
     // - Y-axis = plane normal (pointing toward camera)
-    // - Z-axis = "up" direction (reference)
+    // - Z-axis = "up" direction (aligned with base_link Z via TF)
     // - X-axis = Y × Z (completes right-handed frame)
 
     Eigen::Vector3f y_axis = normal.normalized();
@@ -337,11 +348,32 @@ class ObjectPlaneFitter {
     // X-axis completes the right-handed frame
     Eigen::Vector3f x_axis = y_axis.cross(z_axis).normalized();
 
-    // In camera optical frame, "up" is typically -Y direction
-    // Flip Z if it's pointing "down" in camera frame (positive Y)
-    if (z_axis.y() > 0) {
-      z_axis = -z_axis;
-      x_axis = -x_axis;
+    // Use TF to align Z-axis with robot's "up" direction (same as
+    // process_tracker_with_cloud)
+    try {
+      geometry_msgs::TransformStamped tf_msg =
+          tf_buffer_.lookupTransform(camera_optical_frame_, base_link_frame_,
+                                     ros::Time(0), ros::Duration(0.05));
+      tf2::Quaternion q(
+          tf_msg.transform.rotation.x, tf_msg.transform.rotation.y,
+          tf_msg.transform.rotation.z, tf_msg.transform.rotation.w);
+      tf2::Matrix3x3 m(q);
+      // Get the Z-axis of base_link in camera optical frame
+      Eigen::Vector3f base_z_cam(m[0][2], m[1][2], m[2][2]);
+      base_z_cam.normalize();
+      // Flip Z-axis if it's pointing opposite to base_link's Z
+      if (z_axis.dot(base_z_cam) < 0.0f) {
+        z_axis = -z_axis;
+        x_axis = -x_axis;
+      }
+    } catch (const tf2::TransformException& ex) {
+      ROS_WARN_STREAM_THROTTLE(5.0, "[ObjectPlaneFitter] TF lookup failed: "
+                                        << ex.what() << ". Using fallback.");
+      // Fallback: assume "up" is negative Y in camera optical frame
+      if (z_axis.y() > 0) {
+        z_axis = -z_axis;
+        x_axis = -x_axis;
+      }
     }
 
     // Build rotation matrix
@@ -402,6 +434,12 @@ class ObjectPlaneFitter {
   sensor_msgs::CameraInfo camera_info_;
   bool camera_info_received_;
   std::mutex camera_info_mutex_;
+
+  // TF
+  tf2_ros::Buffer tf_buffer_;
+  std::unique_ptr<tf2_ros::TransformListener> tf_listener_;
+  std::string camera_optical_frame_;
+  std::string base_link_frame_;
 
   // Parameters
   int target_class_id_;  // -1 means accept all classes
