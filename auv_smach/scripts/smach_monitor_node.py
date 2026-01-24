@@ -3,7 +3,7 @@
 import rospy
 import rosnode
 import os
-from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerRequest
+from std_srvs.srv import Trigger, TriggerRequest
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusRequest
 
 
@@ -15,14 +15,10 @@ class SmachMonitor:
         self.teleop_node_name = "joystick_node"
 
         self.align_frame_service_name = "control/align_frame/cancel"
-        self.heading_control_service_name = "set_heading_control"
         self.detection_focus_service_name = "vision/set_front_camera_focus"
 
         self.align_frame_service = rospy.ServiceProxy(
             self.align_frame_service_name, Trigger
-        )
-        self.heading_control_service = rospy.ServiceProxy(
-            self.heading_control_service_name, SetBool
         )
         self.detection_focus_service = rospy.ServiceProxy(
             self.detection_focus_service_name, SetDetectionFocus
@@ -75,20 +71,7 @@ class SmachMonitor:
         ) as e:
             rospy.logerr("Service call to cancel align frame controller failed: %s" % e)
 
-        # 2. Enable heading control
-        try:
-            rospy.wait_for_service(self.heading_control_service_name, timeout=2.0)
-            req = SetBoolRequest(data=True)
-            self.heading_control_service(req)
-            rospy.loginfo("Enabled heading control.")
-        except (
-            rospy.ServiceException,
-            rospy.ROSException,
-            rospy.ROSInterruptException,
-        ) as e:
-            rospy.logerr("Service call to enable heading control failed: %s" % e)
-
-        # 3. Set DetectionFocus to all
+        # 2. Set DetectionFocus to all
         try:
             rospy.wait_for_service(self.detection_focus_service_name, timeout=2.0)
             req = SetDetectionFocusRequest(focus_object="none")
