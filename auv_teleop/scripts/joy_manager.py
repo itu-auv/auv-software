@@ -35,22 +35,26 @@ class JoystickNode:
 
         self.buttons = rospy.get_param("~buttons")
         self.axes = rospy.get_param("~axes")
+        self.rov_mode = rospy.get_param("~rov_mode", 0)
 
-        self.torpedo1_button_event = JoystickEvent(0.1, self.launch_torpedo1)
-        self.torpedo2_button_event = JoystickEvent(0.1, self.launch_torpedo2)
-        self.dropper_button_event = JoystickEvent(0.1, self.drop_dropper)
+        if self.rov_mode == 1:
+            rospy.loginfo("ROV mode enabled - using buttons for pitch/roll control")
+            self.reset_orientation_button_event = JoystickEvent(
+                0.1, self.reset_orientation
+            )
+            self.reset_orientation_service = rospy.ServiceProxy(
+                "reset_command_orientation", Trigger
+            )
+        else:
+            self.torpedo1_button_event = JoystickEvent(0.1, self.launch_torpedo1)
+            self.torpedo2_button_event = JoystickEvent(0.1, self.launch_torpedo2)
+            self.dropper_button_event = JoystickEvent(0.1, self.drop_dropper)
 
-        self.dropper_service = rospy.ServiceProxy(
-            "actuators/ball_dropper/drop", Trigger
-        )
+            self.dropper_service = rospy.ServiceProxy("ball_dropper/drop", Trigger)
 
-        self.torpedo1_service = rospy.ServiceProxy(
-            "actuators/torpedo_1/launch", Trigger
-        )
+            self.torpedo1_service = rospy.ServiceProxy("torpedo_1/launch", Trigger)
 
-        self.torpedo2_service = rospy.ServiceProxy(
-            "actuators/torpedo_2/launch", Trigger
-        )
+            self.torpedo2_service = rospy.ServiceProxy("torpedo_2/launch", Trigger)
 
         self.joy_sub = rospy.Subscriber("joy", Joy, self.joy_callback)
         rospy.loginfo("Joystick node initialized")
@@ -81,19 +85,32 @@ class JoystickNode:
             self.dropper_service, "Ball dropped", "Failed to drop the ball"
         )
 
+    def reset_orientation(self):
+        self.call_service_if_available(
+            self.reset_orientation_service,
+            "Roll and pitch reset to zero",
+            "Failed to reset orientation",
+        )
+
     def joy_callback(self, msg):
         with self.lock:
             self.joy_data = msg
 
-            self.torpedo1_button_event.update(
-                self.joy_data.buttons[self.buttons["launch_torpedo1"]]
-            )
-            self.torpedo2_button_event.update(
-                self.joy_data.buttons[self.buttons["launch_torpedo2"]]
-            )
-            self.dropper_button_event.update(
-                self.joy_data.buttons[self.buttons["drop_ball"]]
-            )
+            if self.rov_mode == 1:
+                # ROV modunda orientation reset butonu dinle
+                self.reset_orientation_button_event.update(
+                    self.joy_data.buttons[self.buttons["reset_orientation"]]
+                )
+            else:
+                self.torpedo1_button_event.update(
+                    self.joy_data.buttons[self.buttons["launch_torpedo1"]]
+                )
+                self.torpedo2_button_event.update(
+                    self.joy_data.buttons[self.buttons["launch_torpedo2"]]
+                )
+                self.dropper_button_event.update(
+                    self.joy_data.buttons[self.buttons["drop_ball"]]
+                )
 
     def get_axis_value(self, indices):
         if isinstance(indices, list):
@@ -129,29 +146,62 @@ class JoystickNode:
 
             with self.lock:
                 if self.joy_data:
-                    # Get z-axis value based on controller type
-                    twist.linear.z = self.get_z_axis_value()
+                    if self.rov_mode == 1:
+                        # ROV mode: use buttons for pitch and roll control
+                        pitch_gain = self.axes.get("rov_pitch_gain", 0.5)
+                        roll_gain = self.axes.get("rov_roll_gain", 0.5)
 
-                    # Set x-axis value
-                    if (
-                        "z_control" in self.buttons
-                        and self.joy_data.buttons[self.buttons["z_control"]]
-                    ):
-                        twist.linear.x = 0.0
-                    else:
+                        # Pitch control: button 0 (positive), button 3 (negative)
+                        pitch_pos = self.joy_data.buttons[self.buttons["rov_pitch_pos"]]
+                        pitch_neg = self.joy_data.buttons[self.buttons["rov_pitch_neg"]]
+                        twist.angular.y = (pitch_pos - pitch_neg) * pitch_gain
+
+                        # Roll control: button 1 (positive), button 2 (negative)
+                        roll_pos = self.joy_data.buttons[self.buttons["rov_roll_pos"]]
+                        roll_neg = self.joy_data.buttons[self.buttons["rov_roll_neg"]]
+                        twist.angular.x = (roll_pos - roll_neg) * roll_gain
+
+                        # Keep normal z-axis control
+                        twist.linear.z = self.get_z_axis_value()
+
+                        # Keep normal x, y, yaw controls
                         twist.linear.x = (
                             self.get_axis_value(self.axes["x_axis"]["index"])
                             * self.axes["x_axis"]["gain"]
                         )
+                        twist.linear.y = (
+                            self.get_axis_value(self.axes["y_axis"]["index"])
+                            * self.axes["y_axis"]["gain"]
+                        )
+                        twist.angular.z = (
+                            self.get_axis_value(self.axes["yaw_axis"]["index"])
+                            * self.axes["yaw_axis"]["gain"]
+                        )
+                    else:
+                        # Normal AUV mode
+                        # Get z-axis value based on controller type
+                        twist.linear.z = self.get_z_axis_value()
 
-                    twist.linear.y = (
-                        self.get_axis_value(self.axes["y_axis"]["index"])
-                        * self.axes["y_axis"]["gain"]
-                    )
-                    twist.angular.z = (
-                        self.get_axis_value(self.axes["yaw_axis"]["index"])
-                        * self.axes["yaw_axis"]["gain"]
-                    )
+                        # Set x-axis value
+                        if (
+                            "z_control" in self.buttons
+                            and self.joy_data.buttons[self.buttons["z_control"]]
+                        ):
+                            twist.linear.x = 0.0
+                        else:
+                            twist.linear.x = (
+                                self.get_axis_value(self.axes["x_axis"]["index"])
+                                * self.axes["x_axis"]["gain"]
+                            )
+
+                        twist.linear.y = (
+                            self.get_axis_value(self.axes["y_axis"]["index"])
+                            * self.axes["y_axis"]["gain"]
+                        )
+                        twist.angular.z = (
+                            self.get_axis_value(self.axes["yaw_axis"]["index"])
+                            * self.axes["yaw_axis"]["gain"]
+                        )
                 else:
                     twist.linear.x = 0.0
                     twist.angular.z = 0.0
