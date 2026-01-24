@@ -17,12 +17,4 @@
         <param name="camera_ns" value="taluy/cameras/cam_bottom"/>
         <param name="camera_frame" value="taluy/base_link/bottom_camera_optical_link"/>
     </node>
-
-    <!-- Republish debug images as compressed for efficient bagging -->
-    <node pkg="image_transport" type="republish" name="compress_debug_image"
-          args="raw in:=/aruco_board_estimator/debug_image compressed out:=/aruco_board_estimator/debug_image"/>
-    <node pkg="image_transport" type="republish" name="compress_debug_processed"
-          args="raw in:=/aruco_board_estimator/debug_image_processed compressed out:=/aruco_board_estimator/debug_image_processed"/>
-    <node pkg="image_transport" type="republish" name="compress_debug_threshold"
-          args="raw in:=/aruco_board_estimator/debug_image_threshold compressed out:=/aruco_board_estimator/debug_image_threshold"/>
 </launch>

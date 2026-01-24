@@ -12,7 +12,8 @@ import numpy as np
 import os
 import yaml
 import rospkg
-from sensor_msgs.msg import Image
+import threading
+from sensor_msgs.msg import Image, CompressedImage
 from std_srvs.srv import SetBool, SetBoolResponse
 from std_msgs.msg import Bool
 from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion
@@ -151,30 +152,31 @@ class ArucoBoardEstimator:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
-        self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
-
-        # Child frames relative to docking_station (published as static TFs)
-        # These are constant offsets from the board center
-        self.child_frames = {
-            "docking_approach_target": (0.0, 0.0, 1.0),  # 1m above (Z up from board)
-            "docking_puck_target": (0.0, 0.0, 0.5),  # Puck slot position
-        }
 
         # Publishers
         self.object_transform_pub = rospy.Publisher(
             "/taluy/map/object_transform_updates", TransformStamped, queue_size=10
         )
         self.pose_pub = rospy.Publisher("~detected_pose", PoseStamped, queue_size=10)
-        self.debug_pub = rospy.Publisher("~debug_image", Image, queue_size=1)
+        self.debug_pub = rospy.Publisher(
+            "~debug_image/compressed", CompressedImage, queue_size=1
+        )
         self.debug_processed_pub = rospy.Publisher(
-            "~debug_image_processed", Image, queue_size=1
+            "~debug_image_processed/compressed", CompressedImage, queue_size=1
         )
         self.debug_threshold_pub = rospy.Publisher(
-            "~debug_image_threshold", Image, queue_size=1
+            "~debug_image_threshold/compressed", CompressedImage, queue_size=1
         )
         self.board_detected_pub = rospy.Publisher(
             "~board_detected", Bool, queue_size=1
         )
+
+        self._debug_images_lock = threading.Lock()
+        self._debug_images = None
+        self._debug_images_ready = threading.Event()
+        self._shutdown = False
+        self._debug_thread = threading.Thread(target=self._debug_publisher_loop, daemon=True)
+        self._debug_thread.start()
 
         # Image subscriber
         image_topic = f"/{self.camera_ns}/image_raw"
@@ -338,6 +340,50 @@ class ArucoBoardEstimator:
         rospy.loginfo(f"ArUco Board Estimator {state}")
         return SetBoolResponse(success=True, message=f"Estimator {state}")
 
+    def _debug_publisher_loop(self):
+        while not rospy.is_shutdown() and not self._shutdown:
+            if not self._debug_images_ready.wait(timeout=0.1):
+                continue
+
+            self._debug_images_ready.clear()
+
+            with self._debug_images_lock:
+                if self._debug_images is None:
+                    continue
+                debug_img, debug_gray, thresh_img = self._debug_images
+                self._debug_images = None
+
+            try:
+                if not rospy.is_shutdown():
+                    # Publish as JPEG compressed images directly
+                    self.debug_pub.publish(self._encode_compressed(debug_img, "bgr8"))
+                    self.debug_processed_pub.publish(
+                        self._encode_compressed(debug_gray, "bgr8")
+                    )
+                    self.debug_threshold_pub.publish(
+                        self._encode_compressed(thresh_img, "mono8")
+                    )
+            except Exception as e:
+                rospy.logwarn_throttle(5.0, f"Debug image publish failed: {e}")
+
+    def _encode_compressed(self, cv_image, encoding):
+        """Encode a CV image as a CompressedImage message (JPEG)."""
+        msg = CompressedImage()
+        msg.header.stamp = rospy.Time.now()
+        msg.format = "jpeg"
+        if encoding == "mono8":
+            # Grayscale image
+            _, compressed = cv2.imencode(".jpg", cv_image, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        else:
+            # Color image (bgr8)
+            _, compressed = cv2.imencode(".jpg", cv_image, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        msg.data = compressed.tobytes()
+        return msg
+
+    def _queue_debug_images(self, debug_img, debug_gray, thresh_img):
+        with self._debug_images_lock:
+            self._debug_images = (debug_img.copy(), debug_gray.copy(), thresh_img.copy())
+        self._debug_images_ready.set()
 
     def _create_competition_board_points(self):
         """
@@ -481,13 +527,13 @@ class ArucoBoardEstimator:
                 img_points = np.vstack(img_points_list).astype(np.float32)
 
                 # Estimate board pose using solvePnPRansac for robustness + refineLM
-                # Use IPPE (Infinitesimal Plane-based Pose Estimation) for coplanar points
+                # Use SQPNP (Sequential Quadratic Programming) - more robust to noise than IPPE
                 success, rvec, tvec, inliers = cv2.solvePnPRansac(
                     obj_points,
                     img_points,
                     self.camera_matrix,
                     self.dist_coeffs,
-                    flags=cv2.SOLVEPNP_IPPE,
+                    flags=cv2.SOLVEPNP_SQPNP,
                     iterationsCount=self.ransac_iterations,
                     reprojectionError=self.ransac_reproj_error,
                     confidence=0.99,
@@ -661,11 +707,7 @@ class ArucoBoardEstimator:
                 2,
             )
 
-        # Publish debug images (check shutdown to avoid publish-to-closed-topic error)
-        if not rospy.is_shutdown():
-            self.debug_pub.publish(self.bridge.cv2_to_imgmsg(debug_img, "bgr8"))
-            self.debug_processed_pub.publish(self.bridge.cv2_to_imgmsg(debug_gray, "bgr8"))
-            self.debug_threshold_pub.publish(self.bridge.cv2_to_imgmsg(thresh_img, "mono8"))
+        self._queue_debug_images(debug_img, debug_gray, thresh_img)
 
     def publish_board_transform(self, rvec, tvec, header):
         """
@@ -685,6 +727,13 @@ class ArucoBoardEstimator:
 
         # Get quaternion
         quat = tf.transformations.quaternion_from_matrix(transform_matrix)
+
+        # Force horizontal orientation: keep only yaw, set roll=π, pitch=0
+        # Board is known to be flat on pool floor, so we trust position but not tilt
+        # Roll=π flips Z-axis to point up (toward camera) instead of down
+        euler = tf.transformations.euler_from_quaternion(quat)
+        yaw = euler[2]  # Keep yaw (rotation around Z-axis)
+        quat = tf.transformations.quaternion_from_euler(np.pi, 0.0, yaw)
 
         # Create TransformStamped message
         transform_stamped = TransformStamped()
@@ -730,10 +779,12 @@ class ArucoBoardEstimator:
 
             self.object_transform_pub.publish(odom_transform)
 
-            # Publish child frames as static TFs relative to docking_station
-            self._publish_child_frames()
-
-            rospy.loginfo_once("Board pose publishing to odom frame")
+            # Debug: Log position in odom frame
+            pos = transformed_pose.pose.position
+            rospy.loginfo_throttle(
+                0.5,
+                f"Board in odom frame - x={pos.x:.3f}, y={pos.y:.3f}, z={pos.z:.3f}",
+            )
 
         except (
             tf2_ros.LookupException,
@@ -742,27 +793,11 @@ class ArucoBoardEstimator:
         ) as e:
             rospy.logwarn_throttle(5, f"Transform to odom failed: {e}")
 
-    def _publish_child_frames(self):
-        """
-        Publish static TFs for child frames relative to docking_station.
-        These represent approach targets and other fixed points on the docking board.
-        """
-        static_transforms = []
-        stamp = rospy.Time.now()
-
-        for child_frame, (x, y, z) in self.child_frames.items():
-            t = TransformStamped()
-            t.header.stamp = stamp
-            t.header.frame_id = "docking_station"
-            t.child_frame_id = child_frame
-            t.transform.translation = Vector3(x, y, z)
-            t.transform.rotation = Quaternion(0.0, 0.0, 0.0, 1.0)  # Identity
-            static_transforms.append(t)
-
-        self.static_tf_broadcaster.sendTransform(static_transforms)
-
     def run(self):
         rospy.spin()
+        self._shutdown = True
+        self._debug_images_ready.set()
+        self._debug_thread.join(timeout=1.0)
 
 
 if __name__ == "__main__":
