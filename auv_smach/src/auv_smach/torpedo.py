@@ -258,6 +258,7 @@ class TorpedoTaskState(smach.State):
                     yaw_threshold=0.05,
                     confirm_duration=3.0,
                     timeout=30.0,
+                    cancel_on_success=False,
                 ),
                 transitions={
                     "succeeded": "SET_TORPEDO_HOLES_DETECTION",
@@ -269,20 +270,20 @@ class TorpedoTaskState(smach.State):
                 "SET_TORPEDO_HOLES_DETECTION",
                 SetDetectionState(camera_name="torpedo", enable=True),
                 transitions={
-                    "succeeded": "ALIGN_AFTER_HOLES_DETECTION",
+                    "succeeded": "WAIT_FOR_TORPEDO_HOLES_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_AFTER_HOLES_DETECTION",
+                "WAIT_FOR_TORPEDO_HOLES_DETECTION",
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_camera_link",
                     target_frame=torpedo_realsense_target_frame,
                     angle_offset=-math.pi / 2,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
-                    confirm_duration=10.0,
+                    confirm_duration=5.0,
                 ),
                 transitions={
                     "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
@@ -381,6 +382,15 @@ class TorpedoTaskState(smach.State):
                 "WAIT_FOR_TORPEDO_2_LAUNCH",
                 DelayState(delay_time=3.0),
                 transitions={
+                    "succeeded": "DISABLE_TORPEDO_HOLES_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_TORPEDO_HOLES_DETECTION",
+                SetDetectionState(camera_name="torpedo", enable=False),
+                transitions={
                     "succeeded": "ALIGN_TO_TORPEDO_EXIT",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -396,7 +406,8 @@ class TorpedoTaskState(smach.State):
                     yaw_threshold=0.1,
                     confirm_duration=0.0,
                     timeout=10.0,
-                    use_frame_depth=True,
+                    cancel_on_success=False,
+                    use_frame_depth=False,
                 ),
                 transitions={
                     "succeeded": "TRANSMIT_ACOUSTIC_4",
