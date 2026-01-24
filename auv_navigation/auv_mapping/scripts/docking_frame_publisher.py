@@ -119,11 +119,11 @@ class DockingFramePublisher:
         return pose
 
     def build_transform_message(
-        self, child_frame_id: str, pose: Pose
+        self, child_frame_id: str, pose: Pose, stamp: rospy.Time
     ) -> TransformStamped:
         """Build a TransformStamped message."""
         t = TransformStamped()
-        t.header.stamp = rospy.Time.now()
+        t.header.stamp = stamp
         t.header.frame_id = self.odom_frame
         t.child_frame_id = child_frame_id
         t.transform.translation = pose.position
@@ -187,7 +187,7 @@ class DockingFramePublisher:
             self.approach_offset_z,
         )
         approach_transform = self.build_transform_message(
-            self.approach_target_frame, approach_pose
+            self.approach_target_frame, approach_pose, docking_station_tf.header.stamp
         )
         self.send_transform(approach_transform)
 
@@ -199,7 +199,7 @@ class DockingFramePublisher:
             self.puck_offset_z,
         )
         puck_transform = self.build_transform_message(
-            self.puck_target_frame, puck_pose
+            self.puck_target_frame, puck_pose, docking_station_tf.header.stamp
         )
         self.send_transform(puck_transform)
 
@@ -278,7 +278,7 @@ class DockingFramePublisher:
 
         # Build and send transform
         approach_transform = self.build_transform_message(
-            self.station_approach_frame, approach_pose
+            self.station_approach_frame, approach_pose, station_tf.header.stamp
         )
         self.send_transform(approach_transform)
 
