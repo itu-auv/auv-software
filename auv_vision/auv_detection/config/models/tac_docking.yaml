@@ -8,9 +8,9 @@ cameras:
   front:
     model_file: tracker_docking.pt
     classes:
-      docking_board:
+      docking_station:
         id: 0
-        tf_frame: docking_board_link
+        tf_frame: docking_station_link
         real_height: 1.20
         real_width: 0.80
 
@@ -20,7 +20,7 @@ cameras:
 
 focus_groups:
   docking:
-    - docking_board
+    - docking_station
   all:
-    - docking_board
+    - docking_station
   none: []
