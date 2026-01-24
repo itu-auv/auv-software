@@ -146,10 +146,10 @@ class ReferencePosePublisherNode:
         if not msg.data:
             with self.state_lock:
                 if self.align_frame_active:
+                    self.set_target_to_odometry()
                     self.align_frame_active = False
                     self.use_align_frame_depth = False
                     self.align_frame_keep_orientation = False
-                    self.set_target_to_odometry()
                     if self.reconfigure_client:
                         self._restore_controller_cfg()
             rospy.loginfo_throttle(1.0, "Killswitch inactive; alignment deactivated")
@@ -187,9 +187,9 @@ class ReferencePosePublisherNode:
     ) -> AlignFrameControllerResponse:
         with self.state_lock:
             if self.align_frame_active:
+                self.set_target_to_odometry()
                 self.use_align_frame_depth = False
                 self.align_frame_keep_orientation = False
-                self.set_target_to_odometry()
 
             self.align_frame_active = True
 
@@ -270,10 +270,10 @@ class ReferencePosePublisherNode:
                     success=False, message="Alignment is not active."
                 )
 
+            self.set_target_to_odometry()
             self.align_frame_active = False
             self.use_align_frame_depth = False
             self.align_frame_keep_orientation = False
-            self.set_target_to_odometry()
 
             if self.reconfigure_client:
                 self._restore_controller_cfg()
@@ -359,7 +359,8 @@ class ReferencePosePublisherNode:
         self.target_x = self.latest_odometry.pose.pose.position.x
         self.target_y = self.latest_odometry.pose.pose.position.y
 
-        if self.target_frame_id != "odom":
+        # If use_align_frame_depth=False, depth is already in odom frame
+        if self.target_frame_id != "odom" and self.use_align_frame_depth:
             depth = self.get_transformed_depth(
                 "odom",
                 self.target_frame_id,
@@ -369,7 +370,8 @@ class ReferencePosePublisherNode:
                 return
 
             self.target_depth = depth
-            self.target_frame_id = "odom"
+
+        self.target_frame_id = "odom"
 
         quaternion = [
             self.latest_odometry.pose.pose.orientation.x,
