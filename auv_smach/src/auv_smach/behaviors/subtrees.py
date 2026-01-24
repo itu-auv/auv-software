@@ -226,15 +226,8 @@ def create_dynamic_path_subtree(
         CancelAlignControllerBehavior(name=f"{name}_EmergencyStopAlign")
     )
 
-    # 2.3 Always Fail (to propagate the failure up)
-    # We cleaned up, but the task still failed.
-    # We need a simple behavior that returns FAILURE.
-    # Since we don't have one, we can use a trick or just let the sequence finish SUCCESS
-    # which would mean the Selector returns SUCCESS (masking the error).
-    # Ideally we want to return FAILURE.
-    # For now, let's assume cleanup success is "handling the error".
-    # But for SMACH parity, aborted -> aborted.
-    # So we should probably force failure.
-    # Let's rely on the tree structure or just Accept that we handled it gracefully.
+    # 2.3 Explicitly return FAILURE to indicate the task failed (even if cleanup succeeded)
+    # This matches SMACH 'aborted' outcome.
+    cleanup_sequence.add_child(py_trees.behaviours.Failure(name=f"{name}_TaskFailed"))
 
     return root
