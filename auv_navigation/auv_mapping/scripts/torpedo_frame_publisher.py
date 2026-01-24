@@ -216,18 +216,25 @@ class TorpedoTransformServiceNode:
         try:
             torpedo_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
+                self.torpedo_frame,
+                rospy.Time.now(),
+                rospy.Duration(4.0),
+            )
+            realsense_tf = self.tf_buffer.lookup_transform(
+                self.odom_frame,
                 self.torpedo_realsense_frame,
                 rospy.Time.now(),
                 rospy.Duration(4.0),
             )
             torpedo_pose = self.get_pose(torpedo_tf)
+            realsense_pose = self.get_pose(realsense_tf)
 
-            # Set the pitch and roll to zero
+            # Use yaw from realsense target, keep torpedo position
             q = [
-                torpedo_pose.orientation.x,
-                torpedo_pose.orientation.y,
-                torpedo_pose.orientation.z,
-                torpedo_pose.orientation.w,
+                realsense_pose.orientation.x,
+                realsense_pose.orientation.y,
+                realsense_pose.orientation.z,
+                realsense_pose.orientation.w,
             ]
             (_, _, yaw) = tf.transformations.euler_from_quaternion(q)
             q = tf.transformations.quaternion_from_euler(0, 0, yaw)
