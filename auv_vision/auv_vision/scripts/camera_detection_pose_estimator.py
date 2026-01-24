@@ -209,6 +209,9 @@ class CameraDetectionNode:
             "/yolo_result_seg",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera_seg"),
+            queue_size=1,
+        )
+        rospy.Subscriber(
             "/yolo_result_torpedo",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="torpedo_camera"),
