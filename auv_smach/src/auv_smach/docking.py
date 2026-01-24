@@ -367,5 +367,5 @@ class DockingTaskState(smach.State):
             )
 
     def execute(self, userdata):
-
+        #self.state_machine.set_initial_state(["CANCEL_APPROACH_ALIGN"])
         return self.state_machine.execute(userdata)
