@@ -7,8 +7,7 @@
  */
 
 #include <cv_bridge/cv_bridge.h>
-#include <geometry_msgs/PoseStamped.h>
-#include <image_transport/image_transport.h>
+#include <geometry_msgs/TransformStamped.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
@@ -22,14 +21,11 @@
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <shape_msgs/Plane.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
-#include <tf2_ros/transform_broadcaster.h>
 #include <vision_msgs/Detection2DArray.h>
-#include <visualization_msgs/Marker.h>
 
 #include <Eigen/Geometry>
 #include <cmath>
+#include <map>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -42,7 +38,7 @@ class ObjectPlaneFitter {
     // Use -1 to indicate "all classes" (no filtering)
     pnh_.param<int>("target_class_id", target_class_id_, 4);
     pnh_.param<double>("ransac_distance_threshold", ransac_distance_threshold_,
-                       0.01);
+                       0.03);
     pnh_.param<int>("ransac_max_iterations", ransac_max_iterations_, 1000);
     pnh_.param<double>("depth_scale_factor", depth_scale_factor_, 1.0);
     pnh_.param<double>("min_inlier_ratio", min_inlier_ratio_, 0.5);
@@ -50,14 +46,11 @@ class ObjectPlaneFitter {
     pnh_.param<std::string>("output_frame_id", output_frame_id_, "");
 
     // Publishers
-    pose_pub_ = nh_.advertise<geometry_msgs::PoseStamped>("object/pose", 1);
-    plane_pub_ = nh_.advertise<shape_msgs::Plane>("object/plane_equation", 1);
-
+    object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
+        "object_transform_updates", 10);
     if (publish_debug_) {
       debug_cloud_pub_ =
           nh_.advertise<sensor_msgs::PointCloud2>("debug/cropped_cloud", 1);
-      debug_marker_pub_ =
-          nh_.advertise<visualization_msgs::Marker>("debug/plane_marker", 1);
       debug_inlier_cloud_pub_ =
           nh_.advertise<sensor_msgs::PointCloud2>("debug/inlier_cloud", 1);
     }
@@ -243,7 +236,6 @@ class ObjectPlaneFitter {
       float a = coefficients->values[0];
       float b = coefficients->values[1];
       float c = coefficients->values[2];
-      float d = coefficients->values[3];
 
       // Compute centroid of inliers
       Eigen::Vector3f centroid(0.0f, 0.0f, 0.0f);
@@ -258,44 +250,47 @@ class ObjectPlaneFitter {
       Eigen::Vector3f normal(a, b, c);
       normal.normalize();
 
-      // Ensure normal points towards camera (negative Z in camera frame)
-      if (normal.z() > 0) {
+      // Ensure normal points towards camera using dot product with centroid
+      // vector (same logic as process_tracker_with_cloud) If
+      // normal.dot(centroid) > 0, normal points away from camera, so flip it
+      if (normal.dot(centroid) > 0) {
         normal = -normal;
-        // Also flip d for consistency
-        d = -d;
       }
 
       // Compute quaternion from normal
       // Align Z-axis with the plane normal
       Eigen::Quaternionf quat = computeQuaternionFromNormal(normal);
 
-      // Publish pose
-      geometry_msgs::PoseStamped pose_msg;
-      pose_msg.header = depth_msg->header;
-      if (!output_frame_id_.empty()) {
-        pose_msg.header.frame_id = output_frame_id_;
+      // Match naming from process_tracker_with_cloud
+      std::string base_frame_id = "object";
+      if (!detection.results.empty()) {
+        int detection_id = detection.results[0].id;
+        auto it = id_to_prop_name_.find(detection_id);
+        if (it != id_to_prop_name_.end()) {
+          base_frame_id = it->second;
+        }
       }
-      pose_msg.pose.position.x = centroid.x();
-      pose_msg.pose.position.y = centroid.y();
-      pose_msg.pose.position.z = centroid.z();
-      pose_msg.pose.orientation.x = quat.x();
-      pose_msg.pose.orientation.y = quat.y();
-      pose_msg.pose.orientation.z = quat.z();
-      pose_msg.pose.orientation.w = quat.w();
-      pose_pub_.publish(pose_msg);
+      std::string frame_id = base_frame_id + "_closest";
 
-      // Publish plane equation
-      shape_msgs::Plane plane_msg;
-      plane_msg.coef[0] = a;
-      plane_msg.coef[1] = b;
-      plane_msg.coef[2] = c;
-      plane_msg.coef[3] = d;
-      plane_pub_.publish(plane_msg);
+      // Publish object transform (same pattern as process_tracker_with_cloud)
+      geometry_msgs::TransformStamped transform_msg;
+      transform_msg.header = depth_msg->header;
+      if (!output_frame_id_.empty()) {
+        transform_msg.header.frame_id = output_frame_id_;
+      }
+      transform_msg.child_frame_id = frame_id;
+      transform_msg.transform.translation.x = centroid.x();
+      transform_msg.transform.translation.y = centroid.y();
+      transform_msg.transform.translation.z = centroid.z();
+      transform_msg.transform.rotation.x = quat.x();
+      transform_msg.transform.rotation.y = quat.y();
+      transform_msg.transform.rotation.z = quat.z();
+      transform_msg.transform.rotation.w = quat.w();
+      object_transform_pub_.publish(transform_msg);
 
       // Publish debug visualizations
       if (publish_debug_) {
-        publishDebugVisualizations(depth_msg->header, inliers, cloud, centroid,
-                                   normal);
+        publishDebugVisualizations(depth_msg->header, inliers, cloud);
       }
 
       ROS_DEBUG(
@@ -324,33 +319,48 @@ class ObjectPlaneFitter {
 
   Eigen::Quaternionf computeQuaternionFromNormal(
       const Eigen::Vector3f& normal) {
-    // We want to find a rotation that aligns the Z-axis with the normal
-    Eigen::Vector3f z_axis(0.0f, 0.0f, 1.0f);
+    // Match process_tracker_with_cloud convention:
+    // - Y-axis = plane normal (pointing toward camera)
+    // - Z-axis = "up" direction (reference)
+    // - X-axis = Y × Z (completes right-handed frame)
 
-    // Handle edge case where normal is already aligned with Z
-    float dot = z_axis.dot(normal);
-    if (std::abs(dot - 1.0f) < 1e-6f) {
-      return Eigen::Quaternionf::Identity();
+    Eigen::Vector3f y_axis = normal.normalized();
+
+    // Choose reference vector for Z-axis (avoid parallel to normal)
+    Eigen::Vector3f ref = (std::abs(y_axis.x()) < 0.9f)
+                              ? Eigen::Vector3f::UnitX()
+                              : Eigen::Vector3f::UnitY();
+
+    // Z-axis is perpendicular to Y-axis, in the plane formed by ref and Y
+    Eigen::Vector3f z_axis = ref.cross(y_axis).normalized();
+
+    // X-axis completes the right-handed frame
+    Eigen::Vector3f x_axis = y_axis.cross(z_axis).normalized();
+
+    // In camera optical frame, "up" is typically -Y direction
+    // Flip Z if it's pointing "down" in camera frame (positive Y)
+    if (z_axis.y() > 0) {
+      z_axis = -z_axis;
+      x_axis = -x_axis;
     }
-    if (std::abs(dot + 1.0f) < 1e-6f) {
-      // 180-degree rotation around X-axis
-      return Eigen::Quaternionf(0.0f, 1.0f, 0.0f, 0.0f);
+
+    // Build rotation matrix
+    Eigen::Matrix3f rot;
+    rot.col(0) = x_axis;
+    rot.col(1) = y_axis;
+    rot.col(2) = z_axis;
+
+    // Ensure proper rotation matrix (det = +1)
+    if (rot.determinant() < 0.0f) {
+      rot.col(2) *= -1.0f;
     }
 
-    // Compute rotation axis and angle
-    Eigen::Vector3f axis = z_axis.cross(normal);
-    axis.normalize();
-
-    float angle = std::acos(dot);
-
-    Eigen::AngleAxisf rotation(angle, axis);
-    return Eigen::Quaternionf(rotation);
+    return Eigen::Quaternionf(rot);
   }
 
   void publishDebugVisualizations(
       const std_msgs::Header& header, const pcl::PointIndices::Ptr& inliers,
-      const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-      const Eigen::Vector3f& centroid, const Eigen::Vector3f& normal) {
+      const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud) {
     // Publish inlier point cloud
     if (debug_inlier_cloud_pub_.getNumSubscribers() > 0) {
       pcl::PointCloud<pcl::PointXYZ>::Ptr inlier_cloud(
@@ -365,40 +375,6 @@ class ObjectPlaneFitter {
       inlier_cloud_msg.header = header;
       debug_inlier_cloud_pub_.publish(inlier_cloud_msg);
     }
-
-    // Publish plane marker
-    if (debug_marker_pub_.getNumSubscribers() > 0) {
-      visualization_msgs::Marker marker;
-      marker.header = header;
-      marker.ns = "plane_fit";
-      marker.id = 0;
-      marker.type = visualization_msgs::Marker::CUBE;
-      marker.action = visualization_msgs::Marker::ADD;
-
-      marker.pose.position.x = centroid.x();
-      marker.pose.position.y = centroid.y();
-      marker.pose.position.z = centroid.z();
-
-      Eigen::Quaternionf quat = computeQuaternionFromNormal(normal);
-      marker.pose.orientation.x = quat.x();
-      marker.pose.orientation.y = quat.y();
-      marker.pose.orientation.z = quat.z();
-      marker.pose.orientation.w = quat.w();
-
-      // Thin, wide plane
-      marker.scale.x = 0.3;
-      marker.scale.y = 0.3;
-      marker.scale.z = 0.005;
-
-      marker.color.r = 0.0f;
-      marker.color.g = 1.0f;
-      marker.color.b = 0.0f;
-      marker.color.a = 0.7f;
-
-      marker.lifetime = ros::Duration(0.5);
-
-      debug_marker_pub_.publish(marker);
-    }
   }
 
   // ROS handles
@@ -406,10 +382,8 @@ class ObjectPlaneFitter {
   ros::NodeHandle pnh_;
 
   // Publishers
-  ros::Publisher pose_pub_;
-  ros::Publisher plane_pub_;
+  ros::Publisher object_transform_pub_;
   ros::Publisher debug_cloud_pub_;
-  ros::Publisher debug_marker_pub_;
   ros::Publisher debug_inlier_cloud_pub_;
 
   // Subscribers
@@ -437,6 +411,11 @@ class ObjectPlaneFitter {
   double min_inlier_ratio_;
   bool publish_debug_;
   std::string output_frame_id_;
+  std::map<int, std::string> id_to_prop_name_ = {
+      {0, "gate_sawfish_link"}, {1, "gate_shark_link"},
+      {2, "red_pipe_link"},     {3, "white_pipe_link"},
+      {4, "torpedo_map_link"},  {5, "torpedo_hole_link"},
+      {6, "bin_whole_link"},    {7, "octagon_link"}};
 };
 
 int main(int argc, char** argv) {
