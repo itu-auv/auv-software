@@ -20,7 +20,7 @@ class DepthAnythingNode:
         self.zmq_host = rospy.get_param("~zmq_host", "localhost")
         self.zmq_port = rospy.get_param("~zmq_port", 5555)
         self.rate_hz = rospy.get_param("~rate", 10.0)
-        self.process_res = rospy.get_param("~process_res", 504)
+        self.process_res = rospy.get_param("~process_res", 640)
         self.camera_namespace = rospy.get_param(
             "~camera_namespace", "cameras/cam_front"
         )
@@ -29,6 +29,7 @@ class DepthAnythingNode:
             self.camera_namespace, wait_for_camera_info=True
         )
         self.camera_info = camera_info_fetcher.get_camera_info()
+        self.scaled_intrinsics = None
 
         self.context = zmq.Context()
         self.socket = None
@@ -86,6 +87,37 @@ class DepthAnythingNode:
             raise RuntimeError(response.get("error", "Unknown error"))
         return response
 
+    def _update_intrinsics(self, h: int, w: int) -> None:
+        if self.camera_info is None:
+            return
+
+        if (
+            self.scaled_intrinsics is None
+            or self.scaled_intrinsics["width"] != w
+            or self.scaled_intrinsics["height"] != h
+        ):
+            orig_w = self.camera_info.width
+            orig_h = self.camera_info.height
+
+            if orig_w == 0 or orig_h == 0:
+                rospy.logerr_throttle(
+                    5.0, "[DA3] Camera resolution is 0, cannot scale intrinsics."
+                )
+                return
+
+            scale_w = w / float(orig_w)
+            scale_h = h / float(orig_h)
+
+            self.scaled_intrinsics = {
+                "width": w,
+                "height": h,
+                "fx": self.camera_info.K[0] * scale_w,
+                "fy": self.camera_info.K[4] * scale_h,
+                "cx": self.camera_info.K[2] * scale_w,
+                "cy": self.camera_info.K[5] * scale_h,
+            }
+            rospy.loginfo(f"[DA3] Scaled intrinsics from {orig_w}x{orig_h} to {w}x{h}")
+
     def _depth_to_pointcloud(self, depth: np.ndarray, header) -> PointCloud2:
         if self.camera_info is None:
             rospy.logwarn_throttle(
@@ -93,26 +125,18 @@ class DepthAnythingNode:
             )
             return None
 
-        fx = self.camera_info.K[0]
-        fy = self.camera_info.K[4]
-        cx = self.camera_info.K[2]
-        cy = self.camera_info.K[5]
+        if self.scaled_intrinsics is None:
+            return None
+
+        fx = self.scaled_intrinsics["fx"]
+        fy = self.scaled_intrinsics["fy"]
+        cx = self.scaled_intrinsics["cx"]
+        cy = self.scaled_intrinsics["cy"]
 
         if fx == 0.0 or fy == 0.0:
             raise ValueError("Invalid camera intrinsics: fx or fy is zero")
 
         h, w = depth.shape[:2]
-        if self.camera_info.width and self.camera_info.height:
-            if self.camera_info.width != w or self.camera_info.height != h:
-                rospy.logwarn_throttle(
-                    5.0,
-                    (
-                        "[DA3] CameraInfo size (%dx%d) does not match depth (%dx%d). "
-                        "Projection may be inaccurate."
-                    )
-                    % (self.camera_info.width, self.camera_info.height, w, h),
-                )
-
         depth_f = depth.astype(np.float32)
         v, u = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
         z = depth_f
@@ -144,8 +168,20 @@ class DepthAnythingNode:
             try:
                 cv_img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
                 result = self._infer(cv_img)
+                raw_depth = result["depth"]
 
-                depth = result["depth"]
+                h, w = raw_depth.shape[:2]
+                self._update_intrinsics(h, w)
+
+                if self.scaled_intrinsics:
+                    fx = self.scaled_intrinsics["fx"]
+                    fy = self.scaled_intrinsics["fy"]
+                    # metric Depth: depth = focal * net_output / 300 (as per DA3 paper)
+                    focal = (fx + fy) / 2.0
+                    depth = raw_depth * focal / 300.0
+                else:
+                    depth = raw_depth
+
                 depth_msg = self.bridge.cv2_to_imgmsg(depth, "32FC1")
                 depth_msg.header = msg.header
                 self.depth_pub.publish(depth_msg)
