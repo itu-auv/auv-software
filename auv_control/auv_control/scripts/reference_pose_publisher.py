@@ -8,6 +8,7 @@ from geometry_msgs.msg import (
     Twist,
     PoseWithCovarianceStamped,
     PointStamped,
+    TransformStamped,
 )
 from std_srvs.srv import Trigger, TriggerResponse
 from std_msgs.msg import Bool
@@ -17,13 +18,17 @@ from auv_msgs.srv import (
     SetDepthResponse,
     AlignFrameController,
     AlignFrameControllerResponse,
+    SetObjectTransform,
+    SetObjectTransformRequest,
 )
 from robot_localization.srv import SetPose, SetPoseRequest
 from tf.transformations import (
     quaternion_from_euler,
     euler_from_quaternion,
     quaternion_multiply,
+    quaternion_matrix,
 )
+import numpy as np
 
 import dynamic_reconfigure.client
 from auv_common_lib.control.enable_state import ControlEnableHandler
@@ -60,6 +65,11 @@ class ReferencePosePublisherNode:
         )
         self.control_enable_handler = ControlEnableHandler(1.0)
         self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
+
+        # Service to broadcast cmd_pose as a frame
+        self.set_object_transform_service = rospy.ServiceProxy(
+            "set_object_transform", SetObjectTransform
+        )
 
         # publishers
         self.cmd_pose_pub = rospy.Publisher("cmd_pose", PoseStamped, queue_size=10)
@@ -212,6 +222,22 @@ class ReferencePosePublisherNode:
                 if req.angle_offset != 0.0:
                     q_rot = quaternion_from_euler(0, 0, req.angle_offset)
                     quaternion = quaternion_multiply(quaternion, q_rot)
+
+                    # also rotate the position offset by angle_offset
+                    rotation_tf = TransformStamped()
+                    rotation_tf.transform.rotation.x = q_rot[0]
+                    rotation_tf.transform.rotation.y = q_rot[1]
+                    rotation_tf.transform.rotation.z = q_rot[2]
+                    rotation_tf.transform.rotation.w = q_rot[3]
+
+                    pos = PointStamped()
+                    pos.point.x = self.target_x
+                    pos.point.y = self.target_y
+                    pos.point.z = 0.0
+
+                    rotated_pos = do_transform_point(pos, rotation_tf)
+                    self.target_x = rotated_pos.point.x
+                    self.target_y = rotated_pos.point.y
 
                 self.target_roll, self.target_pitch, self.target_heading = (
                     euler_from_quaternion(quaternion)
@@ -422,36 +448,38 @@ class ReferencePosePublisherNode:
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
         dt = min(dt, self.command_timeout)
 
-        transform = self.tf_lookup(
-            self.target_frame_id, self.base_frame, rospy.Time(0), rospy.Duration(0.1)
+        q_current = quaternion_from_euler(
+            self.target_roll, self.target_pitch, self.target_heading
         )
-        if transform is None:
-            rospy.logwarn_throttle(1.0, "Failed to lookup transform for cmd_vel")
-            self.last_cmd_time = rospy.Time.now()
-            return
 
-        # Transform linear velocity
-        linear_vel = Vector3Stamped()
-        linear_vel.header.frame_id = self.base_frame
-        linear_vel.vector.x = msg.linear.x
-        linear_vel.vector.y = msg.linear.y
-        linear_vel.vector.z = msg.linear.z
-        linear_vel_odom = do_transform_vector3(linear_vel, transform)
+        rotation_matrix = quaternion_matrix(q_current)[:3, :3]
 
-        # Transform angular velocity
-        angular_vel = Vector3Stamped()
-        angular_vel.header.frame_id = self.base_frame
-        angular_vel.vector.x = msg.angular.x
-        angular_vel.vector.y = msg.angular.y
-        angular_vel.vector.z = msg.angular.z
-        angular_vel_odom = do_transform_vector3(angular_vel, transform)
+        linear_vel_body = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
+        linear_vel_odom = rotation_matrix.dot(linear_vel_body)
 
-        self.target_x += linear_vel_odom.vector.x * dt
-        self.target_y += linear_vel_odom.vector.y * dt
-        self.target_depth += linear_vel_odom.vector.z * dt
-        self.target_roll += angular_vel_odom.vector.x * dt
-        self.target_pitch += angular_vel_odom.vector.y * dt
-        self.target_heading += angular_vel_odom.vector.z * dt
+        self.target_x += linear_vel_odom[0] * dt
+        self.target_y += linear_vel_odom[1] * dt
+        self.target_depth += linear_vel_odom[2] * dt
+
+        angle = np.linalg.norm([msg.angular.x, msg.angular.y, msg.angular.z]) * dt
+        if angle > 1e-6:  # Avoid division by zero
+            axis = np.array([msg.angular.x, msg.angular.y, msg.angular.z]) / (
+                angle / dt
+            )
+            axis = axis / np.linalg.norm(axis)
+            q_delta = quaternion_from_euler(
+                axis[0] * angle, axis[1] * angle, axis[2] * angle
+            )
+        else:
+            q_delta = [0.0, 0.0, 0.0, 1.0]
+
+        # Multiply current orientation by delta rotation (cmd_pose frame rotation)
+        q_new = quaternion_multiply(q_current, q_delta)
+
+        # Extract new euler angles
+        self.target_roll, self.target_pitch, self.target_heading = (
+            euler_from_quaternion(q_new)
+        )
 
         self.last_cmd_time = rospy.Time.now()
 
@@ -477,6 +505,22 @@ class ReferencePosePublisherNode:
         ) as e:
             rospy.logerr(f"TF lookup failed from {source_frame} to {target_frame}: {e}")
             return None
+
+    def publish_cmd_pose_frame(self, cmd_pose: PoseStamped):
+        try:
+            transform = TransformStamped()
+            transform.header = cmd_pose.header
+            transform.child_frame_id = "cmd_pose"
+            transform.transform.translation.x = cmd_pose.pose.position.x
+            transform.transform.translation.y = cmd_pose.pose.position.y
+            transform.transform.translation.z = cmd_pose.pose.position.z
+            transform.transform.rotation = cmd_pose.pose.orientation
+
+            req = SetObjectTransformRequest()
+            req.transform = transform
+            self.set_object_transform_service(req)
+        except Exception as e:
+            rospy.logwarn_throttle(5.0, f"Failed to publish cmd_pose frame: {e}")
 
     def control_loop(self):
         with self.state_lock:
@@ -533,6 +577,9 @@ class ReferencePosePublisherNode:
         cmd_pose_stamped.pose.orientation.w = quaternion[3]
 
         self.cmd_pose_pub.publish(cmd_pose_stamped)
+
+        # Publish cmd_pose as a TF frame
+        self.publish_cmd_pose_frame(cmd_pose_stamped)
 
         if align_active:
             self.enable_pub.publish(Bool(data=True))
