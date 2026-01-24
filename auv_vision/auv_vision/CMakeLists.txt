@@ -12,6 +12,12 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   sensor_msgs
   tf
+  dynamic_reconfigure
+  auv_common_lib
+)
+
+generate_dynamic_reconfigure_options(
+  cfg/PipeFollower.cfg
 )
 
 catkin_package(
@@ -20,6 +26,8 @@ catkin_package(
     rospy
     sensor_msgs
     tf
+    dynamic_reconfigure
+    auv_common_lib
 )
 
 include_directories(
@@ -34,6 +42,7 @@ catkin_install_python(
     scripts/yolo_image_annotator.py
     scripts/yolo_seg_to_mask.py
     scripts/pipe_follower_legacy.py
+    scripts/pipe_follower_enhanced.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

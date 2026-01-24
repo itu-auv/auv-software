@@ -13,7 +13,7 @@ import angles
 from tf.transformations import *
 from geometry_msgs.msg import Pose, TransformStamped
 from sensor_msgs.msg import Image
-from std_srvs.srv import Trigger
+from std_srvs.srv import Trigger, TriggerResponse
 from geometry_msgs.msg import Twist
 from auv_msgs.srv import (
     AlignFrameController,
@@ -23,38 +23,57 @@ from auv_msgs.srv import (
 )
 
 from skimage.morphology import skeletonize
-from camera_detection_pose_estimator import CameraCalibration
+from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
+from dynamic_reconfigure.server import Server
+from auv_vision.cfg import PipeFollowerConfig
 
 
-class PipeFollowerDemo:
+class PipeFollowerEnhanced:
     def __init__(self):
+        rospy.loginfo("[PipeFollowerEnhanced] Initializing...")
         self.callback_time = rospy.Time.now()
 
-        # TODO: config file
         self.mid_img = [320, 240]
         self.rotation_duration = 10
-        self.close_point_filter_eps = 20
-        self.short_segment_filter_eps = 100
-        self.merge_segment_eps = 50
-        self.ang_error_eps = 40
-        self.ang_error_close_point_eps = 40
+        self.close_point_filter_eps = rospy.get_param("~close_point_filter_eps", 20)
+        self.short_segment_filter_eps = rospy.get_param("~short_segment_filter_eps", 100)
+        self.merge_segment_eps = rospy.get_param("~merge_segment_eps", 50)
+        self.ang_error_eps = rospy.get_param("~ang_error_eps", 40)
+        self.ang_error_close_point_eps = rospy.get_param("~ang_error_close_point_eps", 40)
         # radius*2
-        self.pipe_width = 0.125
+        self.pipe_width = rospy.get_param("~pipe_width", 0.125)
+
+        self.is_enabled = False
+
+        self.srv = Server(PipeFollowerConfig, self.callback_reconfigure)
+
+        self.start_service = rospy.Service(
+            "~start", Trigger, self.cb_start
+        )
+        self.stop_service = rospy.Service(
+            "~stop", Trigger, self.cb_stop
+        )
+        rospy.loginfo("[PipeFollowerEnhanced] Services registered.")
 
         self.bridge = CvBridge()
-        self.cam = CameraCalibration("taluy/cameras/cam_bottom")
+        self.cam = CameraCalibrationFetcher("cameras/cam_bottom").get_camera_info()
         self.sub_mask = rospy.Subscriber(
-            "seg_mask", Image, self.cb_mask, queue_size=1, buff_size=2**24
+            "/seg_mask", Image, self.cb_mask, queue_size=1, buff_size=2**24
         )
-        self.pub_debug = rospy.Publisher("pipe_result_debug", Image, queue_size=1)
+        self.pub_debug = rospy.Publisher("/pipe_result_debug", Image, queue_size=1)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.set_object_transform_service = rospy.ServiceProxy(
-            "/taluy/map/set_object_transform", SetObjectTransform
+            "set_object_transform", SetObjectTransform
         )
-        self.set_object_transform_service.wait_for_service()
+        rospy.loginfo("[PipeFollowerEnhanced] Waiting for set_object_transform service...")
+        try:
+            self.set_object_transform_service.wait_for_service(timeout=5.0)
+            rospy.loginfo("[PipeFollowerEnhanced] set_object_transform service available.")
+        except rospy.ROSException:
+            rospy.logwarn("[PipeFollowerEnhanced] set_object_transform service not available within timeout.")
 
         self.pipe_carrot_frame = "pipe_carrot"
         self.bottom_cam_frame = "taluy/base_link/bottom_camera_optical_link"
@@ -63,17 +82,52 @@ class PipeFollowerDemo:
         self._relocate_carrot(0, 0)
 
         self.align_frame_start_service = rospy.ServiceProxy(
-            "/taluy/control/align_frame/start", AlignFrameController
+            "align_frame/start", AlignFrameController
         )
+        self.align_frame_cancel_service = rospy.ServiceProxy(
+            "align_frame/cancel", Trigger
+        )
+        rospy.loginfo("[PipeFollowerEnhanced] Initialization complete.")
+
+
+    def callback_reconfigure(self, config, level):
+        self.close_point_filter_eps = config.close_point_filter_eps
+        self.short_segment_filter_eps = config.short_segment_filter_eps
+        self.merge_segment_eps = config.merge_segment_eps
+        self.ang_error_eps = config.ang_error_eps
+        self.ang_error_close_point_eps = config.ang_error_close_point_eps
+        self.pipe_width = config.pipe_width
+        return config
+
+
+    def cb_start(self, req):
+        self.is_enabled = True
         try:
             res = self.align_frame_start_service(
                 self.taluy_base_frame, self.pipe_carrot_frame, 0, False, False, 0.3, 0.3
             )
-            print(res)
+            if res.success:
+                return TriggerResponse(success=True, message="Pipe following and alignment started")
+            else:
+                return TriggerResponse(success=False, message=f"Vision started but alignment failed: {res.message}")
         except rospy.ServiceException as exc:
-            print("Service did not process request: " + str(exc))
+            return TriggerResponse(success=False, message=f"Service call failed: {exc}")
+
+    def cb_stop(self, req):
+        self.is_enabled = False
+        try:
+            res = self.align_frame_cancel_service()
+            if res.success:
+                return TriggerResponse(success=True, message="Pipe following and alignment stopped")
+            else:
+                return TriggerResponse(success=False, message=f"Vision stopped but alignment cancel failed: {res.message}")
+        except rospy.ServiceException as exc:
+            return TriggerResponse(success=False, message=f"Service call failed: {exc}")
 
     def cb_mask(self, msg):
+        if not self.is_enabled:
+            return
+
         self.callback_time = rospy.Time.now()
         try:
             img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
@@ -188,7 +242,7 @@ class PipeFollowerDemo:
 
             line_widths[0] = list(filter(lambda x: x < 100, line_widths[0]))
             width = max(line_widths[0])
-            distance = self.cam.distance_from_width(self.pipe_width, width)
+            distance = self._distance_from_width(self.pipe_width, width)
 
             rx, ry = self._world_pos_from_cam(
                 distance, target_point[0], target_point[1]
@@ -207,11 +261,17 @@ class PipeFollowerDemo:
             msg, debug_img, segments, target_segment_index, target_point
         )
 
+
+    def _distance_from_width(self, real_width: float, measured_width: float) -> float:
+        focal_length = self.cam.K[0]
+        distance = (real_width * focal_length) / measured_width
+        return distance
+
     def _world_pos_from_cam(self, distance, u, v):
-        fx = self.cam.calibration.K[0]
-        fy = self.cam.calibration.K[4]
-        cx = self.cam.calibration.K[2]
-        cy = self.cam.calibration.K[5]
+        fx = self.cam.K[0]
+        fy = self.cam.K[4]
+        cx = self.cam.K[2]
+        cy = self.cam.K[5]
 
         rx = (u - cx) * distance / fx
         ry = (v - cy) * distance / fy
@@ -441,8 +501,8 @@ class PipeFollowerDemo:
 
 
 def main():
-    rospy.init_node("pipe_follower_demo")
-    PipeFollowerDemo()
+    rospy.init_node("pipe_follower_enhanced")
+    PipeFollowerEnhanced()
     rospy.spin()
 
 

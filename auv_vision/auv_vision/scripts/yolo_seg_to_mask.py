@@ -20,7 +20,7 @@ class YoloSegToMaskNode:
         self.debug_topic = rospy.get_param("~debug_topic", "seg_mask_debug")
 
         self.bridge = CvBridge()
-        self.pub_mask = rospy.Publisher("seg_mask", Image, queue_size=1)
+        self.pub_mask = rospy.Publisher("/seg_mask", Image, queue_size=1)
         self.pub_debug = (
             rospy.Publisher(self.debug_topic, Image, queue_size=1)
             if self.publish_debug
@@ -28,7 +28,7 @@ class YoloSegToMaskNode:
         )
 
         self.sub = rospy.Subscriber(
-            "yolo_result_seg",
+            "/yolo_result_seg",
             YoloResult,
             self.cb_result,
             queue_size=1,
