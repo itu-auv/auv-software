@@ -223,7 +223,43 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_REALSENSE",
-                DelayState(delay_time=10.0),
+                DelayState(delay_time=5.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_ORIENTED_TORPEDO_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # smach.StateMachine.add(
+            #     "DISABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
+            #     TorpedoRealsenseTargetFramePublisherServiceState(req=False),
+            #     transitions={
+            #         "succeeded": "DISABLE_REALSENSE_PUBLISHER",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "DISABLE_REALSENSE_PUBLISHER",
+            #     EnableRealSensePublisherState(req=False),
+            #     transitions={
+            #         "succeeded": "ALIGN_TO_ORIENTED_TORPEDO_MAP",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            smach.StateMachine.add(
+                "ALIGN_TO_ORIENTED_TORPEDO_MAP",
+                AlignFrame(
+                    source_frame="taluy/base_link/torpedo_camera_link",
+                    target_frame=torpedo_realsense_target_frame,
+                    angle_offset=-math.pi / 2,
+                    dist_threshold=0.05,
+                    yaw_threshold=0.05,
+                    confirm_duration=6.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                ),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_REALSENSE_FRAME_PUBLISHER",
                     "preempted": "preempted",

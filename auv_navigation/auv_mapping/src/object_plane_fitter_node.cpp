@@ -21,6 +21,7 @@
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <std_srvs/SetBool.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
@@ -38,6 +39,7 @@ class ObjectPlaneFitter {
   ObjectPlaneFitter(ros::NodeHandle& nh, ros::NodeHandle& pnh)
       : nh_(nh),
         pnh_(pnh),
+        enabled_(false),
         camera_info_received_(false),
         tf_buffer_(ros::Duration(10.0)),
         tf_listener_(std::make_unique<tf2_ros::TransformListener>(tf_buffer_)) {
@@ -66,6 +68,10 @@ class ObjectPlaneFitter {
           nh_.advertise<sensor_msgs::PointCloud2>("debug/inlier_cloud", 1);
     }
 
+    // Enable service
+    enable_service_ = pnh_.advertiseService(
+        "enable", &ObjectPlaneFitter::enableCallback, this);
+
     // Camera info subscriber (separate, latched)
     camera_info_sub_ = nh_.subscribe(
         "camera_info", 1, &ObjectPlaneFitter::cameraInfoCallback, this);
@@ -87,6 +93,15 @@ class ObjectPlaneFitter {
              ransac_distance_threshold_, ransac_max_iterations_);
   }
 
+  bool enableCallback(std_srvs::SetBool::Request& req,
+                      std_srvs::SetBool::Response& res) {
+    enabled_ = req.data;
+    res.success = true;
+    res.message = "Successfully set enabled to " + std::to_string(enabled_);
+    ROS_INFO_STREAM(res.message);
+    return true;
+  }
+
  private:
   void cameraInfoCallback(const sensor_msgs::CameraInfo::ConstPtr& msg) {
     std::lock_guard<std::mutex> lock(camera_info_mutex_);
@@ -99,6 +114,9 @@ class ObjectPlaneFitter {
   void syncCallback(
       const sensor_msgs::Image::ConstPtr& depth_msg,
       const vision_msgs::Detection2DArray::ConstPtr& detections_msg) {
+    if (!enabled_) {
+      return;
+    }
     // Check if camera info is available
     sensor_msgs::CameraInfo cam_info;
     {
@@ -417,6 +435,10 @@ class ObjectPlaneFitter {
   ros::Publisher object_transform_pub_;
   ros::Publisher debug_cloud_pub_;
   ros::Publisher debug_inlier_cloud_pub_;
+
+  // Service Servers
+  ros::ServiceServer enable_service_;
+  bool enabled_;
 
   // Subscribers
   ros::Subscriber camera_info_sub_;
