@@ -7,8 +7,7 @@ import rospy
 import zmq
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from cv_bridge import CvBridge
-from sensor_msgs import point_cloud2 as pc2
-from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs.msg import CameraInfo, Image
 
 ZMQ_TIMEOUT_MS = 30000
 
@@ -41,7 +40,9 @@ class DepthAnythingNode:
         )
         self.depth_pub = rospy.Publisher("raw_depth", Image, queue_size=1)
         self.colorized_pub = rospy.Publisher("colorized", Image, queue_size=1)
-        self.points_pub = rospy.Publisher("points", PointCloud2, queue_size=1)
+        self.camera_info_pub = rospy.Publisher(
+            "scaled_camera_info", CameraInfo, queue_size=1, latch=True
+        )
 
         rospy.on_shutdown(self.cleanup)
 
@@ -117,42 +118,35 @@ class DepthAnythingNode:
                 "cy": self.camera_info.K[5] * scale_h,
             }
             rospy.loginfo(f"[DA3] Scaled intrinsics from {orig_w}x{orig_h} to {w}x{h}")
+            self._publish_scaled_camera_info()
 
-    def _depth_to_pointcloud(self, depth: np.ndarray, header) -> PointCloud2:
-        if self.camera_info is None:
-            rospy.logwarn_throttle(
-                5.0, "[DA3] CameraInfo not available yet. Skipping pointcloud."
-            )
-            return None
+    def _publish_scaled_camera_info(self) -> None:
+        """Publish the scaled camera info as a CameraInfo message."""
+        if self.scaled_intrinsics is None or self.camera_info is None:
+            return
 
-        if self.scaled_intrinsics is None:
-            return None
+        msg = CameraInfo()
+        msg.header = self.camera_info.header
+        msg.width = self.scaled_intrinsics["width"]
+        msg.height = self.scaled_intrinsics["height"]
+        msg.distortion_model = self.camera_info.distortion_model
+        msg.D = self.camera_info.D
 
         fx = self.scaled_intrinsics["fx"]
         fy = self.scaled_intrinsics["fy"]
         cx = self.scaled_intrinsics["cx"]
         cy = self.scaled_intrinsics["cy"]
 
-        if fx == 0.0 or fy == 0.0:
-            raise ValueError("Invalid camera intrinsics: fx or fy is zero")
+        # Intrinsic matrix K (3x3 row-major)
+        msg.K = [fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0]
 
-        h, w = depth.shape[:2]
-        depth_f = depth.astype(np.float32)
-        v, u = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
-        z = depth_f
-        valid = np.isfinite(z) & (z > 0)
-        if not np.any(valid):
-            return None
+        # Rectification matrix R (identity for monocular)
+        msg.R = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
 
-        x = (u - cx) * z / fx
-        y = (v - cy) * z / fy
+        # Projection matrix P (3x4 row-major)
+        msg.P = [fx, 0.0, cx, 0.0, 0.0, fy, cy, 0.0, 0.0, 0.0, 1.0, 0.0]
 
-        points = np.column_stack((x[valid], y[valid], z[valid])).astype(np.float32)
-
-        # TODO: make frame_id not hardcoded
-        header.frame_id = "taluy/base_link/front_camera_optical_link"
-        cloud = pc2.create_cloud_xyz32(header, points)
-        return cloud
+        self.camera_info_pub.publish(msg)
 
     def run(self) -> None:
         rate = rospy.Rate(self.rate_hz)
@@ -165,6 +159,7 @@ class DepthAnythingNode:
             msg = self.latest_image
             self.latest_image = None
 
+            msg.header.frame_id = "taluy/base_link/front_camera_optical_link"
             try:
                 cv_img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
                 result = self._infer(cv_img)
@@ -190,12 +185,6 @@ class DepthAnythingNode:
                 color_msg = self.bridge.cv2_to_imgmsg(colorized, "bgr8")
                 color_msg.header = msg.header
                 self.colorized_pub.publish(color_msg)
-
-                cloud_msg = self._depth_to_pointcloud(depth, msg.header)
-                if cloud_msg is not None:
-                    self.points_pub.publish(cloud_msg)
-                else:
-                    rospy.logwarn_throttle(5.0, "[DA3] No valid points to publish.")
 
             except (zmq.error.ZMQError, zmq.error.Again) as e:
                 rospy.logwarn_throttle(5.0, f"[DA3] ZMQ error: {e}. Reconnecting...")
