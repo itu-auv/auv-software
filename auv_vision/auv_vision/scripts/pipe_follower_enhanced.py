@@ -41,6 +41,7 @@ class PipeFollowerEnhanced:
         self.ang_error_eps = rospy.get_param("~ang_error_eps", 40)
         self.ang_error_close_point_eps = rospy.get_param("~ang_error_close_point_eps", 40)
         # radius*2
+        # TODO: default value is probably defined wrong for simulation.
         self.pipe_width = rospy.get_param("~pipe_width", 0.125)
 
         self.is_enabled = False
@@ -140,9 +141,12 @@ class PipeFollowerEnhanced:
         dist = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
         widths = dist * 2
 
-        skel_bool = skeletonize(binary > 0)
+        # TODO: just for now
+        closing = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, np.ones((100, 100), np.uint8))
+
+        skel_bool = skeletonize(closing > 0)
         skel = (skel_bool.astype(np.uint8)) * 255
-        debug_img = cv2.cvtColor(skel, cv2.COLOR_GRAY2BGR)
+        debug_img = cv2.cvtColor(closing, cv2.COLOR_GRAY2BGR)
 
         ordered_lines = self._get_ordered_points_from_skel(
             skel, self.close_point_filter_eps
