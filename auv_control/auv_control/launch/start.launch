@@ -51,6 +51,7 @@
       <remap from="align_frame/start" to="control/align_frame/start" />
       <remap from="propulsion_board/status" to="propulsion_board/status" />
       <remap from="align_frame/cancel" to="control/align_frame/cancel" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
     <node pkg="auv_control" type="battery_monitor_node.py" name="battery_monitor_node"
