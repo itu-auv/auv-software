@@ -124,6 +124,9 @@ class DepthAnythingNode:
         y = (v - cy) * z / fy
 
         points = np.column_stack((x[valid], y[valid], z[valid])).astype(np.float32)
+
+        # TODO: make frame_id not hardcoded
+        header.frame_id = "taluy/base_link/front_camera_optical_link"
         cloud = pc2.create_cloud_xyz32(header, points)
         return cloud
 
