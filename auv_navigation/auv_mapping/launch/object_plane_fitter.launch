@@ -1,0 +1,33 @@
+<!-- Object Plane Fitter Launch File -->
+<launch>
+    <arg name="namespace" default="taluy" />
+
+    <arg name="depth_topic" default="depth_anything/raw_depth"/>
+    <arg name="camera_info_topic" default="depth_anything/scaled_camera_info"/>
+    <arg name="detections_topic" default="/yolo_detections"/>
+
+    <!-- Use -1 to accept all classes, or specify class ID (e.g., 0, 1, 2...) -->
+    <arg name="target_class_id" default="4"/>
+    <arg name="ransac_distance_threshold" default="0.01"/>
+    <arg name="ransac_max_iterations" default="1000"/>
+    <arg name="depth_scale_factor" default="1.0"/>
+    <arg name="min_inlier_ratio" default="0.5"/>
+    <arg name="publish_debug" default="true"/>
+    <arg name="output_frame_id" default=""/>
+
+    <group ns="$(arg namespace)">
+        <node name="object_plane_fitter" pkg="auv_mapping" type="object_plane_fitter_node" output="screen">
+          <param name="target_class_id" value="$(arg target_class_id)"/>
+          <param name="ransac_distance_threshold" value="$(arg ransac_distance_threshold)"/>
+          <param name="ransac_max_iterations" value="$(arg ransac_max_iterations)"/>
+          <param name="depth_scale_factor" value="$(arg depth_scale_factor)"/>
+          <param name="min_inlier_ratio" value="$(arg min_inlier_ratio)"/>
+          <param name="publish_debug" value="$(arg publish_debug)"/>
+          <param name="output_frame_id" value="$(arg output_frame_id)"/>
+
+          <remap from="depth" to="$(arg depth_topic)"/>
+          <remap from="camera_info" to="$(arg camera_info_topic)"/>
+          <remap from="detections" to="$(arg detections_topic)"/>
+      </node>
+    </group>
+</launch>

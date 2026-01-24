@@ -9,7 +9,7 @@
     <arg name="input_image_topic" default="$(arg camera_namespace)/image_raw" />
     <arg name="output_depth_topic" default="depth_anything/raw_depth" />
     <arg name="output_colorized_topic" default="depth_anything/colorized" />
-    <arg name="output_points_topic" default="depth_anything/points" />
+    <arg name="scaled_camera_info_topic" default="depth_anything/scaled_camera_info" />
 
     <group ns="$(arg namespace)">
         <node pkg="auv_vision" type="depth_anything_client.py" name="depth_anything_node" output="screen">
@@ -21,7 +21,7 @@
             <remap from="image_raw" to="$(arg input_image_topic)" />
             <remap from="raw_depth" to="$(arg output_depth_topic)" />
             <remap from="colorized" to="$(arg output_colorized_topic)" />
-            <remap from="points" to="$(arg output_points_topic)" />
+            <remap from="scaled_camera_info" to="$(arg scaled_camera_info_topic)" />
         </node>
     </group>
 </launch>
