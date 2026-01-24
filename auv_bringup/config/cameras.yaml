@@ -25,7 +25,7 @@ cam_front:
     cols: 4
     data: [732.617981, 0.0, 298.604817, 0.0, 0.0, 729.010986, 154.053329, 0.0, 0.0, 0.0, 1.0, 0.0]
 
-cam_bottom:
+cam_bottom_old:
   width: 640
   height: 480
   fps: 30
@@ -63,12 +63,12 @@ cam_torpedo:
   camera_matrix:
     rows: 3
     cols: 3
-    data: [614.038106, 0.0, 286.555918, 0.0, 615.208370, 218.124369, 0.0, 0.0, 1.0]
+    data: [356.599055643449, 0.0, 410.01319747359395, 0.0, 354.9934687487455, 197.61449530601143, 0.0, 0.0, 1.0]
   distortion_model: plumb_bob
   distortion_coefficients:
     rows: 1
     cols: 5
-    data: [-0.021568, -0.017493, -0.009869, -0.011030, 0.0]
+    data: [-0.23963595157141618, 0.14183427070668228, 0.01171450897124783, -0.00038163496663176383, 0.0]
   rectification_matrix:
     rows: 3
     cols: 3
@@ -76,4 +76,31 @@ cam_torpedo:
   projection_matrix:
     rows: 3
     cols: 4
-    data: [607.848267, 0.0, 279.229787, 0.0, 0.0, 613.547913, 213.831275, 0.0, 0.0, 0.0, 1.0, 0.0]
+    data: [365.2460632324219, 0.0, 403.44751861529585, 0.0, 0.0, 359.3122863769531, 210.59759350842796, 0.0, 0.0, 0.0, 1.0, 0.0]
+
+cam_bottom:
+  width: 1920
+  height: 1080
+  fps: 30
+  device: /dev/auv_cam_ov2710
+
+  image_width: 1920
+  image_height: 1080
+  camera_name: cam_bottom
+  camera_matrix:
+    rows: 3
+    cols: 3
+    data: [1300.278562, 0.0, 963.616380, 0.0, 1301.913143, 502.538883, 0.0, 0.0, 1.0]
+  distortion_model: plumb_bob
+  distortion_coefficients:
+    rows: 1
+    cols: 5
+    data: [-0.330122, 0.135823, 0.001839, 0.000819, 0.0]
+  rectification_matrix:
+    rows: 3
+    cols: 3
+    data: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+  projection_matrix:
+    rows: 3
+    cols: 4
+    data: [1068.462402, 0.0, 967.401311, 0.0, 0.0, 1223.300049, 498.828315, 0.0, 0.0, 0.0, 1.0, 0.0]
