@@ -607,8 +607,8 @@ class SetDetectionState(smach_ros.ServiceState):
     """
 
     def __init__(self, camera_name: str, enable: bool):
-        if camera_name not in ["front", "bottom"]:
-            raise ValueError("camera_name must be 'front' or 'bottom'")
+        if camera_name not in ["front", "bottom", "torpedo"]:
+            raise ValueError("camera_name must be 'front', 'bottom', or 'torpedo'")
 
         service_name = f"enable_{camera_name}_camera_detections"
         request = SetBoolRequest(data=enable)
@@ -830,6 +830,7 @@ class CheckAlignmentState(smach.State):
         angle_offset=0.0,
         confirm_duration=0.0,
         keep_orientation=False,
+        use_frame_depth=False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
@@ -840,6 +841,7 @@ class CheckAlignmentState(smach.State):
         self.angle_offset = angle_offset
         self.confirm_duration = confirm_duration
         self.keep_orientation = keep_orientation
+        self.use_frame_depth = use_frame_depth
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.rate = rospy.Rate(10)
@@ -853,6 +855,8 @@ class CheckAlignmentState(smach.State):
             rot = transform.transform.rotation
 
             dist_error = math.sqrt(trans.x**2 + trans.y**2)
+            if self.use_frame_depth:
+                dist_error = math.sqrt(dist_error**2 + trans.z**2)
 
             _, _, yaw = transformations.euler_from_quaternion(
                 (rot.x, rot.y, rot.z, rot.w)
@@ -969,6 +973,7 @@ class AlignFrame(smach.StateMachine):
                     angle_offset,
                     confirm_duration,
                     keep_orientation=keep_orientation,
+                    use_frame_depth=use_frame_depth,
                 ),
                 transitions={
                     "succeeded": watch_succeeded_transition,
