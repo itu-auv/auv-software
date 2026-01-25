@@ -49,7 +49,16 @@ repos:
       - id: catkin_lint
         name: catkin_lint
         description: Check package.xml and cmake files
-        entry: catkin_lint . --skip-path auv_sim
+        entry: |
+          bash -c 'if [ -z "$ROS_PACKAGE_PATH" ]; then
+            if [ "$CI" = "true" ]; then
+              echo "Warning: ROS_PACKAGE_PATH not set in CI. Skipping catkin_lint.";
+              exit 0;
+            fi;
+            echo "Error: ROS_PACKAGE_PATH is not set. Please source your workspace setup.bash (e.g., source devel/setup.bash) before running git commit/push.";
+            exit 1;
+          fi;
+          catkin_lint . --skip-path auv_sim'
         language: system
         always_run: true
         pass_filenames: false
