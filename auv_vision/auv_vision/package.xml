@@ -9,10 +9,10 @@
   <buildtool_depend>catkin</buildtool_depend>
   <depend>auv_detection</depend>
   <depend>cv_bridge</depend>
+  <depend>dynamic_reconfigure</depend>
   <depend>image_transport</depend>
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
   <depend>tf</depend>
-  <depend>dynamic_reconfigure</depend>
   <export/>
 </package>

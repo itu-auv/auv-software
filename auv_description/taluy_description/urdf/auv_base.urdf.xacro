@@ -91,7 +91,6 @@
     <xacro:ball_dropper name="${namespace}/base_link/ball_dropper" parent="${namespace}/base_link" position="0.1004 0.0745 -0.1953" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:realsense_d435 name="${namespace}/camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 ${math.pi}" use_models="$(arg use_models)"/>
 
-    <!-- Docking puck -->
     <xacro:docking_puck name="${namespace}/base_link/docking_puck" parent="${namespace}/base_link" position="0 -0.15 -0.20" orientation="0 0 0" use_models="$(arg use_models)"/>
   </xacro:macro>
 </robot>

@@ -6,7 +6,6 @@
     <arg name="sim" default="false"/>
     <arg name="device" default="cuda:0"/>
 
-    <!-- Front camera YOLO tracker (multi-class model for all RoboSub tasks) -->
     <include file="$(find auv_detection)/launch/inc/tracker_front.launch">
         <arg name="sim" value="$(arg sim)"/>
         <arg name="device" value="$(arg device)"/>
