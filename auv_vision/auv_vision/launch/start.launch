@@ -29,5 +29,16 @@
       <param name="font_scale" value="0.7"/>
       <param name="font_thickness" value="2"/>
     </node>
+
+    <node
+      pkg="auv_vision"
+      type="pipe_follower_enhanced.py"
+      name="pipe_follower_enhanced"
+      output="screen">
+      <remap from="seg_mask" to="seg_mask"/>
+      <remap from="align_frame/start" to="control/align_frame/start"/>
+      <remap from="align_frame/cancel" to="control/align_frame/cancel"/>
+      <remap from="set_object_transform" to="map/set_object_transform"/>
+    </node>
   </group>
 </launch>
