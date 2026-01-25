@@ -5,13 +5,11 @@
     <param name="/smach/max_linear_velocity" value="0.3" />
     <param name="/smach/max_angular_velocity" value="0.45" />
 
-    <!-- Competition Configuration -->
     <arg name="competition" default="robosub" doc="Competition: robosub or tac"/>
     <arg name="tac_task" default="docking" doc="TAC task to run (only used if competition=tac)"/>
     <arg name="sim" default="false" doc="Enable simulation mode"/>
     <arg name="device" default="cuda:0" doc="YOLO inference device"/>
 
-    <!-- State Mapping Definitions (includes all missions from all competitions) -->
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
@@ -33,7 +31,6 @@
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
 
-    <!-- Full Mission States (RoboSub sequence) -->
     <arg name="full_mission_states" default="[
         'INITIALIZE',
         'NAVIGATE_THROUGH_GATE',
@@ -53,27 +50,17 @@
         'init'
     ]" doc="States to execute in test mode"/>
 
-    <!-- ============================================================ -->
-    <!-- Competition-specific Detection and Support Setup -->
-    <!-- ============================================================ -->
-
-    <!-- RoboSub: Multi-class YOLO, standard detection pipeline -->
     <include if="$(eval arg('competition') == 'robosub')"
              file="$(find auv_smach)/launch/inc/robosub_setup.launch">
         <arg name="sim" value="$(arg sim)"/>
         <arg name="device" value="$(arg device)"/>
     </include>
 
-    <!-- TAC: Task-specific setup (dynamically selects based on tac_task) -->
     <include if="$(eval arg('competition') == 'tac')"
              file="$(find auv_smach)/launch/inc/tac_$(arg tac_task)_setup.launch">
         <arg name="sim" value="$(arg sim)"/>
         <arg name="device" value="$(arg device)"/>
     </include>
-
-    <!-- ============================================================ -->
-    <!-- Main State Machine -->
-    <!-- ============================================================ -->
 
     <group ns="$(arg namespace)">
         <!-- Main State Machine Node -->
@@ -100,7 +87,6 @@
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
-            <remap from="set_id_remap" to="vision/set_id_remap"/>
             <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable"/>
 
             <param name="enable_rate" value="$(arg enable_rate)"/>
@@ -133,7 +119,6 @@
             <!--acoustic.py-->
             <remap from="modem/data/rx" to="modem/data/rx"/>
 
-            <!-- Competition and task info -->
             <param name="competition" value="$(arg competition)"/>
             <param name="tac_task" value="$(arg tac_task)"/>
 

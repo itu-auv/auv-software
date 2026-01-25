@@ -1,13 +1,7 @@
-# SetModelConfig.srv
-# Service to switch active YOLO model configuration at runtime.
-# Used by camera_detection_pose_estimator to support multiple competition models.
-
-# Request: model name to activate (e.g., "robosub", "tac_docking")
 string model_name
 
 ---
 
-# Response
 bool success
 string message
 string[] available_models
