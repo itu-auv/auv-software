@@ -5,8 +5,8 @@
   <arg name="control_config_file" default="$(find auv_control)/config/default.yaml" />
 
   <group ns="$(arg namespace)">
-    <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" />
-    <rosparam file="$(arg control_config_file)" subst_value="true" />
+    <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" command="load" />
+    <rosparam file="$(arg control_config_file)" command="load" />
 
     <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
       <remap from="imu/data" to="sensors/imu/data" />
