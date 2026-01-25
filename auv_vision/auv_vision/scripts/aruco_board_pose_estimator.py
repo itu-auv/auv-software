@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-ArUco Board Pose Estimation Node
-
-Uses a custom ArUco board for more accurate pose estimation than single markers.
-Dictionary: DICT_ARUCO_ORIGINAL
-"""
 
 import rospy
 import cv2
@@ -28,40 +22,30 @@ from auv_vision.cfg import ArucoConfig
 
 class ArucoBoardEstimator:
     """
-    ArUco Board-based pose estimator for docking station detection.
-    Uses multiple markers on a known planar layout for improved accuracy.
+    Estimates the pose of an ArUco marker board using OpenCV's ArUco detection.
+
+    Board Layout (dimensions in meters, origin at center):
+        ┌─────────────────────────────────────────┐
+        │  [ID:28]                       [ID:7]   │
+        │  top-left                     top-right │
+        │                                         │
+        │               (0,0) ORIGIN              │  1200mm
+        │                                         │
+        │  [ID:19]                       [ID:96]  │
+        │  bottom-left                bottom-right│
+        └─────────────────────────────────────────┘
+                          800mm
     """
 
-    # =========================================================================
-    # COMPETITION BOARD CONFIGURATION (4 markers, 800 x 1200 mm)
-    # =========================================================================
-    # Board Layout (dimensions in meters, origin at center):
-    #     ┌─────────────────────────────────────────┐
-    #     │  [ID:28]                       [ID:7]   │
-    #     │  top-left                     top-right │
-    #     │                                         │
-    #     │               (0,0) ORIGIN              │  1200mm
-    #     │                                         │
-    #     │  [ID:19]                       [ID:96]  │
-    #     │  bottom-left                bottom-right│
-    #     └─────────────────────────────────────────┘
-    #                       800mm
-    #
-    # Marker size: 150mm (0.15m)
-    # Edge offset: 35mm from each edge
-    # =========================================================================
-
-    BOARD_WIDTH = 0.800  # 800mm
-    BOARD_HEIGHT = 1.200  # 1200mm
-    MARKER_SIZE = 0.145  # 150mm
-    EDGE_OFFSET = 0.048  # 35mm from edge
-    MARKER_IDS = [28, 7, 19, 96]  # top-left, top-right, bottom-left, bottom-right
-
+    BOARD_WIDTH = 0.800
+    BOARD_HEIGHT = 1.200
+    MARKER_SIZE = 0.145
+    EDGE_OFFSET = 0.048
+    MARKER_IDS = [28, 7, 19, 96]
 
     def __init__(self):
         rospy.init_node("aruco_board_estimator", anonymous=True)
 
-        # --- Config file path for parameter persistence ---
         try:
             rospack = rospkg.RosPack()
             pkg_path = rospack.get_path("auv_vision")
@@ -74,44 +58,33 @@ class ArucoBoardEstimator:
             )
             self.config_file = ""
 
-        # --- Parameters ---
         self.camera_ns = rospy.get_param("~camera_ns", "taluy/cameras/cam_bottom")
         self.camera_frame = rospy.get_param(
             "~camera_frame", "taluy/base_link/bottom_camera_optical_link"
         )
 
-        # Fetch camera calibration
         rospy.loginfo(f"Fetching camera calibration for: {self.camera_ns}")
         calibration_fetcher = camera_calibrations.CameraCalibrationFetcher(
             self.camera_ns, True
         )
         self.calibration = calibration_fetcher.get_camera_info()
 
-        # Extract camera matrix and distortion coefficients
         self.camera_matrix = np.array(self.calibration.K).reshape(3, 3)
         self.dist_coeffs = np.array(self.calibration.D)
 
         rospy.loginfo(f"Camera calibration loaded! Using frame: {self.camera_frame}")
         rospy.loginfo(f"Camera matrix:\n{self.camera_matrix}")
 
-        # --- ArUco Setup (OpenCV 4.7-4.12) ---
-        self.aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_ARUCO_ORIGINAL)
+        self.aruco_dict = cv2.aruco.getPredefinedDictionary(
+            cv2.aruco.DICT_ARUCO_ORIGINAL
+        )
         self.detector_params = cv2.aruco.DetectorParameters()
-
-        # Corner refinement method (SUBPIX for pool environment)
         self.detector_params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
-
-        # Create refine parameters (must be passed to ArucoDetector in OpenCV 4.12+)
         self.refine_params = cv2.aruco.RefineParameters()
-
-        # Create ArucoDetector for marker detection (with RefineParameters as 3rd arg)
         self.aruco_detector = cv2.aruco.ArucoDetector(
             self.aruco_dict, self.detector_params, self.refine_params
         )
 
-        # --- Dynamic Reconfigure Parameters (will be set by reconfigure callback) ---
-        # Initialize with defaults - actual values come from reconfigure callback
-        # which loads from parameter server (populated with saved YAML values above)
         self.clahe_clip_limit = 2.0
         self.clahe_tile_size = 8
         self.blur_strength = 3
@@ -129,14 +102,8 @@ class ArucoBoardEstimator:
         self.ransac_iterations = 200
         self.ransac_reproj_error = 20.0
 
-        # Apply initial detector parameters
         self._apply_detector_params()
-
-        # Create the marker object points dictionary
         self.marker_obj_points = self._create_competition_board_points()
-
-        # Create Board object for refineDetectedMarkers
-        # Board constructor: objPoints (list of Nx3 arrays), dictionary, ids
         obj_points_list = [self.marker_obj_points[mid] for mid in self.MARKER_IDS]
         ids_array = np.array(self.MARKER_IDS, dtype=np.int32)
         self.board = cv2.aruco.Board(obj_points_list, self.aruco_dict, ids_array)
@@ -145,15 +112,11 @@ class ArucoBoardEstimator:
             f"Custom ArUco board configured with {len(self.MARKER_IDS)} markers"
         )
 
-        # --- ROS Setup ---
         self.bridge = CvBridge()
-
-        # TF2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
 
-        # Publishers
         self.object_transform_pub = rospy.Publisher(
             "/taluy/map/object_transform_updates", TransformStamped, queue_size=10
         )
@@ -167,38 +130,31 @@ class ArucoBoardEstimator:
         self.debug_threshold_pub = rospy.Publisher(
             "~debug_image_threshold/compressed", CompressedImage, queue_size=1
         )
-        self.board_detected_pub = rospy.Publisher(
-            "~board_detected", Bool, queue_size=1
-        )
+        self.board_detected_pub = rospy.Publisher("~board_detected", Bool, queue_size=1)
 
         self._debug_images_lock = threading.Lock()
         self._debug_images = None
         self._debug_images_ready = threading.Event()
         self._shutdown = False
-        self._debug_thread = threading.Thread(target=self._debug_publisher_loop, daemon=True)
+        self._debug_thread = threading.Thread(
+            target=self._debug_publisher_loop, daemon=True
+        )
         self._debug_thread.start()
 
-        # Image subscriber
         image_topic = f"/{self.camera_ns}/image_raw"
         rospy.loginfo(f"Subscribing to: {image_topic}")
         self.img_sub = rospy.Subscriber(image_topic, Image, self.image_cb)
 
-        # Track last published timestamp to avoid TF_REPEATED_DATA warnings
         self.last_published_stamp = rospy.Time(0)
-
-        # Enable/disable flag for pausing estimation
         self.enabled = True
         self.set_enabled_srv = rospy.Service(
             "~set_enabled", SetBool, self._set_enabled_cb
         )
 
-        # Load saved parameters onto the ROS parameter server BEFORE creating
-        # the dynamic reconfigure server, so it uses our saved values
         saved_params = self._load_saved_parameters()
         for param_name, value in saved_params.items():
             rospy.set_param(f"~{param_name}", value)
 
-        # Dynamic reconfigure server (must be after setting params on server)
         self.dyn_reconf_server = Server(ArucoConfig, self._reconfigure_callback)
 
         rospy.loginfo("ArUco Board Estimator started!")
@@ -225,25 +181,20 @@ class ArucoBoardEstimator:
             return
 
         params = {
-            # Preprocessing
             "clahe_clip_limit": self.clahe_clip_limit,
             "clahe_tile_size": self.clahe_tile_size,
             "blur_strength": self.blur_strength,
-            # Adaptive thresholding
             "adaptive_thresh_win_size_min": self.adaptive_thresh_win_size_min,
             "adaptive_thresh_win_size_max": self.adaptive_thresh_win_size_max,
             "adaptive_thresh_win_size_step": self.adaptive_thresh_win_size_step,
             "adaptive_thresh_constant": self.adaptive_thresh_constant,
-            # Marker detection
             "min_marker_perimeter_rate": self.min_marker_perimeter_rate,
             "max_marker_perimeter_rate": self.max_marker_perimeter_rate,
             "polygonal_approx_accuracy_rate": self.polygonal_approx_accuracy_rate,
             "error_correction_rate": self.error_correction_rate,
-            # Corner refinement
             "corner_refinement_win_size": self.corner_refinement_win_size,
             "corner_refinement_max_iterations": self.corner_refinement_max_iterations,
             "corner_refinement_min_accuracy": self.corner_refinement_min_accuracy,
-            # PnP quality
             "ransac_iterations": self.ransac_iterations,
             "ransac_reproj_error": self.ransac_reproj_error,
         }
@@ -257,7 +208,6 @@ class ArucoBoardEstimator:
 
     def _apply_detector_params(self):
         """Apply current parameter values to the ArUco detector."""
-        # Corner refinement
         self.detector_params.cornerRefinementWinSize = self.corner_refinement_win_size
         self.detector_params.cornerRefinementMaxIterations = (
             self.corner_refinement_max_iterations
@@ -265,8 +215,6 @@ class ArucoBoardEstimator:
         self.detector_params.cornerRefinementMinAccuracy = (
             self.corner_refinement_min_accuracy
         )
-
-        # Adaptive thresholding
         self.detector_params.adaptiveThreshWinSizeMin = (
             self.adaptive_thresh_win_size_min
         )
@@ -277,8 +225,6 @@ class ArucoBoardEstimator:
             self.adaptive_thresh_win_size_step
         )
         self.detector_params.adaptiveThreshConstant = self.adaptive_thresh_constant
-
-        # Marker detection
         self.detector_params.minMarkerPerimeterRate = self.min_marker_perimeter_rate
         self.detector_params.maxMarkerPerimeterRate = self.max_marker_perimeter_rate
         self.detector_params.polygonalApproxAccuracyRate = (
@@ -286,7 +232,6 @@ class ArucoBoardEstimator:
         )
         self.detector_params.errorCorrectionRate = self.error_correction_rate
 
-        # Recreate the detector with updated parameters
         self.aruco_detector = cv2.aruco.ArucoDetector(
             self.aruco_dict, self.detector_params, self.refine_params
         )
@@ -295,40 +240,31 @@ class ArucoBoardEstimator:
         """Dynamic reconfigure callback - updates parameters at runtime."""
         rospy.loginfo("Reconfigure request received")
 
-        # Preprocessing
         self.clahe_clip_limit = config.clahe_clip_limit
         self.clahe_tile_size = config.clahe_tile_size
         self.blur_strength = config.blur_strength
-        # Ensure blur strength is odd
         if self.blur_strength % 2 == 0:
             self.blur_strength += 1
             config.blur_strength = self.blur_strength
 
-        # Adaptive thresholding
         self.adaptive_thresh_win_size_min = config.adaptive_thresh_win_size_min
         self.adaptive_thresh_win_size_max = config.adaptive_thresh_win_size_max
         self.adaptive_thresh_win_size_step = config.adaptive_thresh_win_size_step
         self.adaptive_thresh_constant = config.adaptive_thresh_constant
 
-        # Marker detection
         self.min_marker_perimeter_rate = config.min_marker_perimeter_rate
         self.max_marker_perimeter_rate = config.max_marker_perimeter_rate
         self.polygonal_approx_accuracy_rate = config.polygonal_approx_accuracy_rate
         self.error_correction_rate = config.error_correction_rate
 
-        # Corner refinement
         self.corner_refinement_win_size = config.corner_refinement_win_size
         self.corner_refinement_max_iterations = config.corner_refinement_max_iterations
         self.corner_refinement_min_accuracy = config.corner_refinement_min_accuracy
 
-        # PnP quality
         self.ransac_iterations = config.ransac_iterations
         self.ransac_reproj_error = config.ransac_reproj_error
 
-        # Apply detector parameters
         self._apply_detector_params()
-
-        # Save parameters to YAML for persistence
         self._save_parameters()
 
         return config
@@ -371,74 +307,58 @@ class ArucoBoardEstimator:
         msg = CompressedImage()
         msg.header.stamp = rospy.Time.now()
         msg.format = "jpeg"
-        if encoding == "mono8":
-            # Grayscale image
-            _, compressed = cv2.imencode(".jpg", cv_image, [cv2.IMWRITE_JPEG_QUALITY, 80])
-        else:
-            # Color image (bgr8)
-            _, compressed = cv2.imencode(".jpg", cv_image, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        _, compressed = cv2.imencode(".jpg", cv_image, [cv2.IMWRITE_JPEG_QUALITY, 80])
         msg.data = compressed.tobytes()
         return msg
 
     def _queue_debug_images(self, debug_img, debug_gray, thresh_img):
         with self._debug_images_lock:
-            self._debug_images = (debug_img.copy(), debug_gray.copy(), thresh_img.copy())
+            self._debug_images = (
+                debug_img.copy(),
+                debug_gray.copy(),
+                thresh_img.copy(),
+            )
         self._debug_images_ready.set()
 
     def _create_competition_board_points(self):
         """
-        Create marker object points for the COMPETITION board with 4 corner markers (800x1200mm panel).
-
-        Coordinate system:
-        - Origin at center of board
-        - X axis: right (along 800mm edge)
-        - Y axis: down (along 1200mm edge)
-        - Z axis: out of the board (towards camera)
-
-        Returns:
-            dict: Marker ID -> numpy array of 4 corner 3D points (4x3)
+        Create marker object points for the board. Coordinate system has origin at
+        board center, X-right, Y-down, Z-out. Returns dict of marker ID to 4x3 corner points.
         """
-        # Competition board constants (redefined here for clarity when this method is used)
-        board_width = 0.800  # 800mm
-        board_height = 1.200  # 1200mm
-        marker_size = 0.150  # 150mm
-        edge_offset = 0.035  # 35mm from edge
-        marker_ids = [28, 7, 19, 96]  # top-left, top-right, bottom-left, bottom-right
+        board_width = 0.800
+        board_height = 1.200
+        marker_size = 0.150
+        edge_offset = 0.035
+        marker_ids = [28, 7, 19, 96]
 
-        half_w = board_width / 2.0  # 0.400m
-        half_h = board_height / 2.0  # 0.600m
+        half_w = board_width / 2.0
+        half_h = board_height / 2.0
 
-        # Marker top-left corner positions (relative to board center)
         marker_positions = {
-            28: (-half_w + edge_offset, -half_h + edge_offset),  # top-left
-            7: (half_w - edge_offset - marker_size, -half_h + edge_offset),  # top-right
-            19: (
-                -half_w + edge_offset,
-                half_h - edge_offset - marker_size,
-            ),  # bottom-left
+            28: (-half_w + edge_offset, -half_h + edge_offset),
+            7: (half_w - edge_offset - marker_size, -half_h + edge_offset),
+            19: (-half_w + edge_offset, half_h - edge_offset - marker_size),
             96: (
                 half_w - edge_offset - marker_size,
                 half_h - edge_offset - marker_size,
-            ),  # bottom-right
+            ),
         }
 
-        # Build objPoints dict: marker ID -> 4 corner 3D coordinates
         # Corner order: top-left, top-right, bottom-right, bottom-left (clockwise)
         marker_obj_points = {}
         for marker_id in marker_ids:
             x, y = marker_positions[marker_id]
             corners = np.array(
                 [
-                    [x, y, 0],  # top-left
-                    [x + marker_size, y, 0],  # top-right
-                    [x + marker_size, y + marker_size, 0],  # bottom-right
-                    [x, y + marker_size, 0],  # bottom-left
+                    [x, y, 0],
+                    [x + marker_size, y, 0],
+                    [x + marker_size, y + marker_size, 0],
+                    [x, y + marker_size, 0],
                 ],
                 dtype=np.float32,
             )
             marker_obj_points[marker_id] = corners
 
-        # Log marker positions for debugging
         rospy.loginfo("COMPETITION BOARD marker positions (relative to center):")
         for marker_id, corners in marker_obj_points.items():
             center = corners.mean(axis=0)
@@ -450,7 +370,6 @@ class ArucoBoardEstimator:
 
     def image_cb(self, msg):
         """Process incoming images and estimate board pose using solvePnP."""
-        # Skip processing if disabled or shutting down
         if not self.enabled or rospy.is_shutdown():
             return
 
@@ -460,22 +379,16 @@ class ArucoBoardEstimator:
             rospy.logerr(f"CV Bridge Error: {e}")
             return
 
-        # Underwater image enhancement: RGB -> LAB -> L channel -> CLAHE
         lab = cv2.cvtColor(cv_image, cv2.COLOR_BGR2LAB)
         l_channel = lab[:, :, 0]
         tile_size = (self.clahe_tile_size, self.clahe_tile_size)
         clahe = cv2.createCLAHE(clipLimit=self.clahe_clip_limit, tileGridSize=tile_size)
         gray = clahe.apply(l_channel)
-
-        # Apply median blur to reduce noise
         gray = cv2.medianBlur(gray, self.blur_strength)
 
-        # Apply adaptive thresholding for debug visualization
-        # Uses the middle window size from the detector parameter range
         thresh_win_size = (
             self.adaptive_thresh_win_size_min + self.adaptive_thresh_win_size_max
         ) // 2
-        # Ensure window size is odd
         if thresh_win_size % 2 == 0:
             thresh_win_size += 1
         thresh_img = cv2.adaptiveThreshold(
@@ -487,12 +400,7 @@ class ArucoBoardEstimator:
             int(self.adaptive_thresh_constant),
         )
 
-        # Detect markers using ArucoDetector (OpenCV 4.7+ API)
         corners, ids, rejected = self.aruco_detector.detectMarkers(gray)
-
-        # Board-aware refinement: uses known board geometry to recover/clean detections
-        # This can recover partially detected markers and improve corner accuracy
-        # Note: RefineParameters are passed to ArucoDetector constructor in OpenCV 4.12+
         corners, ids, rejected, _ = self.aruco_detector.refineDetectedMarkers(
             gray,
             self.board,
@@ -507,11 +415,9 @@ class ArucoBoardEstimator:
         debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
 
         if ids is not None and len(ids) > 0:
-            # Draw detected markers on both debug images
             cv2.aruco.drawDetectedMarkers(debug_img, corners, ids)
             cv2.aruco.drawDetectedMarkers(debug_gray, corners, ids)
 
-            # Collect 3D object points and 2D image points for known board markers
             obj_points_list = []
             img_points_list = []
             matched_ids = []
@@ -526,8 +432,6 @@ class ArucoBoardEstimator:
                 obj_points = np.vstack(obj_points_list).astype(np.float32)
                 img_points = np.vstack(img_points_list).astype(np.float32)
 
-                # Estimate board pose using solvePnPRansac for robustness + refineLM
-                # Use SQPNP (Sequential Quadratic Programming) - more robust to noise than IPPE
                 success, rvec, tvec, inliers = cv2.solvePnPRansac(
                     obj_points,
                     img_points,
@@ -539,7 +443,6 @@ class ArucoBoardEstimator:
                     confidence=0.99,
                 )
 
-                # Check if RANSAC succeeded with valid inliers
                 if (
                     not success
                     or rvec is None
@@ -551,7 +454,6 @@ class ArucoBoardEstimator:
                         1.0,
                         "solvePnPRansac failed or returned no inliers, skipping pose",
                     )
-                    # Draw status text and continue without publishing
                     cv2.putText(
                         debug_img,
                         f"RANSAC failed ({len(matched_ids)} markers)",
@@ -571,7 +473,6 @@ class ArucoBoardEstimator:
                         2,
                     )
                 else:
-                    # Refine pose with Levenberg-Marquardt optimization (using inliers only)
                     inlier_indices = inliers.flatten()
                     inlier_obj_points = obj_points[inlier_indices]
                     inlier_img_points = img_points[inlier_indices]
@@ -584,7 +485,6 @@ class ArucoBoardEstimator:
                         tvec,
                     )
 
-                    # Visualize corners: green = inlier, red = RANSAC outlier
                     inlier_set = set(inlier_indices)
                     for idx, pt in enumerate(img_points):
                         pt_int = tuple(pt.astype(int))
@@ -597,17 +497,11 @@ class ArucoBoardEstimator:
                             cv2.circle(debug_img, pt_int, 5, (0, 0, 255), 2)
                             cv2.circle(debug_gray, pt_int, 5, (0, 0, 255), 2)
 
-
-                    # Publish transform (so TF server can filter it)
                     self.publish_board_transform(rvec, tvec, msg.header)
-
-                    # Publish board detected signal
                     self.board_detected_pub.publish(Bool(data=True))
 
-                    # Draw raw detected pose axes (suppress warning when axes are out of frame)
-                    # Log levels: 0=SILENT, 2=ERROR, 3=WARNING(default)
                     prev_log_level = cv2.getLogLevel()
-                    cv2.setLogLevel(2)  # ERROR level - suppresses warnings
+                    cv2.setLogLevel(2)
                     cv2.drawFrameAxes(
                         debug_img,
                         self.camera_matrix,
@@ -627,7 +521,7 @@ class ArucoBoardEstimator:
                     cv2.setLogLevel(prev_log_level)
 
                     dist = np.linalg.norm(tvec)
-                    info_text = f"BOARD DETECTED ({len(matched_ids)} markers, {len(inlier_indices)}/{len(img_points)} corners) Dist: {dist:.2f}m"
+                    info_text = f"BOARD ({len(matched_ids)} markers, {len(inlier_indices)}/{len(img_points)} corners) {dist:.2f}m"
                     cv2.putText(
                         debug_img,
                         info_text,
@@ -646,8 +540,6 @@ class ArucoBoardEstimator:
                         (0, 255, 0),
                         2,
                     )
-
-                    # Show detected marker IDs
                     cv2.putText(
                         debug_img,
                         f"IDs: {sorted(matched_ids)}",
@@ -667,7 +559,6 @@ class ArucoBoardEstimator:
                         2,
                     )
             else:
-                # Detected markers but none are part of our board
                 detected_ids = sorted(ids.flatten().tolist())
                 cv2.putText(
                     debug_img,
@@ -710,14 +601,8 @@ class ArucoBoardEstimator:
         self._queue_debug_images(debug_img, debug_gray, thresh_img)
 
     def publish_board_transform(self, rvec, tvec, header):
-        """
-        Publish the board pose as a transform.
-        The pose represents the board center relative to the camera.
-        """
-        # Convert rotation vector to quaternion
+        """Publish the board pose as a transform relative to the camera."""
         rot_mat, _ = cv2.Rodrigues(rvec)
-
-        # Create 4x4 homogeneous matrix
         transform_matrix = np.eye(4)
         transform_matrix[0:3, 0:3] = rot_mat
         transform_matrix[0:3, 3] = tvec.flatten()
@@ -725,17 +610,13 @@ class ArucoBoardEstimator:
         rot_x_180 = tf.transformations.rotation_matrix(np.pi, [1, 0, 0])
         transform_matrix = transform_matrix @ rot_x_180
 
-        # Get quaternion
         quat = tf.transformations.quaternion_from_matrix(transform_matrix)
 
-        # Force horizontal orientation: keep only yaw, set roll=π, pitch=0
-        # Board is known to be flat on pool floor, so we trust position but not tilt
-        # Roll=π flips Z-axis to point up (toward camera) instead of down
+        # Force horizontal: board is flat on pool floor, keep only yaw
         euler = tf.transformations.euler_from_quaternion(quat)
-        yaw = euler[2]  # Keep yaw (rotation around Z-axis)
+        yaw = euler[2]
         quat = tf.transformations.quaternion_from_euler(np.pi, 0.0, yaw)
 
-        # Create TransformStamped message
         transform_stamped = TransformStamped()
         transform_stamped.header.stamp = header.stamp
         transform_stamped.header.frame_id = self.camera_frame
@@ -748,16 +629,12 @@ class ArucoBoardEstimator:
             quat[0], quat[1], quat[2], quat[3]
         )
 
-        # Check shutdown to avoid publish-to-closed-topic error on Ctrl+C
         if rospy.is_shutdown():
             return
 
-        # Skip if same timestamp as last publish to avoid TF_REPEATED_DATA warnings
         if header.stamp == self.last_published_stamp:
             return
         self.last_published_stamp = header.stamp
-
-
 
         pose_stamped = PoseStamped()
         pose_stamped.header = transform_stamped.header
@@ -765,7 +642,6 @@ class ArucoBoardEstimator:
         pose_stamped.pose.orientation = transform_stamped.transform.rotation
         self.pose_pub.publish(pose_stamped)
 
-        # Transform to odom frame and publish
         try:
             transformed_pose = self.tf_buffer.transform(
                 pose_stamped, "odom", rospy.Duration(1.0)
@@ -779,7 +655,6 @@ class ArucoBoardEstimator:
 
             self.object_transform_pub.publish(odom_transform)
 
-            # Debug: Log position in odom frame
             pos = transformed_pose.pose.position
             rospy.loginfo_throttle(
                 0.5,

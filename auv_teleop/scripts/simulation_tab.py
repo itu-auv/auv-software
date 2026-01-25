@@ -37,7 +37,6 @@ class SimulationTab(QWidget):
         smach_group = QGroupBox("State Machine")
         smach_layout = QVBoxLayout()
 
-        # Competition selector row
         competition_row = QHBoxLayout()
         competition_label = QLabel("Competition:")
         self.competition_combo = QComboBox()
@@ -46,7 +45,6 @@ class SimulationTab(QWidget):
         competition_row.addWidget(self.competition_combo)
         competition_row.addStretch()
 
-        # TAC task selector (initially hidden)
         self.tac_task_label = QLabel("Task:")
         self.tac_task_combo = QComboBox()
         self.tac_task_combo.addItems(["docking"])
@@ -55,7 +53,6 @@ class SimulationTab(QWidget):
         self.tac_task_label.hide()
         self.tac_task_combo.hide()
 
-        # Control row
         control_row = QHBoxLayout()
         self.smach_start = QPushButton("Launch SMACH")
         self.test_check = QCheckBox("Test Mode")
@@ -64,7 +61,6 @@ class SimulationTab(QWidget):
         control_row.addWidget(self.test_check)
         control_row.addWidget(self.smach_stop)
 
-        # RoboSub state checkboxes
         self.robosub_state_row = QHBoxLayout()
         self.robosub_states = ["init", "gate", "slalom", "torpedo", "bin", "octagon"]
         self.robosub_state_checks = {
@@ -73,14 +69,12 @@ class SimulationTab(QWidget):
         for cb in self.robosub_state_checks.values():
             self.robosub_state_row.addWidget(cb)
 
-        # TAC state checkboxes (initially hidden)
         self.tac_state_row = QHBoxLayout()
         self.tac_states = ["init", "docking"]
         self.tac_state_checks = {state: QCheckBox(state) for state in self.tac_states}
         for cb in self.tac_state_checks.values():
             self.tac_state_row.addWidget(cb)
 
-        # Wrapper widgets for showing/hiding state rows
         self.robosub_state_widget = QWidget()
         self.robosub_state_widget.setLayout(self.robosub_state_row)
 
@@ -98,7 +92,6 @@ class SimulationTab(QWidget):
         layout.addWidget(smach_group)
         self.setLayout(layout)
 
-        # Connect signals
         self.detect_start.clicked.connect(self.start_detection)
         self.detect_stop.clicked.connect(self.stop_detection)
         self.smach_start.clicked.connect(self.start_smach)
@@ -119,19 +112,16 @@ class SimulationTab(QWidget):
             self.tac_state_widget.show()
             self.tac_task_label.show()
             self.tac_task_combo.show()
-        # Re-apply test mode state
         self.toggle_state_checks(
             Qt.Checked if self.test_check.isChecked() else Qt.Unchecked
         )
 
     def toggle_state_checks(self, state):
         enabled = state == Qt.Checked
-        # Toggle RoboSub state checks
         for cb in self.robosub_state_checks.values():
             cb.setEnabled(enabled)
             if not enabled:
                 cb.setChecked(False)
-        # Toggle TAC state checks
         for cb in self.tac_state_checks.values():
             cb.setEnabled(enabled)
             if not enabled:
@@ -169,11 +159,7 @@ class SimulationTab(QWidget):
         if competition == "robosub":
             if self.test_check.isChecked():
                 states = ",".join(
-                    [
-                        s
-                        for s, cb in self.robosub_state_checks.items()
-                        if cb.isChecked()
-                    ]
+                    [s for s, cb in self.robosub_state_checks.items() if cb.isChecked()]
                 )
                 cmd.append("test_mode:=true")
                 cmd.append(f"test_states:={states}")

@@ -17,12 +17,6 @@ from auv_smach.initialize import DelayState
 
 
 class WaitForBoardDetectionState(smach.State):
-    """
-    Monitors the ArUco board detection topic and transitions when the board is detected.
-
-    This state only monitors - frame publishing is handled by docking_frame_publisher.py.
-    """
-
     def __init__(
         self,
         board_detected_topic: str = "/aruco_board_estimator/board_detected",
@@ -41,19 +35,16 @@ class WaitForBoardDetectionState(smach.State):
         self.board_detected = False
         rate = rospy.Rate(self.rate_hz)
 
-        # Subscribe to board detection
         board_sub = rospy.Subscriber(
             self.board_detected_topic, Bool, self._board_detected_cb
         )
 
         try:
             while not rospy.is_shutdown():
-                # Check for preemption
                 if self.preempt_requested():
                     self.service_preempt()
                     return "preempted"
 
-                # Check if board detected
                 if self.board_detected:
                     rospy.loginfo("Board detected! Transitioning to Phase B.")
                     return "succeeded"
@@ -67,8 +58,6 @@ class WaitForBoardDetectionState(smach.State):
 
 
 class ToggleDockingApproachFrameState(smach_ros.ServiceState):
-    """Enable or disable the Phase A approach frame publisher."""
-
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
@@ -79,8 +68,6 @@ class ToggleDockingApproachFrameState(smach_ros.ServiceState):
 
 
 class ToggleDockingTrajectoryState(smach_ros.ServiceState):
-    """Enable or disable the docking trajectory frame publisher."""
-
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
@@ -91,26 +78,6 @@ class ToggleDockingTrajectoryState(smach_ros.ServiceState):
 
 
 class DockingTaskState(smach.State):
-    """
-    Main state machine for the Subsea Docking Mission.
-
-    Workflow:
-    Phase A - Approach (Front Camera with YOLO):
-    - SET_DOCKING_FOCUS: Set detection focus to docking station
-    - SET_SEARCH_DEPTH: Set depth for optimal front camera visibility
-    - SEARCH_FOR_STATION: Rotate until docking_station_link TF is found,
-      then set alignment frame facing the docking station
-    - APPROACH_DOCKING: Align toward docking_station_link until
-      docking_station TF (ArUco) appears
-
-    Phase B - ArUco Precision Docking (Bottom Camera):
-    - ALIGN_ABOVE_STATION: Align puck to approach target (1m above docking station)
-    - STOP_ESTIMATOR: Stop the pose estimator (Kalman filter holds pose)
-    - DOCK: Descend and dock with precision alignment
-    - WAIT_FOR_DOCK: Hold position to demonstrate docking
-    - CANCEL_ALIGN: Cleanup
-    """
-
     def __init__(
         self,
         search_depth: float = -0.3,
@@ -122,12 +89,15 @@ class DockingTaskState(smach.State):
         )
 
         with self.state_machine:
+<<<<<<< HEAD
             # ============================================================
             # PHASE A: Approach (Front Camera)
             # Uses SearchForPropState + AlignFrameUntilTF from common.py
             # ============================================================
 
             # Set ID remapping for docking model (class 0 -> internal ID 8)
+=======
+>>>>>>> cleaned up comments
             smach.StateMachine.add(
                 "SET_ID_REMAP",
                 SetIdRemapState(id_remap_json='{"0": 8}'),
@@ -138,7 +108,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Set detection focus to docking station
             smach.StateMachine.add(
                 "SET_DOCKING_FOCUS",
                 SetDetectionFocusState(focus_object="docking"),
@@ -149,7 +118,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Set depth for searching (can see docking station from distance)
             smach.StateMachine.add(
                 "SET_SEARCH_DEPTH",
                 SetDepthState(depth=search_depth, sleep_duration=3.0),
@@ -160,7 +128,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Rotate until docking station is detected in camera
             smach.StateMachine.add(
                 "SEARCH_FOR_STATION",
                 SearchForPropState(
@@ -177,7 +144,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Enable approach frame publisher (docking_station_approach)
             smach.StateMachine.add(
                 "ENABLE_DOCKING_APPROACH_FRAME",
                 ToggleDockingApproachFrameState(req=True),
@@ -188,7 +154,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Start alignment toward the approach frame (published by docking_frame_publisher)
             smach.StateMachine.add(
                 "START_APPROACH_ALIGN",
                 SetAlignControllerTargetState(
@@ -204,7 +169,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Wait for ArUco board detection
             smach.StateMachine.add(
                 "WAIT_FOR_BOARD_DETECTION",
                 WaitForBoardDetectionState(
@@ -218,7 +182,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Disable approach frame publisher
             smach.StateMachine.add(
                 "DISABLE_DOCKING_APPROACH_FRAME",
                 ToggleDockingApproachFrameState(req=False),
@@ -229,7 +192,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Cancel alignment after approach
             smach.StateMachine.add(
                 "CANCEL_APPROACH_ALIGN",
                 CancelAlignControllerState(),
@@ -240,11 +202,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # ============================================================
-            # PHASE B: ArUco Precision Docking (Bottom Camera)
-            # ============================================================
-
-            # Enable docking trajectory frame publisher
             smach.StateMachine.add(
                 "ENABLE_DOCKING_TRAJECTORY",
                 ToggleDockingTrajectoryState(req=True),
@@ -255,7 +212,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Align to approach position (XY + yaw + depth, 1m above station)
             smach.StateMachine.add(
                 "ALIGN_ABOVE_STATION",
                 AlignFrame(
@@ -279,7 +235,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Stop the pose estimator (Kalman filter will hold the last pose)
             def disable_estimator_cb(userdata):
                 try:
                     srv = rospy.ServiceProxy(
@@ -300,7 +255,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Align to final docking position (XY + yaw + depth)
             smach.StateMachine.add(
                 "DOCK",
                 AlignFrame(
@@ -324,7 +278,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Wait/Show Docking
             smach.StateMachine.add(
                 "WAIT_FOR_DOCK",
                 DelayState(delay_time=30.0),
@@ -335,7 +288,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Cleanup
             smach.StateMachine.add(
                 "CANCEL_ALIGN",
                 CancelAlignControllerState(),
@@ -346,7 +298,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            # Disable docking trajectory frame publisher
             smach.StateMachine.add(
                 "DISABLE_DOCKING_TRAJECTORY",
                 ToggleDockingTrajectoryState(req=False),
@@ -369,5 +320,4 @@ class DockingTaskState(smach.State):
             )
 
     def execute(self, userdata):
-        #self.state_machine.set_initial_state(["CANCEL_APPROACH_ALIGN"])
         return self.state_machine.execute(userdata)

@@ -28,21 +28,17 @@ class DockingFramePublisher:
     def __init__(self):
         rospy.init_node("docking_frame_publisher")
 
-        # Enable flags for different frame types
-        self.trajectory_enabled = False  # Phase B: ArUco-based target frames
-        self.approach_frame_enabled = False  # Phase A: YOLO-based approach frame
+        self.trajectory_enabled = False
+        self.approach_frame_enabled = False
 
-        # TF2 buffer for frame lookups
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        # Service proxy to set object transforms (provided by object_map_tf_server_node)
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
         self.set_object_transform_service.wait_for_service()
 
-        # Frame configuration - Phase B (ArUco-based)
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.parent_frame = rospy.get_param("~parent_frame", "docking_station")
         self.approach_target_frame = rospy.get_param(
@@ -52,7 +48,6 @@ class DockingFramePublisher:
             "~puck_target_frame", "docking_puck_target"
         )
 
-        # Frame configuration - Phase A (YOLO-based)
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
         self.docking_station_frame = rospy.get_param(
             "~docking_station_frame", "docking_station_link"
@@ -61,7 +56,6 @@ class DockingFramePublisher:
             "~station_approach_frame", "docking_station_approach"
         )
 
-        # Default offsets (will be updated by dynamic reconfigure)
         self.approach_offset_x = 0.0
         self.approach_offset_y = 0.0
         self.approach_offset_z = 1.0
@@ -69,12 +63,10 @@ class DockingFramePublisher:
         self.puck_offset_y = 0.0
         self.puck_offset_z = 0.5
 
-        # Dynamic reconfigure server
         self.reconfigure_server = Server(
             DockingTrajectoryConfig, self.reconfigure_callback
         )
 
-        # Enable/disable services
         self.toggle_trajectory_service = rospy.Service(
             "toggle_docking_trajectory", SetBool, self.handle_toggle_trajectory_service
         )
@@ -87,7 +79,6 @@ class DockingFramePublisher:
         rospy.loginfo("Docking Frame Publisher initialized")
 
     def reconfigure_callback(self, config, level):
-        """Callback for dynamic reconfigure parameters."""
         self.approach_offset_x = config.approach_offset_x
         self.approach_offset_y = config.approach_offset_y
         self.approach_offset_z = config.approach_offset_z
@@ -98,21 +89,22 @@ class DockingFramePublisher:
         return config
 
     def handle_toggle_trajectory_service(self, req):
-        """Service callback to enable/disable Phase B (ArUco) trajectory frames."""
         self.trajectory_enabled = req.data
-        message = f"Docking trajectory frame publishing set to: {self.trajectory_enabled}"
+        message = (
+            f"Docking trajectory frame publishing set to: {self.trajectory_enabled}"
+        )
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
     def handle_toggle_approach_frame_service(self, req):
-        """Service callback to enable/disable Phase A (YOLO) approach frame."""
         self.approach_frame_enabled = req.data
-        message = f"Docking approach frame publishing set to: {self.approach_frame_enabled}"
+        message = (
+            f"Docking approach frame publishing set to: {self.approach_frame_enabled}"
+        )
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
     def get_pose(self, transform: TransformStamped) -> Pose:
-        """Convert a TransformStamped to a Pose."""
         pose = Pose()
         pose.position = transform.transform.translation
         pose.orientation = transform.transform.rotation
@@ -121,7 +113,6 @@ class DockingFramePublisher:
     def build_transform_message(
         self, child_frame_id: str, pose: Pose, stamp: rospy.Time
     ) -> TransformStamped:
-        """Build a TransformStamped message."""
         t = TransformStamped()
         t.header.stamp = stamp
         t.header.frame_id = self.odom_frame
@@ -131,7 +122,6 @@ class DockingFramePublisher:
         return t
 
     def send_transform(self, transform: TransformStamped):
-        """Send transform via the set_object_transform service."""
         req = SetObjectTransformRequest()
         req.transform = transform
         try:
@@ -146,10 +136,6 @@ class DockingFramePublisher:
     def apply_offset_to_pose(
         self, base_pose: Pose, offset_x: float, offset_y: float, offset_z: float
     ) -> Pose:
-        """
-        Apply an offset to a pose. The offset is in the parent frame's coordinate system.
-        Since docking_station is oriented with Z pointing up, offsets are straightforward.
-        """
         new_pose = Pose()
         new_pose.position.x = base_pose.position.x + offset_x
         new_pose.position.y = base_pose.position.y + offset_y
@@ -158,9 +144,7 @@ class DockingFramePublisher:
         return new_pose
 
     def publish_docking_frames(self):
-        """Publish the docking target frames relative to docking_station."""
         try:
-            # Look up docking_station transform in odom frame
             docking_station_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.parent_frame,
@@ -179,7 +163,6 @@ class DockingFramePublisher:
 
         base_pose = self.get_pose(docking_station_tf)
 
-        # Create approach target frame
         approach_pose = self.apply_offset_to_pose(
             base_pose,
             self.approach_offset_x,
@@ -191,7 +174,6 @@ class DockingFramePublisher:
         )
         self.send_transform(approach_transform)
 
-        # Create puck target frame
         puck_pose = self.apply_offset_to_pose(
             base_pose,
             self.puck_offset_x,
@@ -204,17 +186,7 @@ class DockingFramePublisher:
         self.send_transform(puck_transform)
 
     def publish_approach_frame(self):
-        """
-        Publish approach frame for Phase A (YOLO-based docking approach).
-
-        Creates a frame at docking_station_link position with orientation
-        facing from the robot toward the station. This allows the AUV to
-        approach while facing the target.
-
-        Pattern follows torpedo_frame_publisher.py create_target_frame().
-        """
         try:
-            # Look up robot and docking station positions in odom frame
             robot_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.robot_frame,
@@ -232,12 +204,9 @@ class DockingFramePublisher:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(
-                5.0, f"TF lookup for approach frame failed: {e}"
-            )
+            rospy.logwarn_throttle(5.0, f"TF lookup for approach frame failed: {e}")
             return
 
-        # Get positions
         robot_pos = np.array(
             [
                 robot_tf.transform.translation.x,
@@ -251,22 +220,18 @@ class DockingFramePublisher:
             ]
         )
 
-        # Compute direction from robot to station
         direction = station_pos - robot_pos
         distance = np.linalg.norm(direction)
 
         if distance < 0.01:
-            # Too close, skip publishing to avoid division by zero
             rospy.logwarn_throttle(
                 5.0, "Robot and station too close, skipping approach frame"
             )
             return
 
-        # Compute yaw angle facing toward the station
         facing_yaw = np.arctan2(direction[1], direction[0])
         quaternion = tf.transformations.quaternion_from_euler(0, 0, facing_yaw)
 
-        # Create pose at station position with facing orientation
         approach_pose = Pose()
         approach_pose.position.x = station_tf.transform.translation.x
         approach_pose.position.y = station_tf.transform.translation.y
@@ -276,15 +241,13 @@ class DockingFramePublisher:
         approach_pose.orientation.z = quaternion[2]
         approach_pose.orientation.w = quaternion[3]
 
-        # Build and send transform
         approach_transform = self.build_transform_message(
             self.station_approach_frame, approach_pose, station_tf.header.stamp
         )
         self.send_transform(approach_transform)
 
     def spin(self):
-        """Main loop."""
-        rate = rospy.Rate(10.0)  # 10 Hz
+        rate = rospy.Rate(10.0)
         while not rospy.is_shutdown():
             if self.trajectory_enabled:
                 self.publish_docking_frames()
