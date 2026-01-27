@@ -61,6 +61,7 @@ class VisualServoingNode:
         self.service_start_time = None
         self.last_detection_time = None
         self.debug_stream_enabled = False
+        self.seg_debug_enabled = False
         self.rgb_buffer: Dict[float, Tuple[np.ndarray, Header]] = {}
         self.rgb_buffer_lock = threading.Lock()
         self.rgb_buffer_max_age = 3.6
@@ -112,6 +113,16 @@ class VisualServoingNode:
             "visual_servoing/debug/compressed", CompressedImage, queue_size=1
         )
 
+        self.seg_components_pub = rospy.Publisher(
+            "seg_debug/components", CompressedImage, queue_size=1
+        )
+        self.seg_pairing_pub = rospy.Publisher(
+            "seg_debug/pairing", CompressedImage, queue_size=1
+        )
+        self.seg_detections_pub = rospy.Publisher(
+            "seg_debug/detections", CompressedImage, queue_size=1
+        )
+
         rospy.Service("visual_servoing/start_servoing", VisualServoing, self._srv_start)
         rospy.Service("visual_servoing/cancel_servoing", Trigger, self._srv_cancel)
         rospy.Service("visual_servoing/navigate", Trigger, self._srv_navigate)
@@ -119,6 +130,11 @@ class VisualServoingNode:
             "visual_servoing/toggle_debug_stream",
             Trigger,
             self._srv_toggle_debug_stream,
+        )
+        rospy.Service(
+            "visual_servoing/toggle_seg_debug",
+            Trigger,
+            self._srv_toggle_seg_debug,
         )
 
     def _setup_dynamic_reconfigure(self):
@@ -197,6 +213,20 @@ class VisualServoingNode:
             except Exception as e:
                 rospy.logerr_throttle(5.0, f"[VS] Debug worker error: {e}")
 
+    def _publish_debug_img(self, publisher, img, header):
+        if img is None:
+            return
+        try:
+            msg = CompressedImage()
+            msg.header = header
+            msg.format = "jpeg"
+            msg.data = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 70])[
+                1
+            ].tobytes()
+            publisher.publish(msg)
+        except Exception as e:
+            rospy.logerr_throttle(5.0, f"[VS] Debug img publish error: {e}")
+
     def _depth_worker(self):
         while not rospy.is_shutdown():
             with self.depth_cond:
@@ -216,13 +246,27 @@ class VisualServoingNode:
 
             try:
                 depth = self.bridge.imgmsg_to_cv2(msg, "32FC1")
-                result = self.segmentor.process(depth, return_debug=False)
+                result = self.segmentor.process(
+                    depth, return_debug=self.seg_debug_enabled
+                )
                 detections = result.get("detections", [])
                 mask = result.get("mask")
                 rospy.loginfo_throttle(
                     5.0,
                     f"[VS DEBUG] depth={depth.shape}, mask={mask.shape if mask is not None else None}",
                 )
+
+                if self.seg_debug_enabled:
+                    header = msg.header
+                    self._publish_debug_img(
+                        self.seg_components_pub, result.get("debug_components"), header
+                    )
+                    self._publish_debug_img(
+                        self.seg_pairing_pub, result.get("debug_pairing"), header
+                    )
+                    self._publish_debug_img(
+                        self.seg_detections_pub, result.get("debug_detections"), header
+                    )
 
                 # TODO remove - debug pipe detections
                 if detections:
@@ -386,6 +430,16 @@ class VisualServoingNode:
             "Debug stream enabled"
             if self.debug_stream_enabled
             else "Debug stream disabled"
+        )
+        rospy.loginfo(f"[VS] {msg}")
+        return TriggerResponse(success=True, message=msg)
+
+    def _srv_toggle_seg_debug(self, req) -> TriggerResponse:
+        self.seg_debug_enabled = not self.seg_debug_enabled
+        msg = (
+            "Segmentation debug enabled"
+            if self.seg_debug_enabled
+            else "Segmentation debug disabled"
         )
         rospy.loginfo(f"[VS] {msg}")
         return TriggerResponse(success=True, message=msg)

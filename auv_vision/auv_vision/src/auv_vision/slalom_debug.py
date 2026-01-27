@@ -136,5 +136,4 @@ def create_slalom_debug(
     cv2.circle(vis, (mid_x, mid_y), 15, (0, 0, 255), 3)
     cv2.circle(vis, (mid_x, mid_y), 5, (0, 0, 255), -1)
 
-    _draw_minimap(vis, all_detections, selected_pair)
     return vis

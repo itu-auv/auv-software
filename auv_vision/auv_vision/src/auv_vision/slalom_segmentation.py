@@ -31,11 +31,12 @@ class SlalomSegmentor:
 
         # Filtering constraints
         self.min_aspect_ratio = 10.0
-        self.min_length_ratio = 0.05  # min 5% of image height
+        self.min_length_ratio = 0.05
+        self.min_area_ratio = 0.00013
 
         # Pairing constraints
-        self.max_pipe_width = 80  # pixels
-        self.min_vertical_overlap = 0.5  # overlap ratio for pairing
+        self.max_pipe_width_ratio = 0.167  # ~80px for 480px width
+        self.min_vertical_overlap = 0.5
 
     def pixel_to_yaw(self, pixel_x: float, image_width: int) -> float:
         if self.fx is not None and self.cx is not None:
@@ -70,25 +71,45 @@ class SlalomSegmentor:
         blue_binary = enhanced[:, :, 0]
         red_binary = enhanced[:, :, 2]
 
-        blue_comps = self._filter_edge_components(blue_binary, h)
-        red_comps = self._filter_edge_components(red_binary, h)
+        blue_valid, blue_rejected = self._filter_edge_components(blue_binary, h)
+        red_valid, red_rejected = self._filter_edge_components(red_binary, h)
 
         # 3. Pair Edges & Generate Mask
-        mask = self._pair_components(blue_comps, red_comps, (h, w))
+        mask, paired_blues, paired_reds, unpaired_blues, unpaired_reds = (
+            self._pair_components(blue_valid, red_valid, (h, w))
+        )
 
         # 4. Generate Detections
-        detections = self._extract_detections(mask, depth)
+        detections, rejected_contours = self._extract_detections(mask, depth)
 
         result = {"mask": mask, "detections": detections, "pipe_count": len(detections)}
 
         if return_debug:
             # Create debug visualization
-            debug_vis = self._create_debug_vis(enhanced, blue_comps, red_comps, mask)
+            debug_vis = self._create_debug_vis(enhanced, blue_valid, red_valid, mask)
+
+            debug_components = self._draw_component_debug(
+                enhanced.copy(), blue_valid, blue_rejected, red_valid, red_rejected, h
+            )
+            debug_pairing = self._draw_pairing_debug(
+                enhanced.copy(),
+                paired_blues,
+                paired_reds,
+                unpaired_blues,
+                unpaired_reds,
+            )
+            debug_detections = self._draw_detection_debug(
+                enhanced.copy(), mask, detections, rejected_contours
+            )
+
             result.update(
                 {
                     "grad_signed": grad_signed,
                     "enhanced": enhanced,
                     "debug_vis": debug_vis,
+                    "debug_components": debug_components,
+                    "debug_pairing": debug_pairing,
+                    "debug_detections": debug_detections,
                 }
             )
 
@@ -105,10 +126,8 @@ class SlalomSegmentor:
         else:
             normalized = ((depth - d_min) / (d_max - d_min) * 255).astype(np.uint8)
 
-        # Sobel X
         grad_x = cv2.Sobel(normalized, cv2.CV_64F, 1, 0, ksize=3)
 
-        # Create signed visualization (Blue=Left, Red=Right)
         grad_norm = grad_x / (np.abs(grad_x).max() + 1e-8)
         blue_ch = (np.clip(-grad_norm, 0, 1) * 255).astype(np.uint8)
         red_ch = (np.clip(grad_norm, 0, 1) * 255).astype(np.uint8)
@@ -137,30 +156,28 @@ class SlalomSegmentor:
 
     def _filter_edge_components(
         self, binary_img: np.ndarray, img_height: int
-    ) -> List[Dict]:
+    ) -> Tuple[List[Dict], List[Dict]]:
         """
         Find connected components and filter by rotated bbox aspect ratio.
-        Returns list of valid component dicts.
+        Returns (valid_comps, rejected_comps) with rejection reasons.
         """
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(
             binary_binary := (binary_img > 0).astype(np.uint8) * 255
         )
 
         valid_comps = []
+        rejected_comps = []
         min_len_px = img_height * self.min_length_ratio
 
         for i in range(1, num_labels):
-            # Get component mask
             comp_mask = (labels == i).astype(np.uint8) * 255
 
-            # Find contours to get rotated bbox
             contours, _ = cv2.findContours(
                 comp_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
             )
             if not contours:
                 continue
 
-            # MinAreaRect for robust AR calculation
             rect = cv2.minAreaRect(contours[0])
             (cx, cy), (w, h), angle = rect
 
@@ -168,57 +185,65 @@ class SlalomSegmentor:
             thickness = min(w, h) + 1e-8
             ar = length / thickness
 
-            if ar >= self.min_aspect_ratio and length >= min_len_px:
-                # Also get axis-aligned bounds for faster layout logic later
-                x, y, bw, bh, area = stats[i]
-                valid_comps.append(
-                    {
-                        "id": i,
-                        "mask": comp_mask,
-                        "x": x,
-                        "y": y,
-                        "w": bw,
-                        "h": bh,
-                        "cx": cx,
-                        "cy": cy,
-                        "rect": rect,
-                    }
-                )
+            x, y, bw, bh, area = stats[i]
+            comp_info = {
+                "id": i,
+                "mask": comp_mask,
+                "x": x,
+                "y": y,
+                "w": bw,
+                "h": bh,
+                "cx": cx,
+                "cy": cy,
+                "rect": rect,
+                "ar": ar,
+                "length": length,
+            }
 
-        # Sort by x coordinate
+            if ar < self.min_aspect_ratio:
+                comp_info["reject_reason"] = "AR_LOW"
+                rejected_comps.append(comp_info)
+            elif length < min_len_px:
+                comp_info["reject_reason"] = "LEN_SHORT"
+                rejected_comps.append(comp_info)
+            else:
+                valid_comps.append(comp_info)
+
         valid_comps.sort(key=lambda c: c["x"])
-        return valid_comps
+        return valid_comps, rejected_comps
 
     def _pair_components(
         self, blues: List[Dict], reds: List[Dict], shape: Tuple[int, int]
-    ) -> np.ndarray:
-        """Pair blue (left) and red (right) components to create pipe mask."""
+    ) -> Tuple[np.ndarray, List[Dict], List[Dict], List[Dict], List[Dict]]:
+        """
+        Pair blue (left) and red (right) components to create pipe mask.
+        Returns (mask, paired_blues, paired_reds, unpaired_blues, unpaired_reds)
+        """
         mask = np.zeros(shape, dtype=np.uint8)
+        max_pipe_width = int(shape[1] * self.max_pipe_width_ratio)
 
+        used_blues = set()
         used_reds = set()
+        paired_blues = []
+        paired_reds = []
 
         for b in blues:
             best_r = None
-            min_dist = self.max_pipe_width + 1
+            min_dist = max_pipe_width + 1
 
-            # Find closest red component to the right
             for r in reds:
                 if r["id"] in used_reds:
                     continue
 
-                # Basic position check: Red must be to the right of Blue
-                # Using centroids for robustness
                 if r["cx"] <= b["cx"]:
                     continue
 
-                dist = r["x"] - (b["x"] + b["w"])  # gap distance
+                dist = r["x"] - (b["x"] + b["w"])
 
-                # Check constraints
                 if dist < 0:
-                    dist = 0  # overlap
+                    dist = 0
 
-                if dist < min_dist and dist < self.max_pipe_width:
-                    # Check vertical alignment (y-overlap)
+                if dist < min_dist and dist < max_pipe_width:
                     y_start = max(b["y"], r["y"])
                     y_end = min(b["y"] + b["h"], r["y"] + r["h"])
                     overlap_h = y_end - y_start
@@ -229,11 +254,16 @@ class SlalomSegmentor:
                         best_r = r
 
             if best_r:
+                used_blues.add(b["id"])
                 used_reds.add(best_r["id"])
-                # Fill between components
+                paired_blues.append(b)
+                paired_reds.append(best_r)
                 self._fill_between(mask, b["mask"], best_r["mask"])
 
-        return mask
+        unpaired_blues = [b for b in blues if b["id"] not in used_blues]
+        unpaired_reds = [r for r in reds if r["id"] not in used_reds]
+
+        return mask, paired_blues, paired_reds, unpaired_blues, unpaired_reds
 
     def _fill_between(
         self, canvas: np.ndarray, left_mask: np.ndarray, right_mask: np.ndarray
@@ -263,29 +293,40 @@ class SlalomSegmentor:
 
     def _extract_detections(
         self, mask: np.ndarray, depth: np.ndarray
-    ) -> List[PipeDetection]:
-        """Extract bbox and metadata from final mask using MODE depth."""
+    ) -> Tuple[List[PipeDetection], List[Dict]]:
+        """
+        Extract bbox and metadata from final mask.
+        Returns (detections, rejected_contours)
+        """
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         detections = []
+        rejected_contours = []
         h, w = mask.shape
+        min_area = self.min_area_ratio * h * w
 
         for cnt in contours:
             area = cv2.contourArea(cnt)
-            if area < 100:  # Min area filter for final blobs
-                continue
-
             x, y, bw, bh = cv2.boundingRect(cnt)
+
+            if area < min_area:
+                rejected_contours.append(
+                    {
+                        "contour": cnt,
+                        "bbox": (x, y, bw, bh),
+                        "area": area,
+                        "reject_reason": "AREA_TOO_SMALL",
+                    }
+                )
+                continue
 
             cx = x + bw / 2
             cy = y + bh / 2
             yaw_x = self.pixel_to_yaw(cx, w)
             norm_cy = (cy / h - 0.5) * 2
 
-            # Create a mask for just this contour
             contour_mask = np.zeros((h, w), dtype=np.uint8)
             cv2.drawContours(contour_mask, [cnt], -1, 255, -1)
 
-            # Extract depth values within this pipe's mask
             pipe_depths = depth[contour_mask > 0]
 
             if pipe_depths.size > 0:
@@ -303,7 +344,7 @@ class SlalomSegmentor:
                 )
             )
 
-        return detections
+        return detections, rejected_contours
 
     def _create_debug_vis(self, enhanced, blues, reds, mask):
         """Create visualization of intermediate steps."""
@@ -320,5 +361,213 @@ class SlalomSegmentor:
 
         # Overlay mask
         vis[:, :, 1] = np.maximum(vis[:, :, 1], mask // 2)
+
+        return vis
+
+    def _draw_component_debug(
+        self,
+        base_img: np.ndarray,
+        blue_valid: List[Dict],
+        blue_rejected: List[Dict],
+        red_valid: List[Dict],
+        red_rejected: List[Dict],
+        img_height: int,
+    ) -> np.ndarray:
+        """
+        Visualize component filtering results.
+        Green = valid, Red = rejected with reason label.
+        """
+        vis = base_img.copy()
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.35
+        thickness = 1
+
+        min_len_px = img_height * self.min_length_ratio
+
+        def draw_comp(comp, color, show_reason=False):
+            box = cv2.boxPoints(comp["rect"]).astype(np.int32)
+            cv2.drawContours(vis, [box], 0, color, 1)
+
+            cx, cy = int(comp["cx"]), int(comp["cy"])
+            ar = comp.get("ar", 0)
+            length = comp.get("length", 0)
+
+            label = f"AR:{ar:.1f} L:{int(length)}"
+            if show_reason and "reject_reason" in comp:
+                label += f" ({comp['reject_reason']})"
+
+            text_size = cv2.getTextSize(label, font, font_scale, thickness)[0]
+            text_x = cx - text_size[0] // 2
+            text_y = cy - 5
+
+            cv2.rectangle(
+                vis,
+                (text_x - 2, text_y - text_size[1] - 2),
+                (text_x + text_size[0] + 2, text_y + 2),
+                (0, 0, 0),
+                -1,
+            )
+            cv2.putText(
+                vis, label, (text_x, text_y), font, font_scale, color, thickness
+            )
+
+        for comp in blue_valid:
+            draw_comp(comp, (0, 255, 0))
+        for comp in red_valid:
+            draw_comp(comp, (0, 255, 0))
+        for comp in blue_rejected:
+            draw_comp(comp, (0, 0, 255), show_reason=True)
+        for comp in red_rejected:
+            draw_comp(comp, (0, 0, 255), show_reason=True)
+
+        # legend
+        cv2.putText(
+            vis,
+            f"min_AR={self.min_aspect_ratio:.1f} min_L={int(min_len_px)}px",
+            (5, 15),
+            font,
+            0.4,
+            (255, 255, 255),
+            1,
+        )
+
+        return vis
+
+    def _draw_pairing_debug(
+        self,
+        base_img: np.ndarray,
+        paired_blues: List[Dict],
+        paired_reds: List[Dict],
+        unpaired_blues: List[Dict],
+        unpaired_reds: List[Dict],
+    ) -> np.ndarray:
+        """
+        Visualize pairing results.
+        Green line = paired, Yellow = unpaired.
+        """
+        vis = base_img.copy()
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        # draw paired connections
+        for b, r in zip(paired_blues, paired_reds):
+            b_center = (int(b["cx"]), int(b["cy"]))
+            r_center = (int(r["cx"]), int(r["cy"]))
+            cv2.line(vis, b_center, r_center, (0, 255, 0), 2)
+            cv2.circle(vis, b_center, 4, (255, 150, 0), -1)
+            cv2.circle(vis, r_center, 4, (0, 150, 255), -1)
+
+        # draw unpaired
+        for comp in unpaired_blues:
+            box = cv2.boxPoints(comp["rect"]).astype(np.int32)
+            cv2.drawContours(vis, [box], 0, (0, 255, 255), 2)  # yellow
+            cv2.putText(
+                vis,
+                "NO_PAIR",
+                (int(comp["cx"]) - 20, int(comp["cy"])),
+                font,
+                0.35,
+                (0, 255, 255),
+                1,
+            )
+
+        for comp in unpaired_reds:
+            box = cv2.boxPoints(comp["rect"]).astype(np.int32)
+            cv2.drawContours(vis, [box], 0, (0, 255, 255), 2)  # yellow
+            cv2.putText(
+                vis,
+                "NO_PAIR",
+                (int(comp["cx"]) - 20, int(comp["cy"])),
+                font,
+                0.35,
+                (0, 255, 255),
+                1,
+            )
+
+        # legend
+        cv2.putText(
+            vis,
+            f"Paired:{len(paired_blues)} Unpaired:{len(unpaired_blues)+len(unpaired_reds)}",
+            (5, 15),
+            font,
+            0.4,
+            (255, 255, 255),
+            1,
+        )
+
+        return vis
+
+    def _draw_detection_debug(
+        self,
+        base_img: np.ndarray,
+        mask: np.ndarray,
+        detections: List[PipeDetection],
+        rejected_contours: List[Dict],
+    ) -> np.ndarray:
+        """
+        Visualize detection extraction results.
+        Green = accepted, Red = rejected (area too small).
+        """
+        vis = base_img.copy()
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.35
+        thickness = 1
+
+        # overlay mask faintly
+        vis[:, :, 1] = np.maximum(vis[:, :, 1], mask // 3)
+
+        # draw accepted detections
+        for det in detections:
+            x, y, bw, bh = det.bbox
+            cv2.rectangle(vis, (x, y), (x + bw, y + bh), (0, 255, 0), 2)
+
+            label = f"A:{int(det.area)} d:{det.depth:.2f}"
+            text_size = cv2.getTextSize(label, font, font_scale, thickness)[0]
+            text_x = x + bw // 2 - text_size[0] // 2
+            text_y = y + bh // 2
+
+            cv2.rectangle(
+                vis,
+                (text_x - 2, text_y - text_size[1] - 2),
+                (text_x + text_size[0] + 2, text_y + 2),
+                (0, 80, 0),
+                -1,
+            )
+            cv2.putText(
+                vis, label, (text_x, text_y), font, font_scale, (0, 255, 0), thickness
+            )
+
+        # draw rejected contours
+        for rej in rejected_contours:
+            x, y, bw, bh = rej["bbox"]
+            cv2.rectangle(vis, (x, y), (x + bw, y + bh), (0, 0, 255), 1)
+
+            label = f"A:{int(rej['area'])} (SMALL)"
+            text_size = cv2.getTextSize(label, font, font_scale, thickness)[0]
+            text_x = x + bw // 2 - text_size[0] // 2
+            text_y = y + bh // 2
+
+            cv2.rectangle(
+                vis,
+                (text_x - 2, text_y - text_size[1] - 2),
+                (text_x + text_size[0] + 2, text_y + 2),
+                (0, 0, 80),
+                -1,
+            )
+            cv2.putText(
+                vis, label, (text_x, text_y), font, font_scale, (0, 0, 255), thickness
+            )
+
+        # legend
+        h, w = mask.shape[:2]
+        min_area = self.min_area_ratio * h * w
+        cv2.putText(
+            vis,
+            f"Detected:{len(detections)} Rejected:{len(rejected_contours)} (min_area={int(min_area)})",
+            (5, 15),
+            font,
+            0.4,
+            (255, 255, 255),
+            1,
+        )
 
         return vis
