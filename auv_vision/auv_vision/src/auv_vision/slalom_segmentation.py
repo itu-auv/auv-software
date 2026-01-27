@@ -3,6 +3,7 @@
 Slalom Segmentation Module
 """
 
+import math
 import cv2
 import numpy as np
 from dataclasses import dataclass
@@ -20,7 +21,10 @@ class PipeDetection:
 
 
 class SlalomSegmentor:
-    def __init__(self):
+    def __init__(self, fx: Optional[float] = None, cx: Optional[float] = None):
+        self.fx = fx
+        self.cx = cx
+
         # Configuration
         self.grad_threshold = 8
         self.boost_factor = 5.0
@@ -32,6 +36,11 @@ class SlalomSegmentor:
         # Pairing constraints
         self.max_pipe_width = 80  # pixels
         self.min_vertical_overlap = 0.5  # overlap ratio for pairing
+
+    def pixel_to_yaw(self, pixel_x: float, image_width: int) -> float:
+        if self.fx is not None and self.cx is not None:
+            return math.atan((pixel_x - self.cx) / self.fx)
+        return (pixel_x / image_width - 0.5) * 2
 
     def process(self, depth: np.ndarray, return_debug: bool = False) -> Dict[str, Any]:
         """
@@ -45,6 +54,14 @@ class SlalomSegmentor:
             Dict containing 'mask', 'detections', and optionally debug images.
         """
         h, w = depth.shape[:2]
+
+        # TODO remove - debug depth range
+        import rospy
+
+        rospy.loginfo_throttle(
+            5.0,
+            f"[SEG DEBUG] depth min={depth.min():.4f}, max={depth.max():.4f}, dtype={depth.dtype}",
+        )
 
         # 1. Gradient & Enhancement
         grad_signed, enhanced = self._compute_enhanced_gradient(depth)
@@ -259,10 +276,9 @@ class SlalomSegmentor:
 
             x, y, bw, bh = cv2.boundingRect(cnt)
 
-            # Normalized centroid
             cx = x + bw / 2
             cy = y + bh / 2
-            norm_cx = (cx / w - 0.5) * 2
+            yaw_x = self.pixel_to_yaw(cx, w)
             norm_cy = (cy / h - 0.5) * 2
 
             # Create a mask for just this contour
@@ -272,11 +288,8 @@ class SlalomSegmentor:
             # Extract depth values within this pipe's mask
             pipe_depths = depth[contour_mask > 0]
 
-            # Calculate MODE depth (most frequent value)
             if pipe_depths.size > 0:
-                depth_ints = pipe_depths.astype(int)
-                counter = Counter(depth_ints)
-                mode_depth = float(counter.most_common(1)[0][0])
+                mode_depth = float(np.median(pipe_depths))
             else:
                 mode_depth = 0.0
 
@@ -285,7 +298,7 @@ class SlalomSegmentor:
                     label="pipe",
                     bbox=(x, y, bw, bh),
                     area=area,
-                    centroid=(norm_cx, norm_cy),
+                    centroid=(yaw_x, norm_cy),
                     depth=mode_depth,
                 )
             )

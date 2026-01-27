@@ -1,23 +1,24 @@
 """
 Slalom heading and lateral control computation.
 
-Selection logic:
-1. Sort detections by depth (closest first)
-2. Take top 3 closest pipes
-3. Sort those 3 by x-centroid (left to right)
-4. Select based on mode:
+Selection logic (v2 - Row-Based):
+1. Group detections into rows using Adaptive K-Means clustering
+2. Select closest row (Row 0)
+3. Sort Row 0 pipes by x-centroid (left to right)
+4. Select pair based on mode:
    - left:  pipes[0] + pipes[1] (left + center)
-   - right: pipes[1] + pipes[2] (center + right)
+   - right: pipes[-2] + pipes[-1] (center + right)
 """
 
 from typing import List, Optional, Tuple, Any
+from auv_control.slalom_row_detector import group_pipes_by_row
 
 
 def select_slalom_pair(
     detections: List[Any], mode: str = "left"
 ) -> Optional[Tuple[Any, Any]]:
     """
-    Select 2 pipes from detections based on mode.
+    Select 2 pipes from closest row based on mode.
 
     Args:
         detections: List of PipeDetection with .depth and .centroid attributes
@@ -29,21 +30,33 @@ def select_slalom_pair(
     if len(detections) < 2:
         return None
 
-    # Sort by depth, take closest 3
-    by_depth = sorted(detections, key=lambda d: d.depth)
-    closest = by_depth[:3]
+    # group into rows
+    rows = group_pipes_by_row(detections)
 
-    # Sort by x-centroid (left to right)
-    by_x = sorted(closest, key=lambda d: d.centroid[0])
+    if not rows:
+        return None
+
+    # get closest row
+    active_row = rows[0]
+
+    if len(active_row) < 2:
+        # not enough pipes in closest row, try merging with next row
+        if len(rows) > 1:
+            active_row = active_row + rows[1]
+        if len(active_row) < 2:
+            return None
+
+    # sort by x-centroid (left to right)
+    by_x = sorted(active_row, key=lambda d: d.centroid[0])
 
     if len(by_x) == 2:
         return (by_x[0], by_x[1])
 
-    # 3 pipes available
+    # 3+ pipes available
     if mode == "left":
         return (by_x[0], by_x[1])  # left + center
     else:  # right
-        return (by_x[1], by_x[2])  # center + right
+        return (by_x[-2], by_x[-1])  # center + right
 
 
 def compute_slalom_control(

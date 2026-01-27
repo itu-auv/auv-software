@@ -27,6 +27,7 @@ from auv_control.vs_types import (
 from auv_control.vs_pd_controller import PDController
 from auv_control.vs_slalom import compute_slalom_control
 from auv_vision.slalom_debug import create_slalom_debug
+import auv_common_lib.vision.camera_calibrations as camera_calibrations
 
 
 class VisualServoingNode:
@@ -62,7 +63,7 @@ class VisualServoingNode:
         self.debug_stream_enabled = False
         self.rgb_buffer: Dict[float, Tuple[np.ndarray, Header]] = {}
         self.rgb_buffer_lock = threading.Lock()
-        self.rgb_buffer_max_age = 2.0  # seconds
+        self.rgb_buffer_max_age = 3.6
         self.debug_thread = None
         self.depth_thread = None
         self.depth_lock = threading.Lock()
@@ -75,7 +76,23 @@ class VisualServoingNode:
         self.error_state = ErrorState()
         self.slalom_state = SlalomState()
         self.pd = PDController(config=self.config, error_state=self.error_state)
-        self.segmentor = SlalomSegmentor()
+
+        camera_ns = self.rgb_topic.rsplit("/", 1)[0]
+        try:
+            calib_fetcher = camera_calibrations.CameraCalibrationFetcher(
+                camera_ns, True
+            )
+            calib = calib_fetcher.get_camera_info()
+            fx = calib.K[0]
+            cx = calib.K[2]
+            rospy.loginfo(f"[VS] Camera calibration: fx={fx:.2f}, cx={cx:.2f}")
+        except Exception as e:
+            rospy.logwarn(
+                f"[VS] Camera calibration failed: {e}, using linear normalization"
+            )
+            fx, cx = None, None
+
+        self.segmentor = SlalomSegmentor(fx=fx, cx=cx)
         self.bridge = CvBridge()
 
     def _setup_ros(self):
@@ -150,7 +167,8 @@ class VisualServoingNode:
                     mask=mask,
                     all_detections=detections,
                     selected_pair=pair,
-                    alpha=0.4,
+                    alpha=0.7,
+                    depth_shape=payload.get("depth_shape"),
                 )
                 mode = self.config.slalom_side
                 if heading is not None and lateral is not None:
@@ -201,12 +219,25 @@ class VisualServoingNode:
                 result = self.segmentor.process(depth, return_debug=False)
                 detections = result.get("detections", [])
                 mask = result.get("mask")
+                rospy.loginfo_throttle(
+                    5.0,
+                    f"[VS DEBUG] depth={depth.shape}, mask={mask.shape if mask is not None else None}",
+                )
+
+                # TODO remove - debug pipe detections
+                if detections:
+                    pipe_info = [
+                        f"P{i}:d={d.depth:.2f}" for i, d in enumerate(detections)
+                    ]
+                    rospy.loginfo_throttle(
+                        2.0,
+                        f"[VS DEBUG] {len(detections)} pipes: {', '.join(pipe_info)}",
+                    )
 
                 heading = None
                 lateral = None
                 pair = None
 
-                # pair needed for debug viz even when not in slalom mode
                 compute_for_debug = self.debug_stream_enabled or self.config.slalom_mode
                 if compute_for_debug and detections:
                     heading, lateral, pair = compute_slalom_control(
@@ -229,15 +260,34 @@ class VisualServoingNode:
                             )
 
                 depth_stamp = msg.header.stamp.to_sec()
+                rgb_data = None
+
                 with self.rgb_buffer_lock:
-                    rgb_data = self.rgb_buffer.get(depth_stamp)
+
+                    if depth_stamp in self.rgb_buffer:
+                        rgb_data = self.rgb_buffer[depth_stamp]
+                    else:
+
+                        closest_stamp = None
+                        min_diff = 0.05
+
+                        for s in self.rgb_buffer:
+                            diff = abs(s - depth_stamp)
+                            if diff < min_diff:
+                                min_diff = diff
+                                closest_stamp = s
+
+                        if closest_stamp is not None:
+                            rgb_data = self.rgb_buffer[closest_stamp]
 
                 if rgb_data is None:
                     rospy.logwarn_throttle(
-                        5.0, f"[VS] No RGB for stamp {depth_stamp:.3f}"
+                        1.0,
+                        f"[VS] No RGB for stamp {depth_stamp:.3f} (buffer empty or too far)",
                     )
                 else:
                     rgb_img, rgb_header = rgb_data
+                    rospy.loginfo_throttle(5.0, f"[VS DEBUG] rgb={rgb_img.shape}")
                     payload = {
                         "rgb": rgb_img.copy(),
                         "mask": mask.copy() if mask is not None else None,
@@ -246,6 +296,7 @@ class VisualServoingNode:
                         "heading": heading,
                         "lateral": lateral,
                         "header": rgb_header,
+                        "depth_shape": depth.shape[:2],
                     }
                     with self.debug_cond:
                         self.latest_debug_payload = payload
@@ -253,8 +304,6 @@ class VisualServoingNode:
 
             except Exception as e:
                 rospy.logerr_throttle(5.0, f"[VS] Depth error: {e}")
-
-    # callbacks
 
     def _on_prop(self, msg: PropsYaw):
         if self.state == ControllerState.IDLE or msg.object != self.target_prop:
@@ -305,8 +354,6 @@ class VisualServoingNode:
 
         return config
 
-    # services
-
     def _srv_start(self, req) -> VisualServoingResponse:
         if self.state != ControllerState.IDLE:
             return VisualServoingResponse(success=False, message="Already active")
@@ -348,8 +395,6 @@ class VisualServoingNode:
         self.state = ControllerState.IDLE
         self.cmd_vel_pub.publish(Twist())
         self.enable_pub.publish(Bool(data=False))
-
-    # main loop
 
     def spin(self):
         rate = rospy.Rate(self.config.rate_hz)
