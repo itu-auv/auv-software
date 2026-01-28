@@ -39,22 +39,22 @@ class JoystickNode:
 
         if self.rov_mode == 1:
             rospy.loginfo("ROV mode enabled - using buttons for pitch/roll control")
+            self.reset_orientation_button_event = JoystickEvent(
+                0.1, self.reset_orientation
+            )
+            self.reset_orientation_service = rospy.ServiceProxy(
+                "reset_command_orientation", Trigger
+            )
         else:
             self.torpedo1_button_event = JoystickEvent(0.1, self.launch_torpedo1)
             self.torpedo2_button_event = JoystickEvent(0.1, self.launch_torpedo2)
             self.dropper_button_event = JoystickEvent(0.1, self.drop_dropper)
 
-            self.dropper_service = rospy.ServiceProxy(
-                "actuators/ball_dropper/drop", Trigger
-            )
+            self.dropper_service = rospy.ServiceProxy("ball_dropper/drop", Trigger)
 
-            self.torpedo1_service = rospy.ServiceProxy(
-                "actuators/torpedo_1/launch", Trigger
-            )
+            self.torpedo1_service = rospy.ServiceProxy("torpedo_1/launch", Trigger)
 
-            self.torpedo2_service = rospy.ServiceProxy(
-                "actuators/torpedo_2/launch", Trigger
-            )
+            self.torpedo2_service = rospy.ServiceProxy("torpedo_2/launch", Trigger)
 
         self.joy_sub = rospy.Subscriber("joy", Joy, self.joy_callback)
         rospy.loginfo("Joystick node initialized")
@@ -85,11 +85,23 @@ class JoystickNode:
             self.dropper_service, "Ball dropped", "Failed to drop the ball"
         )
 
+    def reset_orientation(self):
+        self.call_service_if_available(
+            self.reset_orientation_service,
+            "Roll and pitch reset to zero",
+            "Failed to reset orientation",
+        )
+
     def joy_callback(self, msg):
         with self.lock:
             self.joy_data = msg
 
-            if self.rov_mode != 1:
+            if self.rov_mode == 1:
+                # ROV modunda orientation reset butonu dinle
+                self.reset_orientation_button_event.update(
+                    self.joy_data.buttons[self.buttons["reset_orientation"]]
+                )
+            else:
                 self.torpedo1_button_event.update(
                     self.joy_data.buttons[self.buttons["launch_torpedo1"]]
                 )
