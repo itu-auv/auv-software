@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<launch>
+    <!--
+    Yaw Auto-Tune Launch File
+
+    Usage:
+        roslaunch yaw_autotune yaw_autotune.launch
+        roslaunch yaw_autotune yaw_autotune.launch namespace:=taluy aggressiveness:=0.7
+    -->
+
+    <arg name="namespace" default="taluy" />
+    <arg name="aggressiveness" default="0.6" doc="Tuning aggressiveness: 0=conservative, 1=aggressive" />
+
+    <group ns="$(arg namespace)">
+        <!-- Auto-tune node -->
+        <node pkg="auv_control" type="yaw_autotune_node.py" name="yaw_autotune_node" output="screen">
+            <!-- Namespace and frames -->
+            <param name="namespace" value="$(arg namespace)" />
+            <param name="base_frame" value="$(arg namespace)/base_link" />
+            <param name="odom_frame" value="odom" />
+            <param name="autotune_frame" value="yaw_autotune_target" />
+
+            <!-- Chirp signal parameters -->
+            <param name="chirp_amplitude" value="0.35" />      <!-- rad (~20 deg) -->
+            <param name="chirp_f_start" value="0.05" />        <!-- Hz -->
+            <param name="chirp_f_end" value="1.5" />           <!-- Hz -->
+            <param name="chirp_duration" value="30.0" />       <!-- seconds -->
+
+            <!-- Safety limits -->
+            <param name="max_position_error" value="1.0" />    <!-- meters -->
+            <param name="max_yaw_rate" value="1.0" />          <!-- rad/s -->
+            <param name="settle_time" value="3.0" />           <!-- seconds -->
+
+            <!-- Verification -->
+            <param name="verify_step_angle" value="0.52" />    <!-- rad (30 deg) -->
+            <param name="verify_duration" value="15.0" />      <!-- seconds -->
+
+            <!-- Control rate -->
+            <param name="rate" value="50" />                   <!-- Hz -->
+
+            <!-- Tuning aggressiveness -->
+            <param name="aggressiveness" value="$(arg aggressiveness)" />
+
+        </node>
+    </group>
+
+</launch>
