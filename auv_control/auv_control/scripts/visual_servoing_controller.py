@@ -1,33 +1,58 @@
 #!/usr/bin/env python3
+import math
+import threading
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
-import threading
-from typing import Dict, Optional, Tuple
-from std_msgs.msg import Header
 import rospy
+import tf2_ros
 from cv_bridge import CvBridge
 from dynamic_reconfigure.server import Server
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import TransformStamped
 from sensor_msgs.msg import CompressedImage, Image
-from std_msgs.msg import Bool, Float64
+from std_msgs.msg import Header
 from std_srvs.srv import Trigger, TriggerResponse
 
 from auv_control.cfg import VisualServoingConfig
 from auv_msgs.msg import PropsYaw
 from auv_msgs.srv import VisualServoing, VisualServoingResponse
-from auv_vision.slalom_segmentation import SlalomSegmentor
+from auv_vision.slalom_segmentation import PipeDetection, SlalomSegmentor
 
 from auv_control.vs_types import (
     ControllerConfig,
     ControllerState,
-    ErrorState,
     SlalomState,
 )
-from auv_control.vs_pd_controller import PDController
 from auv_control.vs_slalom import compute_slalom_control
 from auv_vision.slalom_debug import create_slalom_debug
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
+
+REFERENCE_DEPTH_M = 2.0  # Nearest pipe assumed at this distance
+
+
+def scale_depths(
+    pipe_1: PipeDetection, pipe_2: PipeDetection, reference_m: float = REFERENCE_DEPTH_M
+) -> Tuple[float, float]:
+    """Scale relative depths so the nearest pipe is at reference_m."""
+    min_depth = min(pipe_1.depth, pipe_2.depth)
+    if min_depth <= 0:
+        return reference_m, reference_m
+    scale = reference_m / min_depth
+    return pipe_1.depth * scale, pipe_2.depth * scale
+
+
+def pipe_to_camera_position(
+    pipe: PipeDetection, distance: float
+) -> Tuple[float, float, float]:
+    """
+    Convert pipe detection to 3D position in camera frame.
+    """
+    yaw = pipe.centroid[0]
+    x = distance * math.cos(yaw)
+    y = distance * math.sin(yaw)
+    z = 0.0
+    return (x, y, z)
 
 
 class VisualServoingNode:
@@ -54,6 +79,13 @@ class VisualServoingNode:
             slalom_side=rospy.get_param("~slalom_side", "left"),
         )
         self.rgb_topic = rospy.get_param("~rgb_topic", "cameras/cam_front/image_raw")
+        self.camera_frame = rospy.get_param(
+            "~camera_frame", "taluy/camera_front_link"
+        )  # TODO doğru mu?
+        self.odom_frame = rospy.get_param("~odom_frame", "odom")
+        self.reference_depth_m = rospy.get_param(
+            "~reference_depth_m", REFERENCE_DEPTH_M
+        )
 
     def _init_state(self):
         self.state = ControllerState.IDLE
@@ -74,9 +106,7 @@ class VisualServoingNode:
         self.debug_cond = threading.Condition(self.debug_lock)
         self.latest_debug_payload = None
 
-        self.error_state = ErrorState()
         self.slalom_state = SlalomState()
-        self.pd = PDController(config=self.config, error_state=self.error_state)
 
         camera_ns = self.rgb_topic.rsplit("/", 1)[0]
         try:
@@ -96,13 +126,15 @@ class VisualServoingNode:
         self.segmentor = SlalomSegmentor(fx=fx, cx=cx)
         self.bridge = CvBridge()
 
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
     def _setup_ros(self):
-        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
-        self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
-        self.error_pub = rospy.Publisher("visual_servoing/error", Float64, queue_size=1)
+        self.transform_pub = rospy.Publisher(
+            "object_transform_updates", TransformStamped, queue_size=10
+        )
 
         rospy.Subscriber("props_yaw", PropsYaw, self._on_prop, queue_size=1)
-
         rospy.Subscriber(
             self.rgb_topic + "/compressed", CompressedImage, self._on_rgb, queue_size=1
         )
@@ -112,7 +144,6 @@ class VisualServoingNode:
         self.debug_pub = rospy.Publisher(
             "visual_servoing/debug/compressed", CompressedImage, queue_size=1
         )
-
         self.seg_components_pub = rospy.Publisher(
             "seg_debug/components", CompressedImage, queue_size=1
         )
@@ -122,7 +153,6 @@ class VisualServoingNode:
         self.seg_detections_pub = rospy.Publisher(
             "seg_debug/detections", CompressedImage, queue_size=1
         )
-
         rospy.Service("visual_servoing/start_servoing", VisualServoing, self._srv_start)
         rospy.Service("visual_servoing/cancel_servoing", Trigger, self._srv_cancel)
         rospy.Service("visual_servoing/navigate", Trigger, self._srv_navigate)
@@ -227,6 +257,51 @@ class VisualServoingNode:
         except Exception as e:
             rospy.logerr_throttle(5.0, f"[VS] Debug img publish error: {e}")
 
+    def _publish_pipe_transforms(
+        self,
+        pair: Tuple[PipeDetection, PipeDetection],
+        stamp: rospy.Time,
+    ):
+        pipe_1, pipe_2 = pair
+
+        dist_1, dist_2 = scale_depths(pipe_1, pipe_2, self.reference_depth_m)
+
+        pos_1 = pipe_to_camera_position(pipe_1, dist_1)
+        pos_2 = pipe_to_camera_position(pipe_2, dist_2)
+
+        for name, pos in [("pipe_1", pos_1), ("pipe_2", pos_2)]:
+            try:
+                t = TransformStamped()
+                t.header.stamp = stamp
+                t.header.frame_id = self.camera_frame
+                t.child_frame_id = name
+                t.transform.translation.x = pos[0]
+                t.transform.translation.y = pos[1]
+                t.transform.translation.z = pos[2]
+                t.transform.rotation.w = (
+                    1.0  # TODO odom ile pipe oryantasyonu aynı olsun.
+                )
+
+                try:
+                    odom_t = self.tf_buffer.transform(t, self.odom_frame)
+                    self.transform_pub.publish(odom_t)
+                    rospy.logdebug(
+                        f"[VS] Published {name}: ({odom_t.transform.translation.x:.2f}, "
+                        f"{odom_t.transform.translation.y:.2f})"
+                    )
+                except tf2_ros.TransformException as e:
+                    rospy.logwarn_throttle(2.0, f"[VS] TF transform failed: {e}")
+
+                    self.transform_pub.publish(t)
+
+            except Exception as e:
+                rospy.logerr_throttle(5.0, f"[VS] Pipe transform error: {e}")
+
+        rospy.loginfo_throttle(
+            2.0,
+            f"[VS] Pipes: d1={dist_1:.2f}m d2={dist_2:.2f}m",
+        )
+
     def _depth_worker(self):
         while not rospy.is_shutdown():
             with self.depth_cond:
@@ -289,29 +364,27 @@ class VisualServoingNode:
                         mode=self.config.slalom_side,
                     )
 
+                # Publish pipe transforms if pair selected
+                if pair is not None:
+                    self._publish_pipe_transforms(pair, msg.header.stamp)
+
                 if self.config.slalom_mode:
                     self.slalom_state.detections = detections
                     self.slalom_state.selected_pair = pair
                     self.slalom_state.lateral_error = lateral or 0.0
 
-                    if self.state != ControllerState.IDLE:
-                        if detections:
-                            self.last_detection_time = rospy.Time.now()
-                        if heading is not None:
-                            self.pd.update_error(heading, rospy.Time.now().to_sec())
-                            rospy.loginfo_throttle(
-                                1.0, f"[SLALOM] heading={heading:.2f}"
-                            )
+                    if self.state != ControllerState.IDLE and detections:
+                        self.last_detection_time = (
+                            rospy.Time.now()
+                        )  # TODO doğru mu now?
 
                 depth_stamp = msg.header.stamp.to_sec()
                 rgb_data = None
 
                 with self.rgb_buffer_lock:
-
                     if depth_stamp in self.rgb_buffer:
                         rgb_data = self.rgb_buffer[depth_stamp]
                     else:
-
                         closest_stamp = None
                         min_diff = 0.05
 
@@ -354,9 +427,7 @@ class VisualServoingNode:
             return
         if self.config.slalom_mode:
             return
-
         self.last_detection_time = rospy.Time.now()
-        self.pd.update_error(msg.angle, rospy.Time.now().to_sec())
 
     def _on_rgb(self, msg: CompressedImage):
         try:
@@ -390,12 +461,10 @@ class VisualServoingNode:
     def _on_reconfig(self, config, level):
         self.config.kp_gain = config.get("kp_gain", self.config.kp_gain)
         self.config.kd_gain = config.get("kd_gain", self.config.kd_gain)
-
         self.config.max_angular_velocity = config.get(
             "max_angular_velocity", self.config.max_angular_velocity
         )
         self.config.v_x_desired = config.get("v_x_desired", self.config.v_x_desired)
-
         return config
 
     def _srv_start(self, req) -> VisualServoingResponse:
@@ -406,7 +475,6 @@ class VisualServoingNode:
         self.state = ControllerState.CENTERING
         self.service_start_time = rospy.Time.now()
         self.last_detection_time = None
-        self.error_state.reset()
         self.slalom_state.reset()
 
         rospy.loginfo(f"[VS] Started: {self.target_prop}")
@@ -447,8 +515,6 @@ class VisualServoingNode:
     def _stop(self, reason: str):
         rospy.loginfo(f"[VS] Stopped: {reason}")
         self.state = ControllerState.IDLE
-        self.cmd_vel_pub.publish(Twist())
-        self.enable_pub.publish(Bool(data=False))
 
     def spin(self):
         rate = rospy.Rate(self.config.rate_hz)
@@ -470,14 +536,6 @@ class VisualServoingNode:
             if self.state == ControllerState.NAVIGATING:
                 if time_since > self.config.navigation_timeout_s:
                     self.state = ControllerState.CENTERING
-
-            twist = Twist()
-            twist.angular.z = self.pd.compute_angular(self.state)
-            twist.linear.x = self.pd.compute_linear(self.state, time_since)
-
-            self.enable_pub.publish(Bool(data=True))
-            self.cmd_vel_pub.publish(twist)
-            self.error_pub.publish(Float64(self.error_state.error))
 
             rate.sleep()
 
