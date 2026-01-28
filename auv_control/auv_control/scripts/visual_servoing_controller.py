@@ -132,7 +132,7 @@ class VisualServoingNode:
 
     def _setup_ros(self):
         self.transform_pub = rospy.Publisher(
-            "object_transform_updates", TransformStamped, queue_size=10
+            "map/object_transform_updates", TransformStamped, queue_size=10
         )
 
         rospy.Subscriber("props_yaw", PropsYaw, self._on_prop, queue_size=1)
@@ -258,6 +258,66 @@ class VisualServoingNode:
         except Exception as e:
             rospy.logerr_throttle(5.0, f"[VS] Debug img publish error: {e}")
 
+    def _publish_target_transform(self):
+        try:
+            pipe1_tf = self.tf_buffer.lookup_transform(
+                "odom", "pipe_1", rospy.Time(0), rospy.Duration(0.1)
+            )
+            pipe2_tf = self.tf_buffer.lookup_transform(
+                "odom", "pipe_2", rospy.Time(0), rospy.Duration(0.1)
+            )
+            robot_tf = self.tf_buffer.lookup_transform(
+                "odom", "taluy/base_link", rospy.Time(0), rospy.Duration(0.1)
+            )
+
+            p1 = np.array(
+                [pipe1_tf.transform.translation.x, pipe1_tf.transform.translation.y]
+            )
+            p2 = np.array(
+                [pipe2_tf.transform.translation.x, pipe2_tf.transform.translation.y]
+            )
+            robot = np.array(
+                [robot_tf.transform.translation.x, robot_tf.transform.translation.y]
+            )
+
+            # Midpoint between pipes
+            midpoint = 0.5 * (p1 + p2)
+
+            # Direction along pipe line
+            pipe_dir = p2 - p1
+            pipe_len = np.linalg.norm(pipe_dir)
+            if pipe_len < 0.01:
+                return
+            pipe_dir /= pipe_len
+
+            # Normal direction (perpendicular, pointing toward robot)
+            normal = np.array([-pipe_dir[1], pipe_dir[0]])
+            if np.dot(robot - midpoint, normal) < 0:
+                normal *= -1
+
+            # Project robot onto the normal line through midpoint
+            dist = np.dot(robot - midpoint, normal)
+            target_pos = midpoint + dist * normal
+
+            # Yaw: face the midpoint
+            to_mid = midpoint - target_pos
+            yaw = math.atan2(to_mid[1], to_mid[0])
+
+            # Publish transform
+            t = TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "odom"
+            t.child_frame_id = "slalom_position_target"
+            t.transform.translation.x = target_pos[0]
+            t.transform.translation.y = target_pos[1]
+            t.transform.translation.z = -1.3
+            t.transform.rotation.z = math.sin(yaw / 2)
+            t.transform.rotation.w = math.cos(yaw / 2)
+            self.transform_pub.publish(t)
+
+        except tf2_ros.TransformException:
+            pass
+
     def _publish_pipe_transforms(
         self,
         pair: Tuple[PipeDetection, PipeDetection],
@@ -375,7 +435,7 @@ class VisualServoingNode:
                 # Publish pipe transforms if pair selected
                 if pair is not None:
                     self._publish_pipe_transforms(pair, msg.header.stamp)
-
+                self._publish_target_transform()
                 if self.config.slalom_mode:
                     self.slalom_state.detections = detections
                     self.slalom_state.selected_pair = pair
