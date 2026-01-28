@@ -7,7 +7,30 @@ import rospy
 import zmq
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from cv_bridge import CvBridge
-from sensor_msgs.msg import CameraInfo, Image
+from sensor_msgs import point_cloud2 as pc2
+from sensor_msgs.msg import Image, PointCloud2, CameraInfo, PointField
+import struct
+
+import json
+import numpy as np
+
+def _json_dumps(obj) -> bytes:
+    return json.dumps(obj, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+def _json_loads(b: bytes):
+    return json.loads(b.decode("utf-8"))
+
+def pack_array(arr: np.ndarray):
+    arr_c = np.ascontiguousarray(arr)
+    meta = {"dtype": str(arr_c.dtype), "shape": list(arr_c.shape)}
+    # memoryview avoids an extra copy on the Python side
+    return meta, memoryview(arr_c)
+
+def unpack_array(meta, buf: bytes) -> np.ndarray:
+    dt = np.dtype(meta["dtype"])
+    arr = np.frombuffer(buf, dtype=dt)
+    return arr.reshape(meta["shape"])
+
 
 ZMQ_TIMEOUT_MS = 30000
 
@@ -43,6 +66,7 @@ class DepthAnythingNode:
         self.camera_info_pub = rospy.Publisher(
             "scaled_camera_info", CameraInfo, queue_size=1, latch=True
         )
+        self.points_pub = rospy.Publisher("points", PointCloud2, queue_size=1)
 
         rospy.on_shutdown(self.cleanup)
 
@@ -148,6 +172,72 @@ class DepthAnythingNode:
 
         self.camera_info_pub.publish(msg)
 
+    def _depth_to_pointcloud(self, depth: np.ndarray, rgb_image: np.ndarray, header) -> PointCloud2:
+        if self.camera_info is None:
+            rospy.logwarn_throttle(
+                5.0, "[DA3] CameraInfo not available yet. Skipping pointcloud."
+            )
+            return None
+
+        if self.scaled_intrinsics is None:
+            return None
+
+        fx = self.scaled_intrinsics["fx"]
+        fy = self.scaled_intrinsics["fy"]
+        cx = self.scaled_intrinsics["cx"]
+        cy = self.scaled_intrinsics["cy"]
+
+        if fx == 0.0 or fy == 0.0:
+            raise ValueError("Invalid camera intrinsics: fx or fy is zero")
+
+        h, w = depth.shape[:2]
+        depth_f = depth.astype(np.float32)
+        
+        # Resize RGB image to match depth dimensions
+        rgb_resized = cv2.resize(rgb_image, (w, h), interpolation=cv2.INTER_LINEAR)
+        
+        v, u = np.meshgrid(np.arange(h), np.arange(w), indexing="ij")
+        z = depth_f
+        valid = np.isfinite(z) & (z > 0)
+        if not np.any(valid):
+            return None
+
+        x = (u - cx) * z / fx
+        y = (v - cy) * z / fy
+
+        # Get RGB values for valid points (BGR -> RGB)
+        r = rgb_resized[valid, 2].astype(np.uint32)
+        g = rgb_resized[valid, 1].astype(np.uint32)
+        b = rgb_resized[valid, 0].astype(np.uint32)
+        
+        # Pack RGB into a single float32 (format expected by ROS point cloud)
+        rgb_packed = np.array(
+            [struct.unpack('f', struct.pack('I', (ri << 16) | (gi << 8) | bi))[0]
+             for ri, gi, bi in zip(r, g, b)],
+            dtype=np.float32
+        )
+
+        points = np.column_stack(
+            (x[valid].astype(np.float32), 
+             y[valid].astype(np.float32), 
+             z[valid].astype(np.float32),
+             rgb_packed)
+        )
+
+        # TODO: make frame_id not hardcoded
+        header.frame_id = "taluy/base_link/front_camera_optical_link"
+        
+        # Define fields for XYZRGB point cloud
+        fields = [
+            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+            PointField(name='rgb', offset=12, datatype=PointField.FLOAT32, count=1),
+        ]
+        
+        cloud = pc2.create_cloud(header, fields, points)
+        return cloud
+
     def run(self) -> None:
         rate = rospy.Rate(self.rate_hz)
 
@@ -185,6 +275,12 @@ class DepthAnythingNode:
                 color_msg = self.bridge.cv2_to_imgmsg(colorized, "bgr8")
                 color_msg.header = msg.header
                 self.colorized_pub.publish(color_msg)
+
+                # cloud_msg = self._depth_to_pointcloud(depth, cv_img, msg.header)
+                # if cloud_msg is not None:
+                #     self.points_pub.publish(cloud_msg)
+                # else:
+                #     rospy.logwarn_throttle(5.0, "[DA3] No valid points to publish.")
 
             except (zmq.error.ZMQError, zmq.error.Again) as e:
                 rospy.logwarn_throttle(5.0, f"[DA3] ZMQ error: {e}. Reconnecting...")
