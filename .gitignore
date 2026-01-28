@@ -40,3 +40,4 @@
 
 # ultralytics models
 *.pt
+*.engine
