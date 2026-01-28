@@ -1,0 +1,42 @@
+ARG BASE_IMAGE=auv-base:dev
+FROM ${BASE_IMAGE}
+
+COPY docker/ros_entrypoint.sh /ros_entrypoint.sh
+RUN chmod +x /ros_entrypoint.sh
+
+# Copy and build auv_software (creates build cache for incremental builds)
+COPY . /auv_ws/src/auv_software
+
+# Ignore hardware and teleop packages (not needed for simulation)
+RUN touch /auv_ws/src/auv_software/auv_hardware/CATKIN_IGNORE \
+    && touch /auv_ws/src/auv_software/auv_teleop/CATKIN_IGNORE
+
+# Install auv_software dependencies
+RUN apt-get update && \
+    rosdep install --from-paths /auv_ws/src/auv_software --ignore-src -r -y && \
+    pip3 install pyzmq && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN . /opt/ros/noetic/setup.sh && \
+    . /auv_ws/devel/setup.sh && \
+    catkin build -j4
+
+# Add 'auv' alias for easy ROS networking setup
+RUN echo 'auv() {' >> ~/.zshrc \
+    && echo '  if [ -z "$1" ]; then' >> ~/.zshrc \
+    && echo '    echo "Usage: auv <JETSON_IP>"' >> ~/.zshrc \
+    && echo '    return 1' >> ~/.zshrc \
+    && echo '  fi' >> ~/.zshrc \
+    && echo '  target_ip=$1' >> ~/.zshrc \
+    && echo '  subnet=$(echo $target_ip | cut -d. -f1-3)' >> ~/.zshrc \
+    && echo '  my_ip=$(hostname -I | tr " " "\\n" | grep "^$subnet" | head -n 1)' >> ~/.zshrc \
+    && echo '  if [ -z "$my_ip" ]; then my_ip=$(hostname -I | awk "{print \$1}"); fi' >> ~/.zshrc \
+    && echo '  export ROS_MASTER_URI="http://$target_ip:11311"' >> ~/.zshrc \
+    && echo '  export ROS_IP=$my_ip' >> ~/.zshrc \
+    && echo '  echo "ROS Networking Configured:"' >> ~/.zshrc \
+    && echo '  echo "  ROS_MASTER_URI: $ROS_MASTER_URI"' >> ~/.zshrc \
+    && echo '  echo "  ROS_IP: $ROS_IP"' >> ~/.zshrc \
+    && echo '}' >> ~/.zshrc
+
+ENTRYPOINT ["/ros_entrypoint.sh"]
+CMD ["zsh"]

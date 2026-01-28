@@ -14,6 +14,8 @@ find_package(catkin REQUIRED COMPONENTS
   tf
 )
 
+catkin_python_setup()
+
 catkin_package(
   CATKIN_DEPENDS
     auv_detection
@@ -35,6 +37,7 @@ catkin_install_python(
     scripts/yolo_to_mask_node.py
     scripts/opencv_pipe_detector.py
     scripts/pipe_follower.py
+    scripts/depth_anything_client.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
