@@ -7,9 +7,10 @@ import cv2
 import numpy as np
 import rospy
 import tf2_ros
+import tf2_geometry_msgs
 from cv_bridge import CvBridge
 from dynamic_reconfigure.server import Server
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import PointStamped, TransformStamped
 from sensor_msgs.msg import CompressedImage, Image
 from std_msgs.msg import Header
 from std_srvs.srv import Trigger, TriggerResponse
@@ -50,7 +51,7 @@ def pipe_to_camera_position(
     """
     yaw = pipe.centroid[0]
     x = distance * math.cos(yaw)
-    y = distance * math.sin(yaw)
+    y = -distance * math.sin(yaw)
     z = 0.0
     return (x, y, z)
 
@@ -80,8 +81,8 @@ class VisualServoingNode:
         )
         self.rgb_topic = rospy.get_param("~rgb_topic", "cameras/cam_front/image_raw")
         self.camera_frame = rospy.get_param(
-            "~camera_frame", "taluy/camera_front_link"
-        )  # TODO doğru mu?
+            "~camera_frame", "taluy/base_link/front_camera_link"
+        )
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.reference_depth_m = rospy.get_param(
             "~reference_depth_m", REFERENCE_DEPTH_M
@@ -266,28 +267,44 @@ class VisualServoingNode:
 
         dist_1, dist_2 = scale_depths(pipe_1, pipe_2, self.reference_depth_m)
 
+        rospy.loginfo_throttle(
+            1.0,
+            f"[VS] Pair: p1(yaw={pipe_1.centroid[0]:.3f}rad, raw_d={pipe_1.depth:.2f}, scaled_d={dist_1:.2f}m) "
+            f"p2(yaw={pipe_2.centroid[0]:.3f}rad, raw_d={pipe_2.depth:.2f}, scaled_d={dist_2:.2f}m)",
+        )
+
         pos_1 = pipe_to_camera_position(pipe_1, dist_1)
         pos_2 = pipe_to_camera_position(pipe_2, dist_2)
 
         for name, pos in [("pipe_1", pos_1), ("pipe_2", pos_2)]:
             try:
-                t = TransformStamped()
-                t.header.stamp = stamp
-                t.header.frame_id = self.camera_frame
-                t.child_frame_id = name
-                t.transform.translation.x = pos[0]
-                t.transform.translation.y = pos[1]
-                t.transform.translation.z = pos[2]
-                t.transform.rotation.w = (
-                    1.0  # TODO odom ile pipe oryantasyonu aynı olsun.
-                )
+                # Create point in camera frame
+                pt = PointStamped()
+                pt.header.stamp = stamp
+                pt.header.frame_id = self.camera_frame
+                pt.point.x = pos[0]
+                pt.point.y = pos[1]
+                pt.point.z = pos[2]
 
                 try:
-                    odom_t = self.tf_buffer.transform(t, self.odom_frame)
-                    self.transform_pub.publish(odom_t)
+                    # Transform point to odom frame
+                    odom_pt = self.tf_buffer.transform(pt, self.odom_frame)
+
+                    # Build TransformStamped for publishing
+                    t = TransformStamped()
+                    t.header.stamp = stamp
+                    t.header.frame_id = self.odom_frame
+                    t.child_frame_id = name
+                    t.transform.translation.x = odom_pt.point.x
+                    t.transform.translation.y = odom_pt.point.y
+                    t.transform.translation.z = odom_pt.point.z
+                    # Identity rotation - pipe aligned with odom frame
+                    t.transform.rotation.w = 1.0
+
+                    self.transform_pub.publish(t)
                     rospy.logdebug(
-                        f"[VS] Published {name}: ({odom_t.transform.translation.x:.2f}, "
-                        f"{odom_t.transform.translation.y:.2f})"
+                        f"[VS] Published {name}: ({t.transform.translation.x:.2f}, "
+                        f"{t.transform.translation.y:.2f})"
                     )
                 except tf2_ros.TransformException as e:
                     rospy.logwarn_throttle(2.0, f"[VS] TF transform failed: {e}")
@@ -296,11 +313,6 @@ class VisualServoingNode:
 
             except Exception as e:
                 rospy.logerr_throttle(5.0, f"[VS] Pipe transform error: {e}")
-
-        rospy.loginfo_throttle(
-            2.0,
-            f"[VS] Pipes: d1={dist_1:.2f}m d2={dist_2:.2f}m",
-        )
 
     def _depth_worker(self):
         while not rospy.is_shutdown():
@@ -326,10 +338,6 @@ class VisualServoingNode:
                 )
                 detections = result.get("detections", [])
                 mask = result.get("mask")
-                rospy.loginfo_throttle(
-                    5.0,
-                    f"[VS DEBUG] depth={depth.shape}, mask={mask.shape if mask is not None else None}",
-                )
 
                 if self.seg_debug_enabled:
                     header = msg.header
@@ -404,7 +412,6 @@ class VisualServoingNode:
                     )
                 else:
                     rgb_img, rgb_header = rgb_data
-                    rospy.loginfo_throttle(5.0, f"[VS DEBUG] rgb={rgb_img.shape}")
                     payload = {
                         "rgb": rgb_img.copy(),
                         "mask": mask.copy() if mask is not None else None,
