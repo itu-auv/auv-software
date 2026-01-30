@@ -190,7 +190,20 @@ class ReferencePosePublisherNode:
     ) -> AlignFrameControllerResponse:
         with self.state_lock:
             if self.align_frame_active:
-                self.set_target_to_odometry()
+                # Transform current cmd_pose position to odom frame to preserve depth
+                if self.target_frame_id != "odom" and self.use_align_frame_depth:
+                    transform_to_odom = self.tf_lookup(
+                        "odom", self.target_frame_id, rospy.Time(0), rospy.Duration(1.0)
+                    )
+                    if transform_to_odom is not None:
+                        p = PointStamped()
+                        p.header.frame_id = self.target_frame_id
+                        p.point.x = self.target_x
+                        p.point.y = self.target_y
+                        p.point.z = self.target_depth
+                        p_odom = do_transform_point(p, transform_to_odom)
+                        self.target_depth = p_odom.point.z
+
                 self.use_align_frame_depth = False
                 self.align_frame_keep_orientation = False
 
@@ -373,21 +386,22 @@ class ReferencePosePublisherNode:
         self.set_target_to_odometry()
 
     def set_target_to_odometry(self):
+        # Transform current cmd_pose position to odom frame to preserve depth
+        if self.target_frame_id != "odom" and self.use_align_frame_depth:
+            transform_to_odom = self.tf_lookup(
+                "odom", self.target_frame_id, rospy.Time(0), rospy.Duration(1.0)
+            )
+            if transform_to_odom is not None:
+                p = PointStamped()
+                p.header.frame_id = self.target_frame_id
+                p.point.x = self.target_x
+                p.point.y = self.target_y
+                p.point.z = self.target_depth
+                p_odom = do_transform_point(p, transform_to_odom)
+                self.target_depth = p_odom.point.z
+
         self.target_x = self.latest_odometry.pose.pose.position.x
         self.target_y = self.latest_odometry.pose.pose.position.y
-
-        # If use_align_frame_depth=False, depth is already in odom frame
-        if self.target_frame_id != "odom" and self.use_align_frame_depth:
-            depth = self.get_transformed_depth(
-                "odom",
-                self.target_frame_id,
-                self.target_depth,
-            )
-            if depth is None:
-                return
-
-            self.target_depth = depth
-
         self.target_frame_id = "odom"
 
         quaternion = [
@@ -402,24 +416,8 @@ class ReferencePosePublisherNode:
         self.target_pitch = 0.0
 
     def get_transformed_depth(
-        self,
-        target_frame: str,
-        source_frame: str,
-        target_depth: float,
-        target_x: float = None,
-        target_y: float = None,
+        self, target_frame: str, source_frame: str, target_depth: float
     ):
-        """
-        Transform a depth value from source_frame to target_frame.
-
-        When target_x and target_y are provided (in target_frame coordinates),
-        the function calculates the correct z value at that (x, y) position
-        accounting for any rotation (pitch/roll) between frames.
-
-        This is important when the target_frame has pitch relative to source_frame:
-        a horizontal plane in source_frame becomes tilted in target_frame, so the
-        z value depends on the (x, y) position.
-        """
         transform = self.tf_lookup(
             target_frame,
             source_frame,
@@ -430,65 +428,15 @@ class ReferencePosePublisherNode:
         if transform is None:
             return None
 
-        if target_x is not None and target_y is not None:
-            # We need to find z in target_frame such that when we transform
-            # (target_x, target_y, z) back to source_frame, we get z = target_depth
-            #
-            # Get the inverse transform (target_frame -> source_frame)
-            inverse_transform = self.tf_lookup(
-                source_frame,
-                target_frame,
-                rospy.Time(0),
-                rospy.Duration(1.0),
-            )
-            if inverse_transform is None:
-                return None
+        p = PointStamped()
+        p.header.stamp = transform.header.stamp
+        p.header.frame_id = source_frame
+        p.point.x = 0.0
+        p.point.y = 0.0
+        p.point.z = target_depth
 
-            # Extract rotation matrix from inverse transform
-            q = [
-                inverse_transform.transform.rotation.x,
-                inverse_transform.transform.rotation.y,
-                inverse_transform.transform.rotation.z,
-                inverse_transform.transform.rotation.w,
-            ]
-            R = quaternion_matrix(q)[:3, :3]
-            t = np.array(
-                [
-                    inverse_transform.transform.translation.x,
-                    inverse_transform.transform.translation.y,
-                    inverse_transform.transform.translation.z,
-                ]
-            )
-
-            # Point in target frame: (target_x, target_y, z_target)
-            # After transform: p_source = R @ p_target + t
-            # We want p_source[2] = target_depth
-            # R[2,:] @ [target_x, target_y, z_target]^T + t[2] = target_depth
-            # R[2,0]*target_x + R[2,1]*target_y + R[2,2]*z_target + t[2] = target_depth
-            # z_target = (target_depth - t[2] - R[2,0]*target_x - R[2,1]*target_y) / R[2,2]
-
-            if abs(R[2, 2]) < 1e-6:
-                # Degenerate case: target frame z-axis is perpendicular to source frame z-axis
-                rospy.logwarn_throttle(
-                    1.0, "Cannot transform depth: frames have perpendicular z-axes"
-                )
-                return None
-
-            z_target = (
-                target_depth - t[2] - R[2, 0] * target_x - R[2, 1] * target_y
-            ) / R[2, 2]
-            return z_target
-        else:
-            # Original behavior: transform point at origin
-            p = PointStamped()
-            p.header.stamp = transform.header.stamp
-            p.header.frame_id = source_frame
-            p.point.x = 0.0
-            p.point.y = 0.0
-            p.point.z = target_depth
-
-            p_in_target = do_transform_point(p, transform)
-            return p_in_target.point.z
+        p_in_target = do_transform_point(p, transform)
+        return p_in_target.point.z
 
     def get_transformed_orientation(
         self,
@@ -630,9 +578,7 @@ class ReferencePosePublisherNode:
         cmd_pose_stamped.pose.position.y = ty
 
         if not use_align_depth:
-            transformed_depth = self.get_transformed_depth(
-                frame_id, "odom", tz, target_x=tx, target_y=ty
-            )
+            transformed_depth = self.get_transformed_depth(frame_id, "odom", tz)
             if transformed_depth is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target depth")
                 return
