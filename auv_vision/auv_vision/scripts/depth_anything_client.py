@@ -23,6 +23,9 @@ class DepthAnythingNode:
         self.camera_namespace = rospy.get_param(
             "~camera_namespace", "cameras/cam_front"
         )
+        self.frame_id = rospy.get_param(
+            "~frame_id", "taluy/base_link/front_camera_optical_link"
+        )
 
         camera_info_fetcher = CameraCalibrationFetcher(
             self.camera_namespace, wait_for_camera_info=True
@@ -159,7 +162,7 @@ class DepthAnythingNode:
             msg = self.latest_image
             self.latest_image = None
 
-            msg.header.frame_id = "taluy/base_link/front_camera_optical_link"
+            msg.header.frame_id = self.frame_id
             try:
                 cv_img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
                 result = self._infer(cv_img)
