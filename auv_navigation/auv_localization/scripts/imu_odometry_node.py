@@ -6,8 +6,11 @@ from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Vector3
 import numpy as np
 import yaml
+import tf
+import tf.transformations
 from auv_localization.srv import CalibrateIMU, CalibrateIMUResponse
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
+import auv_common_lib.transform.transformer
 
 
 HIGH_COVARIANCE = 1e6
@@ -20,6 +23,18 @@ class ImuToOdom:
         self.imu_calibration_data_path = rospy.get_param(
             "~imu_calibration_path", "config/imu_calibration_data.yaml"
         )
+
+        self.base_frame = rospy.get_param("~base_frame", "taluy/base_link")
+        self.xsens_frame = rospy.get_param("~xsens_frame", "taluy/base_link/imu_link")
+        self.bno_frame = rospy.get_param(
+            "~bno_frame", "taluy/base_link/imu_expansion_link"
+        )
+
+        self.transformer = auv_common_lib.transform.transformer.Transformer()
+
+        self.xsens_to_base_q = self.get_frame_rotation(self.xsens_frame)
+        self.bno_to_base_q = self.get_frame_rotation(self.bno_frame)
+
         # Subscribers and Publishers
         self.xsens_imu_subscriber = rospy.Subscriber(
             "imu/data", Imu, self.xsens_imu_callback, tcp_nodelay=True
@@ -53,6 +68,14 @@ class ImuToOdom:
         self.calibrating = False
         self.calibration_data = []
 
+        # Variables for sensor switching and offset compensation
+        self.last_xsens_orientation = None
+        self.last_bno_orientation = None
+        self.orientation_offset = (
+            None  # Offset to apply when switching from Xsens to BNO
+        )
+        self.using_xsens = True
+
         # Load calibration data if available
         self.load_calibration_data()
 
@@ -71,10 +94,13 @@ class ImuToOdom:
             self.last_xsens_imu_time
             and (rospy.Time.now() - self.last_xsens_imu_time) > self.xsens_imu_timeout
         ):
-            rospy.logwarn_throttle(
-                5, "Xsens IMU data not received. BNO055 IMU will be used."
-            )
-            self.last_xsens_imu_time = None  # Prevent spamming
+            if self.using_xsens:
+                self.calculate_sensor_offset()
+                self.using_xsens = False
+                rospy.logwarn(
+                    "Xsens IMU data not received. Switching to BNO055 IMU with offset compensation."
+                )
+            self.last_xsens_imu_time = None
 
     def insert_covariance_block(
         self,
@@ -119,10 +145,19 @@ class ImuToOdom:
 
     def xsens_imu_callback(self, imu_msg):
         self.last_xsens_imu_time = rospy.Time.now()
+        self.last_xsens_orientation = imu_msg.orientation
+
+        if not self.using_xsens:
+            self.using_xsens = True
+            self.orientation_offset = None
+            rospy.loginfo("Xsens IMU reconnected. Switching back to Xsens.")
+
         self.publish_odom(imu_msg, "xsens")
 
     def bno_imu_callback(self, imu_msg):
-        if self.last_xsens_imu_time is None:
+        self.last_bno_orientation = imu_msg.orientation
+
+        if not self.using_xsens:
             self.publish_odom(imu_msg, "bno")
 
     def publish_odom(self, imu_msg, publisher):
@@ -150,10 +185,23 @@ class ImuToOdom:
             imu_msg.angular_velocity_covariance
         )
 
+        orientation = imu_msg.orientation
+
+        if publisher == "xsens":
+            if self.xsens_to_base_q is not None:
+                orientation = self.apply_frame_rotation(
+                    orientation, self.xsens_to_base_q
+                )
+        elif publisher == "bno":
+            if self.bno_to_base_q is not None:
+                orientation = self.apply_frame_rotation(orientation, self.bno_to_base_q)
+            if self.orientation_offset is not None:
+                orientation = self.apply_quaternion_offset(
+                    orientation, self.orientation_offset
+                )
+
         # Update orientation and orientation covariance
-        self.odom_msg.pose.pose.orientation = self.invert_roll_pitch_quaternion(
-            imu_msg.orientation
-        )
+        self.odom_msg.pose.pose.orientation = orientation
         self.odom_msg.pose.covariance = self.update_pose_covariance(
             imu_msg.orientation_covariance
         )
@@ -173,28 +221,105 @@ class ImuToOdom:
         elif publisher == "bno":
             self.bno_odom_publisher.publish(self.odom_msg)
 
-    def invert_roll_pitch_quaternion(self, q):
-        """
-        Inverts the roll and pitch of a quaternion by rotating it 180 degrees around the Z-axis.
-        This is achieved by post-multiplying with a quaternion representing a 180-degree Z-rotation.
-        q_new = q_orig * q_rot_z_180
-        """
-        # Quaternion for 180-degree rotation around Z-axis: (x=0, y=0, z=1, w=0)
-        q_rot = np.array([0, 0, 1, 0])
-
-        # Original quaternion as a numpy array
-        q_orig = np.array([q.x, q.y, q.z, q.w])
-
-        # Perform quaternion multiplication q_new = q_orig * q_rot
-        x0, y0, z0, w0 = q_orig
-        x1, y1, z1, w1 = q_rot
+    def quaternion_multiply(self, q1, q2):
+        x0, y0, z0, w0 = q1
+        x1, y1, z1, w1 = q2
 
         x_new = w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1
         y_new = w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1
         z_new = w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
         w_new = w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
 
-        return Quaternion(x=x_new, y=y_new, z=z_new, w=w_new)
+        return np.array([x_new, y_new, z_new, w_new])
+
+    def quaternion_conjugate(self, q):
+        return np.array([-q[0], -q[1], -q[2], q[3]])
+
+    def calculate_sensor_offset(self):
+        if (
+            self.last_xsens_orientation is not None
+            and self.last_bno_orientation is not None
+        ):
+            q_xsens = np.array(
+                [
+                    self.last_xsens_orientation.x,
+                    self.last_xsens_orientation.y,
+                    self.last_xsens_orientation.z,
+                    self.last_xsens_orientation.w,
+                ]
+            )
+
+            q_bno = np.array(
+                [
+                    self.last_bno_orientation.x,
+                    self.last_bno_orientation.y,
+                    self.last_bno_orientation.z,
+                    self.last_bno_orientation.w,
+                ]
+            )
+
+            # Apply frame rotations to get orientations in body frame
+            if self.xsens_to_base_q is not None:
+                q_xsens = self.quaternion_multiply(self.xsens_to_base_q, q_xsens)
+            if self.bno_to_base_q is not None:
+                q_bno = self.quaternion_multiply(self.bno_to_base_q, q_bno)
+
+            # Calculate offset in body frame: offset = xsens^-1 * bno
+            q_xsens_inv = self.quaternion_conjugate(q_xsens)
+            self.orientation_offset = self.quaternion_multiply(q_xsens_inv, q_bno)
+
+            rospy.loginfo(
+                f"Calculated sensor offset (in body frame): [{self.orientation_offset[0]:.4f}, "
+                f"{self.orientation_offset[1]:.4f}, {self.orientation_offset[2]:.4f}, "
+                f"{self.orientation_offset[3]:.4f}]"
+            )
+        else:
+            rospy.logwarn(
+                "Cannot calculate sensor offset: missing orientation data from one or both sensors"
+            )
+
+    def apply_quaternion_offset(self, q_bno, q_offset):
+        """
+        Apply the calculated offset to BNO orientation to align it with Xsens frame.
+        q_corrected = q_bno * offset^-1
+        """
+        q_bno_array = np.array([q_bno.x, q_bno.y, q_bno.z, q_bno.w])
+        q_offset_inv = self.quaternion_conjugate(q_offset)
+
+        # Apply inverse offset to bring BNO reading to Xsens frame
+        q_corrected = self.quaternion_multiply(q_bno_array, q_offset_inv)
+
+        return Quaternion(
+            x=q_corrected[0], y=q_corrected[1], z=q_corrected[2], w=q_corrected[3]
+        )
+
+    def get_frame_rotation(self, frame_id):
+        try:
+            _, rotation_matrix = self.transformer.get_transform(
+                self.base_frame, frame_id
+            )
+
+            rotation_matrix_4x4 = np.eye(4)
+            rotation_matrix_4x4[:3, :3] = rotation_matrix
+
+            quat = tf.transformations.quaternion_from_matrix(rotation_matrix_4x4)
+            rotation_q = np.array([quat[1], quat[2], quat[3], quat[0]])
+
+            rospy.loginfo(f"Loaded {frame_id} rotation from TF: {rotation_q}")
+            return rotation_q
+
+        except Exception as e:
+            rospy.logwarn(
+                f"Could not get TF for {frame_id}: {e}. No frame rotation will be applied."
+            )
+            return None
+
+    def apply_frame_rotation(self, q, rotation_q):
+        q_array = np.array([q.x, q.y, q.z, q.w])
+        q_rotated = self.quaternion_multiply(rotation_q, q_array)
+        return Quaternion(
+            x=q_rotated[0], y=q_rotated[1], z=q_rotated[2], w=q_rotated[3]
+        )
 
     def calibrate_imu(self, req):
         duration = req.duration
