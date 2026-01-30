@@ -1,20 +1,20 @@
 <launch>
     <arg name="namespace" default="taluy" />
-    <arg name="rate" default="10.0" />
+    <arg name="rate" default="20.0" />
 
-    <arg name="zmq_host" default="localhost" />
-    <arg name="zmq_port" default="5555" />
+    <!-- Engine file path (required) -->
+    <arg name="engine_path" default="$(find auv_detection)/models/DA3METRIC-LARGE_476x644_sim.engine" />
 
     <arg name="camera_namespace" default="cameras/cam_front" />
-    <arg name="input_image_topic" default="$(arg camera_namespace)/image_raw" />
+    <arg name="input_image_topic" default="$(arg camera_namespace)/image_rect_color" />
     <arg name="output_depth_topic" default="depth_anything/raw_depth" />
     <arg name="output_colorized_topic" default="depth_anything/colorized" />
     <arg name="scaled_camera_info_topic" default="depth_anything/scaled_camera_info" />
+    <arg name="output_points_topic" default="depth_anything/points" />
 
     <group ns="$(arg namespace)">
-        <node pkg="auv_vision" type="depth_anything_client.py" name="depth_anything_node" output="screen">
-            <param name="zmq_host" value="$(arg zmq_host)" />
-            <param name="zmq_port" value="$(arg zmq_port)" />
+        <node pkg="auv_vision" type="depth_anything_trt_node.py" name="depth_anything_trt_node" output="screen">
+            <param name="engine_path" value="$(arg engine_path)" />
             <param name="rate" value="$(arg rate)" />
             <param name="camera_namespace" value="$(arg camera_namespace)" />
 
@@ -22,6 +22,7 @@
             <remap from="raw_depth" to="$(arg output_depth_topic)" />
             <remap from="colorized" to="$(arg output_colorized_topic)" />
             <remap from="scaled_camera_info" to="$(arg scaled_camera_info_topic)" />
+            <remap from="points" to="$(arg output_points_topic)" />
         </node>
     </group>
 </launch>
