@@ -8,9 +8,6 @@
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
 
-  <!-- A/B Testing: Choose between C++ (legacy) and Python (probabilistic) tracker -->
-  <arg name="use_probabilistic_tracker" default="false" />
-
   <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch" />
 
   <group ns="$(arg namespace)">
@@ -34,9 +31,7 @@
       <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
-    <!-- Probabilistic Python Tracker (runs alongside legacy when enabled) -->
-    <node pkg="auv_mapping" type="object_tracker.py" name="object_tracker"
-          output="screen" if="$(arg use_probabilistic_tracker)">
+    <node pkg="auv_mapping" type="object_tracker.py" name="object_tracker" output="screen">
       <param name="rate" value="$(arg control_rate)" />
       <param name="static_frame" value="$(arg static_frame)" />
       <param name="base_link_frame" value="$(arg namespace)/base_link" />
