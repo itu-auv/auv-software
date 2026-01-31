@@ -9,7 +9,7 @@ Frames published (Phase B - ArUco based, toggle: toggle_docking_trajectory):
 - docking_puck_target: Final docking position (0.5m above docking_station by default)
 
 Frames published (Phase A - YOLO based, toggle: toggle_docking_approach_frame):
-- docking_station_approach: Position at docking_station_link with orientation facing from robot to station
+- docking_station_yolo: Position at docking_station_link with orientation facing from robot to station
 """
 
 import numpy as np
@@ -20,7 +20,6 @@ from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
 from dynamic_reconfigure.server import Server
 
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from auv_mapping.cfg import DockingTrajectoryConfig
 
 
@@ -33,11 +32,7 @@ class DockingFramePublisher:
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
-        )
-        self.set_object_transform_service.wait_for_service()
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
 
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.parent_frame = rospy.get_param("~parent_frame", "docking_station")
@@ -53,7 +48,7 @@ class DockingFramePublisher:
             "~docking_station_frame", "docking_station_link"
         )
         self.station_approach_frame = rospy.get_param(
-            "~station_approach_frame", "docking_station_approach"
+            "~station_approach_frame", "docking_station_yolo"
         )
 
         self.approach_offset_x = 0.0
@@ -121,25 +116,23 @@ class DockingFramePublisher:
         t.transform.rotation = pose.orientation
         return t
 
-    def send_transform(self, transform: TransformStamped):
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        try:
-            resp = self.set_object_transform_service.call(req)
-            if not resp.success:
-                rospy.logwarn(
-                    f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-                )
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {e}")
-
     def apply_offset_to_pose(
         self, base_pose: Pose, offset_x: float, offset_y: float, offset_z: float
     ) -> Pose:
+        offset = np.array([offset_x, offset_y, offset_z, 0.0])
+        q = [
+            base_pose.orientation.x,
+            base_pose.orientation.y,
+            base_pose.orientation.z,
+            base_pose.orientation.w,
+        ]
+        rot = tf.transformations.quaternion_matrix(q)
+        rotated = rot.dot(offset)
+
         new_pose = Pose()
-        new_pose.position.x = base_pose.position.x + offset_x
-        new_pose.position.y = base_pose.position.y + offset_y
-        new_pose.position.z = base_pose.position.z + offset_z
+        new_pose.position.x = base_pose.position.x + rotated[0]
+        new_pose.position.y = base_pose.position.y + rotated[1]
+        new_pose.position.z = base_pose.position.z + rotated[2]
         new_pose.orientation = base_pose.orientation
         return new_pose
 
@@ -172,7 +165,6 @@ class DockingFramePublisher:
         approach_transform = self.build_transform_message(
             self.approach_target_frame, approach_pose, docking_station_tf.header.stamp
         )
-        self.send_transform(approach_transform)
 
         puck_pose = self.apply_offset_to_pose(
             base_pose,
@@ -183,7 +175,8 @@ class DockingFramePublisher:
         puck_transform = self.build_transform_message(
             self.puck_target_frame, puck_pose, docking_station_tf.header.stamp
         )
-        self.send_transform(puck_transform)
+
+        self.tf_broadcaster.sendTransform([approach_transform, puck_transform])
 
     def publish_approach_frame(self):
         try:
@@ -244,7 +237,7 @@ class DockingFramePublisher:
         approach_transform = self.build_transform_message(
             self.station_approach_frame, approach_pose, station_tf.header.stamp
         )
-        self.send_transform(approach_transform)
+        self.tf_broadcaster.sendTransform(approach_transform)
 
     def spin(self):
         rate = rospy.Rate(10.0)

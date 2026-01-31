@@ -149,7 +149,7 @@ class DockingTaskState(smach.State):
                 "START_APPROACH_ALIGN",
                 SetAlignControllerTargetState(
                     source_frame="taluy/base_link",
-                    target_frame="docking_station_approach",
+                    target_frame="docking_station_yolo",
                     max_linear_velocity=0.3,
                     keep_orientation=False,
                 ),

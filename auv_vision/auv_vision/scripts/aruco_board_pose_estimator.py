@@ -325,35 +325,34 @@ class ArucoBoardEstimator:
         Create marker object points for the board. Coordinate system has origin at
         board center, X-right, Y-down, Z-out. Returns dict of marker ID to 4x3 corner points.
         """
-        board_width = 0.800
-        board_height = 1.200
-        marker_size = 0.150
-        edge_offset = 0.035
-        marker_ids = [28, 7, 19, 96]
-
-        half_w = board_width / 2.0
-        half_h = board_height / 2.0
+        half_w = self.BOARD_WIDTH / 2.0
+        half_h = self.BOARD_HEIGHT / 2.0
 
         marker_positions = {
-            28: (-half_w + edge_offset, -half_h + edge_offset),
-            7: (half_w - edge_offset - marker_size, -half_h + edge_offset),
-            19: (-half_w + edge_offset, half_h - edge_offset - marker_size),
+            28: (-half_w + self.EDGE_OFFSET, -half_h + self.EDGE_OFFSET),
+            7: (
+                half_w - self.EDGE_OFFSET - self.MARKER_SIZE,
+                -half_h + self.EDGE_OFFSET,
+            ),
+            19: (
+                -half_w + self.EDGE_OFFSET,
+                half_h - self.EDGE_OFFSET - self.MARKER_SIZE,
+            ),
             96: (
-                half_w - edge_offset - marker_size,
-                half_h - edge_offset - marker_size,
+                half_w - self.EDGE_OFFSET - self.MARKER_SIZE,
+                half_h - self.EDGE_OFFSET - self.MARKER_SIZE,
             ),
         }
 
-        # Corner order: top-left, top-right, bottom-right, bottom-left (clockwise)
         marker_obj_points = {}
-        for marker_id in marker_ids:
+        for marker_id in self.MARKER_IDS:
             x, y = marker_positions[marker_id]
             corners = np.array(
                 [
                     [x, y, 0],
-                    [x + marker_size, y, 0],
-                    [x + marker_size, y + marker_size, 0],
-                    [x, y + marker_size, 0],
+                    [x + self.MARKER_SIZE, y, 0],
+                    [x + self.MARKER_SIZE, y + self.MARKER_SIZE, 0],
+                    [x, y + self.MARKER_SIZE, 0],
                 ],
                 dtype=np.float32,
             )
