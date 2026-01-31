@@ -56,15 +56,14 @@ def scale_depths(
 def pipe_to_camera_position_depth_method(
     pipe: PipeDetection, fx: float, fy: float, depth_image: np.ndarray
 ) -> Tuple[float, float, float]:
+    """
+    Compute pipe position in camera frame using depth from PipeDetection.
+
+    pipe.depth is already metric (meters) - computed as median depth
+    in SlalomSegmentor from depth_anything output.
+    """
     yaw = pipe.centroid[0]
-
-    bx, by, bw, bh = pipe.bbox
-    h, w = depth_image.shape[:2]
-    cx_pixel = max(0, min(w - 1, int(bx + bw / 2)))
-    cy_pixel = max(0, min(h - 1, int(by + bh / 2)))
-    raw_depth = depth_image[cy_pixel, cx_pixel]
-
-    depth = ((fx + fy) * 0.5) * raw_depth / 300  # from da3 github page
+    depth = pipe.depth
 
     x = depth
     y = -depth * math.tan(yaw)

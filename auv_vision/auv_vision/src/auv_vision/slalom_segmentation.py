@@ -43,7 +43,7 @@ class SlalomSegmentor:
         self.cleanup_min_area = 30
         self.safe_zone_start_ratio = 0.2
         self.safe_zone_end_ratio = 0.6
-        self.width_threshold_ratio = 1.0
+        self.width_threshold_ratio = 0.8
         self.fitline_dist_type = cv2.DIST_L2
         self.fitline_param = 0
         self.fitline_reps = 0.01

@@ -5,7 +5,7 @@ from auv_control.vs_types import (
     ControllerState,
 )
 from auv_control.vs_pd_controller import PDController
-from auv_control.vs_slalom import compute_slalom_heading
+from auv_control.vs_slalom import compute_slalom_control
 
 __all__ = [
     "ControllerConfig",
@@ -13,5 +13,5 @@ __all__ = [
     "SlalomState",
     "ControllerState",
     "PDController",
-    "compute_slalom_heading",
+    "compute_slalom_control",
 ]
