@@ -18,6 +18,7 @@ class PipeDetection:
     area: float
     centroid: Tuple[float, float]  # normalized [-1, 1]
     depth: float
+    length: float
 
 
 class SlalomSegmentor:
@@ -37,6 +38,16 @@ class SlalomSegmentor:
         # Pairing constraints
         self.max_pipe_width_ratio = 0.167  # ~80px for 480px width
         self.min_vertical_overlap = 0.5
+
+        # Rope cleanup & Length calculation parameters
+        self.cleanup_min_area = 30
+        self.safe_zone_start_ratio = 0.2
+        self.safe_zone_end_ratio = 0.6
+        self.width_threshold_ratio = 1.0
+        self.fitline_dist_type = cv2.DIST_L2
+        self.fitline_param = 0
+        self.fitline_reps = 0.01
+        self.fitline_aeps = 0.01
 
     def pixel_to_yaw(self, pixel_x: float, image_width: int) -> float:
         if self.fx is not None and self.cx is not None:
@@ -79,14 +90,23 @@ class SlalomSegmentor:
             self._pair_components(blue_valid, red_valid, (h, w))
         )
 
-        # 4. Generate Detections
-        detections, rejected_contours = self._extract_detections(mask, depth)
+        # 4. Refine Mask (Rope Cleanup)
+        refined_mask = self._refine_mask(mask)
 
-        result = {"mask": mask, "detections": detections, "pipe_count": len(detections)}
+        # 5. Generate Detections
+        detections, rejected_contours = self._extract_detections(refined_mask, depth)
+
+        result = {
+            "mask": refined_mask,
+            "detections": detections,
+            "pipe_count": len(detections),
+        }
 
         if return_debug:
             # Create debug visualization
-            debug_vis = self._create_debug_vis(enhanced, blue_valid, red_valid, mask)
+            debug_vis = self._create_debug_vis(
+                enhanced, blue_valid, red_valid, refined_mask
+            )
 
             debug_components = self._draw_component_debug(
                 enhanced.copy(), blue_valid, blue_rejected, red_valid, red_rejected, h
@@ -99,7 +119,7 @@ class SlalomSegmentor:
                 unpaired_reds,
             )
             debug_detections = self._draw_detection_debug(
-                enhanced.copy(), mask, detections, rejected_contours
+                enhanced.copy(), refined_mask, detections, rejected_contours
             )
 
             result.update(
@@ -291,6 +311,42 @@ class SlalomSegmentor:
                 if x2 > x1:
                     canvas[y, x1 : x2 + 1] = 255
 
+    def _refine_mask(self, mask: np.ndarray) -> np.ndarray:
+        output_mask = np.zeros_like(mask)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+        for cnt in contours:
+            if cv2.contourArea(cnt) < self.cleanup_min_area:
+                continue
+
+            single_cnt_mask = np.zeros_like(mask)
+            cv2.drawContours(single_cnt_mask, [cnt], -1, 255, -1)
+            x, y, w, h = cv2.boundingRect(cnt)
+
+            widths = []
+            for row in range(y, y + h):
+                row_pixels = np.count_nonzero(single_cnt_mask[row, x : x + w])
+                widths.append(row_pixels)
+
+            safe_zone = widths[
+                int(h * self.safe_zone_start_ratio) : int(h * self.safe_zone_end_ratio)
+            ]
+            ref_width = np.median(safe_zone) if safe_zone else widths[0]
+
+            cut_y_relative = h
+
+            for i in range(h - 1, int(h * self.safe_zone_start_ratio), -1):
+                if widths[i] >= ref_width * self.width_threshold_ratio:
+                    cut_y_relative = i
+                    break
+
+            cut_y_absolute = y + cut_y_relative
+            output_mask[y:cut_y_absolute, x : x + w] = single_cnt_mask[
+                y:cut_y_absolute, x : x + w
+            ]
+
+        return output_mask
+
     def _extract_detections(
         self, mask: np.ndarray, depth: np.ndarray
     ) -> Tuple[List[PipeDetection], List[Dict]]:
@@ -334,6 +390,24 @@ class SlalomSegmentor:
             else:
                 mode_depth = 0.0
 
+            [vx, vy, x0, y0] = cv2.fitLine(
+                cnt,
+                self.fitline_dist_type,
+                self.fitline_param,
+                self.fitline_reps,
+                self.fitline_aeps,
+            )
+            pts = cnt.reshape(-1, 2)
+            projections = (pts[:, 0] - x0) * vx + (pts[:, 1] - y0) * vy
+
+            min_proj = np.min(projections)
+            max_proj = np.max(projections)
+
+            p1 = (int(x0 + min_proj * vx), int(y0 + min_proj * vy))
+            p2 = (int(x0 + max_proj * vx), int(y0 + max_proj * vy))
+
+            length = float(np.linalg.norm(np.array(p1) - np.array(p2)))
+
             detections.append(
                 PipeDetection(
                     label="pipe",
@@ -341,8 +415,11 @@ class SlalomSegmentor:
                     area=area,
                     centroid=(yaw_x, norm_cy),
                     depth=mode_depth,
+                    length=length,
                 )
             )
+
+            setattr(detections[-1], "_line_pts", (p1, p2))
 
         return detections, rejected_contours
 
@@ -535,6 +612,20 @@ class SlalomSegmentor:
             cv2.putText(
                 vis, label, (text_x, text_y), font, font_scale, (0, 255, 0), thickness
             )
+
+            if hasattr(det, "_line_pts"):
+                p1, p2 = getattr(det, "_line_pts")
+                cv2.line(vis, p1, p2, (0, 0, 255), 2)
+                cv2.putText(
+                    vis,
+                    f"{int(det.length)}px",
+                    (x + bw + 5, y + bh // 2),
+                    font,
+                    0.5,
+                    (0, 255, 0),
+                    1,
+                    cv2.LINE_AA,
+                )
 
         # draw rejected contours
         for rej in rejected_contours:
