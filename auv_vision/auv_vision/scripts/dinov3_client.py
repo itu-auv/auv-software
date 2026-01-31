@@ -8,8 +8,7 @@ import numpy as np
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Point, Pose2D
 from vision_msgs.msg import Detection2DArray, Detection2D, ObjectHypothesisWithPose
-from cv_bridge import CvBridge, CvBridgeError
-from cv_bridge import CvBridge, CvBridgeError
+from ultralytics_ros.msg import YoloResult
 from cv_bridge import CvBridge, CvBridgeError
 import time
 import base64
@@ -30,7 +29,7 @@ class TrackerClient:
         self.pub_debug = rospy.Publisher('/tracker/debug_image', Image, queue_size=1)
         self.pub_detections = rospy.Publisher('/tracker/detections', Detection2DArray, queue_size=1)
         self.pub_mask = rospy.Publisher('/tracker/mask', Image, queue_size=1)
-        self.pub_obb = rospy.Publisher('/tracker/obb_detections', Detection2DArray, queue_size=1)
+        self.pub_obb = rospy.Publisher('/yolo_result_bottom', YoloResult, queue_size=1)
         
         self.sub = rospy.Subscriber(self.camera_topic, Image, self.image_callback)
         rospy.loginfo("Debug Yayini Hazir: /tracker/debug_image")
@@ -209,7 +208,10 @@ class TrackerClient:
                         box = np.int0(box)
                         cv2.drawContours(debug_img, [box], 0, (255, 0, 0), 2) # Mavi renk OBB
                 
-                self.pub_obb.publish(obb_array)
+                yolo_result = YoloResult()
+                yolo_result.header = data.header
+                yolo_result.detections = obb_array
+                self.pub_obb.publish(yolo_result)
 
                 # 3. Debug Goruntusunu Publish Et
                 debug_msg = self.bridge.cv2_to_imgmsg(debug_img, "bgr8")
