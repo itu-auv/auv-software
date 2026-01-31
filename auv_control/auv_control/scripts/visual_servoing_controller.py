@@ -30,7 +30,7 @@ from auv_vision.slalom_debug import create_slalom_debug
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 
 REFERENCE_DEPTH_M = 2.0  # Nearest pipe assumed at this distance
-PIPE_REAL_HEIGHT = 1.0   # Physical height of the pipe in meters
+PIPE_REAL_HEIGHT = 0.9   # Physical height of the pipe in meters
 
 
 def scale_depths(
@@ -55,10 +55,8 @@ def pipe_to_camera_position(
     # Calculate perpendicular depth
     depth = (real_height * fy) / max(pipe.length, 1.0)
 
-    # In camera frame: x is forward (depth), y is lateral
-    # Using atan-based yaw, so x = depth, y = -depth * tan(yaw)
     x = depth
-    y = -depth * math.atan(yaw)
+    y = -depth * math.tan(yaw)
     z = 0.0
     return (x, y, z)
 
@@ -290,20 +288,16 @@ class VisualServoingNode:
 
             midpoint = 0.5 * (p1 + p2)
 
-            #pipe_dir = p2 - p1
-            #pipe_len = np.linalg.norm(pipe_dir)
-            #if pipe_len < 0.01:
-            #    return
-            #pipe_dir /= pipe_len
+            pipe_dir = p1 - p2
+            pipe_len = np.linalg.norm(pipe_dir)
+            if pipe_len < 0.01:
+                return
+            pipe_dir /= pipe_len
+            normal = np.array([-pipe_dir[1], pipe_dir[0]])
+            if np.dot(robot - midpoint, normal) < 0:
+                normal *= -1
 
-            #normal = np.array([-pipe_dir[1], pipe_dir[0]])
-            #if np.dot(robot - midpoint, normal) < 0:
-            #    normal *= -1
-
-            #dist = np.dot(robot - midpoint, normal)
-            #target_pos = midpoint + dist * normal
-
-            yaw = 0
+            yaw = math.atan2(normal[1], normal[0])
 
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
