@@ -18,7 +18,7 @@ class TrackerClient:
         rospy.init_node('zmq_tracker_client', anonymous=True)
         
         # Parametreler
-        self.camera_topic = rospy.get_param('~camera_topic', '/taluy/cameras/cam_bottom/image_raw') 
+        self.camera_topic = rospy.get_param('~camera_topic', '/taluy/cameras/cam_bottom/image_rect_color') 
         self.zmq_port = rospy.get_param('~zmq_port', 5555)
         
         self.bridge = CvBridge()
