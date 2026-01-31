@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import time
 import rospy
 import numpy as np
 import yaml
@@ -20,6 +21,7 @@ from auv_msgs.srv import SetPremap, SetPremapResponse
 import tf2_ros
 import tf2_geometry_msgs
 from geometry_msgs.msg import PointStamped
+from tf.transformations import quaternion_multiply, quaternion_slerp, quaternion_inverse
 
 
 class ObjectTracker:
@@ -45,7 +47,24 @@ class ObjectTracker:
         )
         self.slalom_labels = ["red_pipe_link", "white_pipe_link"]
         self.trackers: Dict[str, Tracker] = {}
+        self.orientations: Dict[int, np.ndarray] = (
+            {}
+        )  # track_id -> quaternion [x,y,z,w]
+        self.orientation_alpha = rospy.get_param("~orientation_alpha", 0.2)
         self.lock = threading.Lock()
+
+        # Profiling stats (reset every log interval)
+        self.stats_lock = threading.Lock()
+        self.stats = {
+            "callback_count": 0,
+            "callback_time_sum": 0.0,
+            "tf_time_sum": 0.0,
+            "track_time_sum": 0.0,
+            "broadcast_count": 0,
+            "broadcast_time_sum": 0.0,
+            "total_tracks": 0,
+        }
+        self.last_stats_time = time.time()
 
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(60.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -82,14 +101,13 @@ class ObjectTracker:
     def get_or_create_tracker(self, label: str) -> Tracker:
         """Get existing tracker for label or create a new one."""
         if label not in self.trackers:
-            # Use tighter threshold for slalom gates
+            # Tighter threshold for slalom gates
             threshold = (
                 self.slalom_distance_threshold
                 if label in self.slalom_labels
                 else self.distance_threshold
             )
 
-            # CP-like Kalman filter
             filter_factory = FilterPyKalmanFilterFactory(
                 R=self.kalman_R,
                 Q=self.kalman_Q,
@@ -119,27 +137,121 @@ class ObjectTracker:
         return np.linalg.norm(detection.points - tracked_object.estimate)
 
     def transform_callback(self, msg: TransformStamped):
-        """Handle incoming object transform updates."""
+        """Transform detection to world frame and update tracker."""
+        t_start = time.perf_counter()
+
         label = msg.child_frame_id
         if not label:
             rospy.logwarn_throttle(5, "Received transform with empty child_frame_id")
             return
 
-        pos = msg.transform.translation
-        point = np.array([[pos.x, pos.y, pos.z]])
-        detection = Detection(points=point, label=label)
+        parent_frame = msg.header.frame_id
+        msg_stamp = msg.header.stamp
+
+        if parent_frame == self.world_frame:
+            pos = msg.transform.translation
+            rot = msg.transform.rotation
+            point_in_world = np.array([[pos.x, pos.y, pos.z]])
+            quat_in_world = np.array([rot.x, rot.y, rot.z, rot.w])
+            t_tf = time.perf_counter()
+        else:
+            result = self._transform_pose_to_world(
+                msg.transform, parent_frame, msg_stamp
+            )
+            t_tf = time.perf_counter()
+            if result is None:
+                return
+            point_in_world, quat_in_world = result
+
+        detection = Detection(points=point_in_world, label=label)
 
         with self.lock:
             tracker = self.get_or_create_tracker(label)
             tracker.update(detections=[detection])
+            self._update_orientation(tracker, quat_in_world)
+
+        t_end = time.perf_counter()
+
+        # Accumulate stats
+        with self.stats_lock:
+            self.stats["callback_count"] += 1
+            self.stats["callback_time_sum"] += (t_end - t_start) * 1000
+            self.stats["tf_time_sum"] += (t_tf - t_start) * 1000
+            self.stats["track_time_sum"] += (t_end - t_tf) * 1000
+
+    def _update_orientation(self, tracker: Tracker, new_quat: np.ndarray):
+        """SLERP for orientation updates"""
+        for obj in tracker.tracked_objects:
+            track_id = obj.id
+            if track_id not in self.orientations:
+                self.orientations[track_id] = new_quat
+            else:
+                current = self.orientations[track_id]
+                self.orientations[track_id] = quaternion_slerp(
+                    current, new_quat, self.orientation_alpha
+                )
+
+    def _transform_pose_to_world(
+        self, transform, parent_frame: str, stamp: rospy.Time
+    ) -> tuple:
+        """Transform position and rotation from parent_frame to world_frame."""
+        try:
+            tf_transform = self.tf_buffer.lookup_transform(
+                self.world_frame,
+                parent_frame,
+                stamp,
+                rospy.Duration(0.1),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ExtrapolationException,
+            tf2_ros.ConnectivityException,
+        ) as e:
+            rospy.logwarn_throttle(
+                5.0,
+                f"Failed to lookup transform {parent_frame} -> {self.world_frame} "
+                f"at time {stamp.to_sec():.3f}: {e}",
+            )
+            return None
+
+        # Transform position
+        point_stamped = PointStamped()
+        point_stamped.header.frame_id = parent_frame
+        point_stamped.header.stamp = stamp
+        point_stamped.point.x = transform.translation.x
+        point_stamped.point.y = transform.translation.y
+        point_stamped.point.z = transform.translation.z
+        point_in_world = tf2_geometry_msgs.do_transform_point(
+            point_stamped, tf_transform
+        )
+
+        # Transform rotation: q_world = q_tf * q_local
+        tf_rot = tf_transform.transform.rotation
+        local_rot = transform.rotation
+        q_tf = np.array([tf_rot.x, tf_rot.y, tf_rot.z, tf_rot.w])
+        q_local = np.array([local_rot.x, local_rot.y, local_rot.z, local_rot.w])
+        q_world = quaternion_multiply(q_tf, q_local)
+
+        position = np.array(
+            [
+                [
+                    point_in_world.point.x,
+                    point_in_world.point.y,
+                    point_in_world.point.z,
+                ]
+            ]
+        )
+        return position, q_world
 
     def broadcast_transforms(self):
         """Broadcast TF for all confirmed tracks."""
+        t_start = time.perf_counter()
+
         with self.lock:
             tracks_by_label = self._get_confirmed_tracks()
 
+        n_tracks = 0
         for label, tracks in tracks_by_label.items():
-            # Sort by distance to pre-map expected position
             tracks_sorted = self.sort_tracks_by_premap(tracks, label)
 
             for idx, obj in enumerate(tracks_sorted):
@@ -149,6 +261,15 @@ class ObjectTracker:
                 frame_name = self._get_frame_name(label, idx)
                 tf_msg = self._build_transform_msg(obj, frame_name)
                 self.tf_broadcaster.sendTransform(tf_msg)
+                n_tracks += 1
+
+        t_end = time.perf_counter()
+
+        # Accumulate stats
+        with self.stats_lock:
+            self.stats["broadcast_count"] += 1
+            self.stats["broadcast_time_sum"] += (t_end - t_start) * 1000
+            self.stats["total_tracks"] = n_tracks
 
     def _get_confirmed_tracks(self) -> Dict[str, List[TrackedObject]]:
         """Collect all confirmed tracks grouped by label."""
@@ -161,9 +282,9 @@ class ObjectTracker:
 
         return tracks_by_label
 
-    # TODO remove p_ prefix
+    # TODO: remove p_ prefix
     def _get_frame_name(self, label: str, idx: int) -> str:
-        """Assign frame name based on distance index. Prefixed with 'p_' to distinguish from legacy tracker."""
+        """Assign frame name. Prefixed with 'p_' to distinguish from legacy."""
         if idx == 0:
             return f"p_{label}"
         return f"p_{label}_{idx - 1}"
@@ -179,7 +300,14 @@ class ObjectTracker:
 
         est = obj.estimate[0]
         tf_msg.transform.translation = Vector3(x=est[0], y=est[1], z=est[2])
-        tf_msg.transform.rotation = Quaternion(x=0, y=0, z=0, w=1)
+
+        # Use filtered orientation if available
+        track_id = obj.id
+        if track_id in self.orientations:
+            q = self.orientations[track_id]
+            tf_msg.transform.rotation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+        else:
+            tf_msg.transform.rotation = Quaternion(x=0, y=0, z=0, w=1)
 
         return tf_msg
 
@@ -226,8 +354,14 @@ class ObjectTracker:
                 elif hasattr(obj.filter, "pos_variance"):
                     obj.filter.pos_variance *= self.premap_initial_covariance
 
-                # Mark as confirmed for immediate broadcast
                 obj.hit_counter = self.hit_counter_max
+
+                # Initialize orientation from premap
+                if "orientation" in data and len(data["orientation"]) == 4:
+                    self.orientations[obj.id] = np.array(data["orientation"])
+                else:
+                    self.orientations[obj.id] = np.array([0.0, 0.0, 0.0, 1.0])
+
                 rospy.loginfo(
                     f"Initialized track for {label} at {pos} with hit_counter={obj.hit_counter}"
                 )
@@ -244,8 +378,7 @@ class ObjectTracker:
     def sort_tracks_by_premap(
         self, tracks: List[TrackedObject], label: str
     ) -> List[TrackedObject]:
-        """Sort tracks by distance to pre-map expected position (closest first).
-        Falls back to distance from robot if label not in pre-map."""
+        """Sort tracks by distance to premap position (closest first)."""
 
         expected_pos = None
         if label in self.premap:
@@ -289,7 +422,9 @@ class ObjectTracker:
 
     def clear_tracks_handler(self, req) -> TriggerResponse:
         """Service handler to clear all tracks."""
-        self.trackers.clear()
+        with self.lock:
+            self.trackers.clear()
+            self.orientations.clear()
         rospy.loginfo("Cleared all object tracks.")
         return TriggerResponse(success=True, message="Cleared all object tracks.")
 
@@ -324,7 +459,7 @@ class ObjectTracker:
             return SetPremapResponse(success=False, message=msg)
 
     def _transform_and_parse_service_objects(self, objects, source_frame, target_frame):
-        """Processes request objects, transforms them to target frame, and prepares data structures."""
+        """Transform request objects to target frame."""
         new_premap_data = {}
         yaml_data_objects = {}
         transform_stamped = None
@@ -382,9 +517,10 @@ class ObjectTracker:
         return new_premap_data, yaml_data_objects
 
     def _atomic_update_and_save(self, new_premap_data, yaml_data_objects, target_frame):
-        """Atomically updates internal state and saves to YAML."""
+        """Update internal state and save to YAML."""
         with self.lock:
             self.trackers.clear()
+            self.orientations.clear()
             self.premap = new_premap_data
             self._initialize_tracks_from_premap()
 
@@ -397,7 +533,7 @@ class ObjectTracker:
                 if not os.path.exists(yaml_dir):
                     os.makedirs(yaml_dir)
 
-                # Backup existing file before overwriting, using its created_at timestamp
+                # Backup existing file
                 if os.path.exists(self.premap_yaml_path):
                     try:
                         with open(self.premap_yaml_path, "r") as old_f:
@@ -436,11 +572,56 @@ class ObjectTracker:
         else:
             rospy.logwarn("No premap_file parameter set, not saving to disk")
 
+    def _log_stats(self):
+        """Log consolidated stats every 10 seconds."""
+        now = time.time()
+        elapsed = now - self.last_stats_time
+        if elapsed < 10.0:
+            return
+
+        with self.stats_lock:
+            cb_count = self.stats["callback_count"]
+            cb_time = self.stats["callback_time_sum"]
+            tf_time = self.stats["tf_time_sum"]
+            track_time = self.stats["track_time_sum"]
+            bc_count = self.stats["broadcast_count"]
+            bc_time = self.stats["broadcast_time_sum"]
+            n_tracks = self.stats["total_tracks"]
+
+            # Reset
+            self.stats = {
+                "callback_count": 0,
+                "callback_time_sum": 0.0,
+                "tf_time_sum": 0.0,
+                "track_time_sum": 0.0,
+                "broadcast_count": 0,
+                "broadcast_time_sum": 0.0,
+                "total_tracks": 0,
+            }
+            self.last_stats_time = now
+
+        if cb_count > 0:
+            avg_cb = cb_time / cb_count
+            avg_tf = tf_time / cb_count
+            avg_track = track_time / cb_count
+        else:
+            avg_cb = avg_tf = avg_track = 0.0
+
+        avg_bc = bc_time / bc_count if bc_count > 0 else 0.0
+
+        rospy.loginfo(
+            f"[Stats] {elapsed:.1f}s | "
+            f"cb: {cb_count} @ {avg_cb:.2f}ms (tf:{avg_tf:.2f} track:{avg_track:.2f}) | "
+            f"bc: {bc_count} @ {avg_bc:.2f}ms | "
+            f"tracks: {n_tracks}"
+        )
+
     def run(self):
         """Main loop: broadcast transforms at configured rate."""
         rate = rospy.Rate(self.rate_hz)
         while not rospy.is_shutdown():
             self.broadcast_transforms()
+            self._log_stats()
             rate.sleep()
 
 
