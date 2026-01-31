@@ -4,8 +4,9 @@
   <arg name="control_rate" default="20.0" />
   <arg name="dvl_virtual_port" default="/tmp/vcom0" />
   <arg name="use_gui" default="false" />
-  <arg name="enable_logging" default="true" />
+  <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
+  <arg name="log_filename" default="" />
 
   <rosparam file="$(find auv_bringup)/config/environment.yaml" command="load" ns="" />
 
@@ -63,10 +64,11 @@
 
   <!-- launch logging -->
   <group if="$(arg enable_logging)">
-      <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
-          <arg name="namespace" value="$(arg namespace)" />
-          <arg name="logging_directory" value="$(arg logging_directory)" />
-      </include>
+    <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
+      <arg name="namespace" value="$(arg namespace)" />
+      <arg name="logging_directory" value="$(arg logging_directory)" />
+      <arg name="log_filename" value="$(arg log_filename)" />
+    </include>
   </group>
 
   <!-- Smach Monitor Node -->

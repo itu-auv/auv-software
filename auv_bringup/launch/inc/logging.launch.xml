@@ -2,7 +2,8 @@
 <launch>
   <arg name="namespace" default="taluy"/>
   <arg name="prefix" default="log"/>
-  <arg name="logging_directory" default="$(optenv PWD)"/>
+  <arg name="log_filename" default=""/>
+  <arg name="logging_directory" default="$(optenv HOME)/bags"/>
   <arg name="include_pattern" default=".*"/>
   <arg name="exclude_pattern" default="/.*image_[^/]*$|/.*theora$|/(?!.*image_raw/compressed$).*compressed$|/.*compressedDepth$|/.*points_filtered$|/.*points$"/>
   <arg name="topics" default=""/>
@@ -12,7 +13,7 @@
       pkg="rosbag"
       type="record"
       output="screen"
-      args=" --output-prefix=$(arg logging_directory)/$(arg prefix) -e $(arg include_pattern) -x $(arg exclude_pattern) $(arg topics)"
+      args=" --output-prefix=$(arg logging_directory)/$(arg prefix)$(arg log_filename) -e $(arg include_pattern) -x $(arg exclude_pattern) $(arg topics)"
     />
   </group>
 </launch>
