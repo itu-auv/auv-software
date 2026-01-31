@@ -8,6 +8,12 @@ buttons:
   z_axis_neg:
     index: 4
     gain: 0.4
+  # ROV mode buttons (when rov=1)
+  rov_pitch_pos: 0
+  rov_pitch_neg: 3
+  rov_roll_pos: 1
+  rov_roll_neg: 2
+  reset_orientation: 10
 
 axes:
   x_axis:
@@ -19,3 +25,6 @@ axes:
   yaw_axis:
     index: 3
     gain: 0.5
+  # ROV mode gains
+  rov_pitch_gain: 0.5
+  rov_roll_gain: 0.5
