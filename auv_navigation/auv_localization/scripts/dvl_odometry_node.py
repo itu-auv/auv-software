@@ -40,6 +40,10 @@ class DvlToOdom:
         self.load_dynamic_model()
 
         # Subscribers and Publishers
+        # Debug publisher for model-based velocity
+        self.model_velocity_debug_pub = rospy.Publisher(
+            "model_based_velocity_debug", Twist, queue_size=10
+        )
         self.dvl_velocity_subscriber = message_filters.Subscriber(
             "dvl/velocity_raw", Twist, tcp_nodelay=True
         )
@@ -268,6 +272,18 @@ class DvlToOdom:
 
             self.update_twist_covariance(use_model_based=False)
 
+            # --- DEBUG: Publish model-based velocity even when DVL is valid ---
+            if self.dynamic_model_available and dt > 0.001 and dt < 1.0:
+                model_vel = self.compute_model_based_velocity(dt)
+                debug_twist = Twist()
+                debug_twist.linear.x = model_vel[0]
+                debug_twist.linear.y = model_vel[1]
+                debug_twist.linear.z = model_vel[2]
+                debug_twist.angular.x = model_vel[3]
+                debug_twist.angular.y = model_vel[4]
+                debug_twist.angular.z = model_vel[5]
+                self.model_velocity_debug_pub.publish(debug_twist)
+
         else:
             # DVL invalid - use model-based estimation or cmd_vel fallback
             self.filter_cmd_vel()
@@ -283,6 +299,16 @@ class DvlToOdom:
                 velocity_msg.angular.z = model_vel[5]
 
                 self.update_twist_covariance(use_model_based=True)
+
+                # --- DEBUG: Publish model-based velocity when DVL is invalid ---
+                debug_twist = Twist()
+                debug_twist.linear.x = model_vel[0]
+                debug_twist.linear.y = model_vel[1]
+                debug_twist.linear.z = model_vel[2]
+                debug_twist.angular.x = model_vel[3]
+                debug_twist.angular.y = model_vel[4]
+                debug_twist.angular.z = model_vel[5]
+                self.model_velocity_debug_pub.publish(debug_twist)
 
             else:
                 velocity_msg.linear.x = self.filtered_cmd_vel.linear.x
