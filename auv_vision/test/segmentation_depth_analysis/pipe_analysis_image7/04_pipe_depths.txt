@@ -1,0 +1,18 @@
+PIPE DEPTH ANALYSIS SUMMARY
+==================================================
+
+Pipe ID    Mode Depth   Mean Depth   Area (px)
+--------------------------------------------------
+1          45           46.9         394
+2          62           69.5         302
+3          4            4.9          1790
+4          56           62.1         382
+5          41           41.3         449
+
+Sorted by depth (closest to farthest):
+--------------------------------------------------
+Pipe 3: depth = 4
+Pipe 5: depth = 41
+Pipe 1: depth = 45
+Pipe 4: depth = 56
+Pipe 2: depth = 62
