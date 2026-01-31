@@ -12,6 +12,11 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   sensor_msgs
   tf
+  dynamic_reconfigure
+)
+
+generate_dynamic_reconfigure_options(
+  cfg/Aruco.cfg
 )
 
 catkin_package(
@@ -20,6 +25,7 @@ catkin_package(
     rospy
     sensor_msgs
     tf
+    dynamic_reconfigure
 )
 
 include_directories(
@@ -28,6 +34,7 @@ include_directories(
 
 catkin_install_python(
   PROGRAMS
+    scripts/aruco_board_pose_estimator.py
     scripts/dynamic_roll_compensation.py
     scripts/camera_detection_pose_estimator.py
     scripts/yolo_result_bridge.py

@@ -1,0 +1,102 @@
+# RoboSub Competition Model Configuration
+# Models: tracker_front.pt, tracker_bottom.pt
+
+model_name: robosub
+description: Multi-class detection for RoboSub competition
+
+cameras:
+  front:
+    model_file: tracker_front.pt
+    classes:
+      sawfish:
+        id: 0
+        tf_frame: gate_sawfish_link
+        real_height: 0.3048
+        real_width: 0.3048
+
+      shark:
+        id: 1
+        tf_frame: gate_shark_link
+        real_height: 0.3048
+        real_width: 0.3048
+
+      red_pipe:
+        id: 2
+        tf_frame: red_pipe_link
+        real_height: 0.90
+        real_width: null
+
+      white_pipe:
+        id: 3
+        tf_frame: white_pipe_link
+        real_height: 0.90
+        real_width: null
+
+      torpedo_map:
+        id: 4
+        tf_frame: torpedo_map_link
+        real_height: 0.6096
+        real_width: 0.6096
+
+      torpedo_hole:
+        id: 5
+        tf_frame: torpedo_hole_link
+        real_height: 0.125
+        real_width: 0.125
+
+      bin_whole:
+        id: 6
+        tf_frame: bin_whole_link
+        real_height: null
+        real_width: null
+
+      octagon:
+        id: 7
+        tf_frame: octagon_link
+        real_height: 0.74
+        real_width: 0.91
+
+  bottom:
+    model_file: tracker_bottom.pt
+    classes:
+      bin_shark:
+        id: 0
+        tf_frame: bin_shark_link
+        real_height: 0.3048
+        real_width: 0.3048
+
+      bin_sawfish:
+        id: 1
+        tf_frame: bin_sawfish_link
+        real_height: 0.3048
+        real_width: 0.3048
+
+# Focus groups for set_front_camera_focus service
+# Maps group names to lists of class names
+focus_groups:
+  gate:
+    - sawfish
+    - shark
+  pipe:
+    - red_pipe
+    - white_pipe
+  torpedo:
+    - torpedo_map
+  torpedo_holes:
+    - torpedo_hole
+  bin:
+    - bin_whole
+    - bin_shark
+    - bin_sawfish
+  octagon:
+    - octagon
+  all:
+    - sawfish
+    - shark
+    - red_pipe
+    - white_pipe
+    - torpedo_map
+    - torpedo_hole
+    - bin_whole
+    - octagon
+  none: []

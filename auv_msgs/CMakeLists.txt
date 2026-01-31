@@ -32,6 +32,7 @@ add_service_files(
   PlanPath.srv
   SendAcoustic.srv
   SetDepth.srv
+  SetModelConfig.srv
   SetObjectTransform.srv
   VisualServoing.srv
   SetDetectionFocus.srv
