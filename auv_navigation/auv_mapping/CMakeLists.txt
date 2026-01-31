@@ -83,7 +83,7 @@ catkin_install_python(PROGRAMS
   scripts/gps_target_frame_publisher.py
   scripts/acoustic_transmitter.py
   scripts/pipeline_trajectory_publisher.py
-  scripts/semantic_mapper.py
+  scripts/object_tracker.py
   scripts/competition_map_gui.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

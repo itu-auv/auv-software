@@ -22,11 +22,10 @@ import tf2_geometry_msgs
 from geometry_msgs.msg import PointStamped
 
 
-class SemanticMapper:
-
+class ObjectTracker:
     def __init__(self):
-        rospy.init_node("semantic_mapper", anonymous=False)
-        rospy.loginfo("Semantic Mapper starting...")
+        rospy.init_node("object_tracker", anonymous=False)
+        rospy.loginfo("Object Tracker starting...")
 
         self.world_frame = rospy.get_param("~static_frame", "odom")
         self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
@@ -447,7 +446,7 @@ class SemanticMapper:
 
 if __name__ == "__main__":
     try:
-        node = SemanticMapper()
+        node = ObjectTracker()
         node.run()
     except rospy.ROSInterruptException:
         pass
