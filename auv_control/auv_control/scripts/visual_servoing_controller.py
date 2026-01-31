@@ -30,6 +30,7 @@ from auv_vision.slalom_debug import create_slalom_debug
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 
 REFERENCE_DEPTH_M = 2.0  # Nearest pipe assumed at this distance
+PIPE_REAL_HEIGHT = 1.0   # Physical height of the pipe in meters
 
 
 def scale_depths(
@@ -44,14 +45,20 @@ def scale_depths(
 
 
 def pipe_to_camera_position(
-    pipe: PipeDetection, distance: float
+    pipe: PipeDetection, fx: float, fy: float, real_height: float
 ) -> Tuple[float, float, float]:
     """
     Convert pipe detection to 3D position in camera frame.
     """
     yaw = pipe.centroid[0]
-    x = distance * math.cos(yaw)
-    y = -distance * math.sin(yaw)
+
+    # Calculate perpendicular depth
+    depth = (real_height * fy) / max(pipe.length, 1.0)
+
+    # In camera frame: x is forward (depth), y is lateral
+    # Using atan-based yaw, so x = depth, y = -depth * tan(yaw)
+    x = depth
+    y = -depth * math.atan(yaw)
     z = 0.0
     return (x, y, z)
 
@@ -115,16 +122,17 @@ class VisualServoingNode:
                 camera_ns, True
             )
             calib = calib_fetcher.get_camera_info()
-            fx = calib.K[0]
-            cx = calib.K[2]
-            rospy.loginfo(f"[VS] Camera calibration: fx={fx:.2f}, cx={cx:.2f}")
+            self.fx = calib.K[0]
+            self.fy = calib.K[4]
+            self.cx = calib.K[2]
+            rospy.loginfo(f"[VS] Camera calibration: fx={self.fx:.2f}, fy={self.fy:.2f}, cx={self.cx:.2f}")
         except Exception as e:
             rospy.logwarn(
                 f"[VS] Camera calibration failed: {e}, using linear normalization"
             )
-            fx, cx = None, None
+            self.fx, self.fy, self.cx = None, None, None
 
-        self.segmentor = SlalomSegmentor(fx=fx, cx=cx)
+        self.segmentor = SlalomSegmentor(fx=self.fx, cx=self.cx)
         self.bridge = CvBridge()
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -280,36 +288,29 @@ class VisualServoingNode:
                 [robot_tf.transform.translation.x, robot_tf.transform.translation.y]
             )
 
-            # Midpoint between pipes
             midpoint = 0.5 * (p1 + p2)
 
-            # Direction along pipe line
-            pipe_dir = p2 - p1
-            pipe_len = np.linalg.norm(pipe_dir)
-            if pipe_len < 0.01:
-                return
-            pipe_dir /= pipe_len
+            #pipe_dir = p2 - p1
+            #pipe_len = np.linalg.norm(pipe_dir)
+            #if pipe_len < 0.01:
+            #    return
+            #pipe_dir /= pipe_len
 
-            # Normal direction (perpendicular, pointing toward robot)
-            normal = np.array([-pipe_dir[1], pipe_dir[0]])
-            if np.dot(robot - midpoint, normal) < 0:
-                normal *= -1
+            #normal = np.array([-pipe_dir[1], pipe_dir[0]])
+            #if np.dot(robot - midpoint, normal) < 0:
+            #    normal *= -1
 
-            # Project robot onto the normal line through midpoint
-            dist = np.dot(robot - midpoint, normal)
-            target_pos = midpoint + dist * normal
+            #dist = np.dot(robot - midpoint, normal)
+            #target_pos = midpoint + dist * normal
 
-            # Yaw: face the midpoint
-            to_mid = midpoint - target_pos
-            yaw = math.atan2(to_mid[1], to_mid[0])
+            yaw = 0
 
-            # Publish transform
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "odom"
             t.child_frame_id = "slalom_position_target"
-            t.transform.translation.x = target_pos[0]
-            t.transform.translation.y = target_pos[1]
+            t.transform.translation.x = midpoint[0]
+            t.transform.translation.y = midpoint[1]
             t.transform.translation.z = -1.3
             t.transform.rotation.z = math.sin(yaw / 2)
             t.transform.rotation.w = math.cos(yaw / 2)
@@ -325,16 +326,17 @@ class VisualServoingNode:
     ):
         pipe_1, pipe_2 = pair
 
-        dist_1, dist_2 = scale_depths(pipe_1, pipe_2, self.reference_depth_m)
+        pos_1 = pipe_to_camera_position(pipe_1, self.fx, self.fy, PIPE_REAL_HEIGHT)
+        pos_2 = pipe_to_camera_position(pipe_2, self.fx, self.fy, PIPE_REAL_HEIGHT)
+
+        dist_1 = math.sqrt(pos_1[0]**2 + pos_1[1]**2)
+        dist_2 = math.sqrt(pos_2[0]**2 + pos_2[1]**2)
 
         rospy.loginfo_throttle(
             1.0,
-            f"[VS] Pair: p1(yaw={pipe_1.centroid[0]:.3f}rad, raw_d={pipe_1.depth:.2f}, scaled_d={dist_1:.2f}m) "
-            f"p2(yaw={pipe_2.centroid[0]:.3f}rad, raw_d={pipe_2.depth:.2f}, scaled_d={dist_2:.2f}m)",
+            f"[VS] Pair: p1(yaw={pipe_1.centroid[0]:.3f}rad, len={pipe_1.length:.1f}px, dist={dist_1:.2f}m) "
+            f"p2(yaw={pipe_2.centroid[0]:.3f}rad, len={pipe_2.length:.1f}px, dist={dist_2:.2f}m)",
         )
-
-        pos_1 = pipe_to_camera_position(pipe_1, dist_1)
-        pos_2 = pipe_to_camera_position(pipe_2, dist_2)
 
         for name, pos in [("pipe_1", pos_1), ("pipe_2", pos_2)]:
             try:
