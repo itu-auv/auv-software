@@ -404,25 +404,21 @@ class ReferencePosePublisherNode:
     def get_transformed_depth(
         self, target_frame: str, source_frame: str, target_depth: float
     ):
-        transform = self.tf_lookup(
-            target_frame,
-            source_frame,
-            rospy.Time(0),
-            rospy.Duration(1.0),
+        source_to_odom = self.tf_lookup(
+            "odom", source_frame, rospy.Time(0), rospy.Duration(1.0)
         )
-
-        if transform is None:
+        if source_to_odom is None:
             return None
 
-        p = PointStamped()
-        p.header.stamp = transform.header.stamp
-        p.header.frame_id = source_frame
-        p.point.x = 0.0
-        p.point.y = 0.0
-        p.point.z = target_depth
+        target_to_odom = self.tf_lookup(
+            "odom", target_frame, rospy.Time(0), rospy.Duration(1.0)
+        )
+        if target_to_odom is None:
+            return None
 
-        p_in_target = do_transform_point(p, transform)
-        return p_in_target.point.z
+        depth_in_odom = source_to_odom.transform.translation.z + target_depth
+
+        return depth_in_odom - target_to_odom.transform.translation.z
 
     def get_transformed_orientation(
         self,
