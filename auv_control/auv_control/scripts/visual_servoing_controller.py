@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import math
 import threading
+from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 import cv2
@@ -29,8 +30,16 @@ from auv_control.vs_slalom import compute_slalom_control
 from auv_vision.slalom_debug import create_slalom_debug
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 
-REFERENCE_DEPTH_M = 2.0  # Nearest pipe assumed at this distance
-PIPE_REAL_HEIGHT = 0.9   # Physical height of the pipe in meters
+REFERENCE_DEPTH_M = 2.0
+PIPE_REAL_HEIGHT = 0.9
+
+
+class DepthEstimationMethod(Enum):
+    SEGMENTATION_HEIGHT = "segmentation_height"
+    DEPTH_IMAGE = "depth_image"
+
+
+DEPTH_ESTIMATION_METHOD = DepthEstimationMethod.DEPTH_IMAGE
 
 
 def scale_depths(
@@ -44,21 +53,45 @@ def scale_depths(
     return pipe_1.depth * scale, pipe_2.depth * scale
 
 
-def pipe_to_camera_position(
-    pipe: PipeDetection, fx: float, fy: float, real_height: float
+def pipe_to_camera_position_depth_method(
+    pipe: PipeDetection, fx: float, fy: float, depth_image: np.ndarray
 ) -> Tuple[float, float, float]:
-    """
-    Convert pipe detection to 3D position in camera frame.
-    """
     yaw = pipe.centroid[0]
 
-    # Calculate perpendicular depth
+    bx, by, bw, bh = pipe.bbox
+    h, w = depth_image.shape[:2]
+    cx_pixel = max(0, min(w - 1, int(bx + bw / 2)))
+    cy_pixel = max(0, min(h - 1, int(by + bh / 2)))
+    raw_depth = depth_image[cy_pixel, cx_pixel]
+
+    depth = ((fx + fy) * 0.5) * raw_depth / 300  # from da3 github page
+
+    x = depth
+    y = -depth * math.tan(yaw)
+    z = 0.0
+    return (x, y, z)
+
+
+def pipe_to_camera_position_seg_method(
+    pipe: PipeDetection, fx: float, fy: float, real_height: float
+) -> Tuple[float, float, float]:
+    yaw = pipe.centroid[0]
+
     depth = (real_height * fy) / max(pipe.length, 1.0)
 
     x = depth
     y = -depth * math.tan(yaw)
     z = 0.0
     return (x, y, z)
+
+
+def pipe_to_camera_position(
+    pipe: PipeDetection, fx: float, fy: float, depth_image: np.ndarray
+) -> Tuple[float, float, float]:
+    if DEPTH_ESTIMATION_METHOD == DepthEstimationMethod.DEPTH_IMAGE:
+        return pipe_to_camera_position_depth_method(pipe, fx, fy, depth_image)
+    else:
+        return pipe_to_camera_position_seg_method(pipe, fx, fy, PIPE_REAL_HEIGHT)
 
 
 class VisualServoingNode:
@@ -123,7 +156,9 @@ class VisualServoingNode:
             self.fx = calib.K[0]
             self.fy = calib.K[4]
             self.cx = calib.K[2]
-            rospy.loginfo(f"[VS] Camera calibration: fx={self.fx:.2f}, fy={self.fy:.2f}, cx={self.cx:.2f}")
+            rospy.loginfo(
+                f"[VS] Camera calibration: fx={self.fx:.2f}, fy={self.fy:.2f}, cx={self.cx:.2f}"
+            )
         except Exception as e:
             rospy.logwarn(
                 f"[VS] Camera calibration failed: {e}, using linear normalization"
@@ -317,14 +352,15 @@ class VisualServoingNode:
         self,
         pair: Tuple[PipeDetection, PipeDetection],
         stamp: rospy.Time,
+        depth_image: np.ndarray,
     ):
         pipe_1, pipe_2 = pair
 
-        pos_1 = pipe_to_camera_position(pipe_1, self.fx, self.fy, PIPE_REAL_HEIGHT)
-        pos_2 = pipe_to_camera_position(pipe_2, self.fx, self.fy, PIPE_REAL_HEIGHT)
+        pos_1 = pipe_to_camera_position(pipe_1, self.fx, self.fy, depth_image)
+        pos_2 = pipe_to_camera_position(pipe_2, self.fx, self.fy, depth_image)
 
-        dist_1 = math.sqrt(pos_1[0]**2 + pos_1[1]**2)
-        dist_2 = math.sqrt(pos_2[0]**2 + pos_2[1]**2)
+        dist_1 = math.sqrt(pos_1[0] ** 2 + pos_1[1] ** 2)
+        dist_2 = math.sqrt(pos_2[0] ** 2 + pos_2[1] ** 2)
 
         rospy.loginfo_throttle(
             1.0,
@@ -430,7 +466,7 @@ class VisualServoingNode:
 
                 # Publish pipe transforms if pair selected
                 if pair is not None:
-                    self._publish_pipe_transforms(pair, msg.header.stamp)
+                    self._publish_pipe_transforms(pair, msg.header.stamp, depth)
                 self._publish_target_transform()
                 if self.config.slalom_mode:
                     self.slalom_state.detections = detections
