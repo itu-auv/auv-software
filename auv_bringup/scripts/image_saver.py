@@ -73,8 +73,8 @@ class ImageSaver:
         }
 
         if cam not in mapping:
-            rospy.logwarn(f"Unknown camera '{camera}'. Falling back to 'bottom'.")
-            cam = "bottom"
+            rospy.logwarn(f"Unknown camera '{camera}'. Falling back to 'front'.")
+            cam = "front"
         return mapping[cam]
 
     def create_base_directory(self):
