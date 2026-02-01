@@ -1,0 +1,20 @@
+<launch>
+  <!-- Arguments -->
+  <arg name="namespace" default="taluy" />
+  <!-- camera options: front | bottom | torpedo | realsense -->
+  <arg name="camera" default="front" />
+  <arg name="base_dir" default="$(env HOME)/Desktop" />
+  <arg name="folder_name" default="yolo_bag" />
+  <arg name="interval_seconds" default="1.0" />
+  <arg name="images_per_folder" default="150" />
+
+  <!-- Image saver node -->
+  <node pkg="auv_bringup" type="image_saver.py" name="image_saver" output="screen">
+    <param name="namespace" value="$(arg namespace)" />
+    <param name="camera" value="$(arg camera)" />
+    <param name="base_dir" value="$(arg base_dir)" />
+    <param name="folder_name" value="$(arg folder_name)" />
+    <param name="interval_seconds" value="$(arg interval_seconds)" />
+    <param name="images_per_folder" value="$(arg images_per_folder)" />
+  </node>
+</launch>

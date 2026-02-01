@@ -15,6 +15,7 @@ catkin_package(
 )
 
 catkin_install_python(PROGRAMS
+  scripts/image_saver.py
   scripts/smach_params_server.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
