@@ -16,21 +16,18 @@ from sensor_msgs.msg import Image
 from std_srvs.srv import Trigger, TriggerResponse
 from geometry_msgs.msg import Twist
 from auv_msgs.srv import (
-    AlignFrameController,
-    AlignFrameControllerResponse,
     SetObjectTransform,
     SetObjectTransformRequest,
 )
 
 from skimage.morphology import skeletonize
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
+from auv_mapping.cfg import PipeFollowerConfig
 from dynamic_reconfigure.server import Server
-from auv_vision.cfg import PipeFollowerConfig
 
-
-class PipeFollowerEnhanced:
+class PipeFramePublisher:
     def __init__(self):
-        rospy.loginfo("[PipeFollowerEnhanced] Initializing...")
+        rospy.loginfo("[PipeFramePublisher] Initializing...")
         self.callback_time = rospy.Time.now()
 
         self.mid_img = [320, 240]
@@ -47,12 +44,12 @@ class PipeFollowerEnhanced:
         self.srv = Server(PipeFollowerConfig, self.callback_reconfigure)
 
         self.start_service = rospy.Service(
-            "~start", Trigger, self.cb_start
+            "~enable", Trigger, self.cb_start
         )
         self.stop_service = rospy.Service(
-            "~stop", Trigger, self.cb_stop
+            "~disable", Trigger, self.cb_stop
         )
-        rospy.loginfo("[PipeFollowerEnhanced] Services registered.")
+        rospy.loginfo("[PipeFramePublisher] Services registered.")
 
         self.bridge = CvBridge()
         self.cam = CameraCalibrationFetcher("cameras/cam_bottom").get_camera_info()
@@ -67,26 +64,18 @@ class PipeFollowerEnhanced:
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
-        rospy.loginfo("[PipeFollowerEnhanced] Waiting for set_object_transform service...")
+        rospy.loginfo("[PipeFramePublisher] Waiting for set_object_transform service...")
         try:
             self.set_object_transform_service.wait_for_service(timeout=5.0)
-            rospy.loginfo("[PipeFollowerEnhanced] set_object_transform service available.")
+            rospy.loginfo("[PipeFramePublisher] set_object_transform service available.")
         except rospy.ROSException:
-            rospy.logwarn("[PipeFollowerEnhanced] set_object_transform service not available within timeout.")
+            rospy.logwarn("[PipeFramePublisher] set_object_transform service not available within timeout.")
 
         self.pipe_carrot_frame = "pipe_carrot"
         self.bottom_cam_frame = "taluy/base_link/bottom_camera_optical_link"
         self.taluy_base_frame = "taluy/base_link"
 
-        self._relocate_carrot(0, 0)
-
-        self.align_frame_start_service = rospy.ServiceProxy(
-            "align_frame/start", AlignFrameController
-        )
-        self.align_frame_cancel_service = rospy.ServiceProxy(
-            "align_frame/cancel", Trigger
-        )
-        rospy.loginfo("[PipeFollowerEnhanced] Initialization complete.")
+        rospy.loginfo("[PipeFramePublisher] Initialization complete.")
 
 
     def callback_reconfigure(self, config, level):
@@ -101,27 +90,11 @@ class PipeFollowerEnhanced:
 
     def cb_start(self, req):
         self.is_enabled = True
-        try:
-            res = self.align_frame_start_service(
-                self.taluy_base_frame, self.pipe_carrot_frame, 0, False, False, 0.3, 0.3
-            )
-            if res.success:
-                return TriggerResponse(success=True, message="Pipe following and alignment started")
-            else:
-                return TriggerResponse(success=False, message=f"Vision started but alignment failed: {res.message}")
-        except rospy.ServiceException as exc:
-            return TriggerResponse(success=False, message=f"Service call failed: {exc}")
+        return TriggerResponse(success=True, message="Pipe frame publisher enabled")
 
     def cb_stop(self, req):
         self.is_enabled = False
-        try:
-            res = self.align_frame_cancel_service()
-            if res.success:
-                return TriggerResponse(success=True, message="Pipe following and alignment stopped")
-            else:
-                return TriggerResponse(success=False, message=f"Vision stopped but alignment cancel failed: {res.message}")
-        except rospy.ServiceException as exc:
-            return TriggerResponse(success=False, message=f"Service call failed: {exc}")
+        return TriggerResponse(success=True, message="Pipe frame publisher disabled")
 
     def cb_mask(self, msg):
         if not self.is_enabled:
@@ -184,7 +157,6 @@ class PipeFollowerEnhanced:
                     target_segment_index = i
 
         # find target point
-        # TODO: this is not the perfect approach, may have some edge cases
         target_point = None
         target_point_index = None
         if len(segments) > 0:
@@ -210,7 +182,7 @@ class PipeFollowerEnhanced:
                 if abs(last_ang - ang) > self.ang_error_eps:
                     possible_targets.append((i, k))  # index and value itself
                     last_ang = ang
-
+            
             possible_targets.append((len(seg) - 1, seg[-1]))
 
             possible_targets = list(
@@ -511,8 +483,8 @@ class PipeFollowerEnhanced:
 
 
 def main():
-    rospy.init_node("pipe_follower_enhanced")
-    PipeFollowerEnhanced()
+    rospy.init_node("pipe_frame_publisher")
+    PipeFramePublisher()
     rospy.spin()
 
 

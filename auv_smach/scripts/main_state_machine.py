@@ -14,7 +14,7 @@ from auv_smach.octagon import OctagonTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
-from auv_smach.pipe_follower import FollowPipeState
+from auv_smach.pipe_follower import PipeTaskState
 from auv_smach.gps import NavigateToGpsTargetState
 from std_msgs.msg import Bool
 import threading
@@ -88,6 +88,10 @@ class MainStateMachineNode:
         self.octagon_depth = -0.8
 
         self.pipeline_depth = -0.75
+
+        # Pipe Follower params
+        self.pipe_map_depth = -0.75
+        self.pipe_target_frame = "pipe_carrot"
 
         # GPS parameters
         self.gps_depth = -1.0
@@ -248,8 +252,11 @@ class MainStateMachineNode:
                 {"pipeline_depth": self.pipeline_depth},
             ),
             "FOLLOW_PIPE": (
-                FollowPipeState,
-                {},
+                PipeTaskState,
+                {
+                    "pipe_map_depth": self.pipe_map_depth,
+                    "pipe_target_frame": self.pipe_target_frame,
+                },
             ),
         }
 

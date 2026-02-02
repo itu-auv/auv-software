@@ -1,45 +1,93 @@
+from .initialize import *
 import smach
-import rospy
+import smach_ros
 from std_srvs.srv import Trigger, TriggerRequest
 
-class FollowPipeState(smach.State):
+from auv_smach.common import (
+    AlignFrame,
+    SetDepthState,
+)
+
+class EnablePipeFramePublisherState(smach_ros.ServiceState):
     def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "pipe_frame_publisher/enable",
+            Trigger,
+            request=TriggerRequest(),
+        )
+
+class DisablePipeFramePublisherState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "pipe_frame_publisher/disable",
+            Trigger,
+            request=TriggerRequest(),
+        )
+
+class PipeTaskState(smach.State):
+    def __init__(self, pipe_map_depth, pipe_target_frame):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         
-        self.start_service_name = "pipe_follower_enhanced/start"
-        self.stop_service_name = "pipe_follower_enhanced/stop"
-        
-        self.start_proxy = rospy.ServiceProxy(self.start_service_name, Trigger)
-        self.stop_proxy = rospy.ServiceProxy(self.stop_service_name, Trigger)
+        self.state_machine = smach.StateMachine(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        with self.state_machine:
+            smach.StateMachine.add(
+                "SET_DEPTH",
+                SetDepthState(depth=pipe_map_depth, sleep_duration=3.0),
+                transitions={
+                    "succeeded": "ENABLE_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "ENABLE_PUBLISHER",
+                EnablePipeFramePublisherState(),
+                transitions={
+                    "succeeded": "ALIGN_TO_PIPE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_TO_PIPE",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=pipe_target_frame,
+                    dist_threshold=0.2, 
+                    yaw_threshold=0.2,
+                    confirm_duration=5.0,
+                    timeout=60.0, 
+                    cancel_on_success=True,
+                ),
+                transitions={
+                    "succeeded": "DISABLE_PUBLISHER",
+                    "preempted": "DISABLE_PUBLISHER",
+                    "aborted": "DISABLE_PUBLISHER",
+                },
+            )
+
+            smach.StateMachine.add(
+                "DISABLE_PUBLISHER",
+                DisablePipeFramePublisherState(),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
 
     def execute(self, userdata):
-        rospy.loginfo("[FollowPipeState] Executing...")
+        outcome = self.state_machine.execute()
         
-        try:
-            rospy.loginfo(f"[FollowPipeState] Waiting for {self.start_service_name}...")
-            self.start_proxy.wait_for_service(timeout=5.0)
-            res = self.start_proxy(TriggerRequest())
-            if not res.success:
-                rospy.logerr(f"[FollowPipeState] Failed to start: {res.message}")
-                return "aborted"
-            rospy.loginfo(f"[FollowPipeState] Started: {res.message}")
-        except rospy.ROSException as e:
-            rospy.logerr(f"[FollowPipeState] Service not available: {e}")
-            return "aborted"
-        except rospy.ServiceException as e:
-            rospy.logerr(f"[FollowPipeState] Service call failed: {e}")
-            return "aborted"
-
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            if self.preempt_requested():
-                rospy.loginfo("[FollowPipeState] Preempted. Stopping...")
-                try:
-                    self.stop_proxy(TriggerRequest())
-                except Exception as e:
-                    rospy.logerr(f"[FollowPipeState] Error calling stop service: {e}")
-                self.service_preempt()
-                return "preempted"
-            rate.sleep()
+        if outcome is None:
+            return "preempted"
             
-        return "succeeded"
+        return outcome

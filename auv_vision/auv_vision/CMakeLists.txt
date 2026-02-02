@@ -16,10 +16,6 @@ find_package(catkin REQUIRED COMPONENTS
   auv_common_lib
 )
 
-generate_dynamic_reconfigure_options(
-  cfg/PipeFollower.cfg
-)
-
 catkin_package(
   CATKIN_DEPENDS
     auv_detection
@@ -42,7 +38,7 @@ catkin_install_python(
     scripts/yolo_image_annotator.py
     scripts/yolo_seg_to_mask.py
     scripts/pipe_follower_legacy.py
-    scripts/pipe_follower_enhanced.py
+
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

@@ -79,6 +79,12 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <node pkg="auv_mapping" type="pipe_frame_publisher.py" name="pipe_frame_publisher" output="screen">
+      <rosparam command="load" file="$(find auv_mapping)/config/pipe_frame_publisher_params.yaml" />
+      <remap from="seg_mask" to="seg_mask"/>
+      <remap from="set_object_transform" to="map/set_object_transform"/>
+    </node>
+
     <node pkg="auv_mapping" type="pipeline_trajectory_publisher.py" name="pipeline_trajectory_publisher">
       <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
