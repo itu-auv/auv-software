@@ -15,6 +15,8 @@ from .actions import (
     ResetOdometryBehavior,
     DelayBehavior,
     ClearObjectMapBehavior,
+    AcousticTransmitBehavior,
+    AcousticReceiveBehavior,
 )
 
 from .conditions import (
@@ -22,3 +24,4 @@ from .conditions import (
 )
 
 from .gate_tree import create_gate_tree
+from .acoustic_tree import create_acoustic_tree

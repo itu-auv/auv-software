@@ -3,7 +3,7 @@ import rospy
 import threading
 import math
 import tf2_ros
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, UInt8
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
@@ -22,6 +22,8 @@ from auv_msgs.srv import (
     AlignFrameControllerRequest,
     PlanPath,
     PlanPathRequest,
+    SendAcoustic,
+    SendAcousticRequest,
 )
 from auv_navigation.follow_path_action import follow_path_client
 
@@ -1168,3 +1170,156 @@ class CreateFrameAtCurrentPositionBehavior(py_trees.behaviour.Behaviour):
         except Exception as e:
             rospy.logwarn(f"[{self.name}] TF/Service Error: {e}")
             return py_trees.common.Status.FAILURE
+
+
+class AcousticTransmitBehavior(py_trees.behaviour.Behaviour):
+    """
+    Transmits acoustic data via the acoustic modem.
+
+    Calls the 'send_acoustic_data' service with the specified data value (1-8).
+    Returns SUCCESS on successful transmission, FAILURE otherwise.
+
+    SMACH equivalent: AcousticTransmitter (acoustic.py)
+    """
+
+    def __init__(self, name: str, acoustic_data: int):
+        super().__init__(name)
+        self.acoustic_data = acoustic_data
+
+    def setup(self, timeout=15, **kwargs):
+        """Setup ROS service connection."""
+        try:
+            self.srv = rospy.ServiceProxy("send_acoustic_data", SendAcoustic)
+            rospy.logdebug(f"[{self.name}] Setup complete")
+            return True
+        except Exception as e:
+            rospy.logerr(f"[{self.name}] Setup error: {e}")
+            return False
+
+    def update(self):
+        """Call the acoustic transmit service."""
+        try:
+            request = SendAcousticRequest(data=self.acoustic_data)
+            response = self.srv(request)
+
+            if response.success:
+                rospy.loginfo(
+                    f"[{self.name}] Acoustic data {self.acoustic_data} transmitted"
+                )
+                return py_trees.common.Status.SUCCESS
+            else:
+                rospy.logwarn(f"[{self.name}] Transmission failed: {response.message}")
+                return py_trees.common.Status.FAILURE
+
+        except rospy.ServiceException as e:
+            rospy.logerr(f"[{self.name}] Service error: {e}")
+            return py_trees.common.Status.FAILURE
+
+
+class AcousticReceiveBehavior(py_trees.behaviour.Behaviour):
+    """
+    Waits for acoustic data from the modem.
+
+    Subscribes to 'modem/data/rx' and waits until expected data is received
+    or timeout expires. Returns SUCCESS when data received or timeout,
+    FAILURE on error.
+
+    SMACH equivalent: AcousticReceiver (acoustic.py)
+    """
+
+    def __init__(
+        self,
+        name: str,
+        expected_data: list = None,
+        timeout: float = None,
+    ):
+        super().__init__(name)
+        self.expected_data = (
+            expected_data  # None = accept any, list = accept if in list
+        )
+        self.timeout = timeout  # None = wait indefinitely (SMACH parity)
+
+        # State tracking
+        self._started = False
+        self._start_time = None
+        self._data_received = False
+        self._received_value = None
+
+    def setup(self, timeout=15, **kwargs):
+        """Setup ROS subscriber."""
+        try:
+            self.subscriber = rospy.Subscriber("modem/data/rx", UInt8, self._callback)
+            rospy.logdebug(f"[{self.name}] Setup complete")
+            return True
+        except Exception as e:
+            rospy.logerr(f"[{self.name}] Setup error: {e}")
+            return False
+
+    def _callback(self, msg):
+        """Callback for acoustic data reception."""
+        if self._data_received:
+            return  # Already received
+
+        # Check if data matches expected
+        if self.expected_data is None:
+            # Accept any data
+            self._data_received = True
+            self._received_value = msg.data
+            rospy.loginfo(f"[{self.name}] Received acoustic data: {msg.data}")
+        elif isinstance(self.expected_data, list):
+            if msg.data in self.expected_data:
+                self._data_received = True
+                self._received_value = msg.data
+                rospy.loginfo(
+                    f"[{self.name}] Expected acoustic data received: {msg.data}"
+                )
+        else:
+            if msg.data == self.expected_data:
+                self._data_received = True
+                self._received_value = msg.data
+                rospy.loginfo(
+                    f"[{self.name}] Expected acoustic data received: {msg.data}"
+                )
+
+    def initialise(self):
+        """Called when behavior starts. Reset state."""
+        self._started = False
+        self._start_time = None
+        self._data_received = False
+        self._received_value = None
+
+    def update(self):
+        """Wait for acoustic data or timeout."""
+
+        # First tick: start timer
+        if not self._started:
+            self._started = True
+            self._start_time = rospy.Time.now()
+            rospy.loginfo(
+                f"[{self.name}] Waiting for acoustic data (expected: {self.expected_data})"
+            )
+
+        # Check if data received
+        if self._data_received:
+            rospy.loginfo(
+                f"[{self.name}] Acoustic reception completed - value: {self._received_value}"
+            )
+            return py_trees.common.Status.SUCCESS
+
+        # Check timeout (only if timeout is set)
+        if self.timeout is not None:
+            elapsed = (rospy.Time.now() - self._start_time).to_sec()
+            if elapsed >= self.timeout:
+                rospy.loginfo(
+                    f"[{self.name}] Timeout after {self.timeout}s - continuing mission"
+                )
+                return (
+                    py_trees.common.Status.SUCCESS
+                )  # Timeout = success (continue mission)
+
+        return py_trees.common.Status.RUNNING
+
+    def terminate(self, new_status):
+        """Cleanup when behavior terminates."""
+        # Subscriber will be cleaned up when node shuts down
+        pass
