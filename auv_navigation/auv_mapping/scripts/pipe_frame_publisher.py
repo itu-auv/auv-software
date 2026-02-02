@@ -25,6 +25,7 @@ from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from auv_mapping.cfg import PipeFollowerConfig
 from dynamic_reconfigure.server import Server
 
+
 class PipeFramePublisher:
     def __init__(self):
         rospy.loginfo("[PipeFramePublisher] Initializing...")
@@ -32,10 +33,14 @@ class PipeFramePublisher:
 
         self.mid_img = [320, 240]
         self.close_point_filter_eps = rospy.get_param("~close_point_filter_eps", 20)
-        self.short_segment_filter_eps = rospy.get_param("~short_segment_filter_eps", 100)
+        self.short_segment_filter_eps = rospy.get_param(
+            "~short_segment_filter_eps", 100
+        )
         self.merge_segment_eps = rospy.get_param("~merge_segment_eps", 50)
         self.ang_error_eps = rospy.get_param("~ang_error_eps", 40)
-        self.ang_error_close_point_eps = rospy.get_param("~ang_error_close_point_eps", 40)
+        self.ang_error_close_point_eps = rospy.get_param(
+            "~ang_error_close_point_eps", 40
+        )
         # radius*2
         self.pipe_width = rospy.get_param("~pipe_width", 0.24)
 
@@ -43,12 +48,8 @@ class PipeFramePublisher:
 
         self.srv = Server(PipeFollowerConfig, self.callback_reconfigure)
 
-        self.start_service = rospy.Service(
-            "~enable", Trigger, self.cb_start
-        )
-        self.stop_service = rospy.Service(
-            "~disable", Trigger, self.cb_stop
-        )
+        self.start_service = rospy.Service("~enable", Trigger, self.cb_start)
+        self.stop_service = rospy.Service("~disable", Trigger, self.cb_stop)
         rospy.loginfo("[PipeFramePublisher] Services registered.")
 
         self.bridge = CvBridge()
@@ -64,19 +65,24 @@ class PipeFramePublisher:
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
-        rospy.loginfo("[PipeFramePublisher] Waiting for set_object_transform service...")
+        rospy.loginfo(
+            "[PipeFramePublisher] Waiting for set_object_transform service..."
+        )
         try:
             self.set_object_transform_service.wait_for_service(timeout=5.0)
-            rospy.loginfo("[PipeFramePublisher] set_object_transform service available.")
+            rospy.loginfo(
+                "[PipeFramePublisher] set_object_transform service available."
+            )
         except rospy.ROSException:
-            rospy.logwarn("[PipeFramePublisher] set_object_transform service not available within timeout.")
+            rospy.logwarn(
+                "[PipeFramePublisher] set_object_transform service not available within timeout."
+            )
 
         self.pipe_carrot_frame = "pipe_carrot"
         self.bottom_cam_frame = "taluy/base_link/bottom_camera_optical_link"
         self.taluy_base_frame = "taluy/base_link"
 
         rospy.loginfo("[PipeFramePublisher] Initialization complete.")
-
 
     def callback_reconfigure(self, config, level):
         self.close_point_filter_eps = config.close_point_filter_eps
@@ -86,7 +92,6 @@ class PipeFramePublisher:
         self.ang_error_close_point_eps = config.ang_error_close_point_eps
         self.pipe_width = config.pipe_width
         return config
-
 
     def cb_start(self, req):
         self.is_enabled = True
@@ -182,7 +187,7 @@ class PipeFramePublisher:
                 if abs(last_ang - ang) > self.ang_error_eps:
                     possible_targets.append((i, k))  # index and value itself
                     last_ang = ang
-            
+
             possible_targets.append((len(seg) - 1, seg[-1]))
 
             possible_targets = list(
@@ -216,7 +221,7 @@ class PipeFramePublisher:
                 line_widths.append(np.array(w))
 
             line_widths[0] = list(filter(lambda x: x < 100, line_widths[0]))
-            
+
             if line_widths[0]:
                 int_widths = [int(val) for val in line_widths[0]]
                 width = max(set(int_widths), key=int_widths.count)
@@ -241,7 +246,6 @@ class PipeFramePublisher:
         self._publish_debug_img(
             msg, debug_img, segments, target_segment_index, target_point, width
         )
-
 
     def _distance_from_width(self, real_width: float, measured_width: float) -> float:
         focal_length = self.cam.K[0]
@@ -287,7 +291,15 @@ class PipeFramePublisher:
     ):
         cv2.circle(debug_img, self.mid_img, 4, (0, 255, 0), -1)
         if width is not None:
-            cv2.putText(debug_img, f"Width: {width}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+            cv2.putText(
+                debug_img,
+                f"Width: {width}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 255, 255),
+                2,
+            )
         for j, seg in enumerate(segments):
             for i in range(1, len(seg)):
                 color = (0, 0, 255)

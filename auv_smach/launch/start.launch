@@ -102,10 +102,6 @@
             <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
             <remap from="toggle_image_annotator" to="yolo_image_annotator/toggle_annotator"/>
 
-            <!--pipe_follower.py-->
-            <remap from="pipe_follower_enhanced/start" to="pipe_follower_enhanced/start"/>
-            <remap from="pipe_follower_enhanced/stop" to="pipe_follower_enhanced/stop"/>
-
             <!--acoustic.py-->
             <remap from="modem/data/rx" to="modem/data/rx"/>
 

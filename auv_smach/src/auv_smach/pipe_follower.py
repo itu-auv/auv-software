@@ -8,6 +8,7 @@ from auv_smach.common import (
     SetDepthState,
 )
 
+
 class EnablePipeFramePublisherState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
@@ -16,6 +17,7 @@ class EnablePipeFramePublisherState(smach_ros.ServiceState):
             Trigger,
             request=TriggerRequest(),
         )
+
 
 class DisablePipeFramePublisherState(smach_ros.ServiceState):
     def __init__(self):
@@ -26,10 +28,11 @@ class DisablePipeFramePublisherState(smach_ros.ServiceState):
             request=TriggerRequest(),
         )
 
+
 class PipeTaskState(smach.State):
     def __init__(self, pipe_map_depth, pipe_target_frame):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        
+
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
@@ -60,10 +63,10 @@ class PipeTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=pipe_target_frame,
-                    dist_threshold=0.2, 
+                    dist_threshold=0.2,
                     yaw_threshold=0.2,
                     confirm_duration=5.0,
-                    timeout=60.0, 
+                    timeout=60.0,
                     cancel_on_success=True,
                 ),
                 transitions={
@@ -83,11 +86,10 @@ class PipeTaskState(smach.State):
                 },
             )
 
-
     def execute(self, userdata):
         outcome = self.state_machine.execute()
-        
+
         if outcome is None:
             return "preempted"
-            
+
         return outcome
