@@ -34,15 +34,13 @@ class PipeFollowerEnhanced:
         self.callback_time = rospy.Time.now()
 
         self.mid_img = [320, 240]
-        self.rotation_duration = 10
         self.close_point_filter_eps = rospy.get_param("~close_point_filter_eps", 20)
         self.short_segment_filter_eps = rospy.get_param("~short_segment_filter_eps", 100)
         self.merge_segment_eps = rospy.get_param("~merge_segment_eps", 50)
         self.ang_error_eps = rospy.get_param("~ang_error_eps", 40)
         self.ang_error_close_point_eps = rospy.get_param("~ang_error_close_point_eps", 40)
         # radius*2
-        # TODO: default value is probably defined wrong for simulation.
-        self.pipe_width = rospy.get_param("~pipe_width", 0.125)
+        self.pipe_width = rospy.get_param("~pipe_width", 0.24)
 
         self.is_enabled = False
 
@@ -236,6 +234,7 @@ class PipeFollowerEnhanced:
                     target_point = pt
                     break
 
+        width = None
         if target_point is not None:
             line_widths = []
             for line in segments:
@@ -245,7 +244,13 @@ class PipeFollowerEnhanced:
                 line_widths.append(np.array(w))
 
             line_widths[0] = list(filter(lambda x: x < 100, line_widths[0]))
-            width = max(line_widths[0])
+            
+            if line_widths[0]:
+                int_widths = [int(val) for val in line_widths[0]]
+                width = max(set(int_widths), key=int_widths.count)
+            else:
+                width = 0
+
             distance = self._distance_from_width(self.pipe_width, width)
 
             rx, ry = self._world_pos_from_cam(
@@ -262,7 +267,7 @@ class PipeFollowerEnhanced:
             self._relocate_carrot(rx, ry, rot_offset=ang_err)
 
         self._publish_debug_img(
-            msg, debug_img, segments, target_segment_index, target_point
+            msg, debug_img, segments, target_segment_index, target_point, width
         )
 
 
@@ -306,9 +311,11 @@ class PipeFollowerEnhanced:
         self._send_transform(msg)
 
     def _publish_debug_img(
-        self, msg, debug_img, segments, target_segment_index, target_point
+        self, msg, debug_img, segments, target_segment_index, target_point, width=None
     ):
         cv2.circle(debug_img, self.mid_img, 4, (0, 255, 0), -1)
+        if width is not None:
+            cv2.putText(debug_img, f"Width: {width}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
         for j, seg in enumerate(segments):
             for i in range(1, len(seg)):
                 color = (0, 0, 255)
@@ -319,7 +326,7 @@ class PipeFollowerEnhanced:
             for i, pt in enumerate(seg):
                 color = (0, 0, 255)
                 if pt == target_point:
-                    color = (255, 255, 255)
+                    color = (0, 255, 0)
                 cv2.circle(debug_img, pt, 4, color, -1)
         img_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding="bgr8")
         img_msg.header = msg.header
@@ -413,7 +420,6 @@ class PipeFollowerEnhanced:
 
     def _merge_into_segments(self, final_points_list, max_seg_dist):
         segments = []
-        max_seg_dist = 100
 
         remaining = [line.tolist() for line in final_points_list]
 
