@@ -39,6 +39,8 @@
       <remap from="align_frame/start" to="control/align_frame/start"/>
       <remap from="align_frame/cancel" to="control/align_frame/cancel"/>
       <remap from="set_object_transform" to="map/set_object_transform"/>
+      
+      <rosparam command="load" file="$(find auv_vision)/config/pipe_follower_enhanced_params.yaml" />
     </node>
   </group>
 </launch>
