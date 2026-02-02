@@ -142,11 +142,11 @@ class PipeFollowerEnhanced:
         widths = dist * 2
 
         # TODO: just for now
-        closing = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, np.ones((100, 100), np.uint8))
+        opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, np.ones((20, 20), np.uint8))
 
-        skel_bool = skeletonize(closing > 0)
+        skel_bool = skeletonize(opening > 0)
         skel = (skel_bool.astype(np.uint8)) * 255
-        debug_img = cv2.cvtColor(closing, cv2.COLOR_GRAY2BGR)
+        debug_img = cv2.cvtColor(opening, cv2.COLOR_GRAY2BGR)
 
         ordered_lines = self._get_ordered_points_from_skel(
             skel, self.close_point_filter_eps
