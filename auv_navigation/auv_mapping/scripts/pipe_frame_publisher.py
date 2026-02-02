@@ -8,13 +8,10 @@ import cv2
 from cv_bridge import CvBridge
 import rospy
 import tf2_ros
-import tf
-import angles
-from tf.transformations import *
+from tf.transformations import quaternion_from_euler
 from geometry_msgs.msg import Pose, TransformStamped
 from sensor_msgs.msg import Image
 from std_srvs.srv import Trigger, TriggerResponse
-from geometry_msgs.msg import Twist
 from auv_msgs.srv import (
     SetObjectTransform,
     SetObjectTransformRequest,
@@ -31,7 +28,13 @@ class PipeFramePublisher:
         rospy.loginfo("[PipeFramePublisher] Initializing...")
         self.callback_time = rospy.Time.now()
 
-        self.mid_img = [320, 240]
+        self.image_center = None
+        self.morph_kernel_size = 20
+        self.approx_poly_epsilon_factor = 0.05
+
+        self.center_offset_threshold = 50
+        self.max_width_threshold = 150
+
         self.close_point_filter_eps = rospy.get_param("~close_point_filter_eps", 20)
         self.short_segment_filter_eps = rospy.get_param(
             "~short_segment_filter_eps", 100
@@ -106,6 +109,8 @@ class PipeFramePublisher:
             return
 
         self.callback_time = rospy.Time.now()
+        self.image_center = [msg.width // 2, msg.height // 2]
+
         try:
             img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except Exception as e:
@@ -117,23 +122,29 @@ class PipeFramePublisher:
         dist = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
         widths = dist * 2
 
-        # TODO: just for now
-        opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, np.ones((20, 20), np.uint8))
+        # get rid of temp pixels caused by arucos
+        kernel_size = self.morph_kernel_size
+        opening = cv2.morphologyEx(
+            binary, cv2.MORPH_OPEN, np.ones((kernel_size, kernel_size), np.uint8)
+        )
+
+        debug_img = cv2.cvtColor(opening, cv2.COLOR_GRAY2BGR)
 
         skel_bool = skeletonize(opening > 0)
         skel = (skel_bool.astype(np.uint8)) * 255
-        debug_img = cv2.cvtColor(opening, cv2.COLOR_GRAY2BGR)
 
         ordered_lines = self._get_ordered_points_from_skel(
             skel, self.close_point_filter_eps
         )
 
+        # https://stackoverflow.com/questions/52782359/is-there-a-way-to-use-cv2-approxpolydp-to-approximate-open-curve
         final_points_list = []
-
         for line in ordered_lines:
             cnt_format = line.reshape(-1, 1, 2).astype(np.int32)
             line_len = cv2.arcLength(cnt_format, closed=False)
-            approx = cv2.approxPolyDP(cnt_format, 0.01 * line_len, closed=False)
+            approx = cv2.approxPolyDP(
+                cnt_format, self.approx_poly_epsilon_factor * line_len, closed=False
+            )
 
             pts = approx.reshape(-1, 2)
             final_points_list.append(pts)
@@ -142,13 +153,13 @@ class PipeFramePublisher:
         segments = self._filter_segments(segments, self.short_segment_filter_eps)
 
         # find closest segment (perpendicular distance between line and point)
-        min_line_dist = 1e6
         target_segment_index = 0
+        min_line_dist = 1e6
         for i, seg in enumerate(segments):
             for j in range(len(seg) - 1):
                 p1 = np.array(seg[j])
                 p2 = np.array(seg[j + 1])
-                p3 = np.array(self.mid_img)
+                p3 = np.array(self.image_center)
                 v = p2 - p1
                 w = p3 - p1
 
@@ -167,44 +178,33 @@ class PipeFramePublisher:
         if len(segments) > 0:
             seg = segments[target_segment_index]
             # make first segment from right to left (according to image)
+            # kinda risky but it was my only idea to decide for what direction we should move
             if seg[0][0] < seg[-1][0]:
                 seg.reverse()
                 segments[target_segment_index] = seg
 
-            possible_targets = []
+            possible_targets = self._find_turns(seg)
 
-            p1, p2 = seg[0], seg[1]
-            last_ang = (self._normalize_angle(self._get_angle(p1, p2)) / math.pi) * 180
-
-            for i in range(2, len(seg) - 1):
-                k = seg[i]
-                l = seg[i + 1]
-                if self._get_dist(k, l) <= self.ang_error_close_point_eps:
-                    continue
-                ang_rad = self._normalize_angle(self._get_angle(k, l))
-                ang = (ang_rad / math.pi) * 180
-
-                if abs(last_ang - ang) > self.ang_error_eps:
-                    possible_targets.append((i, k))  # index and value itself
-                    last_ang = ang
-
-            possible_targets.append((len(seg) - 1, seg[-1]))
-
+            # filter targets close to image center x
+            # TODO: direct distance check could be better?
             possible_targets = list(
-                filter(lambda x: x[1][0] <= self.mid_img[0] + 50, possible_targets)
+                filter(
+                    lambda x: x[1][0]
+                    <= self.image_center[0] + self.center_offset_threshold,
+                    possible_targets,
+                )
             )
+
+            # find point closest to center
             min_point_dist = 1e6
             closest_point_index = 0
-            for i, x in enumerate(segments[target_segment_index]):
-                dist = abs(self._get_dist(x, self.mid_img))
+            for i, pt in enumerate(segments[target_segment_index]):
+                dist = self._get_dist(pt, self.image_center)
                 if dist <= min_point_dist:
                     closest_point_index = i
                     min_point_dist = dist
 
-            # TODO: this shouldn't be the final approach, but it works 90%
-            target_point = None
-            target_point_index = None
-
+            # select target point ahead of the closest point (kinda cursed)
             for idx, pt in possible_targets:
                 if idx > closest_point_index:
                     target_point_index = idx
@@ -220,34 +220,57 @@ class PipeFramePublisher:
                     w.append(widths[int(y), int(x)])
                 line_widths.append(np.array(w))
 
-            line_widths[0] = list(filter(lambda x: x < 100, line_widths[0]))
-
-            if line_widths[0]:
-                int_widths = [int(val) for val in line_widths[0]]
-                width = max(set(int_widths), key=int_widths.count)
-            else:
-                width = 0
+            line_widths[0] = list(
+                filter(lambda x: x < self.max_width_threshold, line_widths[0])
+            )
+            width = max(line_widths[0])
 
             distance = self._distance_from_width(self.pipe_width, width)
 
             rx, ry = self._world_pos_from_cam(
                 distance, target_point[0], target_point[1]
             )
-            ang_err = (
-                self._get_angle(
-                    segments[target_segment_index][target_point_index - 1],
-                    segments[target_segment_index][target_point_index],
-                )
-                - math.pi
+
+            ang = self._get_angle(
+                segments[target_segment_index][target_point_index - 1],
+                segments[target_segment_index][target_point_index],
             )
-            ang_err = self._normalize_angle(ang_err)
+            ang_err = self._normalize_angle(ang - math.pi)
+
             self._relocate_carrot(rx, ry, rot_offset=ang_err)
 
         self._publish_debug_img(
             msg, debug_img, segments, target_segment_index, target_point, width
         )
 
-    def _distance_from_width(self, real_width: float, measured_width: float) -> float:
+    def _find_turns(self, seg):
+        # if angle changed more than self.ang_error_eps between two continous points(that are not so close), it is a turning point
+        targets = []
+        if len(seg) < 2:
+            return targets
+
+        p1, p2 = seg[0], seg[1]
+        last_ang = self._get_angle_deg(p1, p2)
+
+        for i in range(2, len(seg) - 1):
+            k = seg[i]
+            l = seg[i + 1]
+            if self._get_dist(k, l) <= self.ang_error_close_point_eps:
+                continue
+
+            ang = self._get_angle_deg(k, l)
+            if abs(last_ang - ang) > self.ang_error_eps:
+                targets.append((i, k))
+                last_ang = ang
+
+        targets.append((len(seg) - 1, seg[-1]))
+        return targets
+
+    def _get_angle_deg(self, p1, p2):
+        ang_rad = self._normalize_angle(self._get_angle(p1, p2))
+        return (ang_rad / math.pi) * 180
+
+    def _distance_from_width(self, real_width, measured_width):
         focal_length = self.cam.K[0]
         distance = (real_width * focal_length) / measured_width
         return distance
@@ -289,16 +312,18 @@ class PipeFramePublisher:
     def _publish_debug_img(
         self, msg, debug_img, segments, target_segment_index, target_point, width=None
     ):
-        cv2.circle(debug_img, self.mid_img, 4, (0, 255, 0), -1)
+        if self.image_center:
+            cv2.circle(debug_img, tuple(self.image_center), 4, (0, 255, 0), -1)
+
         if width is not None:
             cv2.putText(
                 debug_img,
-                f"Width: {width}",
+                f"pipe width: {width}px",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
                 (0, 255, 255),
-                2,
+                1,
             )
         for j, seg in enumerate(segments):
             for i in range(1, len(seg)):
@@ -317,6 +342,7 @@ class PipeFramePublisher:
         self.pub_debug.publish(img_msg)
 
     def _remove_close_points_global(self, lines, eps=10):
+        # copy paste, idk how it works but it works as intended, kinda expensive
         cell = eps
         grid = defaultdict(list)
 
@@ -353,6 +379,8 @@ class PipeFramePublisher:
         return new_lines
 
     def _get_ordered_points_from_skel(self, skeleton_img, close_point_eps=20):
+        # main purpose is, putting points in right order
+        # checks every pixel's neighors and creates continuous ordered connected point pieces
         white_pixels = np.column_stack(np.where(skeleton_img > 0))
         pixel_set = set(tuple(p) for p in white_pixels)
 
@@ -369,11 +397,13 @@ class PipeFramePublisher:
 
         paths = []
         while pixel_set:
+            # random pixel
             start_pixel = next(iter(pixel_set))
 
             path = [start_pixel]
             pixel_set.remove(start_pixel)
 
+            # move forward
             changed = True
             while changed:
                 changed = False
@@ -386,6 +416,7 @@ class PipeFramePublisher:
                         changed = True
                         break
 
+            # move backwards
             changed = True
             while changed:
                 changed = False
@@ -403,6 +434,11 @@ class PipeFramePublisher:
         return paths
 
     def _merge_into_segments(self, final_points_list, max_seg_dist):
+        # connect disconnected pipe, pieces together
+        # how it works:
+        # let x, y be a pipe pieces disconneted because of arucos
+        # if x's first element ('h') is close enough (max_seg_dist) to y's first element ('h'), reverse x and add it to y, etc etc... ('t' = tail [last point], 'h' = head [first point])
+        # if nothing is near then it is an another independent segment, no need for connecting it
         segments = []
 
         remaining = [line.tolist() for line in final_points_list]
@@ -444,7 +480,8 @@ class PipeFramePublisher:
     def _get_dist(self, p1, p2):
         return np.linalg.norm(np.array(p1) - np.array(p2))
 
-    def _filter_segments(self, segments, min_len=50):
+    def _filter_segments(self, segments, min_len):
+        # ultra max pro filtering
         segments = list(
             filter(
                 lambda x: cv2.arcLength(np.array(x), closed=False) >= min_len, segments
@@ -452,9 +489,7 @@ class PipeFramePublisher:
         )
         return segments
 
-    def _build_transform_message(
-        self, child_frame_id: str, pose: Pose, frame: str = "odom"
-    ) -> TransformStamped:
+    def _build_transform_message(self, child_frame_id, pose, frame="odom"):
         t = TransformStamped()
         t.header.stamp = self.callback_time
         t.header.frame_id = frame
@@ -482,11 +517,7 @@ class PipeFramePublisher:
             )
             q = transform.transform.rotation
             return q
-        except (
-            tf.LookupException,
-            tf.ConnectivityException,
-            tf.ExtrapolationException,
-        ) as e:
+        except Exception as e:
             rospy.logwarn(f"Transform lookup failed: {e}")
             return None
 
