@@ -11,7 +11,6 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     SetDepthState,
     SetDetectionFocusState,
-    SetModelConfigState,
 )
 from auv_smach.initialize import DelayState
 
@@ -89,16 +88,6 @@ class DockingTaskState(smach.State):
         )
 
         with self.state_machine:
-            smach.StateMachine.add(
-                "SET_MODEL_CONFIG",
-                SetModelConfigState(model_name="tac_docking"),
-                transitions={
-                    "succeeded": "SET_DOCKING_FOCUS",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
             smach.StateMachine.add(
                 "SET_DOCKING_FOCUS",
                 SetDetectionFocusState(focus_object="docking"),

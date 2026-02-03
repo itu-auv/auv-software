@@ -23,8 +23,6 @@ from auv_msgs.srv import (
     SetObjectTransformResponse,
     SetDetectionFocus,
     SetDetectionFocusRequest,
-    SetModelConfig,
-    SetModelConfigRequest,
 )
 
 from geometry_msgs.msg import TransformStamped
@@ -1389,25 +1387,3 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                     "aborted": "aborted",
                 },
             )
-
-
-class SetModelConfigState(smach_ros.ServiceState):
-    """
-    Calls the service to switch active YOLO model configuration at runtime.
-    Used to switch between different competition models (e.g., robosub, tac_docking).
-    """
-
-    def __init__(self, model_name: str):
-        """
-        Args:
-            model_name: Name of the model to activate (e.g., "robosub", "tac_docking")
-        """
-        service_name = "set_model_config"
-        request = SetModelConfigRequest(model_name=model_name)
-
-        super(SetModelConfigState, self).__init__(
-            service_name,
-            SetModelConfig,
-            request=request,
-            outcomes=["succeeded", "preempted", "aborted"],
-        )

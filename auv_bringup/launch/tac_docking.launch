@@ -9,6 +9,10 @@
   <arg name="sim" default="false" />
   <arg name="device" default="cuda:0" />
 
+  <!-- Set initial model config for camera_detection_pose_estimator -->
+  <param name="$(arg namespace)/camera_detection_pose_estimator/initial_model"
+         value="tac_docking" />
+
   <!-- 1. Include start.launch (hardware + navigation) - skip in simulation -->
   <include unless="$(arg sim)" file="$(find auv_bringup)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
