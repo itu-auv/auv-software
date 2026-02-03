@@ -19,6 +19,7 @@
     <arg name="pressure_update_rate" default="20" />
     <arg name="enable_logging" default="false" />
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
+    <arg name="log_filename" default="" />
     <arg name="start_bridge" default="true" />
     <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
@@ -97,9 +98,10 @@
     </group>
 
     <group if="$(arg enable_logging)">
-        <include file="$(find auv_bringup)/launch/inc/logging.launch.xml">
+        <include file="$(find auv_bringup)/launch/logging.launch">
             <arg name="namespace" value="$(arg namespace)" />
             <arg name="logging_directory" value="$(arg logging_directory)" />
+            <arg name="log_filename" value="$(arg log_filename)" />
         </include>
     </group>
 
