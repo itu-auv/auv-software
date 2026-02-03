@@ -8,6 +8,7 @@ from auv_smach.common import (
     SetDepthState,
     SetDetectionFocusState,
     DynamicPathState,
+    DynamicPathWithTransformCheck,
     AlignFrame,
     SearchForPropState,
     SetDetectionState,
@@ -41,7 +42,9 @@ class GripperAngleOpenState(smach.State):
             for _ in range(3):
                 self.pub.publish(msg)
                 rospy.sleep(0.1)
-            rospy.loginfo(f"[GripperAngleOpenState] Published angle: {self.angle_value}")
+            rospy.loginfo(
+                f"[GripperAngleOpenState] Published angle: {self.angle_value}"
+            )
             return "succeeded"
         except Exception as e:
             rospy.logerr(f"[GripperAngleOpenState] Error: {e}")
@@ -69,7 +72,9 @@ class GripperAngleCloseState(smach.State):
             for _ in range(3):
                 self.pub.publish(msg)
                 rospy.sleep(0.1)
-            rospy.loginfo(f"[GripperAngleCloseState] Published angle: {self.angle_value}")
+            rospy.loginfo(
+                f"[GripperAngleCloseState] Published angle: {self.angle_value}"
+            )
             return "succeeded"
         except Exception as e:
             rospy.logerr(f"[GripperAngleCloseState] Error: {e}")
@@ -100,7 +105,7 @@ class CheckBottleLinkState(smach.State):
 
     def execute(self, userdata) -> str:
         import rospy
-        
+
         start_time = rospy.Time.now()
         rate = rospy.Rate(10)
 
@@ -284,60 +289,33 @@ class OctagonTaskState(smach.State):
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
-                    "succeeded": "GO_TO_OCTAGON_LINK",
+                    "succeeded": "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "GO_TO_OCTAGON_LINK",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame="octagon_link",
-                    angle_offset=0.0,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=4.0,
-                    timeout=60.0,
-                    cancel_on_success=False,
-                    keep_orientation=True,
+                "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
+                DynamicPathWithTransformCheck(
+                    plan_target_frame="octagon_link",
+                    transform_source_frame="odom",
+                    transform_target_frame="bottle_link",
                 ),
                 transitions={
-                    "succeeded": (
-                        "SURFACE_TO_ANIMAL_DEPTH"
-                        if not self.griper_mode
-                        else "MOVE_GRIPPER"
-                    ),
+                    "succeeded": "MOVE_GRIPPER",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "SEARCH_RIGHT",
                 },
             )
             smach.StateMachine.add(
                 "MOVE_GRIPPER",
                 GripperAngleOpenState(),
                 transitions={
-                    "succeeded": "CHECK_BOTTLE_LINK",
+                    "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
-            # Check if bottle_link transform exists before alignment
-            smach.StateMachine.add(
-                "CHECK_BOTTLE_LINK",
-                CheckBottleLinkState(
-                    source_frame="odom",
-                    target_frame="bottle_link",
-                    timeout=3.0,
-                ),
-                transitions={
-                    "succeeded": "ALIGN_TO_BOTTLE",
-                    "preempted": "preempted",
-                    "aborted": "SEARCH_RIGHT",  # Start search sequence
-                },
-            )
-
-            # New states for bottle alignment and gripper operation
             smach.StateMachine.add(
                 "ALIGN_TO_BOTTLE",
                 AlignFrame(
@@ -402,7 +380,9 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_BOTTLE_AFTER_RIGHT",
-                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                CheckBottleLinkState(
+                    source_frame="odom", target_frame="bottle_link", timeout=2.0
+                ),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
@@ -432,7 +412,9 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_BOTTLE_AFTER_FORWARD",
-                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                CheckBottleLinkState(
+                    source_frame="odom", target_frame="bottle_link", timeout=2.0
+                ),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
@@ -462,7 +444,9 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_BOTTLE_AFTER_LEFT",
-                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                CheckBottleLinkState(
+                    source_frame="odom", target_frame="bottle_link", timeout=2.0
+                ),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
@@ -492,7 +476,9 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_BOTTLE_AFTER_BACKWARD",
-                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                CheckBottleLinkState(
+                    source_frame="odom", target_frame="bottle_link", timeout=2.0
+                ),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",

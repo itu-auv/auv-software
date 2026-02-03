@@ -192,7 +192,9 @@ class CameraDetectionNode:
             "taluy/cameras/cam_torpedo": CameraCalibration("cameras/cam_torpedo"),
         }
         # Segmentation source uses the same camera calibration as bottom camera
-        self.camera_calibrations["taluy/cameras/cam_bottom_seg"] = self.camera_calibrations["taluy/cameras/cam_bottom"]
+        self.camera_calibrations["taluy/cameras/cam_bottom_seg"] = (
+            self.camera_calibrations["taluy/cameras/cam_bottom"]
+        )
         rospy.Subscriber(
             "/yolo_result_front",
             YoloResult,
@@ -376,7 +378,9 @@ class CameraDetectionNode:
         """
         if not math.isnan(msg.data) and msg.data > 0:
             self.bottle_thickness_px = msg.data
-            rospy.logdebug(f"Updated bottle thickness: {self.bottle_thickness_px:.1f}px")
+            rospy.logdebug(
+                f"Updated bottle thickness: {self.bottle_thickness_px:.1f}px"
+            )
 
     def bottle_angle_callback(self, msg: Float32):
         print("bottle angle callback")
@@ -745,7 +749,10 @@ class CameraDetectionNode:
             ]:  # Bottle detection
                 skip_inside_image = True
                 # Calculate distance using pixel width from bottle_angle_node
-                if self.bottle_thickness_px is not None and self.bottle_thickness_px > 0:
+                if (
+                    self.bottle_thickness_px is not None
+                    and self.bottle_thickness_px > 0
+                ):
                     # Use the bottle_thickness_px as the width in pixels
                     distance = prop.estimate_distance(
                         None,
@@ -817,7 +824,8 @@ class CameraDetectionNode:
 
             # For bottom camera bottle/pipe detections, use bottle angle in odom frame
             if (
-                camera_ns in ["taluy/cameras/cam_bottom", "taluy/cameras/cam_bottom_seg"]
+                camera_ns
+                in ["taluy/cameras/cam_bottom", "taluy/cameras/cam_bottom_seg"]
                 and detection_id in [0, 2, 3]
                 and self.bottle_angle is not None
             ):
