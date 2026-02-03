@@ -69,7 +69,7 @@ class ImageSaver:
             "front": f"{ns}/cameras/cam_front/image_rect_color",
             "bottom": f"{ns}/cameras/cam_bottom/image_rect_color",
             "torpedo": f"{ns}/cameras/cam_torpedo/image_rect_color",
-            "realsense": f"{ns}/camera/color/image_rect_color",
+            "realsense": f"{ns}/camera/color/image_raw",
         }
 
         if cam not in mapping:
