@@ -21,6 +21,7 @@ class SimulationTab(QWidget):
         super().__init__()
         self.detect_process = None
         self.smach_process = None
+        self.tac_docking_process = None
         self.init_ui()
 
     def init_ui(self):
@@ -107,11 +108,13 @@ class SimulationTab(QWidget):
             self.tac_state_widget.hide()
             self.tac_task_label.hide()
             self.tac_task_combo.hide()
+            self.test_check.show()
         else:  # TAC
             self.robosub_state_widget.hide()
-            self.tac_state_widget.show()
+            self.tac_state_widget.hide()
             self.tac_task_label.show()
             self.tac_task_combo.show()
+            self.test_check.hide()
         self.toggle_state_checks(
             Qt.Checked if self.test_check.isChecked() else Qt.Unchecked
         )
@@ -146,17 +149,10 @@ class SimulationTab(QWidget):
             print("No detection process to stop.")
 
     def start_smach(self):
-        competition = self.competition_combo.currentText().lower()
-        cmd = [
-            "roslaunch",
-            "auv_smach",
-            "start.launch",
-            f"competition:={competition}",
-            "sim:=true",
-            "device:=cpu",
-        ]
+        competition = self.competition_combo.currentText()
+        cmd = ["roslaunch", "auv_smach", "start.launch"]
 
-        if competition == "robosub":
+        if competition == "RoboSub":
             if self.test_check.isChecked():
                 states = ",".join(
                     [s for s, cb in self.robosub_state_checks.items() if cb.isChecked()]
@@ -164,15 +160,24 @@ class SimulationTab(QWidget):
                 cmd.append("test_mode:=true")
                 cmd.append(f"test_states:={states}")
                 cmd.append("roll:=false")
+            # If not test mode, runs full_mission_states by default
         else:  # TAC
-            tac_task = self.tac_task_combo.currentText()
-            cmd.append(f"tac_task:={tac_task}")
-            if self.test_check.isChecked():
-                states = ",".join(
-                    [s for s, cb in self.tac_state_checks.items() if cb.isChecked()]
-                )
-                cmd.append("test_mode:=true")
-                cmd.append(f"test_states:={states}")
+            # TAC uses the task dropdown to select the mission
+            task = self.tac_task_combo.currentText()
+            states = f"init,{task}"
+            cmd.append("test_mode:=true")
+            cmd.append(f"test_states:={states}")
+
+            # Launch tac_docking first (YOLO + ArUco detection)
+            tac_cmd = [
+                "roslaunch",
+                "auv_bringup",
+                "tac_docking.launch",
+                "sim:=true",
+                "device:=cpu",
+            ]
+            print(f"Executing: {' '.join(tac_cmd)}")
+            self.tac_docking_process = subprocess.Popen(tac_cmd)
 
         print(f"Executing: {' '.join(cmd)}")
         self.smach_process = subprocess.Popen(cmd)
@@ -189,3 +194,13 @@ class SimulationTab(QWidget):
             self.smach_process = None
         else:
             print("No SMACH process to stop.")
+
+        if self.tac_docking_process is not None:
+            print("Terminating TAC docking process...")
+            self.tac_docking_process.terminate()
+            try:
+                self.tac_docking_process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                print("TAC docking process did not terminate, killing it...")
+                self.tac_docking_process.kill()
+            self.tac_docking_process = None

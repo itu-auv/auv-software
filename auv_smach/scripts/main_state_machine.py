@@ -102,44 +102,27 @@ class MainStateMachineNode:
         self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
         self.acoustic_rx_timeout = 30.0  # seconds
 
-        self.competition = rospy.get_param("~competition", "robosub")
-        self.tac_task = rospy.get_param("~tac_task", "docking")
         test_mode = rospy.get_param("~test_mode", False)
-
-        tac_task_states = {
-            "docking": ["INITIALIZE", "NAVIGATE_TO_DOCKING_TASK"],
-        }
-
+        # Get test states from ROS param
         if test_mode:
             state_map = rospy.get_param("~state_map")
 
             short_state_list = rospy.get_param("~test_states", "").split(",")
 
+            # Parse state mapping
             state_mapping = {
                 item.split(":")[0].strip(): item.split(":")[1].strip()
                 for item in state_map.strip().split(",")
             }
 
+            # Map test states to full names
             self.state_list = [
                 state_mapping[state.strip()]
                 for state in short_state_list
                 if state.strip() in state_mapping
             ]
-            rospy.loginfo(f"Test mode: states={self.state_list}")
-        elif self.competition == "tac":
-            if self.tac_task in tac_task_states:
-                self.state_list = tac_task_states[self.tac_task]
-                rospy.loginfo(
-                    f"TAC competition mode: task={self.tac_task}, states={self.state_list}"
-                )
-            else:
-                rospy.logwarn(
-                    f"Unknown TAC task: {self.tac_task}, defaulting to INITIALIZE only"
-                )
-                self.state_list = ["INITIALIZE"]
         else:
             self.state_list = rospy.get_param("~full_mission_states")
-            rospy.loginfo(f"RoboSub competition mode: {len(self.state_list)} states")
 
         # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
