@@ -119,6 +119,7 @@ class TFGazeboDebug:
             M_final = np.dot(M_odom_in_world, M_target_in_odom)
 
             pose = self.matrix_to_pose(M_final)
+            pose.position.z = 0.0
 
             model_name = (
                 f"debug_cube_{len(self.spawned_models)}_{frame_name.replace('/', '_')}"
