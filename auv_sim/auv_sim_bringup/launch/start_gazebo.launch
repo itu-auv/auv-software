@@ -121,4 +121,7 @@
         <remap from="control/align_frame/cancel" to="control/align_frame/cancel"/>
         <remap from="set_heading_control" to="set_heading_control"/>
     </node>
+
+    <!-- TF-Gazebo Debug Node -->
+    <node name="tf_gazebo_debug" pkg="auv_sim" type="tf_gazebo_debug.py" output="screen" />
 </launch>
