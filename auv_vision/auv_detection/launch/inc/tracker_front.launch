@@ -24,7 +24,7 @@
   <param name="/create_model_symlink_cmd"
          command="bash -c 'ln -sf $(arg model_source_path) $(arg ultralytics_models_dir)/$(arg yolo_model)'"/>
 
-  <node name="tracker_node" pkg="ultralytics_ros" type="tracker_node.py" output="screen">
+  <node name="tracker_node_front" pkg="ultralytics_ros" type="tracker_node.py" output="screen">
     <param name="yolo_model" value="$(arg yolo_model)"/>
     <param if="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_front/image_underwater"/>
     <param unless="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_front/image_corrected"/>
