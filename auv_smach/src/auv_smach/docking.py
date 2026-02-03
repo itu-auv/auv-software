@@ -12,48 +12,18 @@ from auv_smach.common import (
     SetDepthState,
     SetDetectionFocusState,
 )
-from auv_smach.initialize import DelayState
 
 
-class WaitForBoardDetectionState(smach.State):
-    def __init__(
-        self,
-        board_detected_topic: str = "/aruco_board_estimator/board_detected",
-        rate_hz: float = 10.0,
-    ):
-        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.board_detected_topic = board_detected_topic
-        self.rate_hz = rate_hz
-        self.board_detected = False
+def _board_detected_monitor_cb(userdata, msg):
+    """Monitor callback for board detection.
 
-    def _board_detected_cb(self, msg):
-        if msg.data:
-            self.board_detected = True
-
-    def execute(self, userdata):
-        self.board_detected = False
-        rate = rospy.Rate(self.rate_hz)
-
-        board_sub = rospy.Subscriber(
-            self.board_detected_topic, Bool, self._board_detected_cb
-        )
-
-        try:
-            while not rospy.is_shutdown():
-                if self.preempt_requested():
-                    self.service_preempt()
-                    return "preempted"
-
-                if self.board_detected:
-                    rospy.loginfo("Board detected! Transitioning to Phase B.")
-                    return "succeeded"
-
-                rate.sleep()
-
-        finally:
-            board_sub.unregister()
-
-        return "aborted"
+    Returns False when board is detected to exit MonitorState (triggers 'invalid').
+    Returns True to keep monitoring.
+    """
+    if msg.data:
+        rospy.loginfo("Board detected! Transitioning to Phase B.")
+        return False
+    return True
 
 
 class ToggleDockingApproachFrameState(smach_ros.ServiceState):
@@ -151,14 +121,15 @@ class DockingTaskState(smach.State):
 
             smach.StateMachine.add(
                 "WAIT_FOR_BOARD_DETECTION",
-                WaitForBoardDetectionState(
-                    board_detected_topic="/aruco_board_estimator/board_detected",
-                    rate_hz=10.0,
+                smach_ros.MonitorState(
+                    "/aruco_board_estimator/board_detected",
+                    Bool,
+                    _board_detected_monitor_cb,
                 ),
                 transitions={
-                    "succeeded": "DISABLE_DOCKING_APPROACH_FRAME",
+                    "invalid": "DISABLE_DOCKING_APPROACH_FRAME",
+                    "valid": "aborted",
                     "preempted": "preempted",
-                    "aborted": "aborted",
                 },
             )
 
@@ -243,34 +214,14 @@ class DockingTaskState(smach.State):
                     angle_offset=1.5708,
                     dist_threshold=0.03,
                     yaw_threshold=0.04,
-                    confirm_duration=1.0,
-                    timeout=90.0,
-                    cancel_on_success=False,
+                    confirm_duration=20.0,
+                    timeout=40.0,
+                    cancel_on_success=True,
                     keep_orientation=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.2,
                     use_frame_depth=True,
                 ),
-                transitions={
-                    "succeeded": "WAIT_FOR_DOCK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "WAIT_FOR_DOCK",
-                DelayState(delay_time=30.0),
-                transitions={
-                    "succeeded": "CANCEL_ALIGN",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "CANCEL_ALIGN",
-                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "DISABLE_DOCKING_TRAJECTORY",
                     "preempted": "preempted",
