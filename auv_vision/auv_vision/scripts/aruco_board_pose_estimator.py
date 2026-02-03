@@ -456,20 +456,20 @@ class ArucoBoardEstimator:
                     cv2.putText(
                         debug_img,
                         f"RANSAC failed ({len(matched_ids)} markers)",
-                        (10, 30),
+                        (20, 70),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
+                        2.0,
                         (0, 0, 255),
-                        2,
+                        4,
                     )
                     cv2.putText(
                         debug_gray,
                         f"RANSAC failed ({len(matched_ids)} markers)",
-                        (10, 30),
+                        (20, 70),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
+                        2.0,
                         (0, 0, 255),
-                        2,
+                        4,
                     )
                 else:
                     inlier_indices = inliers.flatten()
@@ -487,14 +487,14 @@ class ArucoBoardEstimator:
                     inlier_set = set(inlier_indices)
                     for idx, pt in enumerate(img_points):
                         pt_int = tuple(pt.astype(int))
-                        cv2.circle(debug_img, pt_int, 6, (0, 0, 0), -1)
-                        cv2.circle(debug_gray, pt_int, 6, (0, 0, 0), -1)
+                        cv2.circle(debug_img, pt_int, 15, (0, 0, 0), -1)
+                        cv2.circle(debug_gray, pt_int, 15, (0, 0, 0), -1)
                         if idx in inlier_set:
-                            cv2.circle(debug_img, pt_int, 4, (0, 255, 0), -1)
-                            cv2.circle(debug_gray, pt_int, 4, (0, 255, 0), -1)
+                            cv2.circle(debug_img, pt_int, 10, (0, 255, 0), -1)
+                            cv2.circle(debug_gray, pt_int, 10, (0, 255, 0), -1)
                         else:
-                            cv2.circle(debug_img, pt_int, 5, (0, 0, 255), 2)
-                            cv2.circle(debug_gray, pt_int, 5, (0, 0, 255), 2)
+                            cv2.circle(debug_img, pt_int, 12, (0, 0, 255), 4)
+                            cv2.circle(debug_gray, pt_int, 12, (0, 0, 255), 4)
 
                     self.publish_board_transform(rvec, tvec, msg.header)
                     self.board_detected_pub.publish(Bool(data=True))
@@ -524,77 +524,77 @@ class ArucoBoardEstimator:
                     cv2.putText(
                         debug_img,
                         info_text,
-                        (10, 30),
+                        (20, 70),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
+                        1.5,
                         (0, 255, 0),
-                        2,
+                        4,
                     )
                     cv2.putText(
                         debug_gray,
                         info_text,
-                        (10, 30),
+                        (20, 70),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
+                        1.5,
                         (0, 255, 0),
-                        2,
+                        4,
                     )
                     cv2.putText(
                         debug_img,
                         f"IDs: {sorted(matched_ids)}",
-                        (10, 60),
+                        (20, 130),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
+                        1.8,
                         (255, 255, 0),
-                        2,
+                        4,
                     )
                     cv2.putText(
                         debug_gray,
                         f"IDs: {sorted(matched_ids)}",
-                        (10, 60),
+                        (20, 130),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
+                        1.8,
                         (255, 255, 0),
-                        2,
+                        4,
                     )
             else:
                 detected_ids = sorted(ids.flatten().tolist())
                 cv2.putText(
                     debug_img,
                     f"Unknown markers: {detected_ids}",
-                    (10, 30),
+                    (20, 70),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
+                    2.0,
                     (0, 165, 255),
-                    2,
+                    4,
                 )
                 cv2.putText(
                     debug_gray,
                     f"Unknown markers: {detected_ids}",
-                    (10, 30),
+                    (20, 70),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
+                    2.0,
                     (0, 165, 255),
-                    2,
+                    4,
                 )
         else:
             cv2.putText(
                 debug_img,
                 "SEARCHING FOR BOARD...",
-                (10, 30),
+                (20, 70),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
+                2.0,
                 (0, 0, 255),
-                2,
+                4,
             )
             cv2.putText(
                 debug_gray,
                 "SEARCHING FOR BOARD...",
-                (10, 30),
+                (20, 70),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
+                2.0,
                 (0, 0, 255),
-                2,
+                4,
             )
 
         self._queue_debug_images(debug_img, debug_gray, thresh_img)
