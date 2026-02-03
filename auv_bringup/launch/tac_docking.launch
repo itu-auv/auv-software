@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="control_rate" default="20.0" />
+  <arg name="dvl_virtual_port" default="/tmp/vcom0" />
+  <arg name="use_gui" default="false" />
+  <arg name="enable_logging" default="true" />
+  <arg name="logging_directory" default="$(optenv HOME)/bags" />
+  <arg name="sim" default="false" />
+  <arg name="device" default="cuda:0" />
+
+  <!-- 1. Include start.launch (hardware + navigation) - skip in simulation -->
+  <include unless="$(arg sim)" file="$(find auv_bringup)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="dvl_virtual_port" value="$(arg dvl_virtual_port)" />
+    <arg name="use_gui" value="$(arg use_gui)" />
+    <arg name="enable_logging" value="$(arg enable_logging)" />
+    <arg name="logging_directory" value="$(arg logging_directory)" />
+  </include>
+
+  <!-- 2. TAC Docking detection: YOLO tracker -->
+  <include file="$(find auv_detection)/launch/inc/tracker_docking.launch">
+    <arg name="sim" value="$(arg sim)" />
+    <arg name="device" value="$(arg device)" />
+  </include>
+
+  <!-- 3. TAC Docking detection: ArUco board estimator -->
+  <node pkg="auv_vision" type="aruco_board_pose_estimator.py"
+        name="aruco_board_estimator" output="screen">
+    <param name="camera_ns" value="$(arg namespace)/cameras/cam_bottom" />
+    <param name="camera_frame" value="$(arg namespace)/base_link/bottom_camera_optical_link" />
+  </node>
+</launch>
