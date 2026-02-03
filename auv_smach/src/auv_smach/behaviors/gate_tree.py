@@ -4,15 +4,8 @@ from .actions import (
     SetDetectionFocusBehavior,
     CancelAlignControllerBehavior,
     SetBoolServiceBehavior,
-    RotateBehavior,
-    SetFrameLookingAtBehavior,
     AlignFrameBehavior,
-    CreateFrameAtCurrentPositionBehavior,
 )
-
-# No longer needed directly if subtrees handle them, but create_gate_tree might use them directly?
-# create_gate_tree uses: SetDepth, SetBoolService, SetDetectionFocus, AlignFrame, CancelAlign.
-# It uses create_search_subtree etc. from .subtrees now.
 
 from .subtrees import (
     create_search_subtree,
@@ -118,7 +111,7 @@ def create_gate_tree(
         )
     )
 
-    # 10. Check Surroudings (Selam)
+    # 10. Check Surroundings (Selam)
     root.add_child(
         create_look_around_subtree(
             name="LookAround",

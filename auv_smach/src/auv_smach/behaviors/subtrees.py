@@ -209,6 +209,9 @@ def create_dynamic_path_subtree(
         )
     )
 
+    # 1.5 Stop Alignment (Normal finish)
+    main_sequence.add_child(CancelAlignControllerBehavior(name=f"{name}_StopAlign"))
+
     # 2. Cleanup Sequence (Runs if Main fails)
     # If main sequence fails (e.g. execution error), Selector goes here.
     cleanup_sequence = py_trees.composites.Sequence(f"{name}_Cleanup", memory=True)

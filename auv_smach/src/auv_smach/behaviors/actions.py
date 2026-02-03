@@ -9,6 +9,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from geometry_msgs.msg import TransformStamped
+from auv_msgs.srv import CreateFrame, CreateFrameRequest
 import numpy as np
 from auv_msgs.srv import (
     SetDepth,
@@ -110,6 +111,11 @@ class SetDepthBehavior(py_trees.behaviour.Behaviour):
                 self._start_time = rospy.Time.now()
 
                 # Start publishing enable signal (background thread)
+                # Safety: ensure old thread is stopped before starting new one
+                if self._pub_thread is not None and self._pub_thread.is_alive():
+                    self._stop_publishing.set()
+                    self._pub_thread.join(timeout=1.0)
+
                 self._stop_publishing.clear()
                 self._pub_thread = threading.Thread(target=self._publish_enable_loop)
                 self._pub_thread.start()
@@ -701,7 +707,6 @@ class AlignFrameBehavior(py_trees.behaviour.Behaviour):
                 res = self.align_srv(req)
                 if res.success:
                     self._alignment_requested = True
-                    self._alignment_requested = True
                     rospy.loginfo(
                         f"[{self.name}] Alignment started: {self.target_frame}"
                     )
@@ -770,119 +775,16 @@ class AlignFrameBehavior(py_trees.behaviour.Behaviour):
         """Called when behavior terminates. Cancel alignment if needed and restore heading control."""
         if self._alignment_requested and new_status != py_trees.common.Status.SUCCESS:
             self._cancel_alignment()
+        elif (
+            self._alignment_requested
+            and self.cancel_on_success
+            and new_status == py_trees.common.Status.SUCCESS
+        ):
+            self._cancel_alignment()
 
         # Restore heading control if it was disabled and we should enable it afterwards
         if self._heading_disabled and self.enable_heading_control_afterwards:
             self._set_heading_control(True)
-
-
-class RotateBehavior(py_trees.behaviour.Behaviour):
-    """
-    Rotates the vehicle until a TF frame is found or for a specific duration.
-    Can perform a 'blind' rotation (Twist) if needed.
-    SMACH equivalent: RotationState (common.py:408)
-    """
-
-    def __init__(
-        self,
-        name: str,
-        source_frame: str,
-        look_at_frame: str,
-        rotation_speed: float = 0.2,
-        timeout: float = 25.0,
-        rotation_radian: float = None,  # Total angle to rotate (if None, rotate until TF found)
-        velocity_topic: str = "cmd_vel",
-    ):
-        super().__init__(name)
-        self.source_frame = source_frame
-        self.look_at_frame = look_at_frame
-        self.rotation_speed = rotation_speed
-        self.timeout = timeout
-        self.rotation_radian = rotation_radian
-        self.velocity_topic = velocity_topic
-
-        # Runtime
-        self._start_time = None
-        self._tf_buffer = None
-        self._tf_listener = None
-        self.pub_vel = None
-
-    def setup(self, timeout=15, **kwargs):
-        try:
-            self._tf_buffer = tf2_ros.Buffer()
-            self._tf_listener = tf2_ros.TransformListener(self._tf_buffer)
-            self.pub_vel = rospy.Publisher(self.velocity_topic, Twist, queue_size=1)
-            return True
-        except Exception as e:
-            rospy.logerr(f"[{self.name}] Setup error: {e}")
-            return False
-
-    def initialise(self):
-        self._start_time = rospy.Time.now()
-        rospy.loginfo(f"[{self.name}] Starting rotation...")
-
-    def update(self):
-        # 0. Check Timeout
-        elapsed = (rospy.Time.now() - self._start_time).to_sec()
-        if elapsed > self.timeout:
-            rospy.logwarn(f"[{self.name}] Timeout ({elapsed:.1f}s)")
-            self._stop()
-            return py_trees.common.Status.FAILURE
-
-        # 1. If we just want to find a TF frame (classic usage)
-        if self.rotation_radian is None:
-            if self._is_transform_available():
-                rospy.loginfo(f"[{self.name}] Target frame found via TF")
-                self._stop()
-                return py_trees.common.Status.SUCCESS
-
-            # Spin
-            self._spin()
-            return py_trees.common.Status.RUNNING
-
-        # 2. If we want to rotate for a specific angle (e.g. 360 spin)
-        # Simply rotate for calculated time (open loop approximation as per SMACH)
-        # SMACH calculates time = radian / speed
-        duration_needed = abs(self.rotation_radian / self.rotation_speed)
-
-        if elapsed >= duration_needed:
-            rospy.loginfo(f"[{self.name}] Rotation complete (Time-based)")
-            self._stop()
-            return py_trees.common.Status.SUCCESS
-
-        self._spin()
-        return py_trees.common.Status.RUNNING
-
-    def terminate(self, new_status):
-        if new_status != py_trees.common.Status.RUNNING:
-            self._stop()
-
-    def _spin(self):
-        cmd = Twist()
-        cmd.angular.z = self.rotation_speed
-        self.pub_vel.publish(cmd)
-
-    def _stop(self):
-        cmd = Twist()
-        cmd.angular.z = 0.0
-        if self.pub_vel:
-            self.pub_vel.publish(cmd)
-
-    def _is_transform_available(self):
-        try:
-            self._tf_buffer.lookup_transform(
-                self.source_frame,
-                self.look_at_frame,
-                rospy.Time(0),
-                rospy.Duration(0.0),  # Non-blocking check
-            )
-            return True
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ):
-            return False
 
 
 class CreateFrameBehavior(py_trees.behaviour.Behaviour):
@@ -1032,9 +934,14 @@ class ExecutePathBehavior(py_trees.behaviour.Behaviour):
             self._thread.join(timeout=2.0)
             if self._thread.is_alive():
                 rospy.logerr(
-                    f"[{self.name}] CRITICAL: Thread did not finish ignoring cancel!"
+                    f"[{self.name}] CRITICAL: Thread did not finish; ignoring cancel!"
                 )
-        self._thread = None
+            else:
+                # Thread finished within timeout, safe to clear reference
+                self._thread = None
+        else:
+            # No active thread, ensure reference is cleared
+            self._thread = None
 
     def update(self):
         # If thread completed, return the result

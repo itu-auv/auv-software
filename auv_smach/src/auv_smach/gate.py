@@ -36,7 +36,7 @@ class NavigateThroughGateState(smach.State):
         rospy.loginfo("[NavigateThroughGateState] Starting Behavior Tree execution...")
 
         # 1. Create the Tree with parameters
-        root = create_gate_tree(
+        self.tree = create_gate_tree(
             gate_depth=self.gate_depth,
             gate_search_depth=self.gate_search_depth,
             roll_depth=self.roll_depth,
@@ -47,34 +47,45 @@ class NavigateThroughGateState(smach.State):
         )
 
         # 2. Initialize the Tree Engine
-        self.behaviour_tree = py_trees_ros.trees.BehaviourTree(root)
+        self.behaviour_tree = py_trees_ros.trees.BehaviourTree(self.tree)
         self.behaviour_tree.setup(timeout=15.0)
 
         # 3. Tick Loop
         rate = rospy.Rate(10)  # 10 Hz
 
-        while not rospy.is_shutdown():
-            if self.preempt_requested():
-                self.service_preempt()
-                self.behaviour_tree.interrupt()
-                return "preempted"
+        try:
+            while not rospy.is_shutdown():
+                if self.preempt_requested():
+                    self.service_preempt()
+                    self.behaviour_tree.interrupt()
+                    return "preempted"
 
-            self.behaviour_tree.tick()
+                self.behaviour_tree.tick()
 
-            # Check Status
-            status = root.status
+                # Check Status
+                status = self.tree.status
 
-            if status == py_trees.common.Status.SUCCESS:
-                rospy.loginfo("[NavigateThroughGateState] Behavior Tree succeeded!")
-                return "succeeded"
+                if status == py_trees.common.Status.SUCCESS:
+                    rospy.loginfo("[NavigateThroughGateState] Behavior Tree succeeded!")
+                    return "succeeded"
 
-            if status == py_trees.common.Status.FAILURE:
-                rospy.logerr("[NavigateThroughGateState] Behavior Tree failed!")
-                return "aborted"
+                if status == py_trees.common.Status.FAILURE:
+                    rospy.logerr("[NavigateThroughGateState] Behavior Tree failed!")
+                    return "aborted"
 
-            # Optional: Feedback logging
-            # py_trees.display.print_ascii_tree(root, show_status=True)
+                # Optional: Feedback logging
+                # py_trees.display.print_ascii_tree(self.tree, show_status=True)
 
-            rate.sleep()
+                rate.sleep()
 
-        return "aborted"
+            # While loop exited due to ROS shutdown
+            if rospy.is_shutdown():
+                rospy.logwarn(
+                    "[NavigateThroughGateState] ROS shutdown - task incomplete"
+                )
+            return "aborted"
+
+        finally:
+            # Cleanup tree resources
+            if self.behaviour_tree:
+                self.behaviour_tree.shutdown()

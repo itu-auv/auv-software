@@ -1,7 +1,6 @@
 import py_trees
 import rospy
 import math
-import tf2_ros
 from std_msgs.msg import Bool
 from geometry_msgs.msg import WrenchStamped
 from nav_msgs.msg import Odometry
@@ -120,6 +119,12 @@ class PitchCorrectionBehavior(py_trees.behaviour.Behaviour):
         if new_status != py_trees.common.Status.RUNNING:
             self._stop_and_publish_zero()
 
+        # Cleanup subscribers
+        if hasattr(self, "sub_odom") and self.sub_odom:
+            self.sub_odom.unregister()
+        if hasattr(self, "sub_kill") and self.sub_kill:
+            self.sub_kill.unregister()
+
     def _stop_and_publish_zero(self):
         """Publish zero torque to stop rotation."""
         stop_cmd = WrenchStamped()
@@ -136,8 +141,8 @@ class PitchCorrectionBehavior(py_trees.behaviour.Behaviour):
             _, pitch, _ = euler_from_quaternion(q)
             self._current_pitch = pitch
             self._odom_received = True
-        except Exception:
-            pass
+        except Exception as e:
+            rospy.logwarn(f"[{self.name}] Failed to compute pitch from odometry: {e}")
 
     def _killswitch_callback(self, msg: Bool):
         if not msg.data:
@@ -252,10 +257,18 @@ class RollBehavior(py_trees.behaviour.Behaviour):
         if new_status != py_trees.common.Status.RUNNING:
             self._stop_and_publish_zero()
 
+        # Cleanup subscribers
+        if hasattr(self, "sub_odom") and self.sub_odom:
+            self.sub_odom.unregister()
+        if hasattr(self, "sub_kill") and self.sub_kill:
+            self.sub_kill.unregister()
+
     def _stop_and_publish_zero(self):
         stop_cmd = WrenchStamped()
         stop_cmd.header.stamp = rospy.Time.now()
         stop_cmd.header.frame_id = self.frame_id
+        # Explicitly zero roll torque (x-axis) for clarity and consistency
+        stop_cmd.wrench.torque.x = 0.0
         if hasattr(self, "pub_wrench"):
             self.pub_wrench.publish(stop_cmd)
 
