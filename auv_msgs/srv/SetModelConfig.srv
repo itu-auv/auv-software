@@ -1,8 +1,0 @@
-string model_name
-
----
-
-bool success
-string message
-string[] available_models
-string active_model

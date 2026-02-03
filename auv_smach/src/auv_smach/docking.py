@@ -11,7 +11,6 @@ from auv_smach.common import (
     SetAlignControllerTargetState,
     SetDepthState,
     SetDetectionFocusState,
-    SetModelConfigState,
 )
 from auv_smach.initialize import DelayState
 
@@ -99,6 +98,7 @@ class DockingTaskState(smach.State):
 =======
 >>>>>>> cleaned up comments
             smach.StateMachine.add(
+<<<<<<< HEAD
                 "SET_ID_REMAP",
                 SetIdRemapState(id_remap_json='{"0": 8}'),
                 transitions={
@@ -109,6 +109,8 @@ class DockingTaskState(smach.State):
             )
 
             smach.StateMachine.add(
+=======
+>>>>>>> got rid of an uneeded state
                 "SET_DOCKING_FOCUS",
                 SetDetectionFocusState(focus_object="docking"),
                 transitions={
