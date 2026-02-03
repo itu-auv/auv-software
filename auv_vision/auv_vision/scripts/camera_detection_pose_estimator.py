@@ -23,7 +23,6 @@ from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
-from auv_msgs.srv import SetModelConfig, SetModelConfigResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
@@ -205,11 +204,6 @@ class CameraDetectionNode:
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
         )
-        rospy.Service(
-            "set_model_config",
-            SetModelConfig,
-            self.handle_set_model_config,
-        )
 
     def _activate_model(self, model_name: str) -> bool:
         """Switch to a different model's class configuration."""
@@ -248,21 +242,6 @@ class CameraDetectionNode:
 
         rospy.loginfo(f"Activated model config: {model_name}")
         return True
-
-    def handle_set_model_config(self, req):
-        """Handle service call to switch model configuration."""
-        success = self._activate_model(req.model_name)
-
-        return SetModelConfigResponse(
-            success=success,
-            message=(
-                f"Model set to '{req.model_name}'"
-                if success
-                else f"Unknown model: {req.model_name}"
-            ),
-            available_models=list(self.model_configs.keys()),
-            active_model=self.active_model or "",
-        )
 
     def dynamic_reconfigure_callback(self, config):
         if config is None:
