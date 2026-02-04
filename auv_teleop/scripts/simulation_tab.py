@@ -161,7 +161,6 @@ class SimulationTab(QWidget):
                 cmd.append("roll:=false")
             # If not test mode, runs full_mission_states by default
         else:  # TAC
-            # TAC uses the task dropdown to select the mission
             # Note: For TAC, the user should launch tac_docking.launch sim:=true
             # before using this button. The detection nodes are already running.
             task = self.tac_task_combo.currentText()

@@ -770,13 +770,11 @@ class ExecutePathState(smach.State):
             return "preempted"
 
         try:
-            # Send the goal
             goal = FollowPathGoal()
             goal.paths = []
             rospy.logdebug("[ExecutePathState] Sending paths goal...")
             self._client.client.send_goal(goal)
 
-            # Wait for result while checking for preemption
             while not rospy.is_shutdown():
                 if self.preempt_requested():
                     rospy.logwarn(
