@@ -788,9 +788,6 @@ class AlignFrameBehavior(py_trees.behaviour.Behaviour):
             self._set_heading_control(True)
 
 
-
-
-
 class PlanPathBehavior(py_trees.behaviour.Behaviour):
     """
     Calls the /set_plan service to generate a path.
@@ -1062,7 +1059,9 @@ class CreateFrameAtCurrentPositionBehavior(py_trees.behaviour.Behaviour):
         try:
             self.tf_buffer = tf2_ros.Buffer()
             self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-            self.srv = rospy.ServiceProxy("map/set_object_transform", SetObjectTransform)
+            self.srv = rospy.ServiceProxy(
+                "map/set_object_transform", SetObjectTransform
+            )
             return True
         except Exception as e:
             rospy.logerr(f"[{self.name}] Setup error: {e}")
