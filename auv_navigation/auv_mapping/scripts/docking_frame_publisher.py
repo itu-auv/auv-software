@@ -131,6 +131,8 @@ class DockingFramePublisher:
 
         base_pose = self.get_pose(docking_station_tf)
 
+        current_time = rospy.Time.now()
+
         approach_pose = self.apply_offset_to_pose(
             base_pose,
             self.approach_offset_x,
@@ -138,7 +140,7 @@ class DockingFramePublisher:
             self.approach_offset_z,
         )
         approach_transform = self.build_transform_message(
-            self.approach_target_frame, approach_pose, docking_station_tf.header.stamp
+            self.approach_target_frame, approach_pose, current_time
         )
 
         puck_pose = self.apply_offset_to_pose(
@@ -148,7 +150,7 @@ class DockingFramePublisher:
             self.puck_offset_z,
         )
         puck_transform = self.build_transform_message(
-            self.puck_target_frame, puck_pose, docking_station_tf.header.stamp
+            self.puck_target_frame, puck_pose, current_time
         )
 
         self.tf_broadcaster.sendTransform([approach_transform, puck_transform])
