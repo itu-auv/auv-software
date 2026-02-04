@@ -21,7 +21,6 @@ class SimulationTab(QWidget):
         super().__init__()
         self.detect_process = None
         self.smach_process = None
-        self.tac_docking_process = None
         self.init_ui()
 
     def init_ui(self):
@@ -163,21 +162,12 @@ class SimulationTab(QWidget):
             # If not test mode, runs full_mission_states by default
         else:  # TAC
             # TAC uses the task dropdown to select the mission
+            # Note: For TAC, the user should launch tac_docking.launch sim:=true
+            # before using this button. The detection nodes are already running.
             task = self.tac_task_combo.currentText()
             states = f"init,{task}"
             cmd.append("test_mode:=true")
             cmd.append(f"test_states:={states}")
-
-            # Launch tac_docking first (YOLO + ArUco detection)
-            tac_cmd = [
-                "roslaunch",
-                "auv_bringup",
-                "tac_docking.launch",
-                "sim:=true",
-                "device:=cpu",
-            ]
-            print(f"Executing: {' '.join(tac_cmd)}")
-            self.tac_docking_process = subprocess.Popen(tac_cmd)
 
         print(f"Executing: {' '.join(cmd)}")
         self.smach_process = subprocess.Popen(cmd)
@@ -194,13 +184,3 @@ class SimulationTab(QWidget):
             self.smach_process = None
         else:
             print("No SMACH process to stop.")
-
-        if self.tac_docking_process is not None:
-            print("Terminating TAC docking process...")
-            self.tac_docking_process.terminate()
-            try:
-                self.tac_docking_process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                print("TAC docking process did not terminate, killing it...")
-                self.tac_docking_process.kill()
-            self.tac_docking_process = None
