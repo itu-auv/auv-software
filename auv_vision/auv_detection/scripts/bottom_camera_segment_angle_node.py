@@ -164,7 +164,9 @@ class BottomCameraSegmentAngleNode(object):
 
         contours = list(contours) if contours is not None else []
         if len(contours) == 0:
-            rospy.logdebug_throttle(2.0, "[bottom_camera_segment_angle] no contours found")
+            rospy.logdebug_throttle(
+                2.0, "[bottom_camera_segment_angle] no contours found"
+            )
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))  # Yeni
             if self.publish_debug:
@@ -181,7 +183,9 @@ class BottomCameraSegmentAngleNode(object):
 
         if len(pts) < self.min_contour_points:
             rospy.logdebug_throttle(
-                2.0, "[bottom_camera_segment_angle] contour too small: %d points", len(pts)
+                2.0,
+                "[bottom_camera_segment_angle] contour too small: %d points",
+                len(pts),
             )
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))  # Yeni

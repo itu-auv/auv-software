@@ -41,7 +41,9 @@ class GripperAngleOpenState(smach.State):
             for _ in range(3):
                 self.pub.publish(msg)
                 rospy.sleep(0.1)
-            rospy.loginfo(f"[GripperAngleOpenState] Published angle: {self.angle_value}")
+            rospy.loginfo(
+                f"[GripperAngleOpenState] Published angle: {self.angle_value}"
+            )
             return "succeeded"
         except Exception as e:
             rospy.logerr(f"[GripperAngleOpenState] Error: {e}")
@@ -69,7 +71,9 @@ class GripperAngleCloseState(smach.State):
             for _ in range(3):
                 self.pub.publish(msg)
                 rospy.sleep(0.1)
-            rospy.loginfo(f"[GripperAngleCloseState] Published angle: {self.angle_value}")
+            rospy.loginfo(
+                f"[GripperAngleCloseState] Published angle: {self.angle_value}"
+            )
             return "succeeded"
         except Exception as e:
             rospy.logerr(f"[GripperAngleCloseState] Error: {e}")
@@ -100,7 +104,7 @@ class CheckBottleLinkState(smach.State):
 
     def execute(self, userdata) -> str:
         import rospy
-        
+
         start_time = rospy.Time.now()
         rate = rospy.Rate(10)
 
@@ -402,7 +406,9 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_BOTTLE_AFTER_RIGHT",
-                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                CheckBottleLinkState(
+                    source_frame="odom", target_frame="bottle_link", timeout=2.0
+                ),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
@@ -432,7 +438,9 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_BOTTLE_AFTER_FORWARD",
-                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                CheckBottleLinkState(
+                    source_frame="odom", target_frame="bottle_link", timeout=2.0
+                ),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
@@ -462,7 +470,9 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_BOTTLE_AFTER_LEFT",
-                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                CheckBottleLinkState(
+                    source_frame="odom", target_frame="bottle_link", timeout=2.0
+                ),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
@@ -492,7 +502,9 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "CHECK_BOTTLE_AFTER_BACKWARD",
-                CheckBottleLinkState(source_frame="odom", target_frame="bottle_link", timeout=2.0),
+                CheckBottleLinkState(
+                    source_frame="odom", target_frame="bottle_link", timeout=2.0
+                ),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
