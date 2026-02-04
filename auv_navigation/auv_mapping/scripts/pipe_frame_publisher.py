@@ -213,9 +213,9 @@ class PipeFramePublisher:
             )
             width = max(line_widths[0])
 
-            distance = self._distance_from_width(self.pipe_width, width)
+            distance = self._distance_from_cam(self.pipe_width, width)
 
-            rx, ry = self._world_pos_from_cam(
+            rx, ry, rz = self._world_pos_from_cam(
                 distance, target_point[0], target_point[1]
             )
 
@@ -225,7 +225,7 @@ class PipeFramePublisher:
             )
             ang_err = self._normalize_angle(ang - math.pi)
 
-            self._relocate_carrot(rx, ry, rot_offset=ang_err)
+            self._relocate_carrot(rx, ry, rz, rot_offset=ang_err)
 
         self._publish_debug_img(
             msg, debug_img, segments, target_segment_index, target_point, width
@@ -258,7 +258,7 @@ class PipeFramePublisher:
         ang_rad = self._normalize_angle(self._get_angle(p1, p2))
         return (ang_rad / math.pi) * 180
 
-    def _distance_from_width(self, real_width, measured_width):
+    def _distance_from_cam(self, real_width, measured_width):
         focal_length = self.cam.K[0]
         distance = (real_width * focal_length) / measured_width
         return distance
@@ -271,13 +271,15 @@ class PipeFramePublisher:
 
         rx = (u - cx) * distance / fx
         ry = (v - cy) * distance / fy
+        rz = distance
 
-        return rx, ry
+        return rx, ry, rz
 
-    def _relocate_carrot(self, rx, ry, rot_offset=None):
+    def _relocate_carrot(self, rx, ry, rz, rot_offset=None):
         pose = Pose()
         pose.position.x = rx
         pose.position.y = ry
+        pose.position.z = rz
         base_rot = self._get_frame_rotation(
             self.taluy_base_frame, self.bottom_cam_frame
         )
