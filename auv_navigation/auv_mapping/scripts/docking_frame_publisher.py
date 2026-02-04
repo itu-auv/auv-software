@@ -4,12 +4,9 @@ Docking Frame Publisher
 
 Publishes target frames for the docking mission.
 
-Frames published (Phase B - ArUco based, toggle: toggle_docking_trajectory):
+Frames published (ArUco based, toggle: toggle_docking_trajectory):
 - docking_approach_target: Approach position (1m above docking_station by default)
 - docking_puck_target: Final docking position (0.5m above docking_station by default)
-
-Frames published (Phase A - YOLO based, toggle: toggle_docking_approach_frame):
-- docking_station_yolo: Position at docking_station_link with orientation facing from robot to station
 """
 
 import numpy as np
@@ -28,7 +25,6 @@ class DockingFramePublisher:
         rospy.init_node("docking_frame_publisher")
 
         self.trajectory_enabled = False
-        self.approach_frame_enabled = False
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -41,14 +37,6 @@ class DockingFramePublisher:
         )
         self.puck_target_frame = rospy.get_param(
             "~puck_target_frame", "docking_puck_target"
-        )
-
-        self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
-        self.docking_station_frame = rospy.get_param(
-            "~docking_station_frame", "docking_station_link"
-        )
-        self.station_approach_frame = rospy.get_param(
-            "~station_approach_frame", "docking_station_yolo"
         )
 
         self.approach_offset_x = 0.0
@@ -64,11 +52,6 @@ class DockingFramePublisher:
 
         self.toggle_trajectory_service = rospy.Service(
             "toggle_docking_trajectory", SetBool, self.handle_toggle_trajectory_service
-        )
-        self.toggle_approach_frame_service = rospy.Service(
-            "toggle_docking_approach_frame",
-            SetBool,
-            self.handle_toggle_approach_frame_service,
         )
 
         rospy.loginfo("Docking Frame Publisher initialized")
@@ -87,14 +70,6 @@ class DockingFramePublisher:
         self.trajectory_enabled = req.data
         message = (
             f"Docking trajectory frame publishing set to: {self.trajectory_enabled}"
-        )
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
-
-    def handle_toggle_approach_frame_service(self, req):
-        self.approach_frame_enabled = req.data
-        message = (
-            f"Docking approach frame publishing set to: {self.approach_frame_enabled}"
         )
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
@@ -178,74 +153,11 @@ class DockingFramePublisher:
 
         self.tf_broadcaster.sendTransform([approach_transform, puck_transform])
 
-    def publish_approach_frame(self):
-        try:
-            robot_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame,
-                self.robot_frame,
-                rospy.Time(0),
-                rospy.Duration(0.5),
-            )
-            station_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame,
-                self.docking_station_frame,
-                rospy.Time(0),
-                rospy.Duration(0.5),
-            )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            rospy.logwarn_throttle(5.0, f"TF lookup for approach frame failed: {e}")
-            return
-
-        robot_pos = np.array(
-            [
-                robot_tf.transform.translation.x,
-                robot_tf.transform.translation.y,
-            ]
-        )
-        station_pos = np.array(
-            [
-                station_tf.transform.translation.x,
-                station_tf.transform.translation.y,
-            ]
-        )
-
-        direction = station_pos - robot_pos
-        distance = np.linalg.norm(direction)
-
-        if distance < 0.01:
-            rospy.logwarn_throttle(
-                5.0, "Robot and station too close, skipping approach frame"
-            )
-            return
-
-        facing_yaw = np.arctan2(direction[1], direction[0])
-        quaternion = tf.transformations.quaternion_from_euler(0, 0, facing_yaw)
-
-        approach_pose = Pose()
-        approach_pose.position.x = station_tf.transform.translation.x
-        approach_pose.position.y = station_tf.transform.translation.y
-        approach_pose.position.z = station_tf.transform.translation.z
-        approach_pose.orientation.x = quaternion[0]
-        approach_pose.orientation.y = quaternion[1]
-        approach_pose.orientation.z = quaternion[2]
-        approach_pose.orientation.w = quaternion[3]
-
-        approach_transform = self.build_transform_message(
-            self.station_approach_frame, approach_pose, station_tf.header.stamp
-        )
-        self.tf_broadcaster.sendTransform(approach_transform)
-
     def spin(self):
         rate = rospy.Rate(10.0)
         while not rospy.is_shutdown():
             if self.trajectory_enabled:
                 self.publish_docking_frames()
-            if self.approach_frame_enabled:
-                self.publish_approach_frame()
             rate.sleep()
 
 

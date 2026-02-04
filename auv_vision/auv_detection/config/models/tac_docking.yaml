@@ -10,7 +10,7 @@ cameras:
     classes:
       docking_station:
         id: 0
-        tf_frame: docking_station_link
+        tf_frame: docking_station_yolo
         real_height: 1.20
         real_width: 0.80
 
