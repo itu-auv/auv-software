@@ -9,10 +9,10 @@ from datetime import datetime
 from typing import Optional
 
 import rospy
+import message_filters
 from geometry_msgs.msg import Twist, WrenchStamped
 from nav_msgs.msg import Odometry
 
-# >>> BURAYI kendi paket adınla değiştir <<<
 from auv_msgs.srv import SetDampingTarget, SetDampingTargetResponse
 
 
@@ -40,7 +40,7 @@ class DampingStepCmdVelLogger:
     """
     STEP test:
       PREHOLD: cmd_vel=0 for pre_hold_time
-      STEP -> SETTLE: cmd_vel=target for settle_time (hıza otursun)
+      STEP -> SETTLE: cmd_vel=target for settle_time
       RECORD: cmd_vel=target for record_time (csv log)
       DONE: cmd_vel=0 and close csv
 
@@ -52,13 +52,13 @@ class DampingStepCmdVelLogger:
         rospy.init_node("damping_step_cmdvel_logger", anonymous=False)
         rospy.loginfo("damping_step_cmdvel_logger started")
 
-        # -------- Topics (placeholder, sen değiştireceksin)
+        # -------- Topics (placeholder, change these)
         self.cmd_vel_topic = rospy.get_param("~cmd_vel_topic", "cmd_vel")
         self.odom_topic = rospy.get_param("~odom_topic", "odometry")
-        # Bu topic MUTLAKA net body wrench (tau) yayınlamalı:
+        # This topic MUST publish net body wrench (tau):
         self.wrench_topic = rospy.get_param("~wrench_topic", "wrench")
 
-        # -------- Timing (STEP olduğundan settle'i uzun tutmak mantıklı)
+        # -------- Timing (Since it's a STEP test, keeping settle long makes sense)
         self.pre_hold_time = float(rospy.get_param("~pre_hold_time", 2.0))
         self.settle_time = float(rospy.get_param("~settle_time", 5.0))
         self.record_time = float(rospy.get_param("~record_time", 10.0))
@@ -74,7 +74,7 @@ class DampingStepCmdVelLogger:
         self.file_prefix = rospy.get_param("~file_prefix", "damping_step")
         os.makedirs(self.log_dir, exist_ok=True)
 
-        # İstersen sadece RECORD fazını yaz:
+        # If you want, log only the RECORD phase:
         self.log_only_record = bool(rospy.get_param("~log_only_record", True))
 
         # -------- State
@@ -91,16 +91,18 @@ class DampingStepCmdVelLogger:
 
         # -------- Pub/Sub
         self.cmd_pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=10)
-        rospy.Subscriber(
-            self.odom_topic, Odometry, self._odom_cb, queue_size=50, tcp_nodelay=True
+
+        # Time Synchronization of Odom and Wrench with Message Filters
+        self.odom_sub = message_filters.Subscriber(self.odom_topic, Odometry)
+        self.wrench_sub = message_filters.Subscriber(self.wrench_topic, WrenchStamped)
+
+        # ApproximateTimeSynchronizer: Matches timestamp if they are close even if not exactly the same
+        # queue_size: How many messages to keep in buffer while searching for match
+        # slop: Maximum acceptable time difference between two messages (seconds)
+        self.ts = message_filters.ApproximateTimeSynchronizer(
+            [self.odom_sub, self.wrench_sub], queue_size=50, slop=0.05
         )
-        rospy.Subscriber(
-            self.wrench_topic,
-            WrenchStamped,
-            self._wrench_cb,
-            queue_size=50,
-            tcp_nodelay=True,
-        )
+        self.ts.registerCallback(self._sync_cb)
 
         # -------- Services
         rospy.Service("~surge", SetDampingTarget, self._srv_surge)  # linear.x
@@ -110,16 +112,17 @@ class DampingStepCmdVelLogger:
 
         # -------- Timers
         rospy.Timer(rospy.Duration(1.0 / self.cmd_rate), self._cmd_timer_cb)
-        rospy.Timer(rospy.Duration(1.0 / self.log_rate), self._log_timer_cb)
+        # Logging is no longer done with Timer, but when synchronized message arrives (inside callback)
 
     # --- Subscribers
-    def _odom_cb(self, msg: Odometry):
+    def _sync_cb(self, odom_msg: Odometry, wrench_msg: WrenchStamped):
         with self._lock:
-            self.last_odom = msg
+            # Store incoming synchronized data
+            self.last_odom = odom_msg
+            self.last_wrench = wrench_msg
 
-    def _wrench_cb(self, msg: WrenchStamped):
-        with self._lock:
-            self.last_wrench = msg
+            # If there is an active test and it is logging time, save it
+            self._try_log_data(odom_msg, wrench_msg)
 
     # --- Services
     def _srv_surge(self, req):
@@ -218,68 +221,65 @@ class DampingStepCmdVelLogger:
 
             self._finish_locked("UNKNOWN_PHASE")
 
-    def _log_timer_cb(self, _evt):
-        with self._lock:
-            if self.active is None or self.csv_writer is None:
-                return
+    def _try_log_data(self, odom: Odometry, wrench: WrenchStamped):
+        """
+        Called when synchronized data arrives.
+        Writes to CSV if there is an active test and conditions are met.
+        """
+        if self.active is None or self.csv_writer is None:
+            return
 
-            # sadece RECORD yazmak istersen:
-            if self.log_only_record and self.active.phase != "RECORD":
-                return
+        # Log only in RECORD phase (depends on parameter)
+        if self.log_only_record and self.active.phase != "RECORD":
+            return
 
-            if self.last_odom is None:
-                return
+        # Extract data
+        u = odom.twist.twist.linear.x
+        v = odom.twist.twist.linear.y
+        w = odom.twist.twist.linear.z
+        p = odom.twist.twist.angular.x
+        q = odom.twist.twist.angular.y
+        r = odom.twist.twist.angular.z
 
-            # measured velocities (placeholder: Odometry.twist)
-            u = self.last_odom.twist.twist.linear.x
-            v = self.last_odom.twist.twist.linear.y
-            w = self.last_odom.twist.twist.linear.z
-            p = self.last_odom.twist.twist.angular.x
-            q = self.last_odom.twist.twist.angular.y
-            r = self.last_odom.twist.twist.angular.z
+        fx = wrench.wrench.force.x
+        fy = wrench.wrench.force.y
+        fz = wrench.wrench.force.z
+        tx = wrench.wrench.torque.x
+        ty = wrench.wrench.torque.y
+        tz = wrench.wrench.torque.z
 
-            # wrench (must be provided by wrench_topic)
-            fx = fy = fz = tx = ty = tz = float("nan")
-            if self.last_wrench is not None:
-                fx = self.last_wrench.wrench.force.x
-                fy = self.last_wrench.wrench.force.y
-                fz = self.last_wrench.wrench.force.z
-                tx = self.last_wrench.wrench.torque.x
-                ty = self.last_wrench.wrench.torque.y
-                tz = self.last_wrench.wrench.torque.z
-            else:
-                rospy.logwarn_throttle(
-                    2.0, "No wrench received yet -> wrench columns will be NaN!"
-                )
+        # You can use the message timestamp as recording time (more precise)
+        # or you can use rospy.Time.now(). Since it is synchronized, header stamp makes sense.
+        log_time = odom.header.stamp.to_sec()
 
-            row = [
-                rospy.Time.now().to_sec(),
-                self.active.axis_name,
-                self.active.phase,
-                self.active.target,
-                self.curr_cmd.linear.x,
-                self.curr_cmd.linear.y,
-                self.curr_cmd.angular.z,
-                u,
-                v,
-                w,
-                p,
-                q,
-                r,
-                fx,
-                fy,
-                fz,
-                tx,
-                ty,
-                tz,
-            ]
+        row = [
+            log_time,
+            self.active.axis_name,
+            self.active.phase,
+            self.active.target,
+            self.curr_cmd.linear.x,
+            self.curr_cmd.linear.y,
+            self.curr_cmd.angular.z,
+            u,
+            v,
+            w,
+            p,
+            q,
+            r,
+            fx,
+            fy,
+            fz,
+            tx,
+            ty,
+            tz,
+        ]
 
-            try:
-                self.csv_writer.writerow(row)
-                self.csv_file.flush()
-            except Exception as e:
-                rospy.logerr(f"CSV write failed: {e}")
-                self._finish_locked("CSV_WRITE_ERROR")
+        try:
+            self.csv_writer.writerow(row)
+            self.csv_file.flush()
+        except Exception as e:
+            rospy.logerr(f"CSV write failed: {e}")
+            self._finish_locked("CSV_WRITE_ERROR")
 
     # --- helpers
     def _make_cmd(self, axis_name: str, target: float) -> Twist:
