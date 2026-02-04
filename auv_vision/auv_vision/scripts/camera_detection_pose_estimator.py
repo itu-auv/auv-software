@@ -247,6 +247,7 @@ class CameraDetectionNode:
             "octagon_table_link": OctagonTable(),
             "torpedo_hole_shark_link": TorpedoHole(),
             "torpedo_hole_sawfish_link": TorpedoHole(),
+            "bin_whole_link": BinWhole(),
         }
 
         self.id_tf_map = {
@@ -751,7 +752,7 @@ class CameraDetectionNode:
             if prop_name not in self.props:
                 continue
             prop = self.props[prop_name]
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [
+            if camera_ns in ["taluy/cameras/cam_bottom", "taluy/cameras/cam_bottom_seg"] and detection_id in [
                 0,
                 1,
                 2,
@@ -810,6 +811,7 @@ class CameraDetectionNode:
                 and detection_id in [0]
                 and self.bottle_angle is not None
             ):
+                print("EMINFALAN")
                 # Calculate angle in odom frame: bottle_angle_odom = current_yaw + bottle_angle_base_link
                 bottle_angle_odom = self.current_yaw + self.bottle_angle
                 quat = tf_transformations.quaternion_from_euler(0, 0, bottle_angle_odom)
