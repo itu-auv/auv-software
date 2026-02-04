@@ -40,12 +40,12 @@ class PipeFramePublisher:
             "~short_segment_filter_eps", 100
         )
         self.merge_segment_eps = rospy.get_param("~merge_segment_eps", 50)
-        self.ang_error_eps = rospy.get_param("~ang_error_eps", 40)
+        self.ang_error_eps = rospy.get_param("~ang_error_eps", 20)
         self.ang_error_close_point_eps = rospy.get_param(
             "~ang_error_close_point_eps", 40
         )
         # radius*2
-        self.pipe_width = rospy.get_param("~pipe_width", 0.24)
+        self.pipe_width = rospy.get_param("~pipe_width", 0.2)
 
         self.is_enabled = False
 
