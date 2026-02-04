@@ -33,7 +33,7 @@ class TransformServiceNode:
         self.gate_frame_2 = "gate_sawfish_link"
         self.target_gate_frame = "gate_shark_link"
         self.entrance_offset = 1.0
-        self.exit_offset = 1.0
+        self.exit_offset = 1.5
         self.z_offset = 0.5
         self.parallel_shift_offset = 0.20
         self.rescuer_distance = 1.0
@@ -83,7 +83,7 @@ class TransformServiceNode:
         self.fallback_entrance_offset = rospy.get_param(
             "~fallback_entrance_offset", 1.0
         )
-        self.fallback_exit_offset = rospy.get_param("~fallback_exit_offset", 1.0)
+        self.fallback_exit_offset = rospy.get_param("~fallback_exit_offset", 1.25)
         self.MIN_GATE_SEPARATION = rospy.get_param("~min_gate_separation", 0.2)
         self.MAX_GATE_SEPARATION = rospy.get_param("~max_gate_separation", 2.5)
         self.MIN_GATE_SEPARATION_THRESHOLD = 0.3

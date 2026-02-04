@@ -9,7 +9,7 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from geometry_msgs.msg import TransformStamped
-from auv_msgs.srv import CreateFrame, CreateFrameRequest
+
 import numpy as np
 from auv_msgs.srv import (
     SetDepth,
@@ -160,7 +160,7 @@ class CancelAlignControllerBehavior(py_trees.behaviour.Behaviour):
     def setup(self, timeout=15, **kwargs):
         """Setup ROS service connection."""
         try:
-            self.cancel_srv = rospy.ServiceProxy("align_frame/cancel", Trigger)
+            self.cancel_srv = rospy.ServiceProxy("control/align_frame/cancel", Trigger)
             rospy.logdebug(f"[{self.name}] Setup complete")
             return True
         except Exception as e:
@@ -173,10 +173,11 @@ class CancelAlignControllerBehavior(py_trees.behaviour.Behaviour):
             response = self.cancel_srv(TriggerRequest())
             if response.success:
                 rospy.loginfo(f"[{self.name}] Align controller cancelled")
-                return py_trees.common.Status.SUCCESS
             else:
-                rospy.logwarn(f"[{self.name}] Cancel failed: {response.message}")
-                return py_trees.common.Status.FAILURE
+                # Even if cancel "fails" because alignment is not active, that's OK
+                # Our goal is to ensure alignment is stopped - and it already is!
+                rospy.loginfo(f"[{self.name}] {response.message} (OK)")
+            return py_trees.common.Status.SUCCESS
         except rospy.ServiceException as e:
             rospy.logerr(f"[{self.name}] Service error: {e}")
             return py_trees.common.Status.FAILURE
@@ -195,7 +196,7 @@ class SetDetectionFocusBehavior(py_trees.behaviour.Behaviour):
         """Setup ROS service connection."""
         try:
             self.focus_srv = rospy.ServiceProxy(
-                "set_front_camera_focus", SetDetectionFocus
+                "vision/set_front_camera_focus", SetDetectionFocus
             )
             rospy.logdebug(f"[{self.name}] Setup complete")
             return True
@@ -467,7 +468,7 @@ class SetFrameLookingAtBehavior(py_trees.behaviour.Behaviour):
 
             # Service for setting the alignment target
             self.set_transform_srv = rospy.ServiceProxy(
-                "set_object_transform", SetObjectTransform
+                "map/set_object_transform", SetObjectTransform
             )
 
             rospy.logdebug(f"[{self.name}] Setup complete")
@@ -605,12 +606,12 @@ class AlignFrameBehavior(py_trees.behaviour.Behaviour):
         try:
             # Service to start alignment
             self.align_srv = rospy.ServiceProxy(
-                "align_frame/start", AlignFrameController
+                "control/align_frame/start", AlignFrameController
             )
 
             # Service to cancel alignment (matches controller's "cancel_control" service)
             # SMACH uses "align_frame/cancel", so we should too for parity.
-            self.cancel_srv = rospy.ServiceProxy("align_frame/cancel", Trigger)
+            self.cancel_srv = rospy.ServiceProxy("control/align_frame/cancel", Trigger)
 
             # Service to enable/disable heading control
             self.heading_srv = rospy.ServiceProxy("set_heading_control", SetBool)
@@ -787,74 +788,7 @@ class AlignFrameBehavior(py_trees.behaviour.Behaviour):
             self._set_heading_control(True)
 
 
-class CreateFrameBehavior(py_trees.behaviour.Behaviour):
-    """
-    Calls the /create_frame service to create a new TF frame.
-    SMACH equivalent: CreateFrameState (common.py:1000)
-    """
 
-    def __init__(
-        self,
-        name: str,
-        parent_frame: str,
-        child_frame: str,
-        x: float,
-        y: float,
-        yaw: float,
-    ):
-        super().__init__(name)
-        self.parent_frame = parent_frame
-        self.child_frame = child_frame
-        self.x = x
-        self.y = y
-        self.yaw = yaw
-        self._done = False
-
-    def setup(self, timeout=15, **kwargs):
-        try:
-            self.create_frame_srv = rospy.ServiceProxy("/create_frame", CreateFrame)
-            return True
-        except Exception as e:
-            rospy.logerr(f"[{self.name}] Setup error: {e}")
-            return False
-
-    def initialise(self):
-        self._done = False
-
-    def update(self):
-        if self._done:
-            return py_trees.common.Status.SUCCESS
-
-        try:
-            req = CreateFrameRequest(
-                parent_frame=self.parent_frame,
-                child_frame=self.child_frame,
-                x=self.x,
-                y=self.y,
-                yaw=self.yaw,
-            )
-            res = self.create_frame_srv(req)
-            if res.success:
-                rospy.loginfo(
-                    f"[{self.name}] Frame '{self.child_frame}' created relative to '{self.parent_frame}'"
-                )
-                self._done = True
-                return py_trees.common.Status.SUCCESS
-            else:
-                rospy.logerr(f"[{self.name}] Failed to create frame: {res.message}")
-                return py_trees.common.Status.FAILURE
-
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            rospy.logwarn(f"[{self.name}] TF error: {e}")
-            return py_trees.common.Status.FAILURE
-
-        except rospy.ServiceException as e:
-            rospy.logerr(f"[{self.name}] Service error: {e}")
-            return py_trees.common.Status.FAILURE
 
 
 class PlanPathBehavior(py_trees.behaviour.Behaviour):
@@ -1089,7 +1023,7 @@ class ClearObjectMapBehavior(py_trees.behaviour.Behaviour):
 
     def setup(self, timeout=15, **kwargs):
         try:
-            self.service = rospy.ServiceProxy("clear_object_transforms", Trigger)
+            self.service = rospy.ServiceProxy("map/clear_object_transforms", Trigger)
             return True
         except Exception as e:
             rospy.logerr(f"[{self.name}] Setup error: {e}")
@@ -1128,7 +1062,7 @@ class CreateFrameAtCurrentPositionBehavior(py_trees.behaviour.Behaviour):
         try:
             self.tf_buffer = tf2_ros.Buffer()
             self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-            self.srv = rospy.ServiceProxy("set_object_transform", SetObjectTransform)
+            self.srv = rospy.ServiceProxy("map/set_object_transform", SetObjectTransform)
             return True
         except Exception as e:
             rospy.logerr(f"[{self.name}] Setup error: {e}")

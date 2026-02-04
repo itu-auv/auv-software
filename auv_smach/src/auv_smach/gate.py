@@ -88,4 +88,4 @@ class NavigateThroughGateState(smach.State):
         finally:
             # Cleanup tree resources
             if self.behaviour_tree:
-                self.behaviour_tree.shutdown()
+                self.behaviour_tree.destroy()

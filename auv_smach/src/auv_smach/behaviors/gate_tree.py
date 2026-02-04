@@ -169,7 +169,8 @@ def create_gate_tree(
             source_frame="taluy/base_link",
             target_frame="gate_exit",
             angle_offset=gate_exit_angle,
-            timeout=10.0,
+            yaw_threshold=0.25,  # Relaxed from default 0.1 to allow convergence
+            timeout=20.0,  # Increased from 10.0 for more alignment time
             confirm_duration=1.0,
             cancel_on_success=True,
             keep_orientation=False,  # Explicitly False matching SMACH default in AlignFrameState
