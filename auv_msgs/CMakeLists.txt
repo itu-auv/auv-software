@@ -37,6 +37,7 @@ add_service_files(
   SetPremap.srv
   VisualServoing.srv
   SetDetectionFocus.srv
+  SpawnDebugCube.srv
 )
 
 # # Generate added messages and services with any dependencies listed here
