@@ -60,7 +60,7 @@ class DampingStepCmdVelLogger:
 
         # -------- Timing (STEP olduğundan settle'i uzun tutmak mantıklı)
         self.pre_hold_time = float(rospy.get_param("~pre_hold_time", 2.0))
-        self.settle_time = float(rospy.get_param("~settle_time", 6.0))
+        self.settle_time = float(rospy.get_param("~settle_time", 5.0))
         self.record_time = float(rospy.get_param("~record_time", 10.0))
 
         # -------- Rates
