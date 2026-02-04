@@ -12,7 +12,6 @@ from geometry_msgs.msg import Pose, Point, Quaternion, TransformStamped
 from std_msgs.msg import Float64
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
-from nav_msgs.msg import Odometry
 from dynamic_reconfigure.server import Server
 from dynamic_reconfigure.client import Client as DynamicReconfigureClient
 from auv_mapping.cfg import GateTrajectoryConfig
@@ -78,8 +77,8 @@ class TransformServiceNode:
         self.MAX_GATE_SEPARATION = rospy.get_param("~max_gate_separation", 2.5)
         self.MIN_GATE_SEPARATION_THRESHOLD = 0.3
 
-        self.odom_sub = rospy.Subscriber("odometry", Odometry, self.odom_callback)
-        self.latest_odom = None
+        # self.odom_sub = rospy.Subscriber("odometry", Odometry, self.odom_callback)
+        # self.latest_odom = None
 
     def smach_params_callback(self, config):
         """Callback for receiving parameters from the auv_smach node."""
@@ -92,8 +91,8 @@ class TransformServiceNode:
             elif config["selected_animal"] == "sawfish":
                 self.target_gate_frame = "gate_sawfish_link"
 
-    def odom_callback(self, msg):
-        self.latest_odom = msg
+    # def odom_callback(self, msg):
+    #     self.latest_odom = msg
 
     def create_trajectory_frames(self) -> None:
         """
