@@ -3,10 +3,10 @@
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
   <arg name="dvl_virtual_port" default="/tmp/vcom0" />
-  <arg name="use_gui" default="true" />
+  <arg name="sim" default="false" />
+  <arg name="use_gui" default="$(arg sim)" />
   <arg name="enable_logging" default="true" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
-  <arg name="sim" default="false" />
   <arg name="device" default="cuda:0" />
   <arg name="world" default="pool" />
 
