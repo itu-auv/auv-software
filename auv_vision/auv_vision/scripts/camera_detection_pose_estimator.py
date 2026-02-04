@@ -146,6 +146,11 @@ class BinSawfish(Prop):
         super().__init__(11, "bin_sawfish", 0.30480, 0.30480)
 
 
+class OctagonTable(Prop):
+    def __init__(self):
+        super().__init__(2, "octagon_table", None, None)
+
+
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
@@ -239,6 +244,7 @@ class CameraDetectionNode:
             "octagon_link": Octagon(),
             "bin_sawfish_link": BinShark(),
             "bin_shark_link": BinSawfish(),
+            "octagon_table_link": OctagonTable(),
             "torpedo_hole_shark_link": TorpedoHole(),
             "torpedo_hole_sawfish_link": TorpedoHole(),
         }
@@ -256,8 +262,7 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": {
                 0: "bin_shark_link",
                 1: "bin_sawfish_link",
-                2: "red_pipe_link",
-                3: "white_pipe_link",
+                2: "octagon_table_link",
             },
             "taluy/cameras/cam_bottom_seg": {
                 0: "bottle_link",
@@ -749,36 +754,10 @@ class CameraDetectionNode:
             if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [
                 0,
                 1,
-            ]:  # Bottle detection
+                2,
+            ]:  # Bin shark, bin sawfish, octagon table - use altitude
                 skip_inside_image = True
-                # Calculate distance using pixel width from bottle_angle_node
-                if (
-                    self.bottle_thickness_px is not None
-                    and self.bottle_thickness_px > 0
-                ):
-                    # Use the bottle_thickness_px as the width in pixels
-                    distance = prop.estimate_distance(
-                        None,
-                        self.bottle_thickness_px,
-                        self.camera_calibrations[camera_ns],
-                    )
-                    print(str(distance) + "-----distance of bottle ")
-                    rospy.logdebug(
-                        f"Using bottle_thickness_px: {self.bottle_thickness_px}px for distance calculation"
-                    )
-                else:
-                    # Fallback to using bbox width if bottle_thickness_px is not available
-                    distance = prop.estimate_distance(
-                        detection.bbox.size_y,  # height
-                        detection.bbox.size_x,  # width
-                        self.camera_calibrations[camera_ns],
-                    )
-                    print(str(distance) + "-----distance of bottle from wrong tree ")
-                if distance is None:
-                    rospy.logwarn(
-                        "Could not calculate bottle distance from pixel width, using altitude"
-                    )
-                    distance = self.altitude
+                distance = self.altitude
 
             if detection_id == 6:
                 self.process_altitude_projection(
@@ -827,9 +806,8 @@ class CameraDetectionNode:
 
             # For bottom camera bottle/pipe detections, use bottle angle in odom frame
             if (
-                camera_ns
-                in ["taluy/cameras/cam_bottom", "taluy/cameras/cam_bottom_seg"]
-                and detection_id in [0, 2, 3]
+                camera_ns == "taluy/cameras/cam_bottom_seg"
+                and detection_id in [0]
                 and self.bottle_angle is not None
             ):
                 # Calculate angle in odom frame: bottle_angle_odom = current_yaw + bottle_angle_base_link
