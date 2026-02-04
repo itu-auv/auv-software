@@ -111,16 +111,10 @@
       name="${namespace}/base_link/bottom_camera"
       parent="${namespace}/base_link"
       position="0 0 -0.07"
-      orientation="0 ${math.pi/2} ${-math.pi/2}"
+      orientation="0 ${math.pi/2} ${math.pi/2}"
       use_models="$(arg use_models)"
     />
-    <xacro:torpedo_camera
-      name="${namespace}/base_link/torpedo_camera"
-      parent="${namespace}/base_link"
-      position="0.35611 -0.0955 -0.14725"
-      orientation="0.0 0.182 0.044"
-      use_models="$(arg use_models)"
-    />
+    <xacro:torpedo_camera name="${namespace}/base_link/torpedo_camera" parent="${namespace}/base_link" position="0.35611 -0.0955 -0.14725" orientation="0.0 0.0 0.0" use_models="$(arg use_models)"/>
     <xacro:torpedo_upper name="${namespace}/base_link/torpedo_upper" parent="${namespace}/base_link" position="0.3893 -0.10895 -0.0577" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:torpedo_bottom name="${namespace}/base_link/torpedo_bottom" parent="${namespace}/base_link" position="0.3893 -0.10895 -0.0927" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:sonar name="${namespace}/base_link/sonar_front" parent="${namespace}/base_link" position="0.38 0.09 0.09" orientation="0 0 0" use_models="$(arg use_models)"/>
