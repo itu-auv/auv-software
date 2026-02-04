@@ -282,7 +282,7 @@ class PipeFramePublisher:
             self.taluy_base_frame, self.bottom_cam_frame
         )
         if rot_offset:
-            q_yaw = quaternion_from_euler(0, 0, rot_offset)
+            q_yaw = quaternion_from_euler(math.pi, 0, rot_offset)
             pose.orientation.x = q_yaw[0]
             pose.orientation.y = q_yaw[1]
             pose.orientation.z = q_yaw[2]
