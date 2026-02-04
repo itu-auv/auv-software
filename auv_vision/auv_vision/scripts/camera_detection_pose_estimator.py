@@ -254,7 +254,7 @@ class CameraDetectionNode:
                 7: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {
-                0: "bottle_link",
+                0: "bin_shark_link",
                 1: "bin_sawfish_link",
                 2: "red_pipe_link",
                 3: "white_pipe_link",
@@ -394,7 +394,7 @@ class CameraDetectionNode:
             msg: Float32 message containing the bottle angle in radians relative to base_link
         """
         if not math.isnan(msg.data):
-            self.bottle_angle = -msg.data  # Store in base_link frame
+            self.bottle_angle = msg.data  
 
             # Get current yaw from odom to base_link transform
             try:

@@ -202,14 +202,21 @@ class BottomCameraSegmentAngleNode(object):
         vx, vy = float(vx), float(vy)
 
         # ... (Koordinat dönüşümü ve açı hesaplama kodu aynı kalıyor)
-        vehicle_vx = -vx
-        vehicle_vy = -vy
-        angle = math.atan2(vehicle_vy, vehicle_vx)
+        # Camera is rotated 180 degrees, so "Front" is now Right (positive X axis in image)
+        # We calculate the angle of the line relative to this Front vector.
+        # atan2(-vy, vx) gives the angle relative to the positive X axis with Y-up convention (CCW positive).
+        # We negate vy because image Y-axis is down, but we want standard math Y-up behavior.
+        angle = math.atan2(-vy, vx)
 
+        # Normalize to [-pi/2, pi/2] to handle line ambiguity (line has no direction)
+        # This effectively forces the vector to point roughly towards the "Front" (Right)
         if angle > math.pi / 2:
             angle -= math.pi
-        elif angle < -math.pi / 2:
+        elif angle <= -math.pi / 2:
             angle += math.pi
+
+        vehicle_vx = math.cos(angle)
+        vehicle_vy = math.sin(angle)
 
         line_magnitude = math.sqrt(vx * vx + vy * vy)
         confidence = min(1.0, line_magnitude)
@@ -273,8 +280,10 @@ class BottomCameraSegmentAngleNode(object):
             cv2.circle(vis, (int(x0), int(y0)), 5, (0, 255, 0), -1)
 
         # ... (mevcut yön oku çizimi aynı)
+        # Draw Reference Arrow (Vehicle Front)
+        # Camera is rotated 180 degrees, so Front is Right.
         cv2.arrowedLine(
-            vis, (w // 2, h // 2), (w // 4, h // 2), (255, 0, 0), 2, tipLength=0.3
+            vis, (w // 2, h // 2), (w * 3 // 4, h // 2), (255, 0, 0), 2, tipLength=0.3
         )
 
         # Draw text (Açı ve Kalınlık)
