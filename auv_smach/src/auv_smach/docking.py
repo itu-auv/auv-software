@@ -9,7 +9,6 @@ from auv_smach.common import (
     DynamicPathWithTransformCheck,
     SearchForPropState,
     SetDepthState,
-    SetDetectionFocusState,
 )
 
 
@@ -35,38 +34,6 @@ class DockingTaskState(smach.State):
         )
 
         with self.state_machine:
-<<<<<<< HEAD
-            # ============================================================
-            # PHASE A: Approach (Front Camera)
-            # Uses SearchForPropState + AlignFrameUntilTF from common.py
-            # ============================================================
-
-            # Set ID remapping for docking model (class 0 -> internal ID 8)
-=======
->>>>>>> cleaned up comments
-            smach.StateMachine.add(
-<<<<<<< HEAD
-                "SET_ID_REMAP",
-                SetIdRemapState(id_remap_json='{"0": 8}'),
-                transitions={
-                    "succeeded": "SET_DOCKING_FOCUS",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-=======
->>>>>>> got rid of an uneeded state
-                "SET_DOCKING_FOCUS",
-                SetDetectionFocusState(focus_object="docking"),
-                transitions={
-                    "succeeded": "SET_SEARCH_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
             smach.StateMachine.add(
                 "SET_SEARCH_DEPTH",
                 SetDepthState(depth=search_depth, sleep_duration=3.0),
@@ -206,7 +173,6 @@ class DockingTaskState(smach.State):
                 },
             )
 
-            
             smach.StateMachine.add(
                 "RISE_AFTER_DOCK",
                 SetDepthState(depth=search_depth, sleep_duration=3.0),
