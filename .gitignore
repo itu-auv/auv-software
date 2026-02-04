@@ -40,3 +40,6 @@
 
 # ultralytics models
 *.pt
+
+# Personal learning notes
+docs/learning/
