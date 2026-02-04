@@ -302,7 +302,7 @@ class OctagonTaskState(smach.State):
                     transform_target_frame="bottle_link",
                 ),
                 transitions={
-                    "succeeded": "MOVE_GRIPPER",
+                    "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
                     "aborted": "SEARCH_RIGHT",
                 },
@@ -341,7 +341,7 @@ class OctagonTaskState(smach.State):
                 "SET_BOTTLE_DEPTH",
                 SetDepthState(depth=-1.29, sleep_duration=4.0),
                 transitions={
-                    "succeeded": "CLOSE_GRIPPER",
+                    "succeeded": "SURFACE_WITH_BOTTLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
