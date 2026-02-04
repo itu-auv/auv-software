@@ -1,0 +1,29 @@
+<launch>
+    <arg name="namespace" default="taluy"/>
+
+    <!-- Topics -->
+    <arg name="cmd_vel_topic" default="cmd_vel"/>
+    <arg name="odom_topic" default="odometry"/>
+    <arg name="wrench_topic" default="wrench_feedback"/>
+
+    <!-- Test Parameters -->
+    <arg name="pre_hold_time" default="2.0"/>
+    <arg name="settle_time" default="6.0"/>
+    <arg name="record_time" default="10.0"/>
+    <arg name="log_dir" default="$(env HOME)/damping_tests"/>
+    <arg name="log_only_record" default="true"/>
+
+    <group ns="$(arg namespace)">
+        <node pkg="auv_control" type="damping_tester.py" name="damping_tester" output="screen">
+            <param name="cmd_vel_topic" value="$(arg cmd_vel_topic)" />
+            <param name="odom_topic" value="$(arg odom_topic)" />
+            <param name="wrench_topic" value="$(arg wrench_topic)" />
+
+            <param name="pre_hold_time" value="$(arg pre_hold_time)" />
+            <param name="settle_time" value="$(arg settle_time)" />
+            <param name="record_time" value="$(arg record_time)" />
+            <param name="log_dir" value="$(arg log_dir)" />
+            <param name="log_only_record" value="$(arg log_only_record)"/>
+        </node>
+    </group>
+</launch>
