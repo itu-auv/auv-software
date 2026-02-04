@@ -7,6 +7,8 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QCheckBox,
     QHBoxLayout,
+    QComboBox,
+    QLabel,
 )
 from PyQt5.QtCore import Qt
 import subprocess
@@ -24,12 +26,6 @@ class SimulationTab(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
 
-        rqt_layout = QHBoxLayout()
-        self.rqt_btn = QPushButton("Open rqt_image_view")
-        self.rqt_btn.setStyleSheet("background-color: lightblue; color: black;")
-        rqt_layout.addWidget(self.rqt_btn)
-        layout.addLayout(rqt_layout)
-
         detect_group = QGroupBox("Object Detection")
         detect_layout = QHBoxLayout()
         self.detect_start = QPushButton("Start Detection")
@@ -41,6 +37,22 @@ class SimulationTab(QWidget):
         smach_group = QGroupBox("State Machine")
         smach_layout = QVBoxLayout()
 
+        competition_row = QHBoxLayout()
+        competition_label = QLabel("Competition:")
+        self.competition_combo = QComboBox()
+        self.competition_combo.addItems(["RoboSub", "TAC"])
+        competition_row.addWidget(competition_label)
+        competition_row.addWidget(self.competition_combo)
+        competition_row.addStretch()
+
+        self.tac_task_label = QLabel("Task:")
+        self.tac_task_combo = QComboBox()
+        self.tac_task_combo.addItems(["docking"])
+        competition_row.addWidget(self.tac_task_label)
+        competition_row.addWidget(self.tac_task_combo)
+        self.tac_task_label.hide()
+        self.tac_task_combo.hide()
+
         control_row = QHBoxLayout()
         self.smach_start = QPushButton("Launch SMACH")
         self.test_check = QCheckBox("Test Mode")
@@ -49,32 +61,70 @@ class SimulationTab(QWidget):
         control_row.addWidget(self.test_check)
         control_row.addWidget(self.smach_stop)
 
-        state_row = QHBoxLayout()
-        self.states = ["init", "gate", "buoy", "torpedo", "bin", "octagon"]
-        self.state_checks = {state: QCheckBox(state) for state in self.states}
-        for cb in self.state_checks.values():
-            state_row.addWidget(cb)
+        self.robosub_state_row = QHBoxLayout()
+        self.robosub_states = ["init", "gate", "slalom", "torpedo", "bin", "octagon"]
+        self.robosub_state_checks = {
+            state: QCheckBox(state) for state in self.robosub_states
+        }
+        for cb in self.robosub_state_checks.values():
+            self.robosub_state_row.addWidget(cb)
 
+        self.tac_state_row = QHBoxLayout()
+        self.tac_states = ["init", "docking"]
+        self.tac_state_checks = {state: QCheckBox(state) for state in self.tac_states}
+        for cb in self.tac_state_checks.values():
+            self.tac_state_row.addWidget(cb)
+
+        self.robosub_state_widget = QWidget()
+        self.robosub_state_widget.setLayout(self.robosub_state_row)
+
+        self.tac_state_widget = QWidget()
+        self.tac_state_widget.setLayout(self.tac_state_row)
+        self.tac_state_widget.hide()
+
+        smach_layout.addLayout(competition_row)
         smach_layout.addLayout(control_row)
-        smach_layout.addLayout(state_row)
+        smach_layout.addWidget(self.robosub_state_widget)
+        smach_layout.addWidget(self.tac_state_widget)
         smach_group.setLayout(smach_layout)
 
         layout.addWidget(detect_group)
         layout.addWidget(smach_group)
         self.setLayout(layout)
 
-        self.rqt_btn.clicked.connect(self.open_rqt)
         self.detect_start.clicked.connect(self.start_detection)
         self.detect_stop.clicked.connect(self.stop_detection)
         self.smach_start.clicked.connect(self.start_smach)
         self.smach_stop.clicked.connect(self.stop_smach)
         self.test_check.stateChanged.connect(self.toggle_state_checks)
+        self.competition_combo.currentTextChanged.connect(self.on_competition_changed)
 
         self.toggle_state_checks(Qt.Unchecked)
 
+    def on_competition_changed(self, competition):
+        if competition == "RoboSub":
+            self.robosub_state_widget.show()
+            self.tac_state_widget.hide()
+            self.tac_task_label.hide()
+            self.tac_task_combo.hide()
+            self.test_check.show()
+        else:  # TAC
+            self.robosub_state_widget.hide()
+            self.tac_state_widget.hide()
+            self.tac_task_label.show()
+            self.tac_task_combo.show()
+            self.test_check.hide()
+        self.toggle_state_checks(
+            Qt.Checked if self.test_check.isChecked() else Qt.Unchecked
+        )
+
     def toggle_state_checks(self, state):
         enabled = state == Qt.Checked
-        for cb in self.state_checks.values():
+        for cb in self.robosub_state_checks.values():
+            cb.setEnabled(enabled)
+            if not enabled:
+                cb.setChecked(False)
+        for cb in self.tac_state_checks.values():
             cb.setEnabled(enabled)
             if not enabled:
                 cb.setChecked(False)
@@ -98,14 +148,26 @@ class SimulationTab(QWidget):
             print("No detection process to stop.")
 
     def start_smach(self):
+        competition = self.competition_combo.currentText()
         cmd = ["roslaunch", "auv_smach", "start.launch"]
-        if self.test_check.isChecked():
-            states = ",".join(
-                [s for s, cb in self.state_checks.items() if cb.isChecked()]
-            )
-            cmd.append(f"test_mode:=true")
+
+        if competition == "RoboSub":
+            if self.test_check.isChecked():
+                states = ",".join(
+                    [s for s, cb in self.robosub_state_checks.items() if cb.isChecked()]
+                )
+                cmd.append("test_mode:=true")
+                cmd.append(f"test_states:={states}")
+                cmd.append("roll:=false")
+            # If not test mode, runs full_mission_states by default
+        else:  # TAC
+            # Note: For TAC, the user should launch tac_docking.launch sim:=true
+            # before using this button. The detection nodes are already running.
+            task = self.tac_task_combo.currentText()
+            states = f"init,{task}"
+            cmd.append("test_mode:=true")
             cmd.append(f"test_states:={states}")
-            cmd.append(f"roll:=false")
+
         print(f"Executing: {' '.join(cmd)}")
         self.smach_process = subprocess.Popen(cmd)
 
@@ -121,6 +183,3 @@ class SimulationTab(QWidget):
             self.smach_process = None
         else:
             print("No SMACH process to stop.")
-
-    def open_rqt(self):
-        subprocess.Popen(["rqt", "-s", "rqt_image_view"])

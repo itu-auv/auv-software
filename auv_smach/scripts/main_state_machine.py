@@ -15,6 +15,7 @@ from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
+from auv_smach.docking import DockingTaskState
 from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
@@ -245,6 +246,10 @@ class MainStateMachineNode:
             "NAVIGATE_THROUGH_PIPELINE": (
                 NavigateThroughPipelineState,
                 {"pipeline_depth": self.pipeline_depth},
+            ),
+            "NAVIGATE_TO_DOCKING_TASK": (
+                DockingTaskState,
+                {},
             ),
         }
 
