@@ -65,21 +65,9 @@ class PipeFramePublisher:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.object_transform_pub = rospy.Publisher(
+            "object_transform_updates", TransformStamped
         )
-        rospy.loginfo(
-            "[PipeFramePublisher] Waiting for set_object_transform service..."
-        )
-        try:
-            self.set_object_transform_service.wait_for_service(timeout=5.0)
-            rospy.loginfo(
-                "[PipeFramePublisher] set_object_transform service available."
-            )
-        except rospy.ROSException:
-            rospy.logwarn(
-                "[PipeFramePublisher] set_object_transform service not available within timeout."
-            )
 
         self.pipe_carrot_frame = "pipe_carrot"
         self.bottom_cam_frame = "taluy/base_link/bottom_camera_optical_link"
@@ -177,9 +165,9 @@ class PipeFramePublisher:
         target_point_index = None
         if len(segments) > 0:
             seg = segments[target_segment_index]
-            # make first segment from right to left (according to image)
+            # make first segment from left to right (according to image)
             # kinda risky but it was my only idea to decide for what direction we should move
-            if seg[0][0] < seg[-1][0]:
+            if seg[0][0] > seg[-1][0]:
                 seg.reverse()
                 segments[target_segment_index] = seg
 
@@ -190,7 +178,7 @@ class PipeFramePublisher:
             possible_targets = list(
                 filter(
                     lambda x: x[1][0]
-                    <= self.image_center[0] + self.center_offset_threshold,
+                    >= self.image_center[0] + self.center_offset_threshold,
                     possible_targets,
                 )
             )
@@ -307,7 +295,7 @@ class PipeFramePublisher:
             pose,
             frame=self.bottom_cam_frame,
         )
-        self._send_transform(msg)
+        self.object_transform_pub.publish(msg)
 
     def _publish_debug_img(
         self, msg, debug_img, segments, target_segment_index, target_point, width=None
@@ -497,18 +485,6 @@ class PipeFramePublisher:
         t.transform.translation = pose.position
         t.transform.rotation = pose.orientation
         return t
-
-    def _send_transform(self, transform):
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        try:
-            resp = self.set_object_transform_service.call(req)
-            if not resp.success:
-                print(
-                    f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-                )
-        except rospy.ServiceException as e:
-            print(f"Service call failed: {e}")
 
     def _get_frame_rotation(self, source_frame, target_frame):
         try:
