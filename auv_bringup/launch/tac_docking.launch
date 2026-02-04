@@ -3,22 +3,33 @@
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
   <arg name="dvl_virtual_port" default="/tmp/vcom0" />
-  <arg name="use_gui" default="false" />
+  <arg name="use_gui" default="true" />
   <arg name="enable_logging" default="true" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
   <arg name="sim" default="false" />
   <arg name="device" default="cuda:0" />
+  <arg name="world" default="pool" />
 
   <!-- Set initial model config for camera_detection_pose_estimator -->
   <param name="$(arg namespace)/camera_detection_pose_estimator/initial_model"
          value="tac_docking" />
 
-  <!-- 1. Include start.launch (hardware + navigation) - skip in simulation -->
+  <!-- 1a. Include start.launch (hardware + navigation) - for real robot -->
   <include unless="$(arg sim)" file="$(find auv_bringup)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="dvl_virtual_port" value="$(arg dvl_virtual_port)" />
     <arg name="use_gui" value="$(arg use_gui)" />
+    <arg name="enable_logging" value="$(arg enable_logging)" />
+    <arg name="logging_directory" value="$(arg logging_directory)" />
+  </include>
+
+  <!-- 1b. Include start_gazebo.launch (simulation) - for simulation -->
+  <include if="$(arg sim)" file="$(find auv_sim_bringup)/launch/start_gazebo.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="use_gui" value="$(arg use_gui)" />
+    <arg name="world" value="$(arg world)" />
     <arg name="enable_logging" value="$(arg enable_logging)" />
     <arg name="logging_directory" value="$(arg logging_directory)" />
   </include>

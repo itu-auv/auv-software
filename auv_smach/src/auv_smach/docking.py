@@ -3,37 +3,14 @@ import rospy
 import smach
 import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest
-from std_msgs.msg import Bool
 from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
+    DynamicPathWithTransformCheck,
     SearchForPropState,
-    SetAlignControllerTargetState,
     SetDepthState,
     SetDetectionFocusState,
 )
-
-
-def _board_detected_monitor_cb(userdata, msg):
-    """Monitor callback for board detection.
-
-    Returns False when board is detected to exit MonitorState (triggers 'invalid').
-    Returns True to keep monitoring.
-    """
-    if msg.data:
-        rospy.loginfo("Board detected! Transitioning to Phase B.")
-        return False
-    return True
-
-
-class ToggleDockingApproachFrameState(smach_ros.ServiceState):
-    def __init__(self, req: bool):
-        smach_ros.ServiceState.__init__(
-            self,
-            "toggle_docking_approach_frame",
-            SetBool,
-            request=SetBoolRequest(data=req),
-        )
 
 
 class ToggleDockingTrajectoryState(smach_ros.ServiceState):
@@ -81,61 +58,29 @@ class DockingTaskState(smach.State):
             smach.StateMachine.add(
                 "SEARCH_FOR_STATION",
                 SearchForPropState(
-                    look_at_frame="docking_station_link",
+                    look_at_frame="docking_station_yolo",
                     alignment_frame="docking_approach_align",
                     full_rotation=False,
                     set_frame_duration=3.0,
                     rotation_speed=0.3,
                 ),
                 transitions={
-                    "succeeded": "ENABLE_DOCKING_APPROACH_FRAME",
+                    "succeeded": "APPROACH_UNTIL_ARUCO_DETECTED",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
             smach.StateMachine.add(
-                "ENABLE_DOCKING_APPROACH_FRAME",
-                ToggleDockingApproachFrameState(req=True),
-                transitions={
-                    "succeeded": "START_APPROACH_ALIGN",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "START_APPROACH_ALIGN",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link",
-                    target_frame="docking_station_yolo",
+                "APPROACH_UNTIL_ARUCO_DETECTED",
+                DynamicPathWithTransformCheck(
+                    plan_target_frame="docking_station_yolo",
+                    transform_source_frame="odom",
+                    transform_target_frame="docking_station",
                     max_linear_velocity=0.3,
-                    keep_orientation=False,
+                    transform_timeout=90.0,
+                    keep_orientation=True,
                 ),
-                transitions={
-                    "succeeded": "WAIT_FOR_BOARD_DETECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "WAIT_FOR_BOARD_DETECTION",
-                smach_ros.MonitorState(
-                    "/aruco_board_estimator/board_detected",
-                    Bool,
-                    _board_detected_monitor_cb,
-                ),
-                transitions={
-                    "invalid": "DISABLE_DOCKING_APPROACH_FRAME",
-                    "valid": "aborted",
-                    "preempted": "preempted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "DISABLE_DOCKING_APPROACH_FRAME",
-                ToggleDockingApproachFrameState(req=False),
                 transitions={
                     "succeeded": "CANCEL_APPROACH_ALIGN",
                     "preempted": "preempted",

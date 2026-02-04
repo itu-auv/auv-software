@@ -87,7 +87,6 @@
 
     <node pkg="auv_mapping" type="docking_frame_publisher.py" name="docking_frame_publisher">
       <remap from="toggle_docking_trajectory" to="toggle_docking_trajectory" />
-      <remap from="toggle_docking_approach_frame" to="toggle_docking_approach_frame" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
