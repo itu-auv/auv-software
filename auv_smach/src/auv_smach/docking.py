@@ -9,7 +9,6 @@ from auv_smach.common import (
     DynamicPathWithTransformCheck,
     SearchForPropState,
     SetDepthState,
-    SetDetectionFocusState,
 )
 
 
@@ -35,16 +34,6 @@ class DockingTaskState(smach.State):
         )
 
         with self.state_machine:
-            smach.StateMachine.add(
-                "SET_DOCKING_FOCUS",
-                SetDetectionFocusState(focus_object="docking"),
-                transitions={
-                    "succeeded": "SET_SEARCH_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
             smach.StateMachine.add(
                 "SET_SEARCH_DEPTH",
                 SetDepthState(depth=search_depth, sleep_duration=3.0),
