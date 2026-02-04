@@ -291,7 +291,6 @@ class ArucoBoardEstimator:
 
             try:
                 if not rospy.is_shutdown():
-                    # Publish as JPEG compressed images directly
                     self.debug_pub.publish(self._encode_compressed(debug_img, "bgr8"))
                     self.debug_processed_pub.publish(
                         self._encode_compressed(debug_gray, "bgr8")
