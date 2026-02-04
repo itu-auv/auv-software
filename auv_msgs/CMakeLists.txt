@@ -21,6 +21,7 @@ add_message_files(
   FILES
   EulerOrientation.msg
   MotorCommand.msg
+  ObjectPose.msg
   Power.msg
   PropsYaw.msg
   TDOA.msg
@@ -33,6 +34,7 @@ add_service_files(
   SendAcoustic.srv
   SetDepth.srv
   SetObjectTransform.srv
+  SetPremap.srv
   VisualServoing.srv
   SetDetectionFocus.srv
   SpawnDebugCube.srv
