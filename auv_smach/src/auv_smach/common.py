@@ -707,9 +707,8 @@ class ExecutePathState(smach.State):
 class SearchForPropState(smach.StateMachine):
     """
     1. RotationState: Rotates to find a prop's frame.
-    2. SetAlignControllerTargetState: Sets the align controller target.
-    3. SetFrameLookingAtState: Sets a target frame's pose based on looking at another frame.
-    4. CancelAlignControllerState: Cancels the align controller target.
+    2. AimToProp: Aligns to the prop while looking at it.
+    3. CancelAlignControllerState: Cancels the align controller target.
     """
 
     def __init__(
@@ -717,10 +716,10 @@ class SearchForPropState(smach.StateMachine):
         look_at_frame: str,
         alignment_frame: str,
         full_rotation: bool,
-        set_frame_duration: float,
+        timeout: float,
         source_frame: str = "taluy/base_link",
         rotation_speed: float = 0.3,
-        max_angular_velocity: float = 0.25,
+        confirm_duration: float = 2.0,
     ):
         """
         Args:
@@ -729,7 +728,7 @@ class SearchForPropState(smach.StateMachine):
                                 and whose pose is set by SetFrameLookingAtState.
             full_rotation (bool): Whether to perform a full 360-degree rotation
                                   or stop when look_at_frame is found.
-            set_frame_duration (float): Duration for the SetFrameLookingAtState.
+            set_frame_duration (float): Timeout for the AimToProp state.
             source_frame (str): The base frame of the vehicle (default: "taluy/base_link").
             rotation_speed (float): The angular velocity for rotation (default: 0.3).
             max_angular_velocity (float): Max angular velocity for align controller (optional).
@@ -755,31 +754,19 @@ class SearchForPropState(smach.StateMachine):
                     full_rotation=full_rotation,
                 ),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
+                    "succeeded": "AIM_TO_PROP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame=source_frame,
-                    target_frame=alignment_frame,
-                    max_angular_velocity=max_angular_velocity,
-                ),
-                transitions={
-                    "succeeded": "BROADCAST_ALIGNMENT_FRAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "BROADCAST_ALIGNMENT_FRAME",
-                SetFrameLookingAtState(
+                "AIM_TO_PROP",
+                AimToProp(
                     source_frame=source_frame,
                     look_at_frame=look_at_frame,
                     alignment_frame=alignment_frame,
-                    duration_time=set_frame_duration,
+                    timeout=timeout,
+                    confirm_duration=confirm_duration,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_TARGET",
@@ -795,6 +782,55 @@ class SearchForPropState(smach.StateMachine):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
+            )
+
+
+class AimToProp(smach.Concurrence):
+    """
+    Runs SetFrameLookingAtState and AlignFrame concurrently.
+    Terminates when AlignFrame finishes.
+    """
+
+    def __init__(
+        self,
+        source_frame,
+        look_at_frame,
+        alignment_frame,
+        timeout=30.0,
+        cancel_on_success=False,
+        confirm_duration=2.0,
+    ):
+        super().__init__(
+            outcomes=["succeeded", "preempted", "aborted"],
+            default_outcome="aborted",
+            outcome_map={
+                "succeeded": {"ALIGN_FRAME": "succeeded"},
+                "preempted": {"ALIGN_FRAME": "preempted"},
+                "aborted": {"ALIGN_FRAME": "aborted"},
+            },
+            child_termination_cb=lambda outcome_map: True,  # Terminate if any child terminates
+        )
+
+        with self:
+            smach.Concurrence.add(
+                "LOOK_AT",
+                SetFrameLookingAtState(
+                    source_frame=source_frame,
+                    look_at_frame=look_at_frame,
+                    alignment_frame=alignment_frame,
+                    duration_time=60.0,
+                ),
+            )
+
+            smach.Concurrence.add(
+                "ALIGN_FRAME",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=alignment_frame,
+                    timeout=timeout,
+                    cancel_on_success=cancel_on_success,
+                    confirm_duration=confirm_duration,
+                ),
             )
 
 

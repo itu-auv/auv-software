@@ -51,11 +51,18 @@
 
 
     <node pkg="auv_mapping" type="gate_trajectory_publisher.py" name="gate_trajectory_publisher">
+      <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
+    <!--
+    <node pkg="auv_mapping" type="gate_trajectory_publisher_legacy.py" name="gate_trajectory_publisher_legacy">
       <remap from="toggle_coin_flip_rescuer" to="toggle_coin_flip_rescuer" />
       <remap from="odometry" to="odometry" />
       <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
+    -->
 
     <node pkg="auv_mapping" type="acoustic_transmitter.py" name="acoustic_transmitter">
       <remap from="modem/data/tx" to="modem/data/tx" />
