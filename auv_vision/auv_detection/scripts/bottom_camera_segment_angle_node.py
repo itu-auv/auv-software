@@ -18,7 +18,7 @@ import numpy as np
 import cv2
 
 import rospy
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from std_msgs.msg import Float32, Float32MultiArray
 from cv_bridge import CvBridge
 
@@ -76,7 +76,7 @@ class BottomCameraSegmentAngleNode(object):
             self.debug_topic, Float32MultiArray, queue_size=1
         )
         self.pub_debug_img = rospy.Publisher(
-            self.debug_topic + "_img", Image, queue_size=1
+            self.debug_topic + "_img/compressed", CompressedImage, queue_size=1
         )
 
         self.sub_mask = rospy.Subscriber(
@@ -304,8 +304,10 @@ class BottomCameraSegmentAngleNode(object):
         )  # Yeni
 
         try:
-            msg = self.bridge.cv2_to_imgmsg(vis, encoding="bgr8")
+            msg = CompressedImage()
             msg.header.stamp = rospy.Time.now()
+            msg.format = "jpeg"
+            msg.data = np.array(cv2.imencode('.jpg', vis)[1]).tobytes()
             self.pub_debug_img.publish(msg)
         except Exception as e:
             rospy.logwarn("Failed to publish debug image: %s", e)
