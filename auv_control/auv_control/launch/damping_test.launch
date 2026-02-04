@@ -4,11 +4,11 @@
     <!-- Topics -->
     <arg name="cmd_vel_topic" default="cmd_vel"/>
     <arg name="odom_topic" default="odometry"/>
-    <arg name="wrench_topic" default="wrench_feedback"/>
+    <arg name="wrench_topic" default="wrench"/>
 
     <!-- Test Parameters -->
     <arg name="pre_hold_time" default="2.0"/>
-    <arg name="settle_time" default="6.0"/>
+    <arg name="settle_time" default="5.0"/>
     <arg name="record_time" default="10.0"/>
     <arg name="log_dir" default="$(env HOME)/damping_tests"/>
     <arg name="log_only_record" default="true"/>
