@@ -642,7 +642,7 @@ class CameraDetectionNode:
             if camera_key == "bottom" and class_name in ["bin_shark", "bin_sawfish"]:
                 skip_inside_image = True
                 distance = self.altitude
-            if class_name == "bin_whole":
+            if class_name == "bin_whole" or class_name == "docking_station":
                 self.process_altitude_projection(
                     detection, camera_ns, detection_msg.header.stamp, tf_frame
                 )
