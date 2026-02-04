@@ -19,8 +19,5 @@ cameras:
     classes: {}
 
 focus_groups:
-  docking:
-    - docking_station
   all:
     - docking_station
-  none: []
