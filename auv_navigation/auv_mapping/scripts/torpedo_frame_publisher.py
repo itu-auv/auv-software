@@ -113,7 +113,7 @@ class TorpedoTransformServiceNode:
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
 
-    def apply_offsets(self, pose: Pose, offsets: list) -> Pose:
+    def apply_offsets(self, pose: Pose, offsets: list, yaw_offset: float = 0.0) -> Pose:
         """
         Apply offsets to a pose in its own frame.
         """
@@ -133,7 +133,16 @@ class TorpedoTransformServiceNode:
         new_pose.position.x = pose.position.x + rotated_offset[0]
         new_pose.position.y = pose.position.y + rotated_offset[1]
         new_pose.position.z = pose.position.z + rotated_offset[2]
-        new_pose.orientation = pose.orientation
+
+        if yaw_offset != 0.0:
+            q_rot = tf.transformations.quaternion_from_euler(0, 0, yaw_offset)
+            new_q = tf.transformations.quaternion_multiply(q, q_rot)
+            new_pose.orientation.x = new_q[0]
+            new_pose.orientation.y = new_q[1]
+            new_pose.orientation.z = new_q[2]
+            new_pose.orientation.w = new_q[3]
+        else:
+            new_pose.orientation = pose.orientation
 
         return new_pose
 
@@ -234,6 +243,7 @@ class TorpedoTransformServiceNode:
                     self.realsense_offset,
                     0.0,
                 ],
+                yaw_offset=-np.pi / 2,
             )
             realsense_target_transform = self.build_transform_message(
                 self.realsense_target_frame, realsense_target_pose
