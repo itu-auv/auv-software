@@ -1,6 +1,8 @@
 float32 target_depth
 
 string frame_id
+
+float32 max_velocity
 ---
 bool success
 string message
