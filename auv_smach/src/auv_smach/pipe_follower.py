@@ -68,6 +68,7 @@ class PipeTaskState(smach.State):
                     confirm_duration=5.0,
                     timeout=60.0,
                     cancel_on_success=True,
+                    use_frame_depth=True,
                 ),
                 transitions={
                     "succeeded": "DISABLE_PUBLISHER",

@@ -225,7 +225,7 @@ class PipeFramePublisher:
             )
             ang_err = self._normalize_angle(ang - math.pi)
 
-            self._relocate_carrot(rx, ry, rz, rot_offset=ang_err)
+            self._relocate_carrot(rx, ry, rz - 1.25, rot_offset=ang_err)
 
         self._publish_debug_img(
             msg, debug_img, segments, target_segment_index, target_point, width
