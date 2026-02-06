@@ -7,7 +7,7 @@ _tf_listener = None
 
 def get_tf_buffer(cache_time=None):
     """
-    Returns a singleton TF buffer/listener to avoid creating multiple listeners.
+    Returns a singleton TF buffer/listener
     """
     global _tf_buffer, _tf_listener
 
