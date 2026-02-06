@@ -7,6 +7,7 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 import angles
+from auv_smach.tf_utils import get_tf_buffer
 
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
@@ -239,8 +240,7 @@ class NavigateToFrameState(smach.State):
         self.end_frame = end_frame
         self.target_frame = target_frame
         self.n_turns = n_turns
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
@@ -370,8 +370,7 @@ class RotationState(smach.State):
         self.look_at_frame = look_at_frame
         self.full_rotation = full_rotation
         self.full_rotation_timeout = full_rotation_timeout
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
         self.sub = rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb)
         self.pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
@@ -512,8 +511,7 @@ class SetFrameLookingAtState(smach.State):
         self.look_at_frame = look_at_frame
         self.alignment_frame = alignment_frame
         self.duration_time = duration_time
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(10)
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
@@ -529,7 +527,6 @@ class SetFrameLookingAtState(smach.State):
                 return "preempted"
 
             try:
-
                 base_to_look_at_transform = self.tf_buffer.lookup_transform(
                     self.source_frame,
                     self.look_at_frame,
@@ -842,8 +839,7 @@ class CheckAlignmentState(smach.State):
         self.confirm_duration = confirm_duration
         self.keep_orientation = keep_orientation
         self.use_frame_depth = use_frame_depth
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(10)
 
     def get_error(self):
@@ -1201,8 +1197,7 @@ class CreateFrameAtCurrentPositionState(smach.State):
         self.source_frame = source_frame
         self.current_pose_frame = current_pose_frame
         self.reference_frame = reference_frame
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
@@ -1267,8 +1262,7 @@ class CreateRotatingFrameState(smach.State):
         self.source_frame = source_frame
         self.reference_frame = reference_frame
         self.rotation_period = rotation_period
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(rate_hz)
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform

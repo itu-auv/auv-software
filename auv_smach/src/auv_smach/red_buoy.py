@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -41,8 +42,7 @@ class RotateAroundCenterState(smach.State):
         self.target_frame = target_frame
         self.radius = radius
         self.direction = direction
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
@@ -128,8 +128,7 @@ class SetRedBuoyRotationStartFrame(smach.State):
         self.center_frame = center_frame
         self.target_frame = target_frame
         self.radius = radius
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
         self.set_object_transform_service = rospy.ServiceProxy(
