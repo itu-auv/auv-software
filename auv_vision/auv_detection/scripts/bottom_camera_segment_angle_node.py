@@ -18,8 +18,9 @@ import numpy as np
 import cv2
 
 import rospy
-from sensor_msgs.msg import Image, CompressedImage
-from std_msgs.msg import Float32, Float32MultiArray
+from sensor_msgs.msg import Image
+from std_msgs.msg import Float32MultiArray
+from auv_msgs.msg import SegmentMeasurement
 from cv_bridge import CvBridge
 
 from scipy.ndimage import distance_transform_edt
@@ -43,9 +44,9 @@ class BottomCameraSegmentAngleNode(object):
     def __init__(self):
         # ---- Topics (relative - will be prefixed by namespace) ----
         self.mask_topic = rospy.get_param("~mask_topic", "bottle_mask")
-        self.angle_topic = rospy.get_param("~angle_topic", "bottle_angle")
-        self.thickness_topic = rospy.get_param("~thickness_topic", "bottle_thickness")
-        self.length_topic = rospy.get_param("~length_topic", "bottle_length")
+        self.measurement_topic = rospy.get_param(
+            "~measurement_topic", "segment_measurement"
+        )
         self.debug_topic = rospy.get_param("~debug_topic", "bottle_angle_debug")
 
         # ---- Image orientation controls ----
@@ -61,11 +62,9 @@ class BottomCameraSegmentAngleNode(object):
         self.publish_debug = bool(rospy.get_param("~publish_debug", True))
 
         self.bridge = CvBridge()
-        self.pub_angle = rospy.Publisher(self.angle_topic, Float32, queue_size=1)
-        self.pub_thickness = rospy.Publisher(
-            self.thickness_topic, Float32, queue_size=1
+        self.pub_measurement = rospy.Publisher(
+            self.measurement_topic, SegmentMeasurement, queue_size=1
         )
-        self.pub_length = rospy.Publisher(self.length_topic, Float32, queue_size=1)
         self.pub_debug_info = rospy.Publisher(
             self.debug_topic, Float32MultiArray, queue_size=1
         )
@@ -78,9 +77,18 @@ class BottomCameraSegmentAngleNode(object):
         )
 
         rospy.loginfo(
-            "[bottom_camera_segment_angle] started. Subscribing to %s",
+            "[bottom_camera_segment_angle] started. Subscribing to %s. Publishing to %s",
             self.mask_topic,
+            self.measurement_topic,
         )
+
+    def _publish_measurement(self, msg_header, angle, thickness, valid):
+        m = SegmentMeasurement()
+        m.header = msg_header
+        m.angle = angle if not math.isnan(angle) else 0.0
+        m.thickness_px = thickness if not math.isnan(thickness) else 0.0
+        m.valid = valid
+        self.pub_measurement.publish(m)
 
     def cb_mask(self, msg):
         try:
@@ -109,9 +117,7 @@ class BottomCameraSegmentAngleNode(object):
                 bottle_area,
                 self.min_bottle_area_px,
             )
-            self.pub_angle.publish(Float32(float("nan")))
-            self.pub_thickness.publish(Float32(float("nan")))
-            self.pub_length.publish(Float32(float("nan")))
+            self._publish_measurement(msg.header, float("nan"), float("nan"), False)
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
@@ -134,9 +140,9 @@ class BottomCameraSegmentAngleNode(object):
             rospy.logdebug_throttle(
                 2.0, "[bottom_camera_segment_angle] no contours found"
             )
-            self.pub_angle.publish(Float32(float("nan")))
-            self.pub_thickness.publish(Float32(float("nan")))
-            self.pub_length.publish(Float32(float("nan")))
+            self._publish_measurement(
+                msg.header, float("nan"), median_thickness_px, False
+            )
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
@@ -156,9 +162,9 @@ class BottomCameraSegmentAngleNode(object):
                 "[bottom_camera_segment_angle] contour too small: %d points",
                 len(pts),
             )
-            self.pub_angle.publish(Float32(float("nan")))
-            self.pub_thickness.publish(Float32(float("nan")))
-            self.pub_length.publish(Float32(float("nan")))
+            self._publish_measurement(
+                msg.header, float("nan"), median_thickness_px, False
+            )
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
@@ -243,9 +249,7 @@ class BottomCameraSegmentAngleNode(object):
         confidence = min(1.0, line_magnitude)
 
         # ---------- Publish results ----------
-        self.pub_angle.publish(Float32(angle))
-        self.pub_thickness.publish(Float32(median_thickness_px))
-        self.pub_length.publish(Float32(segment_length))
+        self._publish_measurement(msg.header, angle, median_thickness_px, True)
 
         if self.publish_debug:
             self._publish_debug_info(
