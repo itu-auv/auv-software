@@ -45,6 +45,7 @@ class BottomCameraSegmentAngleNode(object):
         self.mask_topic = rospy.get_param("~mask_topic", "bottle_mask")
         self.angle_topic = rospy.get_param("~angle_topic", "bottle_angle")
         self.thickness_topic = rospy.get_param("~thickness_topic", "bottle_thickness")
+        self.length_topic = rospy.get_param("~length_topic", "bottle_length")
         self.debug_topic = rospy.get_param("~debug_topic", "bottle_angle_debug")
 
         # ---- Image orientation controls ----
@@ -64,6 +65,7 @@ class BottomCameraSegmentAngleNode(object):
         self.pub_thickness = rospy.Publisher(
             self.thickness_topic, Float32, queue_size=1
         )
+        self.pub_length = rospy.Publisher(self.length_topic, Float32, queue_size=1)
         self.pub_debug_info = rospy.Publisher(
             self.debug_topic, Float32MultiArray, queue_size=1
         )
@@ -76,10 +78,8 @@ class BottomCameraSegmentAngleNode(object):
         )
 
         rospy.loginfo(
-            "[bottom_camera_segment_angle] started. Subscribing to %s. Publishing angle to %s and thickness to %s",
+            "[bottom_camera_segment_angle] started. Subscribing to %s",
             self.mask_topic,
-            self.angle_topic,
-            self.thickness_topic,
         )
 
     def cb_mask(self, msg):
@@ -111,6 +111,7 @@ class BottomCameraSegmentAngleNode(object):
             )
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))
+            self.pub_length.publish(Float32(float("nan")))
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
@@ -135,6 +136,7 @@ class BottomCameraSegmentAngleNode(object):
             )
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))
+            self.pub_length.publish(Float32(float("nan")))
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
@@ -156,6 +158,7 @@ class BottomCameraSegmentAngleNode(object):
             )
             self.pub_angle.publish(Float32(float("nan")))
             self.pub_thickness.publish(Float32(float("nan")))
+            self.pub_length.publish(Float32(float("nan")))
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
@@ -202,9 +205,23 @@ class BottomCameraSegmentAngleNode(object):
             median_thickness_px = float("nan")
         # ===================================================================
 
-        # ---------- Fit line to contour ----------
+        # ---------- Fit line to contour and find segment endpoints ----------
         [vx, vy, x0, y0] = cv2.fitLine(pts, cv2.DIST_L2, 0, 0.01, 0.01)
-        vx, vy = float(vx), float(vy)
+        vx, vy, x0, y0 = float(vx), float(vy), float(x0), float(y0)
+
+        # Project all contour points onto the line direction to find extremes
+        # Projection t = dot(pt - origin, direction) where direction is unit vector
+        # pts shape is (N, 2) with columns [x, y]
+        pts_centered = pts.astype(np.float32) - np.array([[x0, y0]], dtype=np.float32)
+        projections = pts_centered[:, 0] * vx + pts_centered[:, 1] * vy
+
+        # Find min/max projection indices (endpoints along the line)
+        t_min, t_max = float(projections.min()), float(projections.max())
+
+        # Calculate actual endpoint coordinates
+        p_start = (x0 + t_min * vx, y0 + t_min * vy)
+        p_end = (x0 + t_max * vx, y0 + t_max * vy)
+        segment_length = t_max - t_min
 
         # Camera is rotated 180 degrees, so "Front" is now Right (positive X axis in image)
         # We calculate the angle of the line relative to this Front vector.
@@ -228,6 +245,7 @@ class BottomCameraSegmentAngleNode(object):
         # ---------- Publish results ----------
         self.pub_angle.publish(Float32(angle))
         self.pub_thickness.publish(Float32(median_thickness_px))
+        self.pub_length.publish(Float32(segment_length))
 
         if self.publish_debug:
             self._publish_debug_info(
@@ -241,7 +259,8 @@ class BottomCameraSegmentAngleNode(object):
                 vehicle_vy=vehicle_vy,
             )
             self._publish_debug_image(
-                mask, (vx, vy, x0, y0), angle, median_thickness_px
+                mask, (vx, vy, x0, y0), angle, median_thickness_px,
+                p_start, p_end, segment_length
             )
 
     def _publish_debug_info(
@@ -269,18 +288,32 @@ class BottomCameraSegmentAngleNode(object):
         ]
         self.pub_debug_info.publish(msg)
 
-    def _publish_debug_image(self, mask, fit, angle, thickness):
+    def _publish_debug_image(
+        self, mask, fit, angle, thickness, p_start=None, p_end=None, segment_length=0.0
+    ):
         """Publish annotated debug image."""
         h, w = mask.shape[:2]
         vis = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
 
         if fit is not None:
-
             vx, vy, x0, y0 = fit
             x0, y0, vx, vy = float(x0), float(y0), float(vx), float(vy)
-            p1 = (int(x0 - 2000 * vx), int(y0 - 2000 * vy))
-            p2 = (int(x0 + 2000 * vx), int(y0 + 2000 * vy))
-            cv2.line(vis, p1, p2, (0, 0, 255), 2)
+
+            # Draw segment line between actual endpoints (if available)
+            if p_start is not None and p_end is not None:
+                pt1 = (int(p_start[0]), int(p_start[1]))
+                pt2 = (int(p_end[0]), int(p_end[1]))
+                cv2.line(vis, pt1, pt2, (0, 0, 255), 2)
+                # Draw endpoint circles
+                cv2.circle(vis, pt1, 6, (255, 0, 255), -1)  # Magenta start
+                cv2.circle(vis, pt2, 6, (255, 0, 255), -1)  # Magenta end
+            else:
+                # Fallback: draw infinite line
+                p1 = (int(x0 - 2000 * vx), int(y0 - 2000 * vy))
+                p2 = (int(x0 + 2000 * vx), int(y0 + 2000 * vy))
+                cv2.line(vis, p1, p2, (0, 0, 255), 2)
+
+            # Draw center point
             cv2.circle(vis, (int(x0), int(y0)), 5, (0, 255, 0), -1)
 
         # Draw Reference Arrow (Vehicle Front)
@@ -293,26 +326,19 @@ class BottomCameraSegmentAngleNode(object):
         angle_deg = math.degrees(angle) if not math.isnan(angle) else 0.0
         txt_angle = f"Angle: {angle_deg:+.1f} deg"
         txt_thickness = f"Thickness: {thickness:.1f} px"
+        txt_length = f"Length: {segment_length:.1f} px"
 
         cv2.putText(
-            vis,
-            txt_angle,
-            (8, 22),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 255, 255),
-            2,
-            cv2.LINE_AA,
+            vis, txt_angle, (8, 22),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA,
         )
         cv2.putText(
-            vis,
-            txt_thickness,
-            (8, 44),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 255, 0),
-            2,
-            cv2.LINE_AA,
+            vis, txt_thickness, (8, 44),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA,
+        )
+        cv2.putText(
+            vis, txt_length, (8, 66),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2, cv2.LINE_AA,
         )
 
         try:
