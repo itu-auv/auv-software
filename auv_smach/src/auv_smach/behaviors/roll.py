@@ -1,3 +1,4 @@
+
 import py_trees
 import rospy
 import math
@@ -38,7 +39,7 @@ class PitchCorrectionBehavior(py_trees.behaviour.Behaviour):
 
         self.odometry_topic = "odometry"
         self.killswitch_topic = "propulsion_board/status"
-        self.wrench_topic = "wrench"
+        self.wrench_topic = "/taluy/wrench"
         self.frame_id = "taluy/base_link"
 
         # Runtime State
@@ -153,6 +154,7 @@ class RollBehavior(py_trees.behaviour.Behaviour):
     """
     Rolls the vehicle by applying torque until a total rotation angle is achieved.
     Uses angular velocity from odometry to estimate total rotation.
+    Simplified version: No controller overriding, just torque and wait.
     """
 
     def __init__(
@@ -167,7 +169,7 @@ class RollBehavior(py_trees.behaviour.Behaviour):
         self.target_angle = target_angle
         self.timeout = timeout
 
-        self.wrench_topic = "wrench"
+        self.wrench_topic = "/taluy/wrench"
         self.odometry_topic = "odometry"
         self.killswitch_topic = "propulsion_board/status"
         self.frame_id = "taluy/base_link"
@@ -177,6 +179,8 @@ class RollBehavior(py_trees.behaviour.Behaviour):
         self._killswitch_active = False
         self._start_time = None
         self._odom_received = False
+        self._rolling = False
+        self._timer = None
 
     def setup(self, timeout=15, **kwargs):
         """Setup ROS connections."""
@@ -205,6 +209,10 @@ class RollBehavior(py_trees.behaviour.Behaviour):
         rospy.loginfo(
             f"[{self.name}] Initialized. Target Roll: {math.degrees(self.target_angle):.1f} deg"
         )
+
+        # Start 20Hz timer for torque publishing (matching SMACH rate)
+        self._rolling = True
+        self._timer = rospy.Timer(rospy.Duration(0.05), self._timer_callback)
 
     def update(self):
         """Execute the behavior."""
@@ -239,13 +247,7 @@ class RollBehavior(py_trees.behaviour.Behaviour):
             self._stop_and_publish_zero()
             return py_trees.common.Status.FAILURE
 
-        # 4. Apply Torque & Log
-        cmd = WrenchStamped()
-        cmd.header.stamp = rospy.Time.now()
-        cmd.header.frame_id = self.frame_id
-        cmd.wrench.torque.x = self.roll_torque
-        self.pub_wrench.publish(cmd)
-
+        # 4. Log progress (torque is published by the 20Hz timer)
         rospy.loginfo_throttle(
             1.0,
             f"[{self.name}] Rolling: {math.degrees(self._total_roll):.1f}/{math.degrees(self.target_angle):.0f} deg",
@@ -254,6 +256,12 @@ class RollBehavior(py_trees.behaviour.Behaviour):
         return py_trees.common.Status.RUNNING
 
     def terminate(self, new_status):
+        # Stop the timer first
+        self._rolling = False
+        if self._timer is not None:
+            self._timer.shutdown()
+            self._timer = None
+
         if new_status != py_trees.common.Status.RUNNING:
             self._stop_and_publish_zero()
 
@@ -263,11 +271,20 @@ class RollBehavior(py_trees.behaviour.Behaviour):
         if hasattr(self, "sub_kill") and self.sub_kill:
             self.sub_kill.unregister()
 
+    def _timer_callback(self, event):
+        """Publish torque at 20Hz."""
+        if self._rolling:
+            cmd = WrenchStamped()
+            cmd.header.stamp = rospy.Time.now()
+            cmd.header.frame_id = self.frame_id
+            cmd.wrench.torque.x = self.roll_torque
+            self.pub_wrench.publish(cmd)
+
     def _stop_and_publish_zero(self):
+        self._rolling = False
         stop_cmd = WrenchStamped()
         stop_cmd.header.stamp = rospy.Time.now()
         stop_cmd.header.frame_id = self.frame_id
-        # Explicitly zero roll torque (x-axis) for clarity and consistency
         stop_cmd.wrench.torque.x = 0.0
         if hasattr(self, "pub_wrench"):
             self.pub_wrench.publish(stop_cmd)
@@ -286,6 +303,8 @@ class RollBehavior(py_trees.behaviour.Behaviour):
         # Calculate roll change
         omega_x = msg.twist.twist.angular.x
         delta_angle = omega_x * dt
+        
+        # ABS accum logic from roll.py
         self._total_roll += abs(delta_angle)
 
     def _killswitch_callback(self, msg: Bool):

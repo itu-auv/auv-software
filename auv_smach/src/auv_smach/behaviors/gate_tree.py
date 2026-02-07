@@ -145,7 +145,7 @@ def create_gate_tree(
     # 13. Focus None
     root.add_child(SetDetectionFocusBehavior("FocusNone", focus_object="none"))
 
-    # 14. Set Gate Depth (Was missing!)
+    # 14. Set Gate Depth
     root.add_child(
         SetDepthBehavior("SetGateDepth", depth=gate_depth, sleep_duration=3.0)
     )
