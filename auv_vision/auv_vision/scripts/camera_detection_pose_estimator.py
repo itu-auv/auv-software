@@ -112,8 +112,7 @@ class WhitePipe(Prop):
 
 class Bottle(Prop):
     def __init__(self):
-        super().__init__(0, "bottle", None, 0.09)
-
+        super().__init__(0, "bottle", None, 0.06)
 
 class TorpedoMap(Prop):
     def __init__(self):

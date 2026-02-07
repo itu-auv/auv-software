@@ -201,7 +201,7 @@ class OctagonTaskState(smach.State):
                     look_at_frame="octagon_link",
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
-                    set_frame_duration=4.0,
+                    timeout=30.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -299,10 +299,10 @@ class OctagonTaskState(smach.State):
                 DynamicPathWithTransformCheck(
                     plan_target_frame="octagon_link",
                     transform_source_frame="odom",
-                    transform_target_frame="bottle_link",
+                    transform_target_frame="octagon_table_link",
                 ),
                 transitions={
-                    "succeeded": "MOVE_GRIPPER",
+                    "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
                     "aborted": "SEARCH_RIGHT",
                 },
@@ -319,6 +319,27 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_BOTTLE",
                 AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame="octagon_table_link",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=60.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "a",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "a",
+                AlignFrame(
                     source_frame="taluy/gripper_link",
                     target_frame="bottle_link",
                     angle_offset=0.0,
@@ -331,6 +352,15 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
+                    "succeeded": "m",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "m",
+                SetDetectionState(camera_name="bottom", enable=False),
+                transitions={
                     "succeeded": "SET_BOTTLE_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -339,9 +369,9 @@ class OctagonTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SET_BOTTLE_DEPTH",
-                SetDepthState(depth=-1.29, sleep_duration=4.0),
+                SetDepthState(depth=-1.2, sleep_duration=15.0),
                 transitions={
-                    "succeeded": "CLOSE_GRIPPER",
+                    "succeeded": "SURFACE_WITH_BOTTLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -542,7 +572,7 @@ class OctagonTaskState(smach.State):
                     look_at_frame=self.animal_frame,
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    timeout=30.0,
                     source_frame="taluy/base_link",
                     rotation_speed=-0.2,
                 ),
