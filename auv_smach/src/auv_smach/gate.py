@@ -166,7 +166,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_DETECTION_FOCUS_GATE",
-                SetDetectionFocusState(focus_object="gate"),
+                SetDetectionFocusState(focus_object="all"),
                 transitions={
                     "succeeded": "AIM_AT_GATE_TARGET",
                     "preempted": "preempted",
@@ -188,11 +188,7 @@ class NavigateThroughGateState(smach.State):
                     "succeeded": (
                         "CALIFORNIA_ROLL"
                         if self.roll
-                        else (
-                            "TWO_YAW_STATE"
-                            if self.yaw
-                            else "DISABLE_GATE_TRAJECTORY_PUBLISHER"
-                        )
+                        else ("TWO_YAW_STATE" if self.yaw else "DENEME")
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -205,7 +201,7 @@ class NavigateThroughGateState(smach.State):
                     roll_torque=50.0, gate_look_at_frame=self.gate_look_at_frame
                 ),
                 transitions={
-                    "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
+                    "succeeded": "DENEME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -214,11 +210,22 @@ class NavigateThroughGateState(smach.State):
                 "TWO_YAW_STATE",
                 TwoYawState(yaw_frame=self.gate_search_frame),
                 transitions={
+                    "succeeded": "DENEME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "DENEME",
+                SetDetectionFocusState(focus_object="gate"),
+                transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
             smach.StateMachine.add(
                 "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
