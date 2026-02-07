@@ -1,4 +1,3 @@
-
 import py_trees
 import rospy
 import math
@@ -303,7 +302,7 @@ class RollBehavior(py_trees.behaviour.Behaviour):
         # Calculate roll change
         omega_x = msg.twist.twist.angular.x
         delta_angle = omega_x * dt
-        
+
         # ABS accum logic from roll.py
         self._total_roll += abs(delta_angle)
 
