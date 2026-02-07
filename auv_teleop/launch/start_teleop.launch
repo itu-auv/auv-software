@@ -5,6 +5,7 @@
   <arg name="control_rate" default="25.0" />
   <arg name="controller" default="ps5" />
   <arg name="rov" default="0" />
+  <arg name="use_vel" default="false" />
 
   <group ns="$(arg namespace)">
 
@@ -14,11 +15,14 @@
 
       <rosparam command="load" file="$(find auv_teleop)/config/$(arg controller).yaml" />
       <param name="rov_mode" value="$(arg rov)" />
+      <param name="use_vel" value="$(arg use_vel)" />
+      <param name="controller_reconfigure_server" value="auv_control_node" />
 
       <remap from="cmd_vel" to="cmd_vel" />
       <remap from="enable" to="enable" />
       <remap from="joy" to="joy" />
       <remap from="reset_command_orientation" to="reset_command_orientation" />
+      <remap from="sync_cmd_pose" to="sync_cmd_pose" />
       <remap from="ball_dropper/drop" to="actuators/ball_dropper/drop" />
       <remap from="torpedo_1/launch" to="actuators/torpedo_1/launch" />
       <remap from="torpedo_2/launch" to="actuators/torpedo_2/launch" />
