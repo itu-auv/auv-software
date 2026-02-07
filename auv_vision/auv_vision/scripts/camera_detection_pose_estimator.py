@@ -396,7 +396,7 @@ class CameraDetectionNode:
             msg: Float32 message containing the bottle angle in radians relative to base_link
         """
         if not math.isnan(msg.data):
-            self.bottle_angle = msg.data  
+            self.bottle_angle = msg.data
 
             # Get current yaw from odom to base_link transform
             try:

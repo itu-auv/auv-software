@@ -26,7 +26,9 @@ class YoloSegToMaskNode:
         self.bridge = CvBridge()
         self.pub_mask = rospy.Publisher(self.output_mask_topic, Image, queue_size=1)
         self.pub_debug = (
-            rospy.Publisher(self.debug_topic + "/compressed", CompressedImage, queue_size=1)
+            rospy.Publisher(
+                self.debug_topic + "/compressed", CompressedImage, queue_size=1
+            )
             if self.publish_debug
             else None
         )
@@ -105,7 +107,9 @@ class YoloSegToMaskNode:
             dbg_msg = CompressedImage()
             dbg_msg.header = msg.header
             dbg_msg.format = "jpeg"
-            dbg_msg.data = np.array(cv2.imencode('.jpg', overlay, [cv2.IMWRITE_JPEG_QUALITY, 80])[1]).tobytes()
+            dbg_msg.data = np.array(
+                cv2.imencode(".jpg", overlay, [cv2.IMWRITE_JPEG_QUALITY, 80])[1]
+            ).tobytes()
             self.pub_debug.publish(dbg_msg)
 
 

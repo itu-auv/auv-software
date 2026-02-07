@@ -22,12 +22,8 @@ from sensor_msgs.msg import Image, CompressedImage
 from std_msgs.msg import Float32, Float32MultiArray
 from cv_bridge import CvBridge
 
-# --- YENİ İMPORTLAR ---
-# Kalınlık hesaplaması için gerekli kütüphaneler
 from scipy.ndimage import distance_transform_edt
 from skimage.morphology import skeletonize
-
-# --- BİTTİ ---
 
 
 def rot90n(img, n_cw):
@@ -48,9 +44,7 @@ class BottomCameraSegmentAngleNode(object):
         # ---- Topics (relative - will be prefixed by namespace) ----
         self.mask_topic = rospy.get_param("~mask_topic", "bottle_mask")
         self.angle_topic = rospy.get_param("~angle_topic", "bottle_angle")
-        # --- YENİ TOPIC ---
         self.thickness_topic = rospy.get_param("~thickness_topic", "bottle_thickness")
-        # --- BİTTİ ---
         self.debug_topic = rospy.get_param("~debug_topic", "bottle_angle_debug")
 
         # ---- Image orientation controls ----
@@ -67,11 +61,9 @@ class BottomCameraSegmentAngleNode(object):
 
         self.bridge = CvBridge()
         self.pub_angle = rospy.Publisher(self.angle_topic, Float32, queue_size=1)
-        # --- YENİ PUBLISHER ---
         self.pub_thickness = rospy.Publisher(
             self.thickness_topic, Float32, queue_size=1
         )
-        # --- BİTTİ ---
         self.pub_debug_info = rospy.Publisher(
             self.debug_topic, Float32MultiArray, queue_size=1
         )
@@ -109,7 +101,7 @@ class BottomCameraSegmentAngleNode(object):
 
         # ---------- Validity check ----------
         bottle_area = int(np.count_nonzero(mask))
-        
+
         if bottle_area < self.min_bottle_area_px:
             rospy.logdebug_throttle(
                 2.0,
@@ -118,7 +110,7 @@ class BottomCameraSegmentAngleNode(object):
                 self.min_bottle_area_px,
             )
             self.pub_angle.publish(Float32(float("nan")))
-            self.pub_thickness.publish(Float32(float("nan")))  # Yeni
+            self.pub_thickness.publish(Float32(float("nan")))
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
@@ -130,7 +122,7 @@ class BottomCameraSegmentAngleNode(object):
 
         # ---------- Extract contours FIRST (for bbox ROI) ----------
         _ret = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        
+
         if len(_ret) == 3:
             _img_out, contours, _hier = _ret
         else:
@@ -181,15 +173,17 @@ class BottomCameraSegmentAngleNode(object):
         # ===================================================================
         # Get bounding box from contour for ROI extraction
         x, y, w, roi_h = cv2.boundingRect(largest_contour)
-        
+
         # Add padding for safety
         pad = 5
         x1, y1 = max(0, x - pad), max(0, y - pad)
-        x2, y2 = min(binary_mask.shape[1], x + w + pad), min(binary_mask.shape[0], y + roi_h + pad)
-        
+        x2, y2 = min(binary_mask.shape[1], x + w + pad), min(
+            binary_mask.shape[0], y + roi_h + pad
+        )
+
         # Make contiguous for skeletonize compatibility
         roi_mask = np.ascontiguousarray(binary_mask[y1:y2, x1:x2])
-        
+
         median_thickness_px = 0.0
         try:
             # Distance Transform + Skeleton on ROI only
@@ -212,7 +206,6 @@ class BottomCameraSegmentAngleNode(object):
         [vx, vy, x0, y0] = cv2.fitLine(pts, cv2.DIST_L2, 0, 0.01, 0.01)
         vx, vy = float(vx), float(vy)
 
-        # ... (Koordinat dönüşümü ve açı hesaplama kodu aynı kalıyor)
         # Camera is rotated 180 degrees, so "Front" is now Right (positive X axis in image)
         # We calculate the angle of the line relative to this Front vector.
         # atan2(-vy, vx) gives the angle relative to the positive X axis with Y-up convention (CCW positive).
@@ -241,7 +234,7 @@ class BottomCameraSegmentAngleNode(object):
                 angle=angle,
                 confidence=confidence,
                 bottle_area=bottle_area,
-                thickness=median_thickness_px,  # Yeni
+                thickness=median_thickness_px,
                 vx=vx,
                 vy=vy,
                 vehicle_vx=vehicle_vx,
@@ -249,14 +242,14 @@ class BottomCameraSegmentAngleNode(object):
             )
             self._publish_debug_image(
                 mask, (vx, vy, x0, y0), angle, median_thickness_px
-            )  # Yeni
+            )
 
     def _publish_debug_info(
         self,
         angle,
         confidence,
         bottle_area,
-        thickness,  # Yeni parametre
+        thickness,
         vx=None,
         vy=None,
         vehicle_vx=None,
@@ -268,7 +261,7 @@ class BottomCameraSegmentAngleNode(object):
             angle if not math.isnan(angle) else -999.0,
             confidence,
             float(bottle_area),
-            thickness if not math.isnan(thickness) else -1.0,  # Yeni veri
+            thickness if not math.isnan(thickness) else -1.0,
             vx if vx is not None else -999.0,
             vy if vy is not None else -999.0,
             vehicle_vx if vehicle_vx is not None else -999.0,
@@ -276,13 +269,13 @@ class BottomCameraSegmentAngleNode(object):
         ]
         self.pub_debug_info.publish(msg)
 
-    def _publish_debug_image(self, mask, fit, angle, thickness):  # Yeni parametre
+    def _publish_debug_image(self, mask, fit, angle, thickness):
         """Publish annotated debug image."""
         h, w = mask.shape[:2]
         vis = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
 
         if fit is not None:
-            # ... (mevcut çizgi ve merkez çizimi aynı)
+
             vx, vy, x0, y0 = fit
             x0, y0, vx, vy = float(x0), float(y0), float(vx), float(vy)
             p1 = (int(x0 - 2000 * vx), int(y0 - 2000 * vy))
@@ -290,17 +283,16 @@ class BottomCameraSegmentAngleNode(object):
             cv2.line(vis, p1, p2, (0, 0, 255), 2)
             cv2.circle(vis, (int(x0), int(y0)), 5, (0, 255, 0), -1)
 
-        # ... (mevcut yön oku çizimi aynı)
         # Draw Reference Arrow (Vehicle Front)
         # Camera is rotated 180 degrees, so Front is Right.
         cv2.arrowedLine(
             vis, (w // 2, h // 2), (w * 3 // 4, h // 2), (255, 0, 0), 2, tipLength=0.3
         )
 
-        # Draw text (Açı ve Kalınlık)
+        # Draw text
         angle_deg = math.degrees(angle) if not math.isnan(angle) else 0.0
         txt_angle = f"Angle: {angle_deg:+.1f} deg"
-        txt_thickness = f"Thickness: {thickness:.1f} px"  # Yeni
+        txt_thickness = f"Thickness: {thickness:.1f} px"
 
         cv2.putText(
             vis,
@@ -321,13 +313,15 @@ class BottomCameraSegmentAngleNode(object):
             (0, 255, 0),
             2,
             cv2.LINE_AA,
-        )  # Yeni
+        )
 
         try:
             msg = CompressedImage()
             msg.header.stamp = rospy.Time.now()
             msg.format = "jpeg"
-            msg.data = np.array(cv2.imencode('.jpg', vis, [cv2.IMWRITE_JPEG_QUALITY, 80])[1]).tobytes()
+            msg.data = np.array(
+                cv2.imencode(".jpg", vis, [cv2.IMWRITE_JPEG_QUALITY, 80])[1]
+            ).tobytes()
             self.pub_debug_img.publish(msg)
         except Exception as e:
             rospy.logwarn("Failed to publish debug image: %s", e)
