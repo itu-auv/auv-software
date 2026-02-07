@@ -23,7 +23,7 @@
 
 namespace auv_mapping {
 
-ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
+ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle& nh)
     : nh_{nh},
       tf_buffer_{ros::Duration(60.0)},
       tf_listener_{tf_buffer_},
@@ -42,9 +42,9 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
                                      4.0);
   distance_threshold_squared_ = std::pow(distance_threshold_, 2);
 
-  service_ =
-      nh_.advertiseService("set_object_transform",
-                           &ObjectMapTFServerROS::set_transform_handler, this);
+  set_transform_sub_ =
+      nh_.subscribe("set_object_transform", 10,
+                    &ObjectMapTFServerROS::set_transform_callback, this);
 
   clear_service_ =
       nh_.advertiseService("clear_object_transforms",
@@ -68,15 +68,15 @@ void ObjectMapTFServerROS::run() {
 
 void ObjectMapTFServerROS::broadcast_transforms() {
   auto lock = std::scoped_lock{mutex_};
-  for (auto &entry : filters_) {
-    for (const auto &filter_ptr : entry.second) {
+  for (auto& entry : filters_) {
+    for (const auto& filter_ptr : entry.second) {
       tf_broadcaster_.sendTransform(filter_ptr->getFilteredTransform());
     }
   }
 }
 
-bool ObjectMapTFServerROS::clear_map_handler(std_srvs::Trigger::Request &req,
-                                             std_srvs::Trigger::Response &res) {
+bool ObjectMapTFServerROS::clear_map_handler(std_srvs::Trigger::Request& req,
+                                             std_srvs::Trigger::Response& res) {
   auto lock = std::scoped_lock{mutex_};
   filters_.clear();
 
@@ -87,39 +87,8 @@ bool ObjectMapTFServerROS::clear_map_handler(std_srvs::Trigger::Request &req,
   return true;
 }
 
-bool ObjectMapTFServerROS::set_transform_handler(
-    auv_msgs::SetObjectTransform::Request &req,
-    auv_msgs::SetObjectTransform::Response &res) {
-  const auto static_transform = transform_to_static_frame(req.transform);
-
-  if (!static_transform.has_value()) {
-    res.success = false;
-    res.message = "Failed to capture transform";
-    return false;
-  }
-
-  const auto target_frame = req.transform.child_frame_id;
-
-  {
-    auto lock = std::scoped_lock{mutex_};
-    auto it = filters_.find(target_frame);
-    if (it != filters_.end()) {
-      filters_[target_frame].clear();
-    }
-
-    filters_[target_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-  }
-
-  ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
-                                                   << target_frame);
-  res.success = true;
-  res.message = "Stored transform for frame: " + target_frame;
-  return true;
-}
-
 void ObjectMapTFServerROS::dynamic_transform_callback(
-    const geometry_msgs::TransformStamped::ConstPtr &msg) {
+    const geometry_msgs::TransformStamped::ConstPtr& msg) {
   auto lock = std::scoped_lock{mutex_};
 
   // Calculate actual dt
@@ -162,7 +131,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   distances.reserve(it->second.size());
 
   // Calculate distance to each existing filter
-  for (auto &filter_ptr : it->second) {
+  for (auto& filter_ptr : it->second) {
     const auto current = filter_ptr->getFilteredTransform();
     const auto d_position =
         std::array<double, 3>{current.transform.translation.x -
@@ -202,7 +171,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 }
 
 void ObjectMapTFServerROS::update_filter_frame_index(
-    const std::string &object_frame) {
+    const std::string& object_frame) {
   auto it = filters_.find(object_frame);
   if (it == filters_.end() || it->second.empty()) {
     return;
@@ -215,7 +184,7 @@ void ObjectMapTFServerROS::update_filter_frame_index(
   const std::string base_link_frame = "taluy/base_link";
 
   for (size_t i = 0; i < it->second.size(); ++i) {
-    const auto &transform = it->second[i]->getFilteredTransform();
+    const auto& transform = it->second[i]->getFilteredTransform();
 
     // Create a point in the static frame at the filter's position
     geometry_msgs::PointStamped point;
@@ -242,7 +211,7 @@ void ObjectMapTFServerROS::update_filter_frame_index(
                     std::pow(point_in_base_link.point.z, 2));
 
       filter_distances.emplace_back(i, distance);
-    } catch (tf2::TransformException &ex) {
+    } catch (tf2::TransformException& ex) {
       ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
       // Fallback: use distance from static frame instead
       const double distance =
@@ -255,11 +224,11 @@ void ObjectMapTFServerROS::update_filter_frame_index(
 
   // Sort filters by distance (closest first)
   std::sort(filter_distances.begin(), filter_distances.end(),
-            [](const auto &a, const auto &b) { return a.second < b.second; });
+            [](const auto& a, const auto& b) { return a.second < b.second; });
 
   // Update frame IDs based on sorted distances
   for (size_t i = 0; i < filter_distances.size(); ++i) {
-    auto &filter = it->second[filter_distances[i].first];
+    auto& filter = it->second[filter_distances[i].first];
     auto transform = filter->getFilteredTransform();
 
     if (i == 0) {
@@ -335,17 +304,48 @@ ObjectMapTFServerROS::transform_to_static_frame(
 }
 
 std::optional<geometry_msgs::TransformStamped>
-ObjectMapTFServerROS::get_transform(const std::string &target_frame,
-                                    const std::string &source_frame,
+ObjectMapTFServerROS::get_transform(const std::string& target_frame,
+                                    const std::string& source_frame,
                                     const ros::Duration timeout) {
   try {
     auto transform = tf_buffer_.lookupTransform(target_frame, source_frame,
                                                 ros::Time(0), timeout);
     return transform;
-  } catch (tf2::TransformException &ex) {
+  } catch (tf2::TransformException& ex) {
     ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
     return std::nullopt;
   }
+}
+
+void ObjectMapTFServerROS::set_transform_callback(
+    const geometry_msgs::TransformStamped::ConstPtr& msg) {
+  // 1. Translate message to Static Frame
+  const auto static_transform = transform_to_static_frame(*msg);
+
+  if (!static_transform.has_value()) {
+    ROS_WARN("Failed to capture transform");
+    return;
+  }
+
+  const auto target_frame = msg->child_frame_id;
+
+  {
+    // Thread-safe access to filters_
+    auto lock = std::scoped_lock{mutex_};
+
+    // clean old filters for this frame
+    auto it = filters_.find(target_frame);
+    if (it != filters_.end()) {
+      filters_[target_frame].clear();
+    }
+
+    // start a new filter for this frame
+    filters_[target_frame].push_back(
+        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
+  }
+
+  ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
+                                                   << target_frame);
 }
 
 }  // namespace auv_mapping
