@@ -378,8 +378,6 @@ class CameraDetectionNode:
         )
 
     def bottle_thickness_callback(self, msg: Float32):
-        print("bottle thickness callback")
-        print(msg.data)
         """Store bottle thickness in pixels from bottle_angle_node.
 
         Args:
@@ -392,8 +390,6 @@ class CameraDetectionNode:
             )
 
     def bottle_angle_callback(self, msg: Float32):
-        print("bottle angle callback")
-        print(msg.data)
         """Store bottle angle from bottle_angle_node.
 
         Args:

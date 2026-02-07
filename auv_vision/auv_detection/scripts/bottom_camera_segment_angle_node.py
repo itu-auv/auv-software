@@ -109,6 +109,7 @@ class BottomCameraSegmentAngleNode(object):
 
         # ---------- Validity check ----------
         bottle_area = int(np.count_nonzero(mask))
+        
         if bottle_area < self.min_bottle_area_px:
             rospy.logdebug_throttle(
                 2.0,
@@ -127,36 +128,9 @@ class BottomCameraSegmentAngleNode(object):
                 )
             return
 
-        # Binarize mask for calculations
-        binary_mask = mask > 127
-
-        # ===================================================================
-        # ---------- YENİ: KALINLIK HESAPLAMA (DT + Skeleton) ----------
-        # ===================================================================
-        median_thickness_px = 0.0
-        try:
-            # 1. Distance Transform uygula
-            dist = distance_transform_edt(binary_mask)
-
-            # 2. İskeleti çıkar
-            skel = skeletonize(binary_mask)
-
-            # 3. İskelet üzerindeki piksellerde kalınlığı hesapla
-            if np.any(skel):
-                thickness_values = 2.0 * dist[skel]
-                # 4. Gürbüz bir ölçüm için medyanı al
-                if thickness_values.size > 0:
-                    median_thickness_px = float(np.median(thickness_values))
-        except Exception as e:
-            rospy.logwarn_throttle(
-                5.0, "[bottom_camera_segment_angle] Thickness calculation failed: %s", e
-            )
-            median_thickness_px = float("nan")
-        # ===================================================================
-
-        # ---------- Extract contours and fit line (Mevcut Açı Kodu) ----------
+        # ---------- Extract contours FIRST (for bbox ROI) ----------
         _ret = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        # ... (geri kalanı aynı)
+        
         if len(_ret) == 3:
             _img_out, contours, _hier = _ret
         else:
@@ -168,18 +142,19 @@ class BottomCameraSegmentAngleNode(object):
                 2.0, "[bottom_camera_segment_angle] no contours found"
             )
             self.pub_angle.publish(Float32(float("nan")))
-            self.pub_thickness.publish(Float32(float("nan")))  # Yeni
+            self.pub_thickness.publish(Float32(float("nan")))
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
                     confidence=0.0,
                     bottle_area=bottle_area,
-                    thickness=median_thickness_px,
+                    thickness=float("nan"),
                 )
             return
 
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
-        pts = contours[0].reshape(-1, 2)
+        largest_contour = contours[0]
+        pts = largest_contour.reshape(-1, 2)
 
         if len(pts) < self.min_contour_points:
             rospy.logdebug_throttle(
@@ -188,16 +163,52 @@ class BottomCameraSegmentAngleNode(object):
                 len(pts),
             )
             self.pub_angle.publish(Float32(float("nan")))
-            self.pub_thickness.publish(Float32(float("nan")))  # Yeni
+            self.pub_thickness.publish(Float32(float("nan")))
             if self.publish_debug:
                 self._publish_debug_info(
                     angle=float("nan"),
                     confidence=0.0,
                     bottle_area=bottle_area,
-                    thickness=median_thickness_px,
+                    thickness=float("nan"),
                 )
             return
 
+        # Binarize mask for calculations
+        binary_mask = mask > 127
+
+        # ===================================================================
+        # ----------  (DT + Skeleton) ----------
+        # ===================================================================
+        # Get bounding box from contour for ROI extraction
+        x, y, w, roi_h = cv2.boundingRect(largest_contour)
+        
+        # Add padding for safety
+        pad = 5
+        x1, y1 = max(0, x - pad), max(0, y - pad)
+        x2, y2 = min(binary_mask.shape[1], x + w + pad), min(binary_mask.shape[0], y + roi_h + pad)
+        
+        # Make contiguous for skeletonize compatibility
+        roi_mask = np.ascontiguousarray(binary_mask[y1:y2, x1:x2])
+        
+        median_thickness_px = 0.0
+        try:
+            # Distance Transform + Skeleton on ROI only
+            dist = distance_transform_edt(roi_mask)
+            skel = skeletonize(roi_mask)
+
+            # Calculate thickness from skeleton
+            if np.any(skel):
+                thickness_values = 2.0 * dist[skel]
+                if thickness_values.size > 0:
+                    median_thickness_px = float(np.median(thickness_values))
+        except Exception as e:
+            rospy.logwarn_throttle(
+                5.0, "[bottom_camera_segment_angle] Thickness calculation failed: %s", e
+            )
+            median_thickness_px = float("nan")
+        # ===================================================================
+
+        # ---------- Fit line to contour ----------
         [vx, vy, x0, y0] = cv2.fitLine(pts, cv2.DIST_L2, 0, 0.01, 0.01)
         vx, vy = float(vx), float(vy)
 
@@ -223,7 +234,7 @@ class BottomCameraSegmentAngleNode(object):
 
         # ---------- Publish results ----------
         self.pub_angle.publish(Float32(angle))
-        self.pub_thickness.publish(Float32(median_thickness_px))  # YENİ
+        self.pub_thickness.publish(Float32(median_thickness_px))
 
         if self.publish_debug:
             self._publish_debug_info(
