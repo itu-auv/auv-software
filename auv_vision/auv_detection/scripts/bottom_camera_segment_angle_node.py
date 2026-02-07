@@ -18,7 +18,7 @@ import numpy as np
 import cv2
 
 import rospy
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from std_msgs.msg import Float32MultiArray
 from auv_msgs.msg import SegmentMeasurement
 from cv_bridge import CvBridge

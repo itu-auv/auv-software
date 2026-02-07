@@ -785,7 +785,7 @@ class CameraDetectionNode:
             ):
                 seg = self.last_segment_measurement
                 dt = abs((detection_msg.header.stamp - seg.header.stamp).to_sec())
-                if dt < 0.15:
+                if dt < 10000:
                     try:
                         transform = self.tf_buffer.lookup_transform(
                             "odom",
@@ -815,6 +815,7 @@ class CameraDetectionNode:
                             0, 0, 0, 1
                         )
                 else:
+                    print("Segment measurement is too old")
                     transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
             else:
                 transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
