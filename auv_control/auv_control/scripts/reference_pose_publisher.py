@@ -18,8 +18,6 @@ from auv_msgs.srv import (
     SetDepthResponse,
     AlignFrameController,
     AlignFrameControllerResponse,
-    SetObjectTransform,
-    SetObjectTransformRequest,
 )
 from robot_localization.srv import SetPose, SetPoseRequest
 from tf.transformations import (
@@ -70,8 +68,8 @@ class ReferencePosePublisherNode:
         self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
 
         # Service to broadcast cmd_pose as a frame
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10
         )
 
         # publishers
@@ -567,9 +565,7 @@ class ReferencePosePublisherNode:
             transform.transform.translation.z = cmd_pose.pose.position.z
             transform.transform.rotation = cmd_pose.pose.orientation
 
-            req = SetObjectTransformRequest()
-            req.transform = transform
-            self.set_object_transform_service(req)
+            self.set_object_transform_pub.publish(transform)
         except Exception as e:
             rospy.logwarn_throttle(5.0, f"Failed to publish cmd_pose frame: {e}")
 

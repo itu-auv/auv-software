@@ -10,10 +10,6 @@ from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
 from dynamic_reconfigure.server import Server
 
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-)
 from auv_mapping.cfg import TorpedoTrajectoryConfig
 
 
@@ -28,10 +24,9 @@ class TorpedoTransformServiceNode:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10
         )
-        self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = "odom"
         self.robot_frame = "taluy/base_link"
@@ -105,13 +100,10 @@ class TorpedoTransformServiceNode:
         return t
 
     def send_transform(self, transform):
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        resp = self.set_object_transform_service.call(req)
-        if not resp.success:
-            rospy.logerr(
-                f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-            )
+        try:
+            self.set_object_transform_pub.publish(transform)
+        except Exception as e:
+            rospy.logerr_throttle(5, f"Failed to publish transform: {e}")
 
     def apply_offsets(self, pose: Pose, offsets: list, yaw_offset: float = 0.0) -> Pose:
         """

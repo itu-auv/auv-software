@@ -6,9 +6,6 @@ from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from robot_localization.srv import SetPose, SetPoseRequest, SetPoseResponse
 from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
     AlignFrameController,
     AlignFrameControllerRequest,
     AlignFrameControllerResponse,
@@ -132,8 +129,8 @@ class SetRedBuoyRotationStartFrame(smach.State):
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10
         )
 
     def execute(self, userdata):
@@ -196,16 +193,12 @@ class SetRedBuoyRotationStartFrame(smach.State):
             rospy.loginfo(f"Transform from odom to {self.target_frame}: {t}")
 
             # Call the set_object_transform service
-            req = SetObjectTransformRequest()
-            req.transform = t
-            res = self.set_object_transform_service(req)
+            try:
+                self.set_object_transform_pub.publish(t)
+            except Exception as e:
+                rospy.logwarn_throttle(5, f"Failed to publish transform: {e}")
 
-            if res.success:
-                rospy.loginfo(f"SetObjectTransform succeeded: {res.message}")
-            else:
-                rospy.logwarn(f"SetObjectTransform failed: {res.message}")
-
-            return "succeeded" if res.success else "aborted"
+            return "succeeded"
 
         except (
             tf2_ros.LookupException,
