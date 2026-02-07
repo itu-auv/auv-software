@@ -23,6 +23,7 @@ add_message_files(
   MotorCommand.msg
   Power.msg
   PropsYaw.msg
+  SegmentMeasurement.msg
   TDOA.msg
 )
 

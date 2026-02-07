@@ -2,6 +2,30 @@
   <arg name="namespace" default="taluy" />
 
   <group ns="$(arg namespace)">
+    <!-- YOLO Segmentation to Mask Node -->
+    <node
+      pkg="auv_vision"
+      type="yolo_to_mask_node.py"
+      name="yolo_seg_to_mask_node"
+      output="screen">
+      <remap from="yolo_result_seg" to="/yolo_result_seg" />
+      <param name="output_mask_topic" value="bottle_mask" />
+    </node>
+
+    <!-- Bottom Camera Segment Angle Node -->
+    <node
+      pkg="auv_detection"
+      type="bottom_camera_segment_angle_node.py"
+      name="bottom_camera_segment_angle_node"
+      output="screen">
+      <param name="mask_topic" value="bottle_mask" />
+      <param name="measurement_topic" value="segment_measurement" />
+      <param name="debug_topic" value="bottle_angle_debug" />
+      <param name="min_bottle_area_px" value="1500" />
+      <param name="min_contour_points" value="10" />
+      <param name="publish_debug" value="true" />
+    </node>
+
     <node
       pkg="auv_vision"
       type="dynamic_roll_compensation.py"

@@ -1,0 +1,314 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Load inertial macros -->
+  <xacro:macro name="cylinder_inertia" params="mass r h">
+    <inertia ixx="${mass*(3*r*r+h*h)/12}" ixy="0.0" ixz="0.0" iyy="${mass*(3*r*r+h*h)/12}" iyz="0.0" izz="${mass*r*r/2}"/>
+  </xacro:macro>
+
+  <xacro:macro name="box_inertia" params="mass x y z">
+    <inertia ixx="${mass*(y*y+z*z)/12}" ixy="0.0" ixz="0.0" iyy="${mass*(x*x+z*z)/12}" iyz="0.0" izz="${mass*(x*x+y*y)/12}"/>
+  </xacro:macro>
+
+  <!-- Parallel Gripper Macro -->
+  <!-- Added parameter use_mimic_plugin (default: false) to avoid Gazebo errors when the plugin is not available yet. -->
+  <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false use_grasp_fix:=true mass_scale:=0.001 mount_xyz:='0 0 0' mount_rpy:='0 0 0'">
+    <!-- Gripper Base Link -->
+    <link name="${namespace}/gripper_base">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.024426 0.0 0.0"/>
+        <mass value="${3.5*mass_scale}"/>
+        <xacro:box_inertia mass="${3.5*mass_scale}" x="0.074326" y="0.117427" z="0.114298"/>
+      </inertial>
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/BaseGripper.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0.024426 0.0 0.0"/>
+        <geometry>
+          <box size="0.074326 0.117427 0.114298"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Joint connecting parent to gripper base -->
+    <joint name="${namespace}/gripper_mount_joint" type="fixed">
+      <parent link="${parent_link}"/>
+      <child link="${namespace}/gripper_base"/>
+      <!-- Mount pose provided by caller (auv_base) via mount_xyz/mount_rpy -->
+      <origin xyz="${mount_xyz}" rpy="${mount_rpy}"/>
+    </joint>
+
+    <!-- Left Finger -->
+    <link name="${namespace}/finger_left">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.032 0 0"/>
+        <mass value="${0.88*mass_scale}"/>
+        <!-- Clamp inertia to avoid solver instability with very small masses -->
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
+      </inertial>
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0.032 0 0"/>
+        <geometry>
+          <box size="0.064 0.078 0.025"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Left Finger Joint -->
+    <joint name="${namespace}/finger_left_joint" type="revolute">
+      <parent link="${namespace}/gripper_base"/>
+      <child link="${namespace}/finger_left"/>
+      <!-- Y mesafesi artırıldı: 0.055 -> 0.065 (parmaklar arası mesafe daha da arttı) -->
+      <origin rpy="0 0 0" xyz="0.0444267 0.065 0"/>
+      <axis xyz="0 0 1"/>
+      <!-- Dengeli ayar: Güçlü ama yumuşak (titreşim önleme) -->
+      <dynamics damping="30" friction="8"/>
+      <!-- Effort optimal: 100 -> 80 Nm (hala çok güçlü), velocity biraz daha yavaş -->
+      <limit effort="80" lower="-0.15" upper="0.25" velocity="0.02"/>
+    </joint>
+
+    <!-- Left Finger Tip -->
+    <link name="${namespace}/finger_tip_left">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.042 0 0"/>
+        <mass value="${1.13*mass_scale}"/>
+        <!-- Clamp inertia to avoid solver instability with very small masses -->
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
+      </inertial>
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0.042 0 0"/>
+        <geometry>
+          <box size="0.084 0.048 0.024"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Left Finger Tip Joint (fixed for stability) -->
+    <joint name="${namespace}/finger_tip_left_joint" type="fixed">
+      <parent link="${namespace}/finger_left"/>
+      <child link="${namespace}/finger_tip_left"/>
+      <!-- Ucu daha fazla içe doğru: Z ekseninde -0.15 rad (~-8.6°) rotasyon ekleyerek uç içe bakar -->
+      <origin rpy="3.14159265359 0 -0.15" xyz="0.06431 0 0"/>
+    </joint>
+
+    <!-- Right Finger -->
+    <link name="${namespace}/finger_right">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.032 0 0"/>
+        <mass value="${0.88*mass_scale}"/>
+        <!-- Clamp inertia to avoid solver instability with very small masses -->
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
+      </inertial>
+      <visual>
+        <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="3.14159265359 0 0" xyz="0.032 0 0"/>
+        <geometry>
+          <box size="0.064 0.078 0.025"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Right Finger Joint -->
+    <joint name="${namespace}/finger_right_joint" type="revolute">
+      <parent link="${namespace}/gripper_base"/>
+      <child link="${namespace}/finger_right"/>
+      <!-- Y mesafesi artırıldı: -0.055 -> -0.065 (parmaklar arası mesafe daha da arttı) -->
+      <origin rpy="3.14159265359 3.14159265359 3.14159265359" xyz="0.0444267 -0.065 0"/>
+      <axis xyz="0 0 -1"/>
+      <!-- Dengeli ayar: Güçlü ama yumuşak (titreşim önleme) -->
+      <dynamics damping="30" friction="8"/>
+      <!-- Effort optimal: 100 -> 80 Nm (hala çok güçlü), velocity biraz daha yavaş -->
+      <limit effort="80" lower="-0.15" upper="0.25" velocity="0.02"/>
+    </joint>
+
+    <!-- Right Finger Tip -->
+    <link name="${namespace}/finger_tip_right">
+      <inertial>
+        <origin rpy="0 0 0" xyz="0.042 0 0"/>
+        <mass value="${1.13*mass_scale}"/>
+        <!-- Clamp inertia to avoid solver instability with very small masses -->
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
+      </inertial>
+      <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+          <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin rpy="0 0 0" xyz="0.042 0 0"/>
+        <geometry>
+          <box size="0.084 0.048 0.024"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Right Finger Tip Joint (fixed for stability) -->
+    <joint name="${namespace}/finger_tip_right_joint" type="fixed">
+      <parent link="${namespace}/finger_right"/>
+      <child link="${namespace}/finger_tip_right"/>
+      <!-- Ucu daha fazla içe doğru: Z ekseninde +0.15 rad (~+8.6°) rotasyon ekleyerek uç içe bakar -->
+      <origin rpy="0 0 0.15" xyz="0.06431 0 0"/>
+    </joint>
+
+    <!-- Contact parameters for gripper links: firm for grasping, prevent tunneling -->
+    <!-- Çok yüksek sürtünme ile mükemmel tutuş -->
+    <gazebo reference="${namespace}/finger_left">
+      <self_collide>false</self_collide>
+      <!-- gravity tag removed to re-enable gravity -->
+      <!-- Damping artırıldı: 0.3 -> 0.5 (titreşimi söndürür) -->
+      <linearDamping>0.5</linearDamping>
+      <angularDamping>0.5</angularDamping>
+      <!-- Sürtünme ÇOK YÜKSEK - bottle asla kaymasın -->
+      <mu1>50.0</mu1>
+      <mu2>50.0</mu2>
+      <slip1>0.0</slip1>
+      <slip2>0.0</slip2>
+      <!-- Contact stiffness hafif azaltıldı: 120k -> 100k (daha yumuşak temas) -->
+      <kp>100000</kp>
+      <!-- Contact damping artırıldı: 100 -> 150 (titreşim sönümleme) -->
+      <kd>150</kd>
+      <max_contacts>20</max_contacts>
+      <max_vel>0.2</max_vel>
+      <min_depth>0.0005</min_depth>
+      <contact_surface_layer>0.0001</contact_surface_layer>
+    </gazebo>
+    <gazebo reference="${namespace}/finger_right">
+      <self_collide>false</self_collide>
+      <linearDamping>0.5</linearDamping>
+      <angularDamping>0.5</angularDamping>
+      <mu1>50.0</mu1>
+      <mu2>50.0</mu2>
+      <slip1>0.0</slip1>
+      <slip2>0.0</slip2>
+      <kp>100000</kp>
+      <kd>150</kd>
+      <max_contacts>20</max_contacts>
+      <max_vel>0.2</max_vel>
+      <min_depth>0.0005</min_depth>
+      <contact_surface_layer>0.0001</contact_surface_layer>
+    </gazebo>
+    <gazebo reference="${namespace}/finger_tip_left">
+      <self_collide>false</self_collide>
+      <linearDamping>0.5</linearDamping>
+      <angularDamping>0.5</angularDamping>
+      <mu1>50.0</mu1>
+      <mu2>50.0</mu2>
+      <slip1>0.0</slip1>
+      <slip2>0.0</slip2>
+      <kp>100000</kp>
+      <kd>150</kd>
+      <max_contacts>20</max_contacts>
+      <max_vel>0.2</max_vel>
+      <min_depth>0.0005</min_depth>
+      <contact_surface_layer>0.0001</contact_surface_layer>
+    </gazebo>
+    <gazebo reference="${namespace}/finger_tip_right">
+      <self_collide>false</self_collide>
+      <linearDamping>0.5</linearDamping>
+      <angularDamping>0.5</angularDamping>
+      <mu1>50.0</mu1>
+      <mu2>50.0</mu2>
+      <slip1>0.0</slip1>
+      <slip2>0.0</slip2>
+      <kp>100000</kp>
+      <kd>150</kd>
+      <max_contacts>20</max_contacts>
+      <max_vel>0.2</max_vel>
+      <min_depth>0.0005</min_depth>
+      <contact_surface_layer>0.0001</contact_surface_layer>
+    </gazebo>
+
+    <!-- Make joints soft but not mushy; single definition per joint -->
+    <!-- Joint sertliği artırıldı - daha güçlü tutma kabiliyeti -->
+    <gazebo reference="${namespace}/finger_left_joint">
+      <implicitSpringDamper>true</implicitSpringDamper>
+      <!-- Stop stiffness artırıldı: 1500 -> 3000 (daha sert durma) -->
+      <stop_kp>3000</stop_kp>
+      <stop_kd>30</stop_kd>
+      <!-- CFM azaltıldı, ERP artırıldı: daha sert ve hızlı düzeltme -->
+      <cfm>0.0005</cfm>
+      <erp>0.3</erp>
+      <spring_reference>0.0</spring_reference>
+      <!-- Spring stiffness artırıldı: 5.0 -> 15.0 (güçlü geri yay) -->
+      <spring_stiffness>15.0</spring_stiffness>
+      <provideFeedback>true</provideFeedback>
+    </gazebo>
+    <gazebo reference="${namespace}/finger_right_joint">
+      <implicitSpringDamper>true</implicitSpringDamper>
+      <stop_kp>3000</stop_kp>
+      <stop_kd>30</stop_kd>
+      <cfm>0.0005</cfm>
+      <erp>0.3</erp>
+      <spring_reference>0.0</spring_reference>
+      <spring_stiffness>15.0</spring_stiffness>
+      <provideFeedback>true</provideFeedback>
+    </gazebo>
+
+    <!-- Soften the fixed mount joint slightly to avoid tearing on impacts -->
+    <gazebo reference="${namespace}/gripper_mount_joint">
+      <cfm>0.002</cfm>
+      <erp>0.15</erp>
+    </gazebo>
+
+    <!-- Gazebo plugin for gripper control (optional) -->
+    <xacro:if value="${use_mimic_plugin}">
+      <gazebo>
+        <plugin name="${namespace}_gripper_mimic" filename="libroboticsgroup_gazebo_mimic_joint_plugin.so">
+          <joint>${namespace}/finger_left_joint</joint>
+          <mimicJoint>${namespace}/finger_right_joint</mimicJoint>
+          <multiplier>1.0</multiplier>
+          <offset>0.0</offset>
+          <robotNamespace>/${namespace}</robotNamespace>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+
+    <!-- Optional: grasp-fix plugin for robust bottle grasping -->
+    <xacro:if value="${use_grasp_fix}">
+      <gazebo>
+        <plugin name="${namespace}_grasp_fix" filename="libgazebo_ros_grasp_fix.so">
+          <robotNamespace>/${namespace}</robotNamespace>
+          <gripper_link>${namespace}/finger_left</gripper_link>
+          <gripper_link>${namespace}/finger_right</gripper_link>
+          <gripper_link>${namespace}/finger_tip_left</gripper_link>
+          <gripper_link>${namespace}/finger_tip_right</gripper_link>
+          <palm_link>${namespace}/gripper_base</palm_link>
+          <!-- Çok daha fazla contact izleme -->
+          <max_contacts>200</max_contacts>
+          <!-- Minimum 3 contact noktası gerekli (daha güvenli) -->
+          <min_contact_count>3</min_contact_count>
+          <!-- Kuvvet açı toleransı azaltıldı: 25 -> 20 (daha hassas) -->
+          <forces_angle_tolerance>20</forces_angle_tolerance>
+          <!-- Release tolerance azaltıldı: 0.002 -> 0.001 (daha sıkı tutma) -->
+          <release_tolerance>0.001</release_tolerance>
+          <!-- Attach ve detach kuvvet eşikleri eklendi -->
+          <grip_count_threshold>3</grip_count_threshold>
+          <max_grip_count>10</max_grip_count>
+          <release_count_threshold>2</release_count_threshold>
+          <disable_collisions_on_attach>false</disable_collisions_on_attach>
+        </plugin>
+      </gazebo>
+    </xacro:if>
+  </xacro:macro>
+</robot>
