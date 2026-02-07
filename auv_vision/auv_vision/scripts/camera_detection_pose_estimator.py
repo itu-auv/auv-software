@@ -718,8 +718,6 @@ class CameraDetectionNode:
                     distance = prop.estimate_distance(
                         detection.bbox.size_y,
                         detection.bbox.size_x,
-                        detection.bbox.size_y,
-                        detection.bbox.size_x,
                         self.camera_calibrations[camera_ns],
                     )
                 if distance is None:
