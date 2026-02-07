@@ -29,7 +29,7 @@ class PipeFramePublisher:
         self.callback_time = rospy.Time.now()
 
         self.image_center = None
-        self.morph_kernel_size = 20
+        self.morph_kernel_size = 40
         self.approx_poly_epsilon_factor = 0.05
 
         self.center_offset_threshold = 50
@@ -66,7 +66,7 @@ class PipeFramePublisher:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         self.object_transform_pub = rospy.Publisher(
-            "object_transform_updates", TransformStamped
+            "object_transform_updates", TransformStamped, queue_size=1
         )
 
         self.pipe_carrot_frame = "pipe_carrot"
@@ -106,20 +106,19 @@ class PipeFramePublisher:
             return
 
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        _, binary = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+        binary = (gray > 0).astype(np.uint8) * 255
         dist = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
-        widths = dist * 2
+        radiuses = dist
 
-        # get rid of temp pixels caused by arucos
+        # get rid of temp pixels caused by arucos and ellipsy pipe segments (for better thining results)
         kernel_size = self.morph_kernel_size
-        opening = cv2.morphologyEx(
-            binary, cv2.MORPH_OPEN, np.ones((kernel_size, kernel_size), np.uint8)
-        )
+        M = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+        opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, M)
 
         debug_img = cv2.cvtColor(opening, cv2.COLOR_GRAY2BGR)
 
-        skel_bool = skeletonize(opening > 0)
-        skel = (skel_bool.astype(np.uint8)) * 255
+        # may change this to skeletonize
+        skel = cv2.ximgproc.thinning(opening)
 
         ordered_lines = self._get_ordered_points_from_skel(
             skel, self.close_point_filter_eps
@@ -205,7 +204,7 @@ class PipeFramePublisher:
             for line in segments:
                 w = []
                 for x, y in line:
-                    w.append(widths[int(y), int(x)])
+                    w.append(radiuses[int(y), int(x)] * 2)
                 line_widths.append(np.array(w))
 
             line_widths[0] = list(
@@ -225,7 +224,7 @@ class PipeFramePublisher:
             )
             ang_err = self._normalize_angle(ang - math.pi)
 
-            self._relocate_carrot(rx, ry, rz - 1.25, rot_offset=ang_err)
+            self._relocate_carrot(rx, ry, rz - 1.50, rot_offset=ang_err)
 
         self._publish_debug_img(
             msg, debug_img, segments, target_segment_index, target_point, width
@@ -363,7 +362,7 @@ class PipeFramePublisher:
                     new_line.append(p)
                     grid[key].append(p)
 
-            if len(new_line) >= 2:
+            if len(new_line) >= 1:
                 new_lines.append(np.array(new_line))
 
         return new_lines
