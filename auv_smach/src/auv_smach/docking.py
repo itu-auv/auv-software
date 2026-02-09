@@ -71,16 +71,6 @@ class DockingTaskState(smach.State):
                     keep_orientation=True,
                 ),
                 transitions={
-                    "succeeded": "CANCEL_APPROACH_ALIGN",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "CANCEL_APPROACH_ALIGN",
-                CancelAlignControllerState(),
-                transitions={
                     "succeeded": "ENABLE_DOCKING_TRAJECTORY",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -101,7 +91,7 @@ class DockingTaskState(smach.State):
                 "ALIGN_ABOVE_STATION",
                 AlignFrame(
                     source_frame="taluy/base_link/docking_puck_link",
-                    target_frame="docking_approach_target",
+                    target_frame="docking_station",
                     angle_offset=1.5708,
                     dist_threshold=0.03,
                     yaw_threshold=0.04,
@@ -111,7 +101,7 @@ class DockingTaskState(smach.State):
                     keep_orientation=False,
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
-                    use_frame_depth=True,
+                    use_frame_depth=False,
                 ),
                 transitions={
                     "succeeded": "STOP_ESTIMATOR",

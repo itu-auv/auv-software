@@ -21,3 +21,4 @@ cameras:
 focus_groups:
   all:
     - docking_station
+  none: []

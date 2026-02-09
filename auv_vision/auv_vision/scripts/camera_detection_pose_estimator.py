@@ -625,7 +625,7 @@ class CameraDetectionNode:
             class_name = class_info["name"]
             tf_frame = class_info["tf_frame"]
 
-            if camera_source == "front_camera":
+            if camera_source == "front_camera" and len(self.id_to_class.get("front", {})) > 1:
                 if class_name not in self.active_focus_classes:
                     continue
 
