@@ -5,7 +5,6 @@ Docking Frame Publisher
 Publishes target frames for the docking mission.
 
 Frames published (ArUco based, toggle: toggle_docking_trajectory):
-- docking_approach_target: Approach position (1m above docking_station by default)
 - docking_puck_target: Final docking position (0.5m above docking_station by default)
 """
 
@@ -32,16 +31,10 @@ class DockingFramePublisher:
 
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.parent_frame = rospy.get_param("~parent_frame", "docking_station")
-        self.approach_target_frame = rospy.get_param(
-            "~approach_target_frame", "docking_approach_target"
-        )
         self.puck_target_frame = rospy.get_param(
             "~puck_target_frame", "docking_puck_target"
         )
 
-        self.approach_offset_x = 0.0
-        self.approach_offset_y = 0.0
-        self.approach_offset_z = 1.0
         self.puck_offset_x = 0.0
         self.puck_offset_y = 0.0
         self.puck_offset_z = 0.5
@@ -57,9 +50,6 @@ class DockingFramePublisher:
         rospy.loginfo("Docking Frame Publisher initialized")
 
     def reconfigure_callback(self, config, level):
-        self.approach_offset_x = config.approach_offset_x
-        self.approach_offset_y = config.approach_offset_y
-        self.approach_offset_z = config.approach_offset_z
         self.puck_offset_x = config.puck_offset_x
         self.puck_offset_y = config.puck_offset_y
         self.puck_offset_z = config.puck_offset_z
@@ -133,16 +123,6 @@ class DockingFramePublisher:
 
         current_time = rospy.Time.now()
 
-        approach_pose = self.apply_offset_to_pose(
-            base_pose,
-            self.approach_offset_x,
-            self.approach_offset_y,
-            self.approach_offset_z,
-        )
-        approach_transform = self.build_transform_message(
-            self.approach_target_frame, approach_pose, current_time
-        )
-
         puck_pose = self.apply_offset_to_pose(
             base_pose,
             self.puck_offset_x,
@@ -153,7 +133,7 @@ class DockingFramePublisher:
             self.puck_target_frame, puck_pose, current_time
         )
 
-        self.tf_broadcaster.sendTransform([approach_transform, puck_transform])
+        self.tf_broadcaster.sendTransform(puck_transform)
 
     def spin(self):
         rate = rospy.Rate(10.0)
