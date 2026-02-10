@@ -69,7 +69,7 @@ class NavigateThroughPipelineState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_PIPELINE_DEPTH",
-                SetDepthState(depth=pipeline_depth, sleep_duration=3.0),
+                SetDepthState(depth=pipeline_depth),
                 transitions={
                     "succeeded": "ENABLE_PIPELINE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
