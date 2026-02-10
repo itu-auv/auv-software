@@ -132,8 +132,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
     StateVector feedforward_state = desired_state;
     feedforward_state.tail(N) = desired_velocity;
     const auto damping_force = damping_control(feedforward_state);
+    const auto coriolis_force = coriolis_control(feedforward_state);
 
-    WrenchVector wrench = pid_force + damping_force;
+    WrenchVector wrench = pid_force + damping_force + coriolis_force;
 
     Eigen::Vector3d gravity_force_global = Eigen::Vector3d::Zero();
     gravity_force_global(2) = gravity_compensation_z_;
@@ -157,6 +158,20 @@ class MultiDOFPIDController : public ControllerBase<N> {
     return this->model().linear_damping_matrix * velocity_state +
            this->model().quadratic_damping_matrix *
                velocity_state.cwiseAbs().cwiseProduct(velocity_state);
+  }
+
+  /**
+   * @brief Compute the Coriolis-Centrifugal control term.
+   *
+   * @param state The current state of the system.
+   * @return Vector The Coriolis-Centrifugal control term.
+   *
+   * coriolis control = C(v) * v
+   */
+  Vectornd coriolis_control(const StateVector& state) const {
+    const auto& velocity_state = state.tail(N);
+
+    return this->model().coriolis_matrix(velocity_state) * velocity_state;
   }
 
   Matrixnd actual_mass_matrix(const StateVector& state) const {
