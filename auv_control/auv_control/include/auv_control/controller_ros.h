@@ -83,6 +83,15 @@ class ControllerROS {
     controller->set_gravity_compensation_z(gravity_compensation_z_);
     controller->set_max_velocity_limits(max_velocity_);
 
+    // Set rigid body dynamics parameters
+    controller->set_enable_rigid_body_coriolis(enable_rigid_body_coriolis_);
+    controller->set_enable_restoring(enable_restoring_);
+    if (enable_restoring_) {
+      controller->set_hydrostatic_params(hydro_mass_, hydro_displaced_volume_,
+                                         hydro_fluid_density_, hydro_gravity_,
+                                         r_g_body_, r_b_body_);
+    }
+
     // Set up dynamic reconfigure server with initial values
     auv_control::ControllerConfig initial_config;
     set_initial_config(initial_config);
@@ -316,6 +325,47 @@ class ControllerROS {
       max_velocity_ = Eigen::Matrix<double, 6, 1>::Constant(1e6);
       ROS_WARN_STREAM("No max_velocity parameter found, limits disabled");
     }
+
+    // Load rigid body dynamics parameters
+    enable_rigid_body_coriolis_ =
+        nh_private.param("enable_rigid_body_coriolis", false);
+    enable_restoring_ = nh_private.param("enable_restoring", false);
+    ROS_INFO_STREAM("Rigid body coriolis: "
+                    << (enable_rigid_body_coriolis_ ? "enabled" : "disabled"));
+    ROS_INFO_STREAM("Hydrostatic restoring: "
+                    << (enable_restoring_ ? "enabled" : "disabled"));
+
+    // Load hydrostatic parameters if restoring is enabled
+    if (enable_restoring_) {
+      hydro_mass_ = nh_private.param("hydrostatic/mass", 0.0);
+      hydro_displaced_volume_ =
+          nh_private.param("hydrostatic/displaced_volume", 0.0);
+      hydro_fluid_density_ =
+          nh_private.param("hydrostatic/fluid_density", 1000.0);
+      hydro_gravity_ = nh_private.param("hydrostatic/gravity", 9.80665);
+
+      std::vector<double> r_g_default = {0.0, 0.0, 0.0};
+      std::vector<double> r_b_default = {0.0, 0.0, 0.0};
+      std::vector<double> r_g_vec, r_b_vec;
+      nh_private.param("hydrostatic/r_g_body", r_g_vec, r_g_default);
+      nh_private.param("hydrostatic/r_b_body", r_b_vec, r_b_default);
+
+      if (r_g_vec.size() == 3 && r_b_vec.size() == 3) {
+        r_g_body_ = Eigen::Vector3d(r_g_vec[0], r_g_vec[1], r_g_vec[2]);
+        r_b_body_ = Eigen::Vector3d(r_b_vec[0], r_b_vec[1], r_b_vec[2]);
+      } else {
+        ROS_WARN("Invalid r_g_body or r_b_body size, using zeros");
+        r_g_body_ = Eigen::Vector3d::Zero();
+        r_b_body_ = Eigen::Vector3d::Zero();
+      }
+
+      ROS_INFO_STREAM("Hydrostatic params - mass: "
+                      << hydro_mass_
+                      << ", displaced_volume: " << hydro_displaced_volume_
+                      << ", fluid_density: " << hydro_fluid_density_);
+      ROS_INFO_STREAM("r_g_body: " << r_g_body_.transpose());
+      ROS_INFO_STREAM("r_b_body: " << r_b_body_.transpose());
+    }
   }
 
   void set_initial_config(auv_control::ControllerConfig& config) {
@@ -490,6 +540,16 @@ class ControllerROS {
   std::string config_file_;             // Path to the config file
 
   std::string depth_control_reference_frame_;
+
+  // Rigid body dynamics parameters
+  bool enable_rigid_body_coriolis_{false};
+  bool enable_restoring_{false};
+  double hydro_mass_{0.0};
+  double hydro_displaced_volume_{0.0};
+  double hydro_fluid_density_{1000.0};
+  double hydro_gravity_{9.80665};
+  Eigen::Vector3d r_g_body_{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d r_b_body_{Eigen::Vector3d::Zero()};
 };
 
 }  // namespace control
