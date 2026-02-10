@@ -4,6 +4,7 @@ import math
 import numpy as np
 from collections import defaultdict
 import cv2
+import time
 
 from cv_bridge import CvBridge
 import rospy
@@ -29,11 +30,12 @@ class PipeFramePublisher:
         self.callback_time = rospy.Time.now()
 
         self.image_center = None
-        self.morph_kernel_size = 40
+        self.target_width = 320
+
+        self.morph_kernel_size = 20
         self.approx_poly_epsilon_factor = 0.05
 
         self.center_offset_threshold = 50
-        self.max_width_threshold = 150
 
         self.close_point_filter_eps = rospy.get_param("~close_point_filter_eps", 20)
         self.short_segment_filter_eps = rospy.get_param(
@@ -97,36 +99,67 @@ class PipeFramePublisher:
             return
 
         self.callback_time = rospy.Time.now()
-        self.image_center = [msg.width // 2, msg.height // 2]
 
         try:
-            img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            img_og = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except Exception as e:
             rospy.logwarn("cv_bridge err: %s", e)
             return
 
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        binary = (gray > 0).astype(np.uint8) * 255
-        dist = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
-        radiuses = dist
+        self.image_center = [msg.width // 2, msg.height // 2]
+
+        h_og, w_og = img_og.shape[:2]
+        scale = self.target_width / float(w_og)
+        inv_scale = 1.0 / scale
+
+        img_small = cv2.resize(
+            img_og, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
+        )
+
+        gray = (
+            cv2.cvtColor(img_small, cv2.COLOR_BGR2GRAY)
+            if len(img_small.shape) == 3
+            else img_small
+        )
+        _, binary = cv2.threshold(gray, 1, 255, cv2.THRESH_BINARY)
+        radiuses = cv2.distanceTransform(binary, cv2.DIST_L2, 5)
 
         # get rid of temp pixels caused by arucos and ellipsy pipe segments (for better thining results)
-        kernel_size = self.morph_kernel_size
-        M = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+        M = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (self.morph_kernel_size, self.morph_kernel_size)
+        )
         opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, M)
 
-        debug_img = cv2.cvtColor(opening, cv2.COLOR_GRAY2BGR)
+        skel = skeletonize(opening)
 
-        # may change this to skeletonize
-        skel = cv2.ximgproc.thinning(opening)
+        dirty_segments = self._get_ordered_points_from_skel(skel)
 
-        ordered_lines = self._get_ordered_points_from_skel(
-            skel, self.close_point_filter_eps
-        )
+        width = None
+        if dirty_segments:
+            all_widths = []
+            for seg in dirty_segments:
+                for p in seg:
+                    x, y = p
+                    if (
+                        0 <= int(y) < radiuses.shape[0]
+                        and 0 <= int(x) < radiuses.shape[1]
+                    ):
+                        val = radiuses[int(y), int(x)] * 2 * inv_scale
+                        all_widths.append(val)
+            if all_widths:
+                sorted_widths = np.sort(all_widths)
+                n = len(sorted_widths)
+                cut = int(n * 0.20)
+                trimmed_widths = (
+                    sorted_widths[cut : n - cut] if n > 5 else sorted_widths
+                )
+                width = np.median(trimmed_widths)
+
+        filtered_segments = self._remove_close_points_global(dirty_segments)
 
         # https://stackoverflow.com/questions/52782359/is-there-a-way-to-use-cv2-approxpolydp-to-approximate-open-curve
         final_points_list = []
-        for line in ordered_lines:
+        for line in filtered_segments:
             cnt_format = line.reshape(-1, 1, 2).astype(np.int32)
             line_len = cv2.arcLength(cnt_format, closed=False)
             approx = cv2.approxPolyDP(
@@ -136,8 +169,12 @@ class PipeFramePublisher:
             pts = approx.reshape(-1, 2)
             final_points_list.append(pts)
 
-        segments = self._merge_into_segments(final_points_list, self.merge_segment_eps)
-        segments = self._filter_segments(segments, self.short_segment_filter_eps)
+        small_segments = self._merge_into_segments(final_points_list)
+
+        segments = []
+        for seg in small_segments:
+            final_seg = (np.array(seg) * inv_scale).astype(np.float32)
+            segments.append(final_seg)
 
         # find closest segment (perpendicular distance between line and point)
         target_segment_index = 0
@@ -167,7 +204,7 @@ class PipeFramePublisher:
             # make first segment from left to right (according to image)
             # kinda risky but it was my only idea to decide for what direction we should move
             if seg[0][0] > seg[-1][0]:
-                seg.reverse()
+                seg = seg[::-1]
                 segments[target_segment_index] = seg
 
             possible_targets = self._find_turns(seg)
@@ -198,20 +235,7 @@ class PipeFramePublisher:
                     target_point = pt
                     break
 
-        width = None
-        if target_point is not None:
-            line_widths = []
-            for line in segments:
-                w = []
-                for x, y in line:
-                    w.append(radiuses[int(y), int(x)] * 2)
-                line_widths.append(np.array(w))
-
-            line_widths[0] = list(
-                filter(lambda x: x < self.max_width_threshold, line_widths[0])
-            )
-            width = max(line_widths[0])
-
+        if target_point is not None and width:
             distance = self._distance_from_cam(self.pipe_width, width)
 
             rx, ry, rz = self._world_pos_from_cam(
@@ -226,6 +250,7 @@ class PipeFramePublisher:
 
             self._relocate_carrot(rx, ry, rz - 1.50, rot_offset=ang_err)
 
+        debug_img = img_og.copy()
         self._publish_debug_img(
             msg, debug_img, segments, target_segment_index, target_point, width
         )
@@ -307,7 +332,7 @@ class PipeFramePublisher:
         if width is not None:
             cv2.putText(
                 debug_img,
-                f"pipe width: {width}px",
+                f"width: {width}px",
                 (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1,
@@ -315,24 +340,27 @@ class PipeFramePublisher:
                 1,
             )
         for j, seg in enumerate(segments):
-            for i in range(1, len(seg)):
+            points = seg.astype(int)
+            for i in range(1, len(points)):
                 color = (0, 0, 255)
                 if j == target_segment_index:
                     color = (255, 0, 0)
-                cv2.line(debug_img, seg[i - 1], seg[i], color, 2)
+                cv2.line(debug_img, tuple(points[i - 1]), tuple(points[i]), color, 2)
         for seg in segments:
-            for i, pt in enumerate(seg):
+            points = seg.astype(int)
+            for i, pt in enumerate(points):
                 color = (0, 0, 255)
-                if pt == target_point:
+                if target_point is not None and np.all(pt == target_point.astype(int)):
                     color = (0, 255, 0)
-                cv2.circle(debug_img, pt, 4, color, -1)
+                cv2.circle(debug_img, tuple(pt), 4, color, -1)
         img_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding="bgr8")
         img_msg.header = msg.header
         self.pub_debug.publish(img_msg)
 
-    def _remove_close_points_global(self, lines, eps=10):
+    def _remove_close_points_global(self, lines):
         # copy paste, idk how it works but it works as intended, kinda expensive
-        cell = eps
+        eps = self.close_point_filter_eps
+        cell = self.close_point_filter_eps
         grid = defaultdict(list)
 
         def cell_key(p):
@@ -367,7 +395,7 @@ class PipeFramePublisher:
 
         return new_lines
 
-    def _get_ordered_points_from_skel(self, skeleton_img, close_point_eps=20):
+    def _get_ordered_points_from_skel(self, skeleton_img):
         # main purpose is, putting points in right order
         # checks every pixel's neighors and creates continuous ordered connected point pieces
         white_pixels = np.column_stack(np.where(skeleton_img > 0))
@@ -419,10 +447,9 @@ class PipeFramePublisher:
                         break
 
             paths.append(np.array([[p[1], p[0]] for p in path], dtype=np.float32))
-        paths = self._remove_close_points_global(paths, eps=close_point_eps)
         return paths
 
-    def _merge_into_segments(self, final_points_list, max_seg_dist):
+    def _merge_into_segments(self, final_points_list):
         # connect disconnected pipe, pieces together
         # how it works:
         # let x, y be a pipe pieces disconneted because of arucos
@@ -445,7 +472,7 @@ class PipeFramePublisher:
                         "tt": self._get_dist(current[-1], line[-1]),
                     }
                     best = min(dists, key=dists.get)
-                    if dists[best] < max_seg_dist:
+                    if dists[best] < self.merge_segment_eps:
                         match_line = remaining.pop(i)
                         if best == "hh":
                             current = match_line[::-1] + current
@@ -459,6 +486,13 @@ class PipeFramePublisher:
                         match_found = True
                         break
             segments.append(current)
+        segments = list(
+            filter(
+                lambda x: cv2.arcLength(np.array(x), closed=False)
+                >= self.short_segment_filter_eps,
+                segments,
+            )
+        )
         return segments
 
     def _get_angle(self, p1, p2):
@@ -468,15 +502,6 @@ class PipeFramePublisher:
 
     def _get_dist(self, p1, p2):
         return np.linalg.norm(np.array(p1) - np.array(p2))
-
-    def _filter_segments(self, segments, min_len):
-        # ultra max pro filtering
-        segments = list(
-            filter(
-                lambda x: cv2.arcLength(np.array(x), closed=False) >= min_len, segments
-            )
-        )
-        return segments
 
     def _build_transform_message(self, child_frame_id, pose, frame="odom"):
         t = TransformStamped()
