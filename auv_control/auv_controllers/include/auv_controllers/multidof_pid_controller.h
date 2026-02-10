@@ -1,6 +1,7 @@
 #pragma once
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <algorithm>
 #include <array>
 #include <vector>
 
@@ -56,6 +57,39 @@ class MultiDOFPIDController : public ControllerBase<N> {
     gravity_compensation_z_ = compensation;
   }
 
+  // -----------------------------------------------------------------------
+  // NEW (minimal): Enable/disable rigid-body Coriolis and hydrostatic restoring
+  // -----------------------------------------------------------------------
+  void set_enable_rigid_body_coriolis(bool enable) {
+    enable_rigid_body_coriolis_ = enable;
+  }
+
+  void set_enable_restoring(bool enable) { enable_restoring_ = enable; }
+
+  /**
+   * @brief Set hydrostatic parameters used to compute restoring vector g(eta).
+   * All vectors are in BODY frame (your FLU convention).
+   *
+   * @param mass vehicle mass [kg]
+   * @param displaced_volume displaced volume [m^3]
+   * @param fluid_density fluid density [kg/m^3]
+   * @param gravity gravity constant [m/s^2]
+   * @param r_g_body vector from body origin O to CG (in body frame) [m]
+   * @param r_b_body vector from body origin O to CB (in body frame) [m]
+   */
+  void set_hydrostatic_params(double mass, double displaced_volume,
+                              double fluid_density, double gravity,
+                              const Eigen::Vector3d& r_g_body,
+                              const Eigen::Vector3d& r_b_body) {
+    hydro_mass_ = mass;
+    hydro_displaced_volume_ = displaced_volume;
+    hydro_fluid_density_ = fluid_density;
+    hydro_gravity_ = gravity;
+    r_g_body_ = r_g_body;
+    r_b_body_ = r_b_body;
+    hydro_params_set_ = true;
+  }
+
   /**
    * @brief Calculate the control output, in the form of a wrench
    *
@@ -93,7 +127,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
         for (size_t i = 0; i < 2 * N; ++i) {
           const double limit = integral_clamp_limits_(i);
           if (limit > 0) {  // Only clamp if limit is positive
-            double before_clamp = integral_(i);
             integral_(i) = std::max(-limit, std::min(limit, integral_(i)));
           }
         }
@@ -133,7 +166,27 @@ class MultiDOFPIDController : public ControllerBase<N> {
     feedforward_state.tail(N) = desired_velocity;
     const auto damping_force = damping_control(feedforward_state);
 
-    WrenchVector wrench = pid_force + damping_force;
+    // -------------------------------
+    // NEW (minimal): rigid-body Coriolis term C_RB(nu)*nu
+    // Uses nu_ff = desired_velocity (feedforward_state.tail)
+    // -------------------------------
+    Vectornd coriolis_force = Vectornd::Zero();
+    if (enable_rigid_body_coriolis_) {
+      coriolis_force =
+          rigid_body_coriolis_control(feedforward_state, mass_matrix);
+    }
+
+    // -------------------------------
+    // NEW (minimal): hydrostatic restoring term g(eta)
+    // Uses current pose (roll/pitch/yaw) from state
+    // -------------------------------
+    Vectornd restoring_force = Vectornd::Zero();
+    if (enable_restoring_) {
+      restoring_force = restoring_control(state, inverse_rotation_matrix);
+    }
+
+    WrenchVector wrench =
+        pid_force + damping_force + coriolis_force + restoring_force;
 
     Eigen::Vector3d gravity_force_global = Eigen::Vector3d::Zero();
     gravity_force_global(2) = gravity_compensation_z_;
@@ -159,6 +212,82 @@ class MultiDOFPIDController : public ControllerBase<N> {
                velocity_state.cwiseAbs().cwiseProduct(velocity_state);
   }
 
+  /**
+   * @brief Compute rigid-body Coriolis/centripetal term C_RB(nu)*nu.
+   *
+   * Uses a skew-symmetric construction:
+   *   p_h = M * nu = [p; h]
+   *   C = [ 0  -S(p)
+   *        -S(p) -S(h) ]
+   * Then coriolis = C * nu.
+   *
+   * This keeps C + C^T = 0 (numerically nice).
+   *
+   * Note: Only implemented for N=6. Otherwise returns zero.
+   */
+  Vectornd rigid_body_coriolis_control(const StateVector& state,
+                                       const Matrixnd& M) const {
+    if constexpr (N != 6) {
+      return Vectornd::Zero();
+    } else {
+      const Eigen::Matrix<double, 6, 1> nu = state.tail(6);
+      const Eigen::Matrix<double, 6, 1> ph = M * nu;  // [p; h]
+
+      const Eigen::Vector3d p = ph.head(3);
+      const Eigen::Vector3d h = ph.tail(3);
+
+      Eigen::Matrix<double, 6, 6> C = Eigen::Matrix<double, 6, 6>::Zero();
+      C.block<3, 3>(0, 3) = -skew(p);
+      C.block<3, 3>(3, 0) = -skew(p);
+      C.block<3, 3>(3, 3) = -skew(h);
+
+      return C * nu;
+    }
+  }
+
+  /**
+   * @brief Compute hydrostatic restoring vector g(eta) in body frame.
+   *
+   * Assumptions:
+   * - World z-axis is UP (ENU-like).
+   * - Weight in world:   [0; 0; -W]
+   * - Buoyancy in world: [0; 0; +B]
+   *
+   * Convert forces to body using R_w2b (world->body):
+   *   Fg_b = R_w2b * [0;0;-W]
+   *   Fb_b = R_w2b * [0;0;+B]
+   * Moments about body origin O:
+   *   tau = r_g x Fg_b + r_b x Fb_b
+   *
+   * Note: Only implemented for N=6. Otherwise returns zero.
+   */
+  Vectornd restoring_control(const StateVector& state,
+                             const Eigen::Matrix3d& R_w2b) const {
+    if constexpr (N != 6) {
+      return Vectornd::Zero();
+    } else {
+      if (!hydro_params_set_) {
+        return Vectornd::Zero();
+      }
+
+      const double W = hydro_mass_ * hydro_gravity_;
+      const double B =
+          hydro_fluid_density_ * hydro_gravity_ * hydro_displaced_volume_;
+
+      const Eigen::Vector3d Fg_b = R_w2b * Eigen::Vector3d(0.0, 0.0, -W);
+      const Eigen::Vector3d Fb_b = R_w2b * Eigen::Vector3d(0.0, 0.0, +B);
+
+      const Eigen::Vector3d F_b = Fg_b + Fb_b;
+      const Eigen::Vector3d tau_b =
+          r_g_body_.cross(Fg_b) + r_b_body_.cross(Fb_b);
+
+      Eigen::Matrix<double, 6, 1> g;
+      g.head(3) = F_b;
+      g.tail(3) = tau_b;
+      return g;
+    }
+  }
+
   Matrixnd actual_mass_matrix(const StateVector& state) const {
     return this->model().mass_inertia_matrix;
   }
@@ -172,6 +301,12 @@ class MultiDOFPIDController : public ControllerBase<N> {
     return rotation.matrix().transpose();
   }
 
+  static Eigen::Matrix3d skew(const Eigen::Vector3d& v) {
+    Eigen::Matrix3d S;
+    S << 0.0, -v.z(), v.y(), v.z(), 0.0, -v.x(), -v.y(), v.x(), 0.0;
+    return S;
+  }
+
   // gains
   Vector2nd integral_{Vector2nd::Zero()};
   Vector2nd integral_clamp_limits_{
@@ -183,6 +318,20 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   // Default to effectively unlimited (1e6)
   Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
+
+  // -----------------------------------------------------------------------
+  // NEW (minimal): flags + hydrostatic params (kept separate from model)
+  // -----------------------------------------------------------------------
+  bool enable_rigid_body_coriolis_{false};
+  bool enable_restoring_{false};
+
+  bool hydro_params_set_{false};
+  double hydro_mass_{0.0};
+  double hydro_displaced_volume_{0.0};
+  double hydro_fluid_density_{1000.0};
+  double hydro_gravity_{9.80665};
+  Eigen::Vector3d r_g_body_{Eigen::Vector3d::Zero()};
+  Eigen::Vector3d r_b_body_{Eigen::Vector3d::Zero()};
 };
 
 using SixDOFPIDController = MultiDOFPIDController<6>;
