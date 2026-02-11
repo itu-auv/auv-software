@@ -7,21 +7,21 @@
   <arg name="respawn" default="true"/>
   <group ns="$(arg namespace)">
     <!-- start expansion board bridge -->
-    <node pkg="rosserial_python" type="serial_node.py" name="expansion_board_bridge_node" args="$(arg port) _baud:=$(arg baudrate)" output="screen" respawn="$(arg respawn)">
+    <!-- <node pkg="rosserial_python" type="serial_node.py" name="expansion_board_bridge_node" args="$(arg port) _baud:=$(arg baudrate)" output="screen" respawn="$(arg respawn)">
       <remap from="sensors/imu_mainboard/data" to="sensors/imu_mainboard/data"/>
       <remap from="propulsion_board/status" to="fakur"/>
-    </node>
+    </node> -->
     <!-- start serial to ros bridge -->
-    <node pkg="auv_hardware_bridge" type="serial_to_ros_bridge_node" name="expansion_serial_to_ros_bridge_node" output="screen" respawn="$(arg respawn)">
+    <!-- <node pkg="auv_hardware_bridge" type="serial_to_ros_bridge_node" name="expansion_serial_to_ros_bridge_node" output="screen" respawn="$(arg respawn)">
       <param name="virtual_port" value="$(arg virtual_port)"/>
       <remap from="incoming" to="board/serial_port/incoming"/>
       <remap from="outgoing" to="board/serial_port/outgoing"/>
-    </node>
+    </node> -->
     <!-- start remapper node: depth -> pose -->
-    <node pkg="auv_hardware_bridge" type="expansion_bridge_remapper_node.py" name="expansion_bridge_remapper_node" respawn="$(arg respawn)">
+    <!-- <node pkg="auv_hardware_bridge" type="expansion_bridge_remapper_node.py" name="expansion_bridge_remapper_node" respawn="$(arg respawn)">
       <param name="pressure_sensor_position_covariance" value="0.1"/>
       <remap from="depth" to="sensors/external_pressure_sensor/depth"/>
       <remap from="pose" to="sensors/external_pressure_sensor/pose"/>
-    </node>
+    </node> -->
   </group>
 </launch>

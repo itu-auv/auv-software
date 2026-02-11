@@ -4,8 +4,8 @@
 #include <vector>
 
 #include "auv_control/thruster_allocation.h"
-#include "auv_msgs/MotorCommand.h"
-#include "auv_msgs/Power.h"
+#include "std_msgs/UInt16MultiArray.h"
+#include "sensor_msgs/BatteryState.h"
 #include "ros/ros.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "tf2_ros/buffer.h"
@@ -51,7 +51,7 @@ class ThrusterManagerROS {
     power_sub_ =
         nh_.subscribe("power", 1, &ThrusterManagerROS::power_callback, this);
 
-    drive_pub_ = nh_.advertise<auv_msgs::MotorCommand>("board/drive_pulse", 1);
+    drive_pub_ = nh_.advertise<std_msgs::UInt16MultiArray>("board/drive_pulse", 1);
   }
 
   void spin() {
@@ -104,11 +104,12 @@ class ThrusterManagerROS {
         thruster_wrench_pubs_[i].publish(thruster_wrench_msgs_.at(i));
       }
 
-      auv_msgs::MotorCommand motor_command_msg;
+      std_msgs::UInt16MultiArray motor_command_msg;
+      motor_command_msg.data.resize(kThrusterCount);
       double voltage = latest_power_ ? latest_power_->voltage : 16.0;
       for (size_t i = 0; i < kThrusterCount; ++i) {
         const auto pwm = wrench_to_drive(efforts(mapping_[i]), voltage);
-        motor_command_msg.channels[i] = std::clamp(
+        motor_command_msg.data[i] = std::clamp(
             pwm, static_cast<uint16_t>(1100U), static_cast<uint16_t>(1900U));
       }
 
@@ -136,7 +137,7 @@ class ThrusterManagerROS {
     latest_wrench_time_ = ros::Time::now();
   }
 
-  void power_callback(const auv_msgs::Power &msg) { latest_power_ = msg; }
+  void power_callback(const sensor_msgs::BatteryState &msg) { latest_power_ = msg; }
 
   uint16_t wrench_to_drive(double wrench, double voltage) {
     if (std::abs(wrench) < min_wrench_) {
@@ -167,7 +168,7 @@ class ThrusterManagerROS {
   ros::NodeHandle nh_;
   ThrusterAllocator allocator_;
   std::optional<geometry_msgs::WrenchStamped> latest_wrench_;
-  std::optional<auv_msgs::Power> latest_power_;
+  std::optional<sensor_msgs::BatteryState> latest_power_;
   ros::Time latest_wrench_time_{ros::Time(0)};
   std::array<ros::Publisher, kThrusterCount> thruster_wrench_pubs_;
   std::array<geometry_msgs::WrenchStamped, kThrusterCount>
