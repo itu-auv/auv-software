@@ -57,7 +57,6 @@ class GpsTargetFramePublisher(object):
         self._set_object_pub = rospy.Publisher(
             "set_object_transform", TransformStamped, queue_size=10
         )
-        rospy.loginfo("Waiting for 'set_object_transform' service")
         rospy.loginfo("Connected to 'set_object_transform'.")
 
         self._active = False
