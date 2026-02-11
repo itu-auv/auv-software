@@ -29,6 +29,16 @@ class OctagonTransformServiceNode:
         self.closer_distance = rospy.get_param(
             "~closer_distance", 2.0
         )  # distance from octagon to closer frame
+        # Search frames configuration
+        self.search_distance = rospy.get_param(
+            "~search_distance", 0.7
+        )  # distance from octagon to search frames
+        self.search_frames = {
+            "octagon_search_forward": "forward",   # towards robot (back from octagon)
+            "octagon_search_backward": "backward", # away from robot
+            "octagon_search_left": "left",         # perpendicular left
+            "octagon_search_right": "right",       # perpendicular right
+        }
 
         self.set_enable_service = rospy.Service(
             "set_transform_octagon_frame", SetBool, self.handle_enable_service
@@ -130,6 +140,63 @@ class OctagonTransformServiceNode:
             self.octagon_closer_frame, closer_pose
         )
         self.send_transform(closer_transform)
+
+        # Create search frames around octagon
+        self.create_search_frames(octagon_pos, direction_unit_2d, robot_pos[2])
+
+    def create_search_frames(self, octagon_pos, direction_unit_2d, z_height):
+        """
+        Create 4 search frames in a + pattern around octagon.
+        - forward: away from robot (further from octagon perspective)
+        - backward: towards robot direction
+        - left: perpendicular left
+        - right: perpendicular right
+        
+        All frames have the same orientation as closer_frame (facing robot->octagon direction).
+        """
+        # Calculate perpendicular vector (90 degrees rotation in XY plane)
+        # Rotate direction_unit_2d by 90 degrees: (x, y) -> (-y, x)
+        perpendicular_unit_2d = np.array([-direction_unit_2d[1], direction_unit_2d[0]])
+
+        # Calculate yaw from direction vector (same as closer_frame)
+        # All frames face forward (robot to octagon direction)
+        yaw = np.arctan2(direction_unit_2d[1], direction_unit_2d[0])
+        q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+
+        for frame_name, direction_type in self.search_frames.items():
+            # Calculate position offset based on direction type
+            if direction_type == "forward":
+                # Away from robot (same as direction vector)
+                offset_2d = direction_unit_2d * self.search_distance
+            elif direction_type == "backward":
+                # Towards robot (opposite of direction vector)
+                offset_2d = -direction_unit_2d * self.search_distance
+            elif direction_type == "left":
+                # Perpendicular left
+                offset_2d = perpendicular_unit_2d * self.search_distance
+            elif direction_type == "right":
+                # Perpendicular right
+                offset_2d = -perpendicular_unit_2d * self.search_distance
+            else:
+                continue
+
+            # Calculate frame position (octagon center + offset)
+            frame_pos_2d = octagon_pos[:2] + offset_2d
+            frame_pos = np.array([frame_pos_2d[0], frame_pos_2d[1], z_height])
+
+            # Create pose
+            search_pose = Pose()
+            search_pose.position.x = frame_pos[0]
+            search_pose.position.y = frame_pos[1]
+            search_pose.position.z = frame_pos[2]
+            search_pose.orientation.x = q[0]
+            search_pose.orientation.y = q[1]
+            search_pose.orientation.z = q[2]
+            search_pose.orientation.w = q[3]
+
+            # Send transform
+            search_transform = self.build_transform_message(frame_name, search_pose)
+            self.send_transform(search_transform)
 
     def handle_enable_service(self, req: SetBool):
         self.enable = req.data
