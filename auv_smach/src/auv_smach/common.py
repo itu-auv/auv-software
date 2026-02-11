@@ -1336,8 +1336,10 @@ class CreateFrameAtCurrentPositionState(smach.State):
             rospy.logerr(f"CreateFrameAtCurrentPositionState: TF lookup failed: {e}")
             return "aborted"
 
-        except rospy.ServiceException as e:
-            rospy.logerr(f"CreateFrameAtCurrentPositionState: Service call failed: {e}")
+        except rospy.ROSInterruptException as e:
+            rospy.logerr(
+                "CreateFrameAtCurrentPositionState: ROSInterruptException occurred"
+            )
             return "aborted"
 
 
@@ -1419,7 +1421,7 @@ class CreateRotatingFrameState(smach.State):
                 t.transform.rotation.z = qz
                 t.transform.rotation.w = qw
                 self.set_object_transform_pub.publish(t)
-            except rospy.ServiceException as e:
+            except rospy.ROSInterruptException as e:
                 rospy.logwarn("Service call failed: %s", str(e))
                 return "aborted"
             self.rate.sleep()

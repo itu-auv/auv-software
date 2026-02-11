@@ -94,7 +94,7 @@ class SetStartFrameState(smach.State):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.frame_name = frame_name
         self.pub = rospy.Publisher(
-            "set_object_transform", TransformStamped, queue_size=10
+            "set_object_transform", TransformStamped, queue_size=10, latch=True
         )
 
     def execute(self, userdata):
@@ -107,6 +107,12 @@ class SetStartFrameState(smach.State):
         t.child_frame_id = self.frame_name
         t.transform.rotation.w = 1.0
         try:
+            while self.pub.get_num_connections() < 1:
+                rospy.loginfo_throttle(
+                    2, f"Waiting for subscribers to {self.pub.name}..."
+                )
+                rospy.sleep(0.1)
+
             self.pub.publish(t)
             rospy.loginfo(f"SetStartFrameState: Published frame {self.frame_name}")
             return "succeeded"

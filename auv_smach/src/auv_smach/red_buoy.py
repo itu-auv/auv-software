@@ -130,7 +130,7 @@ class SetRedBuoyRotationStartFrame(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
         self.set_object_transform_pub = rospy.Publisher(
-            "set_object_transform", TransformStamped, queue_size=10
+            "set_object_transform", TransformStamped, queue_size=10, latch=True
         )
 
     def execute(self, userdata):
@@ -191,9 +191,13 @@ class SetRedBuoyRotationStartFrame(smach.State):
             t.transform.rotation.w = quaternion[3]
 
             rospy.loginfo(f"Transform from odom to {self.target_frame}: {t}")
-
-            # Call the set_object_transform service
             try:
+                while self.set_object_transform_pub.get_num_connections() < 1:
+                    rospy.loginfo_throttle(
+                        2,
+                        f"Waiting for subscribers to {self.set_object_transform_pub.name}...",
+                    )
+                    rospy.sleep(0.1)
                 self.set_object_transform_pub.publish(t)
             except Exception as e:
                 rospy.logwarn_throttle(5, f"Failed to publish transform: {e}")
