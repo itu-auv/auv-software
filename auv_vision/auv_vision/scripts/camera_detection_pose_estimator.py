@@ -13,9 +13,8 @@ from geometry_msgs.msg import (
     Quaternion,
 )
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw
+from auv_msgs.msg import PropsYaw, SegmentMeasurement
 from sensor_msgs.msg import Range
-from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
@@ -113,8 +112,7 @@ class WhitePipe(Prop):
 
 class Bottle(Prop):
     def __init__(self):
-        super().__init__(0, "bottle", None, 0.09)
-
+        super().__init__(0, "bottle", None, 0.06)
 
 class TorpedoMap(Prop):
     def __init__(self):
@@ -146,6 +144,11 @@ class BinSawfish(Prop):
         super().__init__(11, "bin_sawfish", 0.30480, 0.30480)
 
 
+class OctagonTable(Prop):
+    def __init__(self):
+        super().__init__(2, "octagon_table", None, None)
+
+
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
@@ -161,9 +164,7 @@ class CameraDetectionNode:
         self.torpedo_camera_enabled = False
 
         self.red_pipe_x = None
-        self.bottle_angle = None  # Angle of bottle relative to base_link
-        self.current_yaw = 0.0  # Current yaw of base_link in odom frame
-        self.bottle_thickness_px = None  # Pixel width from bottle_angle_node
+        self.last_segment_measurement: SegmentMeasurement = None
 
         self.object_id_map = {
             "gate": [0, 1],
@@ -192,7 +193,9 @@ class CameraDetectionNode:
             "taluy/cameras/cam_torpedo": CameraCalibration("cameras/cam_torpedo"),
         }
         # Segmentation source uses the same camera calibration as bottom camera
-        self.camera_calibrations["taluy/cameras/cam_bottom_seg"] = self.camera_calibrations["taluy/cameras/cam_bottom"]
+        self.camera_calibrations["taluy/cameras/cam_bottom_seg"] = (
+            self.camera_calibrations["taluy/cameras/cam_bottom"]
+        )
         rospy.Subscriber(
             "/yolo_result_front",
             YoloResult,
@@ -209,6 +212,9 @@ class CameraDetectionNode:
             "/yolo_result_seg",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera_seg"),
+            queue_size=1,
+        )
+        rospy.Subscriber(
             "/yolo_result_torpedo",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="torpedo_camera"),
@@ -234,8 +240,10 @@ class CameraDetectionNode:
             "octagon_link": Octagon(),
             "bin_sawfish_link": BinShark(),
             "bin_shark_link": BinSawfish(),
+            "octagon_table_link": OctagonTable(),
             "torpedo_hole_shark_link": TorpedoHole(),
             "torpedo_hole_sawfish_link": TorpedoHole(),
+            "bin_whole_link": BinWhole(),
         }
 
         self.id_tf_map = {
@@ -249,10 +257,9 @@ class CameraDetectionNode:
                 7: "octagon_link",
             },
             "taluy/cameras/cam_bottom": {
-                0: "bottle_link",
+                0: "bin_shark_link",
                 1: "bin_sawfish_link",
-                2: "red_pipe_link",
-                3: "white_pipe_link",
+                2: "octagon_table_link",
             },
             "taluy/cameras/cam_bottom_seg": {
                 0: "bottle_link",
@@ -265,13 +272,11 @@ class CameraDetectionNode:
         self.altitude = None
         self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
-
-        # Subscribe to bottle angle and thickness (relative topics - will be prefixed by namespace)
         rospy.Subscriber(
-            "bottle_angle", Float32, self.bottle_angle_callback, queue_size=1
-        )
-        rospy.Subscriber(
-            "bottle_thickness", Float32, self.bottle_thickness_callback, queue_size=1
+            "segment_measurement",
+            SegmentMeasurement,
+            self.segment_measurement_callback,
+            queue_size=1,
         )
 
         # Services to enable/disable cameras
@@ -366,51 +371,9 @@ class CameraDetectionNode:
             f"Calculated altitude from odom_pressure: {self.altitude:.2f} m (pool_depth={self.pool_depth})"
         )
 
-    def bottle_thickness_callback(self, msg: Float32):
-        print("bottle thickness callback")
-        print(msg.data)
-        """Store bottle thickness in pixels from bottle_angle_node.
-
-        Args:
-            msg: Float32 message containing the bottle thickness in pixels
-        """
-        if not math.isnan(msg.data) and msg.data > 0:
-            self.bottle_thickness_px = msg.data
-            rospy.logdebug(f"Updated bottle thickness: {self.bottle_thickness_px:.1f}px")
-
-    def bottle_angle_callback(self, msg: Float32):
-        print("bottle angle callback")
-        print(msg.data)
-        """Store bottle angle from bottle_angle_node.
-
-        Args:
-            msg: Float32 message containing the bottle angle in radians relative to base_link
-        """
-        if not math.isnan(msg.data):
-            self.bottle_angle = -msg.data  # Store in base_link frame
-
-            # Get current yaw from odom to base_link transform
-            try:
-                # Get transform from odom to base_link
-                transform = self.tf_buffer.lookup_transform(
-                    "odom", "taluy/base_link", rospy.Time(0), rospy.Duration(1.0)
-                )
-                # Extract yaw from quaternion
-                _, _, self.current_yaw = tf_transformations.euler_from_quaternion(
-                    [
-                        transform.transform.rotation.x,
-                        transform.transform.rotation.y,
-                        transform.transform.rotation.z,
-                        transform.transform.rotation.w,
-                    ]
-                )
-            except (
-                tf2_ros.LookupException,
-                tf2_ros.ConnectivityException,
-                tf2_ros.ExtrapolationException,
-            ) as e:
-                rospy.logwarn(f"Could not get transform from odom to base_link: {e}")
-                return
+    def segment_measurement_callback(self, msg: SegmentMeasurement):
+        """Store segment measurement"""
+        self.last_segment_measurement = msg
 
     def calculate_intersection_with_plane(self, point1_odom, point2_odom, z_plane):
         # Calculate t where the z component is z_plane
@@ -739,36 +702,33 @@ class CameraDetectionNode:
             if prop_name not in self.props:
                 continue
             prop = self.props[prop_name]
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [
-                0,
-                1,
-            ]:  # Bottle detection
+            # Bottle detection (cam_bottom_seg, ID 0) - use bottle_thickness_px for distance
+            if camera_ns == "taluy/cameras/cam_bottom_seg" and detection_id == 0:
                 skip_inside_image = True
-                # Calculate distance using pixel width from bottle_angle_node
-                if self.bottle_thickness_px is not None and self.bottle_thickness_px > 0:
-                    # Use the bottle_thickness_px as the width in pixels
+                # Calculate distance using pixel width from segment_measurement
+                seg = self.last_segment_measurement
+                if seg is not None and seg.valid and seg.thickness_px > 0:
                     distance = prop.estimate_distance(
                         None,
-                        self.bottle_thickness_px,
+                        seg.thickness_px,
                         self.camera_calibrations[camera_ns],
-                    )
-                    print(str(distance) + "-----distance of bottle ")
-                    rospy.logdebug(
-                        f"Using bottle_thickness_px: {self.bottle_thickness_px}px for distance calculation"
                     )
                 else:
-                    # Fallback to using bbox width if bottle_thickness_px is not available
                     distance = prop.estimate_distance(
-                        detection.bbox.size_y,  # height
-                        detection.bbox.size_x,  # width
+                        detection.bbox.size_y,
+                        detection.bbox.size_x,
                         self.camera_calibrations[camera_ns],
                     )
-                    print(str(distance) + "-----distance of bottle from wrong tree ")
                 if distance is None:
                     rospy.logwarn(
                         "Could not calculate bottle distance from pixel width, using altitude"
                     )
                     distance = self.altitude
+
+            # Bin detections (cam_bottom, IDs 0, 1, 2) - use altitude directly
+            elif camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1, 2]:
+                skip_inside_image = True
+                distance = self.altitude
 
             if detection_id == 6:
                 self.process_altitude_projection(
@@ -815,16 +775,47 @@ class CameraDetectionNode:
                 offset_x, offset_y, distance
             )
 
-            # For bottom camera bottle/pipe detections, use bottle angle in odom frame
             if (
-                camera_ns in ["taluy/cameras/cam_bottom", "taluy/cameras/cam_bottom_seg"]
+                camera_ns
+                in ["taluy/cameras/cam_bottom", "taluy/cameras/cam_bottom_seg"]
                 and detection_id in [0, 2, 3]
-                and self.bottle_angle is not None
+                and self.last_segment_measurement is not None
+                and self.last_segment_measurement.valid
             ):
-                # Calculate angle in odom frame: bottle_angle_odom = current_yaw + bottle_angle_base_link
-                bottle_angle_odom = self.current_yaw + self.bottle_angle
-                quat = tf_transformations.quaternion_from_euler(0, 0, bottle_angle_odom)
-                transform_stamped_msg.transform.rotation = Quaternion(*quat)
+                seg = self.last_segment_measurement
+                dt = abs((detection_msg.header.stamp - seg.header.stamp).to_sec())
+                if dt < 10000:
+                    try:
+                        transform = self.tf_buffer.lookup_transform(
+                            "odom",
+                            "taluy/base_link",
+                            seg.header.stamp,
+                            rospy.Duration(0.5),
+                        )
+                        _, _, robot_yaw = tf_transformations.euler_from_quaternion(
+                            [
+                                transform.transform.rotation.x,
+                                transform.transform.rotation.y,
+                                transform.transform.rotation.z,
+                                transform.transform.rotation.w,
+                            ]
+                        )
+                        bottle_angle_odom = robot_yaw + seg.angle
+                        quat = tf_transformations.quaternion_from_euler(
+                            0, 0, bottle_angle_odom
+                        )
+                        transform_stamped_msg.transform.rotation = Quaternion(*quat)
+                    except (
+                        tf2_ros.LookupException,
+                        tf2_ros.ConnectivityException,
+                        tf2_ros.ExtrapolationException,
+                    ):
+                        transform_stamped_msg.transform.rotation = Quaternion(
+                            0, 0, 0, 1
+                        )
+                else:
+                    print("Segment measurement is too old")
+                    transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
             else:
                 transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
 
