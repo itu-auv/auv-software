@@ -2,15 +2,22 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="rate" default="20" />
+  <arg name="imu_type" default="xsens" />
 
   <group ns="$(arg namespace)">
     <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" />
 
-    <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
+    <node if="$(eval arg('imu_type') == 'xsens')" pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
       <remap from="imu/data" to="sensors/imu/data" />
       <remap from="imu_mainboard/data" to="sensors/imu_mainboard/data" />
       <remap from="odom_imu" to="localization/odom_imu" />
       <remap from="odom_bno_imu" to="localization/odom_bno_imu" />
+      <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
+    </node>
+
+    <node if="$(eval arg('imu_type') == 'vectornav')" pkg="auv_localization" type="imu_odometry_vectornav_node.py" name="vectornav_imu_to_odom" output="screen">
+      <remap from="imu/data" to="/vectornav/IMU" />
+      <remap from="odom_vectornav" to="localization/odom_vectornav" />
       <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
