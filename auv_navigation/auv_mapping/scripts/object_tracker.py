@@ -351,8 +351,10 @@ class ObjectTracker:
                     return
 
             for label, obj_data in data["objects"].items():
-                pos = obj_data.get("position", [0, 0, 0])
-                orient = obj_data.get("orientation", [0, 0, 0, 1])
+                validated = self._validate_premap_object(label, obj_data)
+                if validated is None:
+                    continue
+                pos, orient = validated
 
                 if transform_stamped:
                     p_stamped = PoseStamped()
@@ -391,6 +393,56 @@ class ObjectTracker:
             self._initialize_tracks_from_premap()
         except Exception as e:
             rospy.logerr(f"Failed to load pre-map: {e}")
+
+    def _validate_premap_object(self, label: str, obj_data: Dict):
+        """Validate and normalize one premap object entry."""
+        if not isinstance(obj_data, dict):
+            rospy.logwarn(f"Skipping premap object '{label}': entry must be a dict")
+            return None
+
+        pos = obj_data.get("position", [0, 0, 0])
+        orient = obj_data.get("orientation", [0, 0, 0, 1])
+
+        if not isinstance(pos, (list, tuple)) or len(pos) != 3:
+            rospy.logwarn(
+                f"Skipping premap object '{label}': position must be length-3 list"
+            )
+            return None
+        if not isinstance(orient, (list, tuple)) or len(orient) != 4:
+            rospy.logwarn(
+                f"Skipping premap object '{label}': orientation must be length-4 list"
+            )
+            return None
+
+        try:
+            pos = [float(pos[0]), float(pos[1]), float(pos[2])]
+            orient = [
+                float(orient[0]),
+                float(orient[1]),
+                float(orient[2]),
+                float(orient[3]),
+            ]
+        except (TypeError, ValueError):
+            rospy.logwarn(
+                f"Skipping premap object '{label}': non-numeric position/orientation"
+            )
+            return None
+
+        if not np.all(np.isfinite(pos)) or not np.all(np.isfinite(orient)):
+            rospy.logwarn(
+                f"Skipping premap object '{label}': non-finite position/orientation"
+            )
+            return None
+
+        q_norm = np.linalg.norm(orient)
+        if q_norm < 1e-8:
+            rospy.logwarn(
+                f"Skipping premap object '{label}': zero-norm orientation quaternion"
+            )
+            return None
+        orient = [o / q_norm for o in orient]
+
+        return pos, orient
 
     def _initialize_tracks_from_premap(self):
         """Pre-create Kalman tracks at premap positions with high initial uncertainty."""
@@ -507,6 +559,11 @@ class ObjectTracker:
                     success=False,
                     message=f"Failed to transform objects from {source_frame} to {target_frame}",
                 )
+            if not new_premap_data:
+                return SetPremapResponse(
+                    success=False,
+                    message="No valid objects in request; pre-map unchanged",
+                )
 
             self._atomic_update_and_save(
                 new_premap_data, yaml_data_objects, target_frame
@@ -581,22 +638,22 @@ class ObjectTracker:
     def _atomic_update_and_save(self, new_premap_data, yaml_data_objects, target_frame):
         """Update internal state and save to YAML."""
         with self.lock:
-            labels_to_reset = set(new_premap_data.keys())
+            labels_to_keep = set(new_premap_data.keys())
 
-            for label in new_premap_data:
+            for label in list(self.trackers.keys()):
+                if label not in labels_to_keep:
+                    for obj in self.trackers[label].tracked_objects:
+                        self.orientations.pop(obj.id, None)
+                    del self.trackers[label]
+
+            for label in labels_to_keep:
                 if label in self.trackers:
                     for obj in self.trackers[label].tracked_objects:
                         self.orientations.pop(obj.id, None)
                     del self.trackers[label]
 
-            stale_confirmed_ids = [
-                track_id
-                for track_id, track in self.confirmed_tracks.items()
-                if track["label"] in labels_to_reset
-            ]
-            for track_id in stale_confirmed_ids:
-                self.confirmed_tracks.pop(track_id, None)
-                self.orientations.pop(track_id, None)
+            self.confirmed_tracks.clear()
+            self.orientations.clear()
 
             self.premap = new_premap_data
             self._initialize_tracks_from_premap()
@@ -607,7 +664,7 @@ class ObjectTracker:
         if self.premap_yaml_path:
             try:
                 yaml_dir = os.path.dirname(self.premap_yaml_path)
-                if not os.path.exists(yaml_dir):
+                if yaml_dir and not os.path.exists(yaml_dir):
                     os.makedirs(yaml_dir)
 
                 if os.path.exists(self.premap_yaml_path):
