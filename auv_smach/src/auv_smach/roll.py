@@ -413,13 +413,13 @@ class TwoRollState(smach.StateMachine):
                 "CLEAR_OBJECT_MAP",
                 ClearObjectMapState(),
                 transitions={
-                    "succeeded": "DENEME_2",
+                    "succeeded": "LOOK_AFTER_RESET_ODOMETRY",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DENEME_2",
+                "LOOK_AFTER_RESET_ODOMETRY",
                 SearchForPropState(
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame="gate_search_after_roll",
