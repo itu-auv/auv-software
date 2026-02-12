@@ -2,7 +2,7 @@
 <launch>
   <arg name="sim" default="0"/>
   <arg name="use_gui" default="false"/>
-  <arg name="yolo_model" default="pipe-seg.pt"/>
+  <arg name="yolo_model" default="joy-seg.pt"/>
   <arg name="model_source_path" default="$(find auv_detection)/models/$(arg yolo_model)"/>
   <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
   <arg name="input_topic" default="/taluy/cameras/cam_bottom/image_rect_color"/>
@@ -24,7 +24,7 @@
   <param name="/create_model_symlink_cmd"
          command="bash -c 'ln -sf $(arg model_source_path) $(arg ultralytics_models_dir)/$(arg yolo_model)'"/>
 
-  <node name="tracker_node_bottom" pkg="ultralytics_ros" type="tracker_node.py" output="screen">
+  <node name="tracker_node_bottomdkfjkjd" pkg="ultralytics_ros" type="tracker_node.py" output="screen">
     <param name="yolo_model" value="$(arg yolo_model)"/>
     <param if="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_bottom/image_underwater"/>
     <param unless="$(arg sim)" name="input_topic" value="/taluy/cameras/cam_bottom/image_rect_color"/>

@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -58,8 +59,7 @@ class NavigateThroughSlalomState(smach.State):
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.slalom_exit_angle = slalom_exit_angle
         self.slalom_mode = slalom_mode
 
@@ -159,7 +159,7 @@ class NavigateThroughSlalomState(smach.State):
                     look_at_frame="red_pipe_link",
                     alignment_frame="search_for_red_pipe",
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    timeout=30.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -217,7 +217,7 @@ class NavigateThroughSlalomState(smach.State):
                     look_at_frame="slalom_waypoint_1",
                     alignment_frame="look_at_waypoint_1",
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    timeout=30.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),

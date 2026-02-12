@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="namespace" default="taluy" />
+    <arg name="linear_speed" default="0.3" />
+    <arg name="angular_speed" default="0.3" />
+    <arg name="rate" default="50" />
+
+    <group ns="$(arg namespace)">
+        <node pkg="auv_teleop" type="keyboard_teleop.py" name="keyboard_teleop_node" output="screen">
+            <param name="linear_speed" value="$(arg linear_speed)" />
+            <param name="angular_speed" value="$(arg angular_speed)" />
+            <param name="rate" value="$(arg rate)" />
+        </node>
+    </group>
+</launch>

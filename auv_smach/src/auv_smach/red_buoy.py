@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -41,8 +42,7 @@ class RotateAroundCenterState(smach.State):
         self.target_frame = target_frame
         self.radius = radius
         self.direction = direction
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
@@ -128,8 +128,7 @@ class SetRedBuoyRotationStartFrame(smach.State):
         self.center_frame = center_frame
         self.target_frame = target_frame
         self.radius = radius
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
         self.set_object_transform_service = rospy.ServiceProxy(
@@ -232,7 +231,7 @@ class RotateAroundBuoyState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_RED_BUOY_DEPTH",
-                SetDepthState(depth=red_buoy_depth, sleep_duration=3.0),
+                SetDepthState(depth=red_buoy_depth),
                 transitions={
                     "succeeded": "FIND_AND_AIM_RED_BUOY",
                     "preempted": "preempted",
@@ -245,7 +244,7 @@ class RotateAroundBuoyState(smach.State):
                     look_at_frame="red_buoy_link",
                     alignment_frame="red_buoy_search",
                     full_rotation=False,
-                    set_frame_duration=4.0,
+                    timeout=4.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),

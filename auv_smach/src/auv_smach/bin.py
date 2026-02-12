@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -36,8 +37,7 @@ class CheckForDropAreaState(smach.State):
         )
         self.source_frame = source_frame
         self.timeout = rospy.Duration(timeout)
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.target_selection = target_selection
         # Set frame order based on target_selection
         if self.target_selection == "shark":
@@ -155,7 +155,7 @@ class BinSecondTrialState(smach.StateMachine):
         with self:
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_SEARCH_DEPTH",
-                SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_front_look_depth),
                 transitions={
                     "succeeded": "ALIGN_TO_SECOND_TRIAL",
                     "preempted": "preempted",
@@ -217,7 +217,7 @@ class BinSecondTrialState(smach.StateMachine):
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    timeout=30.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -238,7 +238,7 @@ class BinSecondTrialState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_DEPTH",
-                SetDepthState(depth=bin_bottom_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_bottom_look_depth),
                 transitions={
                     "succeeded": "ALIGN_TO_SECOND_FAR_TRIAL",
                     "preempted": "preempted",
@@ -319,7 +319,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DEPTH",
-                SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_front_look_depth),
                 transitions={
                     "succeeded": "FIND_AND_AIM_BIN",
                     "preempted": "preempted",
@@ -332,7 +332,7 @@ class BinTaskState(smach.State):
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",
                     full_rotation=False,
-                    set_frame_duration=7.0,
+                    timeout=30.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.2,
                 ),
@@ -400,7 +400,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DROP_DEPTH",
-                SetDepthState(depth=bin_bottom_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_bottom_look_depth),
                 transitions={
                     "succeeded": "ENABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
@@ -563,7 +563,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BALL_DROP_DEPTH",
-                SetDepthState(depth=-1.45, sleep_duration=3.0),
+                SetDepthState(depth=-1.25),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
                     "preempted": "preempted",
@@ -617,6 +617,15 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_2",
                 DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "ELEVATE_BEFORE_EXIT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ELEVATE_BEFORE_EXIT",
+                SetDepthState(depth=-1.0),
                 transitions={
                     "succeeded": "ALIGN_TO_BIN_EXIT",
                     "preempted": "preempted",

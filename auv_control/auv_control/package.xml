@@ -12,6 +12,7 @@
   <depend>auv_msgs</depend>
   <depend>dynamic_reconfigure</depend>
   <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
   <depend>nav_msgs</depend>
   <depend>pluginlib</depend>
   <depend>roscpp</depend>
