@@ -511,8 +511,12 @@ class ObjectTracker:
     def _atomic_update_and_save(self, new_premap_data, yaml_data_objects, target_frame):
         """Update internal state and save to YAML."""
         with self.lock:
-            self.trackers.clear()
-            self.orientations.clear()
+            for label in new_premap_data:
+                if label in self.trackers:
+                    for obj in self.trackers[label].tracked_objects:
+                        self.orientations.pop(obj.id, None)
+                    del self.trackers[label]
+
             self.premap = new_premap_data
             self._initialize_tracks_from_premap()
 
