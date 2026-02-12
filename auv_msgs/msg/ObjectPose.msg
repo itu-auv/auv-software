@@ -1,2 +1,2 @@
-string label                    # Object frame name ("gate_shark_link")
+string label
 geometry_msgs/Pose pose

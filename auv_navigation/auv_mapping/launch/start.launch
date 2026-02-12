@@ -20,7 +20,6 @@
       <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
     </node>
 
-    <!-- Legacy C++ Tracker (always runs) -->
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
       <param name="rate" value="$(arg control_rate)" />
       <param name="static_frame" value="$(arg static_frame)" />

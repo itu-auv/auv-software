@@ -2,7 +2,6 @@
 <launch>
     <arg name="namespace" default="taluy" />
 
-    <!-- Competition Map GUI for premap object placement -->
     <group ns="$(arg namespace)">
         <node name="competition_map_gui" pkg="auv_mapping" type="competition_map_gui.py" output="screen">
             <param name="set_premap_service" value="map/p_set_premap" />

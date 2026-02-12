@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 """
 Competition Pool Map GUI
@@ -18,13 +17,9 @@ from auv_msgs.srv import SetPremap, SetPremapRequest
 
 
 class CompetitionMapGUI:
-    # Pool dimensions in meters
-    POOL_WIDTH = 50.0  # x-axis (horizontal)
-    POOL_HEIGHT = 25.0  # y-axis (vertical)
+    POOL_WIDTH = 50.0
+    POOL_HEIGHT = 25.0
 
-    # Competition objects: (name, color, type, length)
-    # type: "point" or "line" or "frame"
-    # length: in meters (only for lines)
     OBJECTS = [
         ("reference", "green", "frame", 0),
         ("gate", "red", "line", 3.0),
@@ -33,8 +28,6 @@ class CompetitionMapGUI:
         ("octagon", "orange", "point", 0),
     ]
 
-    # Default Z values for each object (meters)
-    # Adjust these values as needed
     DEFAULT_Z = {
         "gate": -0.5,
         "bin": -2.0,
@@ -42,40 +35,24 @@ class CompetitionMapGUI:
         "octagon": -1.3,
     }
 
-    # Reference frame name for SetPremap service
     REFERENCE_FRAME = "coin_flip_rescuer"
 
     def __init__(self, root):
         self.root = root
         self.root.title("Competition Pool Map")
-        # Start fullscreen
-        self.root.attributes("-zoomed", True)  # Linux fullscreen
+        self.root.attributes("-zoomed", True)
 
-        # Get service name from ROS parameter (default matches tracker's remapped name)
         self.service_name = rospy.get_param("~set_premap_service", "map/p_set_premap")
-
-        # Selected object type
         self.selected_object = tk.StringVar(value="reference")
-
-        # Placed objects dict: {name: (x, y, color, type, length, yaw), ...}
-        # yaw is in degrees, 0 = pointing up (+y), positive = CCW (left is positive)
         self.placed_objects = {}
-
-        # Canvas parameters
         self.canvas_padding = 40
         self.scale = 1.0
         self.pool_x_offset = 0
         self.pool_y_offset = 0
-
-        # ROS service status
         self.service_connected = False
 
         self.setup_ui()
-
-        # Draw pool after window is ready
         self.root.after(100, self.draw_pool)
-
-        # Try to connect to ROS service
         self.root.after(500, self.check_ros_service)
 
     def check_ros_service(self):
@@ -93,22 +70,19 @@ class CompetitionMapGUI:
             if was_connected:
                 rospy.logwarn(f"Service disconnected: {self.service_name}")
 
-        # Check again periodically
         self.root.after(5000, self.check_ros_service)
 
     def setup_ui(self):
-        # Main frame
         main_frame = tk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
-        # Left panel - Object list
         left_frame = tk.LabelFrame(main_frame, text="Objects", width=280)
         left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         left_frame.pack_propagate(False)
 
         tk.Label(left_frame, text="Select object:").pack(pady=(10, 5))
 
-        for obj_name, obj_color, obj_type, obj_len in self.OBJECTS:
+        for obj_name, obj_color, obj_type, _ in self.OBJECTS:
             rb = tk.Radiobutton(
                 left_frame,
                 text=obj_name,
@@ -119,7 +93,6 @@ class CompetitionMapGUI:
             )
             rb.pack(fill=tk.X, padx=10, pady=2)
 
-        # Yaw control for line/frame objects
         tk.Label(left_frame, text="\nOrientation (frame/gate/torpedo):").pack(
             pady=(10, 5)
         )
@@ -131,7 +104,7 @@ class CompetitionMapGUI:
         self.yaw_scale = tk.Scale(
             yaw_frame,
             from_=180,
-            to=-180,  # Left is positive, right is negative
+            to=-180,
             orient=tk.HORIZONTAL,
             variable=self.yaw_var,
             label="Yaw (deg)",
@@ -139,15 +112,12 @@ class CompetitionMapGUI:
         )
         self.yaw_scale.pack(fill=tk.X)
 
-        # Reset orientation button
         tk.Button(
             left_frame, text="Reset Orientation (0°)", command=self.reset_orientation
         ).pack(fill=tk.X, padx=10, pady=5)
 
-        # Separator
         tk.Frame(left_frame, height=2, bg="gray").pack(fill=tk.X, padx=10, pady=10)
 
-        # Send to vehicle button
         tk.Label(
             left_frame, text="Vehicle Communication:", font=("Arial", 9, "bold")
         ).pack(pady=(5, 5))
@@ -161,11 +131,9 @@ class CompetitionMapGUI:
             font=("Arial", 10, "bold"),
         ).pack(fill=tk.X, padx=10, pady=5)
 
-        # ROS status label
         self.status_label = tk.Label(left_frame, text="ROS: Checking...", fg="orange")
         self.status_label.pack(pady=5)
 
-        # Clear button
         tk.Button(
             left_frame,
             text="Clear All",
@@ -174,14 +142,11 @@ class CompetitionMapGUI:
             fg="white",
         ).pack(fill=tk.X, padx=10, pady=10)
 
-        # Coordinates label
         self.coord_label = tk.Label(left_frame, text="Mouse: X: - Y: -")
         self.coord_label.pack(pady=5)
 
-        # Separator
         tk.Frame(left_frame, height=2, bg="gray").pack(fill=tk.X, padx=10, pady=10)
 
-        # Object positions relative to frame
         tk.Label(
             left_frame,
             text="Positions (relative to reference):",
@@ -194,7 +159,6 @@ class CompetitionMapGUI:
         self.positions_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         self.positions_text.config(state=tk.DISABLED)
 
-        # Right panel - Canvas
         right_frame = tk.LabelFrame(
             main_frame, text="Pool (50m x 25m) - Origin at bottom-left"
         )
@@ -203,7 +167,6 @@ class CompetitionMapGUI:
         self.canvas = tk.Canvas(right_frame, bg="lightblue")
         self.canvas.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Bind events
         self.canvas.bind("<Button-1>", self.on_click)
         self.canvas.bind("<Motion>", self.on_mouse_move)
         self.canvas.bind("<Configure>", self.on_resize)
@@ -213,7 +176,6 @@ class CompetitionMapGUI:
         obj_name = self.selected_object.get()
         if obj_name in self.placed_objects:
             obj_data = self.placed_objects[obj_name]
-            # Only update if it's a line or frame type
             if obj_data[3] in ("line", "frame"):
                 self.placed_objects[obj_name] = (
                     obj_data[0],
@@ -239,7 +201,6 @@ class CompetitionMapGUI:
         if canvas_w < 100 or canvas_h < 100:
             return
 
-        # Calculate scale
         available_w = canvas_w - 2 * self.canvas_padding
         available_h = canvas_h - 2 * self.canvas_padding
 
@@ -247,15 +208,12 @@ class CompetitionMapGUI:
         scale_y = available_h / self.POOL_HEIGHT
         self.scale = min(scale_x, scale_y)
 
-        # Pool size in pixels
         pool_w = self.POOL_WIDTH * self.scale
         pool_h = self.POOL_HEIGHT * self.scale
 
-        # Center the pool
         self.pool_x_offset = (canvas_w - pool_w) / 2
         self.pool_y_offset = (canvas_h - pool_h) / 2
 
-        # Draw pool rectangle
         self.canvas.create_rectangle(
             self.pool_x_offset,
             self.pool_y_offset,
@@ -267,10 +225,8 @@ class CompetitionMapGUI:
             tags="pool",
         )
 
-        # Draw horizontal lines (10 lines, 2.5m apart for 25m height)
         for i in range(1, 10):
             y = i * 2.5
-            # Origin at bottom-left, so invert y for display
             py = self.pool_y_offset + pool_h - y * self.scale
             self.canvas.create_line(
                 self.pool_x_offset,
@@ -281,7 +237,6 @@ class CompetitionMapGUI:
                 dash=(2, 4),
                 tags="pool",
             )
-            # Label on left side
             self.canvas.create_text(
                 self.pool_x_offset - 20,
                 py,
@@ -290,7 +245,6 @@ class CompetitionMapGUI:
                 tags="pool",
             )
 
-        # Draw extra line at 1.5m from bottom
         y_extra = 1.5
         py_extra = self.pool_y_offset + pool_h - y_extra * self.scale
         self.canvas.create_line(
@@ -312,7 +266,6 @@ class CompetitionMapGUI:
             tags="pool",
         )
 
-        # Draw vertical lines (3 lines, dividing 50m into 4 parts = 12.5m each)
         for i in range(1, 4):
             x = i * 12.5
             px = self.pool_x_offset + x * self.scale
@@ -325,7 +278,6 @@ class CompetitionMapGUI:
                 dash=(2, 4),
                 tags="pool",
             )
-            # Label on bottom
             self.canvas.create_text(
                 px,
                 self.pool_y_offset + pool_h + 15,
@@ -334,7 +286,6 @@ class CompetitionMapGUI:
                 tags="pool",
             )
 
-        # Corner labels - Origin at bottom-left
         self.canvas.create_text(
             self.pool_x_offset,
             self.pool_y_offset + pool_h + 15,
@@ -368,14 +319,14 @@ class CompetitionMapGUI:
         """Convert meters to pixels, origin at bottom-left"""
         pool_h = self.POOL_HEIGHT * self.scale
         px = self.pool_x_offset + x_m * self.scale
-        py = self.pool_y_offset + pool_h - y_m * self.scale  # Invert y
+        py = self.pool_y_offset + pool_h - y_m * self.scale
         return px, py
 
     def pixels_to_meters(self, px, py):
         """Convert pixels to meters, origin at bottom-left"""
         pool_h = self.POOL_HEIGHT * self.scale
         x_m = (px - self.pool_x_offset) / self.scale
-        y_m = (self.pool_y_offset + pool_h - py) / self.scale  # Invert y
+        y_m = (self.pool_y_offset + pool_h - py) / self.scale
         return x_m, y_m
 
     def on_mouse_move(self, event):
@@ -388,11 +339,9 @@ class CompetitionMapGUI:
     def on_click(self, event):
         x_m, y_m = self.pixels_to_meters(event.x, event.y)
 
-        # Check bounds
         if not (0 <= x_m <= self.POOL_WIDTH and 0 <= y_m <= self.POOL_HEIGHT):
             return
 
-        # Get selected object info
         obj_name = self.selected_object.get()
         obj_color = "black"
         obj_type = "point"
@@ -405,29 +354,18 @@ class CompetitionMapGUI:
                 obj_length = length
                 break
 
-        # Get current yaw from slider (for line and frame types)
         yaw = self.yaw_var.get() if obj_type in ("line", "frame") else 0
-
-        # Store/update object (only one of each type)
-        # Format: (x, y, color, type, length, yaw)
         self.placed_objects[obj_name] = (x_m, y_m, obj_color, obj_type, obj_length, yaw)
-
-        # Redraw all objects
         self.redraw_objects()
-
-        # Update positions text
         self.update_positions_text()
 
     def draw_single_object(self, name, x_m, y_m, color, obj_type, length, yaw):
         px, py = self.meters_to_pixels(x_m, y_m)
 
         if obj_type == "frame":
-            # Draw frame as single arrow showing orientation
-            # yaw=0 means pointing up (+y), positive yaw = CCW
-            arrow_len = 2.0 * self.scale  # 2m arrow
-            yaw_rad = math.radians(yaw + 90)  # +90 so 0 deg points up
+            arrow_len = 2.0 * self.scale
+            yaw_rad = math.radians(yaw + 90)
 
-            # Single arrow (forward direction)
             dx = arrow_len * math.cos(yaw_rad)
             dy = arrow_len * math.sin(yaw_rad)
             self.canvas.create_line(
@@ -441,7 +379,6 @@ class CompetitionMapGUI:
                 tags="object",
             )
 
-            # Draw center point
             r = 6
             self.canvas.create_oval(
                 px - r,
@@ -455,24 +392,19 @@ class CompetitionMapGUI:
             )
 
         elif obj_type == "line" and length > 0:
-            # Draw line with given length and yaw, plus an arrow for orientation
-            # yaw=0 means pointing up (+y), positive yaw = CCW
             half_len_px = (length / 2) * self.scale
-            yaw_rad = math.radians(yaw + 90)  # +90 so 0 deg points up
+            yaw_rad = math.radians(yaw + 90)
 
-            # Calculate line endpoints (perpendicular to arrow direction)
-            perp_rad = yaw_rad - math.pi / 2  # perpendicular to yaw direction
+            perp_rad = yaw_rad - math.pi / 2
             dx = half_len_px * math.cos(perp_rad)
             dy = half_len_px * math.sin(perp_rad)
 
-            x1, y1 = px - dx, py + dy  # +dy because y is inverted on canvas
+            x1, y1 = px - dx, py + dy
             x2, y2 = px + dx, py - dy
 
-            # Draw line
             self.canvas.create_line(x1, y1, x2, y2, fill=color, width=4, tags="object")
 
-            # Draw arrow showing orientation (perpendicular to line)
-            arrow_len = 1.5 * self.scale  # 1.5m arrow
+            arrow_len = 1.5 * self.scale
             arrow_dx = arrow_len * math.cos(yaw_rad)
             arrow_dy = arrow_len * math.sin(yaw_rad)
             self.canvas.create_line(
@@ -486,7 +418,6 @@ class CompetitionMapGUI:
                 tags="object",
             )
 
-            # Draw center point
             r = 5
             self.canvas.create_oval(
                 px - r,
@@ -499,7 +430,6 @@ class CompetitionMapGUI:
                 tags="object",
             )
         else:
-            # Draw point/circle (smaller for bin/octagon)
             r = 7
             self.canvas.create_oval(
                 px - r,
@@ -512,7 +442,6 @@ class CompetitionMapGUI:
                 tags="object",
             )
 
-        # Draw label
         self.canvas.create_text(
             px, py + 20, text=name, font=("Arial", 9, "bold"), tags="object"
         )
@@ -528,7 +457,6 @@ class CompetitionMapGUI:
         self.positions_text.config(state=tk.NORMAL)
         self.positions_text.delete(1.0, tk.END)
 
-        # Check if reference is placed
         if "reference" not in self.placed_objects:
             self.positions_text.insert(
                 tk.END, "Place reference first to see\nrelative positions."
@@ -541,14 +469,12 @@ class CompetitionMapGUI:
         frame_yaw = frame_data[5]
         frame_yaw_rad = math.radians(frame_yaw)
 
-        # Show reference absolute position
         self.positions_text.insert(tk.END, f"REFERENCE (absolute):\n")
         self.positions_text.insert(tk.END, f"  x={frame_x:.2f}  y={frame_y:.2f}\n")
         self.positions_text.insert(tk.END, f"  yaw={frame_yaw:.1f}°\n")
         self.positions_text.insert(tk.END, "-" * 28 + "\n")
         self.positions_text.insert(tk.END, "Relative to reference:\n")
 
-        # Calculate and show relative positions for other objects
         for obj_name, obj_data in self.placed_objects.items():
             if obj_name == "reference":
                 continue
@@ -557,26 +483,20 @@ class CompetitionMapGUI:
             obj_type = obj_data[3]
             obj_yaw = obj_data[5]
 
-            # Calculate relative position (transform to frame coordinates)
             dx = obj_x - frame_x
             dy = obj_y - frame_y
 
-            # Rotate to frame coordinates
             rel_x = dx * math.cos(-frame_yaw_rad) - dy * math.sin(-frame_yaw_rad)
             rel_y = dx * math.sin(-frame_yaw_rad) + dy * math.cos(-frame_yaw_rad)
 
-            # Get Z value
             z_val = self.DEFAULT_Z.get(obj_name, 0.0)
 
-            # Show relative position for all objects
             self.positions_text.insert(tk.END, f"\n{obj_name}:\n")
             self.positions_text.insert(tk.END, f"  x={rel_x:.2f}  y={rel_y:.2f}\n")
             self.positions_text.insert(tk.END, f"  z={z_val:.2f}\n")
 
-            # Also show yaw for line/frame objects
             if obj_type in ("line", "frame"):
                 rel_yaw = obj_yaw - frame_yaw
-                # Normalize to -180 to 180
                 while rel_yaw > 180:
                     rel_yaw -= 360
                 while rel_yaw < -180:
@@ -630,15 +550,12 @@ class CompetitionMapGUI:
             obj_type = obj_data[3]
             obj_yaw = obj_data[5]
 
-            # Calculate relative position
             dx = obj_x - ref_x
             dy = obj_y - ref_y
 
-            # Rotate to reference frame coordinates
             rel_x = dx * math.cos(-ref_yaw_rad) - dy * math.sin(-ref_yaw_rad)
             rel_y = dx * math.sin(-ref_yaw_rad) + dy * math.cos(-ref_yaw_rad)
 
-            # Calculate relative yaw
             rel_yaw = obj_yaw - ref_yaw
             while rel_yaw > 180:
                 rel_yaw -= 360
@@ -656,7 +573,6 @@ class CompetitionMapGUI:
 
     def send_to_vehicle(self):
         """Send object positions to vehicle via SetPremap service"""
-        # Check if reference is placed
         if "reference" not in self.placed_objects:
             messagebox.showerror("Error", "Place reference frame first!")
             return
@@ -667,7 +583,6 @@ class CompetitionMapGUI:
             messagebox.showwarning("Warning", "No objects placed (except reference)")
             return
 
-        # Check ROS connection
         if not self.service_connected:
             messagebox.showerror(
                 "Error", "ROS service not connected!\nMake sure ROS master is running."
@@ -675,17 +590,13 @@ class CompetitionMapGUI:
             return
 
         try:
-            # Create service request
             req = SetPremapRequest()
             req.reference_frame = self.REFERENCE_FRAME
 
-            # Only send torpedo, bin, octagon (gate is excluded)
             allowed_objects = ["torpedo", "bin", "octagon"]
             sent_count = 0
 
-            # Add each object
             for obj_name, pos_data in relative_positions.items():
-                # Skip objects not in allowed list
                 if obj_name not in allowed_objects:
                     rospy.loginfo(f"Skipping '{obj_name}' (not sent to vehicle)")
                     continue
@@ -693,12 +604,10 @@ class CompetitionMapGUI:
                 obj_pose = ObjectPose()
                 obj_pose.label = obj_name
 
-                # Set position
                 obj_pose.pose.position.x = pos_data["x"]
                 obj_pose.pose.position.y = pos_data["y"]
                 obj_pose.pose.position.z = pos_data["z"]
 
-                # Convert yaw to quaternion (roll=0, pitch=0)
                 yaw_rad = math.radians(pos_data["yaw"])
                 q = quaternion_from_euler(0, 0, yaw_rad)
                 obj_pose.pose.orientation.x = q[0]
@@ -715,7 +624,6 @@ class CompetitionMapGUI:
                 )
                 return
 
-            # Call service
             rospy.wait_for_service(self.service_name, timeout=2.0)
             set_premap = rospy.ServiceProxy(self.service_name, SetPremap)
             resp = set_premap(req)
@@ -739,7 +647,7 @@ def main():
     rospy.init_node("competition_map_gui", anonymous=True)
 
     root = tk.Tk()
-    app = CompetitionMapGUI(root)
+    CompetitionMapGUI(root)
     root.mainloop()
 
 

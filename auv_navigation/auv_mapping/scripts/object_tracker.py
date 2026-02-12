@@ -21,7 +21,7 @@ from auv_msgs.srv import SetPremap, SetPremapResponse
 import tf2_ros
 import tf2_geometry_msgs
 from geometry_msgs.msg import PointStamped
-from tf.transformations import quaternion_multiply, quaternion_slerp, quaternion_inverse
+from tf.transformations import quaternion_multiply, quaternion_slerp
 
 
 class ObjectTracker:
@@ -47,13 +47,10 @@ class ObjectTracker:
         )
         self.slalom_labels = ["red_pipe_link", "white_pipe_link"]
         self.trackers: Dict[str, Tracker] = {}
-        self.orientations: Dict[int, np.ndarray] = (
-            {}
-        )  # track_id -> quaternion [x,y,z,w]
+        self.orientations: Dict[int, np.ndarray] = {}
         self.orientation_alpha = rospy.get_param("~orientation_alpha", 0.2)
         self.lock = threading.Lock()
 
-        # Profiling stats (reset every log interval)
         self.stats_lock = threading.Lock()
         self.stats = {
             "callback_count": 0,
@@ -101,7 +98,6 @@ class ObjectTracker:
     def get_or_create_tracker(self, label: str) -> Tracker:
         """Get existing tracker for label or create a new one."""
         if label not in self.trackers:
-            # Tighter threshold for slalom gates
             threshold = (
                 self.slalom_distance_threshold
                 if label in self.slalom_labels
@@ -172,7 +168,6 @@ class ObjectTracker:
 
         t_end = time.perf_counter()
 
-        # Accumulate stats
         with self.stats_lock:
             self.stats["callback_count"] += 1
             self.stats["callback_time_sum"] += (t_end - t_start) * 1000
@@ -214,7 +209,6 @@ class ObjectTracker:
             )
             return None
 
-        # Transform position
         point_stamped = PointStamped()
         point_stamped.header.frame_id = parent_frame
         point_stamped.header.stamp = stamp
@@ -225,7 +219,6 @@ class ObjectTracker:
             point_stamped, tf_transform
         )
 
-        # Transform rotation: q_world = q_tf * q_local
         tf_rot = tf_transform.transform.rotation
         local_rot = transform.rotation
         q_tf = np.array([tf_rot.x, tf_rot.y, tf_rot.z, tf_rot.w])
@@ -265,7 +258,6 @@ class ObjectTracker:
 
         t_end = time.perf_counter()
 
-        # Accumulate stats
         with self.stats_lock:
             self.stats["broadcast_count"] += 1
             self.stats["broadcast_time_sum"] += (t_end - t_start) * 1000
@@ -282,7 +274,6 @@ class ObjectTracker:
 
         return tracks_by_label
 
-    # TODO: remove p_ prefix
     def _get_frame_name(self, label: str, idx: int) -> str:
         """Assign frame name. Prefixed with 'p_' to distinguish from legacy."""
         if idx == 0:
@@ -301,7 +292,6 @@ class ObjectTracker:
         est = obj.estimate[0]
         tf_msg.transform.translation = Vector3(x=est[0], y=est[1], z=est[2])
 
-        # Use filtered orientation if available
         track_id = obj.id
         if track_id in self.orientations:
             q = self.orientations[track_id]
@@ -316,6 +306,10 @@ class ObjectTracker:
         try:
             with open(filepath, "r") as f:
                 data = yaml.safe_load(f)
+
+            if data is None:
+                rospy.logwarn(f"Pre-map file is empty: {filepath}")
+                return
 
             if "objects" not in data:
                 rospy.logwarn(f"Pre-map file has no 'objects' key: {filepath}")
@@ -356,7 +350,6 @@ class ObjectTracker:
 
                 obj.hit_counter = self.hit_counter_max
 
-                # Initialize orientation from premap
                 if "orientation" in data and len(data["orientation"]) == 4:
                     self.orientations[obj.id] = np.array(data["orientation"])
                 else:
@@ -491,7 +484,6 @@ class ObjectTracker:
                 else:
                     tf_pose = obj_pose.pose
 
-                # Normalize to world frame
                 pos = tf_pose.position
                 orient = tf_pose.orientation
 
@@ -533,7 +525,6 @@ class ObjectTracker:
                 if not os.path.exists(yaml_dir):
                     os.makedirs(yaml_dir)
 
-                # Backup existing file
                 if os.path.exists(self.premap_yaml_path):
                     try:
                         with open(self.premap_yaml_path, "r") as old_f:
@@ -588,7 +579,6 @@ class ObjectTracker:
             bc_time = self.stats["broadcast_time_sum"]
             n_tracks = self.stats["total_tracks"]
 
-            # Reset
             self.stats = {
                 "callback_count": 0,
                 "callback_time_sum": 0.0,

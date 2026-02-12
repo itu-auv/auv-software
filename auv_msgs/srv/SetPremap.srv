@@ -1,7 +1,5 @@
-# Request
-string reference_frame          # Reference frame for all poses
-auv_msgs/ObjectPose[] objects   # List of expected object poses
+string reference_frame
+auv_msgs/ObjectPose[] objects
 ---
-# Response
 bool success
 string message
