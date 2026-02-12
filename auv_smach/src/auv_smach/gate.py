@@ -188,7 +188,7 @@ class NavigateThroughGateState(smach.State):
                     "succeeded": (
                         "CALIFORNIA_ROLL"
                         if self.roll
-                        else ("TWO_YAW_STATE" if self.yaw else "DENEME")
+                        else ("TWO_YAW_STATE" if self.yaw else "FOCUS_ONLY_GATE")
                     ),
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -201,7 +201,7 @@ class NavigateThroughGateState(smach.State):
                     roll_torque=50.0, gate_look_at_frame=self.gate_look_at_frame
                 ),
                 transitions={
-                    "succeeded": "DENEME",
+                    "succeeded": "FOCUS_ONLY_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -210,14 +210,13 @@ class NavigateThroughGateState(smach.State):
                 "TWO_YAW_STATE",
                 TwoYawState(yaw_frame=self.gate_search_frame),
                 transitions={
-                    "succeeded": "DENEME",
+                    "succeeded": "FOCUS_ONLY_GATE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
             smach.StateMachine.add(
-                "DENEME",
+                "FOCUS_ONLY_GATE",
                 SetDetectionFocusState(focus_object="gate"),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -225,7 +224,6 @@ class NavigateThroughGateState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
             smach.StateMachine.add(
                 "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=False),
