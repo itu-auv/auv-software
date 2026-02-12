@@ -4,9 +4,9 @@
 #include <vector>
 
 #include "auv_control/thruster_allocation.h"
-#include "std_msgs/UInt16MultiArray.h"
-#include "sensor_msgs/BatteryState.h"
 #include "ros/ros.h"
+#include "sensor_msgs/BatteryState.h"
+#include "std_msgs/UInt16MultiArray.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
@@ -51,7 +51,8 @@ class ThrusterManagerROS {
     power_sub_ =
         nh_.subscribe("power", 1, &ThrusterManagerROS::power_callback, this);
 
-    drive_pub_ = nh_.advertise<std_msgs::UInt16MultiArray>("board/drive_pulse", 1);
+    drive_pub_ =
+        nh_.advertise<std_msgs::UInt16MultiArray>("board/drive_pulse", 1);
   }
 
   void spin() {
@@ -137,7 +138,9 @@ class ThrusterManagerROS {
     latest_wrench_time_ = ros::Time::now();
   }
 
-  void power_callback(const sensor_msgs::BatteryState &msg) { latest_power_ = msg; }
+  void power_callback(const sensor_msgs::BatteryState &msg) {
+    latest_power_ = msg;
+  }
 
   uint16_t wrench_to_drive(double wrench, double voltage) {
     if (std::abs(wrench) < min_wrench_) {
