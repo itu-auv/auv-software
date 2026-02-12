@@ -189,7 +189,6 @@ class ObjectTracker:
     def _transform_pose_to_world(
         self, transform, parent_frame: str, stamp: rospy.Time
     ) -> tuple:
-        """Transform position and rotation from parent_frame to world_frame."""
         try:
             tf_transform = self.tf_buffer.lookup_transform(
                 self.world_frame,
@@ -302,7 +301,6 @@ class ObjectTracker:
         return tf_msg
 
     def _load_premap(self, filepath: str):
-        """Load pre-map YAML file for indexing reference."""
         try:
             with open(filepath, "r") as f:
                 data = yaml.safe_load(f)
@@ -315,16 +313,70 @@ class ObjectTracker:
                 rospy.logwarn(f"Pre-map file has no 'objects' key: {filepath}")
                 return
 
+            source_frame = data.get("reference_frame", self.world_frame)
+            needs_transform = source_frame != self.world_frame
+            transform_stamped = None
+
+            if needs_transform:
+                rospy.loginfo(
+                    f"Premap reference_frame='{source_frame}' differs from "
+                    f"world_frame='{self.world_frame}', waiting for TF..."
+                )
+                try:
+                    transform_stamped = self.tf_buffer.lookup_transform(
+                        self.world_frame,
+                        source_frame,
+                        rospy.Time(0),
+                        rospy.Duration(10.0),
+                    )
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ExtrapolationException,
+                    tf2_ros.ConnectivityException,
+                ) as e:
+                    rospy.logerr(
+                        f"Cannot transform premap from '{source_frame}' to "
+                        f"'{self.world_frame}': {e}. Skipping premap load."
+                    )
+                    return
+
             for label, obj_data in data["objects"].items():
                 pos = obj_data.get("position", [0, 0, 0])
-                orient = obj_data.get("orientation", [0, 0, 0])
+                orient = obj_data.get("orientation", [0, 0, 0, 1])
+
+                if transform_stamped:
+                    p_stamped = PoseStamped()
+                    p_stamped.header.frame_id = source_frame
+                    p_stamped.pose.position.x = pos[0]
+                    p_stamped.pose.position.y = pos[1]
+                    p_stamped.pose.position.z = pos[2]
+                    if len(orient) == 4:
+                        p_stamped.pose.orientation.x = orient[0]
+                        p_stamped.pose.orientation.y = orient[1]
+                        p_stamped.pose.orientation.z = orient[2]
+                        p_stamped.pose.orientation.w = orient[3]
+                    else:
+                        p_stamped.pose.orientation.w = 1.0
+
+                    tf_pose = tf2_geometry_msgs.do_transform_pose(
+                        p_stamped, transform_stamped
+                    ).pose
+                    pos = [tf_pose.position.x, tf_pose.position.y, tf_pose.position.z]
+                    orient = [
+                        tf_pose.orientation.x,
+                        tf_pose.orientation.y,
+                        tf_pose.orientation.z,
+                        tf_pose.orientation.w,
+                    ]
+
                 self.premap[label] = {
                     "position": np.array(pos),
                     "orientation": np.array(orient),
                 }
 
+            frame_msg = f" (transformed from {source_frame})" if needs_transform else ""
             rospy.loginfo(
-                f"Loaded pre-map with {len(self.premap)} objects from {filepath}"
+                f"Loaded pre-map with {len(self.premap)} objects from {filepath}{frame_msg}"
             )
             self._initialize_tracks_from_premap()
         except Exception as e:
