@@ -36,12 +36,12 @@
   </include> -->
 
   <!-- launch expansion bridge -->
-  <include file="$(find auv_bringup)/launch/inc/boards/start_expansion_board_bridge.launch.xml">
+  <!-- <include file="$(find auv_bringup)/launch/inc/boards/start_expansion_board_bridge.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="baudrate" value="921600" />
     <arg name="port" value="/dev/auv_expansion_board" />
     <arg name="virtual_port" value="$(arg dvl_virtual_port)" />
-  </include>
+  </include> -->
 
   <!-- launch dvl driver -->
   <include file="$(find auv_bringup)/launch/inc/sensors/start_wayfinder_dvl_driver.launch.xml">
