@@ -593,14 +593,9 @@ class CompetitionMapGUI:
             req = SetPremapRequest()
             req.reference_frame = self.REFERENCE_FRAME
 
-            allowed_objects = ["torpedo", "bin", "octagon"]
             sent_count = 0
 
             for obj_name, pos_data in relative_positions.items():
-                if obj_name not in allowed_objects:
-                    rospy.loginfo(f"Skipping '{obj_name}' (not sent to vehicle)")
-                    continue
-
                 obj_pose = ObjectPose()
                 obj_pose.label = obj_name
 
@@ -619,9 +614,7 @@ class CompetitionMapGUI:
                 sent_count += 1
 
             if sent_count == 0:
-                messagebox.showwarning(
-                    "Warning", "No objects to send (only torpedo/bin/octagon are sent)"
-                )
+                messagebox.showwarning("Warning", "No objects placed to send")
                 return
 
             rospy.wait_for_service(self.service_name, timeout=2.0)
