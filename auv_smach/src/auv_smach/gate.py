@@ -1,4 +1,3 @@
-from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -82,7 +81,8 @@ class NavigateThroughGateState(smach.State):
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = get_tf_buffer()
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.roll = rospy.get_param("~roll", True)
         self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip_direction = rospy.get_param("~coin_flip", "none")
@@ -111,7 +111,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
-                    depth=-0.5,
+                    depth=self.roll_depth
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -164,10 +164,8 @@ class NavigateThroughGateState(smach.State):
                 },
             )
             smach.StateMachine.add(
-                "SET_ROLL_DEPTH",
-                SetDepthState(
-                    depth=self.roll_depth,
-                ),
+                "SET_DETECTION_FOCUS_GATE",
+                SetDetectionFocusState(focus_object="all"),
                 transitions={
                     "succeeded": "AIM_AT_GATE_TARGET",
                     "preempted": "preempted",
@@ -218,52 +216,8 @@ class NavigateThroughGateState(smach.State):
             )
 
             smach.StateMachine.add(
-                "SET_GATE_TRAJECTORY_DEPTH",
-                SetDepthState(depth=gate_search_depth),
-                transitions={
-                    "succeeded": "LOOK_AT_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "LOOK_AT_GATE",
-                SearchForPropState(
-                    look_at_frame=self.gate_look_at_frame,
-                    alignment_frame=self.gate_search_frame,
-                    full_rotation=False,
-                    set_frame_duration=3.0,
-                    source_frame="taluy/base_link",
-                    rotation_speed=0.2,
-                ),
-                transitions={
-                    "succeeded": "SELAM_TO_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SELAM_TO_GATE",
-                LookAroundState(
-                    angle_offset=0.5,
-                    max_angular_velocity=0.15,
-                ),
-                transitions={
-                    "succeeded": "LOOK_AT_GATE_FOR_TRAJECTORY",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "LOOK_AT_GATE_FOR_TRAJECTORY",
-                SearchForPropState(
-                    look_at_frame=self.gate_look_at_frame,
-                    alignment_frame=self.gate_search_frame,
-                    full_rotation=False,
-                    set_frame_duration=7.0,
-                    source_frame="taluy/base_link",
-                    rotation_speed=0.2,
-                ),
+                "DENEME",
+                SetDetectionFocusState(focus_object="gate"),
                 transitions={
                     "succeeded": "DISABLE_GATE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",

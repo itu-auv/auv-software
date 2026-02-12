@@ -347,10 +347,7 @@ class TwoRollState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "SET_ROLL_DEPTH",
-                SetDepthState(
-                    depth=-0.8,
-                    sleep_duration=5.0,
-                ),
+                SetDepthState(depth=-0.8),
                 transitions={
                     "succeeded": "ALIGN_TO_LOOK_AT_GATE",
                     "preempted": "preempted",
