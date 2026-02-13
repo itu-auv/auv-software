@@ -101,7 +101,7 @@ def load_config(yaml_path: str) -> dict:
 
 def build_id_tf_map(camera_config: dict) -> dict:
     """Build {detection_id: link_name} map from camera config's id_tf_map.
-    
+
     YAML keys are strings, so we convert them to int.
     """
     raw_map = camera_config.get("id_tf_map", {})
@@ -160,9 +160,7 @@ def transform_to_odom_and_publish(
     transform_stamped_msg.header.frame_id = camera_frame
     transform_stamped_msg.child_frame_id = child_frame_id
 
-    transform_stamped_msg.transform.translation = Vector3(
-        offset_x, offset_y, distance
-    )
+    transform_stamped_msg.transform.translation = Vector3(offset_x, offset_y, distance)
     transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
 
     try:
@@ -203,12 +201,8 @@ def calculate_intersection_with_plane(point1_odom, point2_odom, z_plane):
             point2_odom.point.z - point1_odom.point.z
         )
         if 0 <= t <= 1:
-            x = point1_odom.point.x + t * (
-                point2_odom.point.x - point1_odom.point.x
-            )
-            y = point1_odom.point.y + t * (
-                point2_odom.point.y - point1_odom.point.y
-            )
+            x = point1_odom.point.x + t * (point2_odom.point.x - point1_odom.point.x)
+            y = point1_odom.point.y + t * (point2_odom.point.y - point1_odom.point.y)
             return x, y, z_plane
         else:
             return None

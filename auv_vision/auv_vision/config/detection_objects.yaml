@@ -34,16 +34,16 @@ cameras:
 
 # Prop dimensions for distance estimation (link_name -> dimensions)
 props:
-  gate_sawfish_link:        { name: "sawfish",       real_height: 0.3048,  real_width: 0.3048 }
-  gate_shark_link:          { name: "shark",          real_height: 0.3048,  real_width: 0.3048 }
-  torpedo_map_link:         { name: "torpedo_map",    real_height: 0.6096,  real_width: 0.6096 }
-  torpedo_hole_link:        { name: "torpedo_hole",   real_height: 0.125,   real_width: 0.125 }
-  torpedo_hole_shark_link:  { name: "torpedo_hole",   real_height: 0.125,   real_width: 0.125 }
-  torpedo_hole_sawfish_link: { name: "torpedo_hole",  real_height: 0.125,   real_width: 0.125 }
-  bin_whole_link:           { name: "bin_whole",       real_height: null,    real_width: null }
-  octagon_link:             { name: "octagon",         real_height: 0.74,    real_width: 0.91 }
-  bin_shark_link:           { name: "bin_shark",       real_height: 0.30480, real_width: 0.30480 }
-  bin_sawfish_link:         { name: "bin_sawfish",     real_height: 0.30480, real_width: 0.30480 }
+  gate_sawfish_link: {name: "sawfish", real_height: 0.3048, real_width: 0.3048}
+  gate_shark_link: {name: "shark", real_height: 0.3048, real_width: 0.3048}
+  torpedo_map_link: {name: "torpedo_map", real_height: 0.6096, real_width: 0.6096}
+  torpedo_hole_link: {name: "torpedo_hole", real_height: 0.125, real_width: 0.125}
+  torpedo_hole_shark_link: {name: "torpedo_hole", real_height: 0.125, real_width: 0.125}
+  torpedo_hole_sawfish_link: {name: "torpedo_hole", real_height: 0.125, real_width: 0.125}
+  bin_whole_link: {name: "bin_whole", real_height: null, real_width: null}
+  octagon_link: {name: "octagon", real_height: 0.74, real_width: 0.91}
+  bin_shark_link: {name: "bin_shark", real_height: 0.30480, real_width: 0.30480}
+  bin_sawfish_link: {name: "bin_sawfish", real_height: 0.30480, real_width: 0.30480}
 
 # Front camera focus service object groups (keyed by YOLO detection ID)
 object_groups:

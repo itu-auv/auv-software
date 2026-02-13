@@ -12,7 +12,14 @@ from utils.detection_utils import (
 
 class TorpedoCameraHandler:
     def __init__(
-        self, camera_config, id_tf_map, props, calibration, tf_buffer, publishers, shared_state
+        self,
+        camera_config,
+        id_tf_map,
+        props,
+        calibration,
+        tf_buffer,
+        publishers,
+        shared_state,
     ):
         self.camera_ns = camera_config["ns"]
         self.camera_frame = camera_config["frame"]
@@ -173,7 +180,15 @@ class TorpedoCameraHandler:
         )
 
 
-def create_handler(camera_config, id_tf_map, props, calibration, tf_buffer, publishers, shared_state):
+def create_handler(
+    camera_config, id_tf_map, props, calibration, tf_buffer, publishers, shared_state
+):
     return TorpedoCameraHandler(
-        camera_config, id_tf_map, props, calibration, tf_buffer, publishers, shared_state
+        camera_config,
+        id_tf_map,
+        props,
+        calibration,
+        tf_buffer,
+        publishers,
+        shared_state,
     )

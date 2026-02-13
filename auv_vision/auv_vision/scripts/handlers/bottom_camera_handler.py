@@ -12,7 +12,14 @@ from utils.detection_utils import (
 
 class BottomCameraHandler:
     def __init__(
-        self, camera_config, id_tf_map, props, calibration, tf_buffer, publishers, shared_state
+        self,
+        camera_config,
+        id_tf_map,
+        props,
+        calibration,
+        tf_buffer,
+        publishers,
+        shared_state,
     ):
         self.camera_ns = camera_config["ns"]
         self.camera_frame = camera_config["frame"]
@@ -50,10 +57,14 @@ class BottomCameraHandler:
             if detection_id in self.altitude_distance_ids:
                 distance = self.shared_state.get("altitude")
                 if distance is None:
-                    rospy.logwarn_throttle(5, "No altitude data for bottom camera bin detection")
+                    rospy.logwarn_throttle(
+                        5, "No altitude data for bottom camera bin detection"
+                    )
                     continue
             else:
-                if not check_inside_image(detection, self.image_width, self.image_height):
+                if not check_inside_image(
+                    detection, self.image_width, self.image_height
+                ):
                     continue
                 distance = prop.estimate_distance(
                     detection.bbox.size_y,
@@ -92,7 +103,15 @@ class BottomCameraHandler:
             )
 
 
-def create_handler(camera_config, id_tf_map, props, calibration, tf_buffer, publishers, shared_state):
+def create_handler(
+    camera_config, id_tf_map, props, calibration, tf_buffer, publishers, shared_state
+):
     return BottomCameraHandler(
-        camera_config, id_tf_map, props, calibration, tf_buffer, publishers, shared_state
+        camera_config,
+        id_tf_map,
+        props,
+        calibration,
+        tf_buffer,
+        publishers,
+        shared_state,
     )
