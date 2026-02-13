@@ -179,7 +179,7 @@ class OctagonTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_OCTAGON_INITIAL_DEPTH",
-                SetDepthState(depth=-1.2, sleep_duration=4.0),
+                SetDepthState(depth=-1.2),
                 transitions={
                     "succeeded": "FOCUS_ON_OCTAGON",
                     "preempted": "preempted",
@@ -249,7 +249,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_OCTAGON_DEPTH",
-                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
+                SetDepthState(depth=octagon_depth),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
@@ -528,7 +528,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SURFACE_TO_ANIMAL_DEPTH",
-                SetDepthState(depth=-0.43, sleep_duration=4.0),
+                SetDepthState(depth=-0.43),
                 transitions={
                     "succeeded": "SET_DETECTION_FOCUS_TO_ANIMALS",
                     "preempted": "preempted",
@@ -584,7 +584,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SURFACING",
-                SetDepthState(depth=-0.05, sleep_duration=7.0),
+                SetDepthState(depth=-0.05),
                 transitions={
                     "succeeded": "SET_FINAL_DEPTH",
                     "preempted": "preempted",
@@ -593,7 +593,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_FINAL_DEPTH",
-                SetDepthState(depth=octagon_depth, sleep_duration=4.0),
+                SetDepthState(depth=octagon_depth),
                 transitions={
                     "succeeded": "TRANSMIT_ACOUSTIC_5",
                     "preempted": "preempted",
