@@ -263,8 +263,13 @@ class BottomCameraSegmentAngleNode(object):
                 vehicle_vy=vehicle_vy,
             )
             self._publish_debug_image(
-                mask, (vx, vy, x0, y0), angle, median_thickness_px,
-                p_start, p_end, segment_length
+                mask,
+                (vx, vy, x0, y0),
+                angle,
+                median_thickness_px,
+                p_start,
+                p_end,
+                segment_length,
             )
 
     def _publish_debug_info(
@@ -333,16 +338,34 @@ class BottomCameraSegmentAngleNode(object):
         txt_length = f"Length: {segment_length:.1f} px"
 
         cv2.putText(
-            vis, txt_angle, (8, 22),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2, cv2.LINE_AA,
+            vis,
+            txt_angle,
+            (8, 22),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 255),
+            2,
+            cv2.LINE_AA,
         )
         cv2.putText(
-            vis, txt_thickness, (8, 44),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA,
+            vis,
+            txt_thickness,
+            (8, 44),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 0),
+            2,
+            cv2.LINE_AA,
         )
         cv2.putText(
-            vis, txt_length, (8, 66),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2, cv2.LINE_AA,
+            vis,
+            txt_length,
+            (8, 66),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 0, 255),
+            2,
+            cv2.LINE_AA,
         )
 
         try:
