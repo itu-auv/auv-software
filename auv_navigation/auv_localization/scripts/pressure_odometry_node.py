@@ -46,6 +46,15 @@ class PressureToOdom:
         )
         self.pool_depth = rospy.get_param("/env/pool_depth", 2.2)
 
+        self.odom_frame = rospy.get_param("~odom_frame", "odom")
+        self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
+        self.pressure_sensor_frame = rospy.get_param(
+            "~pressure_sensor_frame", "taluy/base_link/external_pressure_sensor_link"
+        )
+        self.dvl_frame = rospy.get_param(
+            "~dvl_frame", "taluy/base_link/dvl_link"
+        )
+
         # Validation thresholds
         self.min_valid_altitude = rospy.get_param("~min_valid_altitude", 0.3)
         self.max_valid_altitude = rospy.get_param(
@@ -77,8 +86,8 @@ class PressureToOdom:
     def _initialize_odometry_message(self):
         """Initialize and configure the odometry message"""
         odom_msg = Odometry()
-        odom_msg.header.frame_id = "odom"
-        odom_msg.child_frame_id = "taluy/base_link"
+        odom_msg.header.frame_id = self.odom_frame
+        odom_msg.child_frame_id = self.base_link_frame
 
         # Initialize covariances
         odom_msg.pose.covariance = np.zeros(36).tolist()
@@ -118,7 +127,7 @@ class PressureToOdom:
         # Try to fetch and cache the TF once
         if getattr(self, cache_attr) is None:
             try:
-                trans, _ = self.transformer.get_transform("taluy/base_link", frame_id)
+                trans, _ = self.transformer.get_transform(self.base_link_frame, frame_id)
                 arr = np.array(trans)
                 # flatten any nested structure to 1D [x, y, z]
                 setattr(self, cache_attr, arr.flatten())
@@ -137,7 +146,7 @@ class PressureToOdom:
         # If no IMU data arrived yet, use the static Z offset
         if self.imu_data is None:
             rospy.logwarn_throttle(
-                10, "No IMU data received yet. Using default orientation."
+                10, f"No IMU data received yet. {self.odom_frame} Using default orientation."
             )
             return float(translation[2])
 
@@ -151,14 +160,14 @@ class PressureToOdom:
     def get_base_to_pressure_height(self):
         """Get pressure sensor height with respect to base_link"""
         return self._get_sensor_height(
-            "taluy/base_link/external_pressure_sensor_link",
+            self.pressure_sensor_frame,
             "base_to_pressure_translation",
         )
 
     def get_base_to_dvl_height(self):
         """Get DVL height with respect to base_link"""
         return self._get_sensor_height(
-            "taluy/base_link/dvl_link", "base_to_dvl_translation"
+            self.dvl_frame, "base_to_dvl_translation"
         )
 
     def depth_callback(self, msg):

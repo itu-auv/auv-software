@@ -20,6 +20,10 @@ class ImuToOdom:
         self.imu_calibration_data_path = rospy.get_param(
             "~imu_calibration_path", "config/imu_calibration_data.yaml"
         )
+
+        self.odom_frame = rospy.get_param("~odom_frame", "odom")
+        self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
+
         # Subscribers and Publishers
         self.xsens_imu_subscriber = rospy.Subscriber(
             "imu/data", Imu, self.xsens_imu_callback, tcp_nodelay=True
@@ -34,8 +38,8 @@ class ImuToOdom:
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
-        self.odom_msg.header.frame_id = "odom"
-        self.odom_msg.child_frame_id = "taluy/base_link"  # TODO: NO absolute frames
+        self.odom_msg.header.frame_id = self.odom_frame
+        self.odom_msg.child_frame_id = self.base_link_frame
 
         # Build default covariance matrices
         self.default_pose_cov = np.zeros((6, 6))

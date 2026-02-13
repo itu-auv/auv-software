@@ -32,6 +32,10 @@
         name="world_to_odom_publisher_node"
         args="0 0 0 0 0 0 $(arg reference_frame) odom" />
 
+    <node pkg="tf2_ros" type="static_transform_publisher"
+        name="world_to_odom_vectornav_publisher_node"
+        args="0 0 0 0 0 0 $(arg reference_frame) odom_vectornav" />
+
     <group ns="$(arg namespace)">
         <param name="robot_description"
             command="$(find xacro)/xacro '$(find taluy_sim_description)/urdf/taluy_sim.urdf.xacro' --inorder

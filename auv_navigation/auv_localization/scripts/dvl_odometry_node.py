@@ -33,6 +33,9 @@ class DvlToOdom:
             "sensors/dvl/covariance/linear_z", 0.00005
         )
 
+        self.odom_frame = rospy.get_param("~odom_frame", "odom")
+        self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
+
         # Subscribers and Publishers
         self.dvl_velocity_subscriber = message_filters.Subscriber(
             "dvl/velocity_raw", Twist, tcp_nodelay=True
@@ -56,8 +59,8 @@ class DvlToOdom:
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
-        self.odom_msg.header.frame_id = "odom"
-        self.odom_msg.child_frame_id = "taluy/base_link"
+        self.odom_msg.header.frame_id = self.odom_frame
+        self.odom_msg.child_frame_id = self.base_link_frame
 
         # Initialize covariances with default values
         self.odom_msg.pose.covariance = np.zeros(36).tolist()

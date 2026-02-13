@@ -12,5 +12,18 @@
       <param name="disabled_at_startup" value="$(eval not arg('sim'))" type="bool"/>
       <param name="frequency" value="$(arg control_rate)" type="double"/>
     </node>
+    <node pkg="robot_localization" type="ekf_localization_node" name="auv_localization_node_vectornav" clear_params="true">
+      <rosparam command="load" file="$(find auv_bringup)/config/ekf_vectornav.yaml"/>
+      <remap from="odometry/filtered" to="odometry_vectornav"/>
+      <remap from="accel/filtered" to="acceleration_vectornav"/>
+      <param name="disabled_at_startup" value="$(eval not arg('sim'))" type="bool"/>
+      <param name="frequency" value="$(arg control_rate)" type="double"/>
+    </node>
+
+    <!-- separate vectornav base_link frame this is actually not the right place but just for testing -->
+    <param name="robot_description_vectornav" command="xacro $(find taluy_description)/urdf/auv_vectornav.urdf.xacro"/>
+    <node name="robot_state_publisher_vectornav" pkg="robot_state_publisher" type="robot_state_publisher">
+      <remap from="robot_description" to="robot_description_vectornav"/>
+    </node>
   </group>
 </launch>

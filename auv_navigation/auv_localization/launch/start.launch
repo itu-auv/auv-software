@@ -2,12 +2,11 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="rate" default="20" />
-  <arg name="imu_type" default="xsens" />
 
   <group ns="$(arg namespace)">
     <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" />
 
-    <node if="$(eval arg('imu_type') == 'xsens')" pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
+    <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
       <remap from="imu/data" to="sensors/imu/data" />
       <remap from="imu_mainboard/data" to="sensors/imu_mainboard/data" />
       <remap from="odom_imu" to="localization/odom_imu" />
@@ -15,11 +14,12 @@
       <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
     </node>
 
-    <node if="$(eval arg('imu_type') == 'vectornav')" pkg="auv_localization" type="imu_odometry_vectornav_node.py" name="vectornav_imu_to_odom" output="screen">
-      <remap from="imu/data" to="/vectornav/IMU" />
+    <node pkg="auv_localization" type="imu_odometry_node_vectornav.py" name="imu_to_odom_vectornav" output="screen">
+      <!-- TODO(@baykara): change -->
+      <remap from="imu/data" to="sensors/imu/data" />
       <remap from="odom_vectornav" to="localization/odom_vectornav" />
-      <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
     </node>
+
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
       output="screen">
       <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" command="load" />
@@ -28,6 +28,21 @@
       <remap from="imu/data" to="sensors/imu/data" />
       <remap from="dvl/altitude" to="sensors/dvl/altitude"/>
     </node>
+
+    <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_vectornav"
+      output="screen">
+      <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" command="load" />
+      <remap from="depth" to="sensors/external_pressure_sensor/depth" />
+      <remap from="odom_pressure" to="localization/odom_pressure_vectornav" />
+      <!-- TODO(@baykara): change -->
+      <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="dvl/altitude" to="sensors/dvl/altitude"/>
+      <param name="odom_frame" value="odom_vectornav" />
+      <param name="base_link_frame" value="taluy/base_link_vectornav" />
+      <param name="pressure_sensor_frame" value="taluy/base_link_vectornav/external_pressure_sensor_link" />
+      <param name="dvl_frame" value="taluy/base_link_vectornav/dvl_link" />
+    </node>
+
     <node pkg="auv_localization" type="dvl_odometry_node.py" name="dvl_to_odom_node" output="screen">
       <remap from="sensors/dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
       <remap from="odom_dvl" to="localization/odom_dvl" />
@@ -36,6 +51,17 @@
       <remap from="cmd_vel" to="cmd_vel" />
       <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable" />
       <param name="cmdvel_tau" value="0.2" />
+    </node>
+
+    <node pkg="auv_localization" type="dvl_odometry_node.py" name="dvl_to_odom_vectornav" output="screen">
+      <remap from="dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
+      <remap from="dvl/is_valid" to="sensors/dvl/is_valid" />
+      <remap from="odom_dvl" to="localization/odom_dvl_vectornav" />
+      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_vectornav/enable" />
+      <param name="cmdvel_tau" value="0.2" />
+      <param name="odom_frame" value="odom_vectornav" />
+      <param name="base_link_frame" value="taluy/base_link_vectornav" />
     </node>
 
     <!-- Euler Orientation Publisher Node -->

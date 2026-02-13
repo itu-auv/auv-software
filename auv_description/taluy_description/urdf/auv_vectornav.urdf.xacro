@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="taluy_vectornav">
+  <!-- Minimal URDF for VectorNav EKF comparison: separate TF tree -->
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/bar30.urdf.xacro"/>
+  <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors/wayfinder_dvl.urdf.xacro"/>
+
+  <xacro:property name="namespace" value="taluy"/>
+
+  <!-- Root link: VectorNav base_link (same inertial as taluy/base_link) -->
+  <link name="${namespace}/base_link_vectornav">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="25.37"/>
+      <inertia ixx="0.1" iyy="0.1" izz="0.1" ixy="0.01" iyz="0.01" ixz="0.1"/>
+    </inertial>
+  </link>
+
+  <!-- Sensors at same positions as main URDF, parented to base_link_vectornav -->
+  <xacro:bar30 name="${namespace}/base_link_vectornav/external_pressure_sensor" parent="${namespace}/base_link_vectornav" position="0 0 0.079" orientation="0 0 0" use_models="false"/>
+  <xacro:wayfinder_dvl name="${namespace}/base_link_vectornav/dvl" parent="${namespace}/base_link_vectornav" position="0.2 0 -0.11" orientation="0 0 0" use_models="false"/>
+</robot>
