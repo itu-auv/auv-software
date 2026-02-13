@@ -725,6 +725,24 @@ class SetDetectionState(smach_ros.ServiceState):
         )
 
 
+
+class SetDetectionFocusBottomState(smach_ros.ServiceState):
+    """
+    Calls the service to set the focus for the bottom camera detections.
+    """
+
+    def __init__(self, focus_object: str):
+        service_name = "set_bottom_camera_focus"
+        request = SetDetectionFocusRequest(focus_object=focus_object)
+
+        super(SetDetectionFocusBottomState, self).__init__(
+            service_name,
+            SetDetectionFocus,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
 class SetDetectionFocusState(smach_ros.ServiceState):
     """
     Calls the service to set the focus for the front camera detections.

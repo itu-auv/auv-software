@@ -7,6 +7,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
     SetDetectionFocusState,
+    SetDetectionFocusBottomState,
     DynamicPathState,
     DynamicPathWithTransformCheck,
     AlignFrame,
@@ -288,6 +289,15 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
+                transitions={
+                    "succeeded": "SET_BOTTOM_FOCUS_OCTAGON",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BOTTOM_FOCUS_OCTAGON",
+                SetDetectionFocusBottomState(focus_object="octagon"),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
                     "preempted": "preempted",

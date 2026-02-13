@@ -181,6 +181,14 @@ class CameraDetectionNode:
             "gate"
         ]  # Allow gate by default
 
+        self.bottom_object_id_map = {
+            "bin": [0, 1],
+            "octagon": [2],
+            "all": [0, 1, 2],
+            "none": [],
+        }
+        self.active_bottom_camera_ids = self.bottom_object_id_map["bin"]
+
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
         )
@@ -301,6 +309,11 @@ class CameraDetectionNode:
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
         )
+        rospy.Service(
+            "set_bottom_camera_focus",
+            SetDetectionFocus,
+            self.handle_set_bottom_camera_focus,
+        )
 
     def dynamic_reconfigure_callback(self, config):
         if config is None:
@@ -343,6 +356,46 @@ class CameraDetectionNode:
             message = "Front camera focus set to none. Detections will be ignored."
         else:
             message = f"Front camera focus set to IDs: {self.active_front_camera_ids}"
+
+        rospy.loginfo(message)
+        return SetDetectionFocusResponse(success=True, message=message)
+
+    def handle_set_bottom_camera_focus(self, req):
+        focus_objects = [
+            obj.strip() for obj in req.focus_object.split(",") if obj.strip()
+        ]
+
+        if not focus_objects:
+            message = f"Empty focus object provided. No changes made. Available options: {list(self.bottom_object_id_map.keys())}"
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        unfound_objects = [
+            obj for obj in focus_objects if obj not in self.bottom_object_id_map
+        ]
+
+        if unfound_objects:
+            message = f"Unknown focus object(s): '{', '.join(unfound_objects)}'. Available options: {list(self.bottom_object_id_map.keys())}"
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        if "none" in focus_objects and len(focus_objects) > 1:
+            message = "Cannot specify 'none' with other focus objects."
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        all_target_ids = []
+        for focus_object in focus_objects:
+            all_target_ids.extend(self.bottom_object_id_map[focus_object])
+
+        self.active_bottom_camera_ids = list(set(all_target_ids))
+
+        if "none" in focus_objects:
+            message = "Bottom camera focus set to none. Detections will be ignored."
+        else:
+            message = (
+                f"Bottom camera focus set to IDs: {self.active_bottom_camera_ids}"
+            )
 
         rospy.loginfo(message)
         return SetDetectionFocusResponse(success=True, message=message)
@@ -685,6 +738,10 @@ class CameraDetectionNode:
             detection_id = detection.results[0].id
             if camera_source == "front_camera":
                 if detection_id not in self.active_front_camera_ids:
+                    continue
+
+            if camera_source == "bottom_camera":
+                if detection_id not in self.active_bottom_camera_ids:
                     continue
 
             if detection_id == 5:
