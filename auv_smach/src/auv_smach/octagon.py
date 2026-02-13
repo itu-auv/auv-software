@@ -369,7 +369,7 @@ class OctagonTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SET_BOTTLE_DEPTH",
-                SetDepthState(depth=-1.2, sleep_duration=15.0),
+                SetDepthState(depth=-1.2, max_velocity=0.1),
                 transitions={
                     "succeeded": "SURFACE_WITH_BOTTLE",
                     "preempted": "preempted",
@@ -519,7 +519,7 @@ class OctagonTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SURFACE_WITH_BOTTLE",
-                SetDepthState(depth=-0.3, sleep_duration=5.0),  # Close to surface
+                SetDepthState(depth=-0.3),  # Close to surface
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
