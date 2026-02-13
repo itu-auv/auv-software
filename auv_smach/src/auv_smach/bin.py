@@ -155,7 +155,7 @@ class BinSecondTrialState(smach.StateMachine):
         with self:
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_SEARCH_DEPTH",
-                SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_front_look_depth),
                 transitions={
                     "succeeded": "ALIGN_TO_SECOND_TRIAL",
                     "preempted": "preempted",
@@ -238,7 +238,7 @@ class BinSecondTrialState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_DEPTH",
-                SetDepthState(depth=bin_bottom_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_bottom_look_depth),
                 transitions={
                     "succeeded": "ALIGN_TO_SECOND_FAR_TRIAL",
                     "preempted": "preempted",
@@ -319,7 +319,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DEPTH",
-                SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_front_look_depth),
                 transitions={
                     "succeeded": "FIND_AND_AIM_BIN",
                     "preempted": "preempted",
@@ -400,7 +400,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DROP_DEPTH",
-                SetDepthState(depth=bin_bottom_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_bottom_look_depth),
                 transitions={
                     "succeeded": "ENABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
@@ -563,7 +563,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BALL_DROP_DEPTH",
-                SetDepthState(depth=-1.45, sleep_duration=3.0),
+                SetDepthState(depth=-1.45),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
                     "preempted": "preempted",
