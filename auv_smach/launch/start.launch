@@ -25,6 +25,7 @@
     <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="none" doc="Direction for coin flip: turn_left, turn_right, turn_back"/>
+    <arg name="coin_flip_odom" default="false" doc="Whether to use odom orientation for coin flip frame"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -54,6 +55,7 @@
             <param name="roll" value="$(arg roll)"/>
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
+            <param name="coin_flip_odom" value="$(arg coin_flip_odom)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
