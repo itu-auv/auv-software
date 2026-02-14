@@ -3,16 +3,16 @@
 #include <Eigen/Dense>
 #include <boost/array.hpp>
 
-#include "auv_msgs/MotorCommand.h"
-#include "auv_msgs/Power.h"
 #include "geometry_msgs/Twist.h"
 #include "nav_msgs/Odometry.h"
+#include "sensor_msgs/BatteryState.h"
 #include "sensor_msgs/FluidPressure.h"
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/Range.h"
 #include "sim_thruster_ros.h"
 #include "std_msgs/Bool.h"
 #include "std_msgs/Float32.h"
+#include "std_msgs/UInt16MultiArray.h"
 #include "std_srvs/SetBool.h"
 #include "uuv_sensor_ros_plugins_msgs/DVL.h"
 
@@ -84,16 +84,16 @@ class SimulationMockROS {
     return true;
   }
 
-  void drivePulseCallback(const auv_msgs::MotorCommand &msg) {
+  void drivePulseCallback(const std_msgs::UInt16MultiArray &msg) {
     const auto stamp = ros::Time::now();
 
-    if (msg.channels.size() < kThrusterSize) {
-      ROS_WARN("Received MotorCommand with insufficient channels.");
+    if (msg.data.size() < kThrusterSize) {
+      ROS_WARN("Received UInt16MultiArray with insufficient data.");
       return;
     }
 
     for (int i = 0; i < kThrusterSize; i++) {
-      thrusters_[i].publish(msg.channels.at(i), stamp);
+      thrusters_[i].publish(msg.data.at(i), stamp);
     }
   }
 
@@ -226,7 +226,7 @@ class SimulationMockROS {
     altitude_pub_ = nh_.advertise<std_msgs::Float32>("altitude", 1);
     velocity_raw_pub_ = nh_.advertise<geometry_msgs::Twist>("velocity_raw", 1);
     is_valid_pub_ = nh_.advertise<std_msgs::Bool>("is_valid", 1);
-    battery_sim_pub_ = nh_.advertise<auv_msgs::Power>("power", 1);
+    battery_sim_pub_ = nh_.advertise<sensor_msgs::BatteryState>("power", 1);
   }
 
   void initializeSubscribers() {
@@ -268,10 +268,12 @@ class SimulationMockROS {
                     current_draw += thruster.get_current_draw();
                   });
 
-    auv_msgs::Power battery_msg;
+    sensor_msgs::BatteryState battery_msg;
     battery_msg.voltage = battery_voltage_;
     battery_msg.current = current_draw;
-    battery_msg.power = std::fabs(battery_voltage_ * battery_current_);
+    battery_msg.power_supply_status =
+        sensor_msgs::BatteryState::POWER_SUPPLY_STATUS_DISCHARGING;
+    battery_msg.present = true;
     while (ros::ok()) {
       battery_sim_pub_.publish(battery_msg);
 
