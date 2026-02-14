@@ -16,7 +16,7 @@
       <rosparam command="load" file="$(find auv_bringup)/config/ekf_vectornav.yaml"/>
       <remap from="odometry/filtered" to="odometry_vectornav"/>
       <remap from="accel/filtered" to="acceleration_vectornav"/>
-      <param name="disabled_at_startup" value="$(eval not arg('sim'))" type="bool"/>
+      <param name="disabled_at_startup" value="false" type="bool"/>
       <param name="frequency" value="$(arg control_rate)" type="double"/>
     </node>
 

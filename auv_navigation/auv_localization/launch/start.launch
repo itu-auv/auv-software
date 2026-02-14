@@ -16,7 +16,7 @@
 
     <node pkg="auv_localization" type="imu_odometry_node_vectornav.py" name="imu_to_odom_vectornav" output="screen">
       <!-- TODO(@baykara): change -->
-      <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="imu/data" to="/vectornav/IMU" />
       <remap from="odom_vectornav" to="localization/odom_vectornav" />
     </node>
 
@@ -35,7 +35,7 @@
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="odom_pressure" to="localization/odom_pressure_vectornav" />
       <!-- TODO(@baykara): change -->
-      <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="imu/data" to="/vectornav/IMU" />
       <remap from="dvl/altitude" to="sensors/dvl/altitude"/>
       <param name="odom_frame" value="odom_vectornav" />
       <param name="base_link_frame" value="taluy/base_link_vectornav" />

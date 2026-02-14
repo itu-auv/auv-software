@@ -5,6 +5,7 @@ from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Vector3
 import numpy as np
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 import yaml
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
 
@@ -105,16 +106,16 @@ class ImuToOdom:
         # Update twist and twist covariance
         self.odom_msg.twist.twist.angular = Vector3(
             # TODO(@baykara): change
-            imu_msg.angular_velocity.x - (-0.002771656422277104),
-            imu_msg.angular_velocity.y - (0.003060116805705828),
-            imu_msg.angular_velocity.z - (0.010216753463354733),
+            imu_msg.angular_velocity.x,
+            imu_msg.angular_velocity.y,
+            imu_msg.angular_velocity.z,
         )
         self.odom_msg.twist.covariance = self.update_twist_covariance(
             imu_msg.angular_velocity_covariance
         )
 
         # Update orientation and orientation covariance (Xsens-style inversion kept)
-        self.odom_msg.pose.pose.orientation = self.invert_roll_pitch_quaternion(
+        self.odom_msg.pose.pose.orientation = (
             imu_msg.orientation
         )
         self.odom_msg.pose.covariance = self.update_pose_covariance(
@@ -132,29 +133,6 @@ class ImuToOdom:
 
         # Publish using the single publisher for this node
         self.odom_publisher.publish(self.odom_msg)
-
-    def invert_roll_pitch_quaternion(self, q):
-        """
-        Inverts the roll and pitch of a quaternion by rotating it 180 degrees around the Z-axis.
-        This is achieved by post-multiplying with a quaternion representing a 180-degree Z-rotation.
-        q_new = q_orig * q_rot_z_180
-        """
-        # Quaternion for 180-degree rotation around Z-axis: (x=0, y=0, z=1, w=0)
-        q_rot = np.array([0, 0, 1, 0])
-
-        # Original quaternion as a numpy array
-        q_orig = np.array([q.x, q.y, q.z, q.w])
-
-        # Perform quaternion multiplication q_new = q_orig * q_rot
-        x0, y0, z0, w0 = q_orig
-        x1, y1, z1, w1 = q_rot
-
-        x_new = w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1
-        y_new = w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1
-        z_new = w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
-        w_new = w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
-
-        return Quaternion(x=x_new, y=y_new, z=z_new, w=w_new)
 
     def run(self):
         rospy.spin()
