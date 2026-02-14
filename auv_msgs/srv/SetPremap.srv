@@ -1,0 +1,5 @@
+string reference_frame
+auv_msgs/ObjectPose[] objects
+---
+bool success
+string message

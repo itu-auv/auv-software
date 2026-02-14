@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="namespace" default="taluy" />
+
+    <group ns="$(arg namespace)">
+        <node name="competition_map_gui" pkg="auv_mapping" type="competition_map_gui.py" output="screen">
+            <param name="set_premap_service" value="map/p_set_premap" />
+        </node>
+    </group>
+</launch>
