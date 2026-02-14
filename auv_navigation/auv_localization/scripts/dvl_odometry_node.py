@@ -72,7 +72,7 @@ class DvlToOdom:
 
         self.odom_publisher = rospy.Publisher("odom_dvl", Odometry, queue_size=10)
         self.dvl_debug_publisher = rospy.Publisher(
-            "dvl/velocity_debug", Twist, queue_size=10
+            "dvl/velocity_debug", Odometry, queue_size=10
         )
 
         # Initialize the odometry message
@@ -269,14 +269,17 @@ class DvlToOdom:
             return
 
         # Publish debug DVL velocity (rotated to base_link) regardless of usage
-        dvl_debug_msg = Twist()
+        dvl_debug_msg = Odometry()
         if is_valid_msg.data:
+            dvl_debug_msg.header.stamp = rospy.Time.now()
+            dvl_debug_msg.header.frame_id = "odom"
+            dvl_debug_msg.child_frame_id = "taluy/base_link"
             rotated_vector = self.transform_vector(
                 [velocity_msg.linear.x, velocity_msg.linear.y, velocity_msg.linear.z]
             )
-            dvl_debug_msg.linear.x = rotated_vector[0]
-            dvl_debug_msg.linear.y = rotated_vector[1]
-            dvl_debug_msg.linear.z = rotated_vector[2]
+            dvl_debug_msg.twist.twist.linear.x = rotated_vector[0]
+            dvl_debug_msg.twist.twist.linear.y = rotated_vector[1]
+            dvl_debug_msg.twist.twist.linear.z = rotated_vector[2]
             self.dvl_debug_publisher.publish(dvl_debug_msg)
 
         current_time = rospy.Time.now()
