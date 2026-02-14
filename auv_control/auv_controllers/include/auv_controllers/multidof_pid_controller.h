@@ -134,7 +134,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
     StateVector feedforward_state = desired_state;
     feedforward_state.tail(N) = desired_velocity_;
     const auto damping_force = damping_control(feedforward_state);
-    const auto coriolis_force = coriolis_control(feedforward_state);
+    const auto coriolis_force = coriolis_control(state);
 
     WrenchVector wrench = pid_force + damping_force + coriolis_force;
 
