@@ -563,7 +563,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BALL_DROP_DEPTH",
-                SetDepthState(depth=-1.45),
+                SetDepthState(depth=-1.2),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
                     "preempted": "preempted",
