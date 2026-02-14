@@ -8,7 +8,6 @@ import tf2_ros
 import tf
 from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 from dynamic_reconfigure.server import Server
 from auv_mapping.cfg import GpsTargetFrameConfig
@@ -55,11 +54,9 @@ class GpsTargetFramePublisher(object):
         self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(30.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self._set_object_srv = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self._set_object_pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10
         )
-        rospy.loginfo("Waiting for 'set_object_transform' service")
-        self._set_object_srv.wait_for_service()
         rospy.loginfo("Connected to 'set_object_transform'.")
 
         self._active = False
@@ -244,15 +241,7 @@ class GpsTargetFramePublisher(object):
         # 5) Build and send GPS target frame via service
         ts = self._build_transform(self.child_frame, self.parent_frame, target_pos, q)
         try:
-            req = SetObjectTransformRequest(transform=ts)
-            resp = self._set_object_srv.call(req)
-            if not resp.success:
-                rospy.logerr_throttle(
-                    8.0,
-                    "set_object_transform failed for %s: %s",
-                    ts.child_frame_id,
-                    resp.message,
-                )
+            self._set_object_pub.publish(ts)
         except Exception as e:
             rospy.logerr_throttle(8.0, "set_object_transform call error: %s", e)
 
@@ -262,15 +251,7 @@ class GpsTargetFramePublisher(object):
             self.anchor_frame, self.parent_frame, self._anchor_robot_at_start, anchor_q
         )
         try:
-            anchor_req = SetObjectTransformRequest(transform=anchor_ts)
-            anchor_resp = self._set_object_srv.call(anchor_req)
-            if not anchor_resp.success:
-                rospy.logerr_throttle(
-                    8.0,
-                    "set_object_transform failed for %s: %s",
-                    anchor_ts.child_frame_id,
-                    anchor_resp.message,
-                )
+            self._set_object_pub.publish(anchor_ts)
         except Exception as e:
             rospy.logerr_throttle(
                 8.0, "set_object_transform call error for anchor: %s", e

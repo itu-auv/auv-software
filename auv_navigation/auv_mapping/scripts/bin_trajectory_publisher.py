@@ -8,7 +8,6 @@ import tf2_ros
 import tf.transformations
 from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 
 class BinTransformServiceNode:
@@ -18,10 +17,9 @@ class BinTransformServiceNode:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10
         )
-        self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
@@ -65,16 +63,10 @@ class BinTransformServiceNode:
         return t
 
     def send_transform(self, transform):
-        req = SetObjectTransformRequest()
-        req.transform = transform
         try:
-            resp = self.set_object_transform_service.call(req)
-            if not resp.success:
-                rospy.logwarn(
-                    f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-                )
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {e}")
+            self.set_object_transform_pub.publish(transform)
+        except Exception as e:
+            rospy.logerr(f"Failed to publish transform: {e}")
 
     def create_bin_frames(self):
         try:

@@ -1,11 +1,11 @@
 import smach
 import smach_ros
 import rospy
+from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import SetBool, SetBoolRequest
 from std_srvs.srv import Empty, EmptyRequest
 from std_srvs.srv import Trigger, TriggerRequest
 from robot_localization.srv import SetPose, SetPoseRequest
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
 from auv_smach.common import (
     CancelAlignControllerState,
@@ -89,19 +89,35 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
         )
 
 
-class SetStartFrameState(smach_ros.ServiceState):
+class SetStartFrameState(smach.State):
     def __init__(self, frame_name: str):
-        transform_request = SetObjectTransformRequest()
-        transform_request.transform.header.frame_id = "taluy/base_link"
-        transform_request.transform.child_frame_id = frame_name
-        transform_request.transform.transform.rotation.w = 1.0
-
-        smach_ros.ServiceState.__init__(
-            self,
-            "set_object_transform",
-            SetObjectTransform,
-            request=transform_request,
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.frame_name = frame_name
+        self.pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10, latch=True
         )
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+        t = TransformStamped()
+        t.header.stamp = rospy.Time.now()
+        t.header.frame_id = "taluy/base_link"
+        t.child_frame_id = self.frame_name
+        t.transform.rotation.w = 1.0
+        try:
+            while self.pub.get_num_connections() < 1:
+                rospy.loginfo_throttle(
+                    2, f"Waiting for subscribers to {self.pub.name}..."
+                )
+                rospy.sleep(0.1)
+
+            self.pub.publish(t)
+            rospy.loginfo(f"SetStartFrameState: Published frame {self.frame_name}")
+            return "succeeded"
+        except rospy.ROSInterruptException:
+            return "preempted"
 
 
 class InitializeState(smach.State):

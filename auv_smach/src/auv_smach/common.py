@@ -18,9 +18,6 @@ from auv_msgs.srv import (
     PlanPathRequest,
     SetDepth,
     SetDepthRequest,
-    SetObjectTransform,
-    SetObjectTransformRequest,
-    SetObjectTransformResponse,
     SetDetectionFocus,
     SetDetectionFocusRequest,
 )
@@ -617,8 +614,8 @@ class SetFrameLookingAtState(smach.State):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.rate = rospy.Rate(10)
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10
         )
 
     def execute(self, userdata):
@@ -661,12 +658,7 @@ class SetFrameLookingAtState(smach.State):
                 t.transform.rotation.z = quaternion[2]
                 t.transform.rotation.w = quaternion[3]
 
-                req = SetObjectTransformRequest()
-                req.transform = t
-                res = self.set_object_transform_service(req)
-
-                if not res.success:
-                    rospy.logwarn(f"SetObjectTransform failed: {res.message}")
+                self.set_object_transform_pub.publish(t)
 
                 time_remaining = (end_time - rospy.Time.now()).to_sec()
                 rospy.loginfo_throttle(
@@ -1305,8 +1297,8 @@ class CreateFrameAtCurrentPositionState(smach.State):
         self.reference_frame = reference_frame
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10
         )
 
     def execute(self, userdata):
@@ -1329,16 +1321,10 @@ class CreateFrameAtCurrentPositionState(smach.State):
                 current_transform.transform.translation
             )
             new_transform.transform.rotation = current_transform.transform.rotation
-
-            req = SetObjectTransformRequest()
-            req.transform = new_transform
-            res = self.set_object_transform_service(req)
-
-            if not res.success:
-                rospy.logerr(
-                    f"CreateFrameAtCurrentPositionState: Failed to create frame '{self.current_pose_frame}': {res.message}"
-                )
-                return "aborted"
+            try:
+                self.set_object_transform_pub.publish(new_transform)
+            except rospy.ROSInterruptException:
+                return "preempted"
 
             return "succeeded"
 
@@ -1350,8 +1336,10 @@ class CreateFrameAtCurrentPositionState(smach.State):
             rospy.logerr(f"CreateFrameAtCurrentPositionState: TF lookup failed: {e}")
             return "aborted"
 
-        except rospy.ServiceException as e:
-            rospy.logerr(f"CreateFrameAtCurrentPositionState: Service call failed: {e}")
+        except rospy.ROSInterruptException as e:
+            rospy.logerr(
+                "CreateFrameAtCurrentPositionState: ROSInterruptException occurred"
+            )
             return "aborted"
 
 
@@ -1372,8 +1360,8 @@ class CreateRotatingFrameState(smach.State):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.rate = rospy.Rate(rate_hz)
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10
         )
 
     def execute(self, userdata):
@@ -1432,12 +1420,8 @@ class CreateRotatingFrameState(smach.State):
                 t.transform.rotation.y = qy
                 t.transform.rotation.z = qz
                 t.transform.rotation.w = qw
-                req = SetObjectTransformRequest()
-                req.transform = t
-                res = self.set_object_transform_service(req)
-                if not res.success:
-                    rospy.logwarn("SetObjectTransform failed: %s", res.message)
-            except rospy.ServiceException as e:
+                self.set_object_transform_pub.publish(t)
+            except rospy.ROSInterruptException as e:
                 rospy.logwarn("Service call failed: %s", str(e))
                 return "aborted"
             self.rate.sleep()
