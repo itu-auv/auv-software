@@ -21,6 +21,10 @@ class DvlToOdom:
         self.enable_service = rospy.Service(
             "dvl_to_odom_node/enable", SetBool, self.enable_cb
         )
+        self.force_model_service = rospy.Service(
+            "dvl_to_odom_node/force_model", SetBool, self.force_model_cb
+        )
+        self.force_model_usage = False
 
         self.cmdvel_tau = rospy.get_param("~cmdvel_tau", 0.1)
         self.linear_x_covariance = rospy.get_param(
@@ -67,6 +71,9 @@ class DvlToOdom:
         self.sync.registerCallback(self.dvl_callback)
 
         self.odom_publisher = rospy.Publisher("odom_dvl", Odometry, queue_size=10)
+        self.dvl_debug_publisher = rospy.Publisher(
+            "dvl/velocity_debug", Twist, queue_size=10
+        )
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
@@ -161,6 +168,13 @@ class DvlToOdom:
         rospy.loginfo(f"DVL->Odom node {state} via service call.")
         return SetBoolResponse(success=True, message=f"DVL->Odom {state}")
 
+    def force_model_cb(self, req):
+        """Service callback to force model usage even if DVL is valid"""
+        self.force_model_usage = req.data
+        state = "forced" if self.force_model_usage else "not forced"
+        rospy.loginfo(f"Model usage {state} via service call.")
+        return SetBoolResponse(success=True, message=f"Model usage {state}")
+
     def transform_vector(self, vector):
         theta = np.radians(-135)
         rotation_matrix = np.array(
@@ -254,11 +268,22 @@ class DvlToOdom:
         if not self.enabled:
             return
 
+        # Publish debug DVL velocity (rotated to base_link) regardless of usage
+        dvl_debug_msg = Twist()
+        if is_valid_msg.data:
+            rotated_vector = self.transform_vector(
+                [velocity_msg.linear.x, velocity_msg.linear.y, velocity_msg.linear.z]
+            )
+            dvl_debug_msg.linear.x = rotated_vector[0]
+            dvl_debug_msg.linear.y = rotated_vector[1]
+            dvl_debug_msg.linear.z = rotated_vector[2]
+            self.dvl_debug_publisher.publish(dvl_debug_msg)
+
         current_time = rospy.Time.now()
         dt = (current_time - self.last_model_update).to_sec()
         self.last_model_update = current_time
 
-        if is_valid_msg.data:
+        if is_valid_msg.data and not self.force_model_usage:
             rotated_vector = self.transform_vector(
                 [velocity_msg.linear.x, velocity_msg.linear.y, velocity_msg.linear.z]
             )
@@ -269,7 +294,7 @@ class DvlToOdom:
             self.update_twist_covariance(use_model_based=False)
 
         else:
-            # DVL invalid - use model-based estimation or cmd_vel fallback
+            # DVL invalid or Model Forced - use model-based estimation or cmd_vel fallback
             self.filter_cmd_vel()
 
             if self.dynamic_model_available and dt > 0.001 and dt < 1.0:
