@@ -5,14 +5,16 @@ import numpy as np
 import cv2
 import rospy
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from vision_msgs.msg import Detection2DArray
 from ultralytics_ros.msg import YoloResult
 
 
 class YoloSegToMaskNode:
     def __init__(self):
-        self.input_result_topic = rospy.get_param("~input_result_topic", "yolo_result_seg")
+        self.input_result_topic = rospy.get_param(
+            "~input_result_topic", "yolo_result_seg"
+        )
         self.output_mask_topic = rospy.get_param("~output_mask_topic", "bottle_mask")
         # Parameters
         self.target_class_ids = set(rospy.get_param("~target_class_ids", [0]))
@@ -24,7 +26,9 @@ class YoloSegToMaskNode:
         self.bridge = CvBridge()
         self.pub_mask = rospy.Publisher(self.output_mask_topic, Image, queue_size=1)
         self.pub_debug = (
-            rospy.Publisher(self.debug_topic, Image, queue_size=1)
+            rospy.Publisher(
+                self.debug_topic + "/compressed", CompressedImage, queue_size=1
+            )
             if self.publish_debug
             else None
         )
@@ -100,8 +104,12 @@ class YoloSegToMaskNode:
                 2,
                 cv2.LINE_AA,
             )
-            dbg_msg = self.bridge.cv2_to_imgmsg(overlay, encoding="bgr8")
+            dbg_msg = CompressedImage()
             dbg_msg.header = msg.header
+            dbg_msg.format = "jpeg"
+            dbg_msg.data = np.array(
+                cv2.imencode(".jpg", overlay, [cv2.IMWRITE_JPEG_QUALITY, 80])[1]
+            ).tobytes()
             self.pub_debug.publish(dbg_msg)
 
 

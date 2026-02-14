@@ -88,7 +88,6 @@ class NavigateToGpsTargetState(smach.State):
                 "SET_GPS_DEPTH",
                 SetDepthState(
                     depth=gps_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_GPS_TARGET",
@@ -124,7 +123,6 @@ class NavigateToGpsTargetState(smach.State):
                 "SET_FINAL_DEPTH",
                 SetDepthState(
                     depth=0.0,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",

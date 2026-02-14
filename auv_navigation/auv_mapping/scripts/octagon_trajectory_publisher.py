@@ -31,13 +31,13 @@ class OctagonTransformServiceNode:
         )  # distance from octagon to closer frame
         # Search frames configuration
         self.search_distance = rospy.get_param(
-            "~search_distance", 0.7
+            "~search_distance", 0.3
         )  # distance from octagon to search frames
         self.search_frames = {
-            "octagon_search_forward": "forward",   # towards robot (back from octagon)
-            "octagon_search_backward": "backward", # away from robot
-            "octagon_search_left": "left",         # perpendicular left
-            "octagon_search_right": "right",       # perpendicular right
+            "octagon_search_forward": "forward",  # towards robot (back from octagon)
+            "octagon_search_backward": "backward",  # away from robot
+            "octagon_search_left": "left",  # perpendicular left
+            "octagon_search_right": "right",  # perpendicular right
         }
 
         self.set_enable_service = rospy.Service(
@@ -151,7 +151,7 @@ class OctagonTransformServiceNode:
         - backward: towards robot direction
         - left: perpendicular left
         - right: perpendicular right
-        
+
         All frames have the same orientation as closer_frame (facing robot->octagon direction).
         """
         # Calculate perpendicular vector (90 degrees rotation in XY plane)
