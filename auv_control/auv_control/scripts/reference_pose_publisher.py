@@ -91,6 +91,8 @@ class ReferencePosePublisherNode:
         self.use_align_frame_depth = False
         self.align_frame_keep_orientation = False
 
+        self.set_depth_velocity = None  # Track Z velocity set by set_depth
+
         self.last_cmd_time = rospy.Time.now()
         self.state_lock = Lock()
         self.latest_odometry = Odometry()
@@ -180,6 +182,24 @@ class ReferencePosePublisherNode:
                 )
 
             self.target_depth = depth
+
+            # Update max velocity for Z axis
+            if self.reconfigure_client:
+                try:
+                    if req.max_velocity > 0:
+                        self.set_depth_velocity = req.max_velocity
+                        self.reconfigure_client.update_configuration(
+                            {"max_velocity_2": req.max_velocity}
+                        )
+                    else:
+                        # Restore default Z velocity
+                        self.set_depth_velocity = None
+                        self.reconfigure_client.update_configuration(
+                            {"max_velocity_2": self.default_max_velocity[2]}
+                        )
+                except Exception as e:
+                    rospy.logwarn(f"Failed to update max velocity: {e}")
+
             return SetDepthResponse(
                 success=True,
                 message=f"Target depth set to {self.target_depth} in frame odom",
@@ -259,7 +279,7 @@ class ReferencePosePublisherNode:
                     if req.max_angular_velocity > 0
                     else self.default_max_velocity[3]
                 )
-                self._update_controller_cfg(linear_vel, angular_vel)
+                self._update_controller_cfg(linear_vel, angular_vel, req.use_depth)
 
         rospy.loginfo(
             f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}"
@@ -308,13 +328,23 @@ class ReferencePosePublisherNode:
             rospy.logwarn(f"Failed to read controller configuration: {e}")
             return None
 
-    def _update_controller_cfg(self, linear_vel: float, angular_vel: float):
+    def _update_controller_cfg(
+        self, linear_vel: float, angular_vel: float, use_depth: bool = True
+    ):
         try:
+            # Determine Z velocity: use linear_vel if use_depth, else preserve current or use default
+            if use_depth:
+                z_vel = linear_vel
+            elif self.set_depth_velocity is not None:
+                z_vel = self.set_depth_velocity
+            else:
+                z_vel = self.default_max_velocity[2]
+
             self.reconfigure_client.update_configuration(
                 {
                     "max_velocity_0": linear_vel,
                     "max_velocity_1": linear_vel,
-                    "max_velocity_2": linear_vel,
+                    "max_velocity_2": z_vel,
                     "max_velocity_3": angular_vel,
                     "max_velocity_4": angular_vel,
                     "max_velocity_5": angular_vel,
@@ -325,11 +355,17 @@ class ReferencePosePublisherNode:
 
     def _restore_controller_cfg(self):
         try:
+            # Preserve Z velocity if it was set by set_depth
+            z_vel = (
+                self.set_depth_velocity
+                if self.set_depth_velocity is not None
+                else self.default_max_velocity[2]
+            )
             self.reconfigure_client.update_configuration(
                 {
                     "max_velocity_0": self.default_max_velocity[0],
                     "max_velocity_1": self.default_max_velocity[1],
-                    "max_velocity_2": self.default_max_velocity[2],
+                    "max_velocity_2": z_vel,
                     "max_velocity_3": self.default_max_velocity[3],
                     "max_velocity_4": self.default_max_velocity[4],
                     "max_velocity_5": self.default_max_velocity[5],

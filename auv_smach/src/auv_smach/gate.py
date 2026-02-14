@@ -111,8 +111,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
-                    depth=self.roll_depth,
-                    sleep_duration=1.0,
+                    depth=-0.5,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -244,7 +243,18 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=2.0),
+                SetDepthState(depth=gate_depth),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_ENTRANCE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_ENTRANCE",
+                DynamicPathState(
+                    plan_target_frame="gate_entrance",
+                ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_GATE",
                     "preempted": "preempted",
