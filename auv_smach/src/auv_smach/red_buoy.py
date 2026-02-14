@@ -232,7 +232,7 @@ class RotateAroundBuoyState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_RED_BUOY_DEPTH",
-                SetDepthState(depth=red_buoy_depth, sleep_duration=3.0),
+                SetDepthState(depth=red_buoy_depth),
                 transitions={
                     "succeeded": "FIND_AND_AIM_RED_BUOY",
                     "preempted": "preempted",

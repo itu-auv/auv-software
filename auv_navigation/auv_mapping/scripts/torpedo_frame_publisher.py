@@ -113,7 +113,7 @@ class TorpedoTransformServiceNode:
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
 
-    def apply_offsets(self, pose: Pose, offsets: list) -> Pose:
+    def apply_offsets(self, pose: Pose, offsets: list, yaw_offset: float = 0.0) -> Pose:
         """
         Apply offsets to a pose in its own frame.
         """
@@ -133,7 +133,16 @@ class TorpedoTransformServiceNode:
         new_pose.position.x = pose.position.x + rotated_offset[0]
         new_pose.position.y = pose.position.y + rotated_offset[1]
         new_pose.position.z = pose.position.z + rotated_offset[2]
-        new_pose.orientation = pose.orientation
+
+        if yaw_offset != 0.0:
+            q_rot = tf.transformations.quaternion_from_euler(0, 0, yaw_offset)
+            new_q = tf.transformations.quaternion_multiply(q, q_rot)
+            new_pose.orientation.x = new_q[0]
+            new_pose.orientation.y = new_q[1]
+            new_pose.orientation.z = new_q[2]
+            new_pose.orientation.w = new_q[3]
+        else:
+            new_pose.orientation = pose.orientation
 
         return new_pose
 
@@ -234,6 +243,7 @@ class TorpedoTransformServiceNode:
                     self.realsense_offset,
                     0.0,
                 ],
+                yaw_offset=-np.pi / 2,
             )
             realsense_target_transform = self.build_transform_message(
                 self.realsense_target_frame, realsense_target_pose
@@ -264,7 +274,6 @@ class TorpedoTransformServiceNode:
             torpedo_hole_shark_pose = self.get_pose(torpedo_hole_shark_tf)
             realsense_target_pose = self.get_pose(realsense_target_tf)
 
-            # Get the yaw from realsense target and add 90 degrees (pi/2 radians)
             q = [
                 realsense_target_pose.orientation.x,
                 realsense_target_pose.orientation.y,
@@ -272,14 +281,12 @@ class TorpedoTransformServiceNode:
                 realsense_target_pose.orientation.w,
             ]
             (_, _, yaw) = tf.transformations.euler_from_quaternion(q)
-            # Rotate 90 degrees to the right
-            rotated_yaw = yaw - np.pi / 2
-            rotated_q = tf.transformations.quaternion_from_euler(0, 0, rotated_yaw)
+            q_yaw = tf.transformations.quaternion_from_euler(0, 0, yaw)
 
-            torpedo_hole_shark_pose.orientation.x = rotated_q[0]
-            torpedo_hole_shark_pose.orientation.y = rotated_q[1]
-            torpedo_hole_shark_pose.orientation.z = rotated_q[2]
-            torpedo_hole_shark_pose.orientation.w = rotated_q[3]
+            torpedo_hole_shark_pose.orientation.x = q_yaw[0]
+            torpedo_hole_shark_pose.orientation.y = q_yaw[1]
+            torpedo_hole_shark_pose.orientation.z = q_yaw[2]
+            torpedo_hole_shark_pose.orientation.w = q_yaw[3]
 
             shark_fire_pose = self.apply_offsets(
                 torpedo_hole_shark_pose,
@@ -312,7 +319,7 @@ class TorpedoTransformServiceNode:
             torpedo_hole_sawfish_pose = self.get_pose(torpedo_hole_sawfish_tf)
             realsense_target_pose = self.get_pose(realsense_target_tf)
 
-            # Get the yaw from realsense target and add 90 degrees (pi/2 radians)
+            # Use the yaw from realsense target (already rotated 90 degrees)
             q = [
                 realsense_target_pose.orientation.x,
                 realsense_target_pose.orientation.y,
@@ -320,14 +327,12 @@ class TorpedoTransformServiceNode:
                 realsense_target_pose.orientation.w,
             ]
             (_, _, yaw) = tf.transformations.euler_from_quaternion(q)
-            # Rotate 90 degrees to the right
-            rotated_yaw = yaw - np.pi / 2
-            rotated_q = tf.transformations.quaternion_from_euler(0, 0, rotated_yaw)
+            q_yaw = tf.transformations.quaternion_from_euler(0, 0, yaw)
 
-            torpedo_hole_sawfish_pose.orientation.x = rotated_q[0]
-            torpedo_hole_sawfish_pose.orientation.y = rotated_q[1]
-            torpedo_hole_sawfish_pose.orientation.z = rotated_q[2]
-            torpedo_hole_sawfish_pose.orientation.w = rotated_q[3]
+            torpedo_hole_sawfish_pose.orientation.x = q_yaw[0]
+            torpedo_hole_sawfish_pose.orientation.y = q_yaw[1]
+            torpedo_hole_sawfish_pose.orientation.z = q_yaw[2]
+            torpedo_hole_sawfish_pose.orientation.w = q_yaw[3]
 
             sawfish_fire_pose = self.apply_offsets(
                 torpedo_hole_sawfish_pose,
