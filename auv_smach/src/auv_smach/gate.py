@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -81,8 +82,7 @@ class NavigateThroughGateState(smach.State):
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.roll = rospy.get_param("~roll", True)
         self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip_direction = rospy.get_param("~coin_flip", "none")

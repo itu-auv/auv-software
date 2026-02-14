@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -19,8 +20,7 @@ class NavigateReturnThroughGateState(smach.State):
     def __init__(self, station_frame: str = "bin_whole_link"):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
         self.gate_look_at_frame = "gate_middle_part"
         self.station_frame = station_frame
