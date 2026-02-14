@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy"/>
-  <arg name="port" default="ttyUSB0"/>
+  <arg name="port" default="auv_wayfinder_dvl"/>
   <arg name="baudrate" default="115200"/>
   <group ns="$(arg namespace)">
     <node pkg="auv_hardware_bridge" type="wayfinder_dvl_node.py" name="wayfinder_dvl_node" output="screen" respawn="true">
