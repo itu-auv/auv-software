@@ -238,6 +238,32 @@ class DvlToOdom:
 
         self.last_update_time = current_time
 
+    def skew(self, v):
+        return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+
+    def calculate_coriolis_matrix(self, v):
+        C = np.zeros((6, 6))
+
+        M11 = self.M[0:3, 0:3]
+        M12 = self.M[0:3, 3:6]
+        M21 = self.M[3:6, 0:3]
+        M22 = self.M[3:6, 3:6]
+
+        v1 = v[0:3]
+        v2 = v[3:6]
+
+        Mv1 = np.dot(M11, v1) + np.dot(M12, v2)
+        Mv2 = np.dot(M21, v1) + np.dot(M22, v2)
+
+        s_mv1 = self.skew(Mv1)
+        s_mv2 = self.skew(Mv2)
+
+        C[0:3, 3:6] = -s_mv1
+        C[3:6, 0:3] = -s_mv1
+        C[3:6, 3:6] = -s_mv2
+
+        return C
+
     def compute_model_based_velocity(self, dt):
         if self.odom_received:
             v = self.odom_velocity.copy()
@@ -251,8 +277,12 @@ class DvlToOdom:
         v_abs = np.abs(v)
         damping_quad = np.dot(self.D_quadratic, v_abs * v)
 
+        # Coriolis effects
+        C_matrix = self.calculate_coriolis_matrix(v)
+        coriolis_force = np.dot(C_matrix, v)
+
         # Net force
-        net_force = self.current_wrench - damping_linear - damping_quad
+        net_force = self.current_wrench - damping_linear - damping_quad - coriolis_force
 
         # Acceleration
         acceleration = np.dot(self.M_inv, net_force)
