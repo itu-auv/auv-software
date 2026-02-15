@@ -66,6 +66,9 @@ class ReferencePosePublisherNode:
         self.reset_orientation_service = rospy.Service(
             "reset_command_orientation", Trigger, self.handle_reset_orientation_request
         )
+        self.sync_cmd_pose_service = rospy.Service(
+            "sync_cmd_pose", Trigger, self.handle_sync_cmd_pose_request
+        )
         self.control_enable_handler = ControlEnableHandler(1.0)
         self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
 
@@ -317,6 +320,13 @@ class ReferencePosePublisherNode:
 
         rospy.loginfo("Roll and pitch reset to zero")
         return TriggerResponse(success=True, message="Orientation reset successfully")
+
+    def handle_sync_cmd_pose_request(self, req) -> TriggerResponse:
+        """Sync cmd_pose to current robot position (odometry)."""
+        with self.state_lock:
+            self.set_target_to_odometry()
+        rospy.loginfo("cmd_pose synced to current odometry")
+        return TriggerResponse(success=True, message="cmd_pose synced to odometry")
 
     # --- Helper methods for dynamic reconfigure handling ---
     def _read_controller_cfg(self):
