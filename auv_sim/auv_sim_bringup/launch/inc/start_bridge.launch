@@ -39,6 +39,31 @@
       <remap from="actuators/torpedo_1/launch" to="actuators/torpedo_1/launch" />
       <remap from="actuators/torpedo_2/launch" to="actuators/torpedo_2/launch" />
     </node>
+
+    <!-- Gripper Service Node -->
+    <node name="gripper_service" pkg="auv_sim_bridge" type="sim_gripper_service.py" output="screen">
+      <param name="model_name" value="$(arg namespace)" />
+      <param name="robot_description_param" value="/$(arg namespace)/robot_description" />
+      <param name="left_joint" value="$(arg namespace)/finger_left_joint" />
+      <param name="right_joint" value="$(arg namespace)/finger_right_joint" />
+      <!-- Neutral/Normal: parallel fingers (0.0 rad), Open: opened outward (+0.25 rad), Close: closed inward (-0.15 rad) -->
+      <param name="open_angle" value="0.25" />
+      <param name="close_angle" value="-0.15" />
+      <param name="neutral_angle" value="0.0" />
+      <!-- Behavior params -->
+      <param name="mirror_right" value="false" />
+      <param name="move_duration" value="1.5" />
+      <param name="move_steps" value="40" />
+      <!-- Effort control - BALANCED: Strong but non-vibrating grip -->
+      <param name="use_effort_control" value="true" />
+      <param name="kp_effort" value="45.0" />
+      <param name="max_effort" value="20.0" />
+      <param name="hold_effort" value="7.0" />
+      <remap from="actuators/gripper/set" to="actuators/gripper/set" />
+      <remap from="actuators/gripper/open" to="actuators/gripper/open" />
+      <remap from="actuators/gripper/close" to="actuators/gripper/close" />
+      <remap from="actuators/gripper/neutral" to="actuators/gripper/neutral" />
+    </node>
   </group>
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
