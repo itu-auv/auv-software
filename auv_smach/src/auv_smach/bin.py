@@ -411,6 +411,15 @@ class BinTaskState(smach.State):
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
+                    "succeeded": "FOCUS_ON_BIN_BOTTOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FOCUS_ON_BIN_BOTTOM",
+                SetDetectionFocusState(focus_object="bin"),
+                transitions={
                     "succeeded": "DYNAMIC_PATH_TO_BIN_WHOLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -509,10 +518,10 @@ class BinTaskState(smach.State):
                 "SET_ALIGN_TO_FOUND_DROP_AREA",
                 SetAlignToFoundState(
                     source_frame="taluy/base_link/ball_dropper_link",
-                    dist_threshold=0.05,
+                    dist_threshold=0.07,
                     yaw_threshold=0.1,
-                    confirm_duration=2.0,
-                    timeout=15.0,
+                    confirm_duration=3.0,
+                    timeout=30.0,
                     cancel_on_success=False,
                     keep_orientation=True,
                 ),
@@ -539,10 +548,10 @@ class BinTaskState(smach.State):
                 "SET_ALIGN_TO_FOUND_DROP_AREA_FINAL",
                 SetAlignToFoundState(
                     source_frame="taluy/base_link/ball_dropper_link",
-                    dist_threshold=0.05,
+                    dist_threshold=0.07,
                     yaw_threshold=0.1,
-                    confirm_duration=4.0,
-                    timeout=20.0,
+                    confirm_duration=5.0,
+                    timeout=30.0,
                     cancel_on_success=False,
                     keep_orientation=True,
                 ),
