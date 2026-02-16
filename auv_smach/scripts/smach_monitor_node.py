@@ -76,7 +76,7 @@ class SmachMonitor:
             rospy.wait_for_service(self.detection_focus_service_name, timeout=2.0)
             req = SetDetectionFocusRequest(focus_object="none")
             self.detection_focus_service(req)
-            rospy.loginfo("Set DetectionFocus to 'all'.")
+            rospy.loginfo("Set DetectionFocus to 'none'.")
         except (
             rospy.ServiceException,
             rospy.ROSException,

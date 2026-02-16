@@ -1,14 +1,17 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="logitech_c920_camera">
-  <xacro:macro name="logitech_c920_camera_sim" params="name topic_name">
+  <xacro:macro name="logitech_c920_camera_sim" params="name topic_name
+    image_width:=640 image_height:=480 hfov:=1.229
+    distortion_k1:=0.0 distortion_k2:=0.0 distortion_k3:=0.0
+    distortion_t1:=0.0 distortion_t2:=0.0">
     <gazebo reference="${name}_link">
       <sensor type="camera" name="${name}_sensor">
         <update_rate>30.0</update_rate>
         <camera name="head">
-          <horizontal_fov>1.229</horizontal_fov>
+          <horizontal_fov>${hfov}</horizontal_fov>
           <image>
-            <width>640</width>
-            <height>480</height>
+            <width>${image_width}</width>
+            <height>${image_height}</height>
             <format>B8G8R8</format>
           </image>
           <clip>
@@ -23,6 +26,14 @@
             <mean>0.0</mean>
             <stddev>0.007</stddev>
           </noise>
+          <distortion>
+            <k1>${distortion_k1}</k1>
+            <k2>${distortion_k2}</k2>
+            <k3>${distortion_k3}</k3>
+            <p1>${distortion_t1}</p1>
+            <p2>${distortion_t2}</p2>
+            <center>0.5 0.5</center>
+          </distortion>
         </camera>
         <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
           <alwaysOn>true</alwaysOn>
@@ -31,11 +42,11 @@
           <imageTopicName>image_raw</imageTopicName>
           <frameName>${name}_link</frameName>
           <hackBaseline>0.07</hackBaseline>
-          <distortionK1>0.0</distortionK1>
-          <distortionK2>0.0</distortionK2>
-          <distortionK3>0.0</distortionK3>
-          <distortionT1>0.0</distortionT1>
-          <distortionT2>0.0</distortionT2>
+          <distortionK1>${distortion_k1}</distortionK1>
+          <distortionK2>${distortion_k2}</distortionK2>
+          <distortionK3>${distortion_k3}</distortionK3>
+          <distortionT1>${distortion_t1}</distortionT1>
+          <distortionT2>${distortion_t2}</distortionT2>
         </plugin>
       </sensor>
     </gazebo>

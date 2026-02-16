@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 
-import rospy
+import glob
 import math
+
+import rospy
+import rospkg
+import yaml
 from geometry_msgs.msg import (
     PointStamped,
     PoseArray,
@@ -54,8 +58,9 @@ class CameraCalibration:
 
 
 class Prop:
-    def __init__(self, id: int, name: str, real_height: float, real_width: float):
-        self.id = id
+    """Generic prop for distance estimation based on known real dimensions."""
+
+    def __init__(self, name: str, real_height: float, real_width: float):
         self.name = name
         self.real_height = real_height
         self.real_width = real_width
@@ -90,54 +95,20 @@ class Prop:
             return None
 
 
-class Sawfish(Prop):
-    def __init__(self):
-        super().__init__(0, "sawfish", 0.3048, 0.3048)
-
-
-class Shark(Prop):
-    def __init__(self):
-        super().__init__(1, "shark", 0.3048, 0.3048)
-
-
-class RedPipe(Prop):
-    def __init__(self):
-        super().__init__(2, "red_pipe", 0.90, None)
-
-
-class WhitePipe(Prop):
-    def __init__(self):
-        super().__init__(3, "white_pipe", 0.90, None)
-
-
-class TorpedoMap(Prop):
-    def __init__(self):
-        super().__init__(4, "torpedo_map", 0.6096, 0.6096)
-
-
-class TorpedoHole(Prop):
-    def __init__(self):
-        super().__init__(5, "torpedo_hole", 0.125, 0.125)
-
-
-class BinWhole(Prop):
-    def __init__(self):
-        super().__init__(6, "bin_whole", None, None)
-
-
-class Octagon(Prop):
-    def __init__(self):
-        super().__init__(7, "octagon", 0.74, 0.91)
-
-
-class BinShark(Prop):
-    def __init__(self):
-        super().__init__(10, "bin_shark", 0.30480, 0.30480)
-
-
-class BinSawfish(Prop):
-    def __init__(self):
-        super().__init__(11, "bin_sawfish", 0.30480, 0.30480)
+def _load_all_model_configs(config_dir: str) -> dict:
+    """Load all YAML model configs from directory."""
+    configs = {}
+    for yaml_path in glob.glob(f"{config_dir}/*.yaml"):
+        try:
+            with open(yaml_path, "r") as f:
+                config = yaml.safe_load(f)
+            model_name = config.get("model_name")
+            if model_name:
+                configs[model_name] = config
+                rospy.loginfo(f"Loaded model config: {model_name} from {yaml_path}")
+        except Exception as e:
+            rospy.logwarn(f"Failed to load config {yaml_path}: {e}")
+    return configs
 
 
 class CameraDetectionNode:
@@ -152,37 +123,48 @@ class CameraDetectionNode:
         )
         self.front_camera_enabled = True
         self.bottom_camera_enabled = False
-        self.torpedo_camera_enabled = False
 
         self.red_pipe_x = None
 
-        self.object_id_map = {
-            "gate": [0, 1],
-            "pipe": [2, 3],
-            "torpedo": [4],
-            "torpedo_holes": [5],
-            "bin": [6],
-            "octagon": [7],
-            "all": [0, 1, 2, 3, 4, 5, 6, 7],
-            "none": [],
-        }
-        self.active_front_camera_ids = self.object_id_map[
-            "gate"
-        ]  # Allow gate by default
+        try:
+            rospack = rospkg.RosPack()
+            config_dir = rospy.get_param(
+                "~model_config_dir",
+                rospack.get_path("auv_detection") + "/config/models",
+            )
+        except rospkg.common.ResourceNotFound:
+            rospy.logfatal("auv_detection package not found")
+            raise
+
+        self.model_configs = _load_all_model_configs(config_dir)
+        if not self.model_configs:
+            rospy.logfatal(f"No model configs found in {config_dir}")
+            raise RuntimeError("No model configurations loaded")
+
+        self.active_model = None
+        self.id_to_class = {}
+        self.focus_groups = {}
+        self.class_name_to_id = {}
+        self.active_focus_classes = set()
+
+        initial_model = rospy.get_param("~initial_model", "robosub")
+        if not self._activate_model(initial_model):
+            fallback = list(self.model_configs.keys())[0]
+            rospy.logwarn(
+                f"Initial model '{initial_model}' not found, using '{fallback}'"
+            )
+            self._activate_model(fallback)
 
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
         )
         self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
-        # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.camera_calibrations = {
             "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
-            "taluy/cameras/cam_torpedo": CameraCalibration("cameras/cam_torpedo"),
         }
-        # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
             "/yolo_result_front",
             YoloResult,
@@ -195,59 +177,18 @@ class CameraDetectionNode:
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
             queue_size=1,
         )
-        rospy.Subscriber(
-            "/yolo_result_torpedo",
-            YoloResult,
-            lambda msg: self.detection_callback(msg, camera_source="torpedo_camera"),
-            queue_size=1,
-        )
         self.frame_id_to_camera_ns = {
             "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
             "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
-            "taluy/base_link/torpedo_camera_link": "taluy/cameras/cam_torpedo",
         }
-        self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
+        self.camera_frames = {
             "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link_stabilized",
             "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
-            "taluy/cameras/cam_torpedo": "taluy/base_link/torpedo_camera_optical_link",
         }
-        self.props = {
-            "gate_sawfish_link": Sawfish(),
-            "gate_shark_link": Shark(),
-            "red_pipe_link": RedPipe(),
-            "white_pipe_link": WhitePipe(),
-            "torpedo_map_link": TorpedoMap(),
-            "octagon_link": Octagon(),
-            "bin_sawfish_link": BinShark(),
-            "bin_shark_link": BinSawfish(),
-            "torpedo_hole_shark_link": TorpedoHole(),
-            "torpedo_hole_sawfish_link": TorpedoHole(),
-        }
-
-        self.id_tf_map = {
-            "taluy/cameras/cam_front": {
-                0: "gate_sawfish_link",
-                1: "gate_shark_link",
-                2: "red_pipe_link",
-                3: "white_pipe_link",
-                4: "torpedo_map_link",
-                6: "bin_whole_link",
-                7: "octagon_link",
-            },
-            "taluy/cameras/cam_bottom": {
-                0: "bin_shark_link",
-                1: "bin_sawfish_link",
-            },
-            "taluy/cameras/cam_torpedo": {
-                5: "torpedo_hole_link",
-            },
-        }
-        # Subscribe to YOLO detections and altitude
         self.altitude = None
         self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
 
-        # Services to enable/disable cameras
         rospy.Service(
             "enable_front_camera_detections",
             SetBool,
@@ -259,15 +200,48 @@ class CameraDetectionNode:
             self.handle_enable_bottom_camera,
         )
         rospy.Service(
-            "enable_torpedo_camera_detections",
-            SetBool,
-            self.handle_enable_torpedo_camera,
-        )
-        rospy.Service(
             "set_front_camera_focus",
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
         )
+
+    def _activate_model(self, model_name: str) -> bool:
+        """Switch to a different model's class configuration."""
+        if model_name not in self.model_configs:
+            rospy.logerr(
+                f"Unknown model: {model_name}. "
+                f"Available: {list(self.model_configs.keys())}"
+            )
+            return False
+
+        config = self.model_configs[model_name]
+        self.active_model = model_name
+
+        self.id_to_class = {"front": {}, "bottom": {}}
+        for camera_key in ["front", "bottom"]:
+            camera_config = config.get("cameras", {}).get(camera_key, {})
+            for class_name, class_props in camera_config.get("classes", {}).items():
+                class_id = class_props["id"]
+                self.id_to_class[camera_key][class_id] = {
+                    "name": class_name,
+                    "tf_frame": class_props["tf_frame"],
+                    "real_height": class_props.get("real_height"),
+                    "real_width": class_props.get("real_width"),
+                }
+
+        self.focus_groups = {}
+        for group_name, class_list in config.get("focus_groups", {}).items():
+            self.focus_groups[group_name] = set(class_list) if class_list else set()
+
+        self.class_name_to_id = {}
+        for camera_key, classes in self.id_to_class.items():
+            for class_id, class_info in classes.items():
+                self.class_name_to_id[class_info["name"]] = class_id
+
+        self.active_focus_classes = self.focus_groups.get("all", set())
+
+        rospy.loginfo(f"Activated model config: {model_name}")
+        return True
 
     def dynamic_reconfigure_callback(self, config):
         if config is None:
@@ -282,16 +256,20 @@ class CameraDetectionNode:
         ]
 
         if not focus_objects:
-            message = f"Empty focus object provided. No changes made. Available options: {list(self.object_id_map.keys())}"
+            message = (
+                f"Empty focus object provided. No changes made. "
+                f"Available options: {list(self.focus_groups.keys())}"
+            )
             rospy.logwarn(message)
             return SetDetectionFocusResponse(success=False, message=message)
 
-        unfound_objects = [
-            obj for obj in focus_objects if obj not in self.object_id_map
-        ]
+        unfound_objects = [obj for obj in focus_objects if obj not in self.focus_groups]
 
         if unfound_objects:
-            message = f"Unknown focus object(s): '{', '.join(unfound_objects)}'. Available options: {list(self.object_id_map.keys())}"
+            message = (
+                f"Unknown focus group(s): '{', '.join(unfound_objects)}'. "
+                f"Available: {list(self.focus_groups.keys())}"
+            )
             rospy.logwarn(message)
             return SetDetectionFocusResponse(success=False, message=message)
 
@@ -300,16 +278,16 @@ class CameraDetectionNode:
             rospy.logwarn(message)
             return SetDetectionFocusResponse(success=False, message=message)
 
-        all_target_ids = []
+        all_classes = set()
         for focus_object in focus_objects:
-            all_target_ids.extend(self.object_id_map[focus_object])
+            all_classes.update(self.focus_groups.get(focus_object, set()))
 
-        self.active_front_camera_ids = list(set(all_target_ids))
+        self.active_focus_classes = all_classes
 
         if "none" in focus_objects:
             message = "Front camera focus set to none. Detections will be ignored."
         else:
-            message = f"Front camera focus set to IDs: {self.active_front_camera_ids}"
+            message = f"Front camera focus set to classes: {all_classes}"
 
         rospy.loginfo(message)
         return SetDetectionFocusResponse(success=True, message=message)
@@ -326,12 +304,6 @@ class CameraDetectionNode:
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
-    def handle_enable_torpedo_camera(self, req):
-        self.torpedo_camera_enabled = req.data
-        message = "Torpedo camera detections " + ("enabled" if req.data else "disabled")
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
-
     def altitude_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
         self.altitude = self.pool_depth - depth
@@ -340,15 +312,12 @@ class CameraDetectionNode:
         )
 
     def calculate_intersection_with_plane(self, point1_odom, point2_odom, z_plane):
-        # Calculate t where the z component is z_plane
         if point2_odom.point.z != point1_odom.point.z:
             t = (z_plane - point1_odom.point.z) / (
                 point2_odom.point.z - point1_odom.point.z
             )
 
-            # Check if the intersection point is within the segment [point1, point2]
             if 0 <= t <= 1:
-                # Calculate intersection point
                 x = point1_odom.point.x + t * (
                     point2_odom.point.x - point1_odom.point.x
                 )
@@ -357,19 +326,14 @@ class CameraDetectionNode:
                 )
                 return x, y, z_plane
             else:
-                # Intersection is outside the defined segment
                 return None
         else:
             rospy.logwarn("The line segment is parallel to the ground plane.")
             return None
 
-    def process_altitude_projection(self, detection, camera_ns: str, stamp):
+    def process_altitude_projection(self, detection, camera_ns: str, stamp, tf_frame):
         if self.altitude is None:
             rospy.logwarn("No altitude data available")
-            return
-
-        detection_id = detection.results[0].id
-        if detection_id != 6:
             return
 
         bbox_bottom_x = detection.bbox.center.x
@@ -396,22 +360,15 @@ class CameraDetectionNode:
         point2.point.y = offset_y
         point2.point.z = distance
         try:
-            # Get the transform from the camera frame to the odom frame
             transform = self.tf_buffer.lookup_transform(
                 "odom",
                 self.camera_frames[camera_ns],
                 stamp,
                 rospy.Duration(1.0),
             )
-            # Transform the ray points from the camera frame to the odom frame
             point1_odom = tf2_geometry_msgs.do_transform_point(point1, transform)
             point2_odom = tf2_geometry_msgs.do_transform_point(point2, transform)
 
-            # The ground plane in the 'odom' frame is at a fixed Z-coordinate,
-            # which corresponds to the negative pool depth.
-            # We calculate the intersection of the camera ray with this plane.
-            # We do not add self.altitude here, as both the ray and the plane
-            # are now correctly expressed in the same 'odom' frame.
             intersection = self.calculate_intersection_with_plane(
                 point1_odom, point2_odom, z_plane=-self.pool_depth
             )
@@ -420,9 +377,7 @@ class CameraDetectionNode:
                 transform_stamped_msg = TransformStamped()
                 transform_stamped_msg.header.stamp = stamp
                 transform_stamped_msg.header.frame_id = "odom"
-                transform_stamped_msg.child_frame_id = self.id_tf_map[camera_ns][
-                    detection_id
-                ]
+                transform_stamped_msg.child_frame_id = tf_frame
 
                 transform_stamped_msg.transform.translation = Vector3(x, y, z)
                 transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
@@ -435,39 +390,53 @@ class CameraDetectionNode:
         ) as e:
             rospy.logerr(f"Transform error: {e}")
 
-    def process_torpedo_holes(self, detection_msg: YoloResult, camera_ns: str):
-        detected_holes = []
+    def process_torpedo_holes_on_map(
+        self, detection_msg: YoloResult, camera_ns: str, torpedo_map_bbox, camera_key
+    ):
+        map_min_x = torpedo_map_bbox.center.x - torpedo_map_bbox.size_x * 0.5
+        map_max_x = torpedo_map_bbox.center.x + torpedo_map_bbox.size_x * 0.5
+        map_min_y = torpedo_map_bbox.center.y - torpedo_map_bbox.size_y * 0.5
+        map_max_y = torpedo_map_bbox.center.y + torpedo_map_bbox.size_y * 0.5
+
+        detected_holes_in_map = []
         camera_frame = self.camera_frames[camera_ns]
 
-        # First, find all hole detections
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-            detection_id = detection.results[0].id
+            raw_id = detection.results[0].id
+            class_info = self.id_to_class.get(camera_key, {}).get(raw_id)
 
-            if detection_id == 5:  # Torpedo hole ID
-                if self.check_if_detection_is_inside_image(detection):
-                    detected_holes.append(detection)
+            if class_info and class_info["name"] == "torpedo_hole":
+                hole_center_x = detection.bbox.center.x
+                hole_center_y = detection.bbox.center.y
 
-        # We expect to find exactly two holes. If not, we cannot proceed.
-        if len(detected_holes) != 2:
+                if (
+                    map_min_x <= hole_center_x <= map_max_x
+                    and map_min_y <= hole_center_y <= map_max_y
+                ):
+                    detected_holes_in_map.append((detection, class_info))
+
+        if len(detected_holes_in_map) != 2:
             rospy.logwarn_throttle(
                 5,
-                f"Expected 2 torpedo holes, but found {len(detected_holes)}. Skipping.",
+                f"Expected 2 torpedo holes, but found {len(detected_holes_in_map)}. Skipping.",
             )
             return
 
-        # Determine which hole is upper and which is bottom based on their Y coordinate.
-        # In image coordinates, a smaller Y value means it is higher up in the image.
-        hole1 = detected_holes[0]
-        hole2 = detected_holes[1]
+        hole1, class_info1 = detected_holes_in_map[0]
+        hole2, class_info2 = detected_holes_in_map[1]
 
         if hole1.bbox.center.y < hole2.bbox.center.y:
             upper_hole_detection = hole1
             bottom_hole_detection = hole2
+            upper_class_info = class_info1
+            bottom_class_info = class_info2
         else:
             upper_hole_detection = hole2
             bottom_hole_detection = hole1
+            upper_class_info = class_info2
+            bottom_class_info = class_info1
 
         if upper_hole_detection.bbox.center.x > bottom_hole_detection.bbox.center.x:
             upper_hole_child_frame_id = "torpedo_hole_sawfish_link"
@@ -480,35 +449,34 @@ class CameraDetectionNode:
             f"Upper hole assigned to {upper_hole_child_frame_id}, bottom to {bottom_hole_child_frame_id}"
         )
 
-        # Publish transform for the upper hole with its new name
         self._publish_torpedo_hole_transform(
             upper_hole_detection,
             camera_ns,
             camera_frame,
-            upper_hole_child_frame_id,
+            upper_class_info,
             upper_hole_child_frame_id,
             detection_msg.header.stamp,
         )
 
-        # Publish transform for the bottom hole with its new name
         self._publish_torpedo_hole_transform(
             bottom_hole_detection,
             camera_ns,
             camera_frame,
-            bottom_hole_child_frame_id,
+            bottom_class_info,
             bottom_hole_child_frame_id,
             detection_msg.header.stamp,
         )
 
     def _publish_torpedo_hole_transform(
-        self, detection, camera_ns, camera_frame, prop_key, child_frame_id, stamp
+        self, detection, camera_ns, camera_frame, class_info, child_frame_id, stamp
     ):
-        prop_to_use = self.props.get(prop_key)
-        if not prop_to_use:
-            rospy.logerr(f"Prop '{prop_key}' not found. Cannot estimate distance.")
-            return
+        prop = Prop(
+            name=class_info["name"],
+            real_height=class_info.get("real_height"),
+            real_width=class_info.get("real_width"),
+        )
 
-        distance = prop_to_use.estimate_distance(
+        distance = prop.estimate_distance(
             detection.bbox.size_y,
             detection.bbox.size_x,
             self.camera_calibrations[camera_ns],
@@ -535,18 +503,15 @@ class CameraDetectionNode:
         transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
 
         try:
-            # Create a PoseStamped message from the TransformStamped
             pose_stamped = PoseStamped()
             pose_stamped.header = transform_stamped_msg.header
             pose_stamped.pose.position = transform_stamped_msg.transform.translation
             pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
 
-            # Transform the PoseStamped message
             transformed_pose_stamped = self.tf_buffer.transform(
                 pose_stamped, "odom", rospy.Duration(4.0)
             )
 
-            # Create a new TransformStamped message from the transformed PoseStamped
             final_transform_stamped = TransformStamped()
             final_transform_stamped.header = transformed_pose_stamped.header
             final_transform_stamped.child_frame_id = child_frame_id
@@ -586,19 +551,16 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
-        # Determine camera_ns based on the source passed by the subscriber
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return
             camera_ns = "taluy/cameras/cam_front"
+            camera_key = "front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
                 return
             camera_ns = "taluy/cameras/cam_bottom"
-        elif camera_source == "torpedo_camera":
-            if not self.torpedo_camera_enabled:
-                return
-            camera_ns = "taluy/cameras/cam_torpedo"
+            camera_key = "bottom"
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
@@ -619,60 +581,84 @@ class CameraDetectionNode:
             rospy.logwarn_throttle(15, f"Transform error: {e}")
             return
 
-        if camera_source == "torpedo_camera":
-            self.process_torpedo_holes(detection_msg, camera_ns)
+        torpedo_map_bbox = None
+        for detection in detection_msg.detections.detections:
+            if len(detection.results) == 0:
+                continue
+            raw_id = detection.results[0].id
+            class_info = self.id_to_class.get(camera_key, {}).get(raw_id)
+            if class_info and class_info["name"] == "torpedo_map":
+                torpedo_map_bbox = detection.bbox
+                break
+
+        process_torpedo = "torpedo_map" in self.active_focus_classes
+        process_torpedo_holes = "torpedo_hole" in self.active_focus_classes
+
+        if torpedo_map_bbox and process_torpedo and process_torpedo_holes:
+            self.process_torpedo_holes_on_map(
+                detection_msg, camera_ns, torpedo_map_bbox, camera_key
+            )
 
         red_pipe_x = self.red_pipe_x
-        red_pipes = [
-            d for d in detection_msg.detections.detections if d.results[0].id == 2
-        ]
-        if red_pipes:
-            largest_red_pipe = max(red_pipes, key=lambda d: d.bbox.size_y)
-            red_pipe_x = largest_red_pipe.bbox.center.x
-            self.red_pipe_x = red_pipe_x
+        largest_red_pipe_size = 0
+        for detection in detection_msg.detections.detections:
+            if len(detection.results) == 0:
+                continue
+            raw_id = detection.results[0].id
+            class_info = self.id_to_class.get(camera_key, {}).get(raw_id)
+            if class_info and class_info["name"] == "red_pipe":
+                if detection.bbox.size_y > largest_red_pipe_size:
+                    red_pipe_x = detection.bbox.center.x
+                    largest_red_pipe_size = detection.bbox.size_y
+                    self.red_pipe_x = red_pipe_x
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
             skip_inside_image = False
-            detection_id = detection.results[0].id
+            raw_id = detection.results[0].id
 
-            if camera_source == "front_camera":
-                if detection_id not in self.active_front_camera_ids:
-                    continue
-
-            if detection_id == 5:
+            class_info = self.id_to_class.get(camera_key, {}).get(raw_id)
+            if class_info is None:
                 continue
 
-            if detection_id == 3 and red_pipe_x is not None:
+            class_name = class_info["name"]
+            tf_frame = class_info["tf_frame"]
+
+            if camera_source == "front_camera" and len(self.id_to_class.get("front", {})) > 1:
+                if class_name not in self.active_focus_classes:
+                    continue
+
+            if class_name == "torpedo_hole":
+                continue
+
+            if class_name == "white_pipe" and red_pipe_x is not None:
                 white_x = detection.bbox.center.x
                 if self.selected_side == "left" and white_x > red_pipe_x:
                     continue
                 if self.selected_side == "right" and white_x < red_pipe_x:
                     continue
 
-            if detection_id not in self.id_tf_map[camera_ns]:
-                continue
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
+            if camera_key == "bottom" and class_name in ["bin_shark", "bin_sawfish"]:
                 skip_inside_image = True
-                # use altidude for bin
                 distance = self.altitude
-
-            if detection_id == 6:
+            if class_name == "bin_whole" or class_name == "docking_station":
                 self.process_altitude_projection(
-                    detection, camera_ns, detection_msg.header.stamp
+                    detection, camera_ns, detection_msg.header.stamp, tf_frame
                 )
                 continue
+
             if not skip_inside_image:
                 if self.check_if_detection_is_inside_image(detection) is False:
                     continue
-            prop_name = self.id_tf_map[camera_ns][detection_id]
-            if prop_name not in self.props:
-                continue
 
-            prop = self.props[prop_name]
+            prop = Prop(
+                name=class_name,
+                real_height=class_info.get("real_height"),
+                real_width=class_info.get("real_width"),
+            )
 
-            if not skip_inside_image:  # Calculate distance using object dimensions
+            if not skip_inside_image:
                 distance = prop.estimate_distance(
                     detection.bbox.size_y,
                     detection.bbox.size_x,
@@ -688,7 +674,7 @@ class CameraDetectionNode:
 
             props_yaw_msg = PropsYaw()
             props_yaw_msg.header.stamp = detection_msg.header.stamp
-            props_yaw_msg.object = prop.name
+            props_yaw_msg.object = class_name
             props_yaw_msg.angle = -angles[0]
             self.props_yaw_pub.publish(props_yaw_msg)
 
@@ -696,13 +682,13 @@ class CameraDetectionNode:
             offset_y = math.tan(angles[1]) * distance * 1.0
 
             if (offset_x**2 + offset_y**2 + distance**2) > 30**2:  # 30 meters squared
-                rospy.logdebug(f"Detection for {prop_name} is too far away. Skipping.")
+                rospy.logdebug(f"Detection for {tf_frame} is too far away. Skipping.")
                 continue
 
             transform_stamped_msg = TransformStamped()
             transform_stamped_msg.header.stamp = detection_msg.header.stamp
             transform_stamped_msg.header.frame_id = camera_frame
-            transform_stamped_msg.child_frame_id = prop_name
+            transform_stamped_msg.child_frame_id = tf_frame
 
             transform_stamped_msg.transform.translation = Vector3(
                 offset_x, offset_y, distance
@@ -710,21 +696,18 @@ class CameraDetectionNode:
             transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
 
             try:
-                # Create a PoseStamped message from the TransformStamped
                 pose_stamped = PoseStamped()
                 pose_stamped.header = transform_stamped_msg.header
                 pose_stamped.pose.position = transform_stamped_msg.transform.translation
                 pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
 
-                # Transform the PoseStamped message
                 transformed_pose_stamped = self.tf_buffer.transform(
                     pose_stamped, "odom", rospy.Duration(4.0)
                 )
 
-                # Create a new TransformStamped message from the transformed PoseStamped
                 final_transform_stamped = TransformStamped()
                 final_transform_stamped.header = transformed_pose_stamped.header
-                final_transform_stamped.child_frame_id = prop_name
+                final_transform_stamped.child_frame_id = tf_frame
                 final_transform_stamped.transform.translation = (
                     transformed_pose_stamped.pose.position
                 )
@@ -738,7 +721,7 @@ class CameraDetectionNode:
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException,
             ) as e:
-                rospy.logerr(f"Transform error for {prop_name}: {e}")
+                rospy.logerr(f"Transform error for {tf_frame}: {e}")
 
     def run(self):
         rospy.spin()
