@@ -26,8 +26,8 @@ class PathPlannerNode:
             "/stop_planning", Trigger, self.stop_planning_cb
         )
         self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 9))
-        self.dynamic = True  # Default dynamic path
-        self.static_path = None  # For static path mode
+        self.dynamic = True
+        self.static_path = None
         rospy.loginfo("[path_planner_node] Path planner node started.")
 
     def set_plan_cb(self, req):
@@ -37,9 +37,8 @@ class PathPlannerNode:
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
         self.n_turns = req.n_turns
-        self.dynamic = getattr(req, "dynamic", True)  # Default True if not set
+        self.dynamic = getattr(req, "dynamic", True)
 
-        # Reset initial source yaw in PathPlanners for new plan
         self.path_planners.reset_initial_source_yaw()
 
         # If not dynamic, generate static path once
@@ -90,7 +89,6 @@ class PathPlannerNode:
                             f"[path_planner_node] Error while planning path: {e}"
                         )
                 else:
-                    # Static path mode: just keep publishing the same path
                     if self.static_path:
                         self.path_pub.publish(self.static_path)
             self.loop_rate.sleep()
