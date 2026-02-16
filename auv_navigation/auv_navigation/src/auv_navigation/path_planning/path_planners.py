@@ -28,6 +28,13 @@ class PathPlanners:
         self.path_creation_timeout: float = rospy.get_param(
             "~path_creation_timeout", 20.0
         )
+        # Store initial source yaw for n_turns calculation
+        self._initial_source_yaw = None
+
+    def reset_initial_source_yaw(self):
+        """Reset the stored initial source yaw. Call this when starting a new path plan."""
+        self._initial_source_yaw = None
+        rospy.loginfo("[PathPlanners] Reset initial source yaw.")
 
     def straight_path_to_frame(
         self,
@@ -39,6 +46,7 @@ class PathPlanners:
         interpolate_xy: bool = True,
         interpolate_z: bool = True,
         interpolate_yaw: bool = True,
+        use_initial_source_yaw: bool = False,
     ) -> Optional[Path]:
         """
         Creates a straight path from source frame to target frame.
@@ -52,6 +60,9 @@ class PathPlanners:
             interpolate_xy: If True, interpolate the x and y positions.
             interpolate_z: If True, interpolate the z position.
             interpolate_yaw: If True, interpolate the yaw orientation.
+            use_initial_source_yaw: If True, capture and store the source yaw on first call,
+                then use that stored yaw for subsequent calls. Useful for n_turns with
+                dynamic path updates. Call reset_initial_source_yaw() to clear.
 
         Returns:
             A Path message if successful, otherwise None.
@@ -76,9 +87,26 @@ class PathPlanners:
                 final_target_quat
             )
 
+            # Use initial_source_yaw if flag is set (for n_turns with dynamic updates)
+            if use_initial_source_yaw:
+                if self._initial_source_yaw is None:
+                    # First call - capture and store the initial yaw
+                    self._initial_source_yaw = source_euler[2]
+                    rospy.loginfo(
+                        f"[PathPlanners] Captured initial source yaw: {self._initial_source_yaw}"
+                    )
+                # Use stored yaw for angular diff calculation
+                source_euler_for_diff = (
+                    source_euler[0],
+                    source_euler[1],
+                    self._initial_source_yaw,
+                )
+            else:
+                source_euler_for_diff = source_euler
+
             # Compute the angular difference (yaw only).
             angular_diff = PathPlanningHelper.compute_angular_difference(
-                source_euler, final_target_euler, n_turns
+                source_euler_for_diff, final_target_euler, n_turns
             )
 
             # Create a header for the path.
