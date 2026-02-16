@@ -33,7 +33,7 @@ from auv_smach.initialize import DelayState
 
 class RotateAroundCenterState(smach.State):
     def __init__(
-        self, base_frame, center_frame, target_frame, radius=0.2, direction="ccw"
+        self, base_frame, center_frame, target_frame, radius=1.0, direction="ccw"
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.base_frame = base_frame
@@ -46,8 +46,8 @@ class RotateAroundCenterState(smach.State):
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
-        self.linear_velocity = 0.8  # rospy.get_param("/smach/max_linear_velocity")
-        self.angular_velocity = 0.8  # rospy.get_param("/smach/max_angular_velocity")
+        self.linear_velocity = 0.3  # rospy.get_param("/smach/max_linear_velocity")
+        self.angular_velocity = 0.3  # rospy.get_param("/smach/max_angular_velocity")
 
     def execute(self, userdata):
         try:
@@ -68,10 +68,11 @@ class RotateAroundCenterState(smach.State):
             )
             initial_angle = np.arctan2(base_position[1], base_position[0])
 
-            # Calculate the duration for one full rotation (2 * pi radians)
-            duration = 2 * np.pi * self.radius / self.linear_velocity
+            # Calculate the duration for a 270-degree rotation (3/2 * pi radians)
+            rotation_angle = 1.5 * np.pi  # 270 degrees in radians
+            duration = rotation_angle * self.radius / self.linear_velocity
             num_steps = int(duration * 10)  # Number of steps based on the rate
-            angular_step = 2 * np.pi / num_steps  # Angle step per iteration
+            angular_step = rotation_angle / num_steps  # Angle step per iteration
 
             # Adjust the direction based on the input argument
             if self.direction == "cw":
@@ -82,7 +83,7 @@ class RotateAroundCenterState(smach.State):
                     self.service_preempt()
                     return "preempted"
 
-                # Calculate the current angle
+                # Calculate the current angle (only up to 270 degrees)
                 angle = initial_angle + angular_step * i
 
                 # Calculate the new position using the radius and angle
@@ -122,7 +123,7 @@ class RotateAroundCenterState(smach.State):
 
 
 class SetRedBuoyRotationStartFrame(smach.State):
-    def __init__(self, base_frame, center_frame, target_frame, radius=0.2):
+    def __init__(self, base_frame, center_frame, target_frame, radius=1.0):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.base_frame = base_frame
         self.center_frame = center_frame
@@ -269,37 +270,37 @@ class RotateAroundBuoyState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            smach.StateMachine.add(
-                "SET_RED_BUOY_TRAVEL_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame="taluy/base_link", target_frame="red_buoy_target"
-                ),
-                transitions={
-                    "succeeded": "NAVIGATE_TO_RED_BUOY_ROTATION_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "NAVIGATE_TO_RED_BUOY_ROTATION_START",
-                NavigateToFrameState(
-                    "taluy/base_link", "red_buoy_rotation_start", "red_buoy_target"
-                ),
-                transitions={
-                    "succeeded": "WAIT_FOR_ALIGNING_ROTATION_START",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_ALIGNING_ROTATION_START",
-                DelayState(delay_time=4.0),
-                transitions={
-                    "succeeded": "ROTATE_AROUND_BUOY",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+            # smach.StateMachine.add(
+            #     "SET_RED_BUOY_TRAVEL_ALIGN_CONTROLLER_TARGET",
+            #     SetAlignControllerTargetState(
+            #         source_frame="taluy/base_link", target_frame="red_buoy_target"
+            #     ),
+            #     transitions={
+            #         "succeeded": "NAVIGATE_TO_RED_BUOY_ROTATION_START",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "NAVIGATE_TO_RED_BUOY_ROTATION_START",
+            #     NavigateToFrameState(
+            #         "taluy/base_link", "red_buoy_rotation_start", "red_buoy_target"
+            #     ),
+            #     transitions={
+            #         "succeeded": "WAIT_FOR_ALIGNING_ROTATION_START",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+            # smach.StateMachine.add(
+            #     "WAIT_FOR_ALIGNING_ROTATION_START",
+            #     DelayState(delay_time=4.0),
+            #     transitions={
+            #         "succeeded": "ROTATE_AROUND_BUOY",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
                 "ROTATE_AROUND_BUOY",
                 RotateAroundCenterState(
