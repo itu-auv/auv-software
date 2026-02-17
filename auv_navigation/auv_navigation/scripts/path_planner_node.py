@@ -54,6 +54,7 @@ class PathPlannerNode:
                 rospy.loginfo("[path_planner_node] Static path generated.")
             else:
                 rospy.logwarn("[path_planner_node] Static path generation failed.")
+                return PlanPathResponse(success=False)
         else:
             self.static_path = None
 
