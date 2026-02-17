@@ -15,7 +15,7 @@
       <rosparam command="load" file="$(find auv_bringup)/config/environment.yaml" />
       <param name="config_file" value="$(find auv_vision)/config/detection_objects.yaml" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
-      <remap from="odom_pressure" to="localization/odom_pressure" />
+      <remap from="odometry" to="odometry" />
       <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
       <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
       <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
