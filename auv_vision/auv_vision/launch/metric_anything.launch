@@ -5,15 +5,14 @@
     <arg name="zmq_host" default="localhost" />
     <arg name="zmq_port" default="5555" />
 
-    <arg name="camera_namespace" default="cameras/cam_front" />
+    <arg name="camera_namespace" default="cameras/cam_torpedo" />
     <arg name="input_image_topic" default="$(arg camera_namespace)/image_rect_color" />
     <arg name="output_depth_topic" default="depth_anything/raw_depth" />
-    <arg name="output_colorized_topic" default="depth_anything/colorized" />
     <arg name="scaled_camera_info_topic" default="depth_anything/scaled_camera_info" />
-    <arg name="frame_id" default="taluy/base_link/front_camera_optical_link" />
+    <arg name="frame_id" default="taluy/base_link/torpedo_camera_optical_link" />
 
     <group ns="$(arg namespace)">
-        <node pkg="auv_vision" type="depth_anything_client.py" name="depth_anything_node" output="screen">
+        <node pkg="auv_vision" type="metric_anything_client.py" name="depth_anything_node" output="screen">
             <param name="zmq_host" value="$(arg zmq_host)" />
             <param name="zmq_port" value="$(arg zmq_port)" />
             <param name="rate" value="$(arg rate)" />
@@ -22,7 +21,6 @@
 
             <remap from="image_raw" to="$(arg input_image_topic)" />
             <remap from="raw_depth" to="$(arg output_depth_topic)" />
-            <remap from="colorized" to="$(arg output_colorized_topic)" />
             <remap from="scaled_camera_info" to="$(arg scaled_camera_info_topic)" />
         </node>
     </group>

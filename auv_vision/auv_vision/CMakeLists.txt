@@ -36,7 +36,8 @@ catkin_install_python(
     scripts/opencv_pipe_detector.py
     scripts/pipe_follower.py
     scripts/sim_bbox_node.py
-    scripts/depth_anything_client.py
+    scripts/depth_anything_trt_node.py
+    scripts/metric_anything_client.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
