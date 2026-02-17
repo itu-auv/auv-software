@@ -96,8 +96,8 @@ class CameraDetectionNode:
                 queue_size=1,
             )
 
-        # Altitude subscriber
-        rospy.Subscriber("odom_pressure", Odometry, self._altitude_callback)
+        # Odometry subscriber
+        rospy.Subscriber("odometry", Odometry, self._odometry_callback)
 
         # Services
         rospy.Service(
@@ -126,11 +126,11 @@ class CameraDetectionNode:
             return
         self.handlers[cam_key].handle(msg)
 
-    def _altitude_callback(self, msg: Odometry):
+    def _odometry_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
         self.shared_state["altitude"] = self.shared_state["pool_depth"] - depth
         rospy.loginfo_once(
-            f"Calculated altitude from odom_pressure: {self.shared_state['altitude']:.2f} m "
+            f"Calculated altitude from odometry Z: {self.shared_state['altitude']:.2f} m "
             f"(pool_depth={self.shared_state['pool_depth']})"
         )
 
