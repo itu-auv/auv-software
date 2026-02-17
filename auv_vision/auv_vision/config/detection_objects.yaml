@@ -56,6 +56,7 @@ props:
   bin_sawfish_link: {name: "bin_sawfish", real_height: 0.30480, real_width: 0.30480}
   octagon_table_link: {name: "octagon_table", real_height: null, real_width: null}
   bottle_link: {name: "bottle", real_height: null, real_width: 0.06}
+  octagon_table_link: {name: "octagon_table", real_height: null, real_width: null}
 
 # Front camera focus service object groups (keyed by YOLO detection ID)
 object_groups:
