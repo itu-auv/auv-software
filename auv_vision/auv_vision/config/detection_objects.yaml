@@ -22,6 +22,7 @@ cameras:
     id_tf_map:
       0: bin_shark_link
       1: bin_sawfish_link
+      2: octagon_table_link
   torpedo:
     ns: "taluy/cameras/cam_torpedo"
     frame: "taluy/base_link/torpedo_camera_optical_link"
@@ -44,6 +45,7 @@ props:
   octagon_link: {name: "octagon", real_height: 0.74, real_width: 0.91}
   bin_shark_link: {name: "bin_shark", real_height: 0.30480, real_width: 0.30480}
   bin_sawfish_link: {name: "bin_sawfish", real_height: 0.30480, real_width: 0.30480}
+  octagon_table_link: {name: "octagon_table", real_height: null, real_width: null}
 
 # Front camera focus service object groups (keyed by YOLO detection ID)
 object_groups:
@@ -53,4 +55,11 @@ object_groups:
   bin: [6]
   octagon: [7]
   all: [0, 1, 4, 5, 6, 7]
+  none: []
+
+# Bottom camera focus service object groups (keyed by YOLO detection ID)
+bottom_object_groups:
+  bin: [0, 1]
+  octagon: [2]
+  all: [0, 1, 2]
   none: []
