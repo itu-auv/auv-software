@@ -24,7 +24,7 @@ import tf2_ros
 
 class GripperAngleOpenState(smach.State):
     """
-    Gerçek gripper için angle topic'ine 2400 değerini yayınlar (açık pozisyon).
+    for real life gripper).
     """
 
     def __init__(self):
@@ -54,7 +54,7 @@ class GripperAngleOpenState(smach.State):
 
 class GripperAngleCloseState(smach.State):
     """
-    Gerçek gripper için angle topic'ine 400 değerini yayınlar (kapalı pozisyon).
+    for real life gripper close).
     """
 
     def __init__(self):
@@ -69,7 +69,6 @@ class GripperAngleCloseState(smach.State):
         try:
             msg = UInt16()
             msg.data = self.angle_value
-            # Birkaç kez yayınla - topic'in alındığından emin olmak için
             for _ in range(3):
                 self.pub.publish(msg)
                 rospy.sleep(0.1)
@@ -390,7 +389,7 @@ class OctagonTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SET_BOTTLE_DEPTH",
-                SetDepthState(depth=-1.2, max_velocity=0.1, confirm_duration=5.0),
+                SetDepthState(depth=-1.083, max_velocity=0.1, confirm_duration=5.0),
                 transitions={
                     "succeeded": "SURFACE_WITH_BOTTLE",
                     "preempted": "preempted",
