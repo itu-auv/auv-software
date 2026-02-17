@@ -108,6 +108,8 @@ class PathPlanners:
             header = PathPlanningHelper.create_path_header(self.header_frame)
 
             # Generate waypoints using the provided interpolation flags.
+            # When n_turns == 0, waypoints face toward the target position (look-at-target).
+            # When n_turns != 0, yaw is linearly interpolated to allow full rotations.
             poses = PathPlanningHelper.generate_waypoints(
                 header,
                 source_position,
@@ -118,6 +120,7 @@ class PathPlanners:
                 interpolate_xy,
                 interpolate_z,
                 interpolate_yaw,
+                target_euler=list(final_target_euler) if n_turns == 0 else None,
             )
 
             # Create and return the final Path message.
