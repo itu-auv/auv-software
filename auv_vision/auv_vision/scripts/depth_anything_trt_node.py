@@ -5,7 +5,6 @@ This node runs Depth Anything 3 metric depth inference using a TensorRT engine,
 replacing the previous ZMQ-based architecture that required Python 3.10.
 """
 
-import struct
 from pathlib import Path
 
 import cv2
@@ -19,13 +18,9 @@ cuda.init()
 _cuda_device = cuda.Device(0)
 _cuda_context = _cuda_device.make_context()
 
-import atexit
-
-atexit.register(_cuda_context.pop)
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from cv_bridge import CvBridge
-from sensor_msgs import point_cloud2 as pc2
-from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
+from sensor_msgs.msg import CameraInfo, Image
 
 # ============================================================================
 # Preprocessing Constants (Depth Anything 3 defaults)
@@ -121,10 +116,10 @@ class DepthAnythingTRTNode:
         engine_path = rospy.get_param("~engine_path")
         self.rate_hz = rospy.get_param("~rate", 20.0)
         self.camera_namespace = rospy.get_param(
-            "~camera_namespace", "cameras/cam_front"
+            "~camera_namespace", "cameras/cam_torpedo"
         )
         self.frame_id = rospy.get_param(
-            "~frame_id", "taluy/base_link/front_camera_optical_link"
+            "~frame_id", "taluy/base_link/torpedo_camera_optical_link"
         )
 
         # Validate engine path
@@ -150,7 +145,6 @@ class DepthAnythingTRTNode:
             "image_raw", Image, self._image_cb, queue_size=1
         )
         self.depth_pub = rospy.Publisher("raw_depth", Image, queue_size=1)
-        self.colorized_pub = rospy.Publisher("colorized", Image, queue_size=1)
         self.camera_info_pub = rospy.Publisher(
             "scaled_camera_info", CameraInfo, queue_size=1, latch=True
         )
@@ -159,6 +153,7 @@ class DepthAnythingTRTNode:
         if self.scaled_intrinsics:
             self._publish_scaled_camera_info()
 
+        rospy.on_shutdown(self.cleanup)
         rospy.loginfo(f"[DA3-TRT] Ready, rate={self.rate_hz}Hz")
 
     def _compute_scaled_intrinsics(self) -> dict:
@@ -245,12 +240,6 @@ class DepthAnythingTRTNode:
         # Add batch dimension: (3, H, W) -> (1, 3, H, W)
         return np.expand_dims(chw, axis=0).astype(np.float32)
 
-    def _colorize_depth(self, depth: np.ndarray) -> np.ndarray:
-        """Colorize depth map for visualization."""
-        d_norm = (depth - depth.min()) / (depth.max() - depth.min() + 1e-8)
-        d_u8 = (d_norm * 255).astype(np.uint8)
-        return cv2.applyColorMap(d_u8, cv2.COLORMAP_INFERNO)
-
     def run(self) -> None:
         """Main loop."""
         rate = rospy.Rate(self.rate_hz)
@@ -288,16 +277,22 @@ class DepthAnythingTRTNode:
                 depth_msg.header = msg.header
                 self.depth_pub.publish(depth_msg)
 
-                # Publish colorized
-                colorized = self._colorize_depth(depth)
-                color_msg = self.bridge.cv2_to_imgmsg(colorized, "bgr8")
-                color_msg.header = msg.header
-                self.colorized_pub.publish(color_msg)
-
             except Exception as e:
                 rospy.logerr_throttle(5.0, f"[DA3-TRT] Inference failed: {e}")
 
             rate.sleep()
+
+    def cleanup(self) -> None:
+        """Release CUDA and TensorRT resources."""
+        rospy.loginfo("[DA3-TRT] Shutting down...")
+        try:
+            if hasattr(self, "engine") and self.engine is not None:
+                del self.engine
+        finally:
+            try:
+                _cuda_context.pop()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
