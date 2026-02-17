@@ -427,7 +427,6 @@ class BinTaskState(smach.State):
                 },
             )
 
-
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_BIN_WHOLE",
                 DynamicPathState(

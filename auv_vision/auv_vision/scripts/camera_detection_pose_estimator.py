@@ -393,9 +393,7 @@ class CameraDetectionNode:
         if "none" in focus_objects:
             message = "Bottom camera focus set to none. Detections will be ignored."
         else:
-            message = (
-                f"Bottom camera focus set to IDs: {self.active_bottom_camera_ids}"
-            )
+            message = f"Bottom camera focus set to IDs: {self.active_bottom_camera_ids}"
 
         rospy.loginfo(message)
         return SetDetectionFocusResponse(success=True, message=message)
