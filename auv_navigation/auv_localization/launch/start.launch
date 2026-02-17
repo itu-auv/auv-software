@@ -4,24 +4,27 @@
   <arg name="rate" default="20" />
 
   <group ns="$(arg namespace)">
-    <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" />
+    <rosparam file="$(find auv_localization)/config/$(arg namespace)/sensor_calibration_data.yaml" />
 
     <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
+      <param name="namespace" value="$(arg namespace)" />
       <remap from="imu/data" to="sensors/imu/data" />
       <remap from="imu_mainboard/data" to="sensors/imu_mainboard/data" />
       <remap from="odom_imu" to="localization/odom_imu" />
       <remap from="odom_bno_imu" to="localization/odom_bno_imu" />
-      <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
+      <param name="imu_calibration_path" value="$(find auv_localization)/config/$(arg namespace)/imu_calibration_data.yaml" />
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
       output="screen">
-      <rosparam file="$(find auv_localization)/config/sensor_calibration_data.yaml" command="load" />
+      <param name="namespace" value="$(arg namespace)" />
+      <rosparam file="$(find auv_localization)/config/$(arg namespace)/sensor_calibration_data.yaml" command="load" />
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="odom_pressure" to="localization/odom_pressure" />
       <remap from="imu/data" to="sensors/imu/data" />
       <remap from="dvl/altitude" to="sensors/dvl/altitude"/>
     </node>
     <node pkg="auv_localization" type="dvl_odometry_node.py" name="dvl_to_odom_node" output="screen">
+      <param name="namespace" value="$(arg namespace)" />
       <remap from="sensors/dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
       <remap from="odom_dvl" to="localization/odom_dvl" />
       <remap from="dvl/velocity_raw" to="sensors/dvl/velocity_raw" />
