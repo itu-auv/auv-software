@@ -16,7 +16,7 @@ cost_scaling_factor: 2.0
 
 map_type: costmap
 #observation_sources: scan
-#scan: {sensor_frame: taluy/base_link, data_type: LaserScan, topic: scan, marking: true, clearing: true}
+#scan: {sensor_frame: $(arg namespace)/base_link, data_type: LaserScan, topic: scan, marking: true, clearing: true}
 
 observation_sources: pointcloud
-pointcloud: {sensor_frame: taluy/base_link, data_type: PointCloud, topic: pointcloud, marking: true, clearing: true}
+pointcloud: {sensor_frame: $(arg namespace)/base_link, data_type: PointCloud, topic: pointcloud, marking: true, clearing: true}

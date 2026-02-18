@@ -2,6 +2,8 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
+  <arg name="model" default="$(eval find(arg('namespace') + '_description') + '/urdf/auv.urdf.xacro')" />
+  <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/default.rviz')" />
   <arg name="dvl_virtual_port" default="/dev/auv_wayfinder_dvl" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
@@ -19,6 +21,8 @@
   <include file="$(find auv_bringup)/launch/inc/localization/start_state_publisher.launch.xml">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="use_gui" value="$(arg use_gui)" />
+    <arg name="model" value="$(arg model)" />
+    <arg name="rviz_config" value="$(arg rviz_config)" />
   </include>
 
   <!-- launch xsens driver -->
@@ -59,7 +63,7 @@
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
-    <arg name="config_file" value="$(find auv_control)/config/default.yaml" />
+    <arg name="config_file" value="$(find auv_control)/config/$(arg namespace)/default.yaml" />
   </include>
 
   <!-- launch logging -->

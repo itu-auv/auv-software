@@ -1,6 +1,6 @@
 local_costmap:
   global_frame: odom
-  robot_base_frame: taluy/base_link
+  robot_base_frame: $(arg namespace)/base_link
 
   update_frequency: 20.0
   publish_frequency: 20.0
