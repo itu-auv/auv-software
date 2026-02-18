@@ -1,5 +1,4 @@
 odom_frame: "odom"
-robot_frame: "taluy/base_link"
 bin_frame: "bin_whole_link"
 bin_further_frame: "bin_far_trial"
 bin_closer_frame: "bin_close_approach"
