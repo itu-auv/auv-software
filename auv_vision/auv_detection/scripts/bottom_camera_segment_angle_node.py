@@ -85,7 +85,6 @@ class BottomCameraSegmentAngleNode(object):
         self.last_vx = None
         self.last_vy = None
 
-
     def _publish_measurement(self, msg_header, angle, thickness, valid):
         m = SegmentMeasurement()
         m.header = msg_header
@@ -229,7 +228,6 @@ class BottomCameraSegmentAngleNode(object):
         self.last_vx = vx
         self.last_vy = vy
 
-
         # Project all contour points onto the line direction to find extremes
         # Projection t = dot(pt - origin, direction) where direction is unit vector
         # pts shape is (N, 2) with columns [x, y]
@@ -256,7 +254,6 @@ class BottomCameraSegmentAngleNode(object):
         #     angle -= math.pi
         # elif angle <= -math.pi / 2:
         #     angle += math.pi
-
 
         vehicle_vx = math.cos(angle)
         vehicle_vy = math.sin(angle)
