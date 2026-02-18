@@ -14,6 +14,8 @@
       <param name="sync_queue_size" value="10"/>
       <param name="sync_slop" value="0.05"/>
       <param name="recalc_threshold_deg" value="0.1"/>
+      <param name="camera_optical_frame" value="$(arg namespace)/base_link/front_camera_optical_link"/>
+      <param name="camera_optical_frame_stabilized" value="$(arg namespace)/base_link/front_camera_optical_link_stabilized"/>
     </node>
     <node
       pkg="auv_vision"

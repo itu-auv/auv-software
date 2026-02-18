@@ -15,6 +15,7 @@
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
       <rosparam command="load" file="$(find auv_bringup)/config/environment.yaml" />
+      <param name="namespace" value="$(arg namespace)" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
       <remap from="odom_pressure" to="localization/odom_pressure" />
       <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
