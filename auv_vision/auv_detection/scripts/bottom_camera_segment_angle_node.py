@@ -82,6 +82,10 @@ class BottomCameraSegmentAngleNode(object):
             self.measurement_topic,
         )
 
+        self.last_vx = None
+        self.last_vy = None
+
+
     def _publish_measurement(self, msg_header, angle, thickness, valid):
         m = SegmentMeasurement()
         m.header = msg_header
@@ -215,6 +219,17 @@ class BottomCameraSegmentAngleNode(object):
         [vx, vy, x0, y0] = cv2.fitLine(pts, cv2.DIST_L2, 0, 0.01, 0.01)
         vx, vy, x0, y0 = float(vx), float(vy), float(x0), float(y0)
 
+        # Ensure temporal consistency of the line vector direction
+        if self.last_vx is not None and self.last_vy is not None:
+            dot_prod = vx * self.last_vx + vy * self.last_vy
+            if dot_prod < 0:
+                vx = -vx
+                vy = -vy
+
+        self.last_vx = vx
+        self.last_vy = vy
+
+
         # Project all contour points onto the line direction to find extremes
         # Projection t = dot(pt - origin, direction) where direction is unit vector
         # pts shape is (N, 2) with columns [x, y]
@@ -237,10 +252,11 @@ class BottomCameraSegmentAngleNode(object):
 
         # Normalize to [-pi/2, pi/2] to handle line ambiguity (line has no direction)
         # This effectively forces the vector to point roughly towards the "Front" (Right)
-        if angle > math.pi / 2:
-            angle -= math.pi
-        elif angle <= -math.pi / 2:
-            angle += math.pi
+        # if angle > math.pi / 2:
+        #     angle -= math.pi
+        # elif angle <= -math.pi / 2:
+        #     angle += math.pi
+
 
         vehicle_vx = math.cos(angle)
         vehicle_vy = math.sin(angle)
