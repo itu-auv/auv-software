@@ -30,7 +30,9 @@ class PipeDetectorSimple:
 
         self.bridge = CvBridge()
         self.sub = rospy.Subscriber(
-            "/taluy/cameras/cam_bottom/image_underwater",
+            rospy.get_param(
+                "~input_topic", "/taluy/cameras/cam_bottom/image_underwater"
+            ),
             Image,
             self.cb,
             queue_size=1,
