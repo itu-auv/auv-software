@@ -358,6 +358,9 @@ class NavigateThroughGateState(smach.State):
                 "DYNAMIC_PATH_TO_GATE",
                 DynamicPathState(
                     plan_target_frame="gate_passage",
+                    n_turns=1,
+                    dynamic=False,
+                    max_linear_velocity=0.3,
                 ),
                 transitions={
                     "succeeded": "ALIGN_FRAME_REQUEST_AFTER_GATE",
