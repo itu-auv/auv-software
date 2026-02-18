@@ -15,8 +15,8 @@
      limitations under the License.
 -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:property name="cob" value="0.0 0.0 0.15"/>
-  <xacro:property name="volume" value="0.015"/>
+  <xacro:property name="cob" value="0.0 0.0 0.2"/>
+  <xacro:property name="volume" value="0.027"/>
   <xacro:macro name="auv_hydro_model" params="namespace">
     <link name="${namespace}/base_link">
       <neutrally_buoyant>1</neutrally_buoyant>
@@ -37,8 +37,8 @@
           0 0 0 0 0 0
           0 0 0 0 0 0
         </added_mass>
-        <linear_damping>0 0 0 0 0 0</linear_damping>
-        <quadratic_damping>0 0 0 0 0 0</quadratic_damping>
+        <linear_damping>-30 -31 -89 -1.87 -1.87 -1.87</linear_damping>
+        <quadratic_damping>-77 -155 -136 -7.98 -7.98 -7.98</quadratic_damping>
       </hydrodynamic_model>
     </link>
   </xacro:macro>
