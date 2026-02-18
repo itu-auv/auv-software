@@ -32,10 +32,16 @@
 
     <!-- Ball Dropper Service Node -->
     <node name="drop_ball_server" pkg="auv_sim_bridge" type="sim_bin_mock.py" output="screen">
+      <param name="base_frame" value="$(arg namespace)/base_link" />
+      <param name="drop_frame" value="$(arg namespace)/base_link/ball_dropper_link" />
       <remap from="actuators/ball_dropper/drop" to="actuators/ball_dropper/drop" />
     </node>
     <!-- Torpedo Launcher Service Node -->
     <node name="launch_torpedo_server" pkg="auv_sim_bridge" type="sim_torpedo_mock.py" output="screen">
+      <param name="base_frame" value="$(arg namespace)/base_link" />
+      <param name="robot_name" value="$(arg namespace)" />
+      <param name="torpedo_1_frame" value="$(arg namespace)/base_link/torpedo_upper_link" />
+      <param name="torpedo_2_frame" value="$(arg namespace)/base_link/torpedo_bottom_link" />
       <remap from="actuators/torpedo_1/launch" to="actuators/torpedo_1/launch" />
       <remap from="actuators/torpedo_2/launch" to="actuators/torpedo_2/launch" />
     </node>
@@ -47,7 +53,7 @@
     <arg name="sim" value="$(arg sim)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
-    <arg name="config_file" value="$(find auv_sim_bridge)/config/control_config.yaml"/>
+    <arg name="config_file" value="$(find auv_sim_bridge)/config/$(arg namespace)/control_config.yaml"/>
   </include>
 
   <!-- launch parameter server -->

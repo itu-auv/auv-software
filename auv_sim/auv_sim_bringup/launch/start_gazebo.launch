@@ -24,6 +24,8 @@
     <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
     <arg name="use_models" default="false" />
+    <arg name="robot_description_file" default="$(find taluy_sim_description)/urdf/taluy_sim.urdf.xacro" />
+    <arg name="rviz_config" default="$(find taluy_description)/rviz/yolo_cam.rviz" />
 
     <!-- Run Taluy GUI -->
     <group if="$(arg use_taluy_gui)">
@@ -37,7 +39,7 @@
         name="rviz"
         pkg="rviz"
         type="rviz"
-        args="-d $(find taluy_description)/rviz/yolo_cam.rviz"
+        args="-d $(arg rviz_config)"
         if="$(arg use_gui)"
     />
 
@@ -85,6 +87,7 @@
         <arg name="dvl_update_rate" value="$(arg dvl_update_rate)" />
         <arg name="pressure_update_rate" value="$(arg pressure_update_rate)" />
         <arg name="use_models" value="$(arg use_models)" />
+        <arg name="robot_description_file" value="$(arg robot_description_file)" />
     </include>
 
     <!-- Start bridge -->
@@ -123,5 +126,8 @@
     </node>
 
     <!-- TF-Gazebo Debug Node -->
-    <node name="tf_gazebo_debug" pkg="auv_sim" type="tf_gazebo_debug.py" output="screen" />
+    <node name="tf_gazebo_debug" pkg="auv_sim" type="tf_gazebo_debug.py" output="screen">
+      <param name="robot_name" value="$(arg namespace)" />
+      <param name="robot_base_frame" value="$(arg namespace)/base_link" />
+    </node>
 </launch>
