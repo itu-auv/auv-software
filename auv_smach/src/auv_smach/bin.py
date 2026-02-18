@@ -81,7 +81,7 @@ class CheckForDropAreaState(smach.State):
 class SetAlignToFoundState(smach.State):
     def __init__(
         self,
-        source_frame: str = "taluy/base_link/ball_dropper_link",
+        source_frame: str = "taluy/base_link/ball_dropper_1_link",
         dist_threshold: float = 0.05,
         yaw_threshold: float = 0.1,
         confirm_duration: float = 5.0,
@@ -508,7 +508,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_ALIGN_TO_FOUND_DROP_AREA",
                 SetAlignToFoundState(
-                    source_frame="taluy/base_link/ball_dropper_link",
+                    source_frame="taluy/base_link/ball_dropper_1_link",
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
                     confirm_duration=2.0,
@@ -538,7 +538,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_ALIGN_TO_FOUND_DROP_AREA_FINAL",
                 SetAlignToFoundState(
-                    source_frame="taluy/base_link/ball_dropper_link",
+                    source_frame="taluy/base_link/ball_dropper_1_link",
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
                     confirm_duration=4.0,
@@ -573,7 +573,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
                 SetAlignToFoundState(
-                    source_frame="taluy/base_link/ball_dropper_link",
+                    source_frame="taluy/base_link/ball_dropper_1_link",
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
                     confirm_duration=4.0,
@@ -599,6 +599,23 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_1",
                 DelayState(delay_time=5.0),
+                transitions={
+                    "succeeded": "A",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "A",
+                SetAlignToFoundState(
+                    source_frame="taluy/base_link/ball_dropper_2_link",
+                    dist_threshold=0.05,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=20.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
                 transitions={
                     "succeeded": "DROP_BALL_2",
                     "preempted": "preempted",
