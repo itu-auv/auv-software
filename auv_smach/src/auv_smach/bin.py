@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -36,8 +37,7 @@ class CheckForDropAreaState(smach.State):
         )
         self.source_frame = source_frame
         self.timeout = rospy.Duration(timeout)
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.target_selection = target_selection
         # Set frame order based on target_selection
         if self.target_selection == "shark":
