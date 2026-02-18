@@ -9,7 +9,7 @@
 
   <group ns="$(arg namespace)">
     <node name="auv_sim_bridge" pkg="auv_sim_bridge" type="simulation_mock_node" output="screen">
-      <rosparam command="load" file="$(find auv_localization)/config/imu_calibration_data.yaml"
+      <rosparam command="load" file="$(find auv_localization)/config/$(arg namespace)/imu_calibration_data.yaml"
         ns="imu" />
 
       <!-- outputs -->

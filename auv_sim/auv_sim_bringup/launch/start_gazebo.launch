@@ -24,8 +24,8 @@
     <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
     <arg name="use_models" default="false" />
-    <arg name="robot_description_file" default="$(find taluy_sim_description)/urdf/taluy_sim.urdf.xacro" />
-    <arg name="rviz_config" default="$(find taluy_description)/rviz/yolo_cam.rviz" />
+    <arg name="robot_description_file" default="$(eval find(arg('namespace') + '_sim_description') + '/urdf/' + arg('namespace') + '_sim.urdf.xacro')" />
+    <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/yolo_cam.rviz')" />
 
     <!-- Run Taluy GUI -->
     <group if="$(arg use_taluy_gui)">
