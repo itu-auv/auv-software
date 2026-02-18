@@ -55,7 +55,7 @@ class SlalomKmeansCluster:
             # Too far
             if off_z > 10:
                 continue
-            
+
             transform_stamped_msg = TransformStamped()
             transform_stamped_msg.header.stamp = detections.header.stamp
             transform_stamped_msg.header.frame_id = "taluy/base_link/front_camera_optical_link_stabilized"
@@ -87,13 +87,6 @@ class SlalomKmeansCluster:
             self.perform_kmeans()
 
     def perform_kmeans(self):
-        data = np.array(self.points, dtype=np.float32)
-
-        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1)
-        k = 9
-        _, _, centers = cv2.kmeans(data, k, None, criteria, 100, cv2.KMEANS_RANDOM_CENTERS)
-
-
         pts = np.array(self.points)
         x_min, y_min = np.min(pts, axis=0)
         x_max, y_max = np.max(pts, axis=0)
@@ -121,16 +114,41 @@ class SlalomKmeansCluster:
 
             cv2.circle(img, (u, v), 3, 255, -1)
 
+        opening = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones((4, 4), np.uint8))
+        _, thresh = cv2.threshold(opening, 127, 255, cv2.THRESH_BINARY)
+        points = np.column_stack(np.where(thresh == 255))
+        points = np.float32(points)
+
+        K = 9
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 1)
+
+        _, _, pixel_centers = cv2.kmeans(
+            points,
+            K,
+            None,
+            criteria,
+            100,
+            cv2.KMEANS_RANDOM_CENTERS
+        )
+
+        print(f"pixel_centers = {pixel_centers}")
+
+        world_centers = []
+        for center in pixel_centers:
+            v = float(center[0])
+            u = float(center[1])
+            world_centers.append([((u - (640 - width * scale) / 2) / scale) + x_min, ((v - (480 - height * scale) / 2) / scale) + y_min])
+
         # TODO: work with the generated (debug?) image instead of pure locations then convert them to locations again
         # benefits:
         # more easy to filter (slalom coordinates are generally small floating points so it's hard to filter them)
 
         save_path = "slalom_centroids.png"
-        cv2.imwrite(save_path, img)
+        cv2.imwrite(save_path, opening)
         rospy.loginfo(f"Image saved to {save_path}")
 
         self.centers = []
-        for i, center in enumerate(centers):
+        for i, center in enumerate(world_centers):
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "odom"
