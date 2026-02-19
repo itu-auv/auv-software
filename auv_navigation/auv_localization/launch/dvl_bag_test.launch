@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<!--
+  DVL bag replay test launch.
+  Starts the test node + EKF + bag playback so you can visualize in RViz.
+  DELETE THIS FILE AFTER TESTING.
+
+  Usage:
+    roslaunch auv_localization dvl_bag_test.launch bag_path:=/home/melih/dvl_verisi.bag
+-->
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="bag_path" default="/home/melih/dvl_verisi.bag" />
+  <arg name="bag_topic" default="/taluy_mini/dvl/velocity" />
+
+  <group ns="$(arg namespace)">
+    <!-- Test node: publishes odom_dvl, odom_pressure, odom_imu, odom_bno_imu -->
+    <node pkg="auv_localization" type="dvl_bag_test_node.py" name="dvl_bag_test_node" output="screen">
+      <remap from="dvl/velocity" to="$(arg bag_topic)" />
+      <remap from="odom_dvl" to="localization/odom_dvl" />
+      <remap from="odom_pressure" to="localization/odom_pressure" />
+      <remap from="odom_imu" to="localization/odom_imu" />
+      <remap from="odom_bno_imu" to="localization/odom_bno_imu" />
+    </node>
+  </group>
+
+  <!-- EKF -->
+  <include file="$(find auv_bringup)/launch/inc/localization/start_robot_localization.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="sim" value="true" />
+  </include>
+
+  <!-- Bag playback (clock enabled) -->
+  <param name="/use_sim_time" value="true" />
+  <node pkg="rosbag" type="play" name="bag_player" output="screen"
+        args="--clock $(arg bag_path)" />
+</launch>
