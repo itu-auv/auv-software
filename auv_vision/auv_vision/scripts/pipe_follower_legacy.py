@@ -28,7 +28,7 @@ def rot90n(img, n_cw):
         return np.ascontiguousarray(np.rot90(img, k=1))
 
 
-class PipeLineFollower(object):
+class PipeLineFollowerLegacy(object):
     def __init__(self):
         # Load all parameters from the private namespace
         self.params = rospy.get_param("~")
@@ -37,7 +37,7 @@ class PipeLineFollower(object):
         self.pub_cmd = rospy.Publisher("cmd_vel", Twist, queue_size=1)
         self.pub_debug = rospy.Publisher("debug_image", Image, queue_size=1)
         self.sub_mask = rospy.Subscriber(
-            "pipe_mask", Image, self.cb_mask, queue_size=1, buff_size=2**24
+            "seg_mask", Image, self.cb_mask, queue_size=1, buff_size=2**24
         )
 
     # ---------- Core callback ----------
@@ -240,8 +240,8 @@ class PipeLineFollower(object):
 
 
 def main():
-    rospy.init_node("pipe_line_follower")
-    PipeLineFollower()
+    rospy.init_node("pipe_line_follower_legacy")
+    PipeLineFollowerLegacy()
     rospy.spin()
 
 
