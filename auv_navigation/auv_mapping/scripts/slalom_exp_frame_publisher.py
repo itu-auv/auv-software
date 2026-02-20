@@ -205,8 +205,8 @@ class SlalomExpFramePublisher:
                 t.header.stamp = rospy.Time.now()
                 t.header.frame_id = "odom"
                 t.child_frame_id = f"slalom_wp_{w}_{idx}"
-                t.transform.translation.x = pos_wp[0]
-                t.transform.translation.y = pos_wp[1]
+                t.transform.translation.x = pos_wp[0] + v_forward[0] * 0.3
+                t.transform.translation.y = pos_wp[1] + v_forward[1] * 0.3
                 t.transform.rotation = Quaternion(*q)
 
                 req_obj = SetObjectTransformRequest()
