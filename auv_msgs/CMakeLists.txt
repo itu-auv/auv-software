@@ -21,6 +21,7 @@ add_message_files(
   FILES
   EulerOrientation.msg
   PropsYaw.msg
+  SegmentMeasurement.msg
   TDOA.msg
 )
 

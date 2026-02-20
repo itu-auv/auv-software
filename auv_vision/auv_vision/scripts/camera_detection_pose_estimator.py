@@ -13,15 +13,15 @@ from geometry_msgs.msg import (
     Quaternion,
 )
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw
+from auv_msgs.msg import PropsYaw, SegmentMeasurement
 from sensor_msgs.msg import Range
-from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
+from tf import transformations as tf_transformations
 from dynamic_reconfigure.client import Client
 
 
@@ -110,6 +110,11 @@ class WhitePipe(Prop):
         super().__init__(3, "white_pipe", 0.90, None)
 
 
+class Bottle(Prop):
+    def __init__(self):
+        super().__init__(0, "bottle", None, 0.06)
+
+
 class TorpedoMap(Prop):
     def __init__(self):
         super().__init__(4, "torpedo_map", 0.6096, 0.6096)
@@ -140,6 +145,11 @@ class BinSawfish(Prop):
         super().__init__(11, "bin_sawfish", 0.30480, 0.30480)
 
 
+class OctagonTable(Prop):
+    def __init__(self):
+        super().__init__(2, "octagon_table", None, None)
+
+
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
@@ -155,6 +165,7 @@ class CameraDetectionNode:
         self.torpedo_camera_enabled = False
 
         self.red_pipe_x = None
+        self.last_segment_measurement: SegmentMeasurement = None
 
         self.object_id_map = {
             "gate": [0, 1],
@@ -170,6 +181,14 @@ class CameraDetectionNode:
             "gate"
         ]  # Allow gate by default
 
+        self.bottom_object_id_map = {
+            "bin": [0, 1],
+            "octagon": [2],
+            "all": [0, 1, 2],
+            "none": [],
+        }
+        self.active_bottom_camera_ids = self.bottom_object_id_map["bin"]
+
         self.object_transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
         )
@@ -182,7 +201,10 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
             "taluy/cameras/cam_torpedo": CameraCalibration("cameras/cam_torpedo"),
         }
-        # Use lambda to pass camera source information to the callback
+        # Segmentation source uses the same camera calibration as bottom camera
+        self.camera_calibrations["taluy/cameras/cam_bottom_seg"] = (
+            self.camera_calibrations["taluy/cameras/cam_bottom"]
+        )
         rospy.Subscriber(
             "/yolo_result_front",
             YoloResult,
@@ -193,6 +215,12 @@ class CameraDetectionNode:
             "/yolo_result_bottom",
             YoloResult,
             lambda msg: self.detection_callback(msg, camera_source="bottom_camera"),
+            queue_size=1,
+        )
+        rospy.Subscriber(
+            "/yolo_result_seg",
+            YoloResult,
+            lambda msg: self.detection_callback(msg, camera_source="bottom_camera_seg"),
             queue_size=1,
         )
         rospy.Subscriber(
@@ -216,12 +244,15 @@ class CameraDetectionNode:
             "gate_shark_link": Shark(),
             "red_pipe_link": RedPipe(),
             "white_pipe_link": WhitePipe(),
+            "bottle_link": Bottle(),
             "torpedo_map_link": TorpedoMap(),
             "octagon_link": Octagon(),
             "bin_sawfish_link": BinShark(),
             "bin_shark_link": BinSawfish(),
+            "octagon_table_link": OctagonTable(),
             "torpedo_hole_shark_link": TorpedoHole(),
             "torpedo_hole_sawfish_link": TorpedoHole(),
+            "bin_whole_link": BinWhole(),
         }
 
         self.id_tf_map = {
@@ -237,6 +268,10 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": {
                 0: "bin_shark_link",
                 1: "bin_sawfish_link",
+                2: "octagon_table_link",
+            },
+            "taluy/cameras/cam_bottom_seg": {
+                0: "bottle_link",
             },
             "taluy/cameras/cam_torpedo": {
                 5: "torpedo_hole_link",
@@ -246,6 +281,12 @@ class CameraDetectionNode:
         self.altitude = None
         self.pool_depth = rospy.get_param("/env/pool_depth")
         rospy.Subscriber("odom_pressure", Odometry, self.altitude_callback)
+        rospy.Subscriber(
+            "segment_measurement",
+            SegmentMeasurement,
+            self.segment_measurement_callback,
+            queue_size=1,
+        )
 
         # Services to enable/disable cameras
         rospy.Service(
@@ -267,6 +308,11 @@ class CameraDetectionNode:
             "set_front_camera_focus",
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
+        )
+        rospy.Service(
+            "set_bottom_camera_focus",
+            SetDetectionFocus,
+            self.handle_set_bottom_camera_focus,
         )
 
     def dynamic_reconfigure_callback(self, config):
@@ -314,6 +360,44 @@ class CameraDetectionNode:
         rospy.loginfo(message)
         return SetDetectionFocusResponse(success=True, message=message)
 
+    def handle_set_bottom_camera_focus(self, req):
+        focus_objects = [
+            obj.strip() for obj in req.focus_object.split(",") if obj.strip()
+        ]
+
+        if not focus_objects:
+            message = f"Empty focus object provided. No changes made. Available options: {list(self.bottom_object_id_map.keys())}"
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        unfound_objects = [
+            obj for obj in focus_objects if obj not in self.bottom_object_id_map
+        ]
+
+        if unfound_objects:
+            message = f"Unknown focus object(s): '{', '.join(unfound_objects)}'. Available options: {list(self.bottom_object_id_map.keys())}"
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        if "none" in focus_objects and len(focus_objects) > 1:
+            message = "Cannot specify 'none' with other focus objects."
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        all_target_ids = []
+        for focus_object in focus_objects:
+            all_target_ids.extend(self.bottom_object_id_map[focus_object])
+
+        self.active_bottom_camera_ids = list(set(all_target_ids))
+
+        if "none" in focus_objects:
+            message = "Bottom camera focus set to none. Detections will be ignored."
+        else:
+            message = f"Bottom camera focus set to IDs: {self.active_bottom_camera_ids}"
+
+        rospy.loginfo(message)
+        return SetDetectionFocusResponse(success=True, message=message)
+
     def handle_enable_front_camera(self, req):
         self.front_camera_enabled = req.data
         message = "Front camera detections " + ("enabled" if req.data else "disabled")
@@ -338,6 +422,10 @@ class CameraDetectionNode:
         rospy.loginfo_once(
             f"Calculated altitude from odom_pressure: {self.altitude:.2f} m (pool_depth={self.pool_depth})"
         )
+
+    def segment_measurement_callback(self, msg: SegmentMeasurement):
+        """Store segment measurement"""
+        self.last_segment_measurement = msg
 
     def calculate_intersection_with_plane(self, point1_odom, point2_odom, z_plane):
         # Calculate t where the z component is z_plane
@@ -586,15 +674,21 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
-        # Determine camera_ns based on the source passed by the subscriber
+        # Determine camera_ns based on the source passed by the subscribe
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return
             camera_ns = "taluy/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
+                rospy.loginfo_throttle(5, "Bottom camera detection is disabled")
                 return
             camera_ns = "taluy/cameras/cam_bottom"
+        elif camera_source == "bottom_camera_seg":
+            if not self.bottom_camera_enabled:
+                rospy.loginfo_throttle(5, "Bottom camera segmentation is disabled")
+                return
+            camera_ns = "taluy/cameras/cam_bottom_seg"
         elif camera_source == "torpedo_camera":
             if not self.torpedo_camera_enabled:
                 return
@@ -603,7 +697,11 @@ class CameraDetectionNode:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
 
-        camera_frame = self.camera_frames[camera_ns]
+        # For segmentation source, use the same camera frame as bottom camera
+        if camera_ns == "taluy/cameras/cam_bottom_seg":
+            camera_frame = self.camera_frames["taluy/cameras/cam_bottom"]
+        else:
+            camera_frame = self.camera_frames[camera_ns]
         try:
             camera_to_odom_transform = self.tf_buffer.lookup_transform(
                 camera_frame,
@@ -636,9 +734,12 @@ class CameraDetectionNode:
                 continue
             skip_inside_image = False
             detection_id = detection.results[0].id
-
             if camera_source == "front_camera":
                 if detection_id not in self.active_front_camera_ids:
+                    continue
+
+            if camera_source == "bottom_camera":
+                if detection_id not in self.active_bottom_camera_ids:
                     continue
 
             if detection_id == 5:
@@ -653,9 +754,36 @@ class CameraDetectionNode:
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
+            prop_name = self.id_tf_map[camera_ns][detection_id]
+            if prop_name not in self.props:
+                continue
+            prop = self.props[prop_name]
+            # Bottle detection (cam_bottom_seg, ID 0) - use bottle_thickness_px for distance
+            if camera_ns == "taluy/cameras/cam_bottom_seg" and detection_id == 0:
                 skip_inside_image = True
-                # use altidude for bin
+                # Calculate distance using pixel width from segment_measurement
+                seg = self.last_segment_measurement
+                if seg is not None and seg.valid and seg.thickness_px > 0:
+                    distance = prop.estimate_distance(
+                        None,
+                        seg.thickness_px,
+                        self.camera_calibrations[camera_ns],
+                    )
+                else:
+                    distance = prop.estimate_distance(
+                        detection.bbox.size_y,
+                        detection.bbox.size_x,
+                        self.camera_calibrations[camera_ns],
+                    )
+                if distance is None:
+                    rospy.logwarn(
+                        "Could not calculate bottle distance from pixel width, using altitude"
+                    )
+                    distance = self.altitude
+
+            # Bin detections (cam_bottom, IDs 0, 1, 2) - use altitude directly
+            elif camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1, 2]:
+                skip_inside_image = True
                 distance = self.altitude
 
             if detection_id == 6:
@@ -666,11 +794,6 @@ class CameraDetectionNode:
             if not skip_inside_image:
                 if self.check_if_detection_is_inside_image(detection) is False:
                     continue
-            prop_name = self.id_tf_map[camera_ns][detection_id]
-            if prop_name not in self.props:
-                continue
-
-            prop = self.props[prop_name]
 
             if not skip_inside_image:  # Calculate distance using object dimensions
                 distance = prop.estimate_distance(
@@ -707,7 +830,50 @@ class CameraDetectionNode:
             transform_stamped_msg.transform.translation = Vector3(
                 offset_x, offset_y, distance
             )
-            transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+
+            if (
+                camera_ns
+                in ["taluy/cameras/cam_bottom", "taluy/cameras/cam_bottom_seg"]
+                and detection_id in [0, 2, 3]
+                and self.last_segment_measurement is not None
+                and self.last_segment_measurement.valid
+            ):
+                seg = self.last_segment_measurement
+                dt = abs((detection_msg.header.stamp - seg.header.stamp).to_sec())
+                if dt < 10000:
+                    try:
+                        transform = self.tf_buffer.lookup_transform(
+                            "odom",
+                            "taluy/base_link",
+                            seg.header.stamp,
+                            rospy.Duration(0.5),
+                        )
+                        _, _, robot_yaw = tf_transformations.euler_from_quaternion(
+                            [
+                                transform.transform.rotation.x,
+                                transform.transform.rotation.y,
+                                transform.transform.rotation.z,
+                                transform.transform.rotation.w,
+                            ]
+                        )
+                        bottle_angle_odom = robot_yaw + seg.angle
+                        quat = tf_transformations.quaternion_from_euler(
+                            0, 0, bottle_angle_odom
+                        )
+                        transform_stamped_msg.transform.rotation = Quaternion(*quat)
+                    except (
+                        tf2_ros.LookupException,
+                        tf2_ros.ConnectivityException,
+                        tf2_ros.ExtrapolationException,
+                    ):
+                        transform_stamped_msg.transform.rotation = Quaternion(
+                            0, 0, 0, 1
+                        )
+                else:
+                    print("Segment measurement is too old")
+                    transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+            else:
+                transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
 
             try:
                 # Create a PoseStamped message from the TransformStamped
