@@ -4,7 +4,12 @@ import smach_ros
 import rospy
 import tf2_ros
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from auv_msgs.srv import PlanPath, PlanPathRequest, SetDetectionFocus, SetDetectionFocusRequest
+from auv_msgs.srv import (
+    PlanPath,
+    PlanPathRequest,
+    SetDetectionFocus,
+    SetDetectionFocusRequest,
+)
 from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
@@ -16,6 +21,7 @@ from auv_smach.common import (
 )
 from auv_smach.initialize import DelayState
 
+
 class PublishSearchPointsState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
@@ -24,6 +30,7 @@ class PublishSearchPointsState(smach_ros.ServiceState):
             Trigger,
             request=TriggerRequest(),
         )
+
 
 class StartPointSearchState(smach_ros.ServiceState):
     def __init__(self):
@@ -34,6 +41,7 @@ class StartPointSearchState(smach_ros.ServiceState):
             request=SetBoolRequest(data=True),
         )
 
+
 class StopPointSearchState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
@@ -43,6 +51,7 @@ class StopPointSearchState(smach_ros.ServiceState):
             request=SetBoolRequest(data=True),
         )
 
+
 class PublishWaypointsState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
@@ -51,6 +60,7 @@ class PublishWaypointsState(smach_ros.ServiceState):
             SetBool,
             request=SetBoolRequest(data=True),
         )
+
 
 class NavigateThroughSlalomExpState(smach.State):
     def __init__(
@@ -70,19 +80,31 @@ class NavigateThroughSlalomExpState(smach.State):
             smach.StateMachine.add(
                 "SET_SLALOM_DEPTH",
                 SetDepthState(depth=self.slalom_depth),
-                transitions={"succeeded": "PUBLISH_SEARCH_POINTS", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "PUBLISH_SEARCH_POINTS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             smach.StateMachine.add(
                 "PUBLISH_SEARCH_POINTS",
                 PublishSearchPointsState(),
-                transitions={"succeeded": "START_POINT_SEARCH", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "START_POINT_SEARCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             smach.StateMachine.add(
                 "START_POINT_SEARCH",
                 StartPointSearchState(),
-                transitions={"succeeded": "ALIGN_SEQUENCE_START", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "ALIGN_SEQUENCE_START",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             first_side = "right" if self.slalom_direction == "left" else "left"
@@ -95,7 +117,11 @@ class NavigateThroughSlalomExpState(smach.State):
                     target_frame="slalom_search_start",
                     confirm_duration=2.0,
                 ),
-                transitions={"succeeded": "ALIGN_TO_FIRST_SEARCH", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "ALIGN_TO_FIRST_SEARCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             smach.StateMachine.add(
@@ -107,7 +133,11 @@ class NavigateThroughSlalomExpState(smach.State):
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
                 ),
-                transitions={"succeeded": "ALIGN_TO_SECOND_SEARCH", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "ALIGN_TO_SECOND_SEARCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             smach.StateMachine.add(
@@ -119,13 +149,21 @@ class NavigateThroughSlalomExpState(smach.State):
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
                 ),
-                transitions={"succeeded": "STOP_POINT_SEARCH", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "STOP_POINT_SEARCH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             smach.StateMachine.add(
                 "STOP_POINT_SEARCH",
                 StopPointSearchState(),
-                transitions={"succeeded": "PUBLISH_WAYPOINTS", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "PUBLISH_WAYPOINTS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             first_wp_side = self.slalom_direction
@@ -134,14 +172,22 @@ class NavigateThroughSlalomExpState(smach.State):
             smach.StateMachine.add(
                 "PUBLISH_WAYPOINTS",
                 PublishWaypointsState(),
-                transitions={"succeeded": "WAIT_FOR_TF", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "WAIT_FOR_TF",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             # just in case
             smach.StateMachine.add(
                 "WAIT_FOR_TF",
                 DelayState(delay_time=1.0),
-                transitions={"succeeded": first_wp_state, "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": first_wp_state,
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             smach.StateMachine.add(
@@ -153,7 +199,11 @@ class NavigateThroughSlalomExpState(smach.State):
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
                 ),
-                transitions={"succeeded": f"ALIGN_WP_{self.slalom_direction}_1", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": f"ALIGN_WP_{self.slalom_direction}_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             smach.StateMachine.add(
@@ -165,7 +215,11 @@ class NavigateThroughSlalomExpState(smach.State):
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
                 ),
-                transitions={"succeeded": f"ALIGN_WP_{self.slalom_direction}_2", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": f"ALIGN_WP_{self.slalom_direction}_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             smach.StateMachine.add(
@@ -177,13 +231,21 @@ class NavigateThroughSlalomExpState(smach.State):
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
                 ),
-                transitions={"succeeded": "CANCEL_ALIGN_CONTROLLER", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
-                transitions={"succeeded": "succeeded", "preempted": "preempted", "aborted": "aborted"}
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
             )
 
     def execute(self, userdata):
