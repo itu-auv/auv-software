@@ -2,15 +2,19 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
+  <arg name="enable_process_tracker" default="$(eval arg('namespace') != 'taluy_mini')" />
+  <arg name="enable_pointcloud_filter" default="$(eval arg('namespace') != 'taluy_mini')" />
   <arg name="static_frame" default="odom" />
   <arg name="target_gate_frame" default="gate_shark_link" />
   <arg name="torpedo_frame" default="torpedo_map_link" />
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
 
-  <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch">
-    <arg name="namespace" value="$(arg namespace)" />
-  </include>
+  <group if="$(arg enable_process_tracker)">
+    <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch">
+      <arg name="namespace" value="$(arg namespace)" />
+    </include>
+  </group>
 
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
@@ -64,12 +68,14 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen">
-      <remap from="camera/depth/color/points" to="camera/depth/color/points" />
-      <remap from="dvl/altitude" to="sensors/dvl/altitude" />
-      <remap from="pressure_sensor/depth" to="sensors/external_pressure_sensor/depth" />
-      <remap from="points_filtered" to="points_filtered" />
-    </node>
+    <group if="$(arg enable_pointcloud_filter)">
+      <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen">
+        <remap from="camera/depth/color/points" to="camera/depth/color/points" />
+        <remap from="dvl/altitude" to="sensors/dvl/altitude" />
+        <remap from="pressure_sensor/depth" to="sensors/external_pressure_sensor/depth" />
+        <remap from="points_filtered" to="points_filtered" />
+      </node>
+    </group>
 
     <node pkg="auv_mapping" type="torpedo_frame_publisher.py" name="torpedo_frame_publisher" output="screen">
       <param name="robot_frame" value="$(arg namespace)/base_link" />

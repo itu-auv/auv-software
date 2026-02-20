@@ -5,6 +5,9 @@
   <arg name="model" default="$(eval find(arg('namespace') + '_description') + '/urdf/auv.urdf.xacro')" />
   <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/default.rviz')" />
   <arg name="dvl_virtual_port" default="/dev/auv_wayfinder_dvl" />
+  <arg name="enable_xsens" default="$(eval arg('namespace') != 'taluy_mini')" />
+  <arg name="enable_dvl" default="$(eval arg('namespace') != 'taluy_mini')" />
+  <arg name="enable_cameras" default="$(eval arg('namespace') != 'taluy_mini')" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
@@ -26,11 +29,13 @@
   </include>
 
   <!-- launch xsens driver -->
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="port" value="/dev/auv_imu" />
-  </include>
+  <group if="$(arg enable_xsens)">
+    <include file="$(find auv_bringup)/launch/inc/sensors/start_xsens_driver.launch.xml">
+      <arg name="namespace" value="$(arg namespace)" />
+      <arg name="control_rate" value="$(arg control_rate)" />
+      <arg name="port" value="/dev/auv_imu" />
+    </include>
+  </group>
 
   <!-- launch ping360 driver -->
   <!-- <include file="$(find auv_bringup)/launch/inc/sensors/start_ping360_driver.launch.xml">
@@ -48,15 +53,19 @@
   </include> -->
 
   <!-- launch dvl driver -->
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_wayfinder_dvl_driver.launch.xml">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="port" value="$(arg dvl_virtual_port)" />
-  </include>
+  <group if="$(arg enable_dvl)">
+    <include file="$(find auv_bringup)/launch/inc/sensors/start_wayfinder_dvl_driver.launch.xml">
+      <arg name="namespace" value="$(arg namespace)" />
+      <arg name="port" value="$(arg dvl_virtual_port)" />
+    </include>
+  </group>
 
   <!-- launch cameras -->
-  <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras.launch.xml">
-    <arg name="namespace" value="$(arg namespace)" />
-  </include>
+  <group if="$(arg enable_cameras)">
+    <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras.launch.xml">
+      <arg name="namespace" value="$(arg namespace)" />
+    </include>
+  </group>
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
     <arg name="namespace" value="$(arg namespace)" />
