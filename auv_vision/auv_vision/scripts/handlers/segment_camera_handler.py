@@ -84,7 +84,8 @@ class SegmentCameraHandler:
                 distance = self.shared_state.get("altitude")
                 if distance is None:
                     rospy.logwarn_throttle(
-                        5, "No distance data for bottle detection (no segment, no altitude)"
+                        5,
+                        "No distance data for bottle detection (no segment, no altitude)",
                     )
                     continue
 
@@ -116,10 +117,7 @@ class SegmentCameraHandler:
             )
 
             # Calculate bottle orientation from segment angle + robot yaw
-            if (
-                seg is not None
-                and seg.valid
-            ):
+            if seg is not None and seg.valid:
                 dt = abs((stamp - seg.header.stamp).to_sec())
                 if dt < 10000:
                     try:
