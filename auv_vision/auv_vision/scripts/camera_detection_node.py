@@ -6,7 +6,7 @@ import importlib
 import rospy
 from geometry_msgs.msg import TransformStamped
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw
+from auv_msgs.msg import PropsYaw, SegmentMeasurement
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
@@ -38,6 +38,7 @@ class CameraDetectionNode:
         self.config = load_config(config_file)
         self.props = self.config["props_objects"]
         self.object_groups = self.config.get("object_groups", {})
+        self.bottom_object_groups = self.config.get("bottom_object_groups", {})
 
         # Shared resources
         self.tf_buffer = tf2_ros.Buffer()
@@ -54,6 +55,7 @@ class CameraDetectionNode:
         self.shared_state = {
             "altitude": None,
             "pool_depth": rospy.get_param("/env/pool_depth"),
+            "last_segment_measurement": None,
         }
 
         # Camera enable flags
@@ -61,6 +63,7 @@ class CameraDetectionNode:
             "front": True,
             "bottom": False,
             "torpedo": False,
+            "bottom_seg": False,
         }
 
         # Create handlers for each camera
@@ -99,6 +102,14 @@ class CameraDetectionNode:
         # Odometry subscriber
         rospy.Subscriber("odometry", Odometry, self._odometry_callback)
 
+        # Segment measurement subscriber
+        rospy.Subscriber(
+            "segment_measurement",
+            SegmentMeasurement,
+            self._segment_measurement_callback,
+            queue_size=1,
+        )
+
         # Services
         rospy.Service(
             "enable_front_camera_detections",
@@ -116,9 +127,19 @@ class CameraDetectionNode:
             self._handle_enable_torpedo_camera,
         )
         rospy.Service(
+            "set_bottom_camera_focus",
+            SetDetectionFocus,
+            self._handle_set_bottom_camera_focus,
+        )
+        rospy.Service(
             "set_front_camera_focus",
             SetDetectionFocus,
             self._handle_set_front_camera_focus,
+        )
+        rospy.Service(
+            "enable_segment_camera_detections",
+            SetBool,
+            self._handle_enable_segment_camera,
         )
 
     def _dispatch(self, msg, cam_key):
@@ -133,6 +154,10 @@ class CameraDetectionNode:
             f"Calculated altitude from odometry Z: {self.shared_state['altitude']:.2f} m "
             f"(pool_depth={self.shared_state['pool_depth']})"
         )
+
+    def _segment_measurement_callback(self, msg: SegmentMeasurement):
+        """Store segment measurement for use by segment handler."""
+        self.shared_state["last_segment_measurement"] = msg
 
     def _handle_enable_front_camera(self, req):
         self.camera_enabled["front"] = req.data
@@ -149,6 +174,12 @@ class CameraDetectionNode:
     def _handle_enable_torpedo_camera(self, req):
         self.camera_enabled["torpedo"] = req.data
         message = "Torpedo camera detections " + ("enabled" if req.data else "disabled")
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
+    def _handle_enable_segment_camera(self, req):
+        self.camera_enabled["bottom_seg"] = req.data
+        message = "Segment camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
@@ -191,6 +222,49 @@ class CameraDetectionNode:
             message = "Front camera focus set to none. Detections will be ignored."
         else:
             message = f"Front camera focus set to IDs: {target_ids}"
+
+        rospy.loginfo(message)
+        return SetDetectionFocusResponse(success=True, message=message)
+
+    def _handle_set_bottom_camera_focus(self, req):
+        focus_objects = [
+            obj.strip() for obj in req.focus_object.split(",") if obj.strip()
+        ]
+
+        if not focus_objects:
+            message = f"Empty focus object provided. No changes made. Available options: {list(self.bottom_object_groups.keys())}"
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        unfound_objects = [
+            obj for obj in focus_objects if obj not in self.bottom_object_groups
+        ]
+
+        if unfound_objects:
+            message = f"Unknown focus object(s): '{', '.join(unfound_objects)}'. Available options: {list(self.bottom_object_groups.keys())}"
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        if "none" in focus_objects and len(focus_objects) > 1:
+            message = "Cannot specify 'none' with other focus objects."
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        all_target_ids = []
+        for focus_object in focus_objects:
+            all_target_ids.extend(self.bottom_object_groups[focus_object])
+
+        target_ids = list(set(all_target_ids))
+
+        # Forward to bottom camera handler
+        bottom_handler = self.handlers.get("bottom")
+        if bottom_handler and hasattr(bottom_handler, "set_active_ids"):
+            bottom_handler.set_active_ids(target_ids)
+
+        if "none" in focus_objects:
+            message = "Bottom camera focus set to none. Detections will be ignored."
+        else:
+            message = f"Bottom camera focus set to IDs: {target_ids}"
 
         rospy.loginfo(message)
         return SetDetectionFocusResponse(success=True, message=message)
