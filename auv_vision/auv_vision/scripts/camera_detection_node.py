@@ -6,7 +6,7 @@ import importlib
 import rospy
 from geometry_msgs.msg import TransformStamped
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw
+from auv_msgs.msg import PropsYaw, SegmentMeasurement
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
@@ -55,6 +55,7 @@ class CameraDetectionNode:
         self.shared_state = {
             "altitude": None,
             "pool_depth": rospy.get_param("/env/pool_depth"),
+            "last_segment_measurement": None,
         }
 
         # Camera enable flags
@@ -62,6 +63,7 @@ class CameraDetectionNode:
             "front": True,
             "bottom": False,
             "torpedo": False,
+            "bottom_seg": False,
         }
 
         # Create handlers for each camera
@@ -100,6 +102,14 @@ class CameraDetectionNode:
         # Odometry subscriber
         rospy.Subscriber("odometry", Odometry, self._odometry_callback)
 
+        # Segment measurement subscriber
+        rospy.Subscriber(
+            "segment_measurement",
+            SegmentMeasurement,
+            self._segment_measurement_callback,
+            queue_size=1,
+        )
+
         # Services
         rospy.Service(
             "enable_front_camera_detections",
@@ -126,6 +136,11 @@ class CameraDetectionNode:
             SetDetectionFocus,
             self._handle_set_front_camera_focus,
         )
+        rospy.Service(
+            "enable_segment_camera_detections",
+            SetBool,
+            self._handle_enable_segment_camera,
+        )
 
     def _dispatch(self, msg, cam_key):
         if not self.camera_enabled.get(cam_key, False):
@@ -139,6 +154,10 @@ class CameraDetectionNode:
             f"Calculated altitude from odometry Z: {self.shared_state['altitude']:.2f} m "
             f"(pool_depth={self.shared_state['pool_depth']})"
         )
+
+    def _segment_measurement_callback(self, msg: SegmentMeasurement):
+        """Store segment measurement for use by segment handler."""
+        self.shared_state["last_segment_measurement"] = msg
 
     def _handle_enable_front_camera(self, req):
         self.camera_enabled["front"] = req.data
@@ -155,6 +174,12 @@ class CameraDetectionNode:
     def _handle_enable_torpedo_camera(self, req):
         self.camera_enabled["torpedo"] = req.data
         message = "Torpedo camera detections " + ("enabled" if req.data else "disabled")
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
+    def _handle_enable_segment_camera(self, req):
+        self.camera_enabled["bottom_seg"] = req.data
+        message = "Segment camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
