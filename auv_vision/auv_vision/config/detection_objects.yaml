@@ -32,6 +32,15 @@ cameras:
     image_height: 480
     id_tf_map:
       5: torpedo_hole_link
+  bottom_seg:
+    ns: "taluy/cameras/cam_bottom"
+    frame: "taluy/base_link/bottom_camera_optical_link"
+    yolo_topic: "/yolo_result_seg"
+    handler: "segment_camera_handler"
+    image_width: 640
+    image_height: 480
+    id_tf_map:
+      0: bottle_link
 
 # Prop dimensions for distance estimation (link_name -> dimensions)
 props:
@@ -46,6 +55,7 @@ props:
   bin_shark_link: {name: "bin_shark", real_height: 0.30480, real_width: 0.30480}
   bin_sawfish_link: {name: "bin_sawfish", real_height: 0.30480, real_width: 0.30480}
   octagon_table_link: {name: "octagon_table", real_height: null, real_width: null}
+  bottle_link: {name: "bottle", real_height: null, real_width: 0.06}
 
 # Front camera focus service object groups (keyed by YOLO detection ID)
 object_groups:
