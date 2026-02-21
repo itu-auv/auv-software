@@ -487,7 +487,7 @@ class CompetitionMapGUI:
         frame_data = self.placed_objects["reference"]
         frame_x, frame_y = frame_data[0], frame_data[1]
         frame_yaw = frame_data[5]
-        frame_yaw_rad = math.radians(frame_yaw)
+        frame_heading_rad = math.radians(frame_yaw + 90)
 
         self.positions_text.insert(tk.END, "REFERENCE (frame origin):\n")
         self.positions_text.insert(tk.END, "  x=0.00  y=0.00\n")
@@ -510,8 +510,12 @@ class CompetitionMapGUI:
             dx = obj_x - frame_x
             dy = obj_y - frame_y
 
-            rel_x = dx * math.cos(-frame_yaw_rad) - dy * math.sin(-frame_yaw_rad)
-            rel_y = dx * math.sin(-frame_yaw_rad) + dy * math.cos(-frame_yaw_rad)
+            rel_x = dx * math.cos(-frame_heading_rad) - dy * math.sin(
+                -frame_heading_rad
+            )
+            rel_y = dx * math.sin(-frame_heading_rad) + dy * math.cos(
+                -frame_heading_rad
+            )
 
             z_val = self.DEFAULT_Z.get(obj_name, 0.0)
 
@@ -562,7 +566,7 @@ class CompetitionMapGUI:
         ref_data = self.placed_objects["reference"]
         ref_x, ref_y = ref_data[0], ref_data[1]
         ref_yaw = ref_data[5]
-        ref_yaw_rad = math.radians(ref_yaw)
+        ref_heading_rad = math.radians(ref_yaw + 90)
 
         result = {}
 
@@ -577,8 +581,8 @@ class CompetitionMapGUI:
             dx = obj_x - ref_x
             dy = obj_y - ref_y
 
-            rel_x = dx * math.cos(-ref_yaw_rad) - dy * math.sin(-ref_yaw_rad)
-            rel_y = dx * math.sin(-ref_yaw_rad) + dy * math.cos(-ref_yaw_rad)
+            rel_x = dx * math.cos(-ref_heading_rad) - dy * math.sin(-ref_heading_rad)
+            rel_y = dx * math.sin(-ref_heading_rad) + dy * math.cos(-ref_heading_rad)
 
             rel_yaw = obj_yaw - ref_yaw
             while rel_yaw > 180:
