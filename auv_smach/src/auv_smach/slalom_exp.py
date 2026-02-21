@@ -13,6 +13,7 @@ from auv_msgs.srv import (
 from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
+    SearchForPropState,
     SetDepthState,
     ExecutePathState,
     AlignFrame,
@@ -200,6 +201,23 @@ class NavigateThroughSlalomExpState(smach.State):
                     max_angular_velocity=0.2,
                 ),
                 transitions={
+                    "succeeded": f"LOOK_WP_{self.slalom_direction}_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                f"LOOK_WP_{self.slalom_direction}_1",
+                SearchForPropState(
+                    look_at_frame=f"slalom_wp_{self.slalom_direction}_1",
+                    alignment_frame=f"sus",
+                    full_rotation=False,
+                    set_frame_duration=3.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.2,
+                ),
+                transitions={
                     "succeeded": f"ALIGN_WP_{self.slalom_direction}_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -214,6 +232,24 @@ class NavigateThroughSlalomExpState(smach.State):
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
+                    keep_orientation=True,
+                ),
+                transitions={
+                    "succeeded": f"LOOK_WP_{self.slalom_direction}_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                f"LOOK_WP_{self.slalom_direction}_2",
+                SearchForPropState(
+                    look_at_frame=f"slalom_wp_{self.slalom_direction}_2",
+                    alignment_frame=f"sus",
+                    full_rotation=False,
+                    set_frame_duration=6.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.2,
                 ),
                 transitions={
                     "succeeded": f"ALIGN_WP_{self.slalom_direction}_2",
@@ -230,6 +266,7 @@ class NavigateThroughSlalomExpState(smach.State):
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
+                    keep_orientation=True,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
