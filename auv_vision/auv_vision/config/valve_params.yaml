@@ -1,0 +1,22 @@
+# valve_params.yaml
+# Parameters for valve_detector.py node
+
+# Orange HSV boundaries based on pool.world robosub_valve_1
+hsv_lower: [10, 150, 150]
+hsv_upper: [25, 255, 255]
+
+# Real-world measurements (meters)
+valve_diameter: 0.240
+handle_width: 0.025
+
+# Image Processing Parameters
+blur_kernel_size: 5
+morph_kernel_size: 5
+min_contour_area: 100
+min_ellipse_points: 5
+min_aspect_ratio: 0.2
+max_aspect_ratio: 2.0
+
+# General
+publish_debug_image: true
+input_topic: "/taluy/cameras/cam_front/image_rect_color"
