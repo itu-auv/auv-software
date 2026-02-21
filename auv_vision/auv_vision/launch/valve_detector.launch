@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- valve_detector_node -->
+    <node name="valve_detector" pkg="auv_vision" type="valve_detector.py" output="screen">
+        <!-- Parametreleri burada ezebilirsin -->
+        <param name="valve_diameter" value="0.240" />
+        <param name="publish_debug_image" value="true" />
+        <param name="input_topic" value="/taluy/cameras/cam_front/image_rect_color" />
+        
+        <!-- HSV sınırları (turuncu için) -->
+        <rosparam param="hsv_lower">[10, 150, 150]</rosparam>
+        <rosparam param="hsv_upper">[25, 255, 255]</rosparam>
+    </node>
+</launch>

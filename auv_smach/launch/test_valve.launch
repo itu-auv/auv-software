@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<launch>
+    <!--
+      Valve Task Standalone Test Launch
+      ===================================
+      Sadece valve görevini bağımsız test etmek için.
+
+      Kullanım:
+        roslaunch auv_smach test_valve.launch
+        roslaunch auv_smach test_valve.launch valve_depth:=-1.5
+    -->
+
+    <arg name="namespace" default="taluy" />
+    <arg name="valve_depth" default="-1.0" />
+
+    <param name="/smach/max_linear_velocity" value="0.3" />
+    <param name="/smach/max_angular_velocity" value="0.45" />
+
+    <group ns="$(arg namespace)">
+        <node name="test_valve_task" pkg="auv_smach" type="test_valve.py" output="screen">
+            <param name="valve_depth" value="$(arg valve_depth)" />
+
+            <!-- common.py servis remap'leri -->
+            <remap from="align_frame/cancel" to="control/align_frame/cancel"/>
+            <remap from="align_frame/start" to="control/align_frame/start"/>
+            <remap from="enable" to="enable"/>
+            <remap from="set_depth" to="set_depth"/>
+            <remap from="cmd_vel" to="cmd_vel"/>
+            <remap from="odometry" to="odometry"/>
+
+            <!-- camera detection -->
+            <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
+
+            <!-- valve trajectory publisher servisleri -->
+            <remap from="set_transform_valve_approach_frame" to="set_transform_valve_approach_frame"/>
+            <remap from="set_transform_valve_contact_frame" to="set_transform_valve_contact_frame"/>
+
+            <!-- object map -->
+            <remap from="set_object_transform" to="map/set_object_transform"/>
+            <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
+
+            <!-- path planner params -->
+            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load"/>
+        </node>
+    </group>
+</launch>
