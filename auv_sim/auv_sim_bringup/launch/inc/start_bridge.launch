@@ -4,7 +4,7 @@
   <arg name="control_rate" default="20" />
   <arg name="sim" default="true" />
   <arg name="use_gui" default="true" />
-  <arg name="imu_topic" default="$(eval 'sensors/vectornav/data' if arg('namespace') == 'taluy_mini' else 'sensors/imu/data')" />
+  <arg name="imu_topic" default="$(eval '/vectornav/IMU' if arg('namespace') == 'taluy_mini' else 'sensors/imu/data')" />
   <arg name="dvl_velocity_topic" default="$(eval 'dvl/velocity' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/velocity_raw')" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 
 import rospy
+import tf
+import tf.transformations
+import numpy as np
+import yaml
 from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Vector3
-import numpy as np
-import yaml
 from auv_localization.srv import CalibrateIMU, CalibrateIMUResponse
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
-
+import auv_common_lib.transform.transformer
 
 HIGH_COVARIANCE = 1e6
 
@@ -18,26 +20,28 @@ class ImuToOdom:
         rospy.init_node("imu_to_odom_node", anonymous=True)
 
         self.namespace = rospy.get_param("~namespace", "taluy")
-
         self.imu_calibration_data_path = rospy.get_param(
             "~imu_calibration_path", "config/imu_calibration_data.yaml"
         )
+
+        self.base_frame = rospy.get_param("~base_frame", f"{self.namespace}/base_link")
+        self.imu_frame = rospy.get_param(
+            "~imu_frame", f"{self.namespace}/base_link/imu"
+        )
+
+        self.transformer = auv_common_lib.transform.transformer.Transformer()
+        self.imu_to_base_q = self.get_frame_rotation(self.imu_frame)
+
         # Subscribers and Publishers
-        self.xsens_imu_subscriber = rospy.Subscriber(
-            "imu/data", Imu, self.xsens_imu_callback, tcp_nodelay=True
+        self.imu_subscriber = rospy.Subscriber(
+            "imu/data", Imu, self.imu_callback, tcp_nodelay=True
         )
-        self.bno_imu_subscriber = rospy.Subscriber(
-            "imu_mainboard/data", Imu, self.bno_imu_callback, tcp_nodelay=True
-        )
-        self.xsens_odom_publisher = rospy.Publisher("odom_imu", Odometry, queue_size=10)
-        self.bno_odom_publisher = rospy.Publisher(
-            "odom_bno_imu", Odometry, queue_size=10
-        )
+        self.odom_publisher = rospy.Publisher("odom_imu", Odometry, queue_size=10)
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
         self.odom_msg.header.frame_id = "odom"
-        self.odom_msg.child_frame_id = self.namespace + "/base_link"
+        self.odom_msg.child_frame_id = self.base_frame
 
         # Build default covariance matrices
         self.default_pose_cov = np.zeros((6, 6))
@@ -63,71 +67,48 @@ class ImuToOdom:
             "calibrate_imu", CalibrateIMU, self.calibrate_imu
         )
 
-        # Timeout and state management
-        self.last_xsens_imu_time = None
-        self.xsens_imu_timeout = rospy.Duration(1.0)  # 1 second timeout
-        self.timer = rospy.Timer(rospy.Duration(0.1), self.check_imu_timeouts)
-
-    def check_imu_timeouts(self, event):
-        if (
-            self.last_xsens_imu_time
-            and (rospy.Time.now() - self.last_xsens_imu_time) > self.xsens_imu_timeout
-        ):
-            rospy.logwarn_throttle(
-                5, "Xsens IMU data not received. BNO055 IMU will be used."
+    def get_frame_rotation(self, frame_id):
+        try:
+            _, rotation_matrix = self.transformer.get_transform(
+                frame_id, self.base_frame
             )
-            self.last_xsens_imu_time = None  # Prevent spamming
 
-    def insert_covariance_block(
-        self,
-        base_covariance_6x6,
-        input_covariance_3x3_flat,
-    ):
-        """
-        Inserts a 3x3 covariance block (provided as a flat list) into a 6x6 NumPy matrix
-        and returns the resulting flattened 6x6 list.
+            rotation_matrix_4x4 = np.eye(4)
+            rotation_matrix_4x4[:3, :3] = rotation_matrix
 
-        The 3x3 block is always inserted into the bottom-right quadrant (indices 3:6, 3:6),
-        which corresponds to orientation in pose covariance or angular velocity in twist covariance.
-        """
+            quat = tf.transformations.quaternion_from_matrix(rotation_matrix_4x4)
+            rotation_q = np.array([quat[0], quat[1], quat[2], quat[3]])
+
+            rospy.loginfo(f"Loaded {frame_id} rotation from TF: {rotation_q}")
+            return rotation_q
+
+        except Exception as e:
+            rospy.logwarn(
+                f"Could not get TF for {frame_id} relative to {self.base_frame}: {e}. No frame rotation will be applied."
+            )
+            return None
+
+    def quaternion_multiply(self, q1, q2):
+        x0, y0, z0, w0 = q1
+        x1, y1, z1, w1 = q2
+
+        x_new = w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1
+        y_new = w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1
+        z_new = w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
+        w_new = w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
+
+        return np.array([x_new, y_new, z_new, w_new])
+
+    def insert_covariance_block(self, base_covariance_6x6, input_covariance_3x3_flat):
         updated_covariance_6x6 = base_covariance_6x6.copy()
-
-        # Only insert the covariance block if it has 9 elements
         if len(input_covariance_3x3_flat) == 9:
-
             input_covariance_3x3_matrix = np.array(input_covariance_3x3_flat).reshape(
                 3, 3
             )
-
-            # Insert the 3x3 matrix into the bottom-right quadrant (angular/orientation part)
             updated_covariance_6x6[3:6, 3:6] = input_covariance_3x3_matrix
-        else:
-            rospy.logwarn_throttle(
-                3,
-                f"Received invalid IMU covariance size: {len(input_covariance_3x3_flat)}. "
-                f"Using default covariance",
-            )
         return updated_covariance_6x6.flatten().tolist()
 
-    def update_pose_covariance(self, imu_orientation_covariance):
-        return self.insert_covariance_block(
-            self.default_pose_cov, imu_orientation_covariance
-        )
-
-    def update_twist_covariance(self, imu_angular_velocity_covariance):
-        return self.insert_covariance_block(
-            self.default_twist_cov, imu_angular_velocity_covariance
-        )
-
-    def xsens_imu_callback(self, imu_msg):
-        self.last_xsens_imu_time = rospy.Time.now()
-        self.publish_odom(imu_msg, "xsens")
-
-    def bno_imu_callback(self, imu_msg):
-        if self.last_xsens_imu_time is None:
-            self.publish_odom(imu_msg, "bno")
-
-    def publish_odom(self, imu_msg, publisher):
+    def imu_callback(self, imu_msg):
         if self.calibrating:
             self.calibration_data.append(
                 [
@@ -139,75 +120,67 @@ class ImuToOdom:
 
         self.odom_msg.header.stamp = imu_msg.header.stamp
 
-        # Correct angular velocity using the drift
-        corrected_angular_velocity = Vector3(
-            imu_msg.angular_velocity.x - self.drift[0],
-            imu_msg.angular_velocity.y - self.drift[1],
-            imu_msg.angular_velocity.z - self.drift[2],
+        corrected_angular_velocity = np.array(
+            [
+                imu_msg.angular_velocity.x - self.drift[0],
+                imu_msg.angular_velocity.y - self.drift[1],
+                imu_msg.angular_velocity.z - self.drift[2],
+            ]
         )
 
-        # Update twist and twist covariance
-        self.odom_msg.twist.twist.angular = corrected_angular_velocity
-        self.odom_msg.twist.covariance = self.update_twist_covariance(
-            imu_msg.angular_velocity_covariance
+        orientation_q = np.array(
+            [
+                imu_msg.orientation.x,
+                imu_msg.orientation.y,
+                imu_msg.orientation.z,
+                imu_msg.orientation.w,
+            ]
         )
 
-        # Update orientation and orientation covariance
-        self.odom_msg.pose.pose.orientation = self.invert_roll_pitch_quaternion(
-            imu_msg.orientation
-        )
-        self.odom_msg.pose.covariance = self.update_pose_covariance(
-            imu_msg.orientation_covariance
+        if self.imu_to_base_q is not None:
+            orientation_q = self.quaternion_multiply(self.imu_to_base_q, orientation_q)
+
+            rotation_matrix = tf.transformations.quaternion_matrix(self.imu_to_base_q)[
+                :3, :3
+            ]
+            corrected_angular_velocity = np.dot(
+                rotation_matrix, corrected_angular_velocity
+            )
+        self.odom_msg.twist.twist.angular.x = corrected_angular_velocity[0]
+        self.odom_msg.twist.twist.angular.y = corrected_angular_velocity[1]
+        self.odom_msg.twist.twist.angular.z = corrected_angular_velocity[2]
+
+        self.odom_msg.pose.pose.orientation = Quaternion(
+            x=orientation_q[0],
+            y=orientation_q[1],
+            z=orientation_q[2],
+            w=orientation_q[3],
         )
 
-        # Set the position to zero as we are not computing it here
+        self.odom_msg.pose.covariance = self.insert_covariance_block(
+            self.default_pose_cov, imu_msg.orientation_covariance
+        )
+        self.odom_msg.twist.covariance = self.insert_covariance_block(
+            self.default_twist_cov, imu_msg.angular_velocity_covariance
+        )
+
         self.odom_msg.pose.pose.position.x = 0.0
         self.odom_msg.pose.pose.position.y = 0.0
         self.odom_msg.pose.pose.position.z = 0.0
-
-        # Set linear velocity to zero as we are not using it here
         self.odom_msg.twist.twist.linear.x = 0.0
         self.odom_msg.twist.twist.linear.y = 0.0
         self.odom_msg.twist.twist.linear.z = 0.0
 
-        if publisher == "xsens":
-            self.xsens_odom_publisher.publish(self.odom_msg)
-        elif publisher == "bno":
-            self.bno_odom_publisher.publish(self.odom_msg)
-
-    def invert_roll_pitch_quaternion(self, q):
-        """
-        Inverts the roll and pitch of a quaternion by rotating it 180 degrees around the Z-axis.
-        This is achieved by post-multiplying with a quaternion representing a 180-degree Z-rotation.
-        q_new = q_orig * q_rot_z_180
-        """
-        # Quaternion for 180-degree rotation around Z-axis: (x=0, y=0, z=1, w=0)
-        q_rot = np.array([0, 0, 1, 0])
-
-        # Original quaternion as a numpy array
-        q_orig = np.array([q.x, q.y, q.z, q.w])
-
-        # Perform quaternion multiplication q_new = q_orig * q_rot
-        x0, y0, z0, w0 = q_orig
-        x1, y1, z1, w1 = q_rot
-
-        x_new = w0 * x1 + x0 * w1 + y0 * z1 - z0 * y1
-        y_new = w0 * y1 - x0 * z1 + y0 * w1 + z0 * x1
-        z_new = w0 * z1 + x0 * y1 - y0 * x1 + z0 * w1
-        w_new = w0 * w1 - x0 * x1 - y0 * y1 - z0 * z1
-
-        return Quaternion(x=x_new, y=y_new, z=z_new, w=w_new)
+        self.odom_publisher.publish(self.odom_msg)
 
     def calibrate_imu(self, req):
         duration = req.duration
         rospy.loginfo(f"IMU Calibration started for {duration} seconds...")
         self.calibrating = True
         self.calibration_data = []
-
-        # Wait for the calibration duration
         rospy.sleep(duration)
-
         self.calibrating = False
+
         if len(self.calibration_data) > 0:
             self.drift = np.mean(self.calibration_data, axis=0)
             self.save_calibration_data()
@@ -216,17 +189,18 @@ class ImuToOdom:
                 success=True, message="IMU Calibration successful"
             )
         else:
-            return CalibrateIMUResponse(
-                success=False, message="IMU Calibration failed, no data recorded"
-            )
+            return CalibrateIMUResponse(success=False, message="IMU Calibration failed")
 
     def save_calibration_data(self):
         calibration_data = {"drift": self.drift.tolist()}
-        with open(self.imu_calibration_data_path, "w") as f:
-            yaml.dump(calibration_data, f)
-        rospy.loginfo(
-            f"{TerminalColors.OKGREEN} Calibration data saved.{TerminalColors.ENDC}"
-        )
+        try:
+            with open(self.imu_calibration_data_path, "w") as f:
+                yaml.dump(calibration_data, f)
+            rospy.loginfo(
+                f"{TerminalColors.OKGREEN}Calibration data saved.{TerminalColors.ENDC}"
+            )
+        except Exception as e:
+            rospy.logerr(f"Failed to save calibration data: {e}")
 
     def load_calibration_data(self):
         try:
@@ -237,7 +211,7 @@ class ImuToOdom:
                 f"{TerminalColors.OKYELLOW}IMU Calibration data loaded.{TerminalColors.ENDC} Drift: {self.drift}"
             )
         except FileNotFoundError:
-            rospy.logerr("No calibration data found.")
+            rospy.logwarn("No calibration data found.")
 
     def run(self):
         rospy.spin()
