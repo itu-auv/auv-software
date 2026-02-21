@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -96,8 +97,7 @@ class NavigateThroughGateState(smach.State):
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.roll = rospy.get_param("~roll", True)
         self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip = rospy.get_param("~coin_flip", False)
@@ -116,7 +116,6 @@ class NavigateThroughGateState(smach.State):
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
                     depth=-0.5,
-                    sleep_duration=3.0,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -159,7 +158,6 @@ class NavigateThroughGateState(smach.State):
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=self.roll_depth,
-                    sleep_duration=3.0,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -211,7 +209,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_TRAJECTORY_DEPTH",
-                SetDepthState(depth=gate_search_depth, sleep_duration=3.0),
+                SetDepthState(depth=gate_search_depth),
                 transitions={
                     "succeeded": "LOOK_AT_GATE",
                     "preempted": "preempted",
@@ -282,7 +280,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth, sleep_duration=3.0),
+                SetDepthState(depth=gate_depth),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_ENTRANCE",
                     "preempted": "preempted",
