@@ -1,0 +1,10 @@
+cam_front:
+  camera_i_pipeline_type: rgb
+  camera_i_enable_imu: false
+  camera_i_enable_ir: false
+  camera_i_floodlight_brightness: 0.0
+  camera_i_laser_dot_brightness: 0.0
+  camera_i_mx_id: ''
+  camera_i_ip: ''
+  camera_i_usb_port_id: ''
+  camera_i_usb_speed: SUPER_PLUS
