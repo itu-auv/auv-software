@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 
-"""
-Competition Pool Map GUI
-Places competition objects on a pool map and sends to vehicle via ROS service.
-"""
-
 import tkinter as tk
 from tkinter import messagebox
 import math
@@ -35,7 +30,15 @@ class CompetitionMapGUI:
         "octagon": -1.3,
     }
 
+    SERVICE_LABEL_MAP = {
+        "gate": ["gate_sawfish_link", "gate_shark_link"],
+        "bin": ["bin_whole_link"],
+        "torpedo": ["torpedo_map_link"],
+        "octagon": ["octagon_link"],
+    }
+
     REFERENCE_FRAME = "coin_flip_rescuer"
+    REFERENCE_FRAME_OPTIONS = ("coin_flip_rescuer", "odom")
 
     def __init__(self, root):
         self.root = root
@@ -43,6 +46,18 @@ class CompetitionMapGUI:
         self.root.attributes("-zoomed", True)
 
         self.service_name = rospy.get_param("~set_premap_service", "map/p_set_premap")
+        default_reference_frame = str(
+            rospy.get_param("~reference_frame", self.REFERENCE_FRAME)
+        )
+
+        if default_reference_frame not in self.REFERENCE_FRAME_OPTIONS:
+            rospy.logwarn(
+                f"Invalid ~reference_frame='{default_reference_frame}', "
+                f"falling back to '{self.REFERENCE_FRAME}'."
+            )
+            default_reference_frame = self.REFERENCE_FRAME
+
+        self.reference_frame_var = tk.StringVar(value=default_reference_frame)
         self.selected_object = tk.StringVar(value="reference")
         self.placed_objects = {}
         self.canvas_padding = 40
@@ -121,6 +136,11 @@ class CompetitionMapGUI:
         tk.Label(
             left_frame, text="Vehicle Communication:", font=("Arial", 9, "bold")
         ).pack(pady=(5, 5))
+
+        tk.Label(left_frame, text="Reference frame:").pack(pady=(5, 2))
+        tk.OptionMenu(
+            left_frame, self.reference_frame_var, *self.REFERENCE_FRAME_OPTIONS
+        ).pack(fill=tk.X, padx=10)
 
         tk.Button(
             left_frame,
@@ -469,9 +489,13 @@ class CompetitionMapGUI:
         frame_yaw = frame_data[5]
         frame_yaw_rad = math.radians(frame_yaw)
 
-        self.positions_text.insert(tk.END, f"REFERENCE (absolute):\n")
-        self.positions_text.insert(tk.END, f"  x={frame_x:.2f}  y={frame_y:.2f}\n")
-        self.positions_text.insert(tk.END, f"  yaw={frame_yaw:.1f}°\n")
+        self.positions_text.insert(tk.END, "REFERENCE (frame origin):\n")
+        self.positions_text.insert(tk.END, "  x=0.00  y=0.00\n")
+        self.positions_text.insert(tk.END, "  yaw=0.0°\n")
+        self.positions_text.insert(
+            tk.END,
+            f"  anchor_abs: x={frame_x:.2f}  y={frame_y:.2f}  yaw={frame_yaw:.1f}°\n",
+        )
         self.positions_text.insert(tk.END, "-" * 28 + "\n")
         self.positions_text.insert(tk.END, "Relative to reference:\n")
 
@@ -571,8 +595,33 @@ class CompetitionMapGUI:
 
         return result
 
+    def log_request_positions(self, selected_frame, request_positions):
+        if "reference" in self.placed_objects:
+            ref_data = self.placed_objects["reference"]
+            rospy.loginfo(
+                "[PremapGUI] Reference absolute in pool-map: "
+                f"x={ref_data[0]:.3f}, y={ref_data[1]:.3f}, yaw={ref_data[5]:.1f}"
+            )
+        else:
+            rospy.loginfo("[PremapGUI] Reference absolute in pool-map: <not placed>")
+
+        rospy.loginfo(
+            f"[PremapGUI] Request poses in '{selected_frame}' frame "
+            f"(count={len(request_positions)}):"
+        )
+
+        for obj_name in sorted(request_positions.keys()):
+            pose_data = request_positions[obj_name]
+            service_labels = self.SERVICE_LABEL_MAP.get(obj_name, [obj_name])
+            rospy.loginfo(
+                f"[PremapGUI]   {obj_name}: x={pose_data['x']:.3f}, "
+                f"y={pose_data['y']:.3f}, z={pose_data['z']:.3f}, "
+                f"yaw={pose_data['yaw']:.1f}, labels={service_labels}"
+            )
+
     def send_to_vehicle(self):
-        """Send object positions to vehicle via SetPremap service"""
+        selected_frame = self.reference_frame_var.get()
+
         if "reference" not in self.placed_objects:
             messagebox.showerror("Error", "Place reference frame first!")
             return
@@ -591,35 +640,50 @@ class CompetitionMapGUI:
 
         try:
             req = SetPremapRequest()
-            req.reference_frame = self.REFERENCE_FRAME
+            req.reference_frame = selected_frame
+            req.objects = []
 
             sent_count = 0
 
             for obj_name, pos_data in relative_positions.items():
-                obj_pose = ObjectPose()
-                obj_pose.label = obj_name
+                service_labels = self.SERVICE_LABEL_MAP.get(obj_name, [obj_name])
+                for service_label in service_labels:
+                    obj_pose = ObjectPose()
+                    obj_pose.label = service_label
 
-                obj_pose.pose.position.x = pos_data["x"]
-                obj_pose.pose.position.y = pos_data["y"]
-                obj_pose.pose.position.z = pos_data["z"]
+                    obj_pose.pose.position.x = pos_data["x"]
+                    obj_pose.pose.position.y = pos_data["y"]
+                    obj_pose.pose.position.z = pos_data["z"]
 
-                yaw_rad = math.radians(pos_data["yaw"])
-                q = quaternion_from_euler(0, 0, yaw_rad)
-                obj_pose.pose.orientation.x = q[0]
-                obj_pose.pose.orientation.y = q[1]
-                obj_pose.pose.orientation.z = q[2]
-                obj_pose.pose.orientation.w = q[3]
+                    yaw_rad = math.radians(pos_data["yaw"])
+                    q = quaternion_from_euler(0, 0, yaw_rad)
+                    obj_pose.pose.orientation.x = q[0]
+                    obj_pose.pose.orientation.y = q[1]
+                    obj_pose.pose.orientation.z = q[2]
+                    obj_pose.pose.orientation.w = q[3]
 
-                req.objects.append(obj_pose)
-                sent_count += 1
+                    req.objects.append(obj_pose)
+                    sent_count += 1
 
             if sent_count == 0:
                 messagebox.showwarning("Warning", "No objects placed to send")
                 return
 
+            self.log_request_positions(selected_frame, relative_positions)
+
+            rospy.loginfo(
+                f"[PremapGUI] Sending SetPremap: reference_frame='{req.reference_frame}', "
+                f"objects={[obj.label for obj in req.objects]}"
+            )
+
             rospy.wait_for_service(self.service_name, timeout=2.0)
             set_premap = rospy.ServiceProxy(self.service_name, SetPremap)
             resp = set_premap(req)
+
+            rospy.loginfo(
+                f"[PremapGUI] SetPremap response: success={resp.success}, "
+                f"message='{resp.message}'"
+            )
 
             if resp.success:
                 messagebox.showinfo(
