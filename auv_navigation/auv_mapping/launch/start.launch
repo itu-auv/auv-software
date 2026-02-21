@@ -43,7 +43,7 @@
       <param name="premap_file" value="$(find auv_mapping)/config/premaps/premap.yaml" />
 
       <remap from="clear_object_transforms" to="map/p_clear_object_transforms" />
-      <remap from="set_premap" to="map/p_set_premap" />
+      <remap from="set_premap" to="map/set_premap" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 

@@ -45,7 +45,7 @@ class CompetitionMapGUI:
         self.root.title("Competition Pool Map")
         self.root.attributes("-zoomed", True)
 
-        self.service_name = rospy.get_param("~set_premap_service", "map/p_set_premap")
+        self.service_name = rospy.get_param("~set_premap_service", "map/set_premap")
         default_reference_frame = str(
             rospy.get_param("~reference_frame", self.REFERENCE_FRAME)
         )
