@@ -16,7 +16,6 @@ from norfair.filter import FilterPyKalmanFilterFactory
 
 from geometry_msgs.msg import TransformStamped, Vector3, Quaternion, PoseStamped
 from std_srvs.srv import Trigger, TriggerResponse
-from auv_msgs.msg import ObjectPose
 from auv_msgs.srv import SetPremap, SetPremapResponse
 import tf2_ros
 import tf2_geometry_msgs
@@ -47,8 +46,8 @@ class ObjectTracker:
         )
         self.slalom_labels = ["red_pipe_link", "white_pipe_link"]
         self.trackers: Dict[str, Tracker] = {}
-        self.orientations: Dict[int, np.ndarray] = {}
-        self.confirmed_tracks: Dict[int, Dict] = {}
+        self.orientations: Dict[str, np.ndarray] = {}
+        self.confirmed_tracks: Dict[str, Dict] = {}
         self.orientation_alpha = rospy.get_param("~orientation_alpha", 0.2)
         self.lock = threading.Lock()
 
@@ -119,10 +118,6 @@ class ObjectTracker:
                 filter_factory=filter_factory,
                 reid_hit_counter_max=100000,
             )
-            rospy.loginfo(
-                f"Created tracker for '{label}': threshold={threshold}m, "
-                f"Q={self.kalman_Q}, R={self.kalman_R}"
-            )
 
         return self.trackers[label]
 
@@ -165,7 +160,7 @@ class ObjectTracker:
         with self.lock:
             tracker = self.get_or_create_tracker(label)
             tracker.update(detections=[detection])
-            self._update_orientation(tracker, quat_in_world)
+            self._update_orientation(label, tracker, quat_in_world)
             self._mark_confirmed_tracks(label, tracker)
 
         t_end = time.perf_counter()
@@ -176,17 +171,18 @@ class ObjectTracker:
             self.stats["tf_time_sum"] += (t_tf - t_start) * 1000
             self.stats["track_time_sum"] += (t_end - t_tf) * 1000
 
-    def _update_orientation(self, tracker: Tracker, new_quat: np.ndarray):
+    def _update_orientation(self, label: str, tracker: Tracker, new_quat: np.ndarray):
         """SLERP for orientation updates"""
         for obj in tracker.tracked_objects:
             track_id = obj.id
             if track_id is None:
                 continue
-            if track_id not in self.orientations:
-                self.orientations[track_id] = new_quat
+            track_key = self._track_key(label, track_id)
+            if track_key not in self.orientations:
+                self.orientations[track_key] = new_quat
             else:
-                current = self.orientations[track_id]
-                self.orientations[track_id] = quaternion_slerp(
+                current = self.orientations[track_key]
+                self.orientations[track_key] = quaternion_slerp(
                     current, new_quat, self.orientation_alpha
                 )
 
@@ -196,14 +192,16 @@ class ObjectTracker:
             if obj.id is None or obj.estimate is None or len(obj.estimate) == 0:
                 continue
 
-            if obj.id not in self.confirmed_tracks and obj.is_initializing:
+            track_key = self._track_key(label, obj.id)
+
+            if track_key not in self.confirmed_tracks and obj.is_initializing:
                 continue
 
-            self.confirmed_tracks[obj.id] = {
+            self.confirmed_tracks[track_key] = {
                 "label": label,
                 "position": np.array(obj.estimate[0]),
                 "orientation": np.array(
-                    self.orientations.get(obj.id, np.array([0.0, 0.0, 0.0, 1.0]))
+                    self.orientations.get(track_key, np.array([0.0, 0.0, 0.0, 1.0]))
                 ),
             }
 
@@ -294,6 +292,10 @@ class ObjectTracker:
         if idx == 0:
             return f"p_{label}"
         return f"p_{label}_{idx - 1}"
+
+    @staticmethod
+    def _track_key(label: str, track_id: int) -> str:
+        return f"{label}:{track_id}"
 
     def _build_transform_msg(self, track: Dict, frame_name: str) -> TransformStamped:
         """Build TransformStamped message from cached confirmed track."""
@@ -465,13 +467,14 @@ class ObjectTracker:
 
                 obj.hit_counter = self.hit_counter_max
                 if obj.id is not None:
+                    track_key = self._track_key(label, obj.id)
                     if "orientation" in data and len(data["orientation"]) == 4:
                         orientation = np.array(data["orientation"])
                     else:
                         orientation = np.array([0.0, 0.0, 0.0, 1.0])
 
-                    self.orientations[obj.id] = orientation
-                    self.confirmed_tracks[obj.id] = {
+                    self.orientations[track_key] = orientation
+                    self.confirmed_tracks[track_key] = {
                         "label": label,
                         "position": np.array(pos),
                         "orientation": np.array(orientation),
@@ -481,9 +484,6 @@ class ObjectTracker:
                         f"Premap track for '{label}' is still initializing; skipping orientation init"
                     )
 
-                rospy.loginfo(
-                    f"Initialized track for {label} at {pos} with hit_counter={obj.hit_counter}"
-                )
             else:
                 rospy.logwarn(
                     f"Failed to create track for {label} - tracked_objects is empty!"
@@ -614,6 +614,12 @@ class ObjectTracker:
                 pos = tf_pose.position
                 orient = tf_pose.orientation
 
+                if label in new_premap_data:
+                    rospy.logwarn(
+                        f"[SetPremap] Duplicate label '{label}' in request. "
+                        f"Overwriting previous value."
+                    )
+
                 new_premap_data[label] = {
                     "position": np.array([pos.x, pos.y, pos.z]),
                     "orientation": np.array([orient.x, orient.y, orient.z, orient.w]),
@@ -643,13 +649,15 @@ class ObjectTracker:
             for label in list(self.trackers.keys()):
                 if label not in labels_to_keep:
                     for obj in self.trackers[label].tracked_objects:
-                        self.orientations.pop(obj.id, None)
+                        if obj.id is not None:
+                            self.orientations.pop(self._track_key(label, obj.id), None)
                     del self.trackers[label]
 
             for label in labels_to_keep:
                 if label in self.trackers:
                     for obj in self.trackers[label].tracked_objects:
-                        self.orientations.pop(obj.id, None)
+                        if obj.id is not None:
+                            self.orientations.pop(self._track_key(label, obj.id), None)
                     del self.trackers[label]
 
             self.confirmed_tracks.clear()
