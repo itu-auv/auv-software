@@ -29,6 +29,7 @@
       <remap from="cmd_vel" to="cmd_vel" />
       <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable" />
       <param name="cmdvel_tau" value="0.2" />
+      <remap from="odom_imu" to="localization/odom_imu" />
     </node>
 
     <!-- Euler Orientation Publisher Node -->
