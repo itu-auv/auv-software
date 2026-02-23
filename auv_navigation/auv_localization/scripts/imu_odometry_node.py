@@ -27,6 +27,8 @@ class ImuToOdom:
             "~imu_frame", f"{self.namespace}/base_link/imu"
         )
 
+        self.tf_listener = tf.TransformListener()
+
         self.imu_to_base_q = self.get_frame_rotation(self.imu_frame)
 
         # Subscribers and Publishers
@@ -65,12 +67,14 @@ class ImuToOdom:
         )
 
     def get_frame_rotation(self, frame_id):
-        tf_listener = tf.TransformListener()
+        # TransformListener'ın TF buffer'ını doldurması için bekliyoruz.
+        # Bu süre olmadan lookupTransform çağrısı başarısız olabilir.
+        rospy.loginfo(f"Waiting for TF: {self.base_frame} <- {frame_id}")
         try:
-            tf_listener.waitForTransform(
-                self.base_frame, frame_id, rospy.Time(0), rospy.Duration(2.0)
+            self.tf_listener.waitForTransform(
+                self.base_frame, frame_id, rospy.Time(0), rospy.Duration(10.0)
             )
-            (trans, rot) = tf_listener.lookupTransform(
+            (trans, rot) = self.tf_listener.lookupTransform(
                 self.base_frame, frame_id, rospy.Time(0)
             )
             rospy.loginfo(f"Loaded {frame_id} rotation from TF: {rot}")
