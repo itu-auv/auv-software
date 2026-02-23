@@ -10,6 +10,8 @@ import yaml
 import math
 import message_filters
 import time
+import tf
+import tf.transformations
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
 
 
@@ -23,6 +25,13 @@ class DvlToOdom:
         )
 
         self.namespace = rospy.get_param("~namespace", "taluy")
+        self.base_frame = rospy.get_param("~base_frame", f"{self.namespace}/base_link")
+        self.dvl_frame = rospy.get_param(
+            "~dvl_frame", f"{self.namespace}/base_link/dvl_link"
+        )
+
+        self.tf_listener = tf.TransformListener()
+        self.dvl_yaw = self.get_dvl_yaw()
 
         self.cmdvel_tau = rospy.get_param("~cmdvel_tau", 0.1)
         self.linear_x_covariance = rospy.get_param(
@@ -96,8 +105,27 @@ class DvlToOdom:
         rospy.loginfo(f"DVL->Odom node {state} via service call.")
         return SetBoolResponse(success=True, message=f"DVL->Odom {state}")
 
+    def get_dvl_yaw(self):
+        rospy.loginfo(f"Waiting for TF: {self.base_frame} <- {self.dvl_frame}")
+        try:
+            self.tf_listener.waitForTransform(
+                self.base_frame, self.dvl_frame, rospy.Time(0), rospy.Duration(10.0)
+            )
+            (trans, rot) = self.tf_listener.lookupTransform(
+                self.base_frame, self.dvl_frame, rospy.Time(0)
+            )
+            euler = tf.transformations.euler_from_quaternion(rot)
+            yaw = euler[2]
+            rospy.loginfo(f"Loaded {self.dvl_frame} yaw from TF: {yaw} radians")
+            return yaw
+        except Exception as e:
+            rospy.logwarn(
+                f"Could not get TF for {self.dvl_frame} relative to {self.base_frame}: {e}. Falling back to default -135 degrees."
+            )
+            return np.radians(-45)
+
     def transform_vector(self, vector):
-        theta = np.radians(-135)
+        theta = self.dvl_yaw
         rotation_matrix = np.array(
             [
                 [np.cos(theta), -np.sin(theta), 0],

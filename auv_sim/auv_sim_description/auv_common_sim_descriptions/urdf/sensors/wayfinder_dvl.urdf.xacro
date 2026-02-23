@@ -11,7 +11,7 @@
     </link>
     <joint name="${namespace}/dvl_sonar${index}_joint" type="revolute">
       <origin xyz="0 0 -0.07" rpy="0 ${math.pi/2} 0"/>
-      <parent link="${name}_mount_link"/>
+      <parent link="${name}_link"/>
       <child link="${namespace}/dvl_sonar${index}_link"/>
       <limit upper="0" lower="0" effort="0" velocity="0"/>
       <axis xyz="1 0 0"/>
@@ -69,7 +69,7 @@
       </inertial>
     </link>
     <joint name="${name}_sim_joint" type="revolute">
-      <parent link="${name}_mount_link"/>
+      <parent link="${name}_link"/>
       <child link="${name}_sim_link"/>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <axis rpy="0 0 0" xyz="0 0 1"/>
