@@ -9,8 +9,6 @@ from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Vector3
 from auv_localization.srv import CalibrateIMU, CalibrateIMUResponse
-from auv_common_lib.logging.terminal_color_utils import TerminalColors
-import auv_common_lib.transform.transformer
 
 HIGH_COVARIANCE = 1e6
 
@@ -29,7 +27,6 @@ class ImuToOdom:
             "~imu_frame", f"{self.namespace}/base_link/imu"
         )
 
-        self.transformer = auv_common_lib.transform.transformer.Transformer()
         self.imu_to_base_q = self.get_frame_rotation(self.imu_frame)
 
         # Subscribers and Publishers
@@ -68,20 +65,16 @@ class ImuToOdom:
         )
 
     def get_frame_rotation(self, frame_id):
+        tf_listener = tf.TransformListener()
         try:
-            _, rotation_matrix = self.transformer.get_transform(
-                frame_id, self.base_frame
+            tf_listener.waitForTransform(
+                self.base_frame, frame_id, rospy.Time(0), rospy.Duration(2.0)
             )
-
-            rotation_matrix_4x4 = np.eye(4)
-            rotation_matrix_4x4[:3, :3] = rotation_matrix
-
-            quat = tf.transformations.quaternion_from_matrix(rotation_matrix_4x4)
-            rotation_q = np.array([quat[0], quat[1], quat[2], quat[3]])
-
-            rospy.loginfo(f"Loaded {frame_id} rotation from TF: {rotation_q}")
-            return rotation_q
-
+            (trans, rot) = tf_listener.lookupTransform(
+                self.base_frame, frame_id, rospy.Time(0)
+            )
+            rospy.loginfo(f"Loaded {frame_id} rotation from TF: {rot}")
+            return np.array(rot)
         except Exception as e:
             rospy.logwarn(
                 f"Could not get TF for {frame_id} relative to {self.base_frame}: {e}. No frame rotation will be applied."
@@ -138,8 +131,14 @@ class ImuToOdom:
         )
 
         if self.imu_to_base_q is not None:
-            orientation_q = self.quaternion_multiply(self.imu_to_base_q, orientation_q)
+            # q_base^odom = q_imu^odom * q_base^imu = q_imu^odom * inv(q_imu^base)
+            imu_to_base_q_inv = tf.transformations.quaternion_inverse(
+                self.imu_to_base_q
+            )
+            orientation_q = self.quaternion_multiply(orientation_q, imu_to_base_q_inv)
 
+            # For angular velocity: omega_base = R_imu^base * omega_imu
+            # Get rotation matrix from quaternion
             rotation_matrix = tf.transformations.quaternion_matrix(self.imu_to_base_q)[
                 :3, :3
             ]
@@ -196,9 +195,7 @@ class ImuToOdom:
         try:
             with open(self.imu_calibration_data_path, "w") as f:
                 yaml.dump(calibration_data, f)
-            rospy.loginfo(
-                f"{TerminalColors.OKGREEN}Calibration data saved.{TerminalColors.ENDC}"
-            )
+            rospy.loginfo("Calibration data saved.")
         except Exception as e:
             rospy.logerr(f"Failed to save calibration data: {e}")
 
@@ -207,9 +204,7 @@ class ImuToOdom:
             with open(self.imu_calibration_data_path, "r") as f:
                 calibration_data = yaml.safe_load(f)
                 self.drift = np.array(calibration_data["drift"])
-            rospy.loginfo(
-                f"{TerminalColors.OKYELLOW}IMU Calibration data loaded.{TerminalColors.ENDC} Drift: {self.drift}"
-            )
+            rospy.loginfo(f"IMU Calibration data loaded. Drift: {self.drift}")
         except FileNotFoundError:
             rospy.logwarn("No calibration data found.")
 
