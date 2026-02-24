@@ -29,10 +29,10 @@ class Transformer:
 
         rotation_matrix = tf.transformations.quaternion_matrix(
             [
-                trans.transform.rotation.w,
                 trans.transform.rotation.x,
                 trans.transform.rotation.y,
                 trans.transform.rotation.z,
+                trans.transform.rotation.w,
             ]
         )[:3, :3]
 

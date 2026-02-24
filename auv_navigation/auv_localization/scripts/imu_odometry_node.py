@@ -32,6 +32,11 @@ class ImuToOdom:
         self.transformer = auv_common_lib.transform.transformer.Transformer()
         self.imu_to_base_q = self.get_frame_rotation(self.imu_frame)
 
+        # Quick body-frame convention fix: FRD (z-down) -> FLU (z-up)
+        self.force_z_up = rospy.get_param("~force_z_up", True)
+        self.frd_to_flu_q = tf.transformations.quaternion_from_euler(np.pi, 0.0, 0.0)
+        self.flip_pitch = rospy.get_param("~flip_pitch", True)
+
         # Subscribers and Publishers
         self.imu_subscriber = rospy.Subscriber(
             "imu/data", Imu, self.imu_callback, tcp_nodelay=True
@@ -138,7 +143,9 @@ class ImuToOdom:
         )
 
         if self.imu_to_base_q is not None:
-            orientation_q = self.quaternion_multiply(self.imu_to_base_q, orientation_q)
+            q_imu_base = tf.transformations.quaternion_inverse(self.imu_to_base_q)
+            orientation_q = self.quaternion_multiply(orientation_q, q_imu_base)
+            orientation_q = orientation_q / np.linalg.norm(orientation_q)
 
             rotation_matrix = tf.transformations.quaternion_matrix(self.imu_to_base_q)[
                 :3, :3
@@ -146,6 +153,17 @@ class ImuToOdom:
             corrected_angular_velocity = np.dot(
                 rotation_matrix, corrected_angular_velocity
             )
+
+        if self.force_z_up:
+            orientation_q = self.quaternion_multiply(orientation_q, self.frd_to_flu_q)
+            orientation_q = orientation_q / np.linalg.norm(orientation_q)
+            corrected_angular_velocity[1] *= -1.0
+            corrected_angular_velocity[2] *= -1.0
+
+        if self.flip_pitch:
+            roll, pitch, yaw = tf.transformations.euler_from_quaternion(orientation_q)
+            orientation_q = tf.transformations.quaternion_from_euler(roll, -pitch, yaw)
+            corrected_angular_velocity[1] *= -1.0
         self.odom_msg.twist.twist.angular.x = corrected_angular_velocity[0]
         self.odom_msg.twist.twist.angular.y = corrected_angular_velocity[1]
         self.odom_msg.twist.twist.angular.z = corrected_angular_velocity[2]

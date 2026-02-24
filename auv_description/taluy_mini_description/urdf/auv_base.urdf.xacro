@@ -50,8 +50,8 @@
     <!-- arka sol alt -->
     <xacro:t200_thruster name="${namespace}/thruster_7" parent="${namespace}/base_link" position="-0.157582 -0.234119 -0.104193" orientation="0 ${pi/4} ${pi/4}"/>
     <!-- arka sag alt -->
-
-    <xacro:xsens_mti_g710 name="${namespace}/base_link/imu" parent="${namespace}/base_link" position="-0.162 0 -0.0108" orientation="0 ${-math.pi/2} 0"/>
+    <!--xacro:xsens_mti_g710 name="${namespace}/base_link/imu" parent="${namespace}/base_link" position="-0.162 0 -0.0108" orientation="${math.pi} 0 ${math.pi/2} "/-->
+    <xacro:xsens_mti_g710 name="${namespace}/base_link/imu" parent="${namespace}/base_link" position="-0.162 0 -0.0108" orientation="${math.pi} 0 ${math.pi/2}"/>
     <!-- <xacro:xsens_mti_g710 name="${namespace}/base_link/imu" parent="${namespace}/base_link" position="-0.162 0 -0.0108" orientation="0 0 0"/> -->
     <xacro:bar30 name="${namespace}/base_link/external_pressure_sensor" parent="${namespace}/base_link" position="0 0 0.07" orientation="0 0 0"/>
     <xacro:logitech_c920_camera name="${namespace}/base_link/front_camera" parent="${namespace}/base_link" position="0.3 0 0" orientation="0.17 0 0"/>
