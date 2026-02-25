@@ -1,0 +1,33 @@
+<launch>
+  <!-- 
+    Note: This launch file expects roscore to already be running (from simulation or roscore command).
+    It will NOT start its own roscore to avoid conflicts when shutting down.
+  -->
+  
+  <!-- Start rosbridge websocket server -->
+  <include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
+    <arg name="port" value="9090"/>
+    <arg name="address" value=""/>
+  </include>
+
+  <!-- Start web_video_server for camera streaming -->
+  <node name="web_video_server" pkg="web_video_server" type="web_video_server" output="screen">
+    <param name="port" value="8080"/>
+    <param name="server_threads" value="4"/>
+    <!-- Reduce error spam by setting output to log instead of screen if desired -->
+    <!-- <remap from="~output" to="log"/> -->
+  </node>
+
+  <!-- Start web GUI command service for executing system commands -->
+  <node name="web_gui_command_service" pkg="auv_teleop" type="web_gui_command_service.py" output="screen"/>
+
+  <!-- Start web GUI detection service for object detection control -->
+  <node name="web_gui_detection_service" pkg="auv_teleop" type="web_gui_detection_service.py" output="screen"/>
+
+  <!-- Start web GUI teleop service for joystick control -->
+  <node name="web_gui_teleop_service" pkg="auv_teleop" type="web_gui_teleop_service.py" output="screen">
+    <param name="namespace" value="taluy"/>
+  </node>
+
+  <node name="web_gui_info" pkg="rospy_tutorials" type="talker" output="screen" if="false"/>
+</launch>
