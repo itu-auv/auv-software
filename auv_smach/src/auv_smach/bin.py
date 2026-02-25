@@ -600,13 +600,13 @@ class BinTaskState(smach.State):
                 "WAIT_FOR_BALL_DROP_1",
                 DelayState(delay_time=5.0),
                 transitions={
-                    "succeeded": "A",
+                    "succeeded": "ALIGN_TO_FOUND_DROP_AREA_2",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "A",
+                "ALIGN_TO_FOUND_DROP_AREA_2",
                 SetAlignToFoundState(
                     source_frame="taluy/base_link/ball_dropper_2_link",
                     dist_threshold=0.05,
