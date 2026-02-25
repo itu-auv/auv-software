@@ -24,7 +24,7 @@ import tf2_ros
 
 class GripperAngleOpenState(smach.State):
     """
-    Gerçek gripper için angle topic'ine 2400 değerini yayınlar (açık pozisyon).
+    for real life gripper).
     """
 
     def __init__(self):
@@ -33,7 +33,7 @@ class GripperAngleOpenState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper/angle", UInt16, queue_size=1)
-        self.angle_value = 2400
+        self.angle_value = 1930
 
     def execute(self, userdata) -> str:
         try:
@@ -54,7 +54,7 @@ class GripperAngleOpenState(smach.State):
 
 class GripperAngleCloseState(smach.State):
     """
-    Gerçek gripper için angle topic'ine 400 değerini yayınlar (kapalı pozisyon).
+    for real life gripper close).
     """
 
     def __init__(self):
@@ -63,13 +63,12 @@ class GripperAngleCloseState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper/angle", UInt16, queue_size=1)
-        self.angle_value = 400
+        self.angle_value = 600
 
     def execute(self, userdata) -> str:
         try:
             msg = UInt16()
             msg.data = self.angle_value
-            # Birkaç kez yayınla - topic'in alındığından emin olmak için
             for _ in range(3):
                 self.pub.publish(msg)
                 rospy.sleep(0.1)
@@ -323,7 +322,7 @@ class OctagonTaskState(smach.State):
                     keep_orientation=True,
                 ),
                 transitions={
-                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "succeeded": "MOVE_GRIPPER",
                     "preempted": "preempted",
                     "aborted": "SEARCH_RIGHT",
                 },
@@ -390,9 +389,9 @@ class OctagonTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SET_BOTTLE_DEPTH",
-                SetDepthState(depth=-1.2, max_velocity=0.1, confirm_duration=5.0),
+                SetDepthState(depth=-0.9, max_velocity=0.1, confirm_duration=5.0),
                 transitions={
-                    "succeeded": "SURFACE_WITH_BOTTLE",
+                    "succeeded": "CLOSE_GRIPPER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -540,7 +539,9 @@ class OctagonTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SURFACE_WITH_BOTTLE",
-                SetDepthState(depth=-0.15,max_velocity=0.1, depth_threshold=0.05),  # Close to surface
+                SetDepthState(
+                    depth=-0.15, max_velocity=0.1, depth_threshold=0.05
+                ),  # Close to surface
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

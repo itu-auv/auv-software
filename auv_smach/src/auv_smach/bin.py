@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -16,6 +17,7 @@ from auv_smach.common import (
     SetDetectionFocusState,
     DropBallState,
     SetDetectionState,
+    SetDetectionFocusBottomState,
 )
 
 from auv_smach.initialize import DelayState
@@ -36,8 +38,7 @@ class CheckForDropAreaState(smach.State):
         )
         self.source_frame = source_frame
         self.timeout = rospy.Duration(timeout)
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.target_selection = target_selection
         # Set frame order based on target_selection
         if self.target_selection == "shark":
@@ -416,6 +417,16 @@ class BinTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
+            smach.StateMachine.add(
+                "ENABLE_BOTTOM_DETECTION",
+                SetDetectionFocusBottomState(focus_object="bin"),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_BIN_WHOLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_BIN_WHOLE",
                 DynamicPathState(
