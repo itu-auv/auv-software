@@ -722,7 +722,6 @@ class SetDetectionState(smach_ros.ServiceState):
         )
 
 
-
 class SetDetectionFocusBottomState(smach_ros.ServiceState):
     """
     Calls the service to set the focus for the bottom camera detections.

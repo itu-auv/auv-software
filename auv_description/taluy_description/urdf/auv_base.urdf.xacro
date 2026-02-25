@@ -77,7 +77,7 @@
     </link>
 
     <joint name="gripper_link_joint" type="fixed">
-      <origin xyz="0 0.1929 -0.0347" rpy="0 0 0"/>
+      <origin xyz="-0.09791 0.205121 -0.40520" rpy="0 0 0"/>
       <parent link="${namespace}/base_link"/>
       <child link="${namespace}/gripper_link"/>
     </joint>
