@@ -62,6 +62,10 @@ class GpsTargetFramePublisher(object):
         self._set_object_srv.wait_for_service()
         rospy.loginfo("Connected to 'set_object_transform'.")
 
+        self.direct_object_transform_pub = rospy.Publisher(
+            "direct_object_transform", TransformStamped, queue_size=10
+        )
+
         self._active = False
         self._anchor_robot_at_start = None  # latched robot pose in odom at activation
         self._srv_toggle = rospy.Service(
@@ -244,15 +248,7 @@ class GpsTargetFramePublisher(object):
         # 5) Build and send GPS target frame via service
         ts = self._build_transform(self.child_frame, self.parent_frame, target_pos, q)
         try:
-            req = SetObjectTransformRequest(transform=ts)
-            resp = self._set_object_srv.call(req)
-            if not resp.success:
-                rospy.logerr_throttle(
-                    8.0,
-                    "set_object_transform failed for %s: %s",
-                    ts.child_frame_id,
-                    resp.message,
-                )
+            send_transform(self, ts)
         except Exception as e:
             rospy.logerr_throttle(8.0, "set_object_transform call error: %s", e)
 
@@ -262,21 +258,17 @@ class GpsTargetFramePublisher(object):
             self.anchor_frame, self.parent_frame, self._anchor_robot_at_start, anchor_q
         )
         try:
-            anchor_req = SetObjectTransformRequest(transform=anchor_ts)
-            anchor_resp = self._set_object_srv.call(anchor_req)
-            if not anchor_resp.success:
-                rospy.logerr_throttle(
-                    8.0,
-                    "set_object_transform failed for %s: %s",
-                    anchor_ts.child_frame_id,
-                    anchor_resp.message,
-                )
+            send_transform(self, anchor_ts)
         except Exception as e:
             rospy.logerr_throttle(
                 8.0, "set_object_transform call error for anchor: %s", e
             )
 
     # -------------------- Helpers --------------------
+
+    def send_transform(self, transform):
+        self.direct_object_transform_pub.publish(transform)
+
     @staticmethod
     def _build_transform(child_frame, parent_frame, pos_xyz, q_xyzw):
         t = TransformStamped()

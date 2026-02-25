@@ -132,6 +132,7 @@ class BinTransformServiceEnableState(smach_ros.ServiceState):
             "toggle_bin_trajectory",
             SetBool,
             request=SetBoolRequest(data=req),
+            outcomes=["succeeded", "preempted", "aborted"],
         )
 
 
