@@ -204,13 +204,7 @@ class DvlToOdom:
         self.odom_publisher.publish(self.odom_msg)
 
     def run(self):
-        rate = rospy.Rate(20)
-        while not rospy.is_shutdown():
-            if not self.is_dvl_enabled:
-                self.odom_msg.header.stamp = rospy.Time.now()
-                self.odom_msg.twist.twist = Twist()
-                self.odom_publisher.publish(self.odom_msg)
-            rate.sleep()
+        rospy.spin()
 
 
 if __name__ == "__main__":

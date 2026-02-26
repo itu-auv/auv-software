@@ -67,8 +67,6 @@ class ImuToOdom:
         )
 
     def get_frame_rotation(self, frame_id):
-        # TransformListener'ın TF buffer'ını doldurması için bekliyoruz.
-        # Bu süre olmadan lookupTransform çağrısı başarısız olabilir.
         rospy.loginfo(f"Waiting for TF: {self.base_frame} <- {frame_id}")
         try:
             self.tf_listener.waitForTransform(
