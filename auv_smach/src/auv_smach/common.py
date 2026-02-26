@@ -7,7 +7,7 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 import angles
-from auv_smach.tf_utils import get_tf_buffer
+from auv_smach.tf_utils import get_tf_buffer, get_base_link
 
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
@@ -164,7 +164,7 @@ class SetDepthState(smach.State):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        self.base_frame = rospy.get_param("~namespace", "taluy/base_link")
+        self.base_frame = get_base_link()
 
     def _publish_enable_loop(self):
         publish_rate = rospy.get_param("~enable_rate", 20)
@@ -791,7 +791,7 @@ class SearchForPropState(smach.StateMachine):
         alignment_frame: str,
         full_rotation: bool,
         set_frame_duration: float,
-        source_frame: str = "taluy/base_link",
+        source_frame: str = None,
         rotation_speed: float = 0.3,
         max_angular_velocity: float = 0.25,
     ):
@@ -807,6 +807,8 @@ class SearchForPropState(smach.StateMachine):
             rotation_speed (float): The angular velocity for rotation (default: 0.3).
             max_angular_velocity (float): Max angular velocity for align controller (optional).
         """
+        if source_frame is None:
+            source_frame = get_base_link()
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
 
         with self:
@@ -872,9 +874,9 @@ class SearchForPropState(smach.StateMachine):
 
 
 class PlanPathToSingleFrameState(smach.State):
-    def __init__(
-        self, tf_buffer, target_frame: str, source_frame: str = "taluy/base_link"
-    ):
+    def __init__(self, tf_buffer, target_frame: str, source_frame: str = None):
+        if source_frame is None:
+            source_frame = get_base_link()
         smach.State.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
@@ -1151,13 +1153,15 @@ class DynamicPathState(smach.StateMachine):
     def __init__(
         self,
         plan_target_frame: str,
-        align_source_frame: str = "taluy/base_link",
+        align_source_frame: str = None,
         align_target_frame: str = "dynamic_target",
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
         angle_offset: float = 0.0,
         keep_orientation: bool = False,
     ):
+        if align_source_frame is None:
+            align_source_frame = get_base_link()
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
         with self:
             smach.StateMachine.add(
@@ -1207,7 +1211,7 @@ class DynamicPathState(smach.StateMachine):
 class LookAroundState(smach.StateMachine):
     def __init__(
         self,
-        source_frame: str = "taluy/base_link",
+        source_frame: str = None,
         angle_offset: float = 0.5,
         confirm_duration: float = 0.1,
         timeout: float = 10.0,
@@ -1216,6 +1220,8 @@ class LookAroundState(smach.StateMachine):
         current_pose_frame: str = "selam_frame",
     ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
+        if source_frame is None:
+            source_frame = get_base_link()
 
         with self:
             smach.StateMachine.add(
@@ -1291,11 +1297,13 @@ class LookAroundState(smach.StateMachine):
 class CreateFrameAtCurrentPositionState(smach.State):
     def __init__(
         self,
-        source_frame: str = "taluy/base_link",
+        source_frame: str = None,
         current_pose_frame: str = "selam_frame",
         reference_frame: str = "odom",
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        if source_frame is None:
+            source_frame = get_base_link()
         self.source_frame = source_frame
         self.current_pose_frame = current_pose_frame
         self.reference_frame = reference_frame

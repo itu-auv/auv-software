@@ -1,6 +1,7 @@
 from .initialize import *
 import smach
 import smach_ros
+from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
     NavigateToFrameState,
     SetAlignControllerTargetState,
@@ -41,6 +42,7 @@ class OctagonFramePublisherServiceState(smach_ros.ServiceState):
 class OctagonTaskState(smach.State):
     def __init__(self, octagon_depth: float, animal: str):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.base_link = get_base_link()
         self.griper_mode = False
         self.animal_frame = f"gate_{animal}_link"
         # Initialize the state machine
@@ -75,7 +77,7 @@ class OctagonTaskState(smach.State):
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     set_frame_duration=4.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -143,7 +145,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_CLOSE_APPROACH",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="octagon_closer_link",
                     angle_offset=0.0,
                     dist_threshold=0.1,
@@ -170,7 +172,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "GO_TO_OCTAGON_LINK",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="octagon_link",
                     angle_offset=0.0,
                     dist_threshold=0.1,
@@ -220,7 +222,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "ROTATE_FOR_ANIMALS",
                 AlignAndCreateRotatingFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="animal_search_frame",
                     rotating_frame_name="animal_search_frame",
                 ),
@@ -246,7 +248,7 @@ class OctagonTaskState(smach.State):
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     set_frame_duration=5.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=-0.2,
                 ),
                 transitions={

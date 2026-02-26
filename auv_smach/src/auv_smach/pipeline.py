@@ -1,4 +1,4 @@
-from auv_smach.tf_utils import get_tf_buffer
+from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
@@ -9,6 +9,7 @@ from auv_smach.common import (
     DynamicPathState,
     SetDepthState,
     AlignFrame,
+    CancelAlignControllerState,
 )
 from auv_smach.initialize import DelayState
 
@@ -38,6 +39,7 @@ class NavigateThroughPipelineState(smach.State):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = get_tf_buffer()
+        self.base_link = get_base_link()
 
         # Pipeline corner frame names (in navigation order)
         self.pipeline_frames = [
@@ -120,7 +122,7 @@ class NavigateThroughPipelineState(smach.State):
                 "ALIGN_FRAME_CORNER_1",
                 AlignFrame(
                     target_frame=self.pipeline_frames[0],
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     angle_offset=1.57,
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
@@ -149,7 +151,7 @@ class NavigateThroughPipelineState(smach.State):
                 "ALIGN_FRAME_CORNER_2",
                 AlignFrame(
                     target_frame=self.pipeline_frames[1],
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     angle_offset=3.14,
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
@@ -178,7 +180,7 @@ class NavigateThroughPipelineState(smach.State):
                 "ALIGN_FRAME_CORNER_3",
                 AlignFrame(
                     target_frame=self.pipeline_frames[2],
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     angle_offset=-1.57,
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
@@ -207,7 +209,7 @@ class NavigateThroughPipelineState(smach.State):
                 "ALIGN_FRAME_CORNER_4",
                 AlignFrame(
                     target_frame=self.pipeline_frames[3],
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     angle_offset=3.14,
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
@@ -236,7 +238,7 @@ class NavigateThroughPipelineState(smach.State):
                 "ALIGN_FRAME_CORNER_5",
                 AlignFrame(
                     target_frame=self.pipeline_frames[4],
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     angle_offset=1.57,
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
@@ -265,7 +267,7 @@ class NavigateThroughPipelineState(smach.State):
                 "ALIGN_FRAME_CORNER_6",
                 AlignFrame(
                     target_frame=self.pipeline_frames[5],
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     angle_offset=3.14,
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
@@ -294,7 +296,7 @@ class NavigateThroughPipelineState(smach.State):
                 "ALIGN_FRAME_CORNER_7",
                 AlignFrame(
                     target_frame=self.pipeline_frames[6],
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     angle_offset=1.57,
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
@@ -323,7 +325,7 @@ class NavigateThroughPipelineState(smach.State):
                 "ALIGN_FRAME_CORNER_8",
                 AlignFrame(
                     target_frame=self.pipeline_frames[7],
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     angle_offset=0.0,
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
@@ -352,7 +354,7 @@ class NavigateThroughPipelineState(smach.State):
                 "ALIGN_FRAME_CORNER_9",
                 AlignFrame(
                     target_frame=self.pipeline_frames[8],
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     angle_offset=0.0,
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
