@@ -147,7 +147,7 @@ class SetDepthState(smach.State):
         depth: float,
         depth_threshold: float = 0.1,
         confirm_duration: float = 1.0,
-        timeout: float = 10.0,
+        timeout: float = 20.0,
         frame_id: str = "odom",
         max_velocity: float = 0.0,
     ):
