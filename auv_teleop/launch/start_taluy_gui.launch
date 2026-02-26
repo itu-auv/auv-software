@@ -22,5 +22,11 @@
         <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />
         <param name="topic_camera_bottom" value="$(arg namespace)/cameras/cam_bottom/image_raw" />
         <param name="topic_camera_front" value="$(arg namespace)/cameras/cam_front/image_raw" />
+
+        <param name="battery_popup_enabled" value="true" />
+        <param name="battery_popup_topic" value="power" />
+        <param name="battery_popup_threshold" value="13.5" />
+        <param name="battery_popup_window_size" value="5" />
+        <param name="battery_popup_cooldown_seconds" value="180.0" />
     </node>
 </launch>
