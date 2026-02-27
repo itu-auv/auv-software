@@ -7,8 +7,8 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 import angles
-import actionlib
 from auv_smach.tf_utils import get_tf_buffer
+import actionlib
 
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
@@ -147,7 +147,7 @@ class SetDepthState(smach.State):
         depth: float,
         depth_threshold: float = 0.1,
         confirm_duration: float = 1.0,
-        timeout: float = 10.0,
+        timeout: float = 20.0,
         frame_id: str = "odom",
         max_velocity: float = 0.0,
     ):
