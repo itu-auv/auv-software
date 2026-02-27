@@ -6,6 +6,7 @@
     <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/materials.urdf.xacro"/>
+    <xacro:include filename="$(find taluy_description)/urdf/parallel_gripper.xacro"/>
     <xacro:arg name="angled_thruster_z_offset" default="-0.01"/>
     <xacro:arg name="use_models" default="${use_models}"/>
     <link name="${namespace}/base_link">
@@ -63,6 +64,38 @@
       use_models="$(arg use_models)"
     />
 
+    <!-- Parallel Gripper -->
+    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="0 0.1929 -0.0347" mount_rpy="0 ${math.pi/2} ${math.pi/2}" mass_scale="0.001"/>
+
+    <!-- Gripper Link (fixed frame) -->
+    <link name="${namespace}/gripper_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.001"/>
+        <inertia ixx="0.000001" ixy="0.0" ixz="0.0" iyy="0.000001" iyz="0.0" izz="0.000001"/>
+      </inertial>
+    </link>
+
+    <joint name="gripper_link_joint" type="fixed">
+      <origin xyz="-0.128 0.0 -0.4285" rpy="0 0 0"/>
+      <parent link="${namespace}/base_link"/>
+      <child link="${namespace}/gripper_link"/>
+    </joint>
+
+    <!-- <link name="base_footprint">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="15.0" />
+        <inertia ixx="39.351246" iyy="103.261717" izz="127.702526" ixy="-5e-06" iyz="6e-06"
+          ixz="4.403436" />
+      </inertial>
+    </link>
+
+    <joint name="base_link_joint" type="fixed">
+      <origin xyz="0 0 ${-base_z_offsett + 0.06 - draft}" rpy="0 0 0" />
+      <parent link="base_footprint" />
+      <child link="base_link" />
+    </joint> -->
     <!-- Sensors -->
     <xacro:wayfinder_dvl name="${namespace}/base_link/dvl" parent="${namespace}/base_link" position="0.2 0 -0.11" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:xsens_mti_g710 name="${namespace}/base_link/imu" parent="${namespace}/base_link" position="-0.162 0 -0.0108" orientation="0 0 ${math.pi}" use_models="$(arg use_models)"/>

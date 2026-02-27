@@ -71,6 +71,7 @@
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
+            <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus"/>
             <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable"/>
 
             <param name="enable_rate" value="$(arg enable_rate)"/>
@@ -102,6 +103,9 @@
 
             <!--acoustic.py-->
             <remap from="modem/data/rx" to="modem/data/rx"/>
+
+            <!-- octagon.py Gripper Service -->
+            <remap from="actuators/gripper/close" to="actuators/gripper/close"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>
