@@ -19,6 +19,7 @@ from dry_test_tab import DryTestTab
 from services_tab import ServicesTab
 from vehicle_control_tab import VehicleControlTab
 from simulation_tab import SimulationTab
+from battery_popup_controller import BatteryPopupController
 
 
 class MainControlPanel(QWidget):
@@ -57,6 +58,7 @@ class StartScreen(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AUV GUI")
+        self.battery_popup_controller = None
 
         screen = QApplication.primaryScreen()
         screen_width = screen.size().width()
@@ -159,6 +161,20 @@ class StartScreen(QMainWindow):
         main_layout.addWidget(title_label)
         main_layout.addLayout(button_layout)
         main_layout.addWidget(image_container)
+
+        self._init_battery_popup()
+
+    def _init_battery_popup(self):
+        if not rospy.get_param("~battery_popup_enabled", True):
+            rospy.loginfo("Battery popup disabled by parameter")
+            return
+
+        self.battery_popup_controller = BatteryPopupController(
+            topic=rospy.get_param("~battery_popup_topic", "power"),
+            voltage_threshold=rospy.get_param("~battery_popup_threshold", 13.5),
+            window_size=rospy.get_param("~battery_popup_window_size", 5),
+            cooldown_seconds=rospy.get_param("~battery_popup_cooldown_seconds", 180.0),
+        )
 
     def open_pool_mode(self):
         self.hide()
