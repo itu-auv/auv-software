@@ -52,6 +52,7 @@ class ObjectMapTFServerROS {
   double rate_;
   double distance_threshold_squared_;
   std::string static_frame_;
+  std::string base_link_frame_;
   FilterMap filters_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   //

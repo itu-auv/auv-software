@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="auv_sim_base" params="namespace *gazebo inertial_reference_frame use_models">
+    <xacro:insert_block name="gazebo"/>
+    <xacro:include filename="$(find taluy_mini_description)/urdf/auv_base.urdf.xacro"/>
+    <xacro:taluy_mini_base use_models="$(arg use_models)"/>
+    <xacro:include filename="$(find taluy_mini_sim_description)/urdf/actuators.urdf.xacro"/>
+    <xacro:include filename="$(find taluy_mini_sim_description)/urdf/sensors.urdf.xacro"/>
+  </xacro:macro>
+</robot>

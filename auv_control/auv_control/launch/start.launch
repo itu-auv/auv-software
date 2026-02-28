@@ -5,8 +5,9 @@
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
   <arg name="command_timeout" default="0.1" />
-  <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
+  <arg name="config_file" default="$(find auv_control)/config/$(arg namespace)/default.yaml" />
   <arg name="start_visual_servoing" default="true" />
+  <arg name="imu_topic" default="$(eval '/vectornav/IMU' if arg('namespace') == 'taluy_mini' else 'sensors/imu/data')" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch"
     if="$(arg start_state_publisher)">
@@ -18,6 +19,7 @@
     <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
       <param name="rate" value="$(arg rate)" />
       <param name="config_file" value="$(arg config_file)" />
+      <param name="body_frame" value="$(arg namespace)/base_link" />
 
       <remap from="odometry" to="odometry" />
       <remap from="cmd_vel" to="cmd_vel" />
@@ -32,6 +34,8 @@
     <node pkg="auv_control" type="thruster_manager_node" name="thruster_manager_node"
       output="screen">
       <param name="rate" value="$(arg rate)" />
+      <param name="body_frame" value="$(arg namespace)/base_link" />
+      <param name="frame_prefix" value="$(arg namespace)" />
       <remap from="power" to="mainboard/power_sensor/power" />
       <rosparam file="$(arg config_file)" command="load" ns="" />
     </node>
@@ -40,6 +44,7 @@
       output="screen">
       <param name="update_rate" value="$(arg rate)" />
       <param name="command_timeout" value="$(arg command_timeout)" />
+      <param name="namespace" value="$(arg namespace)" />
 
       <remap from="odometry" to="odometry" />
       <remap from="set_depth" to="set_depth" />
@@ -68,7 +73,7 @@
       <node pkg="auv_control" type="visual_servoing_controller.py" name="visual_servoing_controller"
         output="screen">
         <!-- Subscribers -->
-        <remap from="imu/data" to="sensors/imu/data" />
+        <remap from="imu/data" to="$(arg imu_topic)" />
         <remap from="props_yaw" to="props_yaw" />
         <!-- Publishers -->
         <remap from="cmd_vel" to="cmd_vel" />

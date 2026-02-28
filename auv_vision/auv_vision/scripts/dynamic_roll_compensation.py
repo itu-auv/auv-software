@@ -150,8 +150,13 @@ class CameraRollStabilizer:
         """
         t = TransformStamped()
         t.header.stamp = stamp
-        t.header.frame_id = "taluy/base_link/front_camera_optical_link"
-        t.child_frame_id = "taluy/base_link/front_camera_optical_link_stabilized"
+        t.header.frame_id = rospy.get_param(
+            "~camera_optical_frame", "taluy/base_link/front_camera_optical_link"
+        )
+        t.child_frame_id = rospy.get_param(
+            "~camera_optical_frame_stabilized",
+            "taluy/base_link/front_camera_optical_link_stabilized",
+        )
 
         # No translation offset; pure spin around optical axis
         t.transform.translation.x = 0.0

@@ -14,8 +14,10 @@
       <param name="sync_queue_size" value="10"/>
       <param name="sync_slop" value="0.05"/>
       <param name="recalc_threshold_deg" value="0.1"/>
+      <param name="camera_optical_frame" value="$(arg namespace)/base_link/front_camera_optical_link"/>
+      <param name="camera_optical_frame_stabilized" value="$(arg namespace)/base_link/front_camera_optical_link_stabilized"/>
     </node>
-    <node
+    <!-- <node
       pkg="auv_vision"
       type="yolo_image_annotator.py"
       name="yolo_image_annotator_node"
@@ -28,6 +30,6 @@
       <param name="save_directory" value="/tmp/yolo_annotated_images"/>
       <param name="font_scale" value="0.7"/>
       <param name="font_thickness" value="2"/>
-    </node>
+    </node> -->
   </group>
 </launch>

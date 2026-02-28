@@ -1,4 +1,4 @@
-from auv_smach.tf_utils import get_tf_buffer
+from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
@@ -98,6 +98,7 @@ class NavigateThroughGateState(smach.State):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = get_tf_buffer()
+        self.base_link = get_base_link()
         self.roll = rospy.get_param("~roll", True)
         self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip = rospy.get_param("~coin_flip", False)
@@ -172,7 +173,7 @@ class NavigateThroughGateState(smach.State):
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
                     set_frame_duration=5.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -223,7 +224,7 @@ class NavigateThroughGateState(smach.State):
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
                     set_frame_duration=3.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -251,7 +252,7 @@ class NavigateThroughGateState(smach.State):
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
                     set_frame_duration=7.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -312,7 +313,7 @@ class NavigateThroughGateState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_FRAME_REQUEST_AFTER_EXIT",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="gate_exit",
                     angle_offset=self.gate_exit_angle,
                     dist_threshold=0.1,

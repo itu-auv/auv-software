@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy" />
+  <arg name="imu_topic" default="$(eval '/vectornav/IMU' if arg('namespace') == 'taluy_mini' else 'sensors/imu/data')" />
 
     <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen">
         <remap from="set_depth" to="$(arg namespace)/set_depth"/>
@@ -18,7 +19,7 @@
         <remap from="align_frame/cancel" to="$(arg namespace)/control/align_frame/cancel"/>
         <remap from="reset_odometry" to="$(arg namespace)/reset_odometry"/>
 
-        <param name="topic_imu" value="$(arg namespace)/sensors/imu/data" />
+        <param name="topic_imu" value="$(arg namespace)/$(arg imu_topic)" />
         <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />
         <param name="topic_camera_bottom" value="$(arg namespace)/cameras/cam_bottom/image_raw" />
         <param name="topic_camera_front" value="$(arg namespace)/cameras/cam_front/image_raw" />

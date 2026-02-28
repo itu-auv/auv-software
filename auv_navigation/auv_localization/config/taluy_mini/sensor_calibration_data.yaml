@@ -1,0 +1,9 @@
+sensors/external_pressure_sensor:
+  depth_covariance: 4.5e-02
+  depth_offset: -0.125
+
+sensors/dvl:
+  covariance:
+    linear_x: 0.001
+    linear_y: 0.001
+    linear_z: 0.001

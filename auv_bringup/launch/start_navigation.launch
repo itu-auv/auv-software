@@ -5,7 +5,7 @@
   <arg name="sim" default="false" />
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
-  <arg name="config_file" default="$(find auv_control)/config/default.yaml" />
+  <arg name="config_file" default="$(find auv_control)/config/$(arg namespace)/default.yaml" />
 
   <include file="$(find auv_localization)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
