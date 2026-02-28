@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
@@ -19,8 +20,8 @@ class NavigateReturnThroughGateState(smach.State):
     def __init__(self, station_frame: str = "bin_whole_link"):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
+        self.base_link = get_base_link()
 
         self.gate_look_at_frame = "gate_middle_part"
         self.station_frame = station_frame
@@ -50,7 +51,7 @@ class NavigateReturnThroughGateState(smach.State):
                     alignment_frame="look_at_gate",
                     full_rotation=False,
                     set_frame_duration=7.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -74,7 +75,7 @@ class NavigateReturnThroughGateState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_ENTRANCE",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="gate_entrance",
                     angle_offset=3.14,
                     dist_threshold=0.1,

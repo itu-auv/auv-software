@@ -124,7 +124,7 @@ class SimulationMockROS {
     if (msg.altitude > kMinDvlAltitude && dvl_enabled_) {
       velocity_raw_msg.linear = msg.velocity;
       addNoiseToTwist(velocity_raw_msg);
-      rotateVelocity(velocity_raw_msg, 135.0);
+      // rotateVelocity(velocity_raw_msg, 135.0);
 
       is_valid_msg.data = true;
     }

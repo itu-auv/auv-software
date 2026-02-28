@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
@@ -47,8 +48,8 @@ class NavigateToGpsTargetState(smach.State):
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
+        self.base_link = get_base_link()
         self.gps_target_frame = gps_target_frame
 
         # Initialize the state machine container
@@ -109,7 +110,7 @@ class NavigateToGpsTargetState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_GPS_TARGET",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame=self.gps_target_frame,
                     confirm_duration=2.0,
                 ),

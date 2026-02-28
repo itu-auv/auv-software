@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
@@ -58,8 +59,8 @@ class NavigateThroughSlalomState(smach.State):
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
+        self.base_link = get_base_link()
         self.slalom_exit_angle = slalom_exit_angle
         self.slalom_mode = slalom_mode
 
@@ -110,7 +111,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_SLALOM_ENTRANCE",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="slalom_entrance",
                     confirm_duration=1.0,
                 ),
@@ -134,7 +135,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_SLALOM_ENTRANCE_BACKED",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="slalom_entrance_backed",
                     confirm_duration=3.0,
                 ),
@@ -160,7 +161,7 @@ class NavigateThroughSlalomState(smach.State):
                     alignment_frame="search_for_red_pipe",
                     full_rotation=False,
                     set_frame_duration=5.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -172,7 +173,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "LOOK_LEFT",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="search_for_red_pipe",
                     angle_offset=0.5,
                     dist_threshold=0.1,
@@ -193,7 +194,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "LOOK_RIGHT",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="search_for_red_pipe",
                     angle_offset=-0.5,
                     dist_threshold=0.1,
@@ -218,7 +219,7 @@ class NavigateThroughSlalomState(smach.State):
                     alignment_frame="look_at_waypoint_1",
                     full_rotation=False,
                     set_frame_duration=5.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -251,7 +252,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_WP_1_INTER",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="slalom_waypoint_1_inter",
                     dist_threshold=0.2,
                     yaw_threshold=0.1,
@@ -279,7 +280,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_WP_2_INTER",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="slalom_waypoint_2_inter",
                     dist_threshold=0.2,
                     yaw_threshold=0.1,
@@ -318,7 +319,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_SLALOM_EXIT",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="slalom_exit",
                     confirm_duration=0.0,
                     angle_offset=self.slalom_exit_angle,

@@ -4,6 +4,6 @@ sensors/external_pressure_sensor:
 
 sensors/dvl:
   covariance:
-    linear_x: 0.000015
-    linear_y: 0.000015
-    linear_z: 0.000015
+    linear_x: 0.001
+    linear_y: 0.001
+    linear_z: 0.001
