@@ -79,12 +79,12 @@
       output="screen" ns="$(arg name)">
     </node>
 
-    <!-- Rectify: image_raw + camera_info -> image_rect_color -->
-    <node pkg="nodelet" type="nodelet" name="rectify_color"
-      args="load image_proc/rectify $(arg name)_nodelet_manager">
-      <remap from="image_mono" to="$(arg name)/image_raw" />
-      <remap from="camera_info" to="$(arg name)/camera_info" />
-      <remap from="image_rect" to="$(arg name)/image_rect_color" />
-    </node>
   </group>
+
+  <!-- Rectify: image_raw + camera_info -> image_rect_color (separate image_proc) -->
+  <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
+    <arg name="camera_namespace" value="$(arg namespace)/cameras/$(arg name)" />
+    <arg name="manager" value="/$(arg namespace)/cameras/$(arg name)_nodelet_manager" />
+    <arg name="create_manager" value="false" />
+  </include>
 </launch>
