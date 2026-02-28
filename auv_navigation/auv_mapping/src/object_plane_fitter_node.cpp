@@ -41,6 +41,7 @@ class ObjectPlaneFitter {
         pnh_(pnh),
         enabled_(false),
         camera_info_received_(false),
+        original_camera_info_received_(false),
         tf_buffer_(ros::Duration(10.0)),
         tf_listener_(std::make_unique<tf2_ros::TransformListener>(tf_buffer_)) {
     // Load parameters
@@ -75,6 +76,9 @@ class ObjectPlaneFitter {
     // Camera info subscriber (separate, latched)
     camera_info_sub_ = nh_.subscribe(
         "camera_info", 1, &ObjectPlaneFitter::cameraInfoCallback, this);
+    original_camera_info_sub_ = nh_.subscribe(
+        "original_camera_info", 1,
+        &ObjectPlaneFitter::originalCameraInfoCallback, this);
 
     // Synchronized subscribers for depth and detections
     depth_sub_.subscribe(nh_, "depth", 1);
@@ -91,6 +95,9 @@ class ObjectPlaneFitter {
                                   : std::to_string(target_class_id_).c_str());
     ROS_INFO("[ObjectPlaneFitter] RANSAC threshold: %.4f m, max iterations: %d",
              ransac_distance_threshold_, ransac_max_iterations_);
+    ROS_INFO(
+        "[ObjectPlaneFitter] BBox scaling enabled: YOLO boxes will be rescaled "
+        "from original camera resolution to depth image resolution.");
   }
 
   bool enableCallback(std_srvs::SetBool::Request& req,
@@ -107,8 +114,18 @@ class ObjectPlaneFitter {
     std::lock_guard<std::mutex> lock(camera_info_mutex_);
     camera_info_ = *msg;
     camera_info_received_ = true;
-    ROS_INFO_ONCE("[ObjectPlaneFitter] Camera info received: %dx%d", msg->width,
-                  msg->height);
+    ROS_INFO_ONCE("[ObjectPlaneFitter] Scaled camera info received: %dx%d",
+                  msg->width, msg->height);
+  }
+
+  void originalCameraInfoCallback(
+      const sensor_msgs::CameraInfo::ConstPtr& msg) {
+    std::lock_guard<std::mutex> lock(original_camera_info_mutex_);
+    original_camera_info_ = *msg;
+    original_camera_info_received_ = true;
+    ROS_INFO_ONCE(
+        "[ObjectPlaneFitter] Original camera info received: %dx%d",
+        msg->width, msg->height);
   }
 
   void syncCallback(
@@ -117,16 +134,26 @@ class ObjectPlaneFitter {
     if (!enabled_) {
       return;
     }
-    // Check if camera info is available
+    // Check if both camera infos are available
     sensor_msgs::CameraInfo cam_info;
+    sensor_msgs::CameraInfo orig_cam_info;
     {
       std::lock_guard<std::mutex> lock(camera_info_mutex_);
       if (!camera_info_received_) {
-        ROS_WARN_THROTTLE(5.0,
-                          "[ObjectPlaneFitter] Waiting for camera info...");
+        ROS_WARN_THROTTLE(
+            5.0, "[ObjectPlaneFitter] Waiting for scaled camera info...");
         return;
       }
       cam_info = camera_info_;
+    }
+    {
+      std::lock_guard<std::mutex> lock(original_camera_info_mutex_);
+      if (!original_camera_info_received_) {
+        ROS_WARN_THROTTLE(
+            5.0, "[ObjectPlaneFitter] Waiting for original camera info...");
+        return;
+      }
+      orig_cam_info = original_camera_info_;
     }
 
     // Convert depth image
@@ -152,6 +179,25 @@ class ObjectPlaneFitter {
       return;
     }
 
+    // Compute scale factors: YOLO boxes are in original resolution,
+    // depth image is in resized resolution.
+    int depth_w = cv_depth->image.cols;
+    int depth_h = cv_depth->image.rows;
+    int orig_w = static_cast<int>(orig_cam_info.width);
+    int orig_h = static_cast<int>(orig_cam_info.height);
+
+    double scale_x = 1.0;
+    double scale_y = 1.0;
+    if (orig_w > 0 && orig_h > 0) {
+      scale_x = static_cast<double>(depth_w) / orig_w;
+      scale_y = static_cast<double>(depth_h) / orig_h;
+    }
+    ROS_DEBUG_THROTTLE(
+        5.0,
+        "[ObjectPlaneFitter] BBox scale: orig=%dx%d, depth=%dx%d, "
+        "scale=(%.3f, %.3f)",
+        orig_w, orig_h, depth_w, depth_h, scale_x, scale_y);
+
     // Process each detection
     for (const auto& detection : detections_msg->detections) {
       // Filter by class if specified (target_class_id_ < 0 means accept all)
@@ -168,18 +214,16 @@ class ObjectPlaneFitter {
         }
       }
 
-      // Get bounding box
-      int bbox_cx = static_cast<int>(detection.bbox.center.x);
-      int bbox_cy = static_cast<int>(detection.bbox.center.y);
-      int bbox_w = static_cast<int>(detection.bbox.size_x);
-      int bbox_h = static_cast<int>(detection.bbox.size_y);
+      // Get bounding box and scale from original to depth resolution
+      int bbox_cx = static_cast<int>(detection.bbox.center.x * scale_x);
+      int bbox_cy = static_cast<int>(detection.bbox.center.y * scale_y);
+      int bbox_w = static_cast<int>(detection.bbox.size_x * scale_x);
+      int bbox_h = static_cast<int>(detection.bbox.size_y * scale_y);
 
       int x_min = std::max(0, bbox_cx - bbox_w / 2);
       int y_min = std::max(0, bbox_cy - bbox_h / 2);
-      int x_max = std::min(static_cast<int>(cv_depth->image.cols),
-                           bbox_cx + bbox_w / 2);
-      int y_max = std::min(static_cast<int>(cv_depth->image.rows),
-                           bbox_cy + bbox_h / 2);
+      int x_max = std::min(depth_w, bbox_cx + bbox_w / 2);
+      int y_max = std::min(depth_h, bbox_cy + bbox_h / 2);
 
       if (x_max <= x_min || y_max <= y_min) {
         ROS_WARN_THROTTLE(1.0, "[ObjectPlaneFitter] Invalid bounding box");
@@ -442,6 +486,7 @@ class ObjectPlaneFitter {
 
   // Subscribers
   ros::Subscriber camera_info_sub_;
+  ros::Subscriber original_camera_info_sub_;
   message_filters::Subscriber<sensor_msgs::Image> depth_sub_;
   message_filters::Subscriber<vision_msgs::Detection2DArray> detection_sub_;
 
@@ -456,6 +501,10 @@ class ObjectPlaneFitter {
   sensor_msgs::CameraInfo camera_info_;
   bool camera_info_received_;
   std::mutex camera_info_mutex_;
+
+  sensor_msgs::CameraInfo original_camera_info_;
+  bool original_camera_info_received_;
+  std::mutex original_camera_info_mutex_;
 
   // TF
   tf2_ros::Buffer tf_buffer_;
