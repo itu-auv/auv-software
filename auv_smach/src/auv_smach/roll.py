@@ -349,7 +349,6 @@ class TwoRollState(smach.StateMachine):
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=-0.8,
-                    sleep_duration=5.0,
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_LOOK_AT_GATE",
@@ -363,7 +362,7 @@ class TwoRollState(smach.StateMachine):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame="gate_search_after_roll",
                     full_rotation=True,
-                    set_frame_duration=7.0,
+                    timeout=30.0,
                     source_frame="taluy/base_link",
                     rotation_speed=0.25,
                 ),
@@ -412,6 +411,23 @@ class TwoRollState(smach.StateMachine):
             smach.StateMachine.add(
                 "CLEAR_OBJECT_MAP",
                 ClearObjectMapState(),
+                transitions={
+                    "succeeded": "LOOK_AFTER_RESET_ODOMETRY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "LOOK_AFTER_RESET_ODOMETRY",
+                SearchForPropState(
+                    look_at_frame=self.gate_look_at_frame,
+                    alignment_frame="gate_search_after_roll",
+                    full_rotation=True,
+                    timeout=30.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.25,
+                    confirm_duration=3.0,
+                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
