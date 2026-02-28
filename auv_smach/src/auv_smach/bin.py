@@ -23,6 +23,7 @@ from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
 from std_msgs.msg import Float32
 
+
 class BallDropperSetAngleState(smach.State):
     """
     for real life gripper).
@@ -33,7 +34,9 @@ class BallDropperSetAngleState(smach.State):
             self,
             outcomes=["succeeded", "preempted", "aborted"],
         )
-        self.pub = rospy.Publisher("/taluy/actuators/ball_dropper/set_angle", Float32, queue_size=1)
+        self.pub = rospy.Publisher(
+            "/taluy/actuators/ball_dropper/set_angle", Float32, queue_size=1
+        )
         self.angle_value = angle_value
 
     def execute(self, userdata) -> str:
