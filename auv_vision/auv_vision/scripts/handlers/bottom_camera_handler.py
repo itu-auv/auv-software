@@ -34,7 +34,7 @@ class BottomCameraHandler:
         self.shared_state = shared_state
 
         # IDs that use altitude for distance instead of prop size estimation
-        self.altitude_distance_ids = [10, 11]  # bin_shark, bin_sawfish
+        self.altitude_distance_ids = [0, 1]  # bin_shark, bin_sawfish
 
     def handle(self, detection_msg: YoloResult):
         stamp = detection_msg.header.stamp
