@@ -184,11 +184,11 @@ class CameraDetectionNode:
             ),
         }
         if self.namespace != "taluy_mini":
-            self.camera_calibrations[f"{self.namespace}/cameras/cam_bottom"] = CameraCalibration(
-                "cameras/cam_bottom"
+            self.camera_calibrations[f"{self.namespace}/cameras/cam_bottom"] = (
+                CameraCalibration("cameras/cam_bottom")
             )
-            self.camera_calibrations[f"{self.namespace}/cameras/cam_torpedo"] = CameraCalibration(
-                "cameras/cam_torpedo"
+            self.camera_calibrations[f"{self.namespace}/cameras/cam_torpedo"] = (
+                CameraCalibration("cameras/cam_torpedo")
             )
         # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
@@ -676,8 +676,13 @@ class CameraDetectionNode:
                 continue
             if not skip_inside_image:
                 if self.namespace == "taluy_mini":
-                    if self.check_if_detection_is_inside_image(detection,1280,720) is False:
-                        rospy.logwarn_throttle(5,"Detection outside image bounds, skipping")
+                    if (
+                        self.check_if_detection_is_inside_image(detection, 1280, 720)
+                        is False
+                    ):
+                        rospy.logwarn_throttle(
+                            5, "Detection outside image bounds, skipping"
+                        )
                         continue
                 if self.check_if_detection_is_inside_image(detection) is False:
                     continue
