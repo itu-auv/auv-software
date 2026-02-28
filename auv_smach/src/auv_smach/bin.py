@@ -21,6 +21,38 @@ from auv_smach.common import (
 
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
+from std_msgs.msg import Float32
+
+
+class BallDropperSetAngleState(smach.State):
+    """
+    for real life gripper).
+    """
+
+    def __init__(self, angle_value: int):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+        self.pub = rospy.Publisher(
+            "/taluy/actuators/ball_dropper/set_angle", Float32, queue_size=1
+        )
+        self.angle_value = angle_value
+
+    def execute(self, userdata) -> str:
+        try:
+            msg = Float32()
+            msg.data = float(self.angle_value)
+            for _ in range(3):
+                self.pub.publish(msg)
+                rospy.sleep(0.1)
+            rospy.loginfo(
+                f"[BallDropperSetAngleState] Published angle: {self.angle_value}"
+            )
+            return "succeeded"
+        except Exception as e:
+            rospy.logerr(f"[BallDropperSetAngleState] Error: {e}")
+            return "aborted"
 
 
 class CheckForDropAreaState(smach.State):
@@ -589,7 +621,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "DROP_BALL_1",
-                DropBallState(),
+                BallDropperSetAngleState(angle_value=50.0),
                 transitions={
                     "succeeded": "WAIT_FOR_BALL_DROP_1",
                     "preempted": "preempted",
@@ -624,7 +656,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "DROP_BALL_2",
-                DropBallState(),
+                BallDropperSetAngleState(angle_value=-50.0),
                 transitions={
                     "succeeded": "WAIT_FOR_BALL_DROP_2",
                     "preempted": "preempted",
@@ -634,6 +666,15 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_2",
                 DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "BALL_DROP_DEFAULT_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "BALL_DROP_DEFAULT_POSE",
+                BallDropperSetAngleState(angle_value=0.0),
                 transitions={
                     "succeeded": "ALIGN_TO_BIN_EXIT",
                     "preempted": "preempted",
