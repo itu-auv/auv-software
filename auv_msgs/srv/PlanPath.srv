@@ -1,5 +1,9 @@
 string target_frame
 
 float32 angle_offset
+
+int32 n_turns
+
+bool dynamic
 ---
 bool success

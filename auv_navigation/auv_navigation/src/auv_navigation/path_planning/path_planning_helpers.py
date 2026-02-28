@@ -148,6 +148,7 @@ class PathPlanningHelper:
         interpolate_xy: bool,
         interpolate_z: bool,
         interpolate_yaw: bool,
+        target_euler: List[float] = None,
     ) -> List[PoseStamped]:
         """
         Generates a list of PoseStamped waypoints interpolated between the source and target positions/orientations.
@@ -162,11 +163,17 @@ class PathPlanningHelper:
             interpolate_xy (bool): If True, interpolate x and y.
             interpolate_z (bool): If True, interpolate z.
             interpolate_yaw (bool): If True, interpolate yaw.
+            target_euler (List[float]): [roll, pitch, yaw] of the target orientation.
+                When provided, each waypoint faces toward the target position,
+                blending to the target frame's actual yaw in the last portion of the path.
+                When None, yaw is linearly interpolated from source to target.
 
         Returns:
             List[PoseStamped]: A list of interpolated PoseStamped messages.
         """
         poses = []
+        blend_start = 0.9  # start blending from look-at to target yaw at 90% of path
+
         for t in np.linspace(0, 1, num_waypoints):
             pose = PoseStamped()
             pose.header = header
@@ -179,10 +186,35 @@ class PathPlanningHelper:
             pose.pose.position.y = interp_pos.y
             pose.pose.position.z = interp_pos.z
 
-            # Interpolate orientation (yaw) based on flag.
-            interp_quat = PathPlanningHelper.interpolate_orientation(
-                source_euler, angular_diff, t, interpolate_yaw
-            )
+            if target_euler is not None:
+                dx = target_position.x - interp_pos.x
+                dy = target_position.y - interp_pos.y
+                dist = np.sqrt(dx * dx + dy * dy)
+
+                if dist > 1e-3 and t < 1.0:
+                    look_at_yaw = np.arctan2(dy, dx)
+
+                    if t >= blend_start:
+                        blend_t = (t - blend_start) / (1.0 - blend_start)
+                        yaw_diff = (target_euler[2] - look_at_yaw + np.pi) % (
+                            2 * np.pi
+                        ) - np.pi
+                        final_yaw = look_at_yaw + blend_t * yaw_diff
+                    else:
+                        final_yaw = look_at_yaw
+                else:
+                    final_yaw = target_euler[2]
+
+                roll = source_euler[0]
+                pitch = source_euler[1]
+                interp_quat = tf.transformations.quaternion_from_euler(
+                    roll, pitch, final_yaw
+                )
+            else:
+                interp_quat = PathPlanningHelper.interpolate_orientation(
+                    source_euler, angular_diff, t, interpolate_yaw
+                )
+
             pose.pose.orientation.x = interp_quat[0]
             pose.pose.orientation.y = interp_quat[1]
             pose.pose.orientation.z = interp_quat[2]
