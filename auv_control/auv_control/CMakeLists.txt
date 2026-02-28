@@ -50,6 +50,9 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/reference_pose_publisher.py
   scripts/battery_monitor_node.py
+  scripts/damping_tester.py
+  scripts/visual_servoing_controller.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
   scripts/visual_servoing_controller.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
