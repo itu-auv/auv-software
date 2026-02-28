@@ -35,6 +35,13 @@
       <param name="cmdvel_tau" value="0.2" />
     </node>
 
+    <rosparam file="$(find auv_localization)/config/dynamic_model_data.yaml" command="load" />
+    <node pkg="auv_localization" type="dynamic_model_odometry_node.py" name="dynamic_model_odom_node" output="screen">
+      <remap from="wrench" to="wrench" />
+      <remap from="odometry" to="odometry" />
+      <remap from="odom_dynamic_model" to="localization/odom_dynamic_model" />
+    </node>
+
     <!-- Euler Orientation Publisher Node -->
     <node pkg="auv_localization" type="euler_orientation_publisher.py" name="euler_orientation_publisher" output="screen">
       <remap from="odometry" to="odometry" />
