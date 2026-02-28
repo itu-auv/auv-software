@@ -182,13 +182,14 @@ class CameraDetectionNode:
             f"{self.namespace}/cameras/cam_front": CameraCalibration(
                 "cameras/cam_front"
             ),
-            f"{self.namespace}/cameras/cam_bottom": CameraCalibration(
-                "cameras/cam_bottom"
-            ),
-            f"{self.namespace}/cameras/cam_torpedo": CameraCalibration(
-                "cameras/cam_torpedo"
-            ),
         }
+        if self.namespace != "taluy_mini":
+            self.camera_calibrations[f"{self.namespace}/cameras/cam_bottom"] = (
+                CameraCalibration("cameras/cam_bottom")
+            )
+            self.camera_calibrations[f"{self.namespace}/cameras/cam_torpedo"] = (
+                CameraCalibration("cameras/cam_torpedo")
+            )
         # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
             "/yolo_result_front",
@@ -674,6 +675,15 @@ class CameraDetectionNode:
                 )
                 continue
             if not skip_inside_image:
+                if self.namespace == "taluy_mini":
+                    if (
+                        self.check_if_detection_is_inside_image(detection, 1280, 720)
+                        is False
+                    ):
+                        rospy.logwarn_throttle(
+                            5, "Detection outside image bounds, skipping"
+                        )
+                        continue
                 if self.check_if_detection_is_inside_image(detection) is False:
                     continue
             prop_name = self.id_tf_map[camera_ns][detection_id]

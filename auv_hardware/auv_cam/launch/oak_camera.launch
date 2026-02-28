@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Main arguments -->
+  <arg name="namespace" default="taluy_mini" />
+  <arg name="name" default="cam_front" />
+  <arg name="camera_model" default="OAK-D" />
+  <arg name="publish_tf_from_calibration" default="false" />
+
+  <!-- OAK driver config YAML -->
+  <arg name="params_file" default="$(find auv_cam)/config/oak_camera.yaml" />
+  <!-- Camera calibration YAML (for camera_info) -->
+  <arg name="camera_config" default="$(find auv_bringup)/config/taluy_mini_cameras.yaml" />
+
+  <!-- Frame arguments -->
+  <arg name="parent_frame" default="oak-d-base-frame" />
+  <arg name="base_frame" default="oak-d_frame" />
+  <arg name="cam_pos_x" default="0.0" />
+  <arg name="cam_pos_y" default="0.0" />
+  <arg name="cam_pos_z" default="0.0" />
+  <arg name="cam_roll" default="0.0" />
+  <arg name="cam_pitch" default="0.0" />
+  <arg name="cam_yaw" default="0.0" />
+
+  <arg name="launch_prefix" default="" />
+
+  <group ns="$(arg namespace)/cameras">
+    <!-- Load camera calibration params (K, D, R, P) -->
+    <rosparam file="$(arg camera_config)" command="load" />
+
+    <!-- Set OAK driver params -->
+    <param name="$(arg name)/camera_i_base_frame" value="$(arg base_frame)" />
+    <param name="$(arg name)/camera_i_parent_frame" value="$(arg parent_frame)" />
+    <param name="$(arg name)/camera_i_cam_pos_x" value="$(arg cam_pos_x)" />
+    <param name="$(arg name)/camera_i_cam_pos_y" value="$(arg cam_pos_y)" />
+    <param name="$(arg name)/camera_i_cam_pos_z" value="$(arg cam_pos_z)" />
+    <param name="$(arg name)/camera_i_cam_roll" value="$(arg cam_roll)" />
+    <param name="$(arg name)/camera_i_cam_pitch" value="$(arg cam_pitch)" />
+    <param name="$(arg name)/camera_i_cam_yaw" value="$(arg cam_yaw)" />
+    <param name="$(arg name)/camera_i_publish_tf_from_calibration"
+      value="$(arg publish_tf_from_calibration)" />
+
+    <!-- Load OAK driver config -->
+    <rosparam file="$(arg params_file)" />
+
+    <!-- URDF -->
+    <include unless="$(arg publish_tf_from_calibration)"
+      file="$(find depthai_descriptions)/launch/urdf.launch">
+      <arg name="base_frame" value="$(arg name)" />
+      <arg name="parent_frame" value="$(arg parent_frame)" />
+      <arg name="camera_model" value="$(arg camera_model)" />
+      <arg name="tf_prefix" value="$(arg name)" />
+      <arg name="cam_pos_x" value="$(arg cam_pos_x)" />
+      <arg name="cam_pos_y" value="$(arg cam_pos_y)" />
+      <arg name="cam_pos_z" value="$(arg cam_pos_z)" />
+      <arg name="cam_roll" value="$(arg cam_roll)" />
+      <arg name="cam_pitch" value="$(arg cam_pitch)" />
+      <arg name="cam_yaw" value="$(arg cam_yaw)" />
+    </include>
+
+    <!-- Nodelet manager -->
+    <node pkg="nodelet" type="nodelet" name="$(arg name)_nodelet_manager"
+      launch-prefix="$(arg launch_prefix)" args="manager" output="screen">
+      <remap from="/nodelet_manager/load_nodelet" to="$(arg name)/nodelet_manager/load_nodelet" />
+      <remap from="/nodelet_manager/unload_nodelet"
+        to="$(arg name)/nodelet_manager/unload_nodelet" />
+      <remap from="/nodelet_manager/list" to="$(arg name)/nodelet_manager/list" />
+      <!-- Remap OAK rgb/ topics to flat structure -->
+      <remap from="$(arg name)/rgb/image_raw" to="$(arg name)/image_raw" />
+      <remap from="$(arg name)/rgb/camera_info" to="$(arg name)/oak_camera_info" />
+    </node>
+
+    <!-- OAK Camera nodelet -->
+    <node name="$(arg name)" pkg="nodelet" type="nodelet" output="screen" required="true"
+      args="load depthai_ros_driver/Camera $(arg name)_nodelet_manager">
+    </node>
+
+    <!-- Camera info publisher (reads calibration from YAML params) -->
+    <node name="$(arg name)_camera_info_pub" pkg="auv_cam" type="camera_info_publisher.py"
+      output="screen" ns="$(arg name)">
+    </node>
+
+  </group>
+
+  <!-- Rectify: image_raw + camera_info -> image_rect_color (separate image_proc) -->
+  <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
+    <arg name="camera_namespace" value="$(arg namespace)/cameras/$(arg name)" />
+    <arg name="manager" value="/$(arg namespace)/cameras/$(arg name)_nodelet_manager" />
+    <arg name="create_manager" value="false" />
+  </include>
+</launch>

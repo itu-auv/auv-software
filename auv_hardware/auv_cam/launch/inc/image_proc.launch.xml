@@ -2,11 +2,12 @@
 <launch>
   <arg name="camera_namespace" default="image_raw"/>
   <arg name="manager" default="image_proc_manager"/>
+  <arg name="create_manager" default="true"/>
   <arg name="respawn" default="false"/>
   <arg name="publish_monochrome" default="false"/>
   <arg name="debayer" default="false"/>
   <group ns="$(arg camera_namespace)">
-    <node pkg="nodelet" type="nodelet" name="image_proc_manager" args="manager"/>
+    <node if="$(arg create_manager)" pkg="nodelet" type="nodelet" name="$(arg manager)" args="manager"/>
     <arg if="$(arg respawn)" name="bond" value=""/>
     <arg unless="$(arg respawn)" name="bond" value="--no-bond"/>
     <arg if="$(arg debayer)" name="rectify_input" value="image_color"/>
