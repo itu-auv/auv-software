@@ -35,6 +35,8 @@ catkin_install_python(
     scripts/yolo_to_mask_node.py
     scripts/opencv_pipe_detector.py
     scripts/pipe_follower.py
+    scripts/depth_anything_trt_node.py
+    scripts/metric_anything_client.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

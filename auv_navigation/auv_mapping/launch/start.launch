@@ -9,6 +9,7 @@
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
 
   <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch" />
+  <include file="$(find auv_mapping)/launch/object_plane_fitter.launch" />
 
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
