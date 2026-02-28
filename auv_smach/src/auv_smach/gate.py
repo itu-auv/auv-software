@@ -211,34 +211,6 @@ class NavigateThroughGateState(smach.State):
                 "SET_GATE_TRAJECTORY_DEPTH",
                 SetDepthState(depth=gate_search_depth),
                 transitions={
-                    "succeeded": "LOOK_AT_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "LOOK_AT_GATE",
-                SearchForPropState(
-                    look_at_frame=self.gate_look_at_frame,
-                    alignment_frame=self.gate_search_frame,
-                    full_rotation=False,
-                    set_frame_duration=3.0,
-                    source_frame="taluy/base_link",
-                    rotation_speed=0.2,
-                ),
-                transitions={
-                    "succeeded": "SELAM_TO_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SELAM_TO_GATE",
-                LookAroundState(
-                    angle_offset=0.5,
-                    max_angular_velocity=0.15,
-                ),
-                transitions={
                     "succeeded": "LOOK_AT_GATE_FOR_TRAJECTORY",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -302,6 +274,9 @@ class NavigateThroughGateState(smach.State):
                 "DYNAMIC_PATH_TO_EXIT",
                 DynamicPathState(
                     plan_target_frame="gate_exit",
+                    n_turns=1,
+                    dynamic=False,
+                    max_linear_velocity=0.3,
                 ),
                 transitions={
                     "succeeded": "ALIGN_FRAME_REQUEST_AFTER_EXIT",
