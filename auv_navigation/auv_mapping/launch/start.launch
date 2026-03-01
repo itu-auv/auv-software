@@ -84,5 +84,13 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <node pkg="auv_mapping" type="valve_trajectory_publisher.py" name="valve_trajectory_publisher" output="screen">
+      <rosparam command="load" file="$(find auv_mapping)/config/valve_trajectory_publisher_params.yaml" />
+      <remap from="set_transform_valve_coarse_approach_frame" to="set_transform_valve_coarse_approach_frame" />
+      <remap from="set_transform_valve_approach_frame" to="set_transform_valve_approach_frame" />
+      <remap from="set_transform_valve_contact_frame" to="set_transform_valve_contact_frame" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
   </group>
 </launch>

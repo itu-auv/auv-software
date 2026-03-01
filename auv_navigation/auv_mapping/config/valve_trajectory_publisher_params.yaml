@@ -1,0 +1,4 @@
+# Valve trajectory publisher default parameters
+coarse_approach_offset: 1.75  # Coarse approach frame distance (m), robot->valve direction
+approach_offset: 1.25         # Oriented approach frame distance (m), surface normal
+contact_offset: 0.625        # Contact frame distance (m), surface normal

@@ -1,33 +1,7 @@
-#!/usr/bin/env python3
-"""
-Valve SMACH Task
-----------------
-AUV'nin vana müdahale görevini yöneten durum makinesi.
-
-Akış:
-  1. Kamera detection'ı aç, vanaya odaklan
-  2. Valve trajectory publisher'ı etkinleştir
-  3. Görev derinliğine in
-  4. Vanayı ara (SearchForPropState)
-  5. Yaklaşma frame'ine git (DynamicPathState)
-  6. Yaklaşma frame'ine hizalan (AlignFrame)
-  7. Temas frame'ine git (DynamicPathState)
-  8. Temas frame'ine hizalan (AlignFrame - hassas)
-  9. Visual servoing ile son hizalama
-  10. Vanayı çevir (TODO: mekanik aktuatör entegrasyonu)
-  11. Temizlik: publisher'ları kapat
-
-Kullanılan frame'ler:
-  - valve_stand_link          → valve_detector.py tarafından yayınlanır
-  - valve_approach_frame      → valve_trajectory_publisher.py tarafından yayınlanır
-  - valve_contact_frame       → valve_trajectory_publisher.py tarafından yayınlanır
-"""
-
 from .initialize import *
 import smach
 import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest
-import math
 
 from auv_smach.common import (
     AlignFrame,
@@ -41,12 +15,17 @@ from auv_smach.common import (
 from auv_smach.initialize import DelayState
 
 
-# =============================================================================
-#  SERVİS STATE WRAPPER'LAR
-# =============================================================================
+class ValveCoarseApproachFramePublisherServiceState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "set_transform_valve_coarse_approach_frame",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
 
-class ValveApproachFramePublisherState(smach_ros.ServiceState):
-    """valve_trajectory_publisher'daki approach frame yayınını aç/kapat."""
+
+class ValveApproachFramePublisherServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
@@ -56,8 +35,7 @@ class ValveApproachFramePublisherState(smach_ros.ServiceState):
         )
 
 
-class ValveContactFramePublisherState(smach_ros.ServiceState):
-    """valve_trajectory_publisher'daki contact frame yayınını aç/kapat."""
+class ValveContactFramePublisherServiceState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
@@ -67,35 +45,125 @@ class ValveContactFramePublisherState(smach_ros.ServiceState):
         )
 
 
-# =============================================================================
-#  ANA GÖREV STATE MAKİNESİ
-# =============================================================================
-
 class ValveTaskState(smach.State):
     def __init__(
         self,
-        valve_depth: float,
-        valve_approach_frame: str = "valve_approach_frame",
-        valve_contact_frame: str = "valve_contact_frame",
+        valve_depth,
+        valve_coarse_approach_frame,
+        valve_approach_frame,
+        valve_contact_frame,
+        valve_exit_angle: float = 0.0,
+        use_ground_truth: bool = False,
     ):
-        """
-        Args:
-            valve_depth:           Görev derinliği (metre, negatif)
-            valve_approach_frame:  Uzak yaklaşma frame'i
-            valve_contact_frame:   Temas frame'i
-        """
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.valve_exit_angle = valve_exit_angle
 
+        # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
 
-        with self.state_machine:
+        # İlk state: ground truth modunda detection'ı atla
+        first_state = "ENABLE_COARSE_APPROACH_PUBLISHER" if use_ground_truth else "ENABLE_FRONT_CAMERA_FOCUS"
+        self.state_machine.set_initial_state([first_state])
 
-            # ── 1. ÖN KAMERA DETECTION'I AÇ ────────────────────────
+        with self.state_machine:
+            # 1-2: Detection states (ground truth modunda atlanır)
+            if not use_ground_truth:
+                smach.StateMachine.add(
+                    "ENABLE_FRONT_CAMERA_FOCUS",
+                    SetDetectionState(camera_name="front", enable=True),
+                    transitions={
+                        "succeeded": "FOCUS_ON_VALVE",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                smach.StateMachine.add(
+                    "FOCUS_ON_VALVE",
+                    SetDetectionFocusState(focus_object="valve"),
+                    transitions={
+                        "succeeded": "ENABLE_COARSE_APPROACH_PUBLISHER",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
+            # =========================================================
+            #  PHASE 1: COARSE APPROACH (oryantasyonsuz, robot→valve)
+            # =========================================================
+
+            # 3. Coarse approach frame yayınını başlat
             smach.StateMachine.add(
-                "ENABLE_FRONT_CAMERA",
-                SetDetectionState(camera_name="front", enable=True),
+                "ENABLE_COARSE_APPROACH_PUBLISHER",
+                ValveCoarseApproachFramePublisherServiceState(req=True),
+                transitions={
+                    "succeeded": "SET_VALVE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 4. Valve derinliğine in
+            smach.StateMachine.add(
+                "SET_VALVE_DEPTH",
+                SetDepthState(depth=valve_depth),
+                transitions={
+                    "succeeded": "FIND_AND_AIM_VALVE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 5. Valve'i bul ve yönünü ayarla
+            smach.StateMachine.add(
+                "FIND_AND_AIM_VALVE",
+                SearchForPropState(
+                    look_at_frame="valve_stand_link",
+                    alignment_frame="valve_map_travel_start",
+                    full_rotation=False,
+                    set_frame_duration=7.0,
+                    source_frame="taluy/base_link",
+                    rotation_speed=0.3,
+                ),
+                transitions={
+                    "succeeded": "PATH_TO_COARSE_APPROACH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 6. Coarse approach frame'e git
+            smach.StateMachine.add(
+                "PATH_TO_COARSE_APPROACH",
+                DynamicPathState(
+                    plan_target_frame=valve_coarse_approach_frame,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_COARSE_APPROACH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 7. Coarse approach frame'e hizalan
+            smach.StateMachine.add(
+                "ALIGN_TO_COARSE_APPROACH",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=valve_coarse_approach_frame,
+                    dist_threshold=0.15,
+                    yaw_threshold=0.15,
+                    confirm_duration=3.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "DISABLE_COARSE_APPROACH_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 8. Coarse approach publisher'ı kapat
+            smach.StateMachine.add(
+                "DISABLE_COARSE_APPROACH_PUBLISHER",
+                ValveCoarseApproachFramePublisherServiceState(req=False),
                 transitions={
                     "succeeded": "ENABLE_APPROACH_PUBLISHER",
                     "preempted": "preempted",
@@ -103,76 +171,52 @@ class ValveTaskState(smach.State):
                 },
             )
 
-            # NOT: FOCUS_ON_VALVE kaldırıldı — valve detection ayrı bir HSV-tabanlı
-            # node (valve_detector.py) üzerinden çalışıyor, camera_detection_pose_estimator
-            # üzerinden geçmiyor. İleride YOLO tabanlı valve detection'a geçilirse
-            # burada SetDetectionFocusState(focus_object="valve") tekrar eklenebilir.
+            # =========================================================
+            #  PHASE 2: ORIENTED APPROACH (yüzey normaline dik)
+            # =========================================================
 
-            # ── 3. TRAJECTORY PUBLISHER'I ETKİNLEŞTİR ──────────────
+            # 9. Oriented approach publisher'ı aç
             smach.StateMachine.add(
                 "ENABLE_APPROACH_PUBLISHER",
-                ValveApproachFramePublisherState(req=True),
+                ValveApproachFramePublisherServiceState(req=True),
                 transitions={
-                    "succeeded": "SET_VALVE_DEPTH",
+                    "succeeded": "WAIT_FOR_APPROACH_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
-            # ── 4. GÖREV DERİNLİĞİNE İN ────────────────────────────
+            # 10. Approach frame'in oluşması için bekle
             smach.StateMachine.add(
-                "SET_VALVE_DEPTH",
-                SetDepthState(depth=valve_depth, sleep_duration=3.0),
-                transitions={
-                    "succeeded": "SEARCH_FOR_VALVE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            # ── 5. VANAYI ARA ───────────────────────────────────────
-            smach.StateMachine.add(
-                "SEARCH_FOR_VALVE",
-                SearchForPropState(
-                    look_at_frame="valve_stand_link",
-                    alignment_frame=valve_approach_frame,
-                    full_rotation=False,
-                    set_frame_duration=7.0,
-                    source_frame="taluy/base_link",
-                    rotation_speed=0.3,
-                ),
-                transitions={
-                    "succeeded": "PATH_TO_APPROACH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            # ── 6. YAKLAŞMA FRAME'İNE GİT ──────────────────────────
-            smach.StateMachine.add(
-                "PATH_TO_APPROACH",
-                DynamicPathState(
-                    plan_target_frame=valve_approach_frame,
-                ),
+                "WAIT_FOR_APPROACH_FRAME",
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "ALIGN_TO_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
-            # ── 7. YAKLAŞMA FRAME'İNE HİZALAN ──────────────────────
+            # 11. Approach frame'e hizalan (oryantasyonlu)
             smach.StateMachine.add(
                 "ALIGN_TO_APPROACH",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame=valve_approach_frame,
-                    dist_threshold=0.15,
+                    dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=3.0,
-                    timeout=15.0,
+                    timeout=30.0,
                     cancel_on_success=False,
                 ),
+                transitions={
+                    "succeeded": "DISABLE_APPROACH_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 12. Approach publisher'ı kapat
+            smach.StateMachine.add(
+                "DISABLE_APPROACH_PUBLISHER",
+                ValveApproachFramePublisherServiceState(req=False),
                 transitions={
                     "succeeded": "ENABLE_CONTACT_PUBLISHER",
                     "preempted": "preempted",
@@ -180,31 +224,31 @@ class ValveTaskState(smach.State):
                 },
             )
 
-            # ── 8. CONTACT FRAME PUBLISHER'I ETKİNLEŞTİR ───────────
+            # =========================================================
+            #  PHASE 3: CONTACT (yüzey normaline dik, temas)
+            # =========================================================
+
+            # 13. Contact publisher'ı aç
             smach.StateMachine.add(
                 "ENABLE_CONTACT_PUBLISHER",
-                ValveContactFramePublisherState(req=True),
+                ValveContactFramePublisherServiceState(req=True),
                 transitions={
-                    "succeeded": "PATH_TO_CONTACT",
+                    "succeeded": "WAIT_FOR_CONTACT_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
-            # ── 9. TEMAS FRAME'İNE GİT ─────────────────────────────
+            # 14. Contact frame'in oluşması için bekle
             smach.StateMachine.add(
-                "PATH_TO_CONTACT",
-                DynamicPathState(
-                    plan_target_frame=valve_contact_frame,
-                ),
+                "WAIT_FOR_CONTACT_FRAME",
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "ALIGN_TO_CONTACT",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
-            # ── 10. TEMAS FRAME'İNE HASSAS HİZALAN ─────────────────
+            # 15. Contact frame'e hassas hizalama
             smach.StateMachine.add(
                 "ALIGN_TO_CONTACT",
                 AlignFrame(
@@ -212,58 +256,53 @@ class ValveTaskState(smach.State):
                     target_frame=valve_contact_frame,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
-                    confirm_duration=3.0,
-                    timeout=20.0,
+                    confirm_duration=5.0,
+                    timeout=30.0,
                     cancel_on_success=False,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
+                    use_frame_depth=True,
                 ),
-                transitions={
-                    "succeeded": "WAIT_BEFORE_ENGAGE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            # ── 11. TEMAS ÖNCESİ BEKLEME ───────────────────────────
-            smach.StateMachine.add(
-                "WAIT_BEFORE_ENGAGE",
-                DelayState(delay_time=2.0),
-                transitions={
-                    "succeeded": "CLEANUP",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            # ─────────────────────────────────────────────────────────
-            # TODO: Buraya mekanik aktuatör / gripper state'leri eklenecek
-            #   - ENGAGE_GRIPPER → Sapı kavra
-            #   - TURN_VALVE     → Motor tork uygula (90° çevir)
-            #   - RELEASE        → Sapı bırak
-            #   - VERIFY_TURN    → Geri çekilip sapın dönmüş olduğunu doğrula
-            # ─────────────────────────────────────────────────────────
-
-            # ── 12. TEMİZLİK ────────────────────────────────────────
-            smach.StateMachine.add(
-                "CLEANUP",
-                CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "DISABLE_APPROACH_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_APPROACH_PUBLISHER",
-                ValveApproachFramePublisherState(req=False),
                 transitions={
                     "succeeded": "DISABLE_CONTACT_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            # 16. Contact publisher'ı kapat
             smach.StateMachine.add(
                 "DISABLE_CONTACT_PUBLISHER",
-                ValveContactFramePublisherState(req=False),
+                ValveContactFramePublisherServiceState(req=False),
+                transitions={
+                    "succeeded": "ALIGN_TO_VALVE_EXIT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 17. Çıkış açısına dön
+            smach.StateMachine.add(
+                "ALIGN_TO_VALVE_EXIT",
+                AlignFrame(
+                    source_frame="taluy/base_link",
+                    target_frame=valve_contact_frame,
+                    angle_offset=self.valve_exit_angle,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=0.0,
+                    timeout=10.0,
+                    cancel_on_success=False,
+                    use_frame_depth=False,
+                ),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 18. Controller'ı sıfırla
+            smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -272,7 +311,9 @@ class ValveTaskState(smach.State):
             )
 
     def execute(self, userdata):
-        rospy.loginfo("=== VALVE TASK STARTED ===")
         outcome = self.state_machine.execute()
-        rospy.loginfo(f"=== VALVE TASK FINISHED: {outcome} ===")
+
+        if outcome is None:
+            return "preempted"
+
         return outcome

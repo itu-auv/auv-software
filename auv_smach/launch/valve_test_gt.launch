@@ -1,0 +1,67 @@
+<?xml version="1.0"?>
+<launch>
+    <!--
+    Valve Test — Ground Truth Mode
+    ===============================
+    Detection yerine Gazebo'dan ground truth pose kullanır.
+    valve_detection node'u GEREKMEZ.
+
+    Kullanım:
+      roslaunch auv_smach valve_test_gt.launch
+      roslaunch auv_smach valve_test_gt.launch gazebo_model:=my_valve_model
+    -->
+
+    <arg name="namespace" default="taluy" />
+    <param name="/smach/max_linear_velocity" value="0.3" />
+    <param name="/smach/max_angular_velocity" value="0.45" />
+
+    <!-- Ground Truth Parameters -->
+    <arg name="gazebo_model" default="tac_valve_alone" />
+    <arg name="valve_frame" default="valve_stand_link" />
+    <arg name="yaw_offset" default="0.0" />
+
+    <!-- Valve Task Parameters -->
+    <arg name="valve_depth" default="-1.25" />
+    <arg name="valve_coarse_approach_frame" default="valve_coarse_approach_frame" />
+    <arg name="valve_approach_frame" default="valve_approach_frame" />
+    <arg name="valve_contact_frame" default="valve_contact_frame" />
+    <arg name="valve_exit_angle" default="0.0" />
+
+    <group ns="$(arg namespace)">
+        <!-- Ground Truth Publisher: Gazebo'dan valve pozisyonunu yayınlar -->
+        <node name="gazebo_ground_truth_publisher" pkg="auv_sim" type="gazebo_ground_truth_publisher.py" output="screen">
+            <param name="models" value="$(arg gazebo_model)::$(arg valve_frame)" />
+            <param name="yaw_offset" value="$(arg yaw_offset)" />
+            <remap from="set_object_transform" to="map/set_object_transform" />
+        </node>
+
+        <!-- Valve Test State Machine (ground truth mode) -->
+        <node name="valve_test_state_machine" pkg="auv_smach" type="valve_test.py" output="screen">
+            <param name="~valve_depth" value="$(arg valve_depth)" />
+            <param name="~valve_coarse_approach_frame" value="$(arg valve_coarse_approach_frame)" />
+            <param name="~valve_approach_frame" value="$(arg valve_approach_frame)" />
+            <param name="~valve_contact_frame" value="$(arg valve_contact_frame)" />
+            <param name="~valve_exit_angle" value="$(arg valve_exit_angle)" />
+            <param name="~use_ground_truth" value="true" />
+            <param name="~namespace" value="$(arg namespace)/base_link" />
+
+            <!-- common.py remaps -->
+            <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+            <remap from="align_frame/cancel" to="control/align_frame/cancel" />
+            <remap from="align_frame/start" to="control/align_frame/start" />
+            <remap from="enable" to="enable" />
+            <remap from="odometry" to="odometry" />
+            <remap from="cmd_vel" to="cmd_vel" />
+            <remap from="set_depth" to="set_depth" />
+
+            <!-- Valve frame publisher remaps -->
+            <remap from="set_transform_valve_coarse_approach_frame" to="set_transform_valve_coarse_approach_frame" />
+            <remap from="set_transform_valve_approach_frame" to="set_transform_valve_approach_frame" />
+            <remap from="set_transform_valve_contact_frame" to="set_transform_valve_contact_frame" />
+            <remap from="set_object_transform" to="map/set_object_transform" />
+
+            <!-- Path planner -->
+            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load" />
+        </node>
+    </group>
+</launch>

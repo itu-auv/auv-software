@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Valve Detection Node (YOLO Segmentation) -->
+    <node name="valve_detector_node" pkg="auv_vision" type="valve_detection.py" output="screen">
+        <!-- YOLO model yolu -->
+        <param name="model_path" value="$(find auv_vision)/../../valve_training/runs/valve_seg_train/weights/best.pt"/>
+
+        <!-- Confidence eşiği -->
+        <param name="confidence_threshold" value="0.5"/>
+
+        <!-- Vana fiziksel boyutları (metre) -->
+        <param name="valve_diameter" value="0.240"/>
+        <param name="handle_width" value="0.025"/>
+
+        <!-- Kontur parametreleri -->
+        <param name="min_contour_area" value="100"/>
+        <param name="min_ellipse_points" value="5"/>
+        <param name="min_aspect_ratio" value="0.2"/>
+        <param name="max_aspect_ratio" value="2.0"/>
+
+        <!-- Giriş topic'i -->
+        <param name="input_topic" value="/taluy/cameras/cam_front/image_rect_color"/>
+
+        <!-- Debug -->
+        <param name="publish_debug_image" value="true"/>
+    </node>
+</launch>
