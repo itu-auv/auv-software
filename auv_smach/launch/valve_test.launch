@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="namespace" default="taluy" />
+    <param name="/smach/max_linear_velocity" value="0.3" />
+    <param name="/smach/max_angular_velocity" value="0.45" />
+
+    <!-- Valve Task Parameters -->
+    <arg name="valve_depth" default="-1.25" />
+    <arg name="valve_coarse_approach_frame" default="valve_coarse_approach_frame" />
+    <arg name="valve_approach_frame" default="valve_approach_frame" />
+    <arg name="valve_contact_frame" default="valve_contact_frame" />
+    <arg name="valve_exit_angle" default="0.0" />
+
+    <group ns="$(arg namespace)">
+        <node name="valve_test_state_machine" pkg="auv_smach" type="valve_test.py" output="screen">
+            <param name="~valve_depth" value="$(arg valve_depth)" />
+            <param name="~valve_coarse_approach_frame" value="$(arg valve_coarse_approach_frame)" />
+            <param name="~valve_approach_frame" value="$(arg valve_approach_frame)" />
+            <param name="~valve_contact_frame" value="$(arg valve_contact_frame)" />
+            <param name="~valve_exit_angle" value="$(arg valve_exit_angle)" />
+            <param name="~namespace" value="$(arg namespace)/base_link" />
+
+            <!-- common.py remaps -->
+            <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+            <remap from="align_frame/cancel" to="control/align_frame/cancel" />
+            <remap from="align_frame/start" to="control/align_frame/start" />
+            <remap from="enable" to="enable" />
+            <remap from="odometry" to="odometry" />
+            <remap from="cmd_vel" to="cmd_vel" />
+            <remap from="set_depth" to="set_depth" />
+
+            <!-- Detection remaps -->
+            <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections" />
+            <remap from="set_front_camera_focus" to="vision/set_front_camera_focus" />
+
+            <!-- Valve frame publisher remaps -->
+            <remap from="set_transform_valve_coarse_approach_frame" to="set_transform_valve_coarse_approach_frame" />
+            <remap from="set_transform_valve_approach_frame" to="set_transform_valve_approach_frame" />
+            <remap from="set_transform_valve_contact_frame" to="set_transform_valve_contact_frame" />
+            <remap from="set_object_transform" to="map/set_object_transform" />
+
+            <!-- Path planner -->
+            <rosparam file="$(find auv_navigation)/config/path_planner_config.yaml" command="load" />
+        </node>
+    </group>
+</launch>

@@ -340,6 +340,12 @@
         <kinematic>0</kinematic>
       </link>
     </model>
+    <!-- TAC Valve (standalone) -->
+    <include>
+      <uri>model://tac_valve_alone</uri>
+      <name>tac_valve_alone</name>
+      <pose>-3.507415 -15.164378 -1.441716 0 0 -3.022901</pose>
+    </include>
     <!-- Pool overhead camera model -->
     <model name="pool_camera">
       <static>true</static>

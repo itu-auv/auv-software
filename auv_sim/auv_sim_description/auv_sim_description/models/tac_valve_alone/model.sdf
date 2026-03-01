@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+	<model name="tac_valve_alone">
+		<static>true</static>
+		<pose>0 0 0 0 0 0</pose>
+		<link name="tac_valve_alone">
+			<pose>0 0 0 0 0 0</pose>
+			<collision name="tac_valve_alone_col">
+				<pose>0 0 0 0 0 0</pose>
+				<geometry>
+					<mesh>
+						<uri>model://tac_valve_alone/meshes/valve.dae</uri>
+						<scale>0.001 0.001 0.001</scale>
+					</mesh>
+				</geometry>
+			</collision>
+			<visual name="tac_valve_alone_vis">
+				<pose>0 0 0 0 0 0</pose>
+				<geometry>
+					<mesh>
+						<uri>model://tac_valve_alone/meshes/valve.dae</uri>
+						<scale>0.001 0.001 0.001</scale>
+					</mesh>
+				</geometry>
+				<material>
+					<ambient>0.886 0.325 0.012 1</ambient>
+					<diffuse>0.886 0.325 0.012 1</diffuse>
+					<specular>0.3 0.3 0.3 1</specular>
+				</material>
+			</visual>
+			<self_collide>0</self_collide>
+			<enable_wind>0</enable_wind>
+			<kinematic>0</kinematic>
+		</link>
+		
+	</model>
+</sdf>
