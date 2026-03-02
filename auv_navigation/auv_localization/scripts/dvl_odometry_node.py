@@ -27,7 +27,7 @@ class DvlToOdom:
         self.namespace = rospy.get_param("~namespace", "taluy")
         self.base_frame = rospy.get_param("~base_frame", f"{self.namespace}/base_link")
         self.dvl_frame = rospy.get_param(
-            "~dvl_frame", f"{self.namespace}/base_link/dvl_link"
+            "~dvl_frame", f"{self.namespace}/base_link/dvl_mount_link"
         )
 
         self.tf_listener = tf.TransformListener()
