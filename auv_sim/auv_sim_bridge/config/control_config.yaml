@@ -42,3 +42,6 @@ mapping: [0, 1, 2, 3, 4, 5, 6, 7]
 integral_clamp_limits: [0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 gravity_compensation_z: 0.0
+
+sway_to_roll_linear_coupling: 1.0
+sway_to_roll_quad_coupling: 1.0
