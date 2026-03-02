@@ -70,6 +70,10 @@ class ControllerROS {
     ROS_INFO_STREAM("integral_clamp_limits: \n"
                     << integral_clamp_limits_.transpose());
     ROS_INFO_STREAM("gravity_compensation_z: " << gravity_compensation_z_);
+    ROS_INFO_STREAM("sway_to_roll_linear_coupling: "
+                    << sway_to_roll_linear_coupling_);
+    ROS_INFO_STREAM("sway_to_roll_quad_coupling: "
+                    << sway_to_roll_quad_coupling_);
     load_controller("auv::control::SixDOFPIDController");
 
     auto controller =
@@ -82,6 +86,8 @@ class ControllerROS {
     controller->set_integral_clamp_limits(integral_clamp_limits_);
     controller->set_gravity_compensation_z(gravity_compensation_z_);
     controller->set_max_velocity_limits(max_velocity_);
+    controller->set_sway_to_roll_coupling(sway_to_roll_linear_coupling_,
+                                          sway_to_roll_quad_coupling_);
 
     // Set up dynamic reconfigure server with initial values
     auv_control::ControllerConfig initial_config;
@@ -278,6 +284,11 @@ class ControllerROS {
     controller->set_gravity_compensation_z(config.gravity_compensation_z);
     gravity_compensation_z_ = config.gravity_compensation_z;
 
+    sway_to_roll_linear_coupling_ = config.sway_to_roll_linear_coupling;
+    sway_to_roll_quad_coupling_ = config.sway_to_roll_quad_coupling;
+    controller->set_sway_to_roll_coupling(sway_to_roll_linear_coupling_,
+                                          sway_to_roll_quad_coupling_);
+
     max_velocity_ << config.max_velocity_0, config.max_velocity_1,
         config.max_velocity_2, config.max_velocity_3, config.max_velocity_4,
         config.max_velocity_5;
@@ -307,6 +318,12 @@ class ControllerROS {
 
     // Load gravity compensation parameter
     gravity_compensation_z_ = nh_private.param("gravity_compensation_z", 0.0);
+
+    // Load sway-to-roll cross-coupling feedforward coefficients
+    sway_to_roll_linear_coupling_ =
+        nh_private.param("sway_to_roll_linear_coupling", 0.0);
+    sway_to_roll_quad_coupling_ =
+        nh_private.param("sway_to_roll_quad_coupling", 0.0);
 
     // Load max velocity limits
     if (nh_private.hasParam("max_velocity")) {
@@ -372,6 +389,9 @@ class ControllerROS {
     config.integral_clamp_11 = integral_clamp_limits_(11);
 
     config.gravity_compensation_z = gravity_compensation_z_;
+
+    config.sway_to_roll_linear_coupling = sway_to_roll_linear_coupling_;
+    config.sway_to_roll_quad_coupling = sway_to_roll_quad_coupling_;
 
     config.max_velocity_0 = max_velocity_(0);
     config.max_velocity_1 = max_velocity_(1);
@@ -445,6 +465,10 @@ class ControllerROS {
 
     replace_scalar_param(content, "gravity_compensation_z",
                          gravity_compensation_z_);
+    replace_scalar_param(content, "sway_to_roll_linear_coupling",
+                         sway_to_roll_linear_coupling_);
+    replace_scalar_param(content, "sway_to_roll_quad_coupling",
+                         sway_to_roll_quad_coupling_);
 
     std::ofstream out_file(config_file_);
     if (!out_file.is_open()) {
@@ -487,7 +511,9 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1>
       integral_clamp_limits_;           // Integral clamping limits
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
-  std::string config_file_;             // Path to the config file
+  double sway_to_roll_linear_coupling_{0.0};  // Sway-to-roll linear coupling
+  double sway_to_roll_quad_coupling_{0.0};    // Sway-to-roll quadratic coupling
+  std::string config_file_;                   // Path to the config file
 
   std::string depth_control_reference_frame_;
 };

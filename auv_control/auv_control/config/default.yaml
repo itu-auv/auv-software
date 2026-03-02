@@ -35,6 +35,11 @@ integral_clamp_limits: [0.0, 0.0, 100.0, 100.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
 
 max_velocity: [0.6, 0.6, 0.6, 0.4, 0.4, 0.4]
 
+# Cross-coupling feedforward: sway velocity -> roll torque compensation
+# τ_roll = K_linear * v_sway + K_quadratic * v_sway * |v_sway|
+sway_to_roll_linear_coupling: 0.0
+sway_to_roll_quad_coupling: 0.0
+
 max_thrust: 60.0 # N
 min_thrust: 0.5 # N
 coeffs_ccw: [12.292935764557399, -3.0745135927968605, -1.0664649834600253, 181.68212348405177, 36.69456713973092, 1151.1307183400536]
