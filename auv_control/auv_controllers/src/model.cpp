@@ -26,6 +26,26 @@ auv::control::Model<6> parse(const XmlRpc::XmlRpcValue& param) {
   model.linear_damping_matrix = parse<MatrixT>(param["linear_damping_matrix"]);
   model.quadratic_damping_matrix =
       parse<MatrixT>(param["quadratic_damping_matrix"]);
+
+  // Parse hydrostatic parameters (optional, default to 0)
+  using Vector3T = Eigen::Matrix<double, 3, 1>;
+
+  if (param.hasMember("weight")) {
+    model.weight = static_cast<double>(param["weight"]);
+  }
+
+  if (param.hasMember("buoyancy")) {
+    model.buoyancy = static_cast<double>(param["buoyancy"]);
+  }
+
+  if (param.hasMember("center_of_gravity")) {
+    model.center_of_gravity = parse<Vector3T>(param["center_of_gravity"]);
+  }
+
+  if (param.hasMember("center_of_buoyancy")) {
+    model.center_of_buoyancy = parse<Vector3T>(param["center_of_buoyancy"]);
+  }
+
   return model;
 };
 

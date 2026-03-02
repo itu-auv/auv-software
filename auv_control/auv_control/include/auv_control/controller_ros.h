@@ -70,7 +70,7 @@ class ControllerROS {
     ROS_INFO_STREAM("kd: \n" << kd_.transpose());
     ROS_INFO_STREAM("integral_clamp_limits: \n"
                     << integral_clamp_limits_.transpose());
-    ROS_INFO_STREAM("gravity_compensation_z: " << gravity_compensation_z_);
+
     load_controller("auv::control::SixDOFPIDController");
 
     auto controller =
@@ -81,7 +81,7 @@ class ControllerROS {
     controller->set_ki(ki_);
     controller->set_kd(kd_);
     controller->set_integral_clamp_limits(integral_clamp_limits_);
-    controller->set_gravity_compensation_z(gravity_compensation_z_);
+
     controller->set_max_velocity_limits(max_velocity_);
 
     // Set up dynamic reconfigure server with initial values
@@ -285,8 +285,6 @@ class ControllerROS {
     controller->set_ki(ki_);
     controller->set_kd(kd_);
     controller->set_integral_clamp_limits(integral_clamp_limits_);
-    controller->set_gravity_compensation_z(config.gravity_compensation_z);
-    gravity_compensation_z_ = config.gravity_compensation_z;
 
     max_velocity_ << config.max_velocity_0, config.max_velocity_1,
         config.max_velocity_2, config.max_velocity_3, config.max_velocity_4,
@@ -314,9 +312,6 @@ class ControllerROS {
           "No integral_clamp_limits parameter found, integral clamping "
           "disabled");
     }
-
-    // Load gravity compensation parameter
-    gravity_compensation_z_ = nh_private.param("gravity_compensation_z", 0.0);
 
     // Load max velocity limits
     if (nh_private.hasParam("max_velocity")) {
@@ -381,8 +376,6 @@ class ControllerROS {
     config.integral_clamp_10 = integral_clamp_limits_(10);
     config.integral_clamp_11 = integral_clamp_limits_(11);
 
-    config.gravity_compensation_z = gravity_compensation_z_;
-
     config.max_velocity_0 = max_velocity_(0);
     config.max_velocity_1 = max_velocity_(1);
     config.max_velocity_2 = max_velocity_(2);
@@ -433,29 +426,6 @@ class ControllerROS {
     replace_param(content, "kd", kd_);
     replace_param(content, "integral_clamp_limits", integral_clamp_limits_);
 
-    // Save gravity compensation parameter
-    auto replace_scalar_param = [](std::string& content,
-                                   const std::string& param, double value) {
-      std::stringstream ss;
-      ss << std::fixed << std::setprecision(1);
-      ss << param << ": " << value;
-
-      std::string::size_type start_pos = content.find(param + ": ");
-      if (start_pos == std::string::npos) {
-        // If parameter not found, add it to the end
-        content += "\n" + ss.str();
-      } else {
-        std::string::size_type end_pos = content.find("\n", start_pos);
-        if (end_pos == std::string::npos) {
-          end_pos = content.length();
-        }
-        content.replace(start_pos, end_pos - start_pos, ss.str());
-      }
-    };
-
-    replace_scalar_param(content, "gravity_compensation_z",
-                         gravity_compensation_z_);
-
     std::ofstream out_file(config_file_);
     if (!out_file.is_open()) {
       ROS_ERROR_STREAM(
@@ -496,9 +466,9 @@ class ControllerROS {
       kd_;  // Parameters to be dynamically reconfigured
   Eigen::Matrix<double, 6, 1> max_velocity_;
   Eigen::Matrix<double, 12, 1>
-      integral_clamp_limits_;           // Integral clamping limits
-  double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
-  std::string config_file_;             // Path to the config file
+      integral_clamp_limits_;  // Integral clamping limits
+
+  std::string config_file_;  // Path to the config file
 
   std::string depth_control_reference_frame_;
 };
