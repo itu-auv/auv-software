@@ -46,16 +46,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
     integral_clamp_limits_ = limits;
   }
 
-  /**
-   * @brief Set the gravity compensation for z-axis
-   *
-   * @param compensation The gravity compensation value to be added to z-axis
-   * wrench
-   */
-  void set_gravity_compensation_z(double compensation) {
-    gravity_compensation_z_ = compensation;
-  }
-
   const Vectornd& get_desired_velocity() const { return desired_velocity_; }
 
   /**
@@ -136,11 +126,14 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto damping_force = damping_control(feedforward_state);
     const auto coriolis_force = coriolis_control(feedforward_state);
 
-    WrenchVector wrench = pid_force + damping_force + coriolis_force;
+    // Hydrostatic restoring force g(η) from Fossen formulation
+    const double roll = state(3);
+    const double pitch = state(4);
+    const auto hydrostatic_force =
+        this->model().hydrostatic_restoring_force(roll, pitch);
 
-    Eigen::Vector3d gravity_force_global = Eigen::Vector3d::Zero();
-    gravity_force_global(2) = gravity_compensation_z_;
-    wrench.head(3) += inverse_rotation_matrix * gravity_force_global;
+    WrenchVector wrench =
+        pid_force + damping_force + coriolis_force + hydrostatic_force;
 
     return wrench;
   }
@@ -196,7 +189,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
   Matrix2nd kp_;
   Matrix2nd ki_;
   Matrix2nd kd_;
-  double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
 
   // Default to effectively unlimited (1e6)
   Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
