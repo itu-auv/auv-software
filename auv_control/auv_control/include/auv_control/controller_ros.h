@@ -70,10 +70,10 @@ class ControllerROS {
     ROS_INFO_STREAM("integral_clamp_limits: \n"
                     << integral_clamp_limits_.transpose());
     ROS_INFO_STREAM("gravity_compensation_z: " << gravity_compensation_z_);
-    ROS_INFO_STREAM("sway_to_roll_linear_coupling: "
-                    << sway_to_roll_linear_coupling_);
-    ROS_INFO_STREAM("sway_to_roll_quad_coupling: "
-                    << sway_to_roll_quad_coupling_);
+    ROS_INFO_STREAM(
+        "sway_to_roll_linear_coupling: " << sway_to_roll_linear_coupling_);
+    ROS_INFO_STREAM(
+        "sway_to_roll_quad_coupling: " << sway_to_roll_quad_coupling_);
     load_controller("auv::control::SixDOFPIDController");
 
     auto controller =
@@ -509,8 +509,8 @@ class ControllerROS {
       kd_;  // Parameters to be dynamically reconfigured
   Eigen::Matrix<double, 6, 1> max_velocity_;
   Eigen::Matrix<double, 12, 1>
-      integral_clamp_limits_;           // Integral clamping limits
-  double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
+      integral_clamp_limits_;                 // Integral clamping limits
+  double gravity_compensation_z_{0.0};        // Gravity compensation for z-axis
   double sway_to_roll_linear_coupling_{0.0};  // Sway-to-roll linear coupling
   double sway_to_roll_quad_coupling_{0.0};    // Sway-to-roll quadratic coupling
   std::string config_file_;                   // Path to the config file
