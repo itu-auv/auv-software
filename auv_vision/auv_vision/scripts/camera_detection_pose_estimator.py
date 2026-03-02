@@ -182,13 +182,14 @@ class CameraDetectionNode:
             f"{self.namespace}/cameras/cam_front": CameraCalibration(
                 "cameras/cam_front"
             ),
-            f"{self.namespace}/cameras/cam_bottom": CameraCalibration(
-                "cameras/cam_bottom"
-            ),
-            f"{self.namespace}/cameras/cam_torpedo": CameraCalibration(
-                "cameras/cam_torpedo"
-            ),
         }
+        if self.namespace != "taluy_mini":
+            self.camera_calibrations[f"{self.namespace}/cameras/cam_bottom"] = (
+                CameraCalibration("cameras/cam_bottom")
+            )
+            self.camera_calibrations[f"{self.namespace}/cameras/cam_torpedo"] = (
+                CameraCalibration("cameras/cam_torpedo")
+            )
         # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
             "/yolo_result_front",
@@ -639,6 +640,7 @@ class CameraDetectionNode:
             self.red_pipe_x = red_pipe_x
 
         for detection in detection_msg.detections.detections:
+            print("Detection ID:", detection.results[0].id if detection.results else "No results")
             if len(detection.results) == 0:
                 continue
             skip_inside_image = False
@@ -674,8 +676,16 @@ class CameraDetectionNode:
                 )
                 continue
             if not skip_inside_image:
-                if self.check_if_detection_is_inside_image(detection) is False:
-                    continue
+                if self.namespace == "taluy_mini":
+                    if (
+                        self.check_if_detection_is_inside_image(detection, 1280, 720)
+                        is False
+                    ):
+                        rospy.logwarn_throttle(
+                            5, "Detection outside image bounds, skipping"
+                        )
+                        continue
+
             prop_name = self.id_tf_map[camera_ns][detection_id]
             if prop_name not in self.props:
                 continue
