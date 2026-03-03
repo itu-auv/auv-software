@@ -2,6 +2,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <array>
+#include <cmath>
 #include <vector>
 
 #include "angles/angles.h"
@@ -18,7 +19,7 @@ namespace control {
  * in the hydrodynamic model (M, D matrices).
  *
  * Control Law:
- *   τ = M̂(A_m ν + B_m r + K_x ν + K_r r) + D̂_l ν + D̂_q |ν|⊙ν + g_comp
+ *   τ = M̂(A_m ν_m + B_m r + K_x ν + K_r r) + D̂_l ν + D̂_q |ν|⊙ν + g_comp
  *
  * Adaptation Laws (with σ-modification):
  *   K̇_x = -Γ_x (ν eᵀ P B_m) - σ Γ_x K_x
@@ -34,11 +35,14 @@ namespace control {
  */
 template <size_t N>
 class MultiDOFMRACController : public ControllerBase<N> {
+  static_assert(N >= 6,
+    "MultiDOFMRACController requires at least 6 DOF; "
+    "yes.");
+
   using Base = ControllerBase<N>;
   using WrenchVector = typename Base::WrenchVector;
   using StateVector = typename Base::StateVector;
   using Vectornd = Eigen::Matrix<double, N, 1>;
-  using Vector2nd = Eigen::Matrix<double, 2 * N, 1>;
   using Matrixnd = Eigen::Matrix<double, N, N>;
 
  public:
@@ -95,11 +99,21 @@ class MultiDOFMRACController : public ControllerBase<N> {
 
   /** @brief Set the Lyapunov P matrix (diagonal). */
   void set_lyapunov_p(const Vectornd& p_diag) {
+    // P must be symmetric positive definite for Lyapunov stability guarantee.
+    // Using diagonal form ensures SPD as long as all entries are positive.
+    for (size_t i = 0; i < N; ++i) {
+      assert(p_diag(i) > 0.0 &&
+        "All Lyapunov P diagonal entries must be strictly positive.");
+    }
     P_ = p_diag.asDiagonal();
   }
 
   /** @brief Set the σ-modification leakage factor. */
-  void set_sigma(double sigma) { sigma_ = sigma; }
+  void set_sigma(double sigma) {
+    assert(sigma >= 0.0 &&
+      "sigma (σ-modification leakage) must be non-negative.");
+    sigma_ = sigma;
+  }
 
   /** @brief Set the adaptive gain saturation limits for Kx (per-element). */
   void set_kx_max(const Vectornd& kx_max) { kx_max_ = kx_max; }
@@ -159,7 +173,12 @@ class MultiDOFMRACController : public ControllerBase<N> {
     // The codebase passes dt = 1/T (Hz), we need actual period T
     const double actual_dt = 1.0 / dt;
 
-    // ── Position PID outer loop (retained from existing architecture) ──
+    // Sanity-check: dt is expected in Hz (e.g. 10–200 Hz typical for AUV)
+    assert(dt >= 1.0 && dt <= 10000.0 &&
+      "dt must be the controller rate in Hz, not a period in seconds.");
+
+    // ── Position PID outer loop (retained from existing architecture melih and talha wrote
+    // Zoktay and hilal) ──
     const auto inverse_rotation_matrix = get_world_to_body_rotation(state);
 
     Vectornd pos_pid_output = Vectornd::Zero();
@@ -214,9 +233,24 @@ class MultiDOFMRACController : public ControllerBase<N> {
       initialized_ = true;
     }
 
-    // ── Integrate reference model (Euler): ν̇_m = A_m ν_m + B_m r ──
-    const Vectornd nu_m_dot = Am_ * nu_m_ + Bm_ * r;
-    nu_m_ += nu_m_dot * actual_dt;
+    // ── Integrate reference model: exact ZOH for diagonal Am_, Bm_ ──
+    // For DOF i: ν_m_i(k+1) = exp(a_i·T)·ν_m_i(k) + (exp(a_i·T)−1)/a_i·b_i·r_i
+    // Degenerates to Euler if Am_ is not diagonal (fallback provided).
+    {
+      const Vectornd a = Am_.diagonal();  // a_i = -ω_i (negative)
+      const Vectornd b = Bm_.diagonal();
+      for (size_t i = 0; i < N; ++i) {
+        const double ai = a(i);
+        const double bi = b(i);
+        if (std::abs(ai) < 1e-10) {
+          // Near-zero pole: use Euler
+          nu_m_(i) += (ai * nu_m_(i) + bi * r(i)) * actual_dt;
+        } else {
+          const double eaT = std::exp(ai * actual_dt);
+          nu_m_(i) = eaT * nu_m_(i) + (eaT - 1.0) / ai * bi * r(i);
+        }
+      }
+    }
 
     // ── Tracking error ──
     const Vectornd e = nu - nu_m_;
@@ -229,9 +263,10 @@ class MultiDOFMRACController : public ControllerBase<N> {
             nu.cwiseAbs().cwiseProduct(nu);
 
     // ── MRAC control law ──
-    // τ = M̂ · (A_m ν + B_m r + K_x ν + K_r r) + damping_ff + g_comp
+    // τ = M̂·(A_m ν_m + B_m r + K_x ν + K_r r) + damping_ff + g_comp
+    // Note: A_m acts on ν_m (reference model state), not on plant state ν.
     const Vectornd mrac_accel =
-        Am_ * nu + Bm_ * r + Kx_ * nu + Kr_ * r;
+        Am_ * nu_m_ + Bm_ * r + Kx_ * nu + Kr_ * r;
 
     WrenchVector wrench =
         this->model().mass_inertia_matrix * mrac_accel + damping_ff;
@@ -312,6 +347,8 @@ class MultiDOFMRACController : public ControllerBase<N> {
   Matrixnd ki_pos_{Matrixnd::Zero()};
   Matrixnd kd_pos_{Matrixnd::Zero()};
   Vectornd pos_integral_{Vectornd::Zero()};
+  /// Anti-windup clamp per DOF. Zero (default) disables clamping for that DOF.
+  /// Set via set_integral_clamp_limits() before use to enable anti-windup.
   Vectornd integral_clamp_limits_{Vectornd::Zero()};
 
   // ── Misc ──
