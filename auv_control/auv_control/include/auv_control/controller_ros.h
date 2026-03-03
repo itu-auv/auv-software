@@ -12,6 +12,7 @@
 #include "auv_common_lib/ros/subscriber_with_timeout.h"
 #include "auv_controllers/controller_base.h"
 #include "auv_controllers/multidof_pid_controller.h"
+#include "auv_controllers/multidof_mrac_controller.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
 #include "geometry_msgs/Wrench.h"
 #include "nav_msgs/Odometry.h"
@@ -64,33 +65,55 @@ class ControllerROS {
     nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
 
-    ROS_INFO_STREAM("kp: \n" << kp_.transpose());
-    ROS_INFO_STREAM("ki: \n" << ki_.transpose());
-    ROS_INFO_STREAM("kd: \n" << kd_.transpose());
-    ROS_INFO_STREAM("integral_clamp_limits: \n"
-                    << integral_clamp_limits_.transpose());
-    ROS_INFO_STREAM("gravity_compensation_z: " << gravity_compensation_z_);
-    load_controller("auv::control::SixDOFPIDController");
+    // Controller type selection (default: PID for backward compatibility)
+    controller_type_ = nh_private.param<std::string>(
+        "controller_type", "auv::control::SixDOFPIDController");
 
-    auto controller =
-        dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+    ROS_INFO_STREAM("Controller type: " << controller_type_);
 
-    controller->set_model(model);
-    controller->set_kp(kp_);
-    controller->set_ki(ki_);
-    controller->set_kd(kd_);
-    controller->set_integral_clamp_limits(integral_clamp_limits_);
-    controller->set_gravity_compensation_z(gravity_compensation_z_);
-    controller->set_max_velocity_limits(max_velocity_);
+    load_controller(controller_type_);
 
-    // Set up dynamic reconfigure server with initial values
-    auv_control::ControllerConfig initial_config;
-    set_initial_config(initial_config);
+    if (controller_type_ == "auv::control::SixDOFMRACController") {
+      // ── MRAC controller setup ──
+      auto mrac_controller =
+          dynamic_cast<auv::control::SixDOFMRACController*>(controller_.get());
+      ROS_ASSERT_MSG(mrac_controller != nullptr,
+                     "Failed to cast to SixDOFMRACController");
 
-    dynamic_reconfigure::Server<auv_control::ControllerConfig>::CallbackType f;
-    f = boost::bind(&ControllerROS::reconfigure_callback, this, _1, _2);
-    dr_srv_.updateConfig(initial_config);  // Apply the initial configuration
-    dr_srv_.setCallback(f);
+      mrac_controller->set_model(model);
+      load_mrac_parameters(nh_private, mrac_controller);
+
+      ROS_INFO("MRAC controller initialized successfully");
+    } else {
+      // ── PID controller setup (existing behavior) ──
+      ROS_INFO_STREAM("kp: \n" << kp_.transpose());
+      ROS_INFO_STREAM("ki: \n" << ki_.transpose());
+      ROS_INFO_STREAM("kd: \n" << kd_.transpose());
+      ROS_INFO_STREAM("integral_clamp_limits: \n"
+                      << integral_clamp_limits_.transpose());
+      ROS_INFO_STREAM("gravity_compensation_z: " << gravity_compensation_z_);
+
+      auto controller =
+          dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+
+      controller->set_model(model);
+      controller->set_kp(kp_);
+      controller->set_ki(ki_);
+      controller->set_kd(kd_);
+      controller->set_integral_clamp_limits(integral_clamp_limits_);
+      controller->set_gravity_compensation_z(gravity_compensation_z_);
+      controller->set_max_velocity_limits(max_velocity_);
+
+      // Set up dynamic reconfigure server with initial values
+      auv_control::ControllerConfig initial_config;
+      set_initial_config(initial_config);
+
+      dynamic_reconfigure::Server<auv_control::ControllerConfig>::CallbackType
+          f;
+      f = boost::bind(&ControllerROS::reconfigure_callback, this, _1, _2);
+      dr_srv_.updateConfig(initial_config);
+      dr_srv_.setCallback(f);
+    }
 
     const auto transport_hints = ros::TransportHints().tcpNoDelay(true);
 
@@ -253,6 +276,14 @@ class ControllerROS {
 
   void reconfigure_callback(auv_control::ControllerConfig& config,
                             uint32_t level) {
+    // Dynamic reconfigure only applies to PID controller
+    if (controller_type_ != "auv::control::SixDOFPIDController") {
+      ROS_WARN_THROTTLE(5.0,
+          "Dynamic reconfigure not supported for controller type: %s",
+          controller_type_.c_str());
+      return;
+    }
+
     auto controller =
         dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
 
@@ -458,6 +489,93 @@ class ControllerROS {
     ROS_INFO_STREAM("Parameters saved to " << config_file_);
   }
 
+  /**
+   * @brief Load MRAC-specific parameters from the parameter server.
+   */
+  void load_mrac_parameters(ros::NodeHandle& nh,
+                            auv::control::SixDOFMRACController* controller) {
+    using Vec6Parser =
+        auv::common::rosparam::parser<Eigen::Matrix<double, 6, 1>>;
+
+    // Reference model bandwidth
+    if (nh.hasParam("mrac/reference_bandwidth")) {
+      auto bw = Vec6Parser::parse("mrac/reference_bandwidth", nh);
+      controller->set_reference_bandwidth(bw);
+      ROS_INFO_STREAM("MRAC reference_bandwidth: " << bw.transpose());
+    } else {
+      ROS_WARN("MRAC: reference_bandwidth not set, using default [2,2,2,3,3,3]");
+      Eigen::Matrix<double, 6, 1> default_bw;
+      default_bw << 2.0, 2.0, 2.0, 3.0, 3.0, 3.0;
+      controller->set_reference_bandwidth(default_bw);
+    }
+
+    // Learning rates
+    if (nh.hasParam("mrac/gamma_x")) {
+      auto gx = Vec6Parser::parse("mrac/gamma_x", nh);
+      controller->set_gamma_x(gx);
+      ROS_INFO_STREAM("MRAC gamma_x: " << gx.transpose());
+    }
+    if (nh.hasParam("mrac/gamma_r")) {
+      auto gr = Vec6Parser::parse("mrac/gamma_r", nh);
+      controller->set_gamma_r(gr);
+      ROS_INFO_STREAM("MRAC gamma_r: " << gr.transpose());
+    }
+
+    // Sigma modification
+    double sigma = nh.param("mrac/sigma", 0.01);
+    controller->set_sigma(sigma);
+    ROS_INFO_STREAM("MRAC sigma: " << sigma);
+
+    // Lyapunov P matrix
+    if (nh.hasParam("mrac/lyapunov_p")) {
+      auto p = Vec6Parser::parse("mrac/lyapunov_p", nh);
+      controller->set_lyapunov_p(p);
+      ROS_INFO_STREAM("MRAC lyapunov_p: " << p.transpose());
+    }
+
+    // Gain saturation
+    if (nh.hasParam("mrac/kx_max")) {
+      auto kx_max = Vec6Parser::parse("mrac/kx_max", nh);
+      controller->set_kx_max(kx_max);
+      ROS_INFO_STREAM("MRAC kx_max: " << kx_max.transpose());
+    }
+    if (nh.hasParam("mrac/kr_max")) {
+      auto kr_max = Vec6Parser::parse("mrac/kr_max", nh);
+      controller->set_kr_max(kr_max);
+      ROS_INFO_STREAM("MRAC kr_max: " << kr_max.transpose());
+    }
+
+    // Position PID outer loop gains (for MRAC, using 6-element vectors)
+    if (nh.hasParam("position_kp")) {
+      auto pos_kp = Vec6Parser::parse("position_kp", nh);
+      controller->set_kp_position(pos_kp);
+      ROS_INFO_STREAM("MRAC position_kp: " << pos_kp.transpose());
+    }
+    if (nh.hasParam("position_ki")) {
+      auto pos_ki = Vec6Parser::parse("position_ki", nh);
+      controller->set_ki_position(pos_ki);
+      ROS_INFO_STREAM("MRAC position_ki: " << pos_ki.transpose());
+    }
+    if (nh.hasParam("position_kd")) {
+      auto pos_kd = Vec6Parser::parse("position_kd", nh);
+      controller->set_kd_position(pos_kd);
+      ROS_INFO_STREAM("MRAC position_kd: " << pos_kd.transpose());
+    }
+    if (nh.hasParam("position_integral_clamp")) {
+      auto clamp = Vec6Parser::parse("position_integral_clamp", nh);
+      controller->set_integral_clamp_limits(clamp);
+      ROS_INFO_STREAM("MRAC integral_clamp: " << clamp.transpose());
+    }
+
+    // Max velocity and gravity compensation
+    if (nh.hasParam("max_velocity")) {
+      auto mv = Vec6Parser::parse("max_velocity", nh);
+      controller->set_max_velocity_limits(mv);
+    }
+    controller->set_gravity_compensation_z(
+        nh.param("gravity_compensation_z", 0.0));
+  }
+
   ros::Rate rate_;
   ros::NodeHandle nh_;
   ros::Subscriber odometry_sub_;
@@ -488,6 +606,7 @@ class ControllerROS {
       integral_clamp_limits_;           // Integral clamping limits
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
   std::string config_file_;             // Path to the config file
+  std::string controller_type_;         // Active controller type
 
   std::string depth_control_reference_frame_;
 };
