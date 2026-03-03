@@ -6,6 +6,7 @@ from geometry_msgs.msg import Twist
 from std_msgs.msg import Bool
 import threading
 from std_srvs.srv import Trigger, TriggerRequest
+import dynamic_reconfigure.client
 
 
 class JoystickEvent:
@@ -58,6 +59,93 @@ class JoystickNode:
 
         self.joy_sub = rospy.Subscriber("joy", Joy, self.joy_callback)
         rospy.loginfo("Joystick node initialized")
+
+        # use_vel mode: zero position PID gains for X and Y
+        self.use_vel = rospy.get_param("~use_vel", False)
+        self.original_pid_gains = None
+        self.reconfigure_client = None
+
+        if self.use_vel:
+            self._setup_use_vel_mode()
+            rospy.on_shutdown(self._restore_pid_gains)
+
+    def _setup_use_vel_mode(self):
+        """Setup use_vel mode by connecting to controller reconfigure and zeroing X/Y position gains."""
+        try:
+            controller_server = rospy.get_param(
+                "~controller_reconfigure_server", "auv_control_node"
+            )
+            target_server = rospy.resolve_name(controller_server)
+            self.reconfigure_client = dynamic_reconfigure.client.Client(
+                target_server, timeout=5
+            )
+            rospy.loginfo(f"Connected to dynamic reconfigure server: {target_server}")
+
+            # Setup sync_cmd_pose service to reset cmd_pose on shutdown
+            self.sync_cmd_pose_service = rospy.ServiceProxy("sync_cmd_pose", Trigger)
+
+            # Read and store original PID gains
+            current_cfg = self.reconfigure_client.get_configuration()
+            if current_cfg:
+                self.original_pid_gains = {
+                    "kp_0": current_cfg.get("kp_0", 0.0),
+                    "kp_1": current_cfg.get("kp_1", 0.0),
+                    "ki_0": current_cfg.get("ki_0", 0.0),
+                    "ki_1": current_cfg.get("ki_1", 0.0),
+                    "kd_0": current_cfg.get("kd_0", 0.0),
+                    "kd_1": current_cfg.get("kd_1", 0.0),
+                }
+                rospy.loginfo(
+                    f"Stored original PID gains for X/Y: "
+                    f"kp=[{self.original_pid_gains['kp_0']}, {self.original_pid_gains['kp_1']}], "
+                    f"ki=[{self.original_pid_gains['ki_0']}, {self.original_pid_gains['ki_1']}], "
+                    f"kd=[{self.original_pid_gains['kd_0']}, {self.original_pid_gains['kd_1']}]"
+                )
+
+                # Zero the X and Y position PID gains (kp, ki, kd)
+                self.reconfigure_client.update_configuration(
+                    {
+                        "kp_0": 0.0,
+                        "kp_1": 0.0,
+                        "ki_0": 0.0,
+                        "ki_1": 0.0,
+                        "kd_0": 0.0,
+                        "kd_1": 0.0,
+                    }
+                )
+                rospy.loginfo(
+                    "use_vel mode: X and Y position PID gains (kp, ki, kd) set to 0"
+                )
+            else:
+                rospy.logwarn("Failed to read controller configuration")
+                self.use_vel = False
+        except Exception as e:
+            rospy.logwarn(f"Failed to setup use_vel mode: {e}")
+            self.use_vel = False
+
+    def _restore_pid_gains(self):
+        """Restore original PID gains on shutdown and reset cmd_pose to current position."""
+        if not self.reconfigure_client or not self.original_pid_gains:
+            return
+
+        # First, sync cmd_pose to current robot position
+        # This prevents the robot from jumping to old cmd_pose when PID gains are restored
+        try:
+            self.sync_cmd_pose_service.wait_for_service(timeout=1.0)
+            self.sync_cmd_pose_service(TriggerRequest())
+            rospy.loginfo("Synced cmd_pose to current position")
+        except (rospy.ServiceException, rospy.ROSException) as e:
+            rospy.logwarn(f"Failed to sync cmd_pose: {e}")
+
+        # Then restore original PID gains
+        try:
+            self.reconfigure_client.update_configuration(self.original_pid_gains)
+            rospy.loginfo(
+                f"Restored original PID gains: kp_0={self.original_pid_gains['kp_0']}, "
+                f"kp_1={self.original_pid_gains['kp_1']}"
+            )
+        except Exception as e:
+            rospy.logwarn(f"Failed to restore PID gains: {e}")
 
     def call_service_if_available(self, service, success_message, failure_message):
         try:

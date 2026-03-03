@@ -17,10 +17,9 @@ from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
 from PyQt5.QtGui import QFont
 import subprocess
 import rospy
-from std_msgs.msg import Bool
-import auv_msgs.msg
+from std_msgs.msg import Bool, UInt16MultiArray
 import threading
-from auv_msgs.msg import Power
+from sensor_msgs.msg import BatteryState
 
 
 class CommandThread(QThread):
@@ -84,7 +83,7 @@ class DryTestTab(QWidget):
 
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
         self.thruster_pub = rospy.Publisher(
-            "drive_pulse", auv_msgs.msg.MotorCommand, queue_size=10
+            "drive_pulse", UInt16MultiArray, queue_size=10
         )
 
         self.voltage = None
@@ -100,7 +99,7 @@ class DryTestTab(QWidget):
         self.voltage_timer = QTimer()
         self.voltage_timer.timeout.connect(self.update_voltage_display)
         self.voltage_timer.start(1000)  # Update every second
-        self.power_sub = rospy.Subscriber("power", Power, self.power_callback)
+        self.power_sub = rospy.Subscriber("power", BatteryState, self.power_callback)
 
         # Warning thresholds
         self.warning_threshold = 15.2
@@ -264,8 +263,8 @@ class DryTestTab(QWidget):
     def test_thrusters(self):
         """Publish motor commands to test thrusters for 1 second"""
         try:
-            motor_cmd = auv_msgs.msg.MotorCommand()
-            motor_cmd.channels = [1600] * 8
+            motor_cmd = UInt16MultiArray()
+            motor_cmd.data = [1600] * 8
 
             self.thruster_test_timer.start(1000)
             self.output.append("Thruster test started! Running for 1 second...")
@@ -289,8 +288,8 @@ class DryTestTab(QWidget):
                 self.thruster_thread.join()
                 self.thruster_thread = None
 
-            stop_cmd = auv_msgs.msg.MotorCommand()
-            stop_cmd.channels = [0] * 8
+            stop_cmd = UInt16MultiArray()
+            stop_cmd.data = [0] * 8
             self.thruster_pub.publish(stop_cmd)
 
             self.output.append("Thruster test completed.")

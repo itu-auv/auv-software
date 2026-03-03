@@ -7,11 +7,12 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 import angles
+from auv_smach.tf_utils import get_tf_buffer
 
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, PoseStamped
 
 from auv_msgs.srv import (
     PlanPath,
@@ -118,36 +119,52 @@ class VisualServoingNavigation(smach_ros.ServiceState):
         )
 
 
-class SetDepthState(smach_ros.ServiceState):
+class SetDepthState(smach.State):
     """
-    Calls /taluy/set_depth with the requested depth.
-    continuously publishes True to /taluy/enable topic
-    whilst the state is running.
+    Calls /taluy/set_depth with the requested depth and waits until
+    the robot reaches the target depth within a threshold for a confirm duration.
+
+    Uses TF to get current robot depth by looking up base_link in the target frame.
+
+    Args:
+        depth: Target depth in meters
+        depth_threshold: How close to target depth to consider "reached" (default: 0.1m)
+        confirm_duration: How long to stay within threshold to confirm (default: 1.0s)
+        timeout: Maximum time to wait (default: 30.0s), returns succeeded on timeout
+        frame_id: Frame ID for the depth (default: "odom")
+        max_velocity: Optional max velocity for Z axis (default: 0.0, uses default)
 
     Outcomes:
-        - succeeded: The service call returned success.
-        - preempted: The state was preempted.
-        - aborted: The service call failed.
+        - succeeded: Robot reached target depth or timeout reached
+        - preempted: The state was preempted
+        - aborted: Service call failed
     """
 
     def __init__(
-        self, depth: float, sleep_duration: float = 5.0, frame_id: str = "odom"
+        self,
+        depth: float,
+        depth_threshold: float = 0.1,
+        confirm_duration: float = 1.0,
+        timeout: float = 10.0,
+        frame_id: str = "odom",
+        max_velocity: float = 0.0,
     ):
-        set_depth_request = SetDepthRequest()
-        set_depth_request.target_depth = depth
-        set_depth_request.frame_id = frame_id
-        self.sleep_duration = sleep_duration
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        super(SetDepthState, self).__init__(
-            "set_depth",
-            SetDepth,
-            request=set_depth_request,
-            outcomes=["succeeded", "preempted", "aborted"],
-        )
+        self.target_depth = depth
+        self.depth_threshold = depth_threshold
+        self.confirm_duration = confirm_duration
+        self.timeout = timeout
+        self.frame_id = frame_id
+        self.max_velocity = max_velocity
 
         self._stop_publishing = threading.Event()
-
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        self.base_frame = rospy.get_param("~namespace", "taluy/base_link")
 
     def _publish_enable_loop(self):
         publish_rate = rospy.get_param("~enable_rate", 20)
@@ -156,30 +173,116 @@ class SetDepthState(smach_ros.ServiceState):
             self.enable_pub.publish(Bool(True))
             rate.sleep()
 
+    def _get_current_depth(self):
+        """Get current robot depth by looking up base_link in frame_id."""
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.frame_id, self.base_frame, rospy.Time(0), rospy.Duration(4.0)
+            )
+            return transform.transform.translation.z
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(5.0, f"[SetDepthState] TF lookup failed: {e}")
+            return None
+
     def execute(self, userdata):
-        # if there's an immediate preempt
         if self.preempt_requested():
             rospy.logwarn("[SetDepthState] Preempt requested before execution.")
             self.service_preempt()
             return "preempted"
 
-        # Call the service
-        result = super(SetDepthState, self).execute(userdata)
+        try:
+            rospy.wait_for_service("set_depth", timeout=5.0)
+            set_depth_service = rospy.ServiceProxy("set_depth", SetDepth)
+            request = SetDepthRequest()
+            request.target_depth = self.target_depth
+            request.frame_id = self.frame_id
+            request.max_velocity = self.max_velocity
+            response = set_depth_service(request)
 
-        # Clear the stop flag
+            if not response.success:
+                rospy.logerr(f"[SetDepthState] Service call failed: {response.message}")
+                return "aborted"
+        except (rospy.ServiceException, rospy.ROSException) as e:
+            rospy.logerr(f"[SetDepthState] Service call failed: {e}")
+            return "aborted"
+
+        # Start publishing enable in background
         self._stop_publishing.clear()
-        # start publishing in the background thread
         pub_thread = threading.Thread(target=self._publish_enable_loop)
         pub_thread.start()
-        # Wait for the specified sleep duration
-        if self.sleep_duration > 0:
-            rospy.sleep(self.sleep_duration)
 
-        # signal the publishing thread to stop
+        # Wait for depth to be reached
+        start_time = rospy.Time.now()
+        confirm_start_time = None
+        rate = rospy.Rate(20)
+
+        rospy.loginfo(
+            f"[SetDepthState] Waiting for depth {self.target_depth}m in {self.frame_id} "
+            f"(threshold={self.depth_threshold}m, timeout={self.timeout}s)"
+        )
+
+        while not rospy.is_shutdown():
+            # Check for preempt
+            if self.preempt_requested():
+                rospy.logwarn("[SetDepthState] Preempt requested during execution.")
+                self._stop_publishing.set()
+                pub_thread.join()
+                self.service_preempt()
+                return "preempted"
+
+            # Check for timeout
+            elapsed = (rospy.Time.now() - start_time).to_sec()
+            if elapsed > self.timeout:
+                rospy.logwarn(
+                    f"[SetDepthState] Timeout after {self.timeout}s. Continuing anyway."
+                )
+                self._stop_publishing.set()
+                pub_thread.join()
+                return "succeeded"
+
+            current_depth = self._get_current_depth()
+
+            # Check if depth is within threshold
+            if current_depth is not None:
+                depth_error = abs(current_depth - self.target_depth)
+
+                rospy.loginfo_throttle(
+                    1.0,
+                    f"[SetDepthState] current={current_depth:.3f}m, "
+                    f"target={self.target_depth:.3f}m, error={depth_error:.3f}m",
+                )
+
+                if depth_error <= self.depth_threshold:
+                    if confirm_start_time is None:
+                        confirm_start_time = rospy.Time.now()
+                        rospy.loginfo(
+                            f"[SetDepthState] Depth within threshold, confirming..."
+                        )
+
+                    confirm_elapsed = (rospy.Time.now() - confirm_start_time).to_sec()
+                    if confirm_elapsed >= self.confirm_duration:
+                        rospy.loginfo(
+                            f"[SetDepthState] Depth confirmed at {current_depth:.3f}m"
+                        )
+                        self._stop_publishing.set()
+                        pub_thread.join()
+                        return "succeeded"
+                else:
+                    if confirm_start_time is not None:
+                        rospy.loginfo(
+                            f"[SetDepthState] Drifted out of threshold, resetting confirm timer"
+                        )
+                    confirm_start_time = None
+
+            rate.sleep()
+
         self._stop_publishing.set()
         pub_thread.join()
-
-        return result
+        return "succeeded"
 
 
 class DropBallState(smach_ros.ServiceState):
@@ -239,8 +342,7 @@ class NavigateToFrameState(smach.State):
         self.end_frame = end_frame
         self.target_frame = target_frame
         self.n_turns = n_turns
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
@@ -370,8 +472,7 @@ class RotationState(smach.State):
         self.look_at_frame = look_at_frame
         self.full_rotation = full_rotation
         self.full_rotation_timeout = full_rotation_timeout
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
         self.sub = rospy.Subscriber(self.odom_topic, Odometry, self.odom_cb)
         self.pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=1)
@@ -512,8 +613,7 @@ class SetFrameLookingAtState(smach.State):
         self.look_at_frame = look_at_frame
         self.alignment_frame = alignment_frame
         self.duration_time = duration_time
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(10)
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
@@ -529,7 +629,6 @@ class SetFrameLookingAtState(smach.State):
                 return "preempted"
 
             try:
-
                 base_to_look_at_transform = self.tf_buffer.lookup_transform(
                     self.source_frame,
                     self.look_at_frame,
@@ -842,8 +941,7 @@ class CheckAlignmentState(smach.State):
         self.confirm_duration = confirm_duration
         self.keep_orientation = keep_orientation
         self.use_frame_depth = use_frame_depth
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(10)
 
     def get_error(self):
@@ -1201,8 +1299,7 @@ class CreateFrameAtCurrentPositionState(smach.State):
         self.source_frame = source_frame
         self.current_pose_frame = current_pose_frame
         self.reference_frame = reference_frame
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
@@ -1267,8 +1364,7 @@ class CreateRotatingFrameState(smach.State):
         self.source_frame = source_frame
         self.reference_frame = reference_frame
         self.rotation_period = rotation_period
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(rate_hz)
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform

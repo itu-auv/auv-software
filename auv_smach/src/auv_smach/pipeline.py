@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -36,8 +37,7 @@ class NavigateThroughPipelineState(smach.State):
     def __init__(self, pipeline_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
         # Pipeline corner frame names (in navigation order)
         self.pipeline_frames = [
@@ -69,7 +69,7 @@ class NavigateThroughPipelineState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_PIPELINE_DEPTH",
-                SetDepthState(depth=pipeline_depth, sleep_duration=3.0),
+                SetDepthState(depth=pipeline_depth),
                 transitions={
                     "succeeded": "ENABLE_PIPELINE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",

@@ -20,8 +20,6 @@ add_action_files(
 add_message_files(
   FILES
   EulerOrientation.msg
-  MotorCommand.msg
-  Power.msg
   PropsYaw.msg
   TDOA.msg
 )

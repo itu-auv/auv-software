@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -36,8 +37,7 @@ class CheckForDropAreaState(smach.State):
         )
         self.source_frame = source_frame
         self.timeout = rospy.Duration(timeout)
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.target_selection = target_selection
         # Set frame order based on target_selection
         if self.target_selection == "shark":
@@ -81,7 +81,7 @@ class CheckForDropAreaState(smach.State):
 class SetAlignToFoundState(smach.State):
     def __init__(
         self,
-        source_frame: str = "taluy/base_link/ball_dropper_link",
+        source_frame: str = "taluy/base_link/ball_dropper_1_link",
         dist_threshold: float = 0.05,
         yaw_threshold: float = 0.1,
         confirm_duration: float = 5.0,
@@ -155,7 +155,7 @@ class BinSecondTrialState(smach.StateMachine):
         with self:
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_SEARCH_DEPTH",
-                SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_front_look_depth),
                 transitions={
                     "succeeded": "ALIGN_TO_SECOND_TRIAL",
                     "preempted": "preempted",
@@ -238,7 +238,7 @@ class BinSecondTrialState(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "SET_SECOND_TRIAL_DEPTH",
-                SetDepthState(depth=bin_bottom_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_bottom_look_depth),
                 transitions={
                     "succeeded": "ALIGN_TO_SECOND_FAR_TRIAL",
                     "preempted": "preempted",
@@ -319,7 +319,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DEPTH",
-                SetDepthState(depth=bin_front_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_front_look_depth),
                 transitions={
                     "succeeded": "FIND_AND_AIM_BIN",
                     "preempted": "preempted",
@@ -400,7 +400,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BIN_DROP_DEPTH",
-                SetDepthState(depth=bin_bottom_look_depth, sleep_duration=3.0),
+                SetDepthState(depth=bin_bottom_look_depth),
                 transitions={
                     "succeeded": "ENABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
@@ -508,7 +508,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_ALIGN_TO_FOUND_DROP_AREA",
                 SetAlignToFoundState(
-                    source_frame="taluy/base_link/ball_dropper_link",
+                    source_frame="taluy/base_link/ball_dropper_1_link",
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
                     confirm_duration=2.0,
@@ -538,7 +538,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_ALIGN_TO_FOUND_DROP_AREA_FINAL",
                 SetAlignToFoundState(
-                    source_frame="taluy/base_link/ball_dropper_link",
+                    source_frame="taluy/base_link/ball_dropper_1_link",
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
                     confirm_duration=4.0,
@@ -563,7 +563,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_BALL_DROP_DEPTH",
-                SetDepthState(depth=-1.45, sleep_duration=3.0),
+                SetDepthState(depth=-1.2),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
                     "preempted": "preempted",
@@ -573,7 +573,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "SET_ALIGN_TO_FOUND_DROP_AREA_AFTER_DEPTH",
                 SetAlignToFoundState(
-                    source_frame="taluy/base_link/ball_dropper_link",
+                    source_frame="taluy/base_link/ball_dropper_1_link",
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
                     confirm_duration=4.0,
@@ -599,6 +599,23 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_1",
                 DelayState(delay_time=5.0),
+                transitions={
+                    "succeeded": "ALIGN_TO_FOUND_DROP_AREA_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_FOUND_DROP_AREA_2",
+                SetAlignToFoundState(
+                    source_frame="taluy/base_link/ball_dropper_2_link",
+                    dist_threshold=0.05,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=20.0,
+                    cancel_on_success=False,
+                    keep_orientation=True,
+                ),
                 transitions={
                     "succeeded": "DROP_BALL_2",
                     "preempted": "preempted",

@@ -116,7 +116,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_TORPEDO_MAP_DEPTH",
-                SetDepthState(depth=torpedo_map_depth, sleep_duration=3.0),
+                SetDepthState(depth=torpedo_map_depth),
                 transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
                     "preempted": "preempted",
@@ -253,7 +253,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_camera_link",
                     target_frame=torpedo_realsense_target_frame,
-                    angle_offset=-math.pi / 2,
+                    angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=3.0,
@@ -280,7 +280,7 @@ class TorpedoTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/torpedo_camera_link",
                     target_frame=torpedo_realsense_target_frame,
-                    angle_offset=-math.pi / 2,
+                    angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
                     confirm_duration=5.0,
