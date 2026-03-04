@@ -36,8 +36,8 @@ namespace control {
 template <size_t N>
 class MultiDOFMRACController : public ControllerBase<N> {
   static_assert(N >= 6,
-    "MultiDOFMRACController requires at least 6 DOF; "
-    "yes.");
+                "MultiDOFMRACController requires at least 6 DOF; "
+                "yes.");
 
   using Base = ControllerBase<N>;
   using WrenchVector = typename Base::WrenchVector;
@@ -88,14 +88,10 @@ class MultiDOFMRACController : public ControllerBase<N> {
   }
 
   /** @brief Set the state-feedback adaptation learning rate (diagonal). */
-  void set_gamma_x(const Vectornd& gamma_x) {
-    gamma_x_ = gamma_x.asDiagonal();
-  }
+  void set_gamma_x(const Vectornd& gamma_x) { gamma_x_ = gamma_x.asDiagonal(); }
 
   /** @brief Set the input-feedforward adaptation learning rate (diagonal). */
-  void set_gamma_r(const Vectornd& gamma_r) {
-    gamma_r_ = gamma_r.asDiagonal();
-  }
+  void set_gamma_r(const Vectornd& gamma_r) { gamma_r_ = gamma_r.asDiagonal(); }
 
   /** @brief Set the Lyapunov P matrix (diagonal). */
   void set_lyapunov_p(const Vectornd& p_diag) {
@@ -103,7 +99,7 @@ class MultiDOFMRACController : public ControllerBase<N> {
     // Using diagonal form ensures SPD as long as all entries are positive.
     for (size_t i = 0; i < N; ++i) {
       assert(p_diag(i) > 0.0 &&
-        "All Lyapunov P diagonal entries must be strictly positive.");
+             "All Lyapunov P diagonal entries must be strictly positive.");
     }
     P_ = p_diag.asDiagonal();
   }
@@ -111,7 +107,7 @@ class MultiDOFMRACController : public ControllerBase<N> {
   /** @brief Set the σ-modification leakage factor. */
   void set_sigma(double sigma) {
     assert(sigma >= 0.0 &&
-      "sigma (σ-modification leakage) must be non-negative.");
+           "sigma (σ-modification leakage) must be non-negative.");
     sigma_ = sigma;
   }
 
@@ -175,10 +171,10 @@ class MultiDOFMRACController : public ControllerBase<N> {
 
     // Sanity-check: dt is expected in Hz (e.g. 10–200 Hz typical for AUV)
     assert(dt >= 1.0 && dt <= 10000.0 &&
-      "dt must be the controller rate in Hz, not a period in seconds.");
+           "dt must be the controller rate in Hz, not a period in seconds.");
 
-    // ── Position PID outer loop (retained from existing architecture melih and talha wrote
-    // Zoktay and hilal) ──
+    // ── Position PID outer loop (retained from existing architecture melih and
+    // talha wrote Zoktay and hilal) ──
     const auto inverse_rotation_matrix = get_world_to_body_rotation(state);
 
     Vectornd pos_pid_output = Vectornd::Zero();
@@ -188,9 +184,8 @@ class MultiDOFMRACController : public ControllerBase<N> {
       const auto velocity_state = d_state.template head<N>();
 
       Vectornd error = Vectornd::Zero();
-      error.template head<3>() =
-          desired_position.template head<3>() -
-          position_state.template head<3>();
+      error.template head<3>() = desired_position.template head<3>() -
+                                 position_state.template head<3>();
       error.template head<3>() =
           inverse_rotation_matrix * error.template head<3>();
       for (size_t i = 3; i < N; ++i) {
@@ -212,8 +207,7 @@ class MultiDOFMRACController : public ControllerBase<N> {
       }
 
       const auto i_term = ki_pos_ * pos_integral_;
-      const auto d_term =
-          kd_pos_ * (Vectornd::Zero() - velocity_state);
+      const auto d_term = kd_pos_ * (Vectornd::Zero() - velocity_state);
 
       pos_pid_output = p_term + i_term + d_term;
     }
@@ -259,14 +253,12 @@ class MultiDOFMRACController : public ControllerBase<N> {
     // τ_ff = D_l · ν + D_q · |ν| ⊙ ν
     const Vectornd damping_ff =
         this->model().linear_damping_matrix * nu +
-        this->model().quadratic_damping_matrix *
-            nu.cwiseAbs().cwiseProduct(nu);
+        this->model().quadratic_damping_matrix * nu.cwiseAbs().cwiseProduct(nu);
 
     // ── MRAC control law ──
     // τ = M̂·(A_m ν_m + B_m r + K_x ν + K_r r) + damping_ff + g_comp
     // Note: A_m acts on ν_m (reference model state), not on plant state ν.
-    const Vectornd mrac_accel =
-        Am_ * nu_m_ + Bm_ * r + Kx_ * nu + Kr_ * r;
+    const Vectornd mrac_accel = Am_ * nu_m_ + Bm_ * r + Kx_ * nu + Kr_ * r;
 
     WrenchVector wrench =
         this->model().mass_inertia_matrix * mrac_accel + damping_ff;
@@ -274,8 +266,7 @@ class MultiDOFMRACController : public ControllerBase<N> {
     // ── Gravity compensation ──
     Eigen::Vector3d gravity_force_global = Eigen::Vector3d::Zero();
     gravity_force_global(2) = gravity_compensation_z_;
-    wrench.template head<3>() +=
-        inverse_rotation_matrix * gravity_force_global;
+    wrench.template head<3>() += inverse_rotation_matrix * gravity_force_global;
 
     // ── Adaptation law update (with σ-modification) ──
     // eᵀ P B_m → row vector (1×N) × (N×N) × (N×N) = (1×N) → transpose = N×1
@@ -283,14 +274,12 @@ class MultiDOFMRACController : public ControllerBase<N> {
 
     // K̇_x = -Γ_x (ν · eᵀPBmᵀ) - σ Γ_x K_x
     //      ν is N×1, eᵀPBm is N×1, outer product = N×N
-    Kx_ += (-gamma_x_ * (nu * e_T_P_Bm.transpose()) -
-             sigma_ * gamma_x_ * Kx_) *
-            actual_dt;
+    Kx_ += (-gamma_x_ * (nu * e_T_P_Bm.transpose()) - sigma_ * gamma_x_ * Kx_) *
+           actual_dt;
 
     // K̇_r = -Γ_r (r · eᵀPBmᵀ) - σ Γ_r K_r
-    Kr_ += (-gamma_r_ * (r * e_T_P_Bm.transpose()) -
-             sigma_ * gamma_r_ * Kr_) *
-            actual_dt;
+    Kr_ += (-gamma_r_ * (r * e_T_P_Bm.transpose()) - sigma_ * gamma_r_ * Kr_) *
+           actual_dt;
 
     // ── Gain saturation (element-wise clamping) ──
     clamp_matrix(Kx_, kx_max_);
@@ -320,13 +309,14 @@ class MultiDOFMRACController : public ControllerBase<N> {
     Eigen::AngleAxisd pitch_angle(state[4], Eigen::Vector3d::UnitY());
     Eigen::AngleAxisd yaw_angle(state[5], Eigen::Vector3d::UnitZ());
     Eigen::Quaterniond rotation = yaw_angle * pitch_angle * roll_angle;
-    return rotation.matrix().transpose();  // body->world transposed = world->body
+    return rotation.matrix()
+        .transpose();  // body->world transposed = world->body
   }
 
   // ── Reference model ──
-  Matrixnd Am_;       ///< Reference model state matrix (Hurwitz, typically diagonal)
-  Matrixnd Bm_;       ///< Reference model input matrix
-  Vectornd nu_m_;     ///< Reference model velocity state
+  Matrixnd Am_;  ///< Reference model state matrix (Hurwitz, typically diagonal)
+  Matrixnd Bm_;  ///< Reference model input matrix
+  Vectornd nu_m_;  ///< Reference model velocity state
 
   // ── Adaptation parameters ──
   Matrixnd P_;        ///< Lyapunov matrix (symmetric positive definite)
@@ -335,12 +325,12 @@ class MultiDOFMRACController : public ControllerBase<N> {
   double sigma_;      ///< σ-modification leakage factor
 
   // ── Adaptive gains (updated online) ──
-  Matrixnd Kx_;       ///< State feedback adaptive gain matrix
-  Matrixnd Kr_;       ///< Input feedforward adaptive gain matrix
+  Matrixnd Kx_;  ///< State feedback adaptive gain matrix
+  Matrixnd Kr_;  ///< Input feedforward adaptive gain matrix
 
   // ── Gain saturation limits ──
-  Vectornd kx_max_;   ///< Max absolute value per row for Kx elements
-  Vectornd kr_max_;   ///< Max absolute value per row for Kr elements
+  Vectornd kx_max_;  ///< Max absolute value per row for Kx elements
+  Vectornd kr_max_;  ///< Max absolute value per row for Kr elements
 
   // ── Position PID outer loop (retained from existing architecture) ──
   Matrixnd kp_pos_{Matrixnd::Zero()};

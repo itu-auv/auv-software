@@ -158,8 +158,8 @@ TEST(MultiDOFMRACController, TestSigmaModificationBoundedness) {
   // Run with varying reference commands to persistently excite
   for (int i = 0; i < 1000; ++i) {
     Vector12d state = Vector12d::Zero();
-    state(6) = std::sin(0.1 * i);  // Varying surge velocity
-    state(7) = std::cos(0.15 * i); // Varying sway velocity
+    state(6) = std::sin(0.1 * i);   // Varying surge velocity
+    state(7) = std::cos(0.15 * i);  // Varying sway velocity
 
     Vector12d desired_state = Vector12d::Zero();
     desired_state(6) = std::cos(0.05 * i) * 2.0;
@@ -211,7 +211,8 @@ TEST(MultiDOFMRACController, TestZeroCommandProducesBoundedOutput) {
   Vector12d d_state = Vector12d::Zero();
   const double rate_hz = 100.0;
 
-  const auto wrench = controller.control(state, desired_state, d_state, rate_hz);
+  const auto wrench =
+      controller.control(state, desired_state, d_state, rate_hz);
 
   // With zero everything, wrench should be essentially zero
   EXPECT_LT(wrench.norm(), kEpsilon)

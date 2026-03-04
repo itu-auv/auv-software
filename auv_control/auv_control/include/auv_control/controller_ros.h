@@ -11,8 +11,8 @@
 #include "auv_common_lib/ros/rosparam.h"
 #include "auv_common_lib/ros/subscriber_with_timeout.h"
 #include "auv_controllers/controller_base.h"
-#include "auv_controllers/multidof_pid_controller.h"
 #include "auv_controllers/multidof_mrac_controller.h"
+#include "auv_controllers/multidof_pid_controller.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
 #include "geometry_msgs/Wrench.h"
 #include "nav_msgs/Odometry.h"
@@ -278,8 +278,8 @@ class ControllerROS {
                             uint32_t level) {
     // Dynamic reconfigure only applies to PID controller
     if (controller_type_ != "auv::control::SixDOFPIDController") {
-      ROS_WARN_THROTTLE(5.0,
-          "Dynamic reconfigure not supported for controller type: %s",
+      ROS_WARN_THROTTLE(
+          5.0, "Dynamic reconfigure not supported for controller type: %s",
           controller_type_.c_str());
       return;
     }
@@ -503,7 +503,8 @@ class ControllerROS {
       controller->set_reference_bandwidth(bw);
       ROS_INFO_STREAM("MRAC reference_bandwidth: " << bw.transpose());
     } else {
-      ROS_WARN("MRAC: reference_bandwidth not set, using default [2,2,2,3,3,3]");
+      ROS_WARN(
+          "MRAC: reference_bandwidth not set, using default [2,2,2,3,3,3]");
       Eigen::Matrix<double, 6, 1> default_bw;
       default_bw << 2.0, 2.0, 2.0, 3.0, 3.0, 3.0;
       controller->set_reference_bandwidth(default_bw);
