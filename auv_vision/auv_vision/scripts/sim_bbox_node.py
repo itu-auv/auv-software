@@ -39,16 +39,22 @@ import tf.transformations as tft
 # ── Class ID labels (for debug image annotation) ─────────────────────────────
 
 CLASS_NAMES = {
-    0: "sawfish",
-    1: "shark",
-    2: "red_pipe",
-    3: "white_pipe",
-    4: "torpedo_map",
-    5: "torpedo_hole",
-    6: "bin_whole",
-    7: "octagon",
-    10: "bin_shark",
-    11: "bin_sawfish",
+    "front": {
+        0: "sawfish",
+        1: "shark",
+        2: "red_pipe",
+        3: "white_pipe",
+        4: "torpedo_map",
+        6: "bin_whole",
+        7: "octagon",
+    },
+    "bottom": {
+        0: "bin_shark",
+        1: "bin_sawfish",
+    },
+    "torpedo": {
+        5: "torpedo_hole",
+    },
 }
 
 
@@ -92,7 +98,9 @@ def box(half_x: float, half_y: float, half_z: float) -> List[np.ndarray]:
     """8 corners of an axis-aligned 3D bounding box."""
     return [
         np.array([sx * half_x, sy * half_y, sz * half_z])
-        for sx in [1, -1] for sy in [1, -1] for sz in [1, -1]
+        for sx in [1, -1]
+        for sy in [1, -1]
+        for sz in [1, -1]
     ]
 
 
@@ -110,9 +118,7 @@ def z_cylinder(radius: float, half_height: float, n: int = 8) -> List[np.ndarray
 
 def pose_to_matrix(pose: Pose) -> np.ndarray:
     """Convert geometry_msgs/Pose to a 4x4 homogeneous transform matrix."""
-    T = tft.translation_matrix(
-        [pose.position.x, pose.position.y, pose.position.z]
-    )
+    T = tft.translation_matrix([pose.position.x, pose.position.y, pose.position.z])
     R = tft.quaternion_matrix(
         [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
     )
@@ -125,7 +131,12 @@ def transform_to_matrix(transform: Transform) -> np.ndarray:
         [transform.translation.x, transform.translation.y, transform.translation.z]
     )
     R = tft.quaternion_matrix(
-        [transform.rotation.x, transform.rotation.y, transform.rotation.z, transform.rotation.w]
+        [
+            transform.rotation.x,
+            transform.rotation.y,
+            transform.rotation.z,
+            transform.rotation.w,
+        ]
     )
     return T @ R
 
@@ -224,7 +235,9 @@ class GazeboInterface:
         return self.get_model_matrix(self.robot_name)
 
     def object_boundary_in_world(
-        self, model_name: str, offset: np.ndarray,
+        self,
+        model_name: str,
+        offset: np.ndarray,
         boundary: List[np.ndarray],
     ) -> Optional[List[np.ndarray]]:
         """Transform an object's boundary sample points to Gazebo world frame.
@@ -293,7 +306,9 @@ class SimCamera:
         self.image_pub = rospy.Publisher(image_out_topic, Image, queue_size=1)
 
         rospy.Subscriber(camera_info_topic, CameraInfo, self._info_cb, queue_size=1)
-        rospy.Subscriber(image_topic, Image, self._image_cb, queue_size=1, buff_size=2**24)
+        rospy.Subscriber(
+            image_topic, Image, self._image_cb, queue_size=1, buff_size=2**24
+        )
 
     def _info_cb(self, msg: CameraInfo):
         self.K = list(msg.K)
@@ -344,7 +359,7 @@ class SimCamera:
         if self.image_pub.get_num_connections() > 0:
             try:
                 cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-                self._draw_detections(cv_image, detections)
+                self._draw_detections(cv_image, detections, self.name)
                 out_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
                 out_msg.header.stamp = stamp
                 self.image_pub.publish(out_msg)
@@ -374,7 +389,10 @@ class SimCamera:
             return None
 
     @staticmethod
-    def _draw_detections(image: np.ndarray, detections: List[Detection2D]):
+    def _draw_detections(
+        image: np.ndarray, detections: List[Detection2D], camera_name: str
+    ):
+        names = CLASS_NAMES.get(camera_name, {})
         for det in detections:
             if not det.results:
                 continue
@@ -382,7 +400,7 @@ class SimCamera:
             w, h = int(det.bbox.size_x), int(det.bbox.size_y)
             x1, y1 = cx - w // 2, cy - h // 2
             x2, y2 = cx + w // 2, cy + h // 2
-            label = CLASS_NAMES.get(det.results[0].id, str(det.results[0].id))
+            label = names.get(det.results[0].id, str(det.results[0].id))
             cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(
                 image,
@@ -434,41 +452,50 @@ class SimBboxNode:
         # Base/walls (Y ≈ 0.005): X ±0.315, Z ±0.162 from center
         # Overhang   (Y ≈ 0.156): X ±0.457, Z ±0.305 from center
         dy_base = np.array([0.0, -0.076, 0.0])  # base Y offset from center
-        dy_ovhg = np.array([0.0,  0.075, 0.0])  # overhang Y offset from center
-        bin_whole = (
-            [dy_base + bp for bp in xz_rect(0.315, 0.162)] +
-            [dy_ovhg + bp for bp in xz_rect(0.457, 0.305)]
-        )
+        dy_ovhg = np.array([0.0, 0.075, 0.0])  # overhang Y offset from center
+        bin_whole = [dy_base + bp for bp in xz_rect(0.315, 0.162)] + [
+            dy_ovhg + bp for bp in xz_rect(0.457, 0.305)
+        ]
         bin_square = xz_rect(0.3048 / 2, 0.3048 / 2)  # each marker: ~1 ft square
 
         all_objects: List[SimObject] = [
             # ── Gate ──────────────────────────────────────────────────
             SimObject(
-                class_id=0, camera="front", gazebo_model="robosub_gate",
+                class_id=0,
+                camera="front",
+                gazebo_model="robosub_gate",
                 offset=np.array([0.0, -0.762, 1.356]),
                 boundary=gate_sign,
             ),  # sawfish
             SimObject(
-                class_id=1, camera="front", gazebo_model="robosub_gate",
+                class_id=1,
+                camera="front",
+                gazebo_model="robosub_gate",
                 offset=np.array([0.0, 0.762, 1.356]),
                 boundary=gate_sign,
             ),  # shark
             # ── Torpedo ───────────────────────────────────────────────
             # Map panel (front camera, class 4)
             SimObject(
-                class_id=4, camera="front", gazebo_model="robosub_torpedo",
+                class_id=4,
+                camera="front",
+                gazebo_model="robosub_torpedo",
                 offset=np.array([-0.1166, 0.6472, -0.9490]),
                 boundary=torp_map,
             ),  # torpedo_map
             # Holes (torpedo camera, class 5) — both published as ID 5,
             # the pose estimator sorts upper/lower by image Y position.
             SimObject(
-                class_id=5, camera="torpedo", gazebo_model="robosub_torpedo",
+                class_id=5,
+                camera="torpedo",
+                gazebo_model="robosub_torpedo",
                 offset=np.array([-0.1166, 0.6089, -0.9687]),
                 boundary=torp_hole,
             ),  # torpedo hole 1 (lower in mesh)
             SimObject(
-                class_id=5, camera="torpedo", gazebo_model="robosub_torpedo",
+                class_id=5,
+                camera="torpedo",
+                gazebo_model="robosub_torpedo",
                 offset=np.array([-0.1166, 0.8619, -1.0787]),
                 boundary=torp_hole,
             ),  # torpedo hole 2 (upper in mesh)
@@ -479,58 +506,79 @@ class SimBboxNode:
         # red (0,0,0.45), right_white (1.5,0,0.45) in model frame.
         slalom_pipes = [
             (3, np.array([-1.5, 0.0, 0.45])),  # left white
-            (2, np.array([ 0.0, 0.0, 0.45])),  # red
-            (3, np.array([ 1.5, 0.0, 0.45])),  # right white
+            (2, np.array([0.0, 0.0, 0.45])),  # red
+            (3, np.array([1.5, 0.0, 0.45])),  # right white
         ]
         for i in range(1, 4):
             for class_id, offset in slalom_pipes:
-                all_objects.append(SimObject(
-                    class_id=class_id, camera="front",
-                    gazebo_model=f"robosub_slalom_{i}",
-                    offset=offset, boundary=pipe_boundary,
-                ))
+                all_objects.append(
+                    SimObject(
+                        class_id=class_id,
+                        camera="front",
+                        gazebo_model=f"robosub_slalom_{i}",
+                        offset=offset,
+                        boundary=pipe_boundary,
+                    )
+                )
 
         # ── Bin ───────────────────────────────────────────────────────
-        all_objects.extend([
-            # Whole bin structure (front camera, class 6)
-            SimObject(
-                class_id=6, camera="front", gazebo_model="robosub_bin",
-                offset=np.array([0.0, 0.0812, 0.9337]),
-                boundary=bin_whole,
-            ),  # bin_whole
-            # Bottom camera markers — class IDs 0/1 are reused
-            # (pose estimator has per-camera id_tf_map)
-            SimObject(
-                class_id=0, camera="bottom", gazebo_model="robosub_bin",
-                offset=np.array([-0.1525, 0.0144, 0.9337]),
-                boundary=bin_square,
-            ),  # bin_shark (left square)
-            SimObject(
-                class_id=1, camera="bottom", gazebo_model="robosub_bin",
-                offset=np.array([0.1525, 0.0144, 0.9337]),
-                boundary=bin_square,
-            ),  # bin_sawfish (right square)
-        ])
+        all_objects.extend(
+            [
+                # Whole bin structure (front camera, class 6)
+                SimObject(
+                    class_id=6,
+                    camera="front",
+                    gazebo_model="robosub_bin",
+                    offset=np.array([0.0, 0.0812, 0.9337]),
+                    boundary=bin_whole,
+                ),  # bin_whole
+                # Bottom camera markers — class IDs 0/1 are reused
+                # (pose estimator has per-camera id_tf_map)
+                SimObject(
+                    class_id=0,
+                    camera="bottom",
+                    gazebo_model="robosub_bin",
+                    offset=np.array([-0.1525, 0.0144, 0.9337]),
+                    boundary=bin_square,
+                ),  # bin_shark (left square)
+                SimObject(
+                    class_id=1,
+                    camera="bottom",
+                    gazebo_model="robosub_bin",
+                    offset=np.array([0.1525, 0.0144, 0.9337]),
+                    boundary=bin_square,
+                ),  # bin_sawfish (right square)
+            ]
+        )
 
         # ── Octagon (excl. roof canopy) ───────────────────────────────
         # Legs (Z < 0.54): XY ±0.32 × ±0.55
         # Basket level (Z ≥ 0.54): XY ±0.62 × ±0.55
         # Center: (0, 0, 0.347), no rotation in world
-        dz_legs = np.array([0.0, 0.0, -0.077])   # leg Z center relative to overall center
-        dz_top  = np.array([0.0, 0.0,  0.270])   # basket Z center relative to overall center
-        oct_boundary = (
-            [dz_legs + bp for bp in box(0.32, 0.55, 0.27)] +
-            [dz_top  + bp for bp in box(0.62, 0.55, 0.076)]
-        )
-        all_objects.append(SimObject(
-            class_id=7, camera="front", gazebo_model="robosub_octagon",
-            offset=np.array([0.0, 0.0, 0.347]),
-            boundary=oct_boundary,
-        ))  # octagon
+        dz_legs = np.array(
+            [0.0, 0.0, -0.077]
+        )  # leg Z center relative to overall center
+        dz_top = np.array(
+            [0.0, 0.0, 0.270]
+        )  # basket Z center relative to overall center
+        oct_boundary = [dz_legs + bp for bp in box(0.32, 0.55, 0.27)] + [
+            dz_top + bp for bp in box(0.62, 0.55, 0.076)
+        ]
+        all_objects.append(
+            SimObject(
+                class_id=7,
+                camera="front",
+                gazebo_model="robosub_octagon",
+                offset=np.array([0.0, 0.0, 0.347]),
+                boundary=oct_boundary,
+            )
+        )  # octagon
 
         # Group objects by camera so each SimCamera only processes its own
         objects_by_camera: Dict[str, List[SimObject]] = {
-            "front": [], "bottom": [], "torpedo": [],
+            "front": [],
+            "bottom": [],
+            "torpedo": [],
         }
         for obj in all_objects:
             objects_by_camera[obj.camera].append(obj)
