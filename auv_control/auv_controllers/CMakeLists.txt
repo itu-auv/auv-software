@@ -53,6 +53,15 @@ install(FILES
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
+# ── PID vs MRAC comparison executable ──
+add_executable(pid_vs_mrac_comparison
+  test/pid_vs_mrac_comparison.cpp
+)
+target_link_libraries(pid_vs_mrac_comparison
+  ${PROJECT_NAME}
+  ${catkin_LIBRARIES}
+)
+
 # ############
 # # Testing ##
 # ############
