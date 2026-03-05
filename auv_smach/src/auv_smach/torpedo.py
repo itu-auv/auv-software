@@ -4,6 +4,7 @@ import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerRequest
 import math
 
+from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
@@ -79,6 +80,7 @@ class TorpedoTaskState(smach.State):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.torpedo_fire_frames = torpedo_fire_frames
         self.torpedo_exit_angle = torpedo_exit_angle
+        self.base_link = get_base_link()
 
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
@@ -130,7 +132,7 @@ class TorpedoTaskState(smach.State):
                     alignment_frame="torpedo_map_travel_start",
                     full_rotation=False,
                     set_frame_duration=7.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.3,
                 ),
                 transitions={
@@ -162,7 +164,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_CLOSE_APPROACH",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame=torpedo_target_frame,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -188,7 +190,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ROTATE_FOR_REALSENSE",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame=torpedo_target_frame,
                     angle_offset=math.pi,
                     dist_threshold=0.1,
@@ -251,7 +253,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_ORIENTED_TORPEDO_MAP",
                 AlignFrame(
-                    source_frame="taluy/base_link/torpedo_camera_link",
+                    source_frame=f"{self.base_link}/torpedo_camera_link",
                     target_frame=torpedo_realsense_target_frame,
                     angle_offset=0.0,
                     dist_threshold=0.05,
@@ -278,7 +280,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_HOLES_DETECTION",
                 AlignFrame(
-                    source_frame="taluy/base_link/torpedo_camera_link",
+                    source_frame=f"{self.base_link}/torpedo_camera_link",
                     target_frame=torpedo_realsense_target_frame,
                     angle_offset=0.0,
                     dist_threshold=0.05,
@@ -312,7 +314,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_FIRE_FRAME_1",
                 AlignFrame(
-                    source_frame="taluy/base_link/torpedo_upper_link",
+                    source_frame=f"{self.base_link}/torpedo_upper_link",
                     target_frame=self.torpedo_fire_frames[0],
                     angle_offset=0.0,
                     dist_threshold=0.03,
@@ -351,7 +353,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_FIRE_FRAME_2",
                 AlignFrame(
-                    source_frame="taluy/base_link/torpedo_bottom_link",
+                    source_frame=f"{self.base_link}/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[1],
                     angle_offset=0.0,
                     dist_threshold=0.03,
@@ -399,7 +401,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_EXIT",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame=torpedo_realsense_target_frame,
                     angle_offset=self.torpedo_exit_angle,
                     dist_threshold=0.1,

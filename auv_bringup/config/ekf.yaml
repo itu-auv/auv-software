@@ -24,10 +24,10 @@ permit_corrected_publication: false
 
 map_frame: map
 odom_frame: odom
-base_link_frame: taluy/base_link
+base_link_frame: $(arg namespace)/base_link
 world_frame: odom
 
-odom0: /taluy/localization/odom_imu
+odom0: /$(arg namespace)/localization/odom_imu
 odom0_config: [false, false, false,
                true, true, false,
                false, false, false,
@@ -38,7 +38,7 @@ odom0_nodelay: false
 odom0_differential: false
 odom0_relative: false
 
-odom1: /taluy/localization/odom_pressure
+odom1: /$(arg namespace)/localization/odom_pressure
 odom1_config: [false, false, true,
                false, false, false,
                false, false, false,
@@ -49,7 +49,7 @@ odom1_nodelay: false
 odom1_differential: false
 odom1_relative: false
 
-odom2: /taluy/localization/odom_dvl
+odom2: /$(arg namespace)/localization/odom_dvl
 odom2_config: [false, false, false,
                false, false, false,
                true, true, false,
@@ -60,7 +60,7 @@ odom2_nodelay: false
 odom2_differential: false
 odom2_relative: false
 
-odom3: /taluy/localization/odom_bno_imu
+odom3: /$(arg namespace)/localization/odom_bno_imu
 odom3_config: [false, false, false,
                true, true, false,
                false, false, false,
