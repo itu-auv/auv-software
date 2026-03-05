@@ -11,7 +11,18 @@
       <remap from="imu_mainboard/data" to="sensors/imu_mainboard/data" />
       <remap from="odom_imu" to="localization/odom_imu" />
       <remap from="odom_bno_imu" to="localization/odom_bno_imu" />
+      <param name="apply_mounting_correction" value="true" />
       <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data.yaml" />
+    </node>
+
+    <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_mti630_to_odom_node" output="screen">
+      <remap from="imu/data" to="sensors/imu_mti630/data" />
+      <remap from="imu_mainboard/data" to="sensors/imu_mainboard/data" />
+      <remap from="odom_imu" to="localization/odom_imu_mti630" />
+      <remap from="odom_bno_imu" to="localization/odom_bno_imu_mti630" />
+      <remap from="calibrate_imu" to="calibrate_imu_mti630" />
+      <param name="apply_mounting_correction" value="false" />
+      <param name="imu_calibration_path" value="$(find auv_localization)/config/imu_calibration_data_mti630.yaml" />
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
       output="screen">

@@ -20,6 +20,9 @@ class ImuToOdom:
         self.imu_calibration_data_path = rospy.get_param(
             "~imu_calibration_path", "config/imu_calibration_data.yaml"
         )
+        self.apply_mounting_correction = rospy.get_param(
+            "~apply_mounting_correction", True
+        )
         # Subscribers and Publishers
         self.xsens_imu_subscriber = rospy.Subscriber(
             "imu/data", Imu, self.xsens_imu_callback, tcp_nodelay=True
@@ -151,9 +154,12 @@ class ImuToOdom:
         )
 
         # Update orientation and orientation covariance
-        self.odom_msg.pose.pose.orientation = self.invert_roll_pitch_quaternion(
-            imu_msg.orientation
-        )
+        if self.apply_mounting_correction:
+            self.odom_msg.pose.pose.orientation = self.invert_roll_pitch_quaternion(
+                imu_msg.orientation
+            )
+        else:
+            self.odom_msg.pose.pose.orientation = imu_msg.orientation
         self.odom_msg.pose.covariance = self.update_pose_covariance(
             imu_msg.orientation_covariance
         )
