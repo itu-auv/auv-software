@@ -95,7 +95,7 @@ class DvlToOdom:
         return SetBoolResponse(success=True, message=f"DVL->Odom {state}")
 
     def transform_vector(self, vector):
-        theta = np.radians(-135)
+        theta = np.radians(-45)
         rotation_matrix = np.array(
             [
                 [np.cos(theta), -np.sin(theta), 0],
