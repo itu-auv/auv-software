@@ -94,8 +94,8 @@
     <xacro:sonar name="${namespace}/base_link/sonar_back" parent="${namespace}/base_link" position="-0.42 -0.09 0.09" orientation="0 0 ${math.pi}" use_models="$(arg use_models)"/>
     <xacro:sonar name="${namespace}/base_link/sonar_right" parent="${namespace}/base_link" position="0.02 -0.21 -0.14" orientation="0 0 ${-math.pi/2}" use_models="$(arg use_models)"/>
     <xacro:sonar name="${namespace}/base_link/sonar_left" parent="${namespace}/base_link" position="0.02 0.21 -0.14" orientation="0 0 ${math.pi/2}" use_models="$(arg use_models)"/>
-    <xacro:ball_dropper name="${namespace}/base_link/ball_dropper_1" parent="${namespace}/base_link" position="0.035 -0.110 -0.17880" orientation="0 0 0" use_models="$(arg use_models)"/>
-    <xacro:ball_dropper name="${namespace}/base_link/ball_dropper_2" parent="${namespace}/base_link" position="-0.035 -0.110 -0.17880" orientation="0 0 0" use_models="$(arg use_models)"/>
+    <xacro:ball_dropper name="${namespace}/base_link/ball_dropper_2" parent="${namespace}/base_link" position="0.035 -0.110 -0.17880" orientation="0 0 0" use_models="$(arg use_models)"/>
+    <xacro:ball_dropper name="${namespace}/base_link/ball_dropper_1" parent="${namespace}/base_link" position="-0.035 -0.110 -0.17880" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:realsense_d435 name="${namespace}/camera" parent="${namespace}/base_link" position="-0.35 0 0" orientation="0 0 ${math.pi}" use_models="$(arg use_models)"/>
   </xacro:macro>
 </robot>
