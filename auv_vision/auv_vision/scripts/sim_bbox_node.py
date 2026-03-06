@@ -13,6 +13,7 @@ Topics published:
   /yolo_image_front, /yolo_image_bottom, /yolo_image_torpedo       (annotated Image)
 """
 
+import os
 import rospy
 import cv2
 import numpy as np
@@ -32,11 +33,12 @@ from geometry_msgs.msg import Pose, Pose2D, Transform
 from sensor_msgs.msg import Image, CameraInfo
 from gazebo_msgs.msg import ModelStates
 
+import rospkg
+import xml.etree.ElementTree as ET
+
 import tf2_ros
 import tf.transformations as tft
 
-
-# ── Class ID labels (for debug image annotation) ─────────────────────────────
 
 CLASS_NAMES = {
     "front": {
@@ -51,36 +53,35 @@ CLASS_NAMES = {
     "bottom": {
         0: "bin_shark",
         1: "bin_sawfish",
+        2: "octagon_table",
+        3: "octagon_bin_pink",
+        4: "octagon_bin_yellow",
     },
     "torpedo": {
         5: "torpedo_hole",
     },
+    "bottom_seg": {
+        0: "bottle",
+    },
 }
-
-
-# ── Data ─────────────────────────────────────────────────────────────────────
 
 
 @dataclass
 class SimObject:
-    """A detectable object in the simulation world."""
-
-    class_id: int  # YOLO class ID (specific to the camera context)
-    camera: str  # which camera detects this: "front", "bottom", or "torpedo"
-    gazebo_model: str  # Gazebo model name in the world file
-    offset: np.ndarray  # (3,) center offset in the model's local frame [meters]
-    boundary: List[np.ndarray]  # sample points relative to offset (model frame)
+    class_id: int
+    camera: str
+    gazebo_model: str
+    offset: np.ndarray
+    boundary: List[np.ndarray]
 
 
 def yz_rect(half_y: float, half_z: float) -> List[np.ndarray]:
-    """4 corners of a rectangle in the YZ plane (normal along X)."""
     hw = np.array([0.0, half_y, 0.0])
     hh = np.array([0.0, 0.0, half_z])
     return [sw * hw + sh * hh for sw, sh in [(1, 1), (1, -1), (-1, 1), (-1, -1)]]
 
 
 def yz_circle(radius: float, n: int = 16) -> List[np.ndarray]:
-    """N points around a circle in the YZ plane (normal along X)."""
     return [
         np.array([0.0, radius * np.cos(t), radius * np.sin(t)])
         for t in np.linspace(0, 2 * np.pi, n, endpoint=False)
@@ -88,14 +89,18 @@ def yz_circle(radius: float, n: int = 16) -> List[np.ndarray]:
 
 
 def xz_rect(half_x: float, half_z: float) -> List[np.ndarray]:
-    """4 corners of a rectangle in the XZ plane (normal along Y)."""
     hw = np.array([half_x, 0.0, 0.0])
     hh = np.array([0.0, 0.0, half_z])
     return [sw * hw + sh * hh for sw, sh in [(1, 1), (1, -1), (-1, 1), (-1, -1)]]
 
 
+def xy_rect(half_x: float, half_y: float) -> List[np.ndarray]:
+    hw = np.array([half_x, 0.0, 0.0])
+    hh = np.array([0.0, half_y, 0.0])
+    return [sw * hw + sh * hh for sw, sh in [(1, 1), (1, -1), (-1, 1), (-1, -1)]]
+
+
 def box(half_x: float, half_y: float, half_z: float) -> List[np.ndarray]:
-    """8 corners of an axis-aligned 3D bounding box."""
     return [
         np.array([sx * half_x, sy * half_y, sz * half_z])
         for sx in [1, -1]
@@ -105,7 +110,6 @@ def box(half_x: float, half_y: float, half_z: float) -> List[np.ndarray]:
 
 
 def z_cylinder(radius: float, half_height: float, n: int = 8) -> List[np.ndarray]:
-    """Points around the top and bottom rims of a Z-axis cylinder."""
     points = []
     for dz in [half_height, -half_height]:
         for t in np.linspace(0, 2 * np.pi, n, endpoint=False):
@@ -113,11 +117,51 @@ def z_cylinder(radius: float, half_height: float, n: int = 8) -> List[np.ndarray
     return points
 
 
-# ── Transform utilities ──────────────────────────────────────────────────────
+def load_dae_vertices(
+    model_path: str, vertex_indices: Optional[List[int]] = None
+) -> List[np.ndarray]:
+    """Load mesh vertices from a COLLADA (.dae) file in auv_sim_description.
+
+    Args:
+        model_path: Path relative to the auv_sim_description package root,
+            e.g. "models/robosub_bottle/meshes/bottle_final1.dae".
+        vertex_indices: If provided, return only the vertices at these indices.
+    """
+    rp = rospkg.RosPack()
+    dae_path = os.path.join(rp.get_path("auv_sim_description"), model_path)
+    collada_ns = "http://www.collada.org/2005/11/COLLADASchema"
+    ns = {"c": collada_ns}
+    tree = ET.parse(dae_path)
+    root = tree.getroot()
+
+    # Find the positions float_array
+    fa = None
+    for el in root.iter(f"{{{collada_ns}}}float_array"):
+        if "positions" in el.attrib.get("id", ""):
+            fa = el
+            break
+    if fa is None:
+        raise ValueError(f"No positions float_array found in {dae_path}")
+    raw = [float(x) for x in fa.text.split()]
+    verts = np.array(raw).reshape(-1, 3)
+
+    # Walk the visual scene node chain to accumulate transforms
+    transform = np.eye(4)
+    for node in root.findall(".//c:visual_scene//c:node", ns):
+        mat_el = node.find("c:matrix", ns)
+        if mat_el is not None:
+            vals = [float(x) for x in mat_el.text.split()]
+            mat = np.array(vals).reshape(4, 4)
+            if not np.allclose(mat, np.eye(4)):
+                transform = transform @ mat
+
+    all_points = [(transform @ np.array([*v, 1.0]))[:3] for v in verts]
+    if vertex_indices is not None:
+        return [all_points[i] for i in vertex_indices]
+    return all_points
 
 
 def pose_to_matrix(pose: Pose) -> np.ndarray:
-    """Convert geometry_msgs/Pose to a 4x4 homogeneous transform matrix."""
     T = tft.translation_matrix([pose.position.x, pose.position.y, pose.position.z])
     R = tft.quaternion_matrix(
         [pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
@@ -126,7 +170,6 @@ def pose_to_matrix(pose: Pose) -> np.ndarray:
 
 
 def transform_to_matrix(transform: Transform) -> np.ndarray:
-    """Convert geometry_msgs/Transform to a 4x4 homogeneous transform matrix."""
     T = tft.translation_matrix(
         [transform.translation.x, transform.translation.y, transform.translation.z]
     )
@@ -139,9 +182,6 @@ def transform_to_matrix(transform: Transform) -> np.ndarray:
         ]
     )
     return T @ R
-
-
-# ── Projection utilities ─────────────────────────────────────────────────────
 
 
 def project_object(
@@ -189,7 +229,6 @@ def project_object(
 def make_detection(
     class_id: int, cx: float, cy: float, sx: float, sy: float
 ) -> Detection2D:
-    """Create a Detection2D message from bbox parameters."""
     det = Detection2D()
     hyp = ObjectHypothesisWithPose()
     hyp.id = class_id
@@ -200,9 +239,6 @@ def make_detection(
     det.bbox.size_x = sx
     det.bbox.size_y = sy
     return det
-
-
-# ── Gazebo interface ─────────────────────────────────────────────────────────
 
 
 class GazeboInterface:
@@ -224,14 +260,12 @@ class GazeboInterface:
         self.model_poses = dict(zip(msg.name, msg.pose))
 
     def get_model_matrix(self, model_name: str) -> Optional[np.ndarray]:
-        """Get a model's 4x4 pose matrix in Gazebo world frame."""
         pose = self.model_poses.get(model_name)
         if pose is None:
             return None
         return pose_to_matrix(pose)
 
     def get_robot_matrix(self) -> Optional[np.ndarray]:
-        """Get the robot's 4x4 pose matrix in Gazebo world frame."""
         return self.get_model_matrix(self.robot_name)
 
     def object_boundary_in_world(
@@ -240,16 +274,6 @@ class GazeboInterface:
         offset: np.ndarray,
         boundary: List[np.ndarray],
     ) -> Optional[List[np.ndarray]]:
-        """Transform an object's boundary sample points to Gazebo world frame.
-
-        Args:
-            model_name: Gazebo model name.
-            offset: (3,) center offset in the model's local frame [meters].
-            boundary: list of (3,) sample points relative to offset.
-
-        Returns:
-            List of (3,) positions in world frame, or None if model not found.
-        """
         model_matrix = self.get_model_matrix(model_name)
         if model_matrix is None:
             return None
@@ -260,9 +284,6 @@ class GazeboInterface:
             world = (model_matrix @ np.array([*local, 1.0]))[:3]
             points.append(world)
         return points
-
-
-# ── Camera ───────────────────────────────────────────────────────────────────
 
 
 class SimCamera:
@@ -316,7 +337,6 @@ class SimCamera:
         self.image_h = msg.height
 
     def _image_cb(self, msg: Image):
-        """Triggered on each new camera image — project and publish immediately."""
         if self.K is None:
             return
 
@@ -367,7 +387,6 @@ class SimCamera:
                 rospy.logwarn_throttle(5, f"[{self.name}] annotation error: {e}")
 
     def _get_base_to_camera(self) -> Optional[np.ndarray]:
-        """Look up and cache the static base_link → optical_link transform."""
         if self._base_to_camera is not None:
             return self._base_to_camera
 
@@ -413,9 +432,6 @@ class SimCamera:
             )
 
 
-# ── Main node ────────────────────────────────────────────────────────────────
-
-
 class SimBboxNode:
     def __init__(self):
         rospy.init_node("sim_bbox_node")
@@ -428,11 +444,6 @@ class SimBboxNode:
         base_frame = f"{ns}/base_link"
 
         self.gazebo = GazeboInterface(robot_name=ns)
-
-        # ── Object definitions ───────────────────────────────────────────
-        # Each entry maps a physical part of a Gazebo model to the YOLO
-        # class ID and camera that would detect it in the real system.
-        # Offsets and half-extents are in the Gazebo model's local frame.
 
         # Gate signs — 0.3048 m (1 ft) square, face in YZ plane
         gate_sign = yz_rect(0.3048 / 2, 0.3048 / 2)
@@ -459,7 +470,6 @@ class SimBboxNode:
         bin_square = xz_rect(0.3048 / 2, 0.3048 / 2)  # each marker: ~1 ft square
 
         all_objects: List[SimObject] = [
-            # ── Gate ──────────────────────────────────────────────────
             SimObject(
                 class_id=0,
                 camera="front",
@@ -474,7 +484,6 @@ class SimBboxNode:
                 offset=np.array([0.0, 0.762, 1.356]),
                 boundary=gate_sign,
             ),  # shark
-            # ── Torpedo ───────────────────────────────────────────────
             # Map panel (front camera, class 4)
             SimObject(
                 class_id=4,
@@ -501,7 +510,6 @@ class SimBboxNode:
             ),  # torpedo hole 2 (upper in mesh)
         ]
 
-        # ── Slalom — 3 models × 3 pipes each ─────────────────────────
         # Each slalom model has: left_white (-1.5,0,0.45),
         # red (0,0,0.45), right_white (1.5,0,0.45) in model frame.
         slalom_pipes = [
@@ -521,7 +529,6 @@ class SimBboxNode:
                     )
                 )
 
-        # ── Bin ───────────────────────────────────────────────────────
         all_objects.extend(
             [
                 # Whole bin structure (front camera, class 6)
@@ -551,9 +558,9 @@ class SimBboxNode:
             ]
         )
 
-        # ── Octagon (excl. roof canopy) ───────────────────────────────
         # Legs (Z < 0.54): XY ±0.32 × ±0.55
-        # Basket level (Z ≥ 0.54): XY ±0.62 × ±0.55
+        # Basket level (Z ≥ 0.54): baskets only on ±Y (2 and 4),
+        #   X extent = table width (±0.305), Y includes baskets (±0.55)
         # Center: (0, 0, 0.347), no rotation in world
         dz_legs = np.array(
             [0.0, 0.0, -0.077]
@@ -562,7 +569,7 @@ class SimBboxNode:
             [0.0, 0.0, 0.270]
         )  # basket Z center relative to overall center
         oct_boundary = [dz_legs + bp for bp in box(0.32, 0.55, 0.27)] + [
-            dz_top + bp for bp in box(0.62, 0.55, 0.076)
+            dz_top + bp for bp in box(0.305, 0.55, 0.076)
         ]
         all_objects.append(
             SimObject(
@@ -573,17 +580,76 @@ class SimBboxNode:
                 boundary=oct_boundary,
             )
         )  # octagon
+        # Octagon table — central flat panel (bottom camera, class 2)
+        # octagon_middle: XY ±0.3048 m, Z ≈ 0.645, horizontal face
+        all_objects.append(
+            SimObject(
+                class_id=2,
+                camera="bottom",
+                gazebo_model="robosub_octagon",
+                offset=np.array([0.0, 0.0, 0.6446]),
+                boundary=xy_rect(0.3048, 0.3048),
+            )
+        )  # octagon_table
+        # Octagon bins — 2 baskets on ±Y, top-face corners (bottom camera, class 3)
+        # basket_2 at (-0.021, +0.432), basket_4 at (-0.021, -0.432)
+        # DAE nodes have 90° rotation: local X→world Y, local Y→world -X
+        # After rotation: ±0.1715 in X (world), ±0.1175 in Y (world)
+        oct_bin_boundary = xy_rect(0.1715, 0.1175)
+        all_objects.append(
+            SimObject(
+                class_id=4,
+                camera="bottom",
+                gazebo_model="robosub_octagon",
+                offset=np.array([-0.021, 0.432, 0.6865]),
+                boundary=oct_bin_boundary,
+            )
+        )  # octagon_bin_yellow (+Y basket)
+        all_objects.append(
+            SimObject(
+                class_id=3,
+                camera="bottom",
+                gazebo_model="robosub_octagon",
+                offset=np.array([-0.021, -0.432, 0.6865]),
+                boundary=oct_bin_boundary,
+            )
+        )  # octagon_bin_pink (-Y basket)
 
-        # Group objects by camera so each SimCamera only processes its own
+        # Hand-picked silhouette vertices from mesh (via dae_vertex_picker).
+        # fmt: off
+        bottle_vert_indices = [
+            0, 1, 2, 3, 5, 7, 9, 11, 18, 26, 28, 30, 33, 40, 41, 45, 46,
+            47, 48, 55, 56, 58, 67, 75, 90, 97, 98, 101, 111, 114, 115, 116,
+            118, 119, 122, 126, 127, 128, 131, 134, 136, 142, 160, 163, 164,
+            165, 166, 169, 171, 178, 180, 183, 189, 190, 192, 194, 205, 206,
+            214, 218, 220, 222, 225, 226, 234, 235, 237, 241, 243, 245, 246,
+            247, 249, 250,
+        ]
+        # fmt: on
+        bottle_boundary = load_dae_vertices(
+            "models/robosub_bottle/meshes/bottle_final1.dae",
+            vertex_indices=bottle_vert_indices,
+        )
+        rospy.loginfo(f"Bottle: {len(bottle_boundary)} boundary vertices")
+        all_objects.append(
+            SimObject(
+                class_id=0,
+                camera="bottom_seg",
+                gazebo_model="bottle_final1",
+                offset=np.array([0.0, 0.0, 0.0]),
+                boundary=bottle_boundary,
+            )
+        )  # bottle
+
         objects_by_camera: Dict[str, List[SimObject]] = {
             "front": [],
             "bottom": [],
             "torpedo": [],
+            "bottom_seg": [],
         }
         for obj in all_objects:
             objects_by_camera[obj.camera].append(obj)
 
-        # Each camera is self-driven: its image callback triggers projection
         self.cameras: Dict[str, SimCamera] = {
             "front": SimCamera(
                 name="front",
@@ -621,11 +687,22 @@ class SimBboxNode:
                 gazebo=self.gazebo,
                 objects=objects_by_camera["torpedo"],
             ),
+            "bottom_seg": SimCamera(
+                name="bottom_seg",
+                image_topic=f"/{ns}/cameras/cam_bottom/image_raw",
+                camera_info_topic=f"/{ns}/cameras/cam_bottom/camera_info",
+                optical_frame=f"{ns}/base_link/bottom_camera_optical_link",
+                base_frame=base_frame,
+                result_topic="/yolo_result_seg",
+                image_out_topic="/yolo_image_seg",
+                tf_buffer=self.tf_buffer,
+                gazebo=self.gazebo,
+                objects=objects_by_camera["bottom_seg"],
+            ),
         }
 
         rospy.loginfo(
-            f"SimBboxNode started — {len(all_objects)} objects, "
-            f"{len(self.cameras)} cameras (image-callback-driven)"
+            f"SimBboxNode started — {len(all_objects)} objects, {len(self.cameras)} cameras"
         )
 
     def run(self):
