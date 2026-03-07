@@ -9,21 +9,22 @@
   <link name="robosub_bottle_link">
       <pose>0 0 0 0 0 0</pose>
       <inertial>
-        <mass>0.01</mass>
+        <pose>0 0 0.0118 0 0 0</pose> <!-- CoM matched exactly to Center of Buoyancy (geometric center) to prevent tilting -->
+        <mass>0.5</mass>
         <inertia>
-          <ixx>0.01</ixx>
-          <iyy>0.01</iyy>
-          <izz>0.01</izz>
+          <ixx>0.05</ixx>
+          <iyy>0.05</iyy>
+          <izz>0.05</izz>
           <ixy>0</ixy>
           <ixz>0</ixz>
           <iyz>0</iyz>
         </inertia>
       </inertial>
 
-      <!-- Stability settings for better grasping -->
+      <!-- Stability settings for better grasping and horizontal fluid drag -->
       <velocity_decay>
         <linear>0.05</linear>
-        <angular>0.05</angular>
+        <angular>0.8</angular>
       </velocity_decay>
   <collision name="robosub_bottle_col">
         <pose>0 0 0 0 0 0</pose>
