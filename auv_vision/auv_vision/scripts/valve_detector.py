@@ -94,9 +94,7 @@ class ValveDetectorNode:
         self.transform_pub = rospy.Publisher(
             "object_transform_updates", TransformStamped, queue_size=10
         )
-        self.props_yaw_pub = rospy.Publisher(
-            "props_yaw", PropsYaw, queue_size=10
-        )
+        self.props_yaw_pub = rospy.Publisher("props_yaw", PropsYaw, queue_size=10)
         self.debug_image_pub = rospy.Publisher(
             "valve_detector/debug_image", Image, queue_size=1
         )
@@ -106,8 +104,10 @@ class ValveDetectorNode:
 
         # ---- Subscriber ----
         # Launch dosyasından topic ismini al (varsayılan: rectified color)
-        input_topic = rospy.get_param("~input_topic", "/taluy/cameras/cam_front/image_rect_color")
-        
+        input_topic = rospy.get_param(
+            "~input_topic", "/taluy/cameras/cam_front/image_rect_color"
+        )
+
         rospy.Subscriber(
             input_topic,
             Image,
@@ -198,17 +198,14 @@ class ValveDetectorNode:
 
         # Morfolojik işlemler (küçük delikleri kapat, gürültüyü temizle)
         kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE,
-            (self.morph_kernel_size, self.morph_kernel_size)
+            cv2.MORPH_ELLIPSE, (self.morph_kernel_size, self.morph_kernel_size)
         )
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
         # Mask topic yayınla
         if self.mask_pub.get_num_connections() > 0:
-            self.mask_pub.publish(
-                self.bridge.cv2_to_imgmsg(mask, encoding="mono8")
-            )
+            self.mask_pub.publish(self.bridge.cv2_to_imgmsg(mask, encoding="mono8"))
 
         return mask
 
@@ -217,9 +214,7 @@ class ValveDetectorNode:
     # =====================================================================
     def find_largest_contour(self, mask):
         """Maskeden en büyük konturu bul."""
-        contours, _ = cv2.findContours(
-            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         if not contours:
             return None
@@ -362,10 +357,7 @@ class ValveDetectorNode:
         # Elips bölgesini maskele (sadece elips içini al)
         ellipse_mask = np.zeros(mask.shape, dtype=np.uint8)
         cv2.ellipse(
-            ellipse_mask,
-            (int(cx), int(cy)),
-            (int(a), int(b)),
-            angle, 0, 360, 255, -1
+            ellipse_mask, (int(cx), int(cy)), (int(a), int(b)), angle, 0, 360, 255, -1
         )
 
         # Elips içindeki orijinal frame'den gri tonlama
@@ -377,10 +369,12 @@ class ValveDetectorNode:
 
         # Hough çizgi tespiti ile sapın açısını bul
         lines = cv2.HoughLinesP(
-            edges, 1, np.pi / 180,
+            edges,
+            1,
+            np.pi / 180,
             threshold=30,
             minLineLength=int(a * 0.4),
-            maxLineGap=10
+            maxLineGap=10,
         )
 
         if lines is None or len(lines) == 0:
@@ -427,9 +421,13 @@ class ValveDetectorNode:
         # Eğer elips/vana bulunamadıysa: Sadece "VANA YOK" yaz
         if ellipse is None:
             cv2.putText(
-                debug_frame, "VANA BULUNAMADI (RENK HATASI?)",
+                debug_frame,
+                "VANA BULUNAMADI (RENK HATASI?)",
                 (10, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 0, 255),
+                2,
             )
             self.debug_image_pub.publish(
                 self.bridge.cv2_to_imgmsg(debug_frame, encoding="bgr8")
@@ -444,7 +442,11 @@ class ValveDetectorNode:
             debug_frame,
             (int(center[0]), int(center[1])),
             (int(a), int(b)),
-            angle, 0, 360, (0, 255, 0), 2
+            angle,
+            0,
+            360,
+            (0, 255, 0),
+            2,
         )
 
         # Merkez noktası
@@ -462,9 +464,13 @@ class ValveDetectorNode:
         y_offset = 30
         for line in info_lines:
             cv2.putText(
-                debug_frame, line,
+                debug_frame,
+                line,
                 (10, y_offset),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 255, 0),
+                2,
             )
             y_offset += 25
 
