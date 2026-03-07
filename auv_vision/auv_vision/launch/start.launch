@@ -29,5 +29,7 @@
       <param name="font_scale" value="0.7"/>
       <param name="font_thickness" value="2"/>
     </node>
+
+
   </group>
 </launch>

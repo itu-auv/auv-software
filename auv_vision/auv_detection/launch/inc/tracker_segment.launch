@@ -44,6 +44,15 @@
     <rosparam param="device" subst_value="true">$(arg device)</rosparam>
   </node>
 
+  <arg name="namespace" default="taluy"/>
+
+  <group ns="$(arg namespace)">
+    <node pkg="auv_vision" type="yolo_seg_to_mask.py" name="yolo_seg_to_mask" output="screen">
+      <remap from="yolo_result_seg" to="/yolo_result_seg"/>
+      <remap from="seg_mask" to="yolo_seg_to_mask/seg_mask" />
+    </node>
+  </group>
+
   <node if="$(arg use_gui)" name="image_view" pkg="image_view" type="image_view" output="screen">
     <remap from="image" to="$(arg result_image_topic)"/>
   </node>
