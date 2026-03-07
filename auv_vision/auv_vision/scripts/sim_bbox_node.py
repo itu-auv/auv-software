@@ -360,7 +360,7 @@ class SimCamera:
         name: str,
         image_topic: str,
         camera_info_topic: str,
-        optical_frame: str,
+        camera_frame: str,
         base_frame: str,
         result_topic: str,
         image_out_topic: str,
@@ -369,7 +369,7 @@ class SimCamera:
         objects: List[SimObject],
     ):
         self.name = name
-        self.optical_frame = optical_frame
+        self.camera_frame = camera_frame
         self.base_frame = base_frame
         self.tf_buffer = tf_buffer
         self.bridge = CvBridge()
@@ -380,7 +380,6 @@ class SimCamera:
         self.image_w = 0
         self.image_h = 0
 
-        # Static transform: base_link → camera optical link (cached on first use)
         self._base_to_camera: Optional[np.ndarray] = None
 
         self.result_pub = rospy.Publisher(result_topic, YoloResult, queue_size=1)
@@ -498,27 +497,15 @@ class SimCamera:
         if self._base_to_camera is not None:
             return self._base_to_camera
 
-        cam_link_frame = self.optical_frame.replace("_optical_link", "_link")
         try:
-            # base_link → camera_link (where Gazebo actually renders from)
-            tf_base_to_link = self.tf_buffer.lookup_transform(
-                cam_link_frame, self.base_frame, rospy.Time(0), rospy.Duration(2.0)
+            tf_msg = self.tf_buffer.lookup_transform(
+                self.camera_frame, self.base_frame, rospy.Time(0), rospy.Duration(2.0)
             )
-            base_to_cam_link = transform_to_matrix(tf_base_to_link.transform)
-
-            # camera_link → optical_link: keep rotation, drop the
-            # translation offset so the projection origin stays at the
-            # camera_link position that Gazebo renders from.
-            tf_link_to_optical = self.tf_buffer.lookup_transform(
-                self.optical_frame, cam_link_frame, rospy.Time(0), rospy.Duration(2.0)
-            )
-            link_to_optical = transform_to_matrix(tf_link_to_optical.transform)
-            link_to_optical[:3, 3] = 0.0
-
-            self._base_to_camera = link_to_optical @ base_to_cam_link
+            self._base_to_camera = tft.euler_matrix(
+                -np.pi / 2, 0, -np.pi / 2
+            ) @ transform_to_matrix(tf_msg.transform)
             rospy.loginfo(
-                f"[{self.name}] cached static TF: {self.base_frame} → {self.optical_frame} "
-                f"(origin at {cam_link_frame})"
+                f"[{self.name}] cached static TF: {self.base_frame} → {self.camera_frame}"
             )
             return self._base_to_camera
         except (
@@ -526,7 +513,9 @@ class SimCamera:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(5, f"[{self.name}] static TF not yet available: {e}")
+            rospy.logwarn_throttle(
+                5, f"[{self.name}] static TF not yet available: {e}"
+            )
             return None
 
     @staticmethod
@@ -802,7 +791,7 @@ class SimBboxNode:
                 name="front",
                 image_topic=f"/{ns}/cameras/cam_front/image_raw",
                 camera_info_topic=f"/{ns}/cameras/cam_front/camera_info",
-                optical_frame=f"{ns}/base_link/front_camera_optical_link",
+                camera_frame=f"{ns}/base_link/front_camera_link",
                 base_frame=base_frame,
                 result_topic="/yolo_result_front",
                 image_out_topic="/yolo_image_front",
@@ -814,7 +803,7 @@ class SimBboxNode:
                 name="bottom",
                 image_topic=f"/{ns}/cameras/cam_bottom/image_raw",
                 camera_info_topic=f"/{ns}/cameras/cam_bottom/camera_info",
-                optical_frame=f"{ns}/base_link/bottom_camera_optical_link",
+                camera_frame=f"{ns}/base_link/bottom_camera_link",
                 base_frame=base_frame,
                 result_topic="/yolo_result_bottom",
                 image_out_topic="/yolo_image_bottom",
@@ -826,7 +815,7 @@ class SimBboxNode:
                 name="torpedo",
                 image_topic=f"/{ns}/cameras/cam_torpedo/image_raw",
                 camera_info_topic=f"/{ns}/cameras/cam_torpedo/camera_info",
-                optical_frame=f"{ns}/base_link/torpedo_camera_optical_link",
+                camera_frame=f"{ns}/base_link/torpedo_camera_link",
                 base_frame=base_frame,
                 result_topic="/yolo_result_torpedo",
                 image_out_topic="/yolo_image_torpedo",
@@ -838,7 +827,7 @@ class SimBboxNode:
                 name="bottom_seg",
                 image_topic=f"/{ns}/cameras/cam_bottom/image_raw",
                 camera_info_topic=f"/{ns}/cameras/cam_bottom/camera_info",
-                optical_frame=f"{ns}/base_link/bottom_camera_optical_link",
+                camera_frame=f"{ns}/base_link/bottom_camera_link",
                 base_frame=base_frame,
                 result_topic="/yolo_result_seg",
                 image_out_topic="/yolo_image_seg",
