@@ -78,10 +78,14 @@ class SimObject:
     class_id: int
     camera: str
     gazebo_model: str
-    offset: np.ndarray
-    boundary: List[np.ndarray]
+    offset: Optional[np.ndarray] = None
+    boundary: Optional[List[np.ndarray]] = None
     faces: Optional[List[np.ndarray]] = None
     match_prefix: bool = False
+
+    def __post_init__(self):
+        if self.boundary is None and self.faces is None:
+            raise ValueError("SimObject needs either boundary or faces")
 
 
 def rect(half_extents: Tuple[float, float, float]) -> List[np.ndarray]:
@@ -502,7 +506,7 @@ class SimCamera:
                 self.camera_frame, self.base_frame, rospy.Time(0), rospy.Duration(2.0)
             )
             self._base_to_camera = tft.euler_matrix(
-                -np.pi / 2, 0, -np.pi / 2
+                np.pi / 2, -np.pi / 2, 0
             ) @ transform_to_matrix(tf_msg.transform)
             rospy.loginfo(
                 f"[{self.name}] cached static TF: {self.base_frame} → {self.camera_frame}"
@@ -760,8 +764,6 @@ class SimBboxNode:
                     class_id=0,
                     camera="bottom_seg",
                     gazebo_model="bottle_final1",
-                    offset=np.zeros(3),
-                    boundary=[],
                     faces=bottle_faces,
                     match_prefix=True,
                 ),
@@ -769,8 +771,6 @@ class SimBboxNode:
                     class_id=1,
                     camera="bottom_seg",
                     gazebo_model="ladle_final1",
-                    offset=np.zeros(3),
-                    boundary=[],
                     faces=ladle_faces,
                     match_prefix=True,
                 ),
