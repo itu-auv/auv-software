@@ -274,32 +274,12 @@ class ValveTaskState(smach.State):
                 "DISABLE_CONTACT_PUBLISHER",
                 ValveContactFramePublisherServiceState(req=False),
                 transitions={
-                    "succeeded": "ALIGN_TO_VALVE_EXIT",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            # 17. Çıkış açısına dön
-            smach.StateMachine.add(
-                "ALIGN_TO_VALVE_EXIT",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame=valve_contact_frame,
-                    angle_offset=self.valve_exit_angle,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=0.0,
-                    timeout=10.0,
-                    cancel_on_success=False,
-                    use_frame_depth=False,
-                ),
-                transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # 18. Controller'ı sıfırla
+            # 17. Controller'ı sıfırla
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
