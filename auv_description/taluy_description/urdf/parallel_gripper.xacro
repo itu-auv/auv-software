@@ -12,6 +12,40 @@
   <!-- Parallel Gripper Macro -->
   <!-- Added parameter use_mimic_plugin (default: false) to avoid Gazebo errors when the plugin is not available yet. -->
   <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false use_grasp_fix:=true mass_scale:=0.001 mount_xyz:='0 0 0' mount_rpy:='0 0 0'">
+<!-- Custom connection mapping to attach from base to the tip backward to gripper base -->
+    
+    <!-- Virtual link representing the tip (where the gripper actually touches what it holds) -->
+    <link name="${namespace}/gripper_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.001"/>
+        <inertia ixx="0.000001" ixy="0.0" ixz="0.0" iyy="0.000001" iyz="0.0" izz="0.000001"/>
+      </inertial>
+    </link>
+
+    <!-- Joint connecting parent (e.g. base_link) to gripper_link -->
+    <joint name="${namespace}/gripper_link_joint" type="fixed">
+      <origin xyz="${mount_xyz}" rpy="${mount_rpy}"/>
+      <parent link="${parent_link}"/>
+      <child link="${namespace}/gripper_link"/>
+    </joint>
+
+    <!-- Gripper Mount Link (offset from tip up to the base of the gripper) -->
+    <link name="${namespace}/gripper_mount_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <mass value="0.001"/>
+        <inertia ixx="0.000001" ixy="0.0" ixz="0.0" iyy="0.000001" iyz="0.0" izz="0.000001"/>
+      </inertial>
+    </link>
+
+    <!-- The offset from tip backwards to the base -->
+    <joint name="${namespace}/gripper_mount_joint" type="fixed">
+      <origin xyz="0 0 0.193" rpy="0 0 0"/>
+      <parent link="${namespace}/gripper_link"/>
+      <child link="${namespace}/gripper_mount_link"/>
+    </joint>
+
     <!-- Gripper Base Link -->
     <link name="${namespace}/gripper_base">
       <inertial>
@@ -33,12 +67,11 @@
       </collision>
     </link>
 
-    <!-- Joint connecting parent to gripper base -->
-    <joint name="${namespace}/gripper_mount_joint" type="fixed">
-      <parent link="${parent_link}"/>
+    <!-- Joint connecting the virtual mount link to gripper base -->
+    <joint name="${namespace}/gripper_base_joint" type="fixed">
+      <parent link="${namespace}/gripper_mount_link"/>
       <child link="${namespace}/gripper_base"/>
-      <!-- Mount pose provided by caller (auv_base) via mount_xyz/mount_rpy -->
-      <origin xyz="${mount_xyz}" rpy="${mount_rpy}"/>
+      <origin xyz="0 0 0" rpy="0 ${math.pi/2} 0"/>
     </joint>
 
     <!-- Left Finger -->
