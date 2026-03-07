@@ -82,13 +82,11 @@ class SimObject:
 
 @dataclass
 class SegTemplate:
-    """Template for a segmentable object type (e.g. bottle, ladle).
-    Holds pre-loaded mesh faces and the prefix used to discover
-    Gazebo model instances at runtime.
-    """
+    """Segmentable object type (e.g. bottle, ladle). Holds pre-loaded mesh
+    faces and the prefix used to discover Gazebo model instances at runtime."""
     class_id: int
-    model_prefix: str          # e.g. "bottle_final1"
-    faces: List[np.ndarray]    # each (3,3) – triangle in model-local frame
+    model_prefix: str
+    faces: List[np.ndarray]  # each (3,3) – triangle in model-local frame
 
 
 def yz_rect(half_y: float, half_z: float) -> List[np.ndarray]:
@@ -133,15 +131,11 @@ def z_cylinder(radius: float, half_height: float, n: int = 8) -> List[np.ndarray
     return points
 
 
-def load_dae_vertices(
-    model_path: str, vertex_indices: Optional[List[int]] = None
-) -> List[np.ndarray]:
-    """Load mesh vertices from a COLLADA (.dae) file in auv_sim_description.
+def _parse_dae(model_path: str) -> Tuple[ET.Element, str, np.ndarray]:
+    """Parse a COLLADA (.dae) file and return (root, collada_ns, geometry_transform).
 
-    Args:
-        model_path: Path relative to the auv_sim_description package root,
-            e.g. "models/robosub_bottle/meshes/bottle_final1.dae".
-        vertex_indices: If provided, return only the vertices at these indices.
+    Skips Camera and Light nodes when accumulating the scene transform.
+    model_path is relative to the auv_sim_description package root.
     """
     rp = rospkg.RosPack()
     dae_path = os.path.join(rp.get_path("auv_sim_description"), model_path)
@@ -150,71 +144,6 @@ def load_dae_vertices(
     tree = ET.parse(dae_path)
     root = tree.getroot()
 
-    # Find the positions float_array
-    fa = None
-    for el in root.iter(f"{{{collada_ns}}}float_array"):
-        if "positions" in el.attrib.get("id", ""):
-            fa = el
-            break
-    if fa is None:
-        raise ValueError(f"No positions float_array found in {dae_path}")
-    raw = [float(x) for x in fa.text.split()]
-    verts = np.array(raw).reshape(-1, 3)
-
-    # Walk the visual scene node chain to accumulate transforms
-    transform = np.eye(4)
-    for node in root.findall(".//c:visual_scene//c:node", ns):
-        mat_el = node.find("c:matrix", ns)
-        if mat_el is not None:
-            vals = [float(x) for x in mat_el.text.split()]
-            mat = np.array(vals).reshape(4, 4)
-            if not np.allclose(mat, np.eye(4)):
-                transform = transform @ mat
-
-    all_points = [(transform @ np.array([*v, 1.0]))[:3] for v in verts]
-    if vertex_indices is not None:
-        return [all_points[i] for i in vertex_indices]
-    return all_points
-
-
-def make_box_faces(
-    x_min: float, x_max: float, y_min: float, y_max: float, z_min: float, z_max: float
-) -> List[np.ndarray]:
-    """Return 12 triangles (2 per face) for a 3D axis-aligned box.
-    Useful for simple, clean segmentation masks instead of complex DAE meshes.
-    """
-    corners = np.array(
-        [
-            [x_min, y_min, z_min],
-            [x_max, y_min, z_min],
-            [x_max, y_max, z_min],
-            [x_min, y_max, z_min],
-            [x_min, y_min, z_max],
-            [x_max, y_min, z_max],
-            [x_max, y_max, z_max],
-            [x_min, y_max, z_max],
-        ]
-    )
-    # The 6 faces of the box, defined by 4 corner indices each
-    faces_idx = [
-        [0, 1, 2, 3],  # z_min
-        [4, 5, 6, 7],  # z_max
-        [0, 1, 5, 4],  # y_min
-        [3, 2, 6, 7],  # y_max
-        [0, 3, 7, 4],  # x_min
-        [1, 2, 6, 5],  # x_max
-    ]
-    tris = []
-    for quad in faces_idx:
-        a, b, c, d = quad
-        tris.append(corners[[a, b, c]])
-        tris.append(corners[[a, c, d]])
-    return tris
-
-
-def _get_geometry_transform(root, ns: dict) -> np.ndarray:
-    """Extract the geometry node transform from a COLLADA file, skipping
-    Camera and Light nodes."""
     transform = np.eye(4)
     for node in root.findall(".//c:visual_scene//c:node", ns):
         node_name = node.attrib.get("name", "").lower()
@@ -226,129 +155,68 @@ def _get_geometry_transform(root, ns: dict) -> np.ndarray:
             mat = np.array(vals).reshape(4, 4)
             if not np.allclose(mat, np.eye(4)):
                 transform = transform @ mat
-    return transform
+
+    return root, collada_ns, transform
+
+
+def load_dae_vertices(
+    model_path: str, vertex_indices: Optional[List[int]] = None
+) -> List[np.ndarray]:
+    """Load mesh vertices from a COLLADA (.dae) file in auv_sim_description."""
+    root, collada_ns, transform = _parse_dae(model_path)
+
+    fa = None
+    for el in root.iter(f"{{{collada_ns}}}float_array"):
+        if "position" in el.attrib.get("id", "").lower():
+            fa = el
+            break
+    if fa is None:
+        raise ValueError(f"No positions float_array found in {model_path}")
+
+    verts = np.array([float(x) for x in fa.text.split()]).reshape(-1, 3)
+    all_points = [(transform @ np.array([*v, 1.0]))[:3] for v in verts]
+    if vertex_indices is not None:
+        return [all_points[i] for i in vertex_indices]
+    return all_points
 
 
 def load_dae_faces(model_path: str) -> List[np.ndarray]:
-    """Load all triangle faces from a COLLADA (.dae) file.
+    """Load triangle faces from a COLLADA (.dae) file.
 
-    Returns a list of (3, 3) arrays, each representing one triangle's
-    three vertices in model-local (transformed) coordinates.
+    Returns a list of (3, 3) arrays — each triangle's three vertices
+    in model-local (transformed) coordinates.
     """
-    rp = rospkg.RosPack()
-    dae_path = os.path.join(rp.get_path("auv_sim_description"), model_path)
-    collada_ns = "http://www.collada.org/2005/11/COLLADASchema"
+    root, collada_ns, transform = _parse_dae(model_path)
     ns = {"c": collada_ns}
-    tree = ET.parse(dae_path)
-    root = tree.getroot()
-
-    transform = _get_geometry_transform(root, ns)
 
     all_faces: List[np.ndarray] = []
     for geometry in root.findall(".//c:geometry", ns):
         mesh = geometry.find("c:mesh", ns)
         if mesh is None:
             continue
-        # Find the position source
         pos_array = None
         for src in mesh.findall("c:source", ns):
             fa = src.find("c:float_array", ns)
-            if fa is not None and "osition" in fa.attrib.get("id", ""):
-                raw = [float(x) for x in fa.text.split()]
-                pos_array = np.array(raw).reshape(-1, 3)
+            if fa is not None and "position" in fa.attrib.get("id", "").lower():
+                pos_array = np.array([float(x) for x in fa.text.split()]).reshape(-1, 3)
                 break
         if pos_array is None:
             continue
-        # Apply transform to all vertices in this geometry
         transformed = np.array(
             [(transform @ np.array([*v, 1.0]))[:3] for v in pos_array]
         )
-        # Extract triangle index lists
         for tri in mesh.findall("c:triangles", ns):
             p_el = tri.find("c:p", ns)
             if p_el is None:
                 continue
             indices = [int(x) for x in p_el.text.split()]
-            inputs = tri.findall("c:input", ns)
-            stride = len(inputs)
+            stride = len(tri.findall("c:input", ns))
             count = int(tri.attrib.get("count", 0))
             for f_idx in range(count):
                 base = f_idx * stride * 3
-                i0 = indices[base]
-                i1 = indices[base + stride]
-                i2 = indices[base + stride * 2]
+                i0, i1, i2 = indices[base], indices[base + stride], indices[base + stride * 2]
                 all_faces.append(transformed[[i0, i1, i2]])
     return all_faces
-
-
-def filter_faces_by_z(faces: List[np.ndarray], min_z: float) -> List[np.ndarray]:
-    """Filter out any triangle face where all vertices are strictly below min_z.
-    Used to extract only the upper part of a mesh (like a bottle cap).
-    """
-    filtered = []
-    for face in faces:
-        if np.any(face[:, 2] >= min_z):
-            filtered.append(face)
-    return filtered
-
-
-def render_segmentation_mask(
-    faces: List[np.ndarray],
-    model_matrix: np.ndarray,
-    world_to_camera: np.ndarray,
-    K: List[float],
-    image_w: int,
-    image_h: int,
-) -> Optional[Tuple[np.ndarray, Tuple[float, float, float, float]]]:
-    """Render a segmentation mask by projecting mesh faces into camera space.
-
-    Returns (mask, (cx, cy, sx, sy)) or None if nothing visible.
-    mask is a (H, W) uint8 image with 0/255 values.
-    """
-    fx, fy, cx, cy = K[0], K[4], K[2], K[5]
-    full_tf = world_to_camera @ model_matrix
-
-    projected_tris = []
-    for face in faces:
-        pts_2d = []
-        visible = True
-        for vertex in face:
-            p = (full_tf @ np.array([*vertex, 1.0]))[:3]
-            if p[2] <= 0.01:
-                visible = False
-                break
-            u = fx * p[0] / p[2] + cx
-            v = fy * p[1] / p[2] + cy
-            pts_2d.append((int(round(u)), int(round(v))))
-        if not visible:
-            continue
-        # Quick cull: skip if all 3 points are outside image bounds
-        us = [p[0] for p in pts_2d]
-        vs = [p[1] for p in pts_2d]
-        if max(us) < 0 or min(us) >= image_w or max(vs) < 0 or min(vs) >= image_h:
-            continue
-        projected_tris.append(np.array(pts_2d, dtype=np.int32))
-
-    if not projected_tris:
-        return None
-
-    mask = np.zeros((image_h, image_w), dtype=np.uint8)
-    # Fill polygons one by one to avoid even-odd rule cancellation with overlapping 3D faces
-    for tri in projected_tris:
-        cv2.fillPoly(mask, [tri], 255)
-
-    # Compute bounding box from mask
-    coords = np.column_stack(np.where(mask > 0))
-    if coords.size == 0:
-        return None
-    v_min, u_min = coords.min(axis=0)
-    v_max, u_max = coords.max(axis=0)
-    bcx = (u_min + u_max) / 2.0
-    bcy = (v_min + v_max) / 2.0
-    bsx = float(u_max - u_min)
-    bsy = float(v_max - v_min)
-
-    return mask, (bcx, bcy, bsx, bsy)
 
 
 def pose_to_matrix(pose: Pose) -> np.ndarray:
@@ -431,6 +299,59 @@ def make_detection(
     return det
 
 
+def render_segmentation_mask(
+    faces: List[np.ndarray],
+    model_matrix: np.ndarray,
+    world_to_camera: np.ndarray,
+    K: List[float],
+    image_w: int,
+    image_h: int,
+) -> Optional[Tuple[np.ndarray, Tuple[float, float, float, float]]]:
+    """Render a segmentation mask by projecting mesh faces into camera space.
+
+    Returns (mask, (cx, cy, sx, sy)) or None if nothing visible.
+    """
+    fx, fy, cx, cy = K[0], K[4], K[2], K[5]
+    full_tf = world_to_camera @ model_matrix
+
+    projected_tris = []
+    u_min_all, u_max_all = float("inf"), float("-inf")
+    v_min_all, v_max_all = float("inf"), float("-inf")
+
+    for face in faces:
+        pts_2d = []
+        visible = True
+        for vertex in face:
+            p = (full_tf @ np.array([*vertex, 1.0]))[:3]
+            if p[2] <= 0:
+                visible = False
+                break
+            pts_2d.append((int(round(fx * p[0] / p[2] + cx)),
+                           int(round(fy * p[1] / p[2] + cy))))
+        if not visible:
+            continue
+        us = [p[0] for p in pts_2d]
+        vs = [p[1] for p in pts_2d]
+        if max(us) < 0 or min(us) >= image_w or max(vs) < 0 or min(vs) >= image_h:
+            continue
+        projected_tris.append(np.array(pts_2d, dtype=np.int32))
+        u_min_all = min(u_min_all, min(us))
+        u_max_all = max(u_max_all, max(us))
+        v_min_all = min(v_min_all, min(vs))
+        v_max_all = max(v_max_all, max(vs))
+
+    if not projected_tris:
+        return None
+
+    mask = np.zeros((image_h, image_w), dtype=np.uint8)
+    for tri in projected_tris:
+        cv2.fillPoly(mask, [tri], 255)
+
+    bcx = (u_min_all + u_max_all) / 2.0
+    bcy = (v_min_all + v_max_all) / 2.0
+    return mask, (bcx, bcy, float(u_max_all - u_min_all), float(v_max_all - v_min_all))
+
+
 class GazeboInterface:
     """Caches Gazebo model states from a single topic subscription.
 
@@ -450,7 +371,6 @@ class GazeboInterface:
         self.model_poses = dict(zip(msg.name, msg.pose))
 
     def find_models_by_prefix(self, prefix: str) -> List[str]:
-        """Return all Gazebo model names that start with the given prefix."""
         return [name for name in self.model_poses if name.startswith(prefix)]
 
     def get_model_matrix(self, model_name: str) -> Optional[np.ndarray]:
@@ -551,7 +471,6 @@ class SimCamera:
         detections: List[Detection2D] = []
         masks: List[Image] = []
 
-        # --- Standard bounding-box objects ---
         for obj in self.objects:
             points = self.gazebo.object_boundary_in_world(
                 obj.gazebo_model, obj.offset, obj.boundary
@@ -564,31 +483,23 @@ class SimCamera:
             )
             if result is not None:
                 detections.append(make_detection(obj.class_id, *result))
-                # No mask for standard bbox objects
-                masks.append(Image())  # empty placeholder
+                masks.append(Image())  # empty placeholder for bbox-only objects
 
-        # --- Segmentation objects (dynamically discovered) ---
-        if self.seg_templates:
-            for tmpl in self.seg_templates:
-                model_names = self.gazebo.find_models_by_prefix(tmpl.model_prefix)
-                for model_name in model_names:
-                    model_matrix = self.gazebo.get_model_matrix(model_name)
-                    if model_matrix is None:
-                        continue
-                    result = render_segmentation_mask(
-                        tmpl.faces,
-                        model_matrix,
-                        world_to_camera,
-                        self.K,
-                        self.image_w,
-                        self.image_h,
-                    )
-                    if result is not None:
-                        mask_img, (bcx, bcy, bsx, bsy) = result
-                        detections.append(make_detection(tmpl.class_id, bcx, bcy, bsx, bsy))
-                        mask_msg = self.bridge.cv2_to_imgmsg(mask_img, "mono8")
-                        mask_msg.header.stamp = stamp
-                        masks.append(mask_msg)
+        for tmpl in self.seg_templates:
+            for model_name in self.gazebo.find_models_by_prefix(tmpl.model_prefix):
+                model_matrix = self.gazebo.get_model_matrix(model_name)
+                if model_matrix is None:
+                    continue
+                result = render_segmentation_mask(
+                    tmpl.faces, model_matrix, world_to_camera,
+                    self.K, self.image_w, self.image_h,
+                )
+                if result is not None:
+                    mask_img, (bcx, bcy, bsx, bsy) = result
+                    detections.append(make_detection(tmpl.class_id, bcx, bcy, bsx, bsy))
+                    mask_msg = self.bridge.cv2_to_imgmsg(mask_img, "mono8")
+                    mask_msg.header.stamp = stamp
+                    masks.append(mask_msg)
 
         # Publish YoloResult with the image's own timestamp
         result_msg = YoloResult()
@@ -604,9 +515,8 @@ class SimCamera:
             try:
                 cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
                 self._draw_detections(cv_image, detections, self.name)
-                # Overlay segmentation masks as colored translucent regions
-                if self.seg_templates and masks:
-                    self._draw_seg_masks(cv_image, detections, masks)
+                if masks:
+                    self._draw_seg_masks(cv_image, masks)
                 out_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
                 out_msg.header.stamp = stamp
                 self.image_pub.publish(out_msg)
@@ -658,28 +568,21 @@ class SimCamera:
                 1,
             )
 
-    def _draw_seg_masks(
-        self,
-        image: np.ndarray,
-        detections: List[Detection2D],
-        masks: List[Image],
-    ):
+    def _draw_seg_masks(self, image: np.ndarray, masks: List[Image]):
         """Overlay segmentation masks as translucent colored regions."""
-        colors = [(0, 200, 255), (255, 100, 200)]  # bottle=yellow-ish, ladle=pink
-        for det, mask_msg in zip(detections, masks):
+        colors = [(0, 200, 255), (255, 100, 200)]  # bottle=yellow, ladle=pink
+        overlay = image.copy()
+        any_drawn = False
+        for i, mask_msg in enumerate(masks):
             if mask_msg.height == 0 or mask_msg.width == 0:
-                continue  # placeholder (non-seg object)
-            try:
-                mask = self.bridge.imgmsg_to_cv2(mask_msg, "mono8")
-                if mask.shape[:2] != image.shape[:2]:
-                    continue
-                cls_id = int(det.results[0].id) if det.results else 0
-                color = colors[cls_id % len(colors)]
-                overlay = image.copy()
-                overlay[mask > 127] = color
-                cv2.addWeighted(overlay, 0.35, image, 0.65, 0, image)
-            except Exception:
-                pass
+                continue
+            mask = self.bridge.imgmsg_to_cv2(mask_msg, "mono8")
+            if mask.shape[:2] != image.shape[:2]:
+                continue
+            overlay[mask > 127] = colors[i % len(colors)]
+            any_drawn = True
+        if any_drawn:
+            cv2.addWeighted(overlay, 0.35, image, 0.65, 0, image)
 
 
 class SimBboxNode:
@@ -865,23 +768,13 @@ class SimBboxNode:
             )
         )  # octagon_bin_pink (-Y basket)
 
-        # --- Segmentation templates (loaded once, used for dynamic discovery) ---
-        # Body: simple box up to Z=0.145 (below the cap)
-        bottle_body_faces = make_box_faces(-0.032, 0.032, -0.033, 0.033, -0.005, 0.145)
-        
-        # Cap: DAE mesh filtered for Z >= 0.145
-        bottle_dae_faces = load_dae_faces("models/robosub_bottle/meshes/bottle_final1.dae")
-        bottle_cap_faces = filter_faces_by_z(bottle_dae_faces, 0.145)
-        rospy.loginfo(f"Bottle Cap: {len(bottle_cap_faces)} mesh faces retained for segmentation")
-
+        # Segmentation templates — loaded once, dynamically discover Gazebo instances
+        bottle_faces = load_dae_faces("models/robosub_bottle/meshes/bottle_final1.dae")
         ladle_faces = load_dae_faces("models/robosub_ladle/meshes/ladle.dae")
-        rospy.loginfo(f"Ladle: {len(ladle_faces)} mesh faces loaded for segmentation")
-
-        # Combine body and cap faces into a single template so they form one mask
-        combined_bottle_faces = bottle_body_faces + bottle_cap_faces
+        rospy.loginfo(f"Seg faces loaded — bottle: {len(bottle_faces)}, ladle: {len(ladle_faces)}")
 
         seg_templates: List[SegTemplate] = [
-            SegTemplate(class_id=0, model_prefix="bottle_final1", faces=combined_bottle_faces),
+            SegTemplate(class_id=0, model_prefix="bottle_final1", faces=bottle_faces),
             SegTemplate(class_id=1, model_prefix="ladle_final1", faces=ladle_faces),
         ]
 
