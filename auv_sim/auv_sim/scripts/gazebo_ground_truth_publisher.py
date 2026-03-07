@@ -90,7 +90,9 @@ class GroundTruthPublisher:
         self._last_odom_update = rospy.Time(0)
 
         if self.yaw_offset != 0.0:
-            rospy.loginfo(f"Yaw offset: {self.yaw_offset:.3f} rad ({np.degrees(self.yaw_offset):.1f} deg)")
+            rospy.loginfo(
+                f"Yaw offset: {self.yaw_offset:.3f} rad ({np.degrees(self.yaw_offset):.1f} deg)"
+            )
 
         rospy.loginfo(
             f"Ground truth publisher started. "
@@ -120,9 +122,9 @@ class GroundTruthPublisher:
     def _pose_to_matrix(self, position, orientation):
         """Pose → 4x4 homogeneous matrix."""
         T = tft.translation_matrix([position.x, position.y, position.z])
-        R = tft.quaternion_matrix([
-            orientation.x, orientation.y, orientation.z, orientation.w
-        ])
+        R = tft.quaternion_matrix(
+            [orientation.x, orientation.y, orientation.z, orientation.w]
+        )
         return np.dot(T, R)
 
     def _update_odom_world_transform(self):
@@ -132,7 +134,9 @@ class GroundTruthPublisher:
         pozisyonlarının farkından hesaplanır.
         """
         now = rospy.Time.now()
-        if (now - self._last_odom_update).to_sec() < 0.5 and self._M_odom_in_world is not None:
+        if (
+            now - self._last_odom_update
+        ).to_sec() < 0.5 and self._M_odom_in_world is not None:
             return True
 
         try:
@@ -143,8 +147,10 @@ class GroundTruthPublisher:
                 return False
 
             ros_robot = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.robot_base_frame,
-                rospy.Time(0), rospy.Duration(1.0)
+                self.odom_frame,
+                self.robot_base_frame,
+                rospy.Time(0),
+                rospy.Duration(1.0),
             )
 
             M_robot_in_world = self._pose_to_matrix(
@@ -203,9 +209,7 @@ class GroundTruthPublisher:
             return
 
         if not state.success:
-            rospy.logwarn_throttle(
-                10.0, f"Model '{model_name}' not found in Gazebo"
-            )
+            rospy.logwarn_throttle(10.0, f"Model '{model_name}' not found in Gazebo")
             return
 
         result = self._gazebo_pose_to_odom(state.pose.position, state.pose.orientation)

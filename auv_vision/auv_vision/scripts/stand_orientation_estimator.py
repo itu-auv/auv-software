@@ -35,6 +35,7 @@ from cv_bridge import CvBridge
 import tf2_ros
 import tf.transformations as tft
 
+
 def pointcloud2_to_array(cloud_msg):
     """
     PointCloud2 mesajını (H, W, 3) numpy array'ine dönüştür.
@@ -45,7 +46,7 @@ def pointcloud2_to_array(cloud_msg):
     for field in cloud_msg.fields:
         field_map[field.name] = field.offset
 
-    if 'x' not in field_map or 'y' not in field_map or 'z' not in field_map:
+    if "x" not in field_map or "y" not in field_map or "z" not in field_map:
         return None
 
     point_step = cloud_msg.point_step
@@ -57,22 +58,23 @@ def pointcloud2_to_array(cloud_msg):
 
     # Organized cloud kontrolü
     if h <= 1:
-        rospy.logwarn_throttle(5.0, "Point cloud is unorganized (height=1), "
-                               "will reshape by width only.")
+        rospy.logwarn_throttle(
+            5.0, "Point cloud is unorganized (height=1), " "will reshape by width only."
+        )
         h = 1
 
     points = np.zeros((h, w, 3), dtype=np.float32)
 
-    x_off = field_map['x']
-    y_off = field_map['y']
-    z_off = field_map['z']
+    x_off = field_map["x"]
+    y_off = field_map["y"]
+    z_off = field_map["z"]
 
     for v in range(h):
         for u in range(w):
             idx = v * row_step + u * point_step
-            x = struct.unpack_from('f', data, idx + x_off)[0]
-            y = struct.unpack_from('f', data, idx + y_off)[0]
-            z = struct.unpack_from('f', data, idx + z_off)[0]
+            x = struct.unpack_from("f", data, idx + x_off)[0]
+            y = struct.unpack_from("f", data, idx + y_off)[0]
+            z = struct.unpack_from("f", data, idx + z_off)[0]
             points[v, u] = [x, y, z]
 
     return points
@@ -160,8 +162,12 @@ class StandOrientationEstimator:
         self.hsv_upper = np.array(rospy.get_param("~hsv_upper", [40, 255, 255]))
 
         # Valve rengi: Turuncu (HSV aralığı) — pozisyon için
-        self.valve_hsv_lower = np.array(rospy.get_param("~valve_hsv_lower", [5, 150, 150]))
-        self.valve_hsv_upper = np.array(rospy.get_param("~valve_hsv_upper", [20, 255, 255]))
+        self.valve_hsv_lower = np.array(
+            rospy.get_param("~valve_hsv_lower", [5, 150, 150])
+        )
+        self.valve_hsv_upper = np.array(
+            rospy.get_param("~valve_hsv_upper", [20, 255, 255])
+        )
         self.min_valve_area = rospy.get_param("~min_valve_area", 200)
 
         # Minimum tespit alanı (piksel²)
@@ -194,17 +200,13 @@ class StandOrientationEstimator:
         self.debug_image_pub = rospy.Publisher(
             "stand_orientation/debug_image", Image, queue_size=1
         )
-        self.mask_pub = rospy.Publisher(
-            "stand_orientation/mask", Image, queue_size=1
-        )
+        self.mask_pub = rospy.Publisher("stand_orientation/mask", Image, queue_size=1)
         self.valve_mask_pub = rospy.Publisher(
             "stand_orientation/valve_mask", Image, queue_size=1
         )
 
         # ---- Subscribers ----
-        color_topic = rospy.get_param(
-            "~color_topic", "/taluy/camera/color/image_raw"
-        )
+        color_topic = rospy.get_param("~color_topic", "/taluy/camera/color/image_raw")
         cloud_topic = rospy.get_param(
             "~cloud_topic", "/taluy/camera/depth/color/points"
         )
@@ -275,7 +277,7 @@ class StandOrientationEstimator:
                 3.0,
                 f"Not enough valid 3D points for plane fit: "
                 f"{0 if points_3d is None else len(points_3d)} "
-                f"(need {self.min_points_for_plane})"
+                f"(need {self.min_points_for_plane})",
             )
             if self.publish_debug_image:
                 self.publish_debug(frame, contour, None, None, None)
@@ -298,8 +300,7 @@ class StandOrientationEstimator:
 
         if inlier_ratio < self.min_inlier_ratio:
             rospy.logwarn_throttle(
-                3.0,
-                f"Low inlier ratio: {inlier_ratio:.2f} < {self.min_inlier_ratio}"
+                3.0, f"Low inlier ratio: {inlier_ratio:.2f} < {self.min_inlier_ratio}"
             )
             return
 
@@ -326,15 +327,13 @@ class StandOrientationEstimator:
         orientation = self.normal_to_quaternion(normal)
 
         # 8) TF yayınla
-        self.publish_stand_tf(
-            self.cloud_header, position, orientation
-        )
+        self.publish_stand_tf(self.cloud_header, position, orientation)
 
         rospy.loginfo_throttle(
             2.0,
             f"Stand detected [{source}] — pos: [{position[0]:.2f}, {position[1]:.2f}, "
             f"{position[2]:.2f}] normal: [{normal[0]:.2f}, {normal[1]:.2f}, "
-            f"{normal[2]:.2f}] inlier: {inlier_ratio:.1%}"
+            f"{normal[2]:.2f}] inlier: {inlier_ratio:.1%}",
         )
 
         if self.publish_debug_image:
@@ -366,9 +365,7 @@ class StandOrientationEstimator:
             self.mask_pub.publish(mask_msg)
 
         # Kontür bul
-        contours, _ = cv2.findContours(
-            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         if not contours:
             return mask, None, None
@@ -400,9 +397,7 @@ class StandOrientationEstimator:
             mask_msg = self.bridge.cv2_to_imgmsg(mask, encoding="mono8")
             self.valve_mask_pub.publish(mask_msg)
 
-        contours, _ = cv2.findContours(
-            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         if not contours:
             return None
@@ -460,9 +455,9 @@ class StandOrientationEstimator:
         for field in cloud.fields:
             field_map[field.name] = field.offset
 
-        x_off = field_map.get('x', 0)
-        y_off = field_map.get('y', 4)
-        z_off = field_map.get('z', 8)
+        x_off = field_map.get("x", 0)
+        y_off = field_map.get("y", 4)
+        z_off = field_map.get("z", 8)
         point_step = cloud.point_step
         row_step = cloud.row_step
         data = cloud.data
@@ -472,9 +467,9 @@ class StandOrientationEstimator:
             idx = v * row_step + u * point_step
             if idx + z_off + 4 > len(data):
                 continue
-            x = struct.unpack_from('f', data, idx + x_off)[0]
-            y = struct.unpack_from('f', data, idx + y_off)[0]
-            z = struct.unpack_from('f', data, idx + z_off)[0]
+            x = struct.unpack_from("f", data, idx + x_off)[0]
+            y = struct.unpack_from("f", data, idx + y_off)[0]
+            z = struct.unpack_from("f", data, idx + z_off)[0]
 
             # NaN/Inf kontrolü
             if math.isnan(x) or math.isnan(y) or math.isnan(z):
@@ -559,9 +554,7 @@ class StandOrientationEstimator:
         t.header.frame_id = header.frame_id
         t.child_frame_id = "valve_stand_link"
         t.transform.translation = Vector3(
-            x=float(centroid[0]),
-            y=float(centroid[1]),
-            z=float(centroid[2])
+            x=float(centroid[0]), y=float(centroid[1]), z=float(centroid[2])
         )
         t.transform.rotation = orientation
 
@@ -591,23 +584,26 @@ class StandOrientationEstimator:
                 vcx = int(M["m10"] / M["m00"])
                 vcy = int(M["m01"] / M["m00"])
                 cv2.circle(debug, (vcx, vcy), 8, (0, 0, 255), -1)
-                cv2.putText(debug, "VALVE", (vcx + 12, vcy),
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 128, 255), 2)
+                cv2.putText(
+                    debug,
+                    "VALVE",
+                    (vcx + 12, vcy),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 128, 255),
+                    2,
+                )
 
         if centroid is not None:
-            text = (
-                f"Pos: ({centroid[0]:.2f}, {centroid[1]:.2f}, {centroid[2]:.2f})"
-            )
+            text = f"Pos: ({centroid[0]:.2f}, {centroid[1]:.2f}, {centroid[2]:.2f})"
             cv2.putText(
-                debug, text, (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2
+                debug, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2
             )
 
         if normal is not None:
             text = f"Normal: ({normal[0]:.2f}, {normal[1]:.2f}, {normal[2]:.2f})"
             cv2.putText(
-                debug, text, (10, 60),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2
+                debug, text, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2
             )
 
             # Normal yönünü ok olarak çiz (2D projeksiyon)
@@ -620,8 +616,12 @@ class StandOrientationEstimator:
                     dx = int(normal[0] * arrow_len)
                     dy = int(normal[1] * arrow_len)
                     cv2.arrowedLine(
-                        debug, (cx, cy), (cx + dx, cy + dy),
-                        (0, 0, 255), 3, tipLength=0.3
+                        debug,
+                        (cx, cy),
+                        (cx + dx, cy + dy),
+                        (0, 0, 255),
+                        3,
+                        tipLength=0.3,
                     )
                     cv2.circle(debug, (cx, cy), 5, (0, 255, 0), -1)
 
@@ -630,8 +630,13 @@ class StandOrientationEstimator:
         status = f"DETECTED [{source}]" if centroid is not None else "SEARCHING..."
         color = (0, 255, 0) if centroid is not None else (0, 0, 255)
         cv2.putText(
-            debug, status, (10, frame.shape[0] - 20),
-            cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2
+            debug,
+            status,
+            (10, frame.shape[0] - 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            color,
+            2,
         )
 
         debug_msg = self.bridge.cv2_to_imgmsg(debug, encoding="bgr8")

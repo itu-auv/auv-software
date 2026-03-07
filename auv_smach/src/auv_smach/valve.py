@@ -64,7 +64,11 @@ class ValveTaskState(smach.State):
         )
 
         # İlk state: ground truth modunda detection'ı atla
-        first_state = "ENABLE_COARSE_APPROACH_PUBLISHER" if use_ground_truth else "ENABLE_FRONT_CAMERA_FOCUS"
+        first_state = (
+            "ENABLE_COARSE_APPROACH_PUBLISHER"
+            if use_ground_truth
+            else "ENABLE_FRONT_CAMERA_FOCUS"
+        )
         self.state_machine.set_initial_state([first_state])
 
         with self.state_machine:

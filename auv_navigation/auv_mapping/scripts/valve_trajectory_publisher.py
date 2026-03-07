@@ -60,25 +60,19 @@ class ValveTrajectoryPublisherNode:
         self.robot_frame = "taluy/base_link"
 
         # Kaynak frame (valve_detector.py tarafından yayınlanır)
-        self.valve_frame = rospy.get_param(
-            "~valve_frame", "valve_stand_link"
-        )
+        self.valve_frame = rospy.get_param("~valve_frame", "valve_stand_link")
 
         # Hedef frame isimleri
         self.coarse_approach_frame = rospy.get_param(
             "~coarse_approach_frame", "valve_coarse_approach_frame"
         )
-        self.approach_frame = rospy.get_param(
-            "~approach_frame", "valve_approach_frame"
-        )
-        self.contact_frame = rospy.get_param(
-            "~contact_frame", "valve_contact_frame"
-        )
+        self.approach_frame = rospy.get_param("~approach_frame", "valve_approach_frame")
+        self.contact_frame = rospy.get_param("~contact_frame", "valve_contact_frame")
 
         # Default offset değerleri (dynamic reconfigure ile değiştirilir)
         self.coarse_approach_offset = 1.75  # metre
-        self.approach_offset = 1.25         # metre
-        self.contact_offset = 0.625        # metre
+        self.approach_offset = 1.25  # metre
+        self.contact_offset = 0.625  # metre
 
         # Dynamic reconfigure server
         self.reconfigure_server = Server(
@@ -184,12 +178,13 @@ class ValveTrajectoryPublisherNode:
         """
         try:
             robot_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.robot_frame,
-                rospy.Time(0), rospy.Duration(4.0)
+                self.odom_frame, self.robot_frame, rospy.Time(0), rospy.Duration(4.0)
             )
             valve_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.valve_frame,
-                rospy.Time(0), rospy.Duration(4.0),
+                self.odom_frame,
+                self.valve_frame,
+                rospy.Time(0),
+                rospy.Duration(4.0),
             )
         except (
             tf2_ros.LookupException,
@@ -202,21 +197,19 @@ class ValveTrajectoryPublisherNode:
         robot_pose = self.get_pose(robot_tf)
         valve_pose = self.get_pose(valve_tf)
 
-        robot_pos = np.array([
-            robot_pose.position.x, robot_pose.position.y, robot_pose.position.z
-        ])
-        valve_pos = np.array([
-            valve_pose.position.x, valve_pose.position.y, valve_pose.position.z
-        ])
+        robot_pos = np.array(
+            [robot_pose.position.x, robot_pose.position.y, robot_pose.position.z]
+        )
+        valve_pos = np.array(
+            [valve_pose.position.x, valve_pose.position.y, valve_pose.position.z]
+        )
 
         # Robot → Valve yön vektörü (XY düzleminde)
         direction_vector_2d = valve_pos[:2] - robot_pos[:2]
         total_distance_2d = np.linalg.norm(direction_vector_2d)
 
         if total_distance_2d == 0:
-            rospy.logwarn_throttle(
-                5.0, "Robot and valve at same XY position!"
-            )
+            rospy.logwarn_throttle(5.0, "Robot and valve at same XY position!")
             return
 
         direction_unit_2d = direction_vector_2d / total_distance_2d
@@ -226,7 +219,9 @@ class ValveTrajectoryPublisherNode:
         q = tf.transformations.quaternion_from_euler(0, 0, yaw)
 
         # Coarse approach pozisyonu: vanadan geriye
-        coarse_pos_2d = valve_pos[:2] - (direction_unit_2d * self.coarse_approach_offset)
+        coarse_pos_2d = valve_pos[:2] - (
+            direction_unit_2d * self.coarse_approach_offset
+        )
 
         coarse_pose = Pose()
         coarse_pose.position.x = coarse_pos_2d[0]
@@ -252,8 +247,10 @@ class ValveTrajectoryPublisherNode:
         """
         try:
             valve_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.valve_frame,
-                rospy.Time(0), rospy.Duration(4.0),
+                self.odom_frame,
+                self.valve_frame,
+                rospy.Time(0),
+                rospy.Duration(4.0),
             )
         except (
             tf2_ros.LookupException,
@@ -264,9 +261,9 @@ class ValveTrajectoryPublisherNode:
             return
 
         valve_pose = self.get_pose(valve_tf)
-        valve_pos = np.array([
-            valve_pose.position.x, valve_pose.position.y, valve_pose.position.z
-        ])
+        valve_pos = np.array(
+            [valve_pose.position.x, valve_pose.position.y, valve_pose.position.z]
+        )
 
         # Valve yüzey normalinden approach yönünü hesapla
         result = self.get_valve_surface_normal_2d(valve_tf)
@@ -303,8 +300,10 @@ class ValveTrajectoryPublisherNode:
         """
         try:
             valve_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.valve_frame,
-                rospy.Time(0), rospy.Duration(4.0),
+                self.odom_frame,
+                self.valve_frame,
+                rospy.Time(0),
+                rospy.Duration(4.0),
             )
         except (
             tf2_ros.LookupException,
@@ -314,9 +313,9 @@ class ValveTrajectoryPublisherNode:
             return
 
         valve_pose = self.get_pose(valve_tf)
-        valve_pos = np.array([
-            valve_pose.position.x, valve_pose.position.y, valve_pose.position.z
-        ])
+        valve_pos = np.array(
+            [valve_pose.position.x, valve_pose.position.y, valve_pose.position.z]
+        )
 
         # Valve yüzey normalinden contact yönünü hesapla
         result = self.get_valve_surface_normal_2d(valve_tf)

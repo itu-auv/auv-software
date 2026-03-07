@@ -36,6 +36,7 @@ catkin_install_python(
     scripts/opencv_pipe_detector.py
     scripts/pipe_follower.py
     scripts/valve_detector.py
+    scripts/stand_orientation_estimator.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
