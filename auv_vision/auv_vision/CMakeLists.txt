@@ -38,7 +38,7 @@ catkin_install_python(
     scripts/yolo_image_annotator.py
     scripts/yolo_seg_to_mask.py
     scripts/pipe_follower_legacy.py
-
+    scripts/sim_bbox_node.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
