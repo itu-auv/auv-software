@@ -63,7 +63,7 @@ class ValveTaskState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"]
         )
 
-        # İlk state: ground truth modunda detection'ı atla
+        # Initial state: skip detection in ground truth mode
         first_state = (
             "ENABLE_COARSE_APPROACH_PUBLISHER"
             if use_ground_truth
@@ -72,7 +72,7 @@ class ValveTaskState(smach.State):
         self.state_machine.set_initial_state([first_state])
 
         with self.state_machine:
-            # 1-2: Detection states (ground truth modunda atlanır)
+            # 1-2: Detection states (skipped in ground truth mode)
             if not use_ground_truth:
                 smach.StateMachine.add(
                     "ENABLE_FRONT_CAMERA_FOCUS",
@@ -94,10 +94,10 @@ class ValveTaskState(smach.State):
                 )
 
             # =========================================================
-            #  PHASE 1: COARSE APPROACH (oryantasyonsuz, robot→valve)
+            #  PHASE 1: COARSE APPROACH (unoriented, robot->valve)
             # =========================================================
 
-            # 3. Coarse approach frame yayınını başlat
+            # 3. Start coarse approach frame publisher
             smach.StateMachine.add(
                 "ENABLE_COARSE_APPROACH_PUBLISHER",
                 ValveCoarseApproachFramePublisherServiceState(req=True),
@@ -107,7 +107,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 4. Valve derinliğine in
+            # 4. Descend to valve depth
             smach.StateMachine.add(
                 "SET_VALVE_DEPTH",
                 SetDepthState(depth=valve_depth),
@@ -117,7 +117,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 5. Valve'i bul ve yönünü ayarla
+            # 5. Find and aim at valve
             smach.StateMachine.add(
                 "FIND_AND_AIM_VALVE",
                 SearchForPropState(
@@ -134,7 +134,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 6. Coarse approach frame'e git
+            # 6. Navigate to coarse approach frame
             smach.StateMachine.add(
                 "PATH_TO_COARSE_APPROACH",
                 DynamicPathState(
@@ -146,7 +146,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 7. Coarse approach frame'e hizalan
+            # 7. Align to coarse approach frame
             smach.StateMachine.add(
                 "ALIGN_TO_COARSE_APPROACH",
                 AlignFrame(
@@ -164,7 +164,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 8. Coarse approach publisher'ı kapat
+            # 8. Disable coarse approach publisher
             smach.StateMachine.add(
                 "DISABLE_COARSE_APPROACH_PUBLISHER",
                 ValveCoarseApproachFramePublisherServiceState(req=False),
@@ -176,10 +176,10 @@ class ValveTaskState(smach.State):
             )
 
             # =========================================================
-            #  PHASE 2: ORIENTED APPROACH (yüzey normaline dik)
+            #  PHASE 2: ORIENTED APPROACH (perpendicular to surface normal)
             # =========================================================
 
-            # 9. Oriented approach publisher'ı aç
+            # 9. Enable oriented approach publisher
             smach.StateMachine.add(
                 "ENABLE_APPROACH_PUBLISHER",
                 ValveApproachFramePublisherServiceState(req=True),
@@ -189,7 +189,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 10. Approach frame'in oluşması için bekle
+            # 10. Wait for approach frame generation
             smach.StateMachine.add(
                 "WAIT_FOR_APPROACH_FRAME",
                 DelayState(delay_time=2.0),
@@ -199,7 +199,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 11. Approach frame'e hizalan (oryantasyonlu)
+            # 11. Align to approach frame (oriented)
             smach.StateMachine.add(
                 "ALIGN_TO_APPROACH",
                 AlignFrame(
@@ -217,7 +217,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 12. Approach publisher'ı kapat
+            # 12. Disable oriented approach publisher
             smach.StateMachine.add(
                 "DISABLE_APPROACH_PUBLISHER",
                 ValveApproachFramePublisherServiceState(req=False),
@@ -229,10 +229,10 @@ class ValveTaskState(smach.State):
             )
 
             # =========================================================
-            #  PHASE 3: CONTACT (yüzey normaline dik, temas)
+            #  PHASE 3: CONTACT (perpendicular to surface normal, contact)
             # =========================================================
 
-            # 13. Contact publisher'ı aç
+            # 13. Enable contact publisher
             smach.StateMachine.add(
                 "ENABLE_CONTACT_PUBLISHER",
                 ValveContactFramePublisherServiceState(req=True),
@@ -242,7 +242,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 14. Contact frame'in oluşması için bekle
+            # 14. Wait for contact frame generation
             smach.StateMachine.add(
                 "WAIT_FOR_CONTACT_FRAME",
                 DelayState(delay_time=2.0),
@@ -252,7 +252,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 15. Contact frame'e hassas hizalama
+            # 15. Precise alignment to contact frame
             smach.StateMachine.add(
                 "ALIGN_TO_CONTACT",
                 AlignFrame(
@@ -273,7 +273,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 16. Contact publisher'ı kapat
+            # 16. Disable contact publisher
             smach.StateMachine.add(
                 "DISABLE_CONTACT_PUBLISHER",
                 ValveContactFramePublisherServiceState(req=False),
@@ -283,7 +283,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 17. Controller'ı sıfırla
+            # 17. Reset controller
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),

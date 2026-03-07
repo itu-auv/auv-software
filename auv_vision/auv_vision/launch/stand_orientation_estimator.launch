@@ -3,8 +3,8 @@
     <!--
     Stand Orientation Estimator
     ============================
-    RealSense stereo kamerasından noktabulutu ile
-    valve standının oryantasyonunu hesaplar.
+    Calculates the valve stand orientation
+    using the point cloud from RealSense stereo camera.
     -->
 
     <arg name="namespace" default="taluy" />
@@ -14,24 +14,24 @@
           type="stand_orientation_estimator.py"
           output="screen">
 
-        <!-- RealSense topic'leri -->
+        <!-- RealSense topics -->
         <param name="color_topic" value="/$(arg namespace)/camera/color/image_raw" />
         <param name="cloud_topic" value="/$(arg namespace)/camera/depth/color/points" />
 
-        <!-- Stand rengi: Sarı paneller (HSV) — oryantasyon için -->
+        <!-- Stand color: Yellow panels (HSV) - for orientation -->
         <rosparam param="hsv_lower">[20, 80, 80]</rosparam>
         <rosparam param="hsv_upper">[40, 255, 255]</rosparam>
 
-        <!-- Valve rengi: Turuncu (HSV) — pozisyon için -->
+        <!-- Valve color: Orange (HSV) - for position -->
         <rosparam param="valve_hsv_lower">[5, 150, 150]</rosparam>
         <rosparam param="valve_hsv_upper">[20, 255, 255]</rosparam>
         <param name="min_valve_area" value="200" />
 
-        <!-- Tespit parametreleri -->
+        <!-- Detection parameters -->
         <param name="min_contour_area" value="500" />
         <param name="morph_kernel_size" value="7" />
 
-        <!-- RANSAC parametreleri -->
+        <!-- RANSAC parameters -->
         <param name="ransac_iterations" value="300" />
         <param name="ransac_threshold" value="0.03" />
         <param name="min_inlier_ratio" value="0.3" />
@@ -40,7 +40,7 @@
         <!-- Debug -->
         <param name="publish_debug_image" value="true" />
 
-        <!-- Remap: object_map_tf_server'a yaz -->
+        <!-- Remap: publish to object_map_tf_server -->
         <remap from="object_transform_updates" to="map/set_object_transform" />
     </node>
 </launch>
