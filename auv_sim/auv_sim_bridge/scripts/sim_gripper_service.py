@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import rospy
+from std_msgs.msg import UInt16
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from gazebo_msgs.srv import SetModelConfiguration, ApplyJointEffort, JointRequest
 from sensor_msgs.msg import JointState
@@ -86,6 +87,9 @@ class GripperService:
         rospy.Service("actuators/gripper/open", Trigger, self.handle_open)
         rospy.Service("actuators/gripper/close", Trigger, self.handle_close)
         rospy.Service("actuators/gripper/neutral", Trigger, self.handle_neutral)
+
+        # Topic for real life gripper compatibility
+        rospy.Subscriber("actuators/gripper/set_angle", UInt16, self.handle_set_angle)
 
         rospy.loginfo(
             f"[gripper_service] Ready for model='{self.model_name}', joints=({self.left_joint}, {self.right_joint}), robot_description='{self.robot_description_param}'"
@@ -399,6 +403,16 @@ class GripperService:
         return TriggerResponse(
             success=ok, message="neutral" if ok else "neutral failed"
         )
+
+    def handle_set_angle(self, msg):
+        if msg.data == 1930:
+            rospy.loginfo("[gripper_service] Received angle 1930 (open state), opening gripper")
+            self.handle_open(None)
+        elif msg.data == 600:
+            rospy.loginfo("[gripper_service] Received angle 600 (close state), closing gripper")
+            self.handle_close(None)
+        else:
+            rospy.logwarn(f"[gripper_service] Received unmapped angle {msg.data}, ignoring")
 
     def run(self):
         rospy.spin()
