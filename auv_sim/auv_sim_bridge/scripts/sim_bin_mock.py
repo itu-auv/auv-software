@@ -16,29 +16,42 @@ class DropBallServer:
         tf2_ros.TransformListener(self.tf_buffer)
 
         self.base_frame = rospy.get_param("~base_frame", "taluy/base_link")
-        self.drop_frame = rospy.get_param(
-            "~drop_frame", "taluy/base_link/ball_dropper_link"
-        )
-        self.model_pkg = rospy.get_param("~model_package", "auv_sim_description")
-        self.model_dir = rospy.get_param("~model_subdir", "models/robosub_bin")
 
         self.ball_models = [
-            {"file": "ball.sdf", "name": "sphere_one"},
-            {"file": "ball.sdf", "name": "sphere_two"},
+            {
+                "file": "ball.sdf",
+                "name": "sphere_one",
+                "drop_frame": rospy.get_param(
+                    "~drop_frame_1", "taluy/base_link/ball_dropper_1_link"
+                ),
+            },
+            {
+                "file": "ball.sdf",
+                "name": "sphere_two",
+                "drop_frame": rospy.get_param(
+                    "~drop_frame_2", "taluy/base_link/ball_dropper_2_link"
+                ),
+            },
         ]
+
+        self.drop_index = 0
+
+        self.model_pkg = rospy.get_param("~model_package", "auv_sim_description")
+        self.model_dir = rospy.get_param("~model_subdir", "models/robosub_bin")
 
         rospy.wait_for_service("/gazebo/spawn_sdf_model")
         self.spawn_model = rospy.ServiceProxy("/gazebo/spawn_sdf_model", SpawnModel)
 
         rospy.Service("actuators/ball_dropper/drop", Trigger, self.handle_drop_ball)
         rospy.loginfo(
-            f"[drop_ball_server] Ready. base_frame={self.base_frame}, drop_frame={self.drop_frame}"
+            f"[drop_ball_server] Ready. base_frame={self.base_frame}, "
+            f"drop_frames=[{self.ball_models[0]['drop_frame']}, {self.ball_models[1]['drop_frame']}]"
         )
 
-    def lookup_drop_pose(self, timeout: float = 4.0) -> Pose:
+    def lookup_drop_pose(self, drop_frame: str, timeout: float = 4.0) -> Pose:
         try:
             trans = self.tf_buffer.lookup_transform(
-                self.base_frame, self.drop_frame, rospy.Time(0), rospy.Duration(timeout)
+                self.base_frame, drop_frame, rospy.Time(0), rospy.Duration(timeout)
             )
         except TransformException as e:
             raise
@@ -52,34 +65,41 @@ class DropBallServer:
 
     def handle_drop_ball(self, req) -> TriggerResponse:
         try:
-            pose = self.lookup_drop_pose()
+            if self.drop_index >= len(self.ball_models):
+                return TriggerResponse(
+                    success=False, message="All balls already dropped."
+                )
+
+            model = self.ball_models[self.drop_index]
+            pose = self.lookup_drop_pose(model["drop_frame"])
 
             rp = rospkg.RosPack()
             pkg_path = rp.get_path(self.model_pkg)
             model_dir = os.path.join(pkg_path, self.model_dir)
 
-            for model in self.ball_models:
-                path = os.path.join(model_dir, model["file"])
-                with open(path, "r") as f:
-                    xml = f.read()
+            path = os.path.join(model_dir, model["file"])
+            with open(path, "r") as f:
+                xml = f.read()
 
-                resp = self.spawn_model(
-                    model_name=model["name"],
-                    model_xml=xml,
-                    robot_namespace="",
-                    initial_pose=pose,
-                    reference_frame=self.base_frame,
+            resp = self.spawn_model(
+                model_name=model["name"],
+                model_xml=xml,
+                robot_namespace="",
+                initial_pose=pose,
+                reference_frame=self.base_frame,
+            )
+            if resp.success:
+                msg = f"{model['name']} spawned from {model['drop_frame']}."
+                rospy.loginfo(msg)
+                self.drop_index += 1
+                return TriggerResponse(success=True, message=msg)
+            else:
+                rospy.logwarn(
+                    f"{model['name']} spawn failed: {resp.status_message}"
                 )
-                if resp.success:
-                    msg = f"{model['name']} spawned."
-                    rospy.loginfo(msg)
-                    return TriggerResponse(success=True, message=msg)
-                else:
-                    rospy.logwarn(
-                        f"{model['name']} spawn failed: {resp.status_message}"
-                    )
-
-            return TriggerResponse(success=False, message="No model spawned.")
+                return TriggerResponse(
+                    success=False, message=f"Spawn failed: {resp.status_message}"
+                )
 
         except TransformException as te:
             err = f"TF lookup failed: {te}"
