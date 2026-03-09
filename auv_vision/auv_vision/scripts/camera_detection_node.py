@@ -124,6 +124,23 @@ class CameraDetectionNode:
     def _dispatch(self, msg, cam_key):
         if not self.camera_enabled.get(cam_key, False):
             return
+
+        camera_frame = self.config["cameras"][cam_key]["frame"]
+        try:
+            self.tf_buffer.lookup_transform(
+                camera_frame,
+                "odom",
+                msg.header.stamp,
+                rospy.Duration(1.0),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(15.0, f"Transform error: {e}")
+            return
+
         self.handlers[cam_key].handle(msg)
 
     def _odometry_callback(self, msg: Odometry):
