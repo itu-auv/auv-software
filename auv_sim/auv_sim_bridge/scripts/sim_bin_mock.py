@@ -94,9 +94,7 @@ class DropBallServer:
                 self.drop_index += 1
                 return TriggerResponse(success=True, message=msg)
             else:
-                rospy.logwarn(
-                    f"{model['name']} spawn failed: {resp.status_message}"
-                )
+                rospy.logwarn(f"{model['name']} spawn failed: {resp.status_message}")
                 return TriggerResponse(
                     success=False, message=f"Spawn failed: {resp.status_message}"
                 )

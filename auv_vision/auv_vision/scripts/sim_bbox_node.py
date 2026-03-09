@@ -591,6 +591,7 @@ class SimBboxNode:
             "realsense": [],
         }
         import copy
+
         for obj in all_objects:
             objects_by_camera[obj.camera].append(obj)
             if obj.camera == "front":
