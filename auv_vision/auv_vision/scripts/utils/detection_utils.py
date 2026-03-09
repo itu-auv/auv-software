@@ -191,7 +191,7 @@ def transform_to_odom_and_publish(
         tf2_ros.ConnectivityException,
         tf2_ros.ExtrapolationException,
     ) as e:
-        rospy.logerr(f"Transform error for {child_frame_id}: {e}")
+        rospy.logwarn_throttle(5.0, f"Transform error for {child_frame_id}: {e}")
 
 
 def calculate_intersection_with_plane(point1_odom, point2_odom, z_plane):
