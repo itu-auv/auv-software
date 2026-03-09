@@ -43,6 +43,13 @@ class BottomCameraHandler:
         """Called by orchestrator when set_bottom_camera_focus service is triggered."""
         self.active_ids = ids
 
+        # Bottom camera specific state
+        self.active_ids = [0, 1]  # Default to 'bin' focus
+
+    def set_active_ids(self, ids: list):
+        """Called by orchestrator when set_bottom_camera_focus service is triggered."""
+        self.active_ids = ids
+
     def handle(self, detection_msg: YoloResult):
         stamp = detection_msg.header.stamp
 
