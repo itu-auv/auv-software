@@ -116,7 +116,9 @@ class ModelSpawner:
             pose.position.z = z
 
             # 90 degree rotation around Y axis (pi/2 radians) to make them horizontal
-            q = tft.quaternion_from_euler(0, math.pi / 2, random.uniform(0, 2*math.pi))
+            q = tft.quaternion_from_euler(
+                0, math.pi / 2, random.uniform(0, 2 * math.pi)
+            )
             pose.orientation.x = q[0]
             pose.orientation.y = q[1]
             pose.orientation.z = q[2]
@@ -132,7 +134,9 @@ class ModelSpawner:
 
             if resp.success:
                 self.spawned_positions.append((x, y))
-                msg = f"[spawn_model_server] Spawned '{unique_name}' at {x:.2f}, {y:.2f}"
+                msg = (
+                    f"[spawn_model_server] Spawned '{unique_name}' at {x:.2f}, {y:.2f}"
+                )
                 rospy.loginfo(msg)
                 return True, msg
             else:

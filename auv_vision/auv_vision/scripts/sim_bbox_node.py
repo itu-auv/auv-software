@@ -517,9 +517,7 @@ class SimCamera:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn_throttle(
-                5, f"[{self.name}] static TF not yet available: {e}"
-            )
+            rospy.logwarn_throttle(5, f"[{self.name}] static TF not yet available: {e}")
             return None
 
     @staticmethod

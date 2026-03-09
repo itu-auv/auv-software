@@ -12,8 +12,8 @@
   <!-- Parallel Gripper Macro -->
   <!-- Added parameter use_mimic_plugin (default: false) to avoid Gazebo errors when the plugin is not available yet. -->
   <xacro:macro name="parallel_gripper" params="namespace parent_link use_mimic_plugin:=false use_grasp_fix:=true mass_scale:=0.001 mount_xyz:='0 0 0' mount_rpy:='0 0 0'">
-<!-- Custom connection mapping to attach from base to the tip backward to gripper base -->
-    
+    <!-- Custom connection mapping to attach from base to the tip backward to gripper base -->
+
     <!-- Virtual link representing the tip (where the gripper actually touches what it holds) -->
     <link name="${namespace}/gripper_link">
       <inertial>

@@ -412,13 +412,13 @@ class BinTaskState(smach.State):
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_BIN_WHOLE",
+                    "succeeded": "FOCUS_ON_BIN_BOTTOM",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ENABLE_BOTTOM_DETECTION",
+                "FOCUS_ON_BIN_BOTTOM",
                 SetDetectionFocusBottomState(focus_object="bin"),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_BIN_WHOLE",
