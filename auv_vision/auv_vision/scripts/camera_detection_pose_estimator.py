@@ -681,12 +681,12 @@ class CameraDetectionNode:
             camera_ns = "taluy/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
-                rospy.loginfo_throttle(5, "Bottom camera detection is disabled")
+                # rospy.loginfo_throttle(5, "Bottom camera detection is disabled")
                 return
             camera_ns = "taluy/cameras/cam_bottom"
         elif camera_source == "bottom_camera_seg":
             if not self.bottom_camera_enabled:
-                rospy.loginfo_throttle(5, "Bottom camera segmentation is disabled")
+                # rospy.loginfo_throttle(5, "Bottom camera segmentation is disabled")
                 return
             camera_ns = "taluy/cameras/cam_bottom_seg"
         elif camera_source == "torpedo_camera":

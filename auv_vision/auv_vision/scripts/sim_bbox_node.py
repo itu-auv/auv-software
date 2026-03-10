@@ -70,6 +70,15 @@ CLASS_NAMES = {
         0: "bottle",
         1: "ladle",
     },
+    "realsense": {
+        0: "sawfish",
+        1: "shark",
+        2: "red_pipe",
+        3: "white_pipe",
+        4: "torpedo_map",
+        6: "bin_whole",
+        7: "octagon",
+    },
 }
 
 
@@ -364,7 +373,7 @@ class SimCamera:
         name: str,
         image_topic: str,
         camera_info_topic: str,
-        camera_frame: str,
+        optical_frame: str,
         base_frame: str,
         result_topic: str,
         image_out_topic: str,
@@ -373,7 +382,7 @@ class SimCamera:
         objects: List[SimObject],
     ):
         self.name = name
-        self.camera_frame = camera_frame
+        self.optical_frame = optical_frame
         self.base_frame = base_frame
         self.tf_buffer = tf_buffer
         self.bridge = CvBridge()
@@ -498,18 +507,17 @@ class SimCamera:
             rospy.logwarn_throttle(5, f"[{self.name}] annotation error: {e}")
 
     def _get_base_to_camera(self) -> Optional[np.ndarray]:
+        """Look up and cache the static base_link → optical_link transform."""
         if self._base_to_camera is not None:
             return self._base_to_camera
 
         try:
             tf_msg = self.tf_buffer.lookup_transform(
-                self.camera_frame, self.base_frame, rospy.Time(0), rospy.Duration(2.0)
+                self.optical_frame, self.base_frame, rospy.Time(0), rospy.Duration(2.0)
             )
-            self._base_to_camera = tft.euler_matrix(
-                np.pi / 2, -np.pi / 2, 0
-            ) @ transform_to_matrix(tf_msg.transform)
+            self._base_to_camera = transform_to_matrix(tf_msg.transform)
             rospy.loginfo(
-                f"[{self.name}] cached static TF: {self.base_frame} → {self.camera_frame}"
+                f"[{self.name}] cached static TF: {self.base_frame} → {self.optical_frame}"
             )
             return self._base_to_camera
         except (
@@ -677,14 +685,14 @@ class SimBboxNode:
                 # Bottom camera markers — class IDs 0/1 are reused
                 # (pose estimator has per-camera id_tf_map)
                 SimObject(
-                    class_id=0,
+                    class_id=1,
                     camera="bottom",
                     gazebo_model="robosub_bin",
                     offset=np.array([-0.1525, 0.0144, 0.9337]),
                     boundary=bin_square,
                 ),  # bin_shark (left square)
                 SimObject(
-                    class_id=1,
+                    class_id=0,
                     camera="bottom",
                     gazebo_model="robosub_bin",
                     offset=np.array([0.1525, 0.0144, 0.9337]),
@@ -780,16 +788,23 @@ class SimBboxNode:
             "bottom": [],
             "torpedo": [],
             "bottom_seg": [],
+            "realsense": [],
         }
+        import copy
+
         for obj in all_objects:
             objects_by_camera[obj.camera].append(obj)
+            if obj.camera == "front":
+                rs_obj = copy.deepcopy(obj)
+                rs_obj.camera = "realsense"
+                objects_by_camera["realsense"].append(rs_obj)
 
         self.cameras: Dict[str, SimCamera] = {
             "front": SimCamera(
                 name="front",
                 image_topic=f"/{ns}/cameras/cam_front/image_raw",
                 camera_info_topic=f"/{ns}/cameras/cam_front/camera_info",
-                camera_frame=f"{ns}/base_link/front_camera_link",
+                optical_frame=f"{ns}/base_link/front_camera_optical_link",
                 base_frame=base_frame,
                 result_topic="/yolo_result_front",
                 image_out_topic="/yolo_image_front",
@@ -801,7 +816,7 @@ class SimBboxNode:
                 name="bottom",
                 image_topic=f"/{ns}/cameras/cam_bottom/image_raw",
                 camera_info_topic=f"/{ns}/cameras/cam_bottom/camera_info",
-                camera_frame=f"{ns}/base_link/bottom_camera_link",
+                optical_frame=f"{ns}/base_link/bottom_camera_optical_link",
                 base_frame=base_frame,
                 result_topic="/yolo_result_bottom",
                 image_out_topic="/yolo_image_bottom",
@@ -813,7 +828,7 @@ class SimBboxNode:
                 name="torpedo",
                 image_topic=f"/{ns}/cameras/cam_torpedo/image_raw",
                 camera_info_topic=f"/{ns}/cameras/cam_torpedo/camera_info",
-                camera_frame=f"{ns}/base_link/torpedo_camera_link",
+                optical_frame=f"{ns}/base_link/torpedo_camera_optical_link",
                 base_frame=base_frame,
                 result_topic="/yolo_result_torpedo",
                 image_out_topic="/yolo_image_torpedo",
@@ -825,13 +840,25 @@ class SimBboxNode:
                 name="bottom_seg",
                 image_topic=f"/{ns}/cameras/cam_bottom/image_raw",
                 camera_info_topic=f"/{ns}/cameras/cam_bottom/camera_info",
-                camera_frame=f"{ns}/base_link/bottom_camera_link",
+                optical_frame=f"{ns}/base_link/bottom_camera_optical_link",
                 base_frame=base_frame,
                 result_topic="/yolo_result_seg",
                 image_out_topic="/yolo_image_seg",
                 tf_buffer=self.tf_buffer,
                 gazebo=self.gazebo,
                 objects=objects_by_camera["bottom_seg"],
+            ),
+            "realsense": SimCamera(
+                name="realsense",
+                image_topic=f"/{ns}/camera/color/image_raw",
+                camera_info_topic=f"/{ns}/camera/color/camera_info",
+                optical_frame=f"{ns}/camera_depth_optical_frame",
+                base_frame=base_frame,
+                result_topic="/yolo_result_realsense",
+                image_out_topic="/yolo_image_realsense",
+                tf_buffer=self.tf_buffer,
+                gazebo=self.gazebo,
+                objects=objects_by_camera["realsense"],
             ),
         }
 
