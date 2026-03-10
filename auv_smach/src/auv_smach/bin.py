@@ -17,6 +17,7 @@ from auv_smach.common import (
     SetDetectionFocusState,
     DropBallState,
     SetDetectionState,
+    SetDetectionFocusBottomState,
 )
 
 from auv_smach.initialize import DelayState
@@ -411,11 +412,21 @@ class BinTaskState(smach.State):
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
+                    "succeeded": "FOCUS_ON_BIN_BOTTOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FOCUS_ON_BIN_BOTTOM",
+                SetDetectionFocusBottomState(focus_object="bin"),
+                transitions={
                     "succeeded": "DYNAMIC_PATH_TO_BIN_WHOLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_BIN_WHOLE",
                 DynamicPathState(
