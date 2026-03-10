@@ -66,35 +66,41 @@ class CameraDetectionNode:
         # Create handlers for each camera
         self.handlers = {}
         for cam_key, cam_cfg in self.config["cameras"].items():
-            # Build camera-specific calibration
-            # cam_cfg["ns"] is like "taluy/cameras/cam_front"
-            # CameraCalibration expects "cameras/cam_front"
-            calib_ns = cam_cfg["ns"].split("/", 1)[1]  # remove "taluy/" prefix
-            calibration = CameraCalibration(calib_ns)
+            try:
+                # Build camera-specific calibration
+                # cam_cfg["ns"] is like "taluy/cameras/cam_front"
+                # CameraCalibration expects "cameras/cam_front"
+                calib_ns = cam_cfg["ns"].split("/", 1)[1]  # remove "taluy/" prefix
+                calibration = CameraCalibration(calib_ns)
 
-            # Build id_tf_map for this camera
-            id_tf_map = build_id_tf_map(cam_cfg)
+                # Build id_tf_map for this camera
+                id_tf_map = build_id_tf_map(cam_cfg)
 
-            # Import handler module
-            handler_module = importlib.import_module(f"handlers.{cam_cfg['handler']}")
-            handler = handler_module.create_handler(
-                cam_cfg,
-                id_tf_map,
-                self.props,
-                calibration,
-                self.tf_buffer,
-                self.publishers,
-                self.shared_state,
-            )
-            self.handlers[cam_key] = handler
+                # Import handler module
+                handler_module = importlib.import_module(f"handlers.{cam_cfg['handler']}")
+                handler = handler_module.create_handler(
+                    cam_cfg,
+                    id_tf_map,
+                    self.props,
+                    calibration,
+                    self.tf_buffer,
+                    self.publishers,
+                    self.shared_state,
+                )
+                self.handlers[cam_key] = handler
 
-            # Create subscriber
-            rospy.Subscriber(
-                cam_cfg["yolo_topic"],
-                YoloResult,
-                lambda msg, k=cam_key: self._dispatch(msg, k),
-                queue_size=1,
-            )
+                # Create subscriber
+                rospy.Subscriber(
+                    cam_cfg["yolo_topic"],
+                    YoloResult,
+                    lambda msg, k=cam_key: self._dispatch(msg, k),
+                    queue_size=1,
+                )
+            except Exception as e:
+                rospy.logerr(
+                    f"Failed to initialize camera '{cam_key}': {e}. "
+                    "Skipping this camera — other cameras will still work."
+                )
 
         # Odometry subscriber
         rospy.Subscriber("odometry", Odometry, self._odometry_callback)

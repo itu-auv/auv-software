@@ -52,7 +52,7 @@ class TorpedoCameraHandler:
             detection_id = detection.results[0].id
 
             # Skip torpedo holes — already processed above
-            if detection_id == 5:
+            if detection_id == self.id_tf_map.id_of("torpedo_hole_link"):
                 continue
 
             if detection_id not in self.id_tf_map:
@@ -111,7 +111,7 @@ class TorpedoCameraHandler:
                 continue
             detection_id = detection.results[0].id
 
-            if detection_id == 5:  # Torpedo hole ID
+            if detection_id == self.id_tf_map.id_of("torpedo_hole_link"):
                 if check_inside_image(detection, self.image_width, self.image_height):
                     detected_holes.append(detection)
 

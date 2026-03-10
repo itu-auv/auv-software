@@ -64,8 +64,8 @@ class FrontCameraHandler:
             if detection_id not in self.id_tf_map:
                 continue
 
-            # bin_whole (ID=6) uses altitude projection — special path
-            if detection_id == 6:
+            # bin_whole uses altitude projection — special path
+            if detection_id == self.id_tf_map.id_of("bin_whole_link"):
                 self._process_altitude_projection(detection, stamp)
                 continue
 
