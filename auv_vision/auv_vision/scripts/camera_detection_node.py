@@ -80,7 +80,9 @@ class CameraDetectionNode:
                 id_tf_map = build_id_tf_map(cam_cfg)
 
                 # Import handler module
-                handler_module = importlib.import_module(f"handlers.{cam_cfg['handler']}")
+                handler_module = importlib.import_module(
+                    f"handlers.{cam_cfg['handler']}"
+                )
                 handler = handler_module.create_handler(
                     cam_cfg,
                     id_tf_map,
