@@ -55,15 +55,6 @@ CLASS_NAMES = {
     "torpedo": {
         5: "torpedo_hole",
     },
-    "realsense": {
-        0: "sawfish",
-        1: "shark",
-        2: "red_pipe",
-        3: "white_pipe",
-        4: "torpedo_map",
-        6: "bin_whole",
-        7: "octagon",
-    },
 }
 
 
@@ -544,14 +535,14 @@ class SimBboxNode:
                 # Bottom camera markers — class IDs 0/1 are reused
                 # (pose estimator has per-camera id_tf_map)
                 SimObject(
-                    class_id=1,
+                    class_id=0,
                     camera="bottom",
                     gazebo_model="robosub_bin",
                     offset=np.array([-0.1525, 0.0144, 0.9337]),
                     boundary=bin_square,
                 ),  # bin_shark (left square)
                 SimObject(
-                    class_id=0,
+                    class_id=1,
                     camera="bottom",
                     gazebo_model="robosub_bin",
                     offset=np.array([0.1525, 0.0144, 0.9337]),
@@ -588,16 +579,9 @@ class SimBboxNode:
             "front": [],
             "bottom": [],
             "torpedo": [],
-            "realsense": [],
         }
-        import copy
-
         for obj in all_objects:
             objects_by_camera[obj.camera].append(obj)
-            if obj.camera == "front":
-                rs_obj = copy.deepcopy(obj)
-                rs_obj.camera = "realsense"
-                objects_by_camera["realsense"].append(rs_obj)
 
         # Each camera is self-driven: its image callback triggers projection
         self.cameras: Dict[str, SimCamera] = {
@@ -636,18 +620,6 @@ class SimBboxNode:
                 tf_buffer=self.tf_buffer,
                 gazebo=self.gazebo,
                 objects=objects_by_camera["torpedo"],
-            ),
-            "realsense": SimCamera(
-                name="realsense",
-                image_topic=f"/{ns}/camera/color/image_raw",
-                camera_info_topic=f"/{ns}/camera/color/camera_info",
-                optical_frame=f"{ns}/camera_depth_optical_frame",
-                base_frame=base_frame,
-                result_topic="/yolo_result_realsense",
-                image_out_topic="/yolo_image_realsense",
-                tf_buffer=self.tf_buffer,
-                gazebo=self.gazebo,
-                objects=objects_by_camera["realsense"],
             ),
         }
 
