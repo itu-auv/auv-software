@@ -99,13 +99,48 @@ def load_config(yaml_path: str) -> dict:
     return config
 
 
-def build_id_tf_map(camera_config: dict) -> dict:
-    """Build {detection_id: link_name} map from camera config's id_tf_map.
+class DetectionIDMap:
+    """Bidirectional mapping between YOLO detection IDs and link names.
 
-    YAML keys are strings, so we convert them to int.
+    Forward:  detection_id -> link_name  (dict-compatible)
+    Reverse:  link_name -> detection_id  (.id_of / .ids_of)
     """
-    raw_map = camera_config.get("id_tf_map", {})
-    return {int(k): v for k, v in raw_map.items()}
+
+    def __init__(self, raw_map: dict):
+        self._id_to_name = {int(k): v for k, v in raw_map.items()}
+        self._name_to_id = {v: int(k) for k, v in raw_map.items()}
+
+    # --- reverse lookups (the elegant part) ---
+
+    def id_of(self, link_name: str):
+        """Return the detection ID for a given link name, or None."""
+        return self._name_to_id.get(link_name)
+
+    def ids_of(self, *link_names: str) -> list:
+        """Return a list of detection IDs for the given link names (skips unknown)."""
+        return [self._name_to_id[n] for n in link_names if n in self._name_to_id]
+
+    # --- dict protocol (backwards-compatible) ---
+
+    def __contains__(self, detection_id):
+        return detection_id in self._id_to_name
+
+    def __getitem__(self, detection_id):
+        return self._id_to_name[detection_id]
+
+    def get(self, detection_id, default=None):
+        return self._id_to_name.get(detection_id, default)
+
+    def keys(self):
+        return self._id_to_name.keys()
+
+    def items(self):
+        return self._id_to_name.items()
+
+
+def build_id_tf_map(camera_config: dict) -> DetectionIDMap:
+    """Build a bidirectional DetectionIDMap from camera config's id_tf_map."""
+    return DetectionIDMap(camera_config.get("id_tf_map", {}))
 
 
 def check_inside_image(
@@ -191,7 +226,7 @@ def transform_to_odom_and_publish(
         tf2_ros.ConnectivityException,
         tf2_ros.ExtrapolationException,
     ) as e:
-        rospy.logerr(f"Transform error for {child_frame_id}: {e}")
+        rospy.logwarn_throttle(5.0, f"Transform error for {child_frame_id}: {e}")
 
 
 def calculate_intersection_with_plane(point1_odom, point2_odom, z_plane):
