@@ -39,14 +39,7 @@ class BottomCameraHandler:
         )
 
         # Bottom camera specific state
-        self.active_ids = [0, 1]  # Default to 'bin' focus
-
-    def set_active_ids(self, ids: list):
-        """Called by orchestrator when set_bottom_camera_focus service is triggered."""
-        self.active_ids = ids
-
-        # Bottom camera specific state
-        self.active_ids = [0, 1]  # Default to 'bin' focus
+        self.active_ids = self.id_tf_map.ids_of("bin_shark_link", "bin_sawfish_link")
 
     def set_active_ids(self, ids: list):
         """Called by orchestrator when set_bottom_camera_focus service is triggered."""
