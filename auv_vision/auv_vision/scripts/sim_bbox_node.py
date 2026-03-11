@@ -574,6 +574,20 @@ class SimBboxNode:
             )
         )  # octagon
 
+        # ── Pre-qual cylinder ─────────────────────────────────────────
+        # Single white pipe in pre_qual world. Same dimensions as a slalom
+        # pipe (radius 0.0127 m, length 0.9 m). If the model is absent
+        # (e.g. pool world), get_model_matrix returns None and it is skipped.
+        all_objects.append(
+            SimObject(
+                class_id=3,
+                camera="front",
+                gazebo_model="pre_qual_cylinder",
+                offset=np.array([0.0, 0.0, 0.45]),
+                boundary=pipe_boundary,
+            )
+        )  # white_pipe
+
         # Group objects by camera so each SimCamera only processes its own
         objects_by_camera: Dict[str, List[SimObject]] = {
             "front": [],
