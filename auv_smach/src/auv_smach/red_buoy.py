@@ -35,7 +35,7 @@ from auv_smach.initialize import DelayState
 
 class RotateAroundCenterState(smach.State):
     def __init__(
-        self, base_frame, center_frame, target_frame, radius=0.2, direction="ccw"
+        self, base_frame, center_frame, target_frame, radius=1.0, direction="ccw"
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.base_frame = base_frame
@@ -43,12 +43,13 @@ class RotateAroundCenterState(smach.State):
         self.target_frame = target_frame
         self.radius = radius
         self.direction = direction
-        self.tf_buffer = get_tf_buffer()
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.rate = rospy.Rate(10)
 
-        self.linear_velocity = 0.8  # rospy.get_param("/smach/max_linear_velocity")
-        self.angular_velocity = 0.8  # rospy.get_param("/smach/max_angular_velocity")
+        self.linear_velocity = 0.3  # rospy.get_param("/smach/max_linear_velocity")
+        self.angular_velocity = 0.3  # rospy.get_param("/smach/max_angular_velocity")
 
     def execute(self, userdata):
         try:
@@ -69,10 +70,11 @@ class RotateAroundCenterState(smach.State):
             )
             initial_angle = np.arctan2(base_position[1], base_position[0])
 
-            # Calculate the duration for one full rotation (2 * pi radians)
-            duration = 2 * np.pi * self.radius / self.linear_velocity
+            # Calculate the duration for a 270-degree rotation (3/2 * pi radians)
+            rotation_angle = 1.5 * np.pi  # 270 degrees in radians
+            duration = rotation_angle * self.radius / self.linear_velocity
             num_steps = int(duration * 10)  # Number of steps based on the rate
-            angular_step = 2 * np.pi / num_steps  # Angle step per iteration
+            angular_step = rotation_angle / num_steps  # Angle step per iteration
 
             # Adjust the direction based on the input argument
             if self.direction == "cw":
@@ -83,7 +85,7 @@ class RotateAroundCenterState(smach.State):
                     self.service_preempt()
                     return "preempted"
 
-                # Calculate the current angle
+                # Calculate the current angle (only up to 270 degrees)
                 angle = initial_angle + angular_step * i
 
                 # Calculate the new position using the radius and angle
@@ -234,14 +236,14 @@ class RotateAroundBuoyState(smach.State):
                 "SET_RED_BUOY_DEPTH",
                 SetDepthState(depth=red_buoy_depth),
                 transitions={
-                    "succeeded": "FIND_AND_AIM_RED_BUOY",
+                    "succeeded": "SET_DETECTING_WHİTE_PİPE_OBJECTS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
                 "SET_DETECTING_WHİTE_PİPE_OBJECTS",
-                SetDetectionFocusState( focus_object="pipe"),
+                SetDetectionFocusState(focus_object="all"),
                 transitions={
                     "succeeded": "FIND_AND_AIM_RED_BUOY",
                     "preempted": "preempted",
@@ -273,11 +275,21 @@ class RotateAroundBuoyState(smach.State):
                     radius=radius,
                 ),
                 transitions={
+                    "succeeded": "aba",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "aba",
+                SetDetectionFocusState(focus_object="none"),
+                transitions={
                     "succeeded": "SET_RED_BUOY_TRAVEL_ALIGN_CONTROLLER_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
             smach.StateMachine.add(
                 "SET_RED_BUOY_TRAVEL_ALIGN_CONTROLLER_TARGET",
                 SetAlignControllerTargetState(
