@@ -10,6 +10,7 @@
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
         slalom:NAVIGATE_THROUGH_SLALOM,
+        red_buoy:NAVIGATE_TO_RED_BUOY_TASK,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
@@ -19,7 +20,6 @@
         return:NAVIGATE_RETURN_THROUGH_GATE,
         pipeline:NAVIGATE_THROUGH_PIPELINE
     "/>
-
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
     <arg name="roll" default="true" doc="Enable roll mode for state machine"/>

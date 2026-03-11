@@ -246,6 +246,14 @@ class MainStateMachineNode:
                 NavigateThroughPipelineState,
                 {"pipeline_depth": self.pipeline_depth},
             ),
+            "NAVIGATE_TO_RED_BUOY_TASK": (
+                RotateAroundBuoyState,
+                {
+                    "radius": self.red_buoy_radius,
+                    "direction": "ccw",
+                    "red_buoy_depth": self.red_buoy_depth,
+                },
+            ),
         }
 
         # Validate and execute state machine

@@ -27,6 +27,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
     SearchForPropState,
+    SetDetectionFocusState,
 )
 
 from auv_smach.initialize import DelayState
@@ -239,9 +240,18 @@ class RotateAroundBuoyState(smach.State):
                 },
             )
             smach.StateMachine.add(
+                "SET_DETECTING_WHİTE_PİPE_OBJECTS",
+                SetDetectionFocusState( focus_object="pipe"),
+                transitions={
+                    "succeeded": "FIND_AND_AIM_RED_BUOY",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "FIND_AND_AIM_RED_BUOY",
                 SearchForPropState(
-                    look_at_frame="red_buoy_link",
+                    look_at_frame="white_pipe_link",
                     alignment_frame="red_buoy_search",
                     full_rotation=False,
                     set_frame_duration=4.0,
@@ -258,7 +268,7 @@ class RotateAroundBuoyState(smach.State):
                 "SET_RED_BUOY_ROTATION_START_FRAME",
                 SetRedBuoyRotationStartFrame(
                     base_frame="taluy/base_link",
-                    center_frame="red_buoy_link",
+                    center_frame="white_pipe_link",
                     target_frame="red_buoy_rotation_start",
                     radius=radius,
                 ),
@@ -303,7 +313,7 @@ class RotateAroundBuoyState(smach.State):
                 "ROTATE_AROUND_BUOY",
                 RotateAroundCenterState(
                     "taluy/base_link",
-                    "red_buoy_link",
+                    "white_pipe_link",
                     "red_buoy_target",
                     radius=radius,
                     direction=direction,
