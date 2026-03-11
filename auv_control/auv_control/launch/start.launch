@@ -27,6 +27,7 @@
 
       <remap from="wrench" to="wrench" />
       <rosparam file="$(arg config_file)" command="load" ns="" />
+      <rosparam file="$(find auv_control)/config/default_mrac.yaml" command="load" ns="" />
     </node>
 
     <node pkg="auv_control" type="thruster_manager_node" name="thruster_manager_node"

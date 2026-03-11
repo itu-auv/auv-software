@@ -3,4 +3,7 @@
   <class type="auv::control::SixDOFPIDController" base_class_type="auv::control::SixDOFControllerBase">
     <description>6DOF PID Controller Plugin</description>
   </class>
+  <class type="auv::control::SixDOFMRACController" base_class_type="auv::control::SixDOFControllerBase">
+    <description>6DOF Model Reference Adaptive Controller Plugin</description>
+  </class>
 </library>
