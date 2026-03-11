@@ -3,7 +3,7 @@
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
   <arg name="dvl_virtual_port" default="/dev/auv_wayfinder_dvl" />
-  <arg name="mti630_imu_port" default="/dev/ttyUSB0" />
+  <arg name="mti630_imu_port" default="/dev/ttyUSB1" />
   <arg name="mti630_imu_baudrate" default="115200" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />

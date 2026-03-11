@@ -4,7 +4,7 @@
   <arg name="control_rate" default="20.0"/>
   <arg name="imu_topic" default="data"/>
   <arg name="port" default="/dev/ttyUSB0"/>
-  <arg name="mti630_imu_port" default="/dev/ttyUSB0"/>
+  <arg name="mti630_imu_port" default="/dev/ttyUSB1"/>
   <arg name="mti630_imu_baudrate" default="115200"/>
   <group ns="$(arg namespace)">
     <node name="auv_imu_node" pkg="xsens_mti_driver" type="xsens_mti_node" output="screen">
