@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy
+import tf
 from sensor_msgs.msg import Imu
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Quaternion, Vector3
@@ -20,6 +21,26 @@ class ImuToOdom:
         self.imu_calibration_data_path = rospy.get_param(
             "~imu_calibration_path", "config/imu_calibration_data.yaml"
         )
+        self.apply_mounting_correction = rospy.get_param(
+            "~apply_mounting_correction", True
+        )
+        self.apply_tf_mounting_transform = rospy.get_param(
+            "~apply_tf_mounting_transform", False
+        )
+        self.base_frame = rospy.get_param("~base_frame", "taluy/base_link")
+        self.imu_frame = rospy.get_param("~imu_frame", "taluy/base_link/imu_link")
+
+        self.tf_listener = None
+        self.q_base_imu = None
+        self.rotation_base_imu = None
+        if self.apply_tf_mounting_transform:
+            self.tf_listener = tf.TransformListener()
+            self.q_base_imu = self.get_frame_rotation()
+            if self.q_base_imu is not None:
+                self.rotation_base_imu = tf.transformations.quaternion_matrix(
+                    self.q_base_imu
+                )[:3, :3]
+
         # Subscribers and Publishers
         self.xsens_imu_subscriber = rospy.Subscriber(
             "imu/data", Imu, self.xsens_imu_callback, tcp_nodelay=True
@@ -35,7 +56,7 @@ class ImuToOdom:
         # Initialize the odometry message
         self.odom_msg = Odometry()
         self.odom_msg.header.frame_id = "odom"
-        self.odom_msg.child_frame_id = "taluy/base_link"  # TODO: NO absolute frames
+        self.odom_msg.child_frame_id = self.base_frame
 
         # Build default covariance matrices
         self.default_pose_cov = np.zeros((6, 6))
@@ -92,7 +113,6 @@ class ImuToOdom:
 
         # Only insert the covariance block if it has 9 elements
         if len(input_covariance_3x3_flat) == 9:
-
             input_covariance_3x3_matrix = np.array(input_covariance_3x3_flat).reshape(
                 3, 3
             )
@@ -117,6 +137,42 @@ class ImuToOdom:
             self.default_twist_cov, imu_angular_velocity_covariance
         )
 
+    def rotate_covariance_3x3(self, covariance_3x3_flat, rotation_matrix):
+        if len(covariance_3x3_flat) != 9:
+            return covariance_3x3_flat
+
+        covariance_3x3 = np.array(covariance_3x3_flat).reshape(3, 3)
+        rotated_covariance_3x3 = (
+            rotation_matrix @ covariance_3x3 @ rotation_matrix.transpose()
+        )
+        return rotated_covariance_3x3.flatten().tolist()
+
+    def get_frame_rotation(self):
+        if self.tf_listener is None:
+            return None
+
+        rospy.loginfo(f"Waiting for TF: {self.base_frame} <- {self.imu_frame}")
+        try:
+            self.tf_listener.waitForTransform(
+                self.base_frame,
+                self.imu_frame,
+                rospy.Time(0),
+                rospy.Duration(10.0),
+            )
+            (_, rot) = self.tf_listener.lookupTransform(
+                self.base_frame,
+                self.imu_frame,
+                rospy.Time(0),
+            )
+            rospy.loginfo(f"Loaded {self.imu_frame} rotation from TF: {rot}")
+            return np.array(rot)
+        except Exception as exc:
+            rospy.logwarn(
+                f"Could not get TF for {self.imu_frame} relative to {self.base_frame}: {exc}. "
+                "No TF mounting transform will be applied."
+            )
+            return None
+
     def xsens_imu_callback(self, imu_msg):
         self.last_xsens_imu_time = rospy.Time.now()
         self.publish_odom(imu_msg, "xsens")
@@ -138,24 +194,76 @@ class ImuToOdom:
         self.odom_msg.header.stamp = imu_msg.header.stamp
 
         # Correct angular velocity using the drift
-        corrected_angular_velocity = Vector3(
-            imu_msg.angular_velocity.x - self.drift[0],
-            imu_msg.angular_velocity.y - self.drift[1],
-            imu_msg.angular_velocity.z - self.drift[2],
+        corrected_angular_velocity = np.array(
+            [
+                imu_msg.angular_velocity.x - self.drift[0],
+                imu_msg.angular_velocity.y - self.drift[1],
+                imu_msg.angular_velocity.z - self.drift[2],
+            ]
         )
 
+        if self.apply_mounting_correction:
+            orientation = self.invert_roll_pitch_quaternion(imu_msg.orientation)
+        else:
+            orientation = imu_msg.orientation
+
+        orientation_q = np.array(
+            [
+                orientation.x,
+                orientation.y,
+                orientation.z,
+                orientation.w,
+            ]
+        )
+
+        orientation_covariance = imu_msg.orientation_covariance
+        angular_velocity_covariance = imu_msg.angular_velocity_covariance
+
+        # Expected IMU orientation convention: q_odom_imu.
+        if (
+            self.apply_tf_mounting_transform
+            and self.q_base_imu is not None
+            and self.rotation_base_imu is not None
+        ):
+            q_imu_base = tf.transformations.quaternion_inverse(self.q_base_imu)
+            orientation_q = tf.transformations.quaternion_multiply(
+                orientation_q, q_imu_base
+            )
+            orientation_q_norm = np.linalg.norm(orientation_q)
+            if orientation_q_norm > 0:
+                orientation_q = orientation_q / orientation_q_norm
+
+            corrected_angular_velocity = np.dot(
+                self.rotation_base_imu, corrected_angular_velocity
+            )
+
+            orientation_covariance = self.rotate_covariance_3x3(
+                orientation_covariance, self.rotation_base_imu
+            )
+            angular_velocity_covariance = self.rotate_covariance_3x3(
+                angular_velocity_covariance, self.rotation_base_imu
+            )
+
+        corrected_angular_velocity_msg = Vector3()
+        corrected_angular_velocity_msg.x = corrected_angular_velocity[0]
+        corrected_angular_velocity_msg.y = corrected_angular_velocity[1]
+        corrected_angular_velocity_msg.z = corrected_angular_velocity[2]
+
         # Update twist and twist covariance
-        self.odom_msg.twist.twist.angular = corrected_angular_velocity
+        self.odom_msg.twist.twist.angular = corrected_angular_velocity_msg
         self.odom_msg.twist.covariance = self.update_twist_covariance(
-            imu_msg.angular_velocity_covariance
+            angular_velocity_covariance
         )
 
         # Update orientation and orientation covariance
-        self.odom_msg.pose.pose.orientation = self.invert_roll_pitch_quaternion(
-            imu_msg.orientation
+        self.odom_msg.pose.pose.orientation = Quaternion(
+            x=orientation_q[0],
+            y=orientation_q[1],
+            z=orientation_q[2],
+            w=orientation_q[3],
         )
         self.odom_msg.pose.covariance = self.update_pose_covariance(
-            imu_msg.orientation_covariance
+            orientation_covariance
         )
 
         # Set the position to zero as we are not computing it here
