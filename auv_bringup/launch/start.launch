@@ -7,6 +7,7 @@
   <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
   <arg name="log_filename" default="" />
+  <arg name="require_fresh_odometry_for_wrench" default="true" />
 
   <rosparam file="$(find auv_bringup)/config/environment.yaml" command="load" ns="" />
 
@@ -60,6 +61,7 @@
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
     <arg name="config_file" value="$(find auv_control)/config/default.yaml" />
+    <arg name="require_fresh_odometry_for_wrench" value="$(arg require_fresh_odometry_for_wrench)" />
   </include>
 
   <!-- launch logging -->
