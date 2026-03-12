@@ -20,7 +20,7 @@
     The original values, [0.0822, -0.00773, 0.3872] however, seem to
     assume NWU (otherwise cob is below cog?).
     -->
-  <xacro:property name="cob" value="0.0 0.0 0.2"/>
+  <xacro:property name="cob" value="0.0 0.0 0.05"/>
   <!-- Volume, see p.31 in Berg2012, normally 0.009165088 -->
   <xacro:property name="volume" value="0.027"/>
   <xacro:macro name="auv_hydro_model" params="namespace">
@@ -33,6 +33,7 @@
         <height>0.03</height>
       </box>
       <center_of_buoyancy>${cob}</center_of_buoyancy>
+      <center_of_gravity>0 0 -0.05</center_of_gravity>
       <hydrodynamic_model>
         <type>fossen</type>
         <added_mass>
