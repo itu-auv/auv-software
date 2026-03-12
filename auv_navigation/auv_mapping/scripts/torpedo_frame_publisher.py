@@ -33,6 +33,10 @@ class TorpedoTransformServiceNode:
         )
         self.set_object_transform_service.wait_for_service()
 
+        self.direct_object_transform_pub = rospy.Publisher(
+            "direct_object_transform", TransformStamped, queue_size=10
+        )
+
         self.odom_frame = "odom"
         self.robot_frame = "taluy/base_link"
         self.target_frame = "torpedo_target"
@@ -105,13 +109,7 @@ class TorpedoTransformServiceNode:
         return t
 
     def send_transform(self, transform):
-        req = SetObjectTransformRequest()
-        req.transform = transform
-        resp = self.set_object_transform_service.call(req)
-        if not resp.success:
-            rospy.logerr(
-                f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-            )
+        self.direct_object_transform_pub.publish(transform)
 
     def apply_offsets(self, pose: Pose, offsets: list, yaw_offset: float = 0.0) -> Pose:
         """
