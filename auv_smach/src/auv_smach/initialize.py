@@ -26,6 +26,16 @@ class ResetOdometryState(smach_ros.ServiceState):
         )
 
 
+class ResetPositionState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "reset_position",
+            Trigger,
+            request=TriggerRequest(),
+        )
+
+
 class WaitForKillswitchEnabledState(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -154,6 +164,15 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "ODOMETRY_ENABLE",
                 OdometryEnableState(),
+                transitions={
+                    "succeeded": "RESET_POSITION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_POSITION",
+                ResetPositionState(),
                 transitions={
                     "succeeded": "DISABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
