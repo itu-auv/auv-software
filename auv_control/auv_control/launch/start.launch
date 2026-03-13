@@ -64,12 +64,6 @@
       <param name="min_log_interval" value="1.0" />
       <param name="max_log_interval" value="120.0" />
     </node>
-
-    <node pkg="auv_control" type="dvl_killswitch_handler.py" name="dvl_killswitch_handler"
-      output="screen">
-      <remap from="propulsion_board/status" to="propulsion_board/status" />
-      <remap from="dvl/enable" to="sensors/dvl/enable" />
-    </node>
     <group if="$(arg start_visual_servoing)">
       <node pkg="auv_control" type="visual_servoing_controller.py" name="visual_servoing_controller"
         output="screen">
