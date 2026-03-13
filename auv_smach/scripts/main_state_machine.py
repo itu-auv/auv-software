@@ -23,6 +23,7 @@ from auv_bringup.cfg import SmachParametersConfig
 
 class MainStateMachineNode:
     def __init__(self):
+        self.sm = None
         self.previous_enabled = False
 
         # Initialize dynamic reconfigure client
@@ -254,9 +255,9 @@ class MainStateMachineNode:
             return
 
         rospy.loginfo("Executing state machine with states: %s", self.state_list)
-        sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
+        self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
 
-        with sm:
+        with self.sm:
             for i, state_name in enumerate(self.state_list):
                 next_state = (
                     self.state_list[i + 1]
@@ -281,7 +282,7 @@ class MainStateMachineNode:
 
         # Execute the state machine
         try:
-            outcome = sm.execute()
+            outcome = self.sm.execute()
             rospy.loginfo(f"State machine exited with outcome: {outcome}")
         except Exception as e:
             rospy.logerr(f"Error executing state machine: {e}")
@@ -292,9 +293,9 @@ class MainStateMachineNode:
         self.previous_enabled = msg.data
 
         if falling_edge:
-            self.sm.request_preempt()
-            # restart
-            rospy.Timer(rospy.Duration(0.1), self.start)
+            # restart logic??????
+            rospy.logerr("KILLSWITCH!")
+            rospy.signal_shutdown("Force stopping state machine")
 
 
 if __name__ == "__main__":

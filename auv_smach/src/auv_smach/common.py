@@ -483,17 +483,6 @@ class RotationState(smach.State):
             queue_size=1,
         )
 
-        self.killswitch_sub = rospy.Subscriber(
-            "propulsion_board/status",
-            Bool,
-            self.killswitch_callback,
-        )
-
-    def killswitch_callback(self, msg):
-        if not msg.data:
-            self.active = False
-            rospy.logwarn("RotationState: Killswitch activated, stopping rotation")
-
     def odom_cb(self, msg):
         q = msg.pose.pose.orientation
         orientation_list = [q.x, q.y, q.z, q.w]
@@ -542,11 +531,7 @@ class RotationState(smach.State):
             )
             return "succeeded"
 
-        while (
-            not rospy.is_shutdown()
-            and self.total_yaw < self.rotation_radian
-            and self.active
-        ):
+        while not rospy.is_shutdown() and self.total_yaw < self.rotation_radian:
             if self.preempt_requested():
                 twist.angular.z = 0.0
                 self.pub.publish(twist)
@@ -586,10 +571,6 @@ class RotationState(smach.State):
 
         twist.angular.z = 0.0
         self.pub.publish(twist)
-
-        if not self.active:
-            rospy.loginfo("RotationState: rotation aborted by killswitch.")
-            return "aborted"
 
         rospy.loginfo(
             f"RotationState: completed full rotation. Total yaw: {self.total_yaw}"
