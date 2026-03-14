@@ -4,6 +4,7 @@
 
     <arg name="depth_topic" default="depth_anything/raw_depth"/>
     <arg name="camera_info_topic" default="depth_anything/scaled_camera_info"/>
+    <arg name="original_camera_info_topic" default="cameras/cam_torpedo/camera_info"/>
     <arg name="detections_topic" default="/yolo_detections_torpedo"/>
 
     <!-- Use -1 to accept all classes, or specify class ID (e.g., 0, 1, 2...) -->
@@ -27,6 +28,7 @@
 
           <remap from="depth" to="$(arg depth_topic)"/>
           <remap from="camera_info" to="$(arg camera_info_topic)"/>
+          <remap from="original_camera_info" to="$(arg original_camera_info_topic)"/>
           <remap from="detections" to="$(arg detections_topic)"/>
           <remap from="object_transform_updates" to="map/object_transform_updates"/>
       </node>
