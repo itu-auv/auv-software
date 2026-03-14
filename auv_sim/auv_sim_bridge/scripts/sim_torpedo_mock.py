@@ -99,7 +99,7 @@ class TorpedoLauncherServer:
 
     def calculate_torpedo_velocity(self, quat):
         rot_matrix = quaternion_matrix(quat)[:3, :3]
-        initial_velocity = [self.initial_velocity, 0.0, 0.0]
+        initial_velocity = [-self.initial_velocity, 0.0, 0.0]
         world_velocity = rot_matrix.dot(initial_velocity)
 
         twist = Twist()
