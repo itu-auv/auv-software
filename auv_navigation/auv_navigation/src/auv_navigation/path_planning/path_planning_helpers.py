@@ -15,8 +15,6 @@ from geometry_msgs.msg import (
 from std_msgs.msg import Header
 from typing import Tuple, List
 
-TWO_PI = 2 * np.pi
-
 
 class PathPlanningHelper:
     """Helper class containing static methods for path creation."""
@@ -53,24 +51,21 @@ class PathPlanningHelper:
 
     @staticmethod
     def compute_angular_difference(
-        source_euler: List[float], target_euler: List[float], n_turns: int
+        source_euler: List[float], target_euler: List[float]
     ) -> float:
         """
-        Computes the yaw angular difference between the source and target orientations,
-        adding extra full 360° turns if requested.
+        Computes the yaw angular difference between the source and target orientations.
 
         Args:
             source_euler (List[float]): [roll, pitch, yaw] of the source.
             target_euler (List[float]): [roll, pitch, yaw] of the target.
-            n_turns (int): Number of extra full 360° rotations to add to the difference.
 
         Returns:
-            float: The yaw difference (including extra turns) in radians.
+            float: The normalized yaw difference in radians.
         """
         raw_diff = target_euler[2] - source_euler[2]
         normalized_diff = (raw_diff + np.pi) % (2 * np.pi) - np.pi
-        angular_diff = normalized_diff + (TWO_PI * n_turns)
-        return angular_diff
+        return normalized_diff
 
     @staticmethod
     def interpolate_position(

@@ -1118,13 +1118,11 @@ class SetPlanState(smach.State):
         self,
         target_frame: str,
         angle_offset: float = 0.0,
-        n_turns: int = 0,
         dynamic: bool = True,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.target_frame = target_frame
         self.angle_offset = angle_offset
-        self.n_turns = n_turns
         self.dynamic = dynamic
 
     def execute(self, userdata) -> str:
@@ -1139,7 +1137,6 @@ class SetPlanState(smach.State):
             req = PlanPathRequest(
                 target_frame=self.target_frame,
                 angle_offset=self.angle_offset,
-                n_turns=self.n_turns,
                 dynamic=self.dynamic,
             )
             set_plan(req)
@@ -1167,7 +1164,6 @@ class DynamicPathState(smach.StateMachine):
         max_angular_velocity: float = None,
         angle_offset: float = 0.0,
         keep_orientation: bool = False,
-        n_turns: int = 0,
         dynamic: bool = True,
     ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
@@ -1177,7 +1173,6 @@ class DynamicPathState(smach.StateMachine):
                 SetPlanState(
                     target_frame=plan_target_frame,
                     angle_offset=angle_offset,
-                    n_turns=n_turns,
                     dynamic=dynamic,
                 ),
                 transitions={

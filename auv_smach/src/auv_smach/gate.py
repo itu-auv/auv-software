@@ -274,7 +274,6 @@ class NavigateThroughGateState(smach.State):
                 "DYNAMIC_PATH_TO_EXIT",
                 DynamicPathState(
                     plan_target_frame="gate_exit",
-                    n_turns=0,
                     dynamic=False,
                     max_linear_velocity=0.3,
                 ),

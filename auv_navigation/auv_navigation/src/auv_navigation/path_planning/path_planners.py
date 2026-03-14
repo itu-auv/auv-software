@@ -28,11 +28,6 @@ class PathPlanners:
         self.path_creation_timeout: float = rospy.get_param(
             "~path_creation_timeout", 20.0
         )
-        self._initial_source_yaw = None
-
-    def reset_initial_source_yaw(self):
-        self._initial_source_yaw = None
-        rospy.loginfo("[PathPlanners] Reset initial source yaw.")
 
     def straight_path_to_frame(
         self,
@@ -40,11 +35,9 @@ class PathPlanners:
         target_frame: str,
         angle_offset: float = 0.0,
         num_waypoints: int = 50,
-        n_turns: int = 0,
         interpolate_xy: bool = True,
         interpolate_z: bool = True,
         interpolate_yaw: bool = True,
-        use_initial_source_yaw: bool = False,
     ) -> Optional[Path]:
         """
         Creates a straight path from source frame to target frame.
@@ -54,13 +47,9 @@ class PathPlanners:
             target_frame: The destination frame.
             angle_offset: Additional angle offset (in radians) to add to the target orientation.
             num_waypoints: Number of waypoints to generate.
-            n_turns: Number of full 360-degree turns to add to the interpolation.
             interpolate_xy: If True, interpolate the x and y positions.
             interpolate_z: If True, interpolate the z position.
             interpolate_yaw: If True, interpolate the yaw orientation.
-            use_initial_source_yaw: If True, capture and store the source yaw on first call,
-                then use that stored yaw for subsequent calls. Useful for n_turns with
-                dynamic path updates. Call reset_initial_source_yaw() to clear.
 
         Returns:
             A Path message if successful, otherwise None.
@@ -85,31 +74,15 @@ class PathPlanners:
                 final_target_quat
             )
 
-            if use_initial_source_yaw:
-                if self._initial_source_yaw is None:
-                    self._initial_source_yaw = source_euler[2]
-                    rospy.loginfo(
-                        f"[PathPlanners] Captured initial source yaw: {self._initial_source_yaw}"
-                    )
-                source_euler_for_diff = (
-                    source_euler[0],
-                    source_euler[1],
-                    self._initial_source_yaw,
-                )
-            else:
-                source_euler_for_diff = source_euler
-
             # Compute the angular difference (yaw only).
             angular_diff = PathPlanningHelper.compute_angular_difference(
-                source_euler_for_diff, final_target_euler, n_turns
+                source_euler, final_target_euler
             )
 
             # Create a header for the path.
             header = PathPlanningHelper.create_path_header(self.header_frame)
 
             # Generate waypoints using the provided interpolation flags.
-            # When n_turns == 0, waypoints face toward the target position (look-at-target).
-            # When n_turns != 0, yaw is linearly interpolated to allow full rotations.
             poses = PathPlanningHelper.generate_waypoints(
                 header,
                 source_position,
@@ -120,7 +93,7 @@ class PathPlanners:
                 interpolate_xy,
                 interpolate_z,
                 interpolate_yaw,
-                target_euler=list(final_target_euler) if n_turns == 0 else None,
+                target_euler=list(final_target_euler),
             )
 
             # Create and return the final Path message.
@@ -156,7 +129,6 @@ class PathPlanners:
                         exit_path = self.straight_path_to_frame(
                             source_frame=self.gate_entrance_frame,
                             target_frame=self.gate_exit_frame,
-                            n_turns=0,
                         )
                     if entrance_path is not None and exit_path is not None:
                         combined_path, _ = combine_segments([entrance_path, exit_path])

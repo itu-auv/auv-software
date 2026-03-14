@@ -18,7 +18,6 @@ class PathPlannerNode:
         self.planning_active = False
         self.target_frame = None
         self.angle_offset = 0.0
-        self.n_turns = 0
 
         self.path_pub = rospy.Publisher("/planned_path", Path, queue_size=1)
         self.set_plan_service = rospy.Service("/set_plan", PlanPath, self.set_plan_cb)
@@ -36,10 +35,7 @@ class PathPlannerNode:
 
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
-        self.n_turns = req.n_turns
         self.dynamic = getattr(req, "dynamic", True)
-
-        self.path_planners.reset_initial_source_yaw()
 
         # If not dynamic, generate static path once
         if not self.dynamic:
@@ -47,8 +43,6 @@ class PathPlannerNode:
                 source_frame=self.robot_frame,
                 target_frame=self.target_frame,
                 angle_offset=self.angle_offset,
-                n_turns=self.n_turns,
-                use_initial_source_yaw=(self.n_turns != 0),
             )
             if self.static_path:
                 rospy.loginfo("[path_planner_node] Static path generated.")
@@ -59,7 +53,7 @@ class PathPlannerNode:
             self.static_path = None
 
         rospy.loginfo(
-            f"[path_planner_node] New plan set. Target: {self.target_frame}, Angle offset: {self.angle_offset}, n_turns: {self.n_turns}, dynamic: {self.dynamic}"
+            f"[path_planner_node] New plan set. Target: {self.target_frame}, Angle offset: {self.angle_offset}, dynamic: {self.dynamic}"
         )
         return PlanPathResponse(success=True)
 
@@ -78,8 +72,6 @@ class PathPlannerNode:
                             source_frame=self.robot_frame,
                             target_frame=self.target_frame,
                             angle_offset=self.angle_offset,
-                            n_turns=self.n_turns,
-                            use_initial_source_yaw=(self.n_turns != 0),
                         )
                         if path:
                             self.path_pub.publish(path)
