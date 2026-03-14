@@ -22,6 +22,7 @@
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>tf2_ros</depend>
+  <depend>tf_conversions</depend>
   <depend>vision_msgs</depend>
   <depend>visualization_msgs</depend>
   <exec_depend>ultralytics_ros</exec_depend>

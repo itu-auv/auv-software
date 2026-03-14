@@ -177,11 +177,19 @@ class CameraDetectionNode:
         # Initialize tf2 buffer and listener for transformations
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.namespace = rospy.get_param("~namespace", "taluy")
         self.camera_calibrations = {
-            "taluy/cameras/cam_front": CameraCalibration("cameras/cam_front"),
-            "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
-            "taluy/cameras/cam_torpedo": CameraCalibration("cameras/cam_torpedo"),
+            f"{self.namespace}/cameras/cam_front": CameraCalibration(
+                "cameras/cam_front"
+            ),
         }
+        if self.namespace != "taluy_mini":
+            self.camera_calibrations[f"{self.namespace}/cameras/cam_bottom"] = (
+                CameraCalibration("cameras/cam_bottom")
+            )
+            self.camera_calibrations[f"{self.namespace}/cameras/cam_torpedo"] = (
+                CameraCalibration("cameras/cam_torpedo")
+            )
         # Use lambda to pass camera source information to the callback
         rospy.Subscriber(
             "/yolo_result_front",
@@ -202,14 +210,14 @@ class CameraDetectionNode:
             queue_size=1,
         )
         self.frame_id_to_camera_ns = {
-            "taluy/base_link/bottom_camera_link": "taluy/cameras/cam_bottom",
-            "taluy/base_link/front_camera_link": "taluy/cameras/cam_front",
-            "taluy/base_link/torpedo_camera_link": "taluy/cameras/cam_torpedo",
+            f"{self.namespace}/base_link/bottom_camera_link": f"{self.namespace}/cameras/cam_bottom",
+            f"{self.namespace}/base_link/front_camera_link": f"{self.namespace}/cameras/cam_front",
+            f"{self.namespace}/base_link/torpedo_camera_link": f"{self.namespace}/cameras/cam_torpedo",
         }
         self.camera_frames = {  # Keep camera_frames for camera frame lookup based on ns
-            "taluy/cameras/cam_front": "taluy/base_link/front_camera_optical_link_stabilized",
-            "taluy/cameras/cam_bottom": "taluy/base_link/bottom_camera_optical_link",
-            "taluy/cameras/cam_torpedo": "taluy/base_link/torpedo_camera_optical_link",
+            f"{self.namespace}/cameras/cam_front": f"{self.namespace}/base_link/front_camera_optical_link_stabilized",
+            f"{self.namespace}/cameras/cam_bottom": f"{self.namespace}/base_link/bottom_camera_optical_link",
+            f"{self.namespace}/cameras/cam_torpedo": f"{self.namespace}/base_link/torpedo_camera_optical_link",
         }
         self.props = {
             "gate_sawfish_link": Sawfish(),
@@ -225,7 +233,7 @@ class CameraDetectionNode:
         }
 
         self.id_tf_map = {
-            "taluy/cameras/cam_front": {
+            f"{self.namespace}/cameras/cam_front": {
                 0: "gate_sawfish_link",
                 1: "gate_shark_link",
                 2: "red_pipe_link",
@@ -234,11 +242,11 @@ class CameraDetectionNode:
                 6: "bin_whole_link",
                 7: "octagon_link",
             },
-            "taluy/cameras/cam_bottom": {
+            f"{self.namespace}/cameras/cam_bottom": {
                 0: "bin_shark_link",
                 1: "bin_sawfish_link",
             },
-            "taluy/cameras/cam_torpedo": {
+            f"{self.namespace}/cameras/cam_torpedo": {
                 5: "torpedo_hole_link",
             },
         }
@@ -590,15 +598,15 @@ class CameraDetectionNode:
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return
-            camera_ns = "taluy/cameras/cam_front"
+            camera_ns = f"{self.namespace}/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
                 return
-            camera_ns = "taluy/cameras/cam_bottom"
+            camera_ns = f"{self.namespace}/cameras/cam_bottom"
         elif camera_source == "torpedo_camera":
             if not self.torpedo_camera_enabled:
                 return
-            camera_ns = "taluy/cameras/cam_torpedo"
+            camera_ns = f"{self.namespace}/cameras/cam_torpedo"
         else:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
@@ -653,7 +661,10 @@ class CameraDetectionNode:
 
             if detection_id not in self.id_tf_map[camera_ns]:
                 continue
-            if camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1]:
+            if (
+                camera_ns == f"{self.namespace}/cameras/cam_bottom"
+                and detection_id in [0, 1]
+            ):
                 skip_inside_image = True
                 # use altidude for bin
                 distance = self.altitude
@@ -664,8 +675,16 @@ class CameraDetectionNode:
                 )
                 continue
             if not skip_inside_image:
-                if self.check_if_detection_is_inside_image(detection) is False:
-                    continue
+                if self.namespace == "taluy_mini":
+                    if (
+                        self.check_if_detection_is_inside_image(detection, 1280, 720)
+                        is False
+                    ):
+                        rospy.logwarn_throttle(
+                            5, "Detection outside image bounds, skipping"
+                        )
+                        continue
+
             prop_name = self.id_tf_map[camera_ns][detection_id]
             if prop_name not in self.props:
                 continue
