@@ -28,6 +28,7 @@ from tf.transformations import (
     quaternion_multiply,
     quaternion_matrix,
 )
+from angles import normalize_angle, shortest_angular_distance
 import numpy as np
 
 import dynamic_reconfigure.client
@@ -268,6 +269,34 @@ class ReferencePosePublisherNode:
                 self.target_roll, self.target_pitch, self.target_heading = (
                     euler_from_quaternion(quaternion)
                 )
+
+                if req.closest_yaw:
+                    t_base = self.tf_lookup(
+                        req.target_frame,
+                        self.base_frame,
+                        rospy.Time(0),
+                        rospy.Duration(1.0),
+                    )
+                    if t_base is not None:
+                        _, _, base_yaw_in_target = euler_from_quaternion(
+                            [
+                                t_base.transform.rotation.x,
+                                t_base.transform.rotation.y,
+                                t_base.transform.rotation.z,
+                                t_base.transform.rotation.w,
+                            ]
+                        )
+                        flipped = normalize_angle(self.target_heading + np.pi)
+                        dist_normal = abs(
+                            shortest_angular_distance(
+                                self.target_heading, base_yaw_in_target
+                            )
+                        )
+                        dist_flipped = abs(
+                            shortest_angular_distance(flipped, base_yaw_in_target)
+                        )
+                        if dist_flipped < dist_normal:
+                            self.target_heading = flipped
 
             self.target_frame_id = req.target_frame
 
