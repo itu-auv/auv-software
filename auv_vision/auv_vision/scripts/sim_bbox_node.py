@@ -668,16 +668,16 @@ class SimBboxNode:
                 # Bottom camera markers — class IDs 0/1 are reused
                 # (pose estimator has per-camera id_tf_map)
                 SimObject(
-                    class_id=1,
-                    name="bin_shark",
+                    class_id=0,
+                    name="bin_sawfish",
                     cameras=["bottom"],
                     gazebo_model="robosub_bin",
                     offset=np.array([-0.1525, 0.0144, 0.9337]),
                     boundary=bin_square,
                 ),
                 SimObject(
-                    class_id=0,
-                    name="bin_sawfish",
+                    class_id=1,
+                    name="bin_shark",
                     cameras=["bottom"],
                     gazebo_model="robosub_bin",
                     offset=np.array([0.1525, 0.0144, 0.9337]),
