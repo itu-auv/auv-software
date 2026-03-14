@@ -640,10 +640,6 @@ class CameraDetectionNode:
             self.red_pipe_x = red_pipe_x
 
         for detection in detection_msg.detections.detections:
-            print(
-                "Detection ID:",
-                detection.results[0].id if detection.results else "No results",
-            )
             if len(detection.results) == 0:
                 continue
             skip_inside_image = False
