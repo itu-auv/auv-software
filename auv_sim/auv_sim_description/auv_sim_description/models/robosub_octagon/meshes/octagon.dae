@@ -28,23 +28,55 @@
     <material id="octagon_top_ncl1_1" name="octagon_top_ncl1_1">
       <instance_effect url="#octagon_top_ncl1_1-fx"/>
     </material>
+    <material id="octagon_basket_purple" name="octagon_basket_purple">
+      <instance_effect url="#octagon_basket_purple-fx"/>
+    </material>
+    <material id="octagon_basket_yellow" name="octagon_basket_yellow">
+      <instance_effect url="#octagon_basket_yellow-fx"/>
+    </material>
   </library_materials>
   <library_effects>
-    <effect id="octagon_basket-fx" name="octagon_basket">
+    <effect id="octagon_basket_purple-fx" name="octagon_basket_purple">
       <profile_COMMON>
         <technique sid="standard">
           <phong>
             <emission>
-              <color sid="emission">0.000000  0.000000 0.000000 1.000000</color>
+              <color sid="emission">0.000000 0.000000 0.000000 1.000000</color>
             </emission>
             <ambient>
-              <color sid="ambient">0.859174  0.030257 0.652370 1.000000</color>
+              <color sid="ambient">0.859174 0.030257 0.652370 1.000000</color>
             </ambient>
             <diffuse>
-              <color sid="diffuse">0.859174  0.030257 0.652370 1.000000</color>
+              <color sid="diffuse">0.859174 0.030257 0.652370 1.000000</color>
             </diffuse>
             <specular>
-              <color sid="specular">2.000000  2.000000 2.000000 1.000000</color>
+              <color sid="specular">2.000000 2.000000 2.000000 1.000000</color>
+            </specular>
+            <shininess>
+              <float sid="shininess">1024.000000</float>
+            </shininess>
+            <transparency>
+              <float sid="transparency">0.000000</float>
+            </transparency>
+          </phong>
+        </technique>
+      </profile_COMMON>
+    </effect>
+    <effect id="octagon_basket_yellow-fx" name="octagon_basket_yellow">
+      <profile_COMMON>
+        <technique sid="standard">
+          <phong>
+            <emission>
+              <color sid="emission">0.000000 0.000000 0.000000 1.000000</color>
+            </emission>
+            <ambient>
+              <color sid="ambient">1.000000 1.000000 0.000000 1.000000</color>
+            </ambient>
+            <diffuse>
+              <color sid="diffuse">1.000000 1.000000 0.000000 1.000000</color>
+            </diffuse>
+            <specular>
+              <color sid="specular">2.000000 2.000000 2.000000 1.000000</color>
             </specular>
             <shininess>
               <float sid="shininess">1024.000000</float>
@@ -44880,21 +44912,6 @@
   </library_geometries>
   <library_visual_scenes>
     <visual_scene id="octagon" name="octagon">
-      <node name="octagon_basket_1" id="octagon_basket_1" sid="octagon_basket_1">
-        <matrix sid="matrix">-0.000000 0.010000 0.000000 -0.498060 -0.010000 -0.000000 0.000000 0.021441 0.000000 0.000000 0.010000 0.613799 0.000000 0.000000 0.000000 1.000000</matrix>
-        <instance_geometry url="#octagon_basket_1-lib">
-          <bind_material>
-            <technique_common>
-              <instance_material symbol="octagon_basket" target="#octagon_basket"/>
-            </technique_common>
-          </bind_material>
-        </instance_geometry>
-        <extra>
-          <technique profile="FCOLLADA">
-            <visibility>1.000000</visibility>
-          </technique>
-        </extra>
-      </node>
       <node name="octagon_middle" id="octagon_middle" sid="octagon_middle">
         <matrix sid="matrix">0.010000 0.000000 0.000000 0.000000 0.000000 0.010000 0.000000 -0.000000 0.000000 0.000000 0.010000 0.624535 0.000000 0.000000 0.000000 1.000000</matrix>
         <instance_geometry url="#octagon_middle-lib">
@@ -44915,7 +44932,7 @@
         <instance_geometry url="#octagon_basket_4-lib">
           <bind_material>
             <technique_common>
-              <instance_material symbol="octagon_basket" target="#octagon_basket"/>
+              <instance_material symbol="octagon_basket" target="#octagon_basket_purple"/>
             </technique_common>
           </bind_material>
         </instance_geometry>
@@ -44930,22 +44947,7 @@
         <instance_geometry url="#octagon_basket_2-lib">
           <bind_material>
             <technique_common>
-              <instance_material symbol="octagon_basket" target="#octagon_basket"/>
-            </technique_common>
-          </bind_material>
-        </instance_geometry>
-        <extra>
-          <technique profile="FCOLLADA">
-            <visibility>1.000000</visibility>
-          </technique>
-        </extra>
-      </node>
-      <node name="octagon_basket_3" id="octagon_basket_3" sid="octagon_basket_3">
-        <matrix sid="matrix">-0.000000 0.010000 0.000000 0.498060 -0.010000 -0.000000 0.000000 0.021440 0.000000 0.000000 0.010000 0.613799 0.000000 0.000000 0.000000 1.000000</matrix>
-        <instance_geometry url="#octagon_basket_3-lib">
-          <bind_material>
-            <technique_common>
-              <instance_material symbol="octagon_basket" target="#octagon_basket"/>
+              <instance_material symbol="octagon_basket" target="#octagon_basket_yellow"/>
             </technique_common>
           </bind_material>
         </instance_geometry>
