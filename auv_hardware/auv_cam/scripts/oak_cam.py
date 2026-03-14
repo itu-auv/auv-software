@@ -10,40 +10,56 @@ from cv_bridge import CvBridge
 
 class OakCameraNode:
     def __init__(self):
-        rospy.init_node('oak_camera_node')
+        rospy.init_node("oak_camera_node")
 
-        self.namespace = rospy.get_param('~namespace', 'taluy_mini')
-        self.name = rospy.get_param('~name', 'cam_front')
+        self.namespace = rospy.get_param("~namespace", "taluy_mini")
+        self.name = rospy.get_param("~name", "cam_front")
 
         self.width = 1280
         self.height = 720
         self.hz = 30
 
-        self.distortion_model = rospy.get_param(f'~{self.name}/distortion_model', 'plumb_bob')
-        D = rospy.get_param(f'~{self.name}/distortion_coefficients/data', [])
-        K = rospy.get_param(f'~{self.name}/camera_matrix/data', [])
-        R = rospy.get_param(f'~{self.name}/rectification_matrix/data', [])
-        P = rospy.get_param(f'~{self.name}/projection_matrix/data', [])
+        self.distortion_model = rospy.get_param(
+            f"~{self.name}/distortion_model", "plumb_bob"
+        )
+        D = rospy.get_param(f"~{self.name}/distortion_coefficients/data", [])
+        K = rospy.get_param(f"~{self.name}/camera_matrix/data", [])
+        R = rospy.get_param(f"~{self.name}/rectification_matrix/data", [])
+        P = rospy.get_param(f"~{self.name}/projection_matrix/data", [])
 
         self.D = D
         self.K_list = K
         self.R_list = R
         self.P_list = P
 
-        self.K_mat = np.array(K, dtype=np.float64).reshape(3, 3) if len(K) == 9 else None
+        self.K_mat = (
+            np.array(K, dtype=np.float64).reshape(3, 3) if len(K) == 9 else None
+        )
         self.D_mat = np.array(D, dtype=np.float64) if D else None
-        self.R_mat = np.array(R, dtype=np.float64).reshape(3, 3) if len(R) == 9 else None
-        self.P_mat = np.array(P, dtype=np.float64).reshape(3, 4) if len(P) == 12 else None
+        self.R_mat = (
+            np.array(R, dtype=np.float64).reshape(3, 3) if len(R) == 9 else None
+        )
+        self.P_mat = (
+            np.array(P, dtype=np.float64).reshape(3, 4) if len(P) == 12 else None
+        )
 
-        self.can_rectify = (self.K_mat is not None and self.D_mat is not None
-                            and self.R_mat is not None and self.P_mat is not None)
+        self.can_rectify = (
+            self.K_mat is not None
+            and self.D_mat is not None
+            and self.R_mat is not None
+            and self.P_mat is not None
+        )
         if self.can_rectify:
             new_K, _ = cv2.getOptimalNewCameraMatrix(
                 self.K_mat, self.D_mat, (self.width, self.height), alpha=0
             )
             self.map1, self.map2 = cv2.initUndistortRectifyMap(
-                self.K_mat, self.D_mat, self.R_mat, new_K,
-                (self.width, self.height), cv2.CV_16SC2
+                self.K_mat,
+                self.D_mat,
+                self.R_mat,
+                new_K,
+                (self.width, self.height),
+                cv2.CV_16SC2,
             )
         else:
             rospy.logwarn("invalid calibration parameters")
@@ -51,11 +67,15 @@ class OakCameraNode:
         self.frame_id = f"{self.name}_optical_frame"
         self.bridge = CvBridge()
 
-        self.pub_raw = rospy.Publisher('image_raw', Image, queue_size=5)
-        self.pub_raw_compressed = rospy.Publisher('image_raw/compressed', CompressedImage, queue_size=5)
-        self.pub_info = rospy.Publisher('camera_info', CameraInfo, queue_size=5)
-        self.pub_rect = rospy.Publisher('image_rect_color', Image, queue_size=5)
-        self.pub_rect_compressed = rospy.Publisher('image_rect_color/compressed', CompressedImage, queue_size=5)
+        self.pub_raw = rospy.Publisher("image_raw", Image, queue_size=5)
+        self.pub_raw_compressed = rospy.Publisher(
+            "image_raw/compressed", CompressedImage, queue_size=5
+        )
+        self.pub_info = rospy.Publisher("camera_info", CameraInfo, queue_size=5)
+        self.pub_rect = rospy.Publisher("image_rect_color", Image, queue_size=5)
+        self.pub_rect_compressed = rospy.Publisher(
+            "image_rect_color/compressed", CompressedImage, queue_size=5
+        )
 
         self.cam_info_msg = self._build_camera_info()
 
@@ -66,7 +86,9 @@ class OakCameraNode:
         self.camRgb.setInterleaved(False)
         self.camRgb.setBoardSocket(dai.CameraBoardSocket.CAM_A)
         self.camRgb.setFps(self.hz)
-        self.camRgb.initialControl.setAutoFocusMode(dai.CameraControl.AutoFocusMode.CONTINUOUS_VIDEO)
+        self.camRgb.initialControl.setAutoFocusMode(
+            dai.CameraControl.AutoFocusMode.CONTINUOUS_VIDEO
+        )
 
         self.videoQueue = self.camRgb.video.createOutputQueue()
         self.pipeline.start()
@@ -94,7 +116,7 @@ class OakCameraNode:
     def _make_compressed(self, frame):
         msg = CompressedImage()
         msg.format = "jpeg"
-        _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
         msg.data = buf.tobytes()
         return msg
 
@@ -143,6 +165,6 @@ class OakCameraNode:
             self.rate.sleep()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     node = OakCameraNode()
     node.spin()
