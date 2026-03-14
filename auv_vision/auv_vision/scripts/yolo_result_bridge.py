@@ -28,9 +28,6 @@ class YoloBridge:
         # Create a new Detection2DArray message to publish
         detections_msg = msg.detections
 
-        # It's good practice to update the header timestamp
-        detections_msg.header.stamp = rospy.Time.now()
-
         self.detection_pub.publish(detections_msg)
 
     def run(self):
