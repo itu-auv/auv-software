@@ -25,6 +25,8 @@ class PathPlannerNode:
             "/stop_planning", Trigger, self.stop_planning_cb
         )
         self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 9))
+        self.dynamic = True
+        self.static_path = None
         rospy.loginfo("[path_planner_node] Path planner node started.")
 
     def set_plan_cb(self, req):
@@ -33,9 +35,25 @@ class PathPlannerNode:
 
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
+        self.dynamic = getattr(req, "dynamic", True)
+
+        # If not dynamic, generate static path once
+        if not self.dynamic:
+            self.static_path = self.path_planners.straight_path_to_frame(
+                source_frame=self.robot_frame,
+                target_frame=self.target_frame,
+                angle_offset=self.angle_offset,
+            )
+            if self.static_path:
+                rospy.loginfo("[path_planner_node] Static path generated.")
+            else:
+                rospy.logwarn("[path_planner_node] Static path generation failed.")
+                return PlanPathResponse(success=False)
+        else:
+            self.static_path = None
 
         rospy.loginfo(
-            f"[path_planner_node] New plan set. Target: {self.target_frame}, Angle offset: {self.angle_offset}"
+            f"[path_planner_node] New plan set. Target: {self.target_frame}, Angle offset: {self.angle_offset}, dynamic: {self.dynamic}"
         )
         return PlanPathResponse(success=True)
 
@@ -47,21 +65,25 @@ class PathPlannerNode:
     def run(self):
         while not rospy.is_shutdown():
             if self.planning_active and self.target_frame is not None:
-                path = None
-                try:
-                    path = self.path_planners.straight_path_to_frame(
-                        source_frame=self.robot_frame,
-                        target_frame=self.target_frame,
-                        angle_offset=self.angle_offset,
-                    )
-                    if path:
-                        self.path_pub.publish(path)
-                    else:
-                        rospy.logwarn("[path_planner_node] No path generated.")
-
-                except Exception as e:
-                    rospy.logerr(f"[path_planner_node] Error while planning path: {e}")
-
+                if self.dynamic:
+                    path = None
+                    try:
+                        path = self.path_planners.straight_path_to_frame(
+                            source_frame=self.robot_frame,
+                            target_frame=self.target_frame,
+                            angle_offset=self.angle_offset,
+                        )
+                        if path:
+                            self.path_pub.publish(path)
+                        else:
+                            rospy.logwarn("[path_planner_node] No path generated.")
+                    except Exception as e:
+                        rospy.logerr(
+                            f"[path_planner_node] Error while planning path: {e}"
+                        )
+                else:
+                    if self.static_path:
+                        self.path_pub.publish(self.static_path)
             self.loop_rate.sleep()
 
 
