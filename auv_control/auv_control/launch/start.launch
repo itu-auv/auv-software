@@ -48,6 +48,7 @@
       <remap from="enable" to="enable" />
       <remap from="set_pose" to="set_pose" />
       <remap from="reset_odometry" to="reset_odometry" />
+      <remap from="reset_position" to="reset_position" />
       <remap from="align_frame/start" to="control/align_frame/start" />
       <remap from="propulsion_board/status" to="propulsion_board/status" />
       <remap from="align_frame/cancel" to="control/align_frame/cancel" />

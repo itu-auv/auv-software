@@ -66,6 +66,9 @@ class ReferencePosePublisherNode:
         self.reset_orientation_service = rospy.Service(
             "reset_command_orientation", Trigger, self.handle_reset_orientation_request
         )
+        self.reset_position_service = rospy.Service(
+            "reset_position", Trigger, self.reset_position_handler
+        )
         self.sync_cmd_pose_service = rospy.Service(
             "sync_cmd_pose", Trigger, self.handle_sync_cmd_pose_request
         )
@@ -407,6 +410,38 @@ class ReferencePosePublisherNode:
         self.is_resetting = False
         rospy.logdebug("Odometry reset finished.")
         return TriggerResponse(success=True, message="Odometry reset successfully.")
+
+    def reset_position_handler(self, req):
+        if self.is_resetting:
+            return TriggerResponse(
+                success=False, message="Odometry reset already in progress."
+            )
+
+        self.is_resetting = True
+        rospy.logdebug("Starting position reset (preserving orientation).")
+
+        try:
+            pose_req = SetPoseRequest()
+            pose_req.pose = PoseWithCovarianceStamped()
+            pose_req.pose.header.stamp = rospy.Time.now()
+            pose_req.pose.header.frame_id = "odom"
+
+            pose_req.pose.pose.pose.orientation = (
+                self.latest_odometry.pose.pose.orientation
+            )
+
+            self.set_pose_client(pose_req)
+            rospy.logdebug("Called set_pose service (position only).")
+        except (rospy.ServiceException, rospy.ROSException) as e:
+            rospy.logerr(f"Service call failed: {e}")
+            self.is_resetting = False
+            return TriggerResponse(success=False, message=f"Service call failed: {e}")
+
+        rospy.sleep(2.0)
+
+        self.is_resetting = False
+        rospy.logdebug("Position reset finished.")
+        return TriggerResponse(success=True, message="Position reset successfully.")
 
     def odometry_callback(self, msg):
         self.latest_odometry = msg
