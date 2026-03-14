@@ -1,5 +1,6 @@
 #pragma once
 #include <Eigen/Core>
+#include <cmath>
 #include <ostream>
 
 namespace auv {
@@ -19,6 +20,10 @@ struct Model {
     mass_inertia_matrix = other.mass_inertia_matrix;
     linear_damping_matrix = other.linear_damping_matrix;
     quadratic_damping_matrix = other.quadratic_damping_matrix;
+    weight = other.weight;
+    buoyancy = other.buoyancy;
+    center_of_gravity = other.center_of_gravity;
+    center_of_buoyancy = other.center_of_buoyancy;
   }
 
   // copy assignment
@@ -30,6 +35,10 @@ struct Model {
     mass_inertia_matrix = other.mass_inertia_matrix;
     linear_damping_matrix = other.linear_damping_matrix;
     quadratic_damping_matrix = other.quadratic_damping_matrix;
+    weight = other.weight;
+    buoyancy = other.buoyancy;
+    center_of_gravity = other.center_of_gravity;
+    center_of_buoyancy = other.center_of_buoyancy;
 
     return *this;
   }
@@ -39,6 +48,10 @@ struct Model {
     mass_inertia_matrix = std::move(other.mass_inertia_matrix);
     linear_damping_matrix = std::move(other.linear_damping_matrix);
     quadratic_damping_matrix = std::move(other.quadratic_damping_matrix);
+    weight = other.weight;
+    buoyancy = other.buoyancy;
+    center_of_gravity = std::move(other.center_of_gravity);
+    center_of_buoyancy = std::move(other.center_of_buoyancy);
   }
 
   /**
@@ -95,12 +108,62 @@ struct Model {
     return C;
   }
 
+  /**
+   * @brief Compute the hydrostatic restoring force/moment vector g(η).
+   *
+   * Uses the Fossen formulation for underwater vehicles:
+   * g(η) = [ (W - B) sin(θ) ] [ -(W - B) cos(θ) sin(φ) ] [ -(W - B) cos(θ)
+   * cos(φ)                                                 ] [ -(y_g*W - y_b*B)
+   * cos(θ)cos(φ) + (z_g*W - z_b*B) cos(θ)sin(φ)          ] [  (z_g*W - z_b*B)
+   * sin(θ) + (x_g*W - x_b*B) cos(θ)cos(φ)                ] [ -(x_g*W - x_b*B)
+   * cos(θ)sin(φ) - (y_g*W - y_b*B) sin(θ)                ]
+   *
+   * where W = weight, B = buoyancy, r_g = [x_g, y_g, z_g] (CoG),
+   *       r_b = [x_b, y_b, z_b] (CoB), φ = roll, θ = pitch
+   *
+   * @param roll  Roll angle (φ) in radians
+   * @param pitch Pitch angle (θ) in radians
+   * @return The 6-DOF hydrostatic restoring force vector (in body frame)
+   */
+  Vector hydrostatic_restoring_force(double roll, double pitch) const {
+    static_assert(N == 6,
+                  "Hydrostatic restoring force is only defined for 6-DOF "
+                  "systems");
+
+    const double W = weight;
+    const double B = buoyancy;
+    const double xg = center_of_gravity(0);
+    const double yg = center_of_gravity(1);
+    const double zg = center_of_gravity(2);
+    const double xb = center_of_buoyancy(0);
+    const double yb = center_of_buoyancy(1);
+    const double zb = center_of_buoyancy(2);
+
+    const double sp = std::sin(pitch);  // sin(θ)
+    const double cp = std::cos(pitch);  // cos(θ)
+    const double sr = std::sin(roll);   // sin(φ)
+    const double cr = std::cos(roll);   // cos(φ)
+
+    Vector g = Vector::Zero();
+    g(0) = (W - B) * sp;
+    g(1) = -(W - B) * cp * sr;
+    g(2) = -(W - B) * cp * cr;
+    g(3) = -(yg * W - yb * B) * cp * cr + (zg * W - zb * B) * cp * sr;
+    g(4) = (zg * W - zb * B) * sp + (xg * W - xb * B) * cp * cr;
+    g(5) = -(xg * W - xb * B) * cp * sr - (yg * W - yb * B) * sp;
+
+    return g;
+  }
+
   Matrix mass_inertia_matrix;
-  // Matrix added_mass_matrix_; // TODO: implement this
   Matrix linear_damping_matrix;
   Matrix quadratic_damping_matrix;
-  // Matrix coriolis_centrifugal_matrix_; // TODO: implement this
-  // Vector gravity_vector_; // TODO: implement this
+
+  // Hydrostatic parameters
+  double weight{0.0};                           // W = m*g (N)
+  double buoyancy{0.0};                         // B (N)
+  Vector3 center_of_gravity{Vector3::Zero()};   // CoG in body frame [m]
+  Vector3 center_of_buoyancy{Vector3::Zero()};  // CoB in body frame [m]
 
  private:
   /**
@@ -129,6 +192,12 @@ inline std::ostream& operator<<(std::ostream& os, const Model<N>& model) {
      << model.linear_damping_matrix << std::endl;
   os << "quadratic_damping_matrix: " << std::endl
      << model.quadratic_damping_matrix << std::endl;
+  os << "weight: " << model.weight << std::endl;
+  os << "buoyancy: " << model.buoyancy << std::endl;
+  os << "center_of_gravity: " << model.center_of_gravity.transpose()
+     << std::endl;
+  os << "center_of_buoyancy: " << model.center_of_buoyancy.transpose()
+     << std::endl;
   return os;
 }
 
