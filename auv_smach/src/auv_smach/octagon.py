@@ -39,7 +39,6 @@ class GripperAngleOpenState(smach.State):
         try:
             msg = UInt16()
             msg.data = self.angle_value
-            # Birkaç kez yayınla - topic'in alındığından emin olmak için
             for _ in range(3):
                 self.pub.publish(msg)
                 rospy.sleep(0.1)
@@ -412,8 +411,6 @@ class OctagonTaskState(smach.State):
                 },
             )
 
-            # ============== BOTTLE SEARCH SEQUENCE ==============
-            # Search Right
             smach.StateMachine.add(
                 "SEARCH_RIGHT",
                 AlignFrame(
@@ -445,7 +442,6 @@ class OctagonTaskState(smach.State):
                 },
             )
 
-            # Search Forward
             smach.StateMachine.add(
                 "SEARCH_FORWARD",
                 AlignFrame(
@@ -477,7 +473,6 @@ class OctagonTaskState(smach.State):
                 },
             )
 
-            # Search Left
             smach.StateMachine.add(
                 "SEARCH_LEFT",
                 AlignFrame(
@@ -509,7 +504,6 @@ class OctagonTaskState(smach.State):
                 },
             )
 
-            # Search Backward
             smach.StateMachine.add(
                 "SEARCH_BACKWARD",
                 AlignFrame(
@@ -540,7 +534,6 @@ class OctagonTaskState(smach.State):
                     "aborted": "SEARCH_RIGHT",  # Loop back to start (or could abort)
                 },
             )
-            # ============== END BOTTLE SEARCH SEQUENCE ==============
 
             smach.StateMachine.add(
                 "SURFACE_WITH_BOTTLE",

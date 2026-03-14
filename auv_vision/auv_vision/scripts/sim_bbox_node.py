@@ -85,7 +85,7 @@ CLASS_NAMES = {
 @dataclass
 class SimObject:
     class_id: int
-    camera: str
+    cameras: List[str]
     gazebo_model: str
     offset: Optional[np.ndarray] = None
     boundary: Optional[List[np.ndarray]] = None
@@ -416,8 +416,6 @@ class SimCamera:
         if base_to_camera is None:
             return
 
-        # Select the model_states snapshot closest to the image's capture
-        # time so that projected bboxes match the rendered viewpoint.
         self.gazebo.sync_to_time(msg.header.stamp)
 
         robot_matrix = self.gazebo.get_robot_matrix()
@@ -615,14 +613,14 @@ class SimBboxNode:
         all_objects: List[SimObject] = [
             SimObject(
                 class_id=0,
-                camera="front",
+                cameras=["front", "realsense"],
                 gazebo_model="robosub_gate",
                 offset=np.array([0.0, -0.762, 1.356]),
                 boundary=gate_sign,
             ),  # sawfish
             SimObject(
                 class_id=1,
-                camera="front",
+                cameras=["front", "realsense"],
                 gazebo_model="robosub_gate",
                 offset=np.array([0.0, 0.762, 1.356]),
                 boundary=gate_sign,
@@ -630,7 +628,7 @@ class SimBboxNode:
             # Map panel (front camera, class 4)
             SimObject(
                 class_id=4,
-                camera="front",
+                cameras=["front", "realsense"],
                 gazebo_model="robosub_torpedo",
                 offset=np.array([-0.1166, 0.6472, -0.9490]),
                 boundary=torp_map,
@@ -639,14 +637,14 @@ class SimBboxNode:
             # the pose estimator sorts upper/lower by image Y position.
             SimObject(
                 class_id=5,
-                camera="torpedo",
+                cameras=["torpedo"],
                 gazebo_model="robosub_torpedo",
                 offset=np.array([-0.1166, 0.6089, -0.9687]),
                 boundary=torp_hole,
             ),  # torpedo hole 1 (lower in mesh)
             SimObject(
                 class_id=5,
-                camera="torpedo",
+                cameras=["torpedo"],
                 gazebo_model="robosub_torpedo",
                 offset=np.array([-0.1166, 0.8619, -1.0787]),
                 boundary=torp_hole,
@@ -665,7 +663,7 @@ class SimBboxNode:
                 all_objects.append(
                     SimObject(
                         class_id=class_id,
-                        camera="front",
+                        cameras=["front", "realsense"],
                         gazebo_model=f"robosub_slalom_{i}",
                         offset=offset,
                         boundary=pipe_boundary,
@@ -677,7 +675,7 @@ class SimBboxNode:
                 # Whole bin structure (front camera, class 6)
                 SimObject(
                     class_id=6,
-                    camera="front",
+                    cameras=["front", "realsense"],
                     gazebo_model="robosub_bin",
                     offset=np.array([0.0, 0.0812, 0.9337]),
                     boundary=bin_whole,
@@ -686,14 +684,14 @@ class SimBboxNode:
                 # (pose estimator has per-camera id_tf_map)
                 SimObject(
                     class_id=1,
-                    camera="bottom",
+                    cameras=["bottom"],
                     gazebo_model="robosub_bin",
                     offset=np.array([-0.1525, 0.0144, 0.9337]),
                     boundary=bin_square,
                 ),  # bin_shark (left square)
                 SimObject(
                     class_id=0,
-                    camera="bottom",
+                    cameras=["bottom"],
                     gazebo_model="robosub_bin",
                     offset=np.array([0.1525, 0.0144, 0.9337]),
                     boundary=bin_square,
@@ -702,8 +700,6 @@ class SimBboxNode:
         )
 
         # Legs (Z < 0.54): XY ±0.32 × ±0.55
-        # Basket level (Z ≥ 0.54): baskets only on ±Y (2 and 4),
-        #   X extent = table width (±0.305), Y includes baskets (±0.55)
         # Center: (0, 0, 0.347), no rotation in world
         dz_legs = np.array(
             [0.0, 0.0, -0.077]
@@ -717,32 +713,26 @@ class SimBboxNode:
         all_objects.append(
             SimObject(
                 class_id=7,
-                camera="front",
+                cameras=["front", "realsense"],
                 gazebo_model="robosub_octagon",
                 offset=np.array([0.0, 0.0, 0.347]),
                 boundary=oct_boundary,
             )
         )  # octagon
-        # Octagon table — central flat panel (bottom camera, class 2)
-        # octagon_middle: XY ±0.3048 m, Z ≈ 0.645, horizontal face
         all_objects.append(
             SimObject(
                 class_id=2,
-                camera="bottom",
+                cameras=["bottom"],
                 gazebo_model="robosub_octagon",
                 offset=np.array([0.0, 0.0, 0.6446]),
                 boundary=rect((0.3048, 0.3048, 0)),
             )
         )  # octagon_table
-        # Octagon bins — 2 baskets on ±Y, top-face corners (bottom camera, class 3)
-        # basket_2 at (-0.021, +0.432), basket_4 at (-0.021, -0.432)
-        # DAE nodes have 90° rotation: local X→world Y, local Y→world -X
-        # After rotation: ±0.1715 in X (world), ±0.1175 in Y (world)
         oct_bin_boundary = rect((0.1715, 0.1175, 0))
         all_objects.append(
             SimObject(
                 class_id=4,
-                camera="bottom",
+                cameras=["bottom"],
                 gazebo_model="robosub_octagon",
                 offset=np.array([-0.021, 0.432, 0.6865]),
                 boundary=oct_bin_boundary,
@@ -751,7 +741,7 @@ class SimBboxNode:
         all_objects.append(
             SimObject(
                 class_id=3,
-                camera="bottom",
+                cameras=["bottom"],
                 gazebo_model="robosub_octagon",
                 offset=np.array([-0.021, -0.432, 0.6865]),
                 boundary=oct_bin_boundary,
@@ -768,14 +758,14 @@ class SimBboxNode:
             [
                 SimObject(
                     class_id=0,
-                    camera="bottom_seg",
+                    cameras=["bottom_seg"],
                     gazebo_model="bottle_final1",
                     faces=bottle_faces,
                     match_prefix=True,
                 ),
                 SimObject(
                     class_id=1,
-                    camera="bottom_seg",
+                    cameras=["bottom_seg"],
                     gazebo_model="ladle_final1",
                     faces=ladle_faces,
                     match_prefix=True,
@@ -790,14 +780,10 @@ class SimBboxNode:
             "bottom_seg": [],
             "realsense": [],
         }
-        import copy
 
         for obj in all_objects:
-            objects_by_camera[obj.camera].append(obj)
-            if obj.camera == "front":
-                rs_obj = copy.deepcopy(obj)
-                rs_obj.camera = "realsense"
-                objects_by_camera["realsense"].append(rs_obj)
+            for cam in obj.cameras:
+                objects_by_camera[cam].append(obj)
 
         self.cameras: Dict[str, SimCamera] = {
             "front": SimCamera(

@@ -12,11 +12,7 @@ import math
 
 class ModelSpawner:
     def __init__(self):
-        # Node name kept generic; service and model names are configurable via private params
         rospy.init_node("spawn_model_server")
-        # We'll support two models/services (bottle, ladle). Each has its own set of private params:
-        #   ~<key>_model_package, ~<key>_model_subdir, ~<key>_model_file, ~<key>_model_name, ~<key>_service_name
-        # Defaults chosen to be sensible for this repo.
         self.keys = ["bottle", "ladle"]
         self.configs = {}
         for key in self.keys:
@@ -35,16 +31,12 @@ class ModelSpawner:
                 "service_name": service_name,
             }
 
-        # Track how many of each model type have been spawned (for unique naming)
         self.spawn_counts = {}
-        # Track all spawned positions for collision avoidance
         self.spawned_positions = []
 
-        # Gazebo spawn proxy (shared)
         rospy.wait_for_service("/gazebo/spawn_sdf_model")
         self.spawn_model = rospy.ServiceProxy("/gazebo/spawn_sdf_model", SpawnModel)
 
-        # Register both services. Use a small closure to bind the key to the callback.
         for key in self.keys:
             svc_name = self.configs[key]["service_name"]
             rospy.Service(
@@ -56,15 +48,12 @@ class ModelSpawner:
         )
         rospy.loginfo(f"[spawn_model_server] Ready. Registered services: {registered}")
 
-        # Auto-spawn bottle and ladle on startup with 90 degree rotation
         self._auto_spawn_models()
 
     def _get_random_table_pose(self, min_dist=0.2):
         """Pick a random (x, y) on the table that is at least min_dist from all
         previously spawned positions."""
         for _ in range(100):
-            # Masa (octagon_middleMesh) merkezi (13.0, -4.25) ve boyutu ~60x60cm
-            # Merkez etrafında +/- 20cm (0.2m) mesafe içerisinde rastgele seçiyoruz
             x = random.uniform(12.8, 13.2)
             y = random.uniform(-4.45, -4.05)
             too_close = False
@@ -115,7 +104,6 @@ class ModelSpawner:
             pose.position.y = y
             pose.position.z = z
 
-            # 90 degree rotation around Y axis (pi/2 radians) to make them horizontal
             q = tft.quaternion_from_euler(
                 0, math.pi / 2, random.uniform(0, 2 * math.pi)
             )

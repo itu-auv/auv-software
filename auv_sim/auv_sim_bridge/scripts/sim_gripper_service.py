@@ -12,7 +12,6 @@ class GripperService:
     def __init__(self):
         rospy.init_node("gripper_service")
 
-        # Parameters
         self.model_name = rospy.get_param("~model_name", "taluy")
         self.robot_description_param = rospy.get_param(
             "~robot_description_param", f"/{self.model_name}/robot_description"
@@ -23,25 +22,18 @@ class GripperService:
         self.right_joint = rospy.get_param(
             "~right_joint", f"{self.model_name}/finger_right_joint"
         )
-        # Whether right joint should mirror left (open by rotating in opposite direction)
         self.mirror_right = bool(rospy.get_param("~mirror_right", True))
 
-        # Angles (radians)
-        # Neutral=0 (paralel), Open=pozitif (dışa açık), Close=negatif (içe kapalı)
         self.open_angle = float(rospy.get_param("~open_angle", 0.25))
         self.close_angle = float(rospy.get_param("~close_angle", -0.15))
         self.neutral_angle = float(rospy.get_param("~neutral_angle", 0.0))
 
-        # Motion profile
         self.move_duration = float(rospy.get_param("~move_duration", 1.0))  # seconds
         self.move_steps = int(rospy.get_param("~move_steps", 30))  # interpolation steps
 
-        # Effort-based control parameters (for stall-on-contact)
         self.use_effort = bool(rospy.get_param("~use_effort_control", True))
-        # Dengeli ayar: Güçlü ama titreşimsiz
         self.kp_effort = float(rospy.get_param("~kp_effort", 45.0))  # Nm/rad
         self.max_effort = float(rospy.get_param("~max_effort", 20.0))  # Nm cap
-        # Hold effort optimal: Düşürmeden ama titretmeden
         self.hold_effort = float(
             rospy.get_param("~hold_effort", 7.0)
         )  # Nm per finger when holding
@@ -56,21 +48,18 @@ class GripperService:
         )  # consecutive cycles
         self.dt_effort = float(rospy.get_param("~dt_effort", 0.05))
 
-        # Joint state cache (populated from /<ns>/joint_states)
         self._joint_positions: Dict[str, float] = {}
         self._joint_velocities: Dict[str, float] = {}
         self._js_sub = rospy.Subscriber(
             "joint_states", JointState, self._on_joint_states, queue_size=5
         )
 
-        # Holding mechanism - thread based
         self._holding_lock = threading.Lock()
         self._holding = False
         self._holding_thread: Optional[threading.Thread] = None
         self._hold_left_target = 0.0
         self._hold_right_target = 0.0
 
-        # Gazebo service proxies
         self.set_model_config = rospy.ServiceProxy(
             "/gazebo/set_model_configuration", SetModelConfiguration
         )
@@ -81,14 +70,11 @@ class GripperService:
             "/gazebo/clear_joint_forces", JointRequest
         )
 
-        # Main SetBool service (True=close, False=open)
         rospy.Service("actuators/gripper/set", SetBool, self.handle_set)
-        # Convenience services
         rospy.Service("actuators/gripper/open", Trigger, self.handle_open)
         rospy.Service("actuators/gripper/close", Trigger, self.handle_close)
         rospy.Service("actuators/gripper/neutral", Trigger, self.handle_neutral)
 
-        # Topic for real life gripper compatibility
         rospy.Subscriber("actuators/gripper/set_angle", UInt16, self.handle_set_angle)
 
         rospy.loginfo(
@@ -138,7 +124,6 @@ class GripperService:
         if not self._wait_for_service("/gazebo/set_model_configuration"):
             return False
 
-        # Determine start positions; fall back to last target if unknown
         left_start = self._get_current(self.left_joint)
         right_start = self._get_current(self.right_joint)
         if left_start is None:
@@ -160,7 +145,6 @@ class GripperService:
             rospy.sleep(max(0.0, dt))
         return ok
 
-    # Effort-based position approach that stalls on contact
     def _apply_effort_once(self, joint: str, effort: float, duration: float) -> bool:
         try:
             resp = self.apply_joint_effort(
@@ -189,12 +173,10 @@ class GripperService:
                 self._holding = False
                 rospy.loginfo("[gripper_service] Stopping holding thread...")
 
-        # Wait for thread to finish
         if self._holding_thread is not None and self._holding_thread.is_alive():
             self._holding_thread.join(timeout=2.0)
             self._holding_thread = None
 
-        # Clear forces
         self._clear_force(self.left_joint)
         self._clear_force(self.right_joint)
         rospy.loginfo("[gripper_service] Holding stopped, forces cleared")
@@ -211,20 +193,16 @@ class GripperService:
                 left_target = self._hold_left_target
                 right_target = self._hold_right_target
 
-            # Get current positions
             lp = self._get_current(self.left_joint)
             rp = self._get_current(self.right_joint)
 
             if lp is not None and rp is not None:
-                # Calculate errors
                 le = float(left_target - lp)
                 re = float(right_target - rp)
 
-                # Determine effort direction based on error
                 le_sign = 1.0 if le > 0.0 else -1.0
                 re_sign = 1.0 if re > 0.0 else -1.0
 
-                # Apply constant holding effort in the direction of target
                 hold_l = le_sign * self.hold_effort
                 hold_r = re_sign * self.hold_effort
 
@@ -237,7 +215,6 @@ class GripperService:
 
     def _start_holding(self, left_target: float, right_target: float):
         """Start a background thread to continuously apply holding force"""
-        # Stop any existing holding first
         self._stop_holding()
 
         with self._holding_lock:
@@ -245,7 +222,6 @@ class GripperService:
             self._hold_left_target = left_target
             self._hold_right_target = right_target
 
-        # Start new holding thread
         self._holding_thread = threading.Thread(target=self._holding_loop, daemon=True)
         self._holding_thread.start()
         rospy.loginfo(
@@ -257,7 +233,6 @@ class GripperService:
     def _move_with_effort(
         self, left_target: float, right_target: float, hold: bool = False
     ) -> bool:
-        # Wait for services
         if not (
             self._wait_for_service("/gazebo/apply_joint_effort")
             and self._wait_for_service("/gazebo/clear_joint_forces")
@@ -267,11 +242,9 @@ class GripperService:
             )
             return self._move_smooth(left_target, right_target)
 
-        # Initial clear of any lingering forces
         self._clear_force(self.left_joint)
         self._clear_force(self.right_joint)
 
-        # Control loop
         dt = max(0.01, self.dt_effort)
         stall_count_l = 0
         stall_count_r = 0
@@ -280,7 +253,6 @@ class GripperService:
         timeout = max(self.move_duration, 0.5)
 
         while not rospy.is_shutdown():
-            # Timeout check
             if rospy.Time.now().to_sec() - t0 > 3.0 * timeout:
                 rospy.logwarn("Effort control timeout")
                 ok = False
@@ -292,22 +264,18 @@ class GripperService:
             rv = self._get_velocity(self.right_joint) or 0.0
 
             if lp is None or rp is None:
-                # Wait a bit for joint states
                 rospy.sleep(0.02)
                 continue
 
             le = float(left_target - lp)
             re = float(right_target - rp)
 
-            # PD-like (P only) effort with saturation
             leff = max(-self.max_effort, min(self.max_effort, self.kp_effort * le))
             reff = max(-self.max_effort, min(self.max_effort, self.kp_effort * re))
 
-            # Apply for a short duration
             ok = self._apply_effort_once(self.left_joint, leff, dt) and ok
             ok = self._apply_effort_once(self.right_joint, reff, dt) and ok
 
-            # Stall detection: if not near target and velocity ~0 over several cycles
             if abs(le) > self.error_tol and abs(lv) < self.vel_tol:
                 stall_count_l += 1
             else:
@@ -317,26 +285,21 @@ class GripperService:
             else:
                 stall_count_r = 0
 
-            # If both stalled (contact detected) or reached target
             if (
                 stall_count_l >= self.stall_cycles
                 and stall_count_r >= self.stall_cycles
             ):
                 if hold:
-                    # HOLD MODE: Start background holding thread and return immediately
                     rospy.loginfo(
                         "[gripper_service] Stall detected, starting holding mode"
                     )
                     self._start_holding(left_target, right_target)
                     return True
                 else:
-                    # Open/neutral mode: stop and return
                     break
 
-            # If both reached target within tolerance
             if abs(le) <= self.error_tol and abs(re) <= self.error_tol:
                 if hold:
-                    # Start holding even if target reached
                     rospy.loginfo(
                         "[gripper_service] Target reached, starting holding mode"
                     )
@@ -347,7 +310,6 @@ class GripperService:
 
             rospy.sleep(dt)
 
-        # If not holding, clear forces so joint stops driving
         if not hold:
             self._clear_force(self.left_joint)
             self._clear_force(self.right_joint)
@@ -363,20 +325,16 @@ class GripperService:
             return self._move_smooth(left_angle, right_angle)
 
     def handle_set(self, req):
-        # True => close, False => open
         if not req.data:
-            # Opening - stop any holding first
             self._stop_holding()
 
         base_target = self.close_angle if req.data else self.open_angle
         right_target = -base_target if self.mirror_right else base_target
-        # When closing, hold grip; when opening, do not hold
         ok = self.set_angles(base_target, right_target, hold=bool(req.data))
         msg = ("closed" if req.data else "opened") if ok else "command failed"
         return SetBoolResponse(success=ok, message=msg)
 
     def handle_open(self, _req):
-        # Stop any holding first
         self._stop_holding()
 
         base = self.open_angle
@@ -385,7 +343,6 @@ class GripperService:
         return TriggerResponse(success=ok, message="opened" if ok else "open failed")
 
     def handle_close(self, _req):
-        # Stop any previous holding first (in case we're re-closing)
         self._stop_holding()
 
         base = self.close_angle
@@ -394,7 +351,6 @@ class GripperService:
         return TriggerResponse(success=ok, message="closed" if ok else "close failed")
 
     def handle_neutral(self, _req):
-        # Stop any holding first
         self._stop_holding()
 
         base = self.neutral_angle
