@@ -27,7 +27,7 @@ class ThrusterAllocator {
 
   ThrusterAllocator(const ros::NodeHandle &nh) : nh_{nh} {
     nh_.param<std::string>("frame_prefix", frame_prefix_, "taluy");
-    nh_.param<std::string>("base_frame", base_frame_, "base_link");
+    nh_.param<std::string>("base_frame", base_frame_, "center_of_gravity");
     nh_.param<std::string>("thruster_frame", thruster_frame_,
                            "thruster_{}_link");
 
