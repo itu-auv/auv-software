@@ -152,7 +152,11 @@ def _parse_dae(model_path: str) -> Tuple[ET.Element, str, np.ndarray]:
 
 
 def load_dae_faces(model_path: str) -> List[np.ndarray]:
-    root, collada_ns, transform = _parse_dae(model_path)
+    try:
+        root, collada_ns, transform = _parse_dae(model_path)
+    except (rospkg.ResourceNotFound, FileNotFoundError):
+        rospy.logwarn(f"DAE model not found: {model_path} — segmentation disabled")
+        return []
     ns = {"c": collada_ns}
 
     all_faces: List[np.ndarray] = []
