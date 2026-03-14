@@ -416,8 +416,6 @@ class SimCamera:
         if base_to_camera is None:
             return
 
-        # Select the model_states snapshot closest to the image's capture
-        # time so that projected bboxes match the rendered viewpoint.
         self.gazebo.sync_to_time(msg.header.stamp)
 
         robot_matrix = self.gazebo.get_robot_matrix()
@@ -702,8 +700,6 @@ class SimBboxNode:
         )
 
         # Legs (Z < 0.54): XY ±0.32 × ±0.55
-        # Basket level (Z ≥ 0.54): baskets only on ±Y (2 and 4),
-        #   X extent = table width (±0.305), Y includes baskets (±0.55)
         # Center: (0, 0, 0.347), no rotation in world
         dz_legs = np.array(
             [0.0, 0.0, -0.077]
@@ -723,8 +719,6 @@ class SimBboxNode:
                 boundary=oct_boundary,
             )
         )  # octagon
-        # Octagon table — central flat panel (bottom camera, class 2)
-        # octagon_middle: XY ±0.3048 m, Z ≈ 0.645, horizontal face
         all_objects.append(
             SimObject(
                 class_id=2,
@@ -734,10 +728,6 @@ class SimBboxNode:
                 boundary=rect((0.3048, 0.3048, 0)),
             )
         )  # octagon_table
-        # Octagon bins — 2 baskets on ±Y, top-face corners (bottom camera, class 3)
-        # basket_2 at (-0.021, +0.432), basket_4 at (-0.021, -0.432)
-        # DAE nodes have 90° rotation: local X→world Y, local Y→world -X
-        # After rotation: ±0.1715 in X (world), ±0.1175 in Y (world)
         oct_bin_boundary = rect((0.1715, 0.1175, 0))
         all_objects.append(
             SimObject(
