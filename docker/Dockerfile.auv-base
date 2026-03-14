@@ -38,7 +38,8 @@ RUN apt-get update && \
   ros-noetic-move-base \
   ros-noetic-pcl-ros \
   ros-noetic-pcl-conversions \
-  ros-noetic-robot-localization && \
+  ros-noetic-robot-localization \
+  ros-noetic-tf-conversions && \
   rm -rf /var/lib/apt/lists/*
 
 RUN if [ "$HOST" = "tegra" ]; then \
