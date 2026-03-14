@@ -46,45 +46,10 @@ import tf2_ros
 import tf.transformations as tft
 
 
-CLASS_NAMES = {
-    "front": {
-        0: "sawfish",
-        1: "shark",
-        2: "red_pipe",
-        3: "white_pipe",
-        4: "torpedo_map",
-        6: "bin_whole",
-        7: "octagon",
-    },
-    "bottom": {
-        0: "bin_shark",
-        1: "bin_sawfish",
-        2: "octagon_table",
-        3: "octagon_bin_pink",
-        4: "octagon_bin_yellow",
-    },
-    "torpedo": {
-        5: "torpedo_hole",
-    },
-    "bottom_seg": {
-        0: "bottle",
-        1: "ladle",
-    },
-    "realsense": {
-        0: "sawfish",
-        1: "shark",
-        2: "red_pipe",
-        3: "white_pipe",
-        4: "torpedo_map",
-        6: "bin_whole",
-        7: "octagon",
-    },
-}
-
-
 @dataclass
 class SimObject:
     class_id: int
+    name: str
     cameras: List[str]
     gazebo_model: str
     offset: Optional[np.ndarray] = None
@@ -95,6 +60,8 @@ class SimObject:
     def __post_init__(self):
         if self.boundary is None and self.faces is None:
             raise ValueError("SimObject needs either boundary or faces")
+        if self.boundary is not None and self.offset is None:
+            raise ValueError("SimObject with boundary requires an offset")
 
 
 def rect(half_extents: Tuple[float, float, float]) -> List[np.ndarray]:
@@ -104,9 +71,12 @@ def rect(half_extents: Tuple[float, float, float]) -> List[np.ndarray]:
     return [sx * axes[0] + sy * axes[1] for sx in [1, -1] for sy in [1, -1]]
 
 
-def yz_circle(radius: float, n: int = 16) -> List[np.ndarray]:
+def circle(radii: Tuple[float, float, float], n: int = 16) -> List[np.ndarray]:
+    axes = [row for row in np.diag(radii) if np.any(row)]
+    if len(axes) != 2:
+        raise ValueError("Exactly two non-zero radii required")
     return [
-        np.array([0.0, radius * np.cos(t), radius * np.sin(t)])
+        axes[0] * np.cos(t) + axes[1] * np.sin(t)
         for t in np.linspace(0, 2 * np.pi, n, endpoint=False)
     ]
 
@@ -120,12 +90,19 @@ def box(half_x: float, half_y: float, half_z: float) -> List[np.ndarray]:
     ]
 
 
-def z_cylinder(radius: float, half_height: float, n: int = 8) -> List[np.ndarray]:
-    points = []
-    for dz in [half_height, -half_height]:
-        for t in np.linspace(0, 2 * np.pi, n, endpoint=False):
-            points.append(np.array([radius * np.cos(t), radius * np.sin(t), dz]))
-    return points
+def cylinder(half_extents: Tuple[float, float, float], n: int = 8) -> List[np.ndarray]:
+    e = np.array(half_extents)
+    for i in range(3):
+        j, k = [x for x in range(3) if x != i]
+        if e[j] == e[k]:
+            a0, a1, h = np.zeros(3), np.zeros(3), np.zeros(3)
+            a0[j], a1[k], h[i] = e[j], e[k], e[i]
+            return [
+                a0 * np.cos(t) + a1 * np.sin(t) + s * h
+                for s in [1, -1]
+                for t in np.linspace(0, 2 * np.pi, n, endpoint=False)
+            ]
+    raise ValueError("Exactly two equal half-extents (radii) required")
 
 
 def _parse_dae(model_path: str) -> Tuple[ET.Element, str, np.ndarray]:
@@ -392,6 +369,7 @@ class SimCamera:
         self.bridge = CvBridge()
         self.gazebo = gazebo
         self.objects = objects
+        self.class_names: Dict[int, str] = {obj.class_id: obj.name for obj in objects}
 
         self.K: Optional[List[float]] = None
         self.image_w = 0
@@ -501,7 +479,7 @@ class SimCamera:
     ):
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-            self._draw_detections(cv_image, detections, self.name)
+            self._draw_detections(cv_image, detections)
             if masks:
                 self._draw_seg_masks(cv_image, detections, masks)
             out_msg = self.bridge.cv2_to_imgmsg(cv_image, "bgr8")
@@ -532,11 +510,7 @@ class SimCamera:
             rospy.logwarn_throttle(5, f"[{self.name}] static TF not yet available: {e}")
             return None
 
-    @staticmethod
-    def _draw_detections(
-        image: np.ndarray, detections: List[Detection2D], camera_name: str
-    ):
-        names = CLASS_NAMES.get(camera_name, {})
+    def _draw_detections(self, image: np.ndarray, detections: List[Detection2D]):
         for det in detections:
             if not det.results:
                 continue
@@ -544,7 +518,7 @@ class SimCamera:
             w, h = int(det.bbox.size_x), int(det.bbox.size_y)
             x1, y1 = cx - w // 2, cy - h // 2
             x2, y2 = cx + w // 2, cy + h // 2
-            label = names.get(det.results[0].id, str(det.results[0].id))
+            label = self.class_names.get(det.results[0].id, str(det.results[0].id))
             cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(
                 image,
@@ -599,10 +573,10 @@ class SimBboxNode:
         torp_map = rect((0, 0.3048, -0.3048))
 
         # Torpedo holes — 0.125 m diameter circles, 16-point circumference
-        torp_hole = yz_circle(0.125 / 2)
+        torp_hole = circle((0, 0.125 / 2, 0.125 / 2))
 
         # Slalom pipes — vertical cylinders, radius 0.0127 m, height 0.9 m
-        pipe_boundary = z_cylinder(radius=0.0127, half_height=0.45)
+        pipe_boundary = cylinder((0.0127, 0.0127, 0.45))
 
         # Bin — full structure for front camera, two squares for bottom camera
         # Face in XZ plane of model (normal along Y)
@@ -619,56 +593,61 @@ class SimBboxNode:
         all_objects: List[SimObject] = [
             SimObject(
                 class_id=0,
+                name="sawfish",
                 cameras=["front", "realsense"],
                 gazebo_model="robosub_gate",
                 offset=np.array([0.0, -0.762, 1.356]),
                 boundary=gate_sign,
-            ),  # sawfish
+            ),
             SimObject(
                 class_id=1,
+                name="shark",
                 cameras=["front", "realsense"],
                 gazebo_model="robosub_gate",
                 offset=np.array([0.0, 0.762, 1.356]),
                 boundary=gate_sign,
-            ),  # shark
-            # Map panel (front camera, class 4)
+            ),
             SimObject(
                 class_id=4,
+                name="torpedo_map",
                 cameras=["front", "realsense"],
                 gazebo_model="robosub_torpedo",
                 offset=np.array([-0.1166, 0.6472, -0.9490]),
                 boundary=torp_map,
-            ),  # torpedo_map
-            # Holes (torpedo camera, class 5) — both published as ID 5,
-            # the pose estimator sorts upper/lower by image Y position.
+            ),
+            # Both published as ID 5 — the pose estimator sorts upper/lower
+            # by image Y position.
             SimObject(
                 class_id=5,
+                name="torpedo_hole",
                 cameras=["torpedo"],
                 gazebo_model="robosub_torpedo",
                 offset=np.array([-0.1166, 0.6089, -0.9687]),
                 boundary=torp_hole,
-            ),  # torpedo hole 1 (lower in mesh)
+            ),
             SimObject(
                 class_id=5,
+                name="torpedo_hole",
                 cameras=["torpedo"],
                 gazebo_model="robosub_torpedo",
                 offset=np.array([-0.1166, 0.8619, -1.0787]),
                 boundary=torp_hole,
-            ),  # torpedo hole 2 (upper in mesh)
+            ),
         ]
 
         # Each slalom model has: left_white (-1.5,0,0.45),
         # red (0,0,0.45), right_white (1.5,0,0.45) in model frame.
         slalom_pipes = [
-            (3, np.array([-1.5, 0.0, 0.45])),  # left white
-            (2, np.array([0.0, 0.0, 0.45])),  # red
-            (3, np.array([1.5, 0.0, 0.45])),  # right white
+            (3, "white_pipe", np.array([-1.5, 0.0, 0.45])),
+            (2, "red_pipe", np.array([0.0, 0.0, 0.45])),
+            (3, "white_pipe", np.array([1.5, 0.0, 0.45])),
         ]
         for i in range(1, 4):
-            for class_id, offset in slalom_pipes:
+            for class_id, name, offset in slalom_pipes:
                 all_objects.append(
                     SimObject(
                         class_id=class_id,
+                        name=name,
                         cameras=["front", "realsense"],
                         gazebo_model=f"robosub_slalom_{i}",
                         offset=offset,
@@ -678,30 +657,32 @@ class SimBboxNode:
 
         all_objects.extend(
             [
-                # Whole bin structure (front camera, class 6)
                 SimObject(
                     class_id=6,
+                    name="bin_whole",
                     cameras=["front", "realsense"],
                     gazebo_model="robosub_bin",
                     offset=np.array([0.0, 0.0812, 0.9337]),
                     boundary=bin_whole,
-                ),  # bin_whole
+                ),
                 # Bottom camera markers — class IDs 0/1 are reused
                 # (pose estimator has per-camera id_tf_map)
                 SimObject(
                     class_id=1,
+                    name="bin_shark",
                     cameras=["bottom"],
                     gazebo_model="robosub_bin",
                     offset=np.array([-0.1525, 0.0144, 0.9337]),
                     boundary=bin_square,
-                ),  # bin_shark (left square)
+                ),
                 SimObject(
                     class_id=0,
+                    name="bin_sawfish",
                     cameras=["bottom"],
                     gazebo_model="robosub_bin",
                     offset=np.array([0.1525, 0.0144, 0.9337]),
                     boundary=bin_square,
-                ),  # bin_sawfish (right square)
+                ),
             ]
         )
 
@@ -721,24 +702,26 @@ class SimBboxNode:
         all_objects.append(
             SimObject(
                 class_id=7,
+                name="octagon",
                 cameras=["front", "realsense"],
                 gazebo_model="robosub_octagon",
                 offset=np.array([0.0, 0.0, 0.347]),
                 boundary=oct_boundary,
             )
-        )  # octagon
+        )
         # Octagon table — central flat panel (bottom camera, class 2)
         # octagon_middle: XY ±0.3048 m, Z ≈ 0.645, horizontal face
         all_objects.append(
             SimObject(
                 class_id=2,
+                name="octagon_table",
                 cameras=["bottom"],
                 gazebo_model="robosub_octagon",
                 offset=np.array([0.0, 0.0, 0.6446]),
                 boundary=rect((0.3048, 0.3048, 0)),
             )
-        )  # octagon_table
-        # Octagon bins — 2 baskets on ±Y, top-face corners (bottom camera, class 3)
+        )
+        # Octagon bins — 2 baskets on ±Y, top-face corners (bottom camera)
         # basket_2 at (-0.021, +0.432), basket_4 at (-0.021, -0.432)
         # DAE nodes have 90° rotation: local X→world Y, local Y→world -X
         # After rotation: ±0.1715 in X (world), ±0.1175 in Y (world)
@@ -746,21 +729,53 @@ class SimBboxNode:
         all_objects.append(
             SimObject(
                 class_id=4,
+                name="octagon_bin_yellow",
                 cameras=["bottom"],
                 gazebo_model="robosub_octagon",
                 offset=np.array([-0.021, 0.432, 0.6865]),
                 boundary=oct_bin_boundary,
             )
-        )  # octagon_bin_yellow (+Y basket)
+        )
         all_objects.append(
             SimObject(
                 class_id=3,
+                name="octagon_bin_pink",
                 cameras=["bottom"],
                 gazebo_model="robosub_octagon",
                 offset=np.array([-0.021, -0.432, 0.6865]),
                 boundary=oct_bin_boundary,
             )
-        )  # octagon_bin_pink (-Y basket)
+        )
+
+        # TAC valve station — two valves inside one model.
+        # Mesh is an X-axis barrel (radius 0.12m after 0.001 scale).
+        # Only the front circular face (mesh X=0.020) is visible; the desk
+        # occludes the back.  Offsets point to the front face center.
+        #
+        # valve_right (higher Z) → front camera
+        # RPY (0, π, 0): flange faces +X, YZ circle stays in YZ
+        all_objects.append(
+            SimObject(
+                class_id=8,
+                name="valve",
+                cameras=["front"],
+                gazebo_model="tac_valve",
+                offset=np.array([0.560, 0.555, 1.4205]),
+                boundary=circle((0, 0.12, 0.12)),
+            )
+        )
+        # valve_front (lower Z) → bottom camera
+        # RPY (0, -π/2, π/2): flange faces +Z, YZ circle maps to XY
+        all_objects.append(
+            SimObject(
+                class_id=5,
+                name="valve",
+                cameras=["bottom"],
+                gazebo_model="tac_valve",
+                offset=np.array([0.0185, 0.518, 0.930]),
+                boundary=circle((0.12, 0.12, 0)),
+            )
+        )
 
         bottle_faces = load_dae_faces("models/robosub_bottle/meshes/bottle_final1.dae")
         ladle_faces = load_dae_faces("models/robosub_ladle/meshes/ladle.dae")
@@ -772,6 +787,7 @@ class SimBboxNode:
             [
                 SimObject(
                     class_id=0,
+                    name="bottle",
                     cameras=["bottom_seg"],
                     gazebo_model="bottle_final1",
                     faces=bottle_faces,
@@ -779,6 +795,7 @@ class SimBboxNode:
                 ),
                 SimObject(
                     class_id=1,
+                    name="ladle",
                     cameras=["bottom_seg"],
                     gazebo_model="ladle_final1",
                     faces=ladle_faces,
