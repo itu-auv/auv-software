@@ -20,6 +20,7 @@ import numpy as np
 from cv_bridge import CvBridge
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
+from collections import deque
 
 from ultralytics_ros.msg import YoloResult
 from vision_msgs.msg import (
@@ -215,12 +216,14 @@ class GazeboInterface:
     def __init__(self, robot_name: str):
         self.robot_name = robot_name
         self.model_poses: Dict[str, Pose] = {}
+        self.pose_buffer = deque(maxlen=200)
 
         rospy.Subscriber(
             "/gazebo/model_states", ModelStates, self._model_states_cb, queue_size=1
         )
 
     def _model_states_cb(self, msg: ModelStates):
+        self.pose_buffer.append((rospy.Time.now(), msg))
         self.model_poses = dict(zip(msg.name, msg.pose))
 
     def get_model_matrix(self, model_name: str) -> Optional[np.ndarray]:
@@ -230,27 +233,70 @@ class GazeboInterface:
             return None
         return pose_to_matrix(pose)
 
-    def get_robot_matrix(self) -> Optional[np.ndarray]:
-        """Get the robot's 4x4 pose matrix in Gazebo world frame."""
+    def get_synced_model_matrix(self, model_name, stamp) -> Optional[np.ndarray]:
+        if len(self.pose_buffer) < 2:
+            return self.get_model_matrix(model_name)
+
+        idx_after = -1
+        for i in range(len(self.pose_buffer)):
+            if self.pose_buffer[i][0] > stamp:
+                idx_after = i
+                break
+
+        if idx_after <= 0:
+            return self.get_model_matrix(model_name)
+
+        t1, m1 = self.pose_buffer[idx_after - 1]
+        t2, m2 = self.pose_buffer[idx_after]
+        f = (stamp - t1).to_sec() / (t2 - t1).to_sec()
+
+        try:
+            p1 = m1.pose[m1.name.index(model_name)]
+            p2 = m2.pose[m2.name.index(model_name)]
+            return pose_to_matrix(self._interpolate_pose(p1, p2, f))
+        except (ValueError, IndexError):
+            return self.get_model_matrix(model_name)
+
+    def get_robot_matrix(
+        self, stamp: Optional[rospy.Time] = None
+    ) -> Optional[np.ndarray]:
+        if stamp is not None:
+            return self.get_synced_model_matrix(self.robot_name, stamp)
         return self.get_model_matrix(self.robot_name)
+
+    def _interpolate_pose(self, p1: Pose, p2: Pose, f: float) -> Pose:
+        res = Pose()
+        res.position.x = p1.position.x + f * (p2.position.x - p1.position.x)
+        res.position.y = p1.position.y + f * (p2.position.y - p1.position.y)
+        res.position.z = p1.position.z + f * (p2.position.z - p1.position.z)
+
+        q1 = [p1.orientation.x, p1.orientation.y, p1.orientation.z, p1.orientation.w]
+        q2 = [p2.orientation.x, p2.orientation.y, p2.orientation.z, p2.orientation.w]
+
+        if np.dot(q1, q2) < 0.0:
+            q1 = [-x for x in q1]
+
+        q_interp = tft.quaternion_slerp(q1, q2, f)
+        (
+            res.orientation.x,
+            res.orientation.y,
+            res.orientation.z,
+            res.orientation.w,
+        ) = q_interp
+        return res
 
     def object_boundary_in_world(
         self,
         model_name: str,
         offset: np.ndarray,
         boundary: List[np.ndarray],
+        stamp,
     ) -> Optional[List[np.ndarray]]:
-        """Transform an object's boundary sample points to Gazebo world frame.
+        if stamp is not None:
+            model_matrix = self.get_synced_model_matrix(model_name, stamp)
+        else:
+            model_matrix = self.get_model_matrix(model_name)
 
-        Args:
-            model_name: Gazebo model name.
-            offset: (3,) center offset in the model's local frame [meters].
-            boundary: list of (3,) sample points relative to offset.
-
-        Returns:
-            List of (3,) positions in world frame, or None if model not found.
-        """
-        model_matrix = self.get_model_matrix(model_name)
         if model_matrix is None:
             return None
 
@@ -324,19 +370,19 @@ class SimCamera:
         if base_to_camera is None:
             return
 
-        robot_matrix = self.gazebo.get_robot_matrix()
+        stamp = msg.header.stamp
+        robot_matrix = self.gazebo.get_robot_matrix(stamp)
         if robot_matrix is None:
             return
 
         robot_matrix_inv = np.linalg.inv(robot_matrix)
         world_to_camera = base_to_camera @ robot_matrix_inv
 
-        stamp = msg.header.stamp
         detections: List[Detection2D] = []
 
         for obj in self.objects:
             points = self.gazebo.object_boundary_in_world(
-                obj.gazebo_model, obj.offset, obj.boundary
+                obj.gazebo_model, obj.offset, obj.boundary, stamp
             )
             if points is None:
                 continue
