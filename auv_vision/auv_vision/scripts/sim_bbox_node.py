@@ -821,7 +821,7 @@ class SimBboxNode:
                 name="front",
                 image_topic=f"/{ns}/cameras/cam_front/image_raw",
                 camera_info_topic=f"/{ns}/cameras/cam_front/camera_info",
-                optical_frame=f"{ns}/base_link/front_camera_optical_link",
+                optical_frame=f"{ns}/base_link/front_camera_optical_link_stabilized",
                 base_frame=base_frame,
                 result_topic="/yolo_result_front",
                 image_out_topic="/yolo_image_front",
