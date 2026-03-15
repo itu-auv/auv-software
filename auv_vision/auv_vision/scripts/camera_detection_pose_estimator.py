@@ -684,6 +684,12 @@ class CameraDetectionNode:
                             5, "Detection outside image bounds, skipping"
                         )
                         continue
+                else:
+                    if self.check_if_detection_is_inside_image(detection) is False:
+                        rospy.logwarn_throttle(
+                            5, "Detection outside image bounds, skipping"
+                        )
+                        continue
 
             prop_name = self.id_tf_map[camera_ns][detection_id]
             if prop_name not in self.props:
