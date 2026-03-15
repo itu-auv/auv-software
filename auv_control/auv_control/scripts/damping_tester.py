@@ -13,6 +13,8 @@ import message_filters
 from geometry_msgs.msg import Twist, WrenchStamped
 from nav_msgs.msg import Odometry
 
+import tf.transformations
+
 from auv_msgs.srv import SetDampingTarget, SetDampingTargetResponse
 
 
@@ -52,13 +54,13 @@ class DampingStepCmdVelLogger:
         rospy.init_node("damping_step_cmdvel_logger", anonymous=False)
         rospy.loginfo("damping_step_cmdvel_logger started")
 
-        # -------- Topics (placeholder, change these)
+        # -------- Topics
         self.cmd_vel_topic = rospy.get_param("~cmd_vel_topic", "cmd_vel")
         self.odom_topic = rospy.get_param("~odom_topic", "odometry")
         # This topic MUST publish net body wrench (tau):
         self.wrench_topic = rospy.get_param("~wrench_topic", "wrench")
 
-        # -------- Timing (Since it's a STEP test, keeping settle long makes sense)
+        # -------- Timing
         self.pre_hold_time = float(rospy.get_param("~pre_hold_time", 2.0))
         self.settle_time = float(rospy.get_param("~settle_time", 5.0))
         self.record_time = float(rospy.get_param("~record_time", 10.0))
@@ -74,7 +76,6 @@ class DampingStepCmdVelLogger:
         self.file_prefix = rospy.get_param("~file_prefix", "damping_step")
         os.makedirs(self.log_dir, exist_ok=True)
 
-        # If you want, log only the RECORD phase:
         self.log_only_record = bool(rospy.get_param("~log_only_record", True))
 
         # -------- State
@@ -96,9 +97,6 @@ class DampingStepCmdVelLogger:
         self.odom_sub = message_filters.Subscriber(self.odom_topic, Odometry)
         self.wrench_sub = message_filters.Subscriber(self.wrench_topic, WrenchStamped)
 
-        # ApproximateTimeSynchronizer: Matches timestamp if they are close even if not exactly the same
-        # queue_size: How many messages to keep in buffer while searching for match
-        # slop: Maximum acceptable time difference between two messages (seconds)
         self.ts = message_filters.ApproximateTimeSynchronizer(
             [self.odom_sub, self.wrench_sub], queue_size=50, slop=0.05
         )
@@ -112,16 +110,12 @@ class DampingStepCmdVelLogger:
 
         # -------- Timers
         rospy.Timer(rospy.Duration(1.0 / self.cmd_rate), self._cmd_timer_cb)
-        # Logging is no longer done with Timer, but when synchronized message arrives (inside callback)
 
     # --- Subscribers
     def _sync_cb(self, odom_msg: Odometry, wrench_msg: WrenchStamped):
         with self._lock:
-            # Store incoming synchronized data
             self.last_odom = odom_msg
             self.last_wrench = wrench_msg
-
-            # If there is an active test and it is logging time, save it
             self._try_log_data(odom_msg, wrench_msg)
 
     # --- Services
@@ -137,7 +131,6 @@ class DampingStepCmdVelLogger:
     def _handle(self, axis_name: str, enable: bool, target: float):
         with self._lock:
             if not enable:
-                # emergency stop
                 if self.active is None:
                     self.cmd_pub.publish(Twist())
                     return SetDampingTargetResponse(
@@ -148,7 +141,6 @@ class DampingStepCmdVelLogger:
                     True, f"Stop requested for {self.active.axis_name}."
                 )
 
-            # start
             if self.active is not None:
                 return SetDampingTargetResponse(
                     False, "A test is already running. Stop it first (enable=false)."
@@ -167,7 +159,7 @@ class DampingStepCmdVelLogger:
                 csv_path=csv_path,
             )
             self.stop_requested = False
-            self.curr_cmd = Twist()  # start 0
+            self.curr_cmd = Twist()
 
             msg = f"Started {axis_name} target={target}. CSV={csv_path}"
             rospy.loginfo(msg)
@@ -187,18 +179,15 @@ class DampingStepCmdVelLogger:
             dt = (t_now - self.active.phase_start).to_sec()
 
             if self.active.phase == "PREHOLD":
-                # cmd_vel=0
                 self.curr_cmd = Twist()
                 self.cmd_pub.publish(self.curr_cmd)
 
                 if dt >= self.pre_hold_time:
-                    # STEP happens now: we switch to SETTLE and will publish target
                     self.active.phase = "SETTLE"
                     self.active.phase_start = t_now
                 return
 
             if self.active.phase == "SETTLE":
-                # cmd_vel=target (STEP already applied)
                 self.curr_cmd = self._make_cmd(
                     self.active.axis_name, self.active.target
                 )
@@ -222,18 +211,13 @@ class DampingStepCmdVelLogger:
             self._finish_locked("UNKNOWN_PHASE")
 
     def _try_log_data(self, odom: Odometry, wrench: WrenchStamped):
-        """
-        Called when synchronized data arrives.
-        Writes to CSV if there is an active test and conditions are met.
-        """
         if self.active is None or self.csv_writer is None:
             return
 
-        # Log only in RECORD phase (depends on parameter)
         if self.log_only_record and self.active.phase != "RECORD":
             return
 
-        # Extract data
+        # Lineer ve açısal hızları al
         u = odom.twist.twist.linear.x
         v = odom.twist.twist.linear.y
         w = odom.twist.twist.linear.z
@@ -241,6 +225,12 @@ class DampingStepCmdVelLogger:
         q = odom.twist.twist.angular.y
         r = odom.twist.twist.angular.z
 
+        # Quaternion'dan Euler açılarına (Roll, Pitch, Yaw) dönüşüm
+        ori = odom.pose.pose.orientation
+        quaternion = [ori.x, ori.y, ori.z, ori.w]
+        (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(quaternion)
+
+        # Kuvvet ve Tork verilerini al
         fx = wrench.wrench.force.x
         fy = wrench.wrench.force.y
         fz = wrench.wrench.force.z
@@ -248,10 +238,9 @@ class DampingStepCmdVelLogger:
         ty = wrench.wrench.torque.y
         tz = wrench.wrench.torque.z
 
-        # You can use the message timestamp as recording time (more precise)
-        # or you can use rospy.Time.now(). Since it is synchronized, header stamp makes sense.
         log_time = odom.header.stamp.to_sec()
 
+        # Row listesine Euler açılarını (roll, pitch, yaw) da ekliyoruz
         row = [
             log_time,
             self.active.axis_name,
@@ -266,6 +255,9 @@ class DampingStepCmdVelLogger:
             p,
             q,
             r,
+            roll,  # EKLENDİ
+            pitch,  # EKLENDİ
+            yaw,  # EKLENDİ
             fx,
             fy,
             fz,
@@ -295,6 +287,7 @@ class DampingStepCmdVelLogger:
     def _open_csv_locked(self, csv_path: str):
         self.csv_file = open(csv_path, "w", newline="")
         self.csv_writer = csv.writer(self.csv_file)
+        # Başlıklara (header) roll, pitch ve yaw'ı ilgili sırayla ekledik
         header = [
             "t",
             "axis_name",
@@ -309,6 +302,9 @@ class DampingStepCmdVelLogger:
             "odom_ang_x",
             "odom_ang_y",
             "odom_ang_z",
+            "roll",  # EKLENDİ
+            "pitch",  # EKLENDİ
+            "yaw",  # EKLENDİ
             "wrench_force_x",
             "wrench_force_y",
             "wrench_force_z",
@@ -330,7 +326,6 @@ class DampingStepCmdVelLogger:
         self.csv_writer = None
 
     def _finish_locked(self, reason: str):
-        # cmd_vel=0
         self.cmd_pub.publish(Twist())
 
         axis = self.active.axis_name if self.active else "none"
