@@ -229,15 +229,47 @@ class ReferencePosePublisherNode:
                     message="Failed to lookup transform",
                 )
 
-            self.target_x = t.transform.translation.x
-            self.target_y = t.transform.translation.y
-
             self.use_align_frame_depth = req.use_depth
             if req.use_depth:
                 self.target_depth = t.transform.translation.z
 
             self.align_frame_keep_orientation = req.keep_orientation
-            if not req.keep_orientation:
+            if req.keep_orientation:
+                source_in_base = self.tf_lookup(
+                    self.base_frame,
+                    req.source_frame,
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+                if source_in_base is None:
+                    return AlignFrameControllerResponse(
+                        success=False,
+                        message="Failed to lookup transform from source to base_link",
+                    )
+
+                base_to_target = self.tf_lookup(
+                    req.target_frame,
+                    self.base_frame,
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+                if base_to_target is None:
+                    return AlignFrameControllerResponse(
+                        success=False,
+                        message="Failed to lookup transform from base_link to target_frame",
+                    )
+
+                offset_vec = Vector3Stamped()
+                offset_vec.vector.x = -source_in_base.transform.translation.x
+                offset_vec.vector.y = -source_in_base.transform.translation.y
+                offset_vec.vector.z = 0.0
+                rotated = do_transform_vector3(offset_vec, base_to_target)
+                self.target_x = rotated.vector.x
+                self.target_y = rotated.vector.y
+            else:
+                self.target_x = t.transform.translation.x
+                self.target_y = t.transform.translation.y
+
                 quaternion = [
                     t.transform.rotation.x,
                     t.transform.rotation.y,
