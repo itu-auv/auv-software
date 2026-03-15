@@ -57,6 +57,21 @@ class MultiDOFPIDController : public ControllerBase<N> {
   }
 
   /**
+   * @brief Set the sway-to-roll cross-coupling feedforward coefficients
+   *
+   * Compensates for parasitic roll moment caused by hydrodynamic drag
+   * on asymmetric appendages (e.g. gripper) during lateral motion.
+   * τ_roll = K_linear * v_sway + K_quad * v_sway * |v_sway|
+   *
+   * @param linear_coupling Linear damping coupling coefficient
+   * @param quad_coupling   Quadratic damping coupling coefficient
+   */
+  void set_sway_to_roll_coupling(double linear_coupling, double quad_coupling) {
+    sway_to_roll_linear_coupling_ = linear_coupling;
+    sway_to_roll_quad_coupling_ = quad_coupling;
+  }
+
+  /**
    * @brief Calculate the control output, in the form of a wrench
    *
    * @param state current velocity vector
@@ -135,6 +150,18 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
     WrenchVector wrench = pid_force + damping_force;
 
+    // Sway-to-Roll cross-coupling feedforward compensation
+    // Uses desired sway velocity (from feedforward_state) just like how we
+    // used to do it in the old controller.
+    // Mirrors the |v|*v pattern from damping_control (cwiseAbs · cwiseProduct)
+    if constexpr (N >= 4) {
+      const double v_sway_desired = feedforward_state(N + 1);
+      // τ_roll = K_lin * v_sway + K_quad * |v_sway| * v_sway
+      wrench(3) += sway_to_roll_linear_coupling_ * v_sway_desired +
+                   sway_to_roll_quad_coupling_ * std::abs(v_sway_desired) *
+                       v_sway_desired;
+    }
+
     Eigen::Vector3d gravity_force_global = Eigen::Vector3d::Zero();
     gravity_force_global(2) = gravity_compensation_z_;
     wrench.head(3) += inverse_rotation_matrix * gravity_force_global;
@@ -180,6 +207,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
   Matrix2nd ki_;
   Matrix2nd kd_;
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
+
+  // Sway-to-Roll cross-coupling feedforward coefficients
+  double sway_to_roll_linear_coupling_{0.0};
+  double sway_to_roll_quad_coupling_{0.0};
 
   // Default to effectively unlimited (1e6)
   Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
