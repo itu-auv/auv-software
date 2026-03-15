@@ -230,8 +230,6 @@ class ReferencePosePublisherNode:
                 )
 
             self.use_align_frame_depth = req.use_depth
-            if req.use_depth:
-                self.target_depth = t.transform.translation.z
 
             self.align_frame_keep_orientation = req.keep_orientation
             if req.keep_orientation:
@@ -262,11 +260,16 @@ class ReferencePosePublisherNode:
                 offset_vec = Vector3Stamped()
                 offset_vec.vector.x = -source_in_base.transform.translation.x
                 offset_vec.vector.y = -source_in_base.transform.translation.y
-                offset_vec.vector.z = 0.0
+                offset_vec.vector.z = -source_in_base.transform.translation.z
                 rotated = do_transform_vector3(offset_vec, base_to_target)
                 self.target_x = rotated.vector.x
                 self.target_y = rotated.vector.y
+                if req.use_depth:
+                    self.target_depth = rotated.vector.z
             else:
+                if req.use_depth:
+                    self.target_depth = t.transform.translation.z
+
                 self.target_x = t.transform.translation.x
                 self.target_y = t.transform.translation.y
 
