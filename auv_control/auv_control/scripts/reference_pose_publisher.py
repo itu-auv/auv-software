@@ -33,8 +33,7 @@ import numpy as np
 import dynamic_reconfigure.client
 from auv_common_lib.control.enable_state import ControlEnableHandler
 from threading import Lock
-from tf2_geometry_msgs import do_transform_point, do_transform_vector3
-from geometry_msgs.msg import Vector3Stamped
+from tf2_geometry_msgs import do_transform_point
 
 
 class ReferencePosePublisherNode:
@@ -237,7 +236,74 @@ class ReferencePosePublisherNode:
                 self.target_depth = t.transform.translation.z
 
             self.align_frame_keep_orientation = req.keep_orientation
-            if not req.keep_orientation:
+            if req.keep_orientation:
+                odom_to_base = self.tf_lookup(
+                    "odom", self.base_frame, rospy.Time(0), rospy.Duration(1.0)
+                )
+                odom_to_target = self.tf_lookup(
+                    "odom", req.target_frame, rospy.Time(0), rospy.Duration(1.0)
+                )
+                if odom_to_base is None or odom_to_target is None:
+                    return AlignFrameControllerResponse(
+                        success=False,
+                        message="Failed to lookup keep_orientation transforms",
+                    )
+
+                source_to_base_matrix = quaternion_matrix(
+                    [
+                        t.transform.rotation.x,
+                        t.transform.rotation.y,
+                        t.transform.rotation.z,
+                        t.transform.rotation.w,
+                    ]
+                )
+                source_to_base_matrix[:3, 3] = [
+                    t.transform.translation.x,
+                    t.transform.translation.y,
+                    t.transform.translation.z,
+                ]
+
+                odom_to_base_quaternion = [
+                    odom_to_base.transform.rotation.x,
+                    odom_to_base.transform.rotation.y,
+                    odom_to_base.transform.rotation.z,
+                    odom_to_base.transform.rotation.w,
+                ]
+                odom_to_base_matrix = quaternion_matrix(odom_to_base_quaternion)
+
+                odom_to_target_matrix = quaternion_matrix(
+                    [
+                        odom_to_target.transform.rotation.x,
+                        odom_to_target.transform.rotation.y,
+                        odom_to_target.transform.rotation.z,
+                        odom_to_target.transform.rotation.w,
+                    ]
+                )
+                odom_to_target_matrix[:3, 3] = [
+                    odom_to_target.transform.translation.x,
+                    odom_to_target.transform.translation.y,
+                    odom_to_target.transform.translation.z,
+                ]
+
+                odom_to_source_desired = np.dot(
+                    odom_to_base_matrix, np.linalg.inv(source_to_base_matrix)
+                )
+                odom_to_source_desired[:3, 3] = odom_to_target_matrix[:3, 3]
+
+                target_to_base_desired = np.dot(
+                    np.linalg.inv(odom_to_target_matrix),
+                    np.dot(odom_to_source_desired, source_to_base_matrix),
+                )
+
+                self.target_x = target_to_base_desired[0, 3]
+                self.target_y = target_to_base_desired[1, 3]
+                if req.use_depth:
+                    self.target_depth = target_to_base_desired[2, 3]
+
+                self.target_roll, self.target_pitch, self.target_heading = (
+                    euler_from_quaternion(odom_to_base_quaternion)
+                )
+            else:
                 quaternion = [
                     t.transform.rotation.x,
                     t.transform.rotation.y,
