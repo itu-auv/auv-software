@@ -7,7 +7,6 @@
   <arg name="dvl_virtual_port" default="/dev/auv_wayfinder_dvl" />
   <arg name="enable_xsens" default="$(eval arg('namespace') != 'taluy_mini')" />
   <arg name="enable_dvl" default="$(eval arg('namespace') != 'taluy_mini')" />
-  <arg name="enable_cameras" default="$(eval arg('namespace') != 'taluy_mini')" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
@@ -61,7 +60,12 @@
   </group>
 
   <!-- launch cameras -->
-  <group if="$(arg enable_cameras)">
+  <group if="$(eval arg('namespace') == 'taluy_mini')">
+    <include file="$(find auv_cam)/launch/oak_camera.launch">
+      <arg name="namespace" value="$(arg namespace)" />
+    </include>
+  </group>
+  <group if="$(eval arg('namespace') == 'taluy')">
     <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras.launch.xml">
       <arg name="namespace" value="$(arg namespace)" />
     </include>
