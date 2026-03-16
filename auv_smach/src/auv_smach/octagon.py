@@ -162,13 +162,55 @@ class OctagonTaskState(smach.State):
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
-                    "succeeded": "GO_TO_OCTAGON_LINK",
+                    "succeeded": "ENABLE_SEGMENT_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "GO_TO_OCTAGON_LINK",
+                "ENABLE_SEGMENT_DETECTION",
+                SetDetectionState(camera_name="segment", enable=True),
+                transitions={
+                    "succeeded": "SET_BOTTOM_FOCUS_OCTAGON",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BOTTOM_FOCUS_OCTAGON",
+                SetDetectionFocusBottomState(focus_object="octagon"),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
+                DynamicPathWithTransformCheck(
+                    plan_target_frame="octagon_link",
+                    transform_source_frame="odom",
+                    transform_target_frame="octagon_table_link",
+                    max_linear_velocity=0.1,
+                    keep_orientation=True,
+                ),
+                transitions={
+                    "succeeded": "MOVE_GRIPPER",
+                    "preempted": "preempted",
+                    "aborted": "SEARCH_RIGHT",
+                },
+            )
+            smach.StateMachine.add(
+                "MOVE_GRIPPER",
+                GripperAngleOpenState(),
+                transitions={
+                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_BOTTLE",
                 AlignFrame(
                     source_frame="taluy/base_link",
                     target_frame="octagon_link",
