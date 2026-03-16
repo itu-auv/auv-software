@@ -15,7 +15,7 @@
       type="path_planner_node.py"
       name="path_planner_node"
       output="screen">
-      <param name="robot_frame" value="$(arg namespace)/base_link" />
+      <param name="base_link" value="$(arg namespace)/base_link" />
     </node>
   </group>
 </launch>
