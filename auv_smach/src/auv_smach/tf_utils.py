@@ -37,6 +37,10 @@ def get_base_link():
     global _base_link_cache
 
     if _base_link_cache is None:
+        if not rospy.has_param("~base_link"):
+            rospy.logwarn(
+                "~base_link param not set, falling back to default frame 'taluy/base_link'"
+            )
         _base_link_cache = rospy.get_param("~base_link", "taluy/base_link")
         rospy.loginfo("Base link frame set to: {}".format(_base_link_cache))
 

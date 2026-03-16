@@ -120,7 +120,7 @@ class DvlToOdom:
             return yaw
         except Exception as e:
             rospy.logwarn(
-                f"Could not get TF for {self.dvl_frame} relative to {self.base_frame}: {e}. Falling back to default -135 degrees."
+                f"Could not get TF for {self.dvl_frame} relative to {self.base_frame}: {e}. Falling back to default -45 degrees."
             )
             return np.radians(-45)
 
