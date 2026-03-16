@@ -12,9 +12,7 @@ class PathPlannerNode:
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.path_planners = PathPlanners(self.tf_buffer)
-        self.base_link_frame = rospy.get_param(
-            "~base_link", rospy.get_param("~robot_frame", "taluy/base_link")
-        )
+        self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
 
         # -- States --
         self.planning_active = False
@@ -52,7 +50,7 @@ class PathPlannerNode:
                 path = None
                 try:
                     path = self.path_planners.straight_path_to_frame(
-                        source_frame=self.base_link_frame,
+                        source_frame=self.robot_frame,
                         target_frame=self.target_frame,
                         angle_offset=self.angle_offset,
                     )
