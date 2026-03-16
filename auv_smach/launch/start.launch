@@ -70,6 +70,8 @@
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+            <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
+
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
             <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus"/>
             <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable"/>
