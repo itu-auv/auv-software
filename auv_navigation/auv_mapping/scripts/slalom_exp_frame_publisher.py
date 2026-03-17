@@ -49,7 +49,13 @@ class SlalomExpFramePublisher:
     def __init__(self):
         rospy.init_node("slalom_exp_frame_publisher")
 
-        self.base_link_frame = rospy.get_param("~namespace", "taluy/base_link")
+        self.namespace = rospy.get_param("~namespace", "taluy")
+        self.base_link_frame = f"{self.namespace}/base_link"
+
+        self.slalom_width = rospy.get_param("~slalom_width", 0.0254)
+        self.slalom_height = rospy.get_param("~slalom_height", 0.9)
+        self.ratio_threshold = rospy.get_param("~ratio_threshold", 20)
+        self.ratio = self.slalom_height / self.slalom_width
 
         self.cam = CameraCalibrationFetcher("cameras/cam_front").get_camera_info()
         self.yolo_res = rospy.Subscriber(
@@ -225,10 +231,22 @@ class SlalomExpFramePublisher:
 
         for x in detections.detections:
             # TODO: check_inside_image
+
+            if len(x.results) == 0:
+                continue
+            if not x.results[0].id in [2, 3]:
+                continue
+
             self.i += 1
             bbox = x.bbox
+
+            # slalom pipes might be inclined, if that's the case use diognal length instead of direct height
+            pipe_length = bbox.size_y
+            detection_ratio = bbox.size_y / bbox.size_x
+            if abs(detection_ratio - self.ratio) > self.ratio_threshold:
+                pipe_length = math.sqrt(bbox.size_y**2 + bbox.size_x**2)
             off_x, off_y, off_z = self.world_pos_from_height(
-                0.9, bbox.size_y, bbox.center.x, bbox.center.y
+                self.slalom_height, pipe_length, bbox.center.x, bbox.center.y
             )
             # Too far
             if off_z > 10:
@@ -314,6 +332,13 @@ class SlalomExpFramePublisher:
             # TODO: hardcoded
             suppression_radius = int(25 * 2)
             cv2.circle(heatmap_copy, maxLoc, suppression_radius, 0, -1)
+
+        heatmap_visa = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
+            np.uint8
+        )
+        heatmap_vis = cv2.applyColorMap(heatmap_visa, cv2.COLORMAP_JET)
+
+        cv2.imwrite("/auv_ws/a.png", heatmap_vis)
 
         def get_line_error(pts):
             pts = np.array(pts)
