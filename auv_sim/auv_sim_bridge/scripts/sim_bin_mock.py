@@ -3,7 +3,7 @@ import os
 import rospy
 import tf2_ros
 import rospkg
-from std_srvs.srv import Trigger, TriggerResponse
+from std_msgs.msg import Float32
 from gazebo_msgs.srv import SpawnModel
 from geometry_msgs.msg import Pose
 from tf2_ros import TransformException
@@ -35,6 +35,7 @@ class DropBallServer:
         ]
 
         self.drop_index = 0
+        self.last_angle = 0.0
 
         self.model_pkg = rospy.get_param("~model_package", "auv_sim_description")
         self.model_dir = rospy.get_param("~model_subdir", "models/robosub_bin")
@@ -42,7 +43,9 @@ class DropBallServer:
         rospy.wait_for_service("/gazebo/spawn_sdf_model")
         self.spawn_model = rospy.ServiceProxy("/gazebo/spawn_sdf_model", SpawnModel)
 
-        rospy.Service("actuators/ball_dropper/drop", Trigger, self.handle_drop_ball)
+        rospy.Subscriber(
+            "actuators/ball_dropper/set_angle", Float32, self.handle_drop_ball
+        )
         rospy.loginfo(
             f"[drop_ball_server] Ready. base_frame={self.base_frame}, "
             f"drop_frames=[{self.ball_models[0]['drop_frame']}, {self.ball_models[1]['drop_frame']}]"
@@ -63,12 +66,21 @@ class DropBallServer:
         pose.orientation = trans.transform.rotation
         return pose
 
-    def handle_drop_ball(self, req) -> TriggerResponse:
+    def handle_drop_ball(self, msg):
+        angle = msg.data
+
+        if angle == 0.0:
+            rospy.loginfo("[drop_ball_server] Set angle 0")
+            return
+
+        if angle == self.last_angle:
+            return
+        self.last_angle = angle
+
         try:
             if self.drop_index >= len(self.ball_models):
-                return TriggerResponse(
-                    success=False, message="All balls already dropped."
-                )
+                rospy.logwarn("[drop_ball_server] All balls already dropped.")
+                return
 
             model = self.ball_models[self.drop_index]
             pose = self.lookup_drop_pose(model["drop_frame"])
@@ -89,25 +101,20 @@ class DropBallServer:
                 reference_frame=self.base_frame,
             )
             if resp.success:
-                msg = f"{model['name']} spawned from {model['drop_frame']}."
-                rospy.loginfo(msg)
+                rospy.loginfo(
+                    f"[drop_ball_server] {model['name']} spawned from {model['drop_frame']}."
+                )
                 self.drop_index += 1
-                return TriggerResponse(success=True, message=msg)
             else:
-                rospy.logwarn(f"{model['name']} spawn failed: {resp.status_message}")
-                return TriggerResponse(
-                    success=False, message=f"Spawn failed: {resp.status_message}"
+                rospy.logwarn(
+                    f"[drop_ball_server] {model['name']} spawn failed: {resp.status_message}"
                 )
 
         except TransformException as te:
-            err = f"TF lookup failed: {te}"
-            rospy.logerr(err)
-            return TriggerResponse(success=False, message=err)
+            rospy.logerr(f"[drop_ball_server] TF lookup failed: {te}")
 
         except Exception as ex:
-            err = f"Spawn failed: {ex}"
-            rospy.logerr(err)
-            return TriggerResponse(success=False, message=err)
+            rospy.logerr(f"[drop_ball_server] Spawn failed: {ex}")
 
     def run(self):
         rospy.spin()
