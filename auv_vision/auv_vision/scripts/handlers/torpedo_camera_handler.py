@@ -45,8 +45,8 @@ class TorpedoCameraHandler:
         # First: process torpedo holes (ID=5) with special 2-hole logic
         self._process_torpedo_holes(detection_msg, stamp)
 
-        # Then: standard detection loop for other IDs (e.g., ID=4 torpedo_map)
         for detection in detection_msg.detections.detections:
+            continue
             if len(detection.results) == 0:
                 continue
             detection_id = detection.results[0].id
