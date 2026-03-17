@@ -9,10 +9,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
+import dynamic_reconfigure.client
 import rospy
 import message_filters
-from geometry_msgs.msg import AccelWithCovarianceStamped, Twist, WrenchStamped
+from geometry_msgs.msg import AccelWithCovarianceStamped, WrenchStamped
 from nav_msgs.msg import Odometry
+import tf.transformations
+
+from std_srvs.srv import Trigger
 
 from auv_msgs.srv import SetAddedMassTarget, SetAddedMassTargetResponse
 
@@ -31,29 +35,35 @@ def target_token(x: float) -> str:
 @dataclass
 class ActiveTest:
     axis_name: str  # surge / sway / yaw
-    amplitude: float  # A  (m/s or rad/s)
+    amplitude: float  # A  (N or Nm)
     frequency: float  # f  (Hz)
     phase: str  # PREHOLD / RECORD
     phase_start: rospy.Time
     csv_path: str
 
 
-class AddedMassSineCmdVelLogger:
+class AddedMassSineWrenchLogger:
     """
     SINUSOIDAL test for added-mass identification:
-      PREHOLD : cmd_vel=0 for pre_hold_time  (let vehicle settle)
-      RECORD  : cmd_vel = A*sin(2πf·t) for record_time  (CSV log)
-      DONE    : cmd_vel=0 and close CSV
+      PREHOLD : cmd_wrench=0 for pre_hold_time  (let vehicle settle)
+      RECORD  : cmd_wrench = A*sin(2πf·t) for record_time  (CSV log)
+      DONE    : cmd_wrench=0 and close CSV
 
-    cmd_vel only (NO wrench publishing).
+    Publishes WrenchStamped and zero sets PID gains for target axis.
     Wrench is logged by subscribing to ~wrench_topic.
     """
 
-    def __init__(self):
-        rospy.init_node("added_mass_sine_cmdvel_logger", anonymous=False)
-        rospy.loginfo("added_mass_sine_cmdvel_logger started")
+    AXIS_GAIN_INDICES = {
+        "surge": (0, 6),
+        "sway": (1, 7),
+        "yaw": (5, 11),
+    }
 
-        self.cmd_vel_topic = rospy.get_param("~cmd_vel_topic", "cmd_vel")
+    def __init__(self):
+        rospy.init_node("added_mass_sine_wrench_logger", anonymous=False)
+        rospy.loginfo("added_mass_sine_wrench_logger started")
+
+        self.cmd_wrench_topic = rospy.get_param("~cmd_wrench_topic", "cmd_wrench")
         self.odom_topic = rospy.get_param("~odom_topic", "odometry")
         self.wrench_topic = rospy.get_param("~wrench_topic", "wrench")
         self.accel_topic = rospy.get_param("~accel_topic", "acceleration")
@@ -69,6 +79,10 @@ class AddedMassSineCmdVelLogger:
         self.file_prefix = rospy.get_param("~file_prefix", "added_mass_sine")
         os.makedirs(self.log_dir, exist_ok=True)
 
+        self.controller_reconfigure_server = rospy.resolve_name(
+            rospy.get_param("~controller_reconfigure_server", "auv_control_node")
+        )
+
         self._lock = threading.Lock()
         self.active: Optional[ActiveTest] = None
         self.stop_requested = False
@@ -76,12 +90,17 @@ class AddedMassSineCmdVelLogger:
         self.last_odom: Optional[Odometry] = None
         self.last_wrench: Optional[WrenchStamped] = None
         self.last_accel: Optional[AccelWithCovarianceStamped] = None
-        self.curr_cmd = Twist()
+        self.curr_cmd = WrenchStamped()
 
         self.csv_file = None
         self.csv_writer = None
+        self.reconfigure_client = None
+        self.saved_pid_gains = None
+        self.saved_pid_axis = None
 
-        self.cmd_pub = rospy.Publisher(self.cmd_vel_topic, Twist, queue_size=10)
+        self.cmd_pub = rospy.Publisher(
+            self.cmd_wrench_topic, WrenchStamped, queue_size=10
+        )
 
         self.odom_sub = message_filters.Subscriber(self.odom_topic, Odometry)
         self.wrench_sub = message_filters.Subscriber(self.wrench_topic, WrenchStamped)
@@ -94,12 +113,15 @@ class AddedMassSineCmdVelLogger:
         )
         self.ts.registerCallback(self._sync_cb)
 
+        self._reset_odom_srv = rospy.ServiceProxy("reset_odometry", Trigger)
+
         rospy.Service("~surge", SetAddedMassTarget, self._srv_surge)
         rospy.Service("~sway", SetAddedMassTarget, self._srv_sway)
         rospy.Service("~yaw", SetAddedMassTarget, self._srv_yaw)
         rospy.loginfo("Services: ~surge ~sway ~yaw  (enable, amplitude, frequency)")
 
         rospy.Timer(rospy.Duration(1.0 / self.cmd_rate), self._cmd_timer_cb)
+        rospy.on_shutdown(self._restore_pid_gains)
 
     def _sync_cb(
         self,
@@ -141,9 +163,10 @@ class AddedMassSineCmdVelLogger:
         with self._lock:
             if not enable:
                 if self.active is None:
-                    self.cmd_pub.publish(Twist())
+                    self.cmd_pub.publish(WrenchStamped())
+                    self._restore_pid_gains_locked()
                     return SetAddedMassTargetResponse(
-                        True, "No active test. Published cmd_vel=0."
+                        True, "No active test. Published cmd_wrench=0."
                     )
                 self.stop_requested = True
                 return SetAddedMassTargetResponse(
@@ -161,6 +184,11 @@ class AddedMassSineCmdVelLogger:
             if amplitude <= 0:
                 return SetAddedMassTargetResponse(False, "amplitude must be > 0.")
 
+            if not self._zero_pid_gains_for_axis_locked(axis_name):
+                return SetAddedMassTargetResponse(
+                    False, f"Failed to zero PID gains for axis {axis_name}."
+                )
+
             token = f"{axis_name}_A{target_token(amplitude)}_F{target_token(frequency)}"
             fname = f"{self.file_prefix}_{token}_{now_str()}.csv"
             csv_path = os.path.join(self.log_dir, fname)
@@ -175,7 +203,7 @@ class AddedMassSineCmdVelLogger:
                 csv_path=csv_path,
             )
             self.stop_requested = False
-            self.curr_cmd = Twist()
+            self.curr_cmd = WrenchStamped()
 
             msg = (
                 f"Started {axis_name} A={amplitude} f={frequency}Hz. " f"CSV={csv_path}"
@@ -196,7 +224,7 @@ class AddedMassSineCmdVelLogger:
             dt = (t_now - self.active.phase_start).to_sec()
 
             if self.active.phase == "PREHOLD":
-                self.curr_cmd = Twist()
+                self.curr_cmd = WrenchStamped()
                 self.cmd_pub.publish(self.curr_cmd)
 
                 if dt >= self.pre_hold_time:
@@ -246,6 +274,10 @@ class AddedMassSineCmdVelLogger:
         q = odom.twist.twist.angular.y
         r = odom.twist.twist.angular.z
 
+        ori = odom.pose.pose.orientation
+        quaternion = [ori.x, ori.y, ori.z, ori.w]
+        (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(quaternion)
+
         # Measured acceleration
         ax = accel.accel.accel.linear.x
         ay = accel.accel.accel.linear.y
@@ -270,15 +302,18 @@ class AddedMassSineCmdVelLogger:
             t_rec,
             cmd_value,
             cmd_accel,
-            self.curr_cmd.linear.x,
-            self.curr_cmd.linear.y,
-            self.curr_cmd.angular.z,
+            self.curr_cmd.wrench.force.x,
+            self.curr_cmd.wrench.force.y,
+            self.curr_cmd.wrench.torque.z,
             u,
             v,
             w,
             p,
             q,
             r,
+            roll,
+            pitch,
+            yaw,
             ax,
             ay,
             az,
@@ -298,15 +333,95 @@ class AddedMassSineCmdVelLogger:
             self._finish_locked("CSV_WRITE_ERROR")
 
     # --- helpers
-    def _make_cmd(self, axis_name: str, value: float) -> Twist:
-        cmd = Twist()
+    def _make_cmd(self, axis_name: str, value: float) -> WrenchStamped:
+        cmd = WrenchStamped()
         if axis_name == "surge":
-            cmd.linear.x = value
+            cmd.wrench.force.x = value
         elif axis_name == "sway":
-            cmd.linear.y = value
+            cmd.wrench.force.y = value
         elif axis_name == "yaw":
-            cmd.angular.z = value
+            cmd.wrench.torque.z = value
         return cmd
+
+    def _ensure_reconfigure_client_locked(self) -> bool:
+        if self.reconfigure_client is not None:
+            return True
+
+        try:
+            self.reconfigure_client = dynamic_reconfigure.client.Client(
+                self.controller_reconfigure_server, timeout=5
+            )
+            return True
+        except Exception as exc:
+            rospy.logwarn(
+                "Failed to connect to controller reconfigure server %s: %s",
+                self.controller_reconfigure_server,
+                exc,
+            )
+            return False
+
+    def _zero_pid_gains_for_axis_locked(self, axis_name: str) -> bool:
+        if self.saved_pid_gains is not None:
+            return True
+
+        if not self._ensure_reconfigure_client_locked():
+            return False
+
+        try:
+            current_cfg = self.reconfigure_client.get_configuration()
+        except Exception as exc:
+            rospy.logwarn("Failed to read controller configuration: %s", exc)
+            return False
+
+        if not current_cfg:
+            rospy.logwarn("Controller configuration is empty")
+            return False
+
+        gain_updates = {}
+        self.saved_pid_gains = {}
+        self.saved_pid_axis = axis_name
+
+        for idx in self.AXIS_GAIN_INDICES[axis_name]:
+            for prefix in ("kp", "ki", "kd"):
+                key = f"{prefix}_{idx}"
+                self.saved_pid_gains[key] = current_cfg.get(key, 0.0)
+                gain_updates[key] = 0.0
+
+        try:
+            self.reconfigure_client.update_configuration(gain_updates)
+        except Exception as exc:
+            rospy.logwarn("Failed to zero PID gains for %s: %s", axis_name, exc)
+            self.saved_pid_gains = None
+            self.saved_pid_axis = None
+            return False
+
+        return True
+
+    def _restore_pid_gains_locked(self):
+        if self.reconfigure_client is None or self.saved_pid_gains is None:
+            return
+
+        try:
+            self._reset_odom_srv()
+        except rospy.ServiceException as exc:
+            rospy.logwarn("Failed to call odometry reset service: %s", exc)
+
+        try:
+            self.reconfigure_client.update_configuration(self.saved_pid_gains)
+        except Exception as exc:
+            rospy.logwarn(
+                "Failed to restore PID gains for %s: %s",
+                self.saved_pid_axis,
+                exc,
+            )
+            return
+
+        self.saved_pid_gains = None
+        self.saved_pid_axis = None
+
+    def _restore_pid_gains(self):
+        with self._lock:
+            self._restore_pid_gains_locked()
 
     def _open_csv_locked(self, csv_path: str):
         self.csv_file = open(csv_path, "w", newline="")
@@ -320,15 +435,18 @@ class AddedMassSineCmdVelLogger:
             "t_rec",
             "cmd_value",
             "cmd_accel",
-            "cmd_lin_x",
-            "cmd_lin_y",
-            "cmd_ang_z",
+            "cmd_force_x",
+            "cmd_force_y",
+            "cmd_torque_z",
             "odom_lin_x",
             "odom_lin_y",
             "odom_lin_z",
             "odom_ang_x",
             "odom_ang_y",
             "odom_ang_z",
+            "roll",
+            "pitch",
+            "yaw",
             "meas_accel_x",
             "meas_accel_y",
             "meas_accel_z",
@@ -353,20 +471,21 @@ class AddedMassSineCmdVelLogger:
         self.csv_writer = None
 
     def _finish_locked(self, reason: str):
-        self.cmd_pub.publish(Twist())
+        self.cmd_pub.publish(WrenchStamped())
+        self._restore_pid_gains_locked()
+        self._close_csv_locked()
 
         axis = self.active.axis_name if self.active else "none"
         path = self.active.csv_path if self.active else ""
         rospy.loginfo(f"Test finished: reason={reason} axis={axis} csv={path}")
 
-        self._close_csv_locked()
         self.active = None
         self.stop_requested = False
 
 
 if __name__ == "__main__":
     try:
-        node = AddedMassSineCmdVelLogger()
+        node = AddedMassSineWrenchLogger()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
