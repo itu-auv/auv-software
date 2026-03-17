@@ -2,7 +2,7 @@
     <arg name="namespace" default="taluy"/>
 
     <!-- Topics -->
-    <arg name="cmd_vel_topic" default="cmd_vel"/>
+    <arg name="cmd_wrench_topic" default="cmd_wrench"/>
     <arg name="odom_topic" default="odometry"/>
     <arg name="wrench_topic" default="wrench"/>
 
@@ -15,7 +15,7 @@
 
     <group ns="$(arg namespace)">
         <node pkg="auv_control" type="damping_tester.py" name="damping_tester" output="screen">
-            <param name="cmd_vel_topic" value="$(arg cmd_vel_topic)" />
+            <param name="cmd_wrench_topic" value="$(arg cmd_wrench_topic)" />
             <param name="odom_topic" value="$(arg odom_topic)" />
             <param name="wrench_topic" value="$(arg wrench_topic)" />
 

@@ -5,6 +5,10 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_listener.h>
 
+#include <algorithm>
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <type_traits>
 
 #include "auv_common_lib/ros/conversions.h"
@@ -14,6 +18,7 @@
 #include "auv_controllers/multidof_pid_controller.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
 #include "geometry_msgs/Wrench.h"
+#include "geometry_msgs/WrenchStamped.h"
 #include "nav_msgs/Odometry.h"
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
@@ -105,6 +110,9 @@ class ControllerROS {
     accel_sub_ =
         nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this,
                       transport_hints);
+    cmd_wrench_sub_ =
+        nh_.subscribe("cmd_wrench", 1, &ControllerROS::cmd_wrench_callback,
+                      this, transport_hints);
 
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
@@ -143,6 +151,13 @@ class ControllerROS {
         desired_state_.tail(6) = ControllerBase::Vector::Zero();
       }
 
+      auto controller =
+          dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+      if (controller) {
+        controller->set_external_wrench(
+            has_recent_cmd_wrench() ? cmd_wrench_
+                                    : ControllerBase::WrenchVector::Zero());
+      }
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
@@ -161,10 +176,15 @@ class ControllerROS {
 
  private:
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
+  bool has_recent_cmd_wrench() const {
+    return (ros::Time::now() - latest_cmd_wrench_time_).toSec() <=
+           cmd_wrench_timeout_;
+  }
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;
   std::string body_frame_;
   double transform_timeout_;
+  double cmd_wrench_timeout_{0.5};
 
   bool is_timeouted() const {
     const auto latest_time =
@@ -249,6 +269,13 @@ class ControllerROS {
     d_state_(7) = msg->accel.accel.linear.y;
     d_state_(8) = msg->accel.accel.linear.z;
     d_state_.tail(3) = Eigen::Vector3d::Zero();
+  }
+
+  void cmd_wrench_callback(const geometry_msgs::WrenchStamped::ConstPtr& msg) {
+    cmd_wrench_ << msg->wrench.force.x, msg->wrench.force.y,
+        msg->wrench.force.z, msg->wrench.torque.x, msg->wrench.torque.y,
+        msg->wrench.torque.z;
+    latest_cmd_wrench_time_ = ros::Time::now();
   }
 
   void reconfigure_callback(auv_control::ControllerConfig& config,
@@ -464,12 +491,14 @@ class ControllerROS {
   ros::Subscriber cmd_vel_sub_;
   ros::Subscriber cmd_pose_sub_;
   ros::Subscriber accel_sub_;
+  ros::Subscriber cmd_wrench_sub_;
   ros::Publisher wrench_pub_;
 
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;
   ros::Time latest_cmd_pose_time_{ros::Time(0)};
   ros::Time latest_cmd_vel_time_{ros::Time(0)};
+  ros::Time latest_cmd_wrench_time_{ros::Time(0)};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
   ControllerBase::StateVector desired_state_{
@@ -484,6 +513,8 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;  // Parameters to be dynamically reconfigured
   Eigen::Matrix<double, 6, 1> max_velocity_;
+  ControllerBase::WrenchVector cmd_wrench_{
+      ControllerBase::WrenchVector::Zero()};
   Eigen::Matrix<double, 12, 1>
       integral_clamp_limits_;           // Integral clamping limits
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
