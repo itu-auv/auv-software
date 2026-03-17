@@ -201,6 +201,7 @@ class CameraDetectionNode:
             "taluy/cameras/cam_bottom": CameraCalibration("cameras/cam_bottom"),
             "taluy/cameras/cam_torpedo": CameraCalibration("cameras/cam_torpedo"),
         }
+        # Segmentation source uses the same camera calibration as bottom camera
         self.camera_calibrations["taluy/cameras/cam_bottom_seg"] = (
             self.camera_calibrations["taluy/cameras/cam_bottom"]
         )
@@ -673,16 +674,19 @@ class CameraDetectionNode:
         return True
 
     def detection_callback(self, detection_msg: YoloResult, camera_source: str):
+        # Determine camera_ns based on the source passed by the subscribe
         if camera_source == "front_camera":
             if not self.front_camera_enabled:
                 return
             camera_ns = "taluy/cameras/cam_front"
         elif camera_source == "bottom_camera":
             if not self.bottom_camera_enabled:
+                rospy.loginfo_throttle(5, "Bottom camera detection is disabled")
                 return
             camera_ns = "taluy/cameras/cam_bottom"
         elif camera_source == "bottom_camera_seg":
             if not self.bottom_camera_enabled:
+                rospy.loginfo_throttle(5, "Bottom camera segmentation is disabled")
                 return
             camera_ns = "taluy/cameras/cam_bottom_seg"
         elif camera_source == "torpedo_camera":
@@ -693,6 +697,7 @@ class CameraDetectionNode:
             rospy.logerr(f"Unknown camera_source: {camera_source}")
             return  # Stop processing if the source is unknown
 
+        # For segmentation source, use the same camera frame as bottom camera
         if camera_ns == "taluy/cameras/cam_bottom_seg":
             camera_frame = self.camera_frames["taluy/cameras/cam_bottom"]
         else:
@@ -753,8 +758,10 @@ class CameraDetectionNode:
             if prop_name not in self.props:
                 continue
             prop = self.props[prop_name]
+            # Bottle detection (cam_bottom_seg, ID 0) - use bottle_thickness_px for distance
             if camera_ns == "taluy/cameras/cam_bottom_seg" and detection_id == 0:
                 skip_inside_image = True
+                # Calculate distance using pixel width from segment_measurement
                 seg = self.last_segment_measurement
                 if seg is not None and seg.valid and seg.thickness_px > 0:
                     distance = prop.estimate_distance(
@@ -774,6 +781,7 @@ class CameraDetectionNode:
                     )
                     distance = self.altitude
 
+            # Bin detections (cam_bottom, IDs 0, 1, 2) - use altitude directly
             elif camera_ns == "taluy/cameras/cam_bottom" and detection_id in [0, 1, 2]:
                 skip_inside_image = True
                 distance = self.altitude

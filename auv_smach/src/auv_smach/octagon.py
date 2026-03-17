@@ -297,6 +297,15 @@ class OctagonTaskState(smach.State):
                 "ENABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=True),
                 transitions={
+                    "succeeded": "ENABLE_SEGMENT_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_SEGMENT_DETECTION",
+                SetDetectionState(camera_name="segment", enable=True),
+                transitions={
                     "succeeded": "SET_BOTTOM_FOCUS_OCTAGON",
                     "preempted": "preempted",
                     "aborted": "aborted",
