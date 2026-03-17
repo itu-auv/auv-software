@@ -3,7 +3,7 @@
   <arg name="namespace" default="taluy_mini" />
   <arg name="name" default="cam_front" />
   <arg name="camera_model" default="OAK-D" />
-  <arg name="camera_config" default="$(find auv_bringup)/config/taluy_mini_cameras.yaml" />
+  <arg name="camera_config" default="$(find auv_bringup)/config/cameras_mini.yaml" />
   <arg name="rectify_rgb" default="true" />
 
   <group ns="$(arg namespace)/cameras/$(arg name)">
