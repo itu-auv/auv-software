@@ -46,6 +46,7 @@ class TorpedoCameraHandler:
         self._process_torpedo_holes(detection_msg, stamp)
 
         for detection in detection_msg.detections.detections:
+            continue
             if len(detection.results) == 0:
                 continue
             detection_id = detection.results[0].id
