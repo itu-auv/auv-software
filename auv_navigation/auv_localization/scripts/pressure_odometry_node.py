@@ -4,8 +4,8 @@ import rospy
 import numpy as np
 from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
-import auv_common_lib.transform.transformer
 import tf
+import tf2_ros
 
 
 class PressureToOdom:
@@ -14,7 +14,7 @@ class PressureToOdom:
 
         self.odom_orientation = None
         self.depth_data = None
-        self.base_to_pressure_translation = None
+        self.base_to_sensor_translation = None
 
         # params
         self.namespace = rospy.get_param("~namespace", "taluy")
@@ -34,7 +34,8 @@ class PressureToOdom:
         self.max_valid_depth = rospy.get_param("~max_valid_depth", -self.pool_depth)
 
         # tf transformer
-        self.transformer = auv_common_lib.transform.transformer.Transformer()
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # publishers and subscribers
         self.odom_publisher = rospy.Publisher("odom_pressure", Odometry, queue_size=10)
@@ -67,23 +68,32 @@ class PressureToOdom:
         self.odom_orientation = odom_msg.pose.pose.orientation
 
     def get_base_to_pressure_height(self):
-        if self.base_to_pressure_translation is None:
+        if self.base_to_sensor_translation is None:
             try:
-                trans, _ = self.transformer.get_transform(
-                    self.base_frame, self.pressure_sensor_frame
+                trans = self.tf_buffer.lookup_transform(
+                    self.pressure_sensor_frame,
+                    self.base_frame,
+                    rospy.Time(0),
+                    rospy.Duration(4.0),
                 )
-                self.base_to_pressure_translation = np.array(trans).flatten()
+                self.base_to_sensor_translation = np.array(
+                    [
+                        trans.transform.translation.x,
+                        trans.transform.translation.y,
+                        trans.transform.translation.z,
+                    ]
+                )
             except (
-                tf.LookupException,
-                tf.ConnectivityException,
-                tf.ExtrapolationException,
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
             ) as e:
                 rospy.logwarn(
                     f"{self.pressure_sensor_frame} TF not available: {e}; using zero offset."
                 )
                 return 0.0
 
-        translation = self.base_to_pressure_translation
+        translation = self.base_to_sensor_translation
 
         if self.odom_orientation is None:
             return float(translation[2])
