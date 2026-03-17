@@ -25,21 +25,11 @@ class YoloBridge:
         )
 
     def yolo_callback(self, msg):
-
         detections_msg = msg.detections
-
         self.detection_pub.publish(detections_msg)
 
     def yolo_callback_torpedo(self, msg):
-        # The YoloResult message contains a Detection2DArray in its 'detections' field.
-        # We simply extract it and republish it.
-
-        # Create a new Detection2DArray message to publish
         detections_msg = msg.detections
-
-        # It's good practice to update the header timestamp
-        detections_msg.header.stamp = rospy.Time.now()
-
         self.detection_pub_torpedo.publish(detections_msg)
 
     def run(self):
