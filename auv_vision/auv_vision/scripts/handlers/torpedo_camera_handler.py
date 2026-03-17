@@ -51,8 +51,8 @@ class TorpedoCameraHandler:
                 continue
             detection_id = detection.results[0].id
 
-            # Skip everything except torpedo holes
-            if detection_id != self.id_tf_map.id_of("torpedo_hole_link"):
+            # process everything except torpedo holes
+            if detection_id == self.id_tf_map.id_of("torpedo_hole_link"):
                 continue
 
             if detection_id not in self.id_tf_map:
