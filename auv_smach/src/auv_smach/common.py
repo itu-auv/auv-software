@@ -1139,7 +1139,13 @@ class SetPlanState(smach.State):
                 angle_offset=self.angle_offset,
                 dynamic=self.dynamic,
             )
-            set_plan(req)
+            response = set_plan(req)
+            if not response.success:
+                rospy.logerr(
+                    "[SetPlanState] /set_plan returned success=False for target_frame=%s",
+                    self.target_frame,
+                )
+                return "aborted"
             return "succeeded"
 
         except Exception as e:

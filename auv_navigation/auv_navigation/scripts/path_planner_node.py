@@ -30,12 +30,10 @@ class PathPlannerNode:
         rospy.loginfo("[path_planner_node] Path planner node started.")
 
     def set_plan_cb(self, req):
-        self.planning_active = True
-        rospy.loginfo("[path_planner_node] Planning activated.")
-
         self.target_frame = req.target_frame
         self.angle_offset = req.angle_offset
         self.dynamic = getattr(req, "dynamic", True)
+        self.planning_active = False
 
         # If not dynamic, generate static path once
         if not self.dynamic:
@@ -51,6 +49,9 @@ class PathPlannerNode:
                 return PlanPathResponse(success=False)
         else:
             self.static_path = None
+
+        self.planning_active = True
+        rospy.loginfo("[path_planner_node] Planning activated.")
 
         rospy.loginfo(
             f"[path_planner_node] New plan set. Target: {self.target_frame}, Angle offset: {self.angle_offset}, dynamic: {self.dynamic}"
