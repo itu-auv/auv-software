@@ -237,7 +237,28 @@ class ReferencePosePublisherNode:
                 self.target_depth = t.transform.translation.z
 
             self.align_frame_keep_orientation = req.keep_orientation
-            if not req.keep_orientation:
+            if req.keep_orientation:
+                source_in_target = self.tf_lookup(
+                    req.target_frame,
+                    req.source_frame,
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+                if source_in_target is None:
+                    return AlignFrameControllerResponse(
+                        success=False,
+                        message="Failed to lookup source frame in target frame",
+                    )
+
+                offset_in_source = Vector3Stamped()
+                offset_in_source.vector = t.transform.translation
+
+                offset_in_target = do_transform_vector3(
+                    offset_in_source, source_in_target
+                )
+                self.target_x = offset_in_target.vector.x
+                self.target_y = offset_in_target.vector.y
+            else:
                 quaternion = [
                     t.transform.rotation.x,
                     t.transform.rotation.y,

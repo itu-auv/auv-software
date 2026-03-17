@@ -2,28 +2,29 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
-  <arg name="enable_process_tracker" default="$(eval arg('namespace') != 'taluy_mini')" />
-  <arg name="enable_pointcloud_filter" default="$(eval arg('namespace') != 'taluy_mini')" />
+  <arg name="enable_realsense_nodes" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="static_frame" default="odom" />
   <arg name="target_gate_frame" default="gate_shark_link" />
   <arg name="torpedo_frame" default="torpedo_map_link" />
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
 
-  <group if="$(arg enable_process_tracker)">
+  <group if="$(arg enable_realsense_nodes)">
     <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch">
       <arg name="namespace" value="$(arg namespace)" />
     </include>
   </group>
 
   <group ns="$(arg namespace)">
-    <node pkg="auv_vision" type="camera_detection_pose_estimator.py" name="camera_detection_pose_estimator" output="screen">
+    <node pkg="auv_vision" type="camera_detection_node.py" name="camera_detection_pose_estimator" output="screen">
       <rosparam command="load" file="$(find auv_bringup)/config/environment.yaml" />
       <param name="namespace" value="$(arg namespace)" />
+      <param name="config_file" value="$(find auv_vision)/config/detection_objects_$(arg namespace).yaml" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
-      <remap from="odom_pressure" to="localization/odom_pressure" />
+      <remap from="odometry" to="odometry" />
       <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
       <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+      <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
       <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
     </node>
 
@@ -68,7 +69,7 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <group if="$(arg enable_pointcloud_filter)">
+    <group if="$(arg enable_realsense_nodes)">
       <node name="pointcloud_filter_node" pkg="auv_mapping" type="realsense_filter_node" output="screen">
         <remap from="camera/depth/color/points" to="camera/depth/color/points" />
         <remap from="dvl/altitude" to="sensors/dvl/altitude" />

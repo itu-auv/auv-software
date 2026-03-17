@@ -5,8 +5,9 @@
   <arg name="model" default="$(eval find(arg('namespace') + '_description') + '/urdf/auv.urdf.xacro')" />
   <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/default.rviz')" />
   <arg name="dvl_virtual_port" default="/dev/auv_wayfinder_dvl" />
-  <arg name="enable_xsens" default="$(eval arg('namespace') != 'taluy_mini')" />
-  <arg name="enable_dvl" default="$(eval arg('namespace') != 'taluy_mini')" />
+  <arg name="enable_xsens" default="$(eval arg('namespace') == 'taluy')" />
+  <arg name="enable_dvl" default="$(eval arg('namespace') == 'taluy')" />
+  <arg name="enable_vectornav" default="$(eval arg('namespace') == 'taluy_mini')" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
@@ -33,6 +34,13 @@
       <arg name="namespace" value="$(arg namespace)" />
       <arg name="control_rate" value="$(arg control_rate)" />
       <arg name="port" value="/dev/auv_imu" />
+    </include>
+  </group>
+
+  <!-- launch vectornav driver -->
+  <group if="$(arg enable_vectornav)">
+    <include file="$(find auv_bringup)/launch/inc/sensors/start_vectornav.launch">
+      <arg name="namespace" value="$(arg namespace)" />
     </include>
   </group>
 

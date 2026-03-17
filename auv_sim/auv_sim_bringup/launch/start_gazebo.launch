@@ -127,7 +127,7 @@
 
     <!-- Simulation ground truth bbox tracker -->
     <include file="$(find auv_detection)/launch/tracker_sim.launch">
-      <arg name="namespace" value="$(arg namespace)" />
+        <arg name="namespace" value="$(arg namespace)" />
     </include>
 
     <!-- TF-Gazebo Debug Node -->
