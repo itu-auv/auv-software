@@ -29,11 +29,13 @@ import cv2
 import struct
 import math
 
-from sensor_msgs.msg import Image, PointCloud2, PointField
+from sensor_msgs.msg import Image, PointCloud2, PointField, CameraInfo
 from geometry_msgs.msg import TransformStamped, Vector3, Quaternion
 from cv_bridge import CvBridge
 import tf2_ros
 import tf.transformations as tft
+
+from ultralytics_ros.msg import YoloResult
 
 
 def pointcloud2_to_array(cloud_msg):
@@ -163,14 +165,20 @@ class StandOrientationEstimator:
         self.hsv_lower = np.array(rospy.get_param("~hsv_lower", [20, 80, 80]))
         self.hsv_upper = np.array(rospy.get_param("~hsv_upper", [40, 255, 255]))
 
-        # Valve color: Orange (HSV range) - for position
-        self.valve_hsv_lower = np.array(
-            rospy.get_param("~valve_hsv_lower", [5, 150, 150])
+        # Valve position source: YoloResult bbox (sim_bbox_node or real YOLO)
+        # Default: front camera (sim_bbox_node publishes valve on front camera)
+        self.bbox_topic = rospy.get_param("~bbox_topic", "/yolo_result_front")
+        self.valve_class_id = rospy.get_param("~valve_class_id", 8)
+
+        # Front camera intrinsics — for geometric 3D estimation from bbox
+        ns = rospy.get_param("~namespace", "taluy")
+        self.front_optical_frame = rospy.get_param(
+            "~front_optical_frame",
+            f"{ns}/base_link/front_camera_optical_link_stabilized",
         )
-        self.valve_hsv_upper = np.array(
-            rospy.get_param("~valve_hsv_upper", [20, 255, 255])
-        )
-        self.min_valve_area = rospy.get_param("~min_valve_area", 200)
+        self.valve_diameter = rospy.get_param("~valve_diameter", 0.24)  # metres
+        self.front_K = None  # filled by camera_info callback
+        self.latest_valve_bbox_size = None  # (width, height) in pixels
 
         # Minimum detection area (pixels squared)
         self.min_contour_area = rospy.get_param("~min_contour_area", 500)
@@ -187,12 +195,23 @@ class StandOrientationEstimator:
         # Debug
         self.publish_debug_image = rospy.get_param("~publish_debug_image", True)
 
+        # RealSense depth optical frame — normal from RANSAC is expressed in this frame
+        self.realsense_optical_frame = rospy.get_param(
+            "~realsense_optical_frame",
+            f"{ns}/camera_depth_optical_frame",
+        )
+
         # ---- State ----
         self.bridge = CvBridge()
         self.latest_cloud = None
         self.cloud_header = None
+        self.latest_valve_bbox_center = None  # (cx, cy) from YoloResult
+        self.latest_valve_bbox_size = None  # (w, h)  from YoloResult
+        self.cached_orientation = None  # last good RANSAC orientation
 
         # ---- TF ----
+        self.tf_buffer = tf2_ros.Buffer(rospy.Duration(10.0))
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
 
         # ---- Publishers ----
@@ -203,17 +222,36 @@ class StandOrientationEstimator:
             "stand_orientation/debug_image", Image, queue_size=1
         )
         self.mask_pub = rospy.Publisher("stand_orientation/mask", Image, queue_size=1)
-        self.valve_mask_pub = rospy.Publisher(
-            "stand_orientation/valve_mask", Image, queue_size=1
-        )
 
         # ---- Subscribers ----
-        color_topic = rospy.get_param("~color_topic", "/taluy/camera/color/image_raw")
-        cloud_topic = rospy.get_param(
-            "~cloud_topic", "/taluy/camera/depth/color/points"
+        # Front camera: primary position source (bbox → geometric 3D)
+        front_info_topic = rospy.get_param(
+            "~front_camera_info_topic",
+            f"/{ns}/cameras/cam_front/camera_info",
+        )
+        front_image_topic = rospy.get_param(
+            "~front_image_topic",
+            f"/{ns}/cameras/cam_front/image_raw",
+        )
+        rospy.Subscriber(
+            front_info_topic, CameraInfo, self._front_info_cb, queue_size=1
+        )
+        rospy.Subscriber(
+            front_image_topic,
+            Image,
+            self.front_image_callback,
+            queue_size=1,
+            buff_size=2**24,
         )
 
-        # Continuously update point cloud
+        # YoloResult: valve bbox (sim_bbox_node on front camera by default)
+        rospy.Subscriber(self.bbox_topic, YoloResult, self.bbox_callback, queue_size=1)
+
+        # RealSense (optional): point cloud for RANSAC orientation refinement
+        color_topic = rospy.get_param("~color_topic", f"/{ns}/camera/color/image_raw")
+        cloud_topic = rospy.get_param(
+            "~cloud_topic", f"/{ns}/camera/depth/color/points"
+        )
         rospy.Subscriber(
             cloud_topic,
             PointCloud2,
@@ -221,125 +259,137 @@ class StandOrientationEstimator:
             queue_size=1,
             buff_size=2**24,
         )
-
-        # Run pipeline when color image arrives
         rospy.Subscriber(
             color_topic,
             Image,
-            self.image_callback,
+            self.realsense_image_callback,
             queue_size=1,
             buff_size=2**24,
         )
 
         rospy.loginfo(
             f"Stand orientation estimator ready.\n"
-            f"  Color: {color_topic}\n"
-            f"  Cloud: {cloud_topic}\n"
-            f"  HSV lower: {self.hsv_lower}\n"
-            f"  HSV upper: {self.hsv_upper}"
+            f"  Front image:  {front_image_topic}\n"
+            f"  Front info:   {front_info_topic}\n"
+            f"  Front frame:  {self.front_optical_frame}\n"
+            f"  BBox topic:   {self.bbox_topic} (class_id={self.valve_class_id})\n"
+            f"  RS color:     {color_topic}\n"
+            f"  RS cloud:     {cloud_topic}\n"
+            f"  RS frame:     {self.realsense_optical_frame}\n"
+            f"  HSV lower:    {self.hsv_lower}\n"
+            f"  HSV upper:    {self.hsv_upper}"
         )
 
     # ------------------------------------------------------------------
     # Callbacks
     # ------------------------------------------------------------------
 
+    def _front_info_cb(self, msg):
+        """Cache front camera K matrix (once)."""
+        if self.front_K is None:
+            self.front_K = list(msg.K)
+
     def cloud_callback(self, msg):
-        """Store the latest point cloud message."""
+        """Store the latest RealSense point cloud."""
         self.latest_cloud = msg
         self.cloud_header = msg.header
 
-    def image_callback(self, msg):
-        """
-        Called for each color frame. Main pipeline entry point.
+    def bbox_callback(self, msg):
+        """Extract valve bbox center + size from YoloResult."""
+        for det in msg.detections.detections:
+            if det.results and det.results[0].id == self.valve_class_id:
+                self.latest_valve_bbox_center = (
+                    det.bbox.center.x,
+                    det.bbox.center.y,
+                )
+                self.latest_valve_bbox_size = (det.bbox.size_x, det.bbox.size_y)
+                return
 
-        Strategy:
-        - Yellow panels -> RANSAC -> orientation (surface normal)
-        - Orange valve -> 3D centroid -> position
-        - If valve not visible -> use panel centroid as fallback
+    def front_image_callback(self, msg):
+        """
+        Front camera trigger — primary pipeline.
+        Estimates 3D valve position from bbox + known diameter,
+        publishes valve_stand_link TF in front camera optical frame.
+        """
+        position = self.estimate_3d_from_bbox()
+        if position is None:
+            return
+
+        orientation = self.cached_orientation
+        if orientation is None:
+            # Default: surface normal points toward camera (-Z in optical frame)
+            orientation = self.normal_to_quaternion(np.array([0.0, 0.0, -1.0]))
+
+        t = TransformStamped()
+        t.header.stamp = msg.header.stamp
+        t.header.frame_id = self.front_optical_frame
+        t.child_frame_id = "valve_stand_link"
+        t.transform.translation = Vector3(
+            x=float(position[0]), y=float(position[1]), z=float(position[2])
+        )
+        t.transform.rotation = orientation
+        self.tf_broadcaster.sendTransform(t)
+        self.transform_pub.publish(t)
+
+        rospy.loginfo_throttle(
+            2.0,
+            f"valve_stand_link [BBOX+{'RANSAC' if self.cached_orientation else 'DEFAULT'}] "
+            f"pos: [{position[0]:.2f}, {position[1]:.2f}, {position[2]:.2f}]",
+        )
+
+    def realsense_image_callback(self, msg):
+        """
+        RealSense color trigger — orientation-only pipeline (best effort).
+        Detects yellow panels via HSV, fits plane with RANSAC,
+        updates cached_orientation. Does NOT publish TF.
         """
         if self.latest_cloud is None:
-            rospy.loginfo_throttle(5.0, "Waiting for point cloud data...")
             return
 
         frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-
-        # 1) Detect yellow panels of the stand (for orientation)
-        mask, contour, bbox = self.detect_stand_panels(frame)
-
+        mask, contour, _ = self.detect_stand_panels(frame)
         if contour is None:
-            if self.publish_debug_image:
-                self.publish_debug(frame, None, None, None, None)
             return
 
-        # 2) Extract yellow panel 3D points from point cloud
         points_3d = self.extract_3d_points(mask)
-
         if points_3d is None or len(points_3d) < self.min_points_for_plane:
-            rospy.logwarn_throttle(
-                3.0,
-                f"Not enough valid 3D points for plane fit: "
-                f"{0 if points_3d is None else len(points_3d)} "
-                f"(need {self.min_points_for_plane})",
-            )
-            if self.publish_debug_image:
-                self.publish_debug(frame, contour, None, None, None)
             return
 
-        # 3) Fit plane with RANSAC -> orientation
         result = ransac_plane_fit(
             points_3d,
             max_iterations=self.ransac_iterations,
             distance_threshold=self.ransac_threshold,
         )
-
         if result is None:
-            rospy.logwarn_throttle(3.0, "RANSAC plane fit failed!")
-            if self.publish_debug_image:
-                self.publish_debug(frame, contour, None, None, None)
             return
 
-        normal, panel_centroid, inlier_ratio = result
-
+        normal, _, inlier_ratio = result
         if inlier_ratio < self.min_inlier_ratio:
-            rospy.logwarn_throttle(
-                3.0, f"Low inlier ratio: {inlier_ratio:.2f} < {self.min_inlier_ratio}"
-            )
             return
 
-        # 4) Ensure normal points towards the camera
+        # Normal points away from camera — ensure it points toward camera (-Z)
         if normal[2] > 0:
             normal = -normal
 
-        # 5) Detect orange valve -> position
-        valve_contour = self.detect_valve(frame)
-        valve_position = None
-
-        if valve_contour is not None:
-            valve_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
-            cv2.drawContours(valve_mask, [valve_contour], -1, 255, -1)
-            valve_points = self.extract_3d_points(valve_mask)
-            if valve_points is not None and len(valve_points) >= 10:
-                valve_position = np.mean(valve_points, axis=0)
-
-        # 6) Position: use valve center if visible, else panel centroid
-        position = valve_position if valve_position is not None else panel_centroid
-        source = "VALVE" if valve_position is not None else "PANEL"
-
-        # 7) Calculate quaternion from normal vector
-        orientation = self.normal_to_quaternion(normal)
-
-        # 8) Publish TF
-        self.publish_stand_tf(self.cloud_header, position, orientation)
-
-        rospy.loginfo_throttle(
-            2.0,
-            f"Stand detected [{source}] — pos: [{position[0]:.2f}, {position[1]:.2f}, "
-            f"{position[2]:.2f}] normal: [{normal[0]:.2f}, {normal[1]:.2f}, "
-            f"{normal[2]:.2f}] inlier: {inlier_ratio:.1%}",
+        # Transform normal from RealSense depth optical frame to front optical frame
+        # so that cached_orientation is consistent with valve_stand_link parent frame.
+        normal_in_front = self._transform_normal_to_front_frame(
+            normal, msg.header.stamp
         )
+        if normal_in_front is None:
+            rospy.logwarn_throttle(
+                5.0, "Cannot transform RANSAC normal to front optical frame — skipping."
+            )
+            return
 
-        if self.publish_debug_image:
-            self.publish_debug(frame, contour, position, normal, valve_contour)
+        self.cached_orientation = self.normal_to_quaternion(normal_in_front)
+        rospy.loginfo_throttle(
+            5.0,
+            f"RANSAC orientation updated — "
+            f"normal(RS): [{normal[0]:.2f}, {normal[1]:.2f}, {normal[2]:.2f}] "
+            f"normal(front): [{normal_in_front[0]:.2f}, {normal_in_front[1]:.2f}, {normal_in_front[2]:.2f}] "
+            f"inlier: {inlier_ratio:.1%}",
+        )
 
     # ------------------------------------------------------------------
     # Detection
@@ -382,33 +432,77 @@ class StandOrientationEstimator:
         bbox = cv2.boundingRect(largest)
         return mask, largest, bbox
 
-    def detect_valve(self, frame):
+    def estimate_3d_from_bbox(self):
         """
-        Detect orange valve using HSV.
-        Returns: contour or None
+        Estimate 3D valve position from bbox + known valve diameter + camera intrinsics.
+        Uses: distance = fx * diameter / bbox_size
+        Returns: np.array([x, y, z]) in front camera optical frame, or None.
         """
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, self.valve_hsv_lower, self.valve_hsv_upper)
-
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-
-        # Publish valve mask
-        if self.valve_mask_pub.get_num_connections() > 0:
-            mask_msg = self.bridge.cv2_to_imgmsg(mask, encoding="mono8")
-            self.valve_mask_pub.publish(mask_msg)
-
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        if not contours:
+        if (
+            self.latest_valve_bbox_center is None
+            or self.latest_valve_bbox_size is None
+            or self.front_K is None
+        ):
             return None
 
-        largest = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(largest) < self.min_valve_area:
+        cx, cy = self.latest_valve_bbox_center
+        bw, bh = self.latest_valve_bbox_size
+        bbox_size = max(bw, bh)
+        if bbox_size < 1.0:
             return None
 
-        return largest
+        fx = self.front_K[0]
+        fy = self.front_K[4]
+        K_cx = self.front_K[2]
+        K_cy = self.front_K[5]
+
+        distance = fx * self.valve_diameter / bbox_size
+        x = (cx - K_cx) * distance / fx
+        y = (cy - K_cy) * distance / fy
+        z = distance
+
+        return np.array([x, y, z], dtype=np.float32)
+
+    # ------------------------------------------------------------------
+    # Frame Transformation
+    # ------------------------------------------------------------------
+
+    def _transform_normal_to_front_frame(self, normal, stamp):
+        """
+        Rotate a normal vector from RealSense depth optical frame
+        to front camera optical frame using TF.
+
+        Returns np.array([nx, ny, nz]) in front frame, or None on failure.
+        """
+        try:
+            tf_stamped = self.tf_buffer.lookup_transform(
+                self.front_optical_frame,  # target frame
+                self.realsense_optical_frame,  # source frame
+                stamp,
+                rospy.Duration(0.3),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(
+                5.0,
+                f"TF lookup failed ({self.realsense_optical_frame} → "
+                f"{self.front_optical_frame}): {e}",
+            )
+            return None
+
+        # Extract rotation matrix from quaternion
+        q = tf_stamped.transform.rotation
+        rot_matrix = tft.quaternion_matrix([q.x, q.y, q.z, q.w])[:3, :3]
+
+        # Rotate the normal (direction vector — no translation)
+        normal_transformed = rot_matrix @ normal
+        norm = np.linalg.norm(normal_transformed)
+        if norm < 1e-8:
+            return None
+        return normal_transformed / norm
 
     # ------------------------------------------------------------------
     # 3D Point Extraction
@@ -570,7 +664,7 @@ class StandOrientationEstimator:
     # Debug Visualization
     # ------------------------------------------------------------------
 
-    def publish_debug(self, frame, contour, centroid, normal, valve_contour):
+    def publish_debug(self, frame, contour, centroid, normal):
         """Publish debug image."""
         debug = frame.copy()
 
@@ -578,23 +672,20 @@ class StandOrientationEstimator:
         if contour is not None:
             cv2.drawContours(debug, [contour], -1, (0, 255, 0), 2)
 
-        # Orange valve contour (orange/red)
-        if valve_contour is not None:
-            cv2.drawContours(debug, [valve_contour], -1, (0, 128, 255), 3)
-            M = cv2.moments(valve_contour)
-            if M["m00"] > 0:
-                vcx = int(M["m10"] / M["m00"])
-                vcy = int(M["m01"] / M["m00"])
-                cv2.circle(debug, (vcx, vcy), 8, (0, 0, 255), -1)
-                cv2.putText(
-                    debug,
-                    "VALVE",
-                    (vcx + 12, vcy),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 128, 255),
-                    2,
-                )
+        # Valve bbox center from YoloResult (cyan cross)
+        if self.latest_valve_bbox_center is not None:
+            vcx = int(round(self.latest_valve_bbox_center[0]))
+            vcy = int(round(self.latest_valve_bbox_center[1]))
+            cv2.drawMarker(debug, (vcx, vcy), (255, 255, 0), cv2.MARKER_CROSS, 20, 2)
+            cv2.putText(
+                debug,
+                "VALVE",
+                (vcx + 12, vcy),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (255, 255, 0),
+                2,
+            )
 
         if centroid is not None:
             text = f"Pos: ({centroid[0]:.2f}, {centroid[1]:.2f}, {centroid[2]:.2f})"

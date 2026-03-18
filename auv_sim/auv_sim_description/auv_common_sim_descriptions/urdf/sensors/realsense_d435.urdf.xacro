@@ -24,7 +24,7 @@
           <cameraInfoTopicName>color/camera_info</cameraInfoTopicName>
           <depthImageTopicName>depth/image_raw</depthImageTopicName>
           <depthImageCameraInfoTopicName>depth/camera_info</depthImageCameraInfoTopicName>
-          <pointCloudTopicName>/points_filtered</pointCloudTopicName>
+          <pointCloudTopicName>depth/color/points</pointCloudTopicName>
           <frameName>${name}_depth_optical_frame</frameName>
           <pointCloudCutoff>0.1</pointCloudCutoff>
           <pointCloudCutoffMax>10.0</pointCloudCutoffMax>

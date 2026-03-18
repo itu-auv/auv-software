@@ -20,6 +20,7 @@
     <arg name="valve_approach_frame" default="valve_approach_frame" />
     <arg name="valve_contact_frame" default="valve_contact_frame" />
     <arg name="valve_exit_angle" default="0.0" />
+    <arg name="use_ground_truth" default="true" />
 
     <group ns="$(arg namespace)">
         <!-- Stand Orientation Estimator: RealSense'den oryantasyon hesaplar -->
@@ -43,6 +44,7 @@
             <param name="~valve_approach_frame" value="$(arg valve_approach_frame)" />
             <param name="~valve_contact_frame" value="$(arg valve_contact_frame)" />
             <param name="~valve_exit_angle" value="$(arg valve_exit_angle)" />
+            <param name="~use_ground_truth" value="$(arg use_ground_truth)" />
             <param name="~namespace" value="$(arg namespace)/base_link" />
 
             <!-- common.py remaps -->
