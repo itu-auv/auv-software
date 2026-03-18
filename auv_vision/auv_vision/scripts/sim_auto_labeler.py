@@ -14,6 +14,7 @@ Usage:
 """
 
 import os
+import glob
 import itertools
 import rospy
 import cv2
@@ -40,28 +41,39 @@ BOLT_HOLES_STL_M = np.array([
     [0.020,  0.000000,  0.103000],  # Hole 6    90°
     [0.020, -0.072832,  0.072832],  # Hole 7   135°
     [0.020, -0.103000,  0.000000],  # Hole 8   180°
-    [0.000, 0.000, 0.000] # Center Hole
+    [0.000, 0.000, 0.000], # Center Hole
     [0.000, 0.000235, -0.067256] # Arrow Tip
 ])
 
-# Only valve_front (index 0) — face normal ends up as +Z in world frame.
-VALVE_FRONT = {"pos": [0.0185, 0.518, 0.91], "rpy": [0.0, -np.pi / 2, np.pi / 2]}
+# valve_right (right panel) — face normal ends up as -X in world frame.
+VALVE_LINK = {"pos": [0.58, 0.555, 1.4205], "rpy": [0.0, np.pi, 0.0]}
 
 N_KEYPOINTS = len(BOLT_HOLES_STL_M)
 CLASS_ID    = 0
 
-# Flange face center in world frame (derived analytically — see plan).
-# tac_valve model at world (7,-4,-3), valve_front link at model (0.0185,0.518,0.91),
-# face offset [0.020,0,0] in STL → [0,0,0.020] in model → face center world below.
-FACE_CENTER_WORLD = np.array([7.0185, -3.482, -2.070])
+# Flange face center in world frame (derived analytically).
+# tac_valve model at world (7,-4,-3), valve_right link at model (0.58,0.555,1.4205),
+# rpy (0,π,0) maps STL face offset [0.020,0,0] → desk [-0.020,0,0].
+FACE_CENTER_WORLD = np.array([7.56, -3.445, -1.5795])
 
 # ---------------------------------------------------------------------------
-# Pose grid — hemisphere on the +Z side of the valve face.
+# Pose grid — hemisphere centered on the face normal direction.
 # ---------------------------------------------------------------------------
-RADII_M         = [0.5, 1.0, 1.5, 2.0]
-POLAR_DEG       = [15, 40, 65, 80]          # polar angle from +Z axis
+RADII_M         = [0.3, 0.5, 0.75, 1.0, 1.5]
+POLAR_DEG       = [0, 15, 40, 65, 80]       # polar angle from face normal
 AZIMUTH_DEG     = list(range(0, 360, 45))   # 8 azimuths
-ROLL_DEG        = [-30, 0, 30]
+ROLL_DEG        = [0, -30, 30]
+ORIENTATIONS    = ["facing", "perpendicular"]
+
+# Face normal in model frame: STL face normal [1,0,0] rotated by valve link rpy.
+# (model has no rotation in world, so model frame = world frame orientation.)
+_R_valve = euler_matrix(*VALVE_LINK["rpy"], axes="sxyz")[:3, :3]
+FACE_NORMAL = _R_valve @ np.array([1.0, 0.0, 0.0])
+
+# Orthonormal hemisphere frame: pole along face normal.
+_ref = np.array([0.0, 0.0, 1.0]) if abs(FACE_NORMAL[2]) < 0.9 else np.array([0.0, 1.0, 0.0])
+_HEMI_E1 = np.cross(FACE_NORMAL, _ref); _HEMI_E1 /= np.linalg.norm(_HEMI_E1)
+_HEMI_E2 = np.cross(_HEMI_E1, FACE_NORMAL)
 
 # ---------------------------------------------------------------------------
 # Standalone camera SDF — matches AUV front camera intrinsics exactly.
@@ -110,23 +122,7 @@ _CAMERA_SDF = """<?xml version='1.0'?>
 # Matches the URDF optical joint: rpy="-π/2  0  -π/2".
 R_OPT = euler_matrix(-np.pi / 2, 0.0, -np.pi / 2, axes="sxyz")[:3, :3]
 
-# SDF template for debug spheres (same as before).
-_SPHERE_SDF = """<?xml version='1.0'?>
-<sdf version='1.6'>
-  <model name='{name}'>
-    <static>true</static>
-    <link name='link'>
-      <visual name='visual'>
-        <geometry><sphere><radius>0.0012</radius></sphere></geometry>
-        <material>
-          <ambient>1 0 0 1</ambient>
-          <diffuse>1 0 0 1</diffuse>
-          <specular>0.2 0.2 0.2 1</specular>
-        </material>
-      </visual>
-    </link>
-  </model>
-</sdf>"""
+
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +137,7 @@ def _normalize(v):
 def build_camera_rotation(p_cam, face_center, roll_rad):
     """Return 3×3 rotation matrix R such that R @ [1,0,0] = toward face_center.
 
-    Camera body convention: +X forward (Gazebo), +Y right, +Z up in body.
+    Camera body convention: +X forward (Gazebo), +Y left, +Z up in body.
     Roll is applied around the forward (+X) axis.
     """
     fwd = _normalize(face_center - p_cam)
@@ -149,11 +145,11 @@ def build_camera_rotation(p_cam, face_center, roll_rad):
     # Pick a reference "up" that avoids parallel-with-fwd singularity.
     ref = np.array([0.0, 0.0, 1.0]) if abs(fwd[2]) < 0.9 else np.array([1.0, 0.0, 0.0])
 
-    right = _normalize(np.cross(fwd, ref))
-    up    = np.cross(right, fwd)
+    left = _normalize(np.cross(ref, fwd))
+    up   = np.cross(fwd, left)
 
     # R columns: body X, Y, Z expressed in world frame.
-    R = np.column_stack([fwd, right, up])
+    R = np.column_stack([fwd, left, up])
 
     # Roll around body +X.
     cr, sr = np.cos(roll_rad), np.sin(roll_rad)
@@ -177,9 +173,9 @@ def get_valve_keypoints_world(valve_model_pose):
     R_model = quaternion_matrix([q.x, q.y, q.z, q.w])[:3, :3]
     t_model = np.array([p.x, p.y, p.z])
 
-    roll, pitch, yaw = VALVE_FRONT["rpy"]
+    roll, pitch, yaw = VALVE_LINK["rpy"]
     R_link = euler_matrix(roll, pitch, yaw, axes="sxyz")[:3, :3]
-    t_link = np.array(VALVE_FRONT["pos"])
+    t_link = np.array(VALVE_LINK["pos"])
 
     p_link  = (R_link @ BOLT_HOLES_STL_M.T).T + t_link
     p_world = (R_model @ p_link.T).T + t_model
@@ -196,7 +192,7 @@ def world_to_camera(world_points, p_cam, R_body):
     Step 2: camera body → optical  (R_OPT @)
     """
     P_body = (R_body.T @ (world_points - p_cam).T).T
-    P_opt  = (R_OPT @ P_body.T).T
+    P_opt  = (R_OPT.T @ P_body.T).T
     return P_opt
 
 
@@ -229,6 +225,13 @@ def main():
     os.makedirs(images_dir, exist_ok=True)
     os.makedirs(labels_dir, exist_ok=True)
 
+    # Clean previous dataset files
+    for old in glob.glob(os.path.join(images_dir, "*.jpg")):
+        os.remove(old)
+    for old in glob.glob(os.path.join(labels_dir, "*.txt")):
+        os.remove(old)
+    rospy.loginfo("Cleared previous labels and images.")
+
     bridge = CvBridge()
 
     # ------------------------------------------------------------------
@@ -255,6 +258,13 @@ def main():
         reference_frame="world",
     )
     rospy.sleep(1.0)   # allow Gazebo to register the camera publisher
+
+    # Persistent image subscriber — keeps the camera rendering continuously
+    # so that after teleporting + sleeping, the latest frame is always fresh.
+    latest_image = [None]
+    def _img_cb(msg):
+        latest_image[0] = msg
+    img_sub = rospy.Subscriber("/labeler_camera/image_raw", Image, _img_cb, queue_size=1)
 
     # ------------------------------------------------------------------
     # Get camera intrinsics
@@ -288,45 +298,26 @@ def main():
                   f"{valve_pose.position.y:.3f}, {valve_pose.position.z:.3f})")
 
     # ------------------------------------------------------------------
-    # Spawn debug spheres
-    # ------------------------------------------------------------------
-    sphere_names = [f"kp_sphere_{i}" for i in range(N_KEYPOINTS)]
-    origin = Pose()
-    for name in sphere_names:
-        try:
-            spawn_proxy(model_name=name, model_xml=_SPHERE_SDF.format(name=name),
-                        robot_namespace="", initial_pose=origin, reference_frame="world")
-        except Exception as e:
-            rospy.logwarn(f"Could not spawn sphere {name}: {e}")
-
-    def move_spheres(world_pts):
-        for name, pt in zip(sphere_names, world_pts):
-            req = SetModelStateRequest()
-            req.model_state.model_name     = name
-            req.model_state.reference_frame = "world"
-            req.model_state.pose.position.x = float(pt[0])
-            req.model_state.pose.position.y = float(pt[1])
-            req.model_state.pose.position.z = float(pt[2])
-            req.model_state.pose.orientation.w = 1.0
-            try:
-                set_state(req)
-            except Exception:
-                pass
-
-    # ------------------------------------------------------------------
     # Build pose grid
     # ------------------------------------------------------------------
-    poses = list(itertools.product(RADII_M, POLAR_DEG, AZIMUTH_DEG, ROLL_DEG))
+    poses = []
+    for combo in itertools.product(RADII_M, POLAR_DEG, AZIMUTH_DEG, ROLL_DEG, ORIENTATIONS):
+        r, polar_deg, az_deg, roll_deg, orient = combo
+        if polar_deg == 0:
+            # Directly ahead: all azimuths give the same position,
+            # and roll just rotates the image, so keep only one.
+            if az_deg != 0 or roll_deg != 0:
+                continue
+        poses.append(combo)
     total = len(poses)
     rospy.loginfo(f"Grid: {total} poses — starting capture...")
 
     # Precompute valve keypoints (static)
     world_kps = get_valve_keypoints_world(valve_pose)
-    move_spheres(world_kps)
 
     image_count = 0
 
-    for idx, (r, polar_deg, az_deg, roll_deg) in enumerate(poses):
+    for idx, (r, polar_deg, az_deg, roll_deg, orient) in enumerate(poses):
         if rospy.is_shutdown():
             break
 
@@ -334,15 +325,21 @@ def main():
         phi   = np.radians(az_deg)
         roll  = np.radians(roll_deg)
 
-        # Camera position on hemisphere
-        p_cam = FACE_CENTER_WORLD + r * np.array([
-            np.sin(theta) * np.cos(phi),
-            np.sin(theta) * np.sin(phi),
-            np.cos(theta),
-        ])
+        # Camera position on hemisphere (pole = face normal)
+        p_cam = FACE_CENTER_WORLD + r * (
+            np.cos(theta) * FACE_NORMAL +
+            np.sin(theta) * (np.cos(phi) * _HEMI_E1 + np.sin(phi) * _HEMI_E2)
+        )
 
-        R_body = build_camera_rotation(p_cam, FACE_CENTER_WORLD, roll)
-        q      = rotation_to_quaternion(R_body)
+        if orient == "facing":
+            # Camera looks toward the valve face center
+            R_body = build_camera_rotation(p_cam, FACE_CENTER_WORLD, roll)
+        else:
+            # Camera looks along -FACE_NORMAL (perpendicular to face)
+            perp_target = p_cam - FACE_NORMAL
+            R_body = build_camera_rotation(p_cam, perp_target, roll)
+
+        q = rotation_to_quaternion(R_body)
 
         # Teleport camera
         req = SetModelStateRequest()
@@ -357,12 +354,11 @@ def main():
         req.model_state.pose.orientation.w = float(q[3])
         set_state(req)
 
-        # Wait for a fresh rendered frame (camera at 30 Hz → 33 ms/frame)
-        rospy.sleep(0.12)
-        try:
-            img_msg = rospy.wait_for_message("/labeler_camera/image_raw", Image, timeout=3.0)
-        except rospy.ROSException:
-            rospy.logwarn(f"Pose {idx+1}/{total}: timed out waiting for image, skipping.")
+        # Wait for the camera to render several frames at the new pose
+        rospy.sleep(0.5)
+        img_msg = latest_image[0]
+        if img_msg is None:
+            rospy.logwarn(f"Pose {idx+1}/{total}: no image received yet, skipping.")
             continue
 
         # Project keypoints
@@ -403,19 +399,15 @@ def main():
 
         image_count += 1
         rospy.loginfo(f"Image {image_count} (pose {idx+1}/{total}): "
-                      f"r={r}m θ={polar_deg}° φ={az_deg}° roll={roll_deg}° "
-                      f"— {n_vis}/8 keypoints visible")
+                      f"r={r}m θ={polar_deg}° φ={az_deg}° roll={roll_deg}° {orient} "
+                      f"— {n_vis}/{N_KEYPOINTS} keypoints visible")
 
     # ------------------------------------------------------------------
     # Cleanup
     # ------------------------------------------------------------------
     rospy.loginfo(f"Done. {image_count} images saved to {output_dir}")
 
-    for name in sphere_names:
-        try:
-            delete_proxy(name)
-        except Exception:
-            pass
+    img_sub.unregister()
     try:
         delete_proxy("labeler_camera")
     except Exception:
