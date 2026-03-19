@@ -8,6 +8,7 @@ Panels:
         - /TF1/Frames1
         - /WrenchVectors1/Thruster 71
         - /Image1
+        - /Image2
       Splitter Ratio: 0.5438799262046814
     Tree Height: 915
   - Class: rviz/Selection
@@ -91,20 +92,10 @@ Visualization Manager:
         All Enabled: false
         cmd_pose:
           Value: true
-        gate_entrance:
-          Value: true
-        gate_exit:
-          Value: true
-        gate_middle_part:
-          Value: true
         gate_sawfish_link:
           Value: true
-        gate_search:
-          Value: true
         gate_shark_link:
-          Value: false
-        mission_start_link:
-          Value: false
+          Value: true
         odom:
           Value: true
         taluy_mini/base_link:
@@ -192,19 +183,9 @@ Visualization Manager:
           odom:
             cmd_pose:
               {}
-            gate_entrance:
-              {}
-            gate_exit:
-              {}
-            gate_middle_part:
-              {}
             gate_sawfish_link:
               {}
-            gate_search:
-              {}
             gate_shark_link:
-              {}
-            mission_start_link:
               {}
             taluy_mini/base_link:
               taluy_mini/base_link/dvl_mount_link:
@@ -389,7 +370,7 @@ Visualization Manager:
       Enabled: true
       Name: WrenchVectors
     - Class: rviz/Image
-      Enabled: true
+      Enabled: false
       Image Topic: /taluy_mini/cameras/cam_front/image_raw
       Max Value: 1
       Median window: 5
@@ -399,10 +380,10 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: compressed
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/Image
-      Enabled: false
-      Image Topic: /yolo_image
+      Enabled: true
+      Image Topic: /taluy_mini/cameras/cam_front/image_raw
       Max Value: 1
       Median window: 5
       Min Value: 0
@@ -411,7 +392,7 @@ Visualization Manager:
       Queue Size: 2
       Transport Hint: raw
       Unreliable: false
-      Value: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48

@@ -320,7 +320,7 @@ class NavigateThroughGateMiniState(smach.State):
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=1.0,
-                    timeout=10.0,
+                    timeout=20.0,
                     cancel_on_success=True,
                     keep_orientation=False,
                 ),
