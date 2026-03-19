@@ -112,6 +112,7 @@ class ReferencePosePublisherNode:
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
 
+        self.killswitch_active = True
         self.killswitch_sub = rospy.Subscriber(
             "propulsion_board/status", Bool, self.killswitch_callback
         )
@@ -151,6 +152,7 @@ class ReferencePosePublisherNode:
             self.default_max_velocity = [1.0] * 6
 
     def killswitch_callback(self, msg: Bool) -> None:
+        self.killswitch_active = msg.data
         if not msg.data:
             with self.state_lock:
                 if self.align_frame_active:
@@ -432,9 +434,10 @@ class ReferencePosePublisherNode:
     def odometry_callback(self, msg):
         self.latest_odometry = msg
 
-        if (
-            self.control_enable_handler.is_enabled() and not self.is_resetting
-        ) or self.align_frame_active:
+        if self.killswitch_active and (
+            (self.control_enable_handler.is_enabled() and not self.is_resetting)
+            or self.align_frame_active
+        ):
             return
 
         self.set_target_to_odometry()
@@ -520,6 +523,9 @@ class ReferencePosePublisherNode:
         return (new_roll, new_pitch, new_yaw)
 
     def cmd_vel_callback(self, msg: Twist):
+        if not self.killswitch_active:
+            return
+
         if (
             not self.control_enable_handler.is_enabled()
             or self.is_resetting

@@ -100,6 +100,18 @@ class WayfinderNode:
     ) -> std_srvs.srv.SetBoolResponse:
         resp = std_srvs.srv.SetBoolResponse()
         if req.data:
+            try:
+                rospy.wait_for_service("reset_odometry", timeout=1.0)
+                reset_odom_srv = rospy.ServiceProxy(
+                    "reset_odometry", std_srvs.srv.Trigger
+                )
+                reset_odom_srv(std_srvs.srv.TriggerRequest())
+                rospy.loginfo("Successfully called reset_odometry service.")
+            except rospy.ROSException:
+                rospy.logwarn("reset_odometry service timeout or not available.")
+            except rospy.ServiceException as e:
+                rospy.logwarn("reset_odometry service call failed: %s" % e)
+
             self.wayfinder.register_ondata_callback(self.dvl_data_callback)
 
             resp.success = self.wayfinder.exit_command_mode()
