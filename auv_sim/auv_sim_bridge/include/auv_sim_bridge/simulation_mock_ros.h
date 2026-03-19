@@ -182,7 +182,7 @@ class SimulationMockROS {
       ROS_WARN("Parameter 'battery_current' not set. Using default: 10 A");
     }
 
-    dvl_enabled_ = true;
+    dvl_enabled_ = false;
 
     // DVL covariance
     if (!nh_.getParam("sensors/dvl/covariance/linear_x",

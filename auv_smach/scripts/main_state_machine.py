@@ -6,6 +6,7 @@ import auv_smach
 import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
+from auv_smach.gate_mini import NavigateThroughGateMiniState
 from auv_smach.slalom import NavigateThroughSlalomState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
@@ -184,6 +185,16 @@ class MainStateMachineNode:
                     "gate_search_depth": self.gate_search_depth,
                     "roll_depth": self.roll_depth,
                     "gate_exit_angle": gate_exit_angle_rad,
+                },
+            ),
+            "NAVIGATE_THROUGH_GATE_MINI": (
+                NavigateThroughGateMiniState,
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_search_depth": self.gate_search_depth,
+                    "roll_depth": self.roll_depth,
+                    "gate_exit_angle": gate_exit_angle_rad,
+                    "target_animal": f"gate_{self.selected_animal}_link",
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (
