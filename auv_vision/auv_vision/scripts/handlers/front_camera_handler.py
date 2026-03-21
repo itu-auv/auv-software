@@ -46,6 +46,9 @@ class FrontCameraHandler:
         # Front camera specific state
         self.active_ids = list(id_tf_map.keys())  # All IDs active by default
 
+        # handled by slalom frame publisher
+        self.skip_tfs = ["slalom_red_pipe_link", "slalom_white_pipe_link"]
+
     def set_active_ids(self, ids: list):
         """Called by orchestrator when set_front_camera_focus service is triggered."""
         self.active_ids = ids
@@ -62,6 +65,9 @@ class FrontCameraHandler:
                 continue
 
             if detection_id not in self.id_tf_map:
+                continue
+
+            if detection_id in self.skip_tfs:
                 continue
 
             # bin_whole uses altitude projection — special path
