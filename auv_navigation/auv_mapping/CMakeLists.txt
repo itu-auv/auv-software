@@ -76,6 +76,7 @@ add_definitions(
 
 catkin_install_python(PROGRAMS
   scripts/gate_trajectory_publisher.py
+  scripts/gate_trajectory_publisher_legacy.py
   scripts/bin_trajectory_publisher.py
   scripts/torpedo_frame_publisher.py
   scripts/slalom_trajectory_publisher.py
