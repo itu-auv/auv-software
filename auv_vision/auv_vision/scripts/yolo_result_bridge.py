@@ -24,7 +24,6 @@ class YoloBridge:
         detections_msg = msg.detections
 
         detections_msg.header = msg.header
-
         self.detection_pub.publish(detections_msg)
 
     def run(self):
