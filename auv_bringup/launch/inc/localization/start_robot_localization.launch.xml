@@ -12,5 +12,14 @@
       <param name="disabled_at_startup" value="$(eval not arg('sim'))" type="bool"/>
       <param name="frequency" value="$(arg control_rate)" type="double"/>
     </node>
+
+    <node pkg="robot_localization" type="ekf_localization_node" name="auv_localization_node_mti630" clear_params="true">
+      <rosparam command="load" file="$(find auv_bringup)/config/ekf_mti630.yaml"/>
+      <remap from="odometry/filtered" to="odometry_mti630"/>
+      <remap from="accel/filtered" to="acceleration_mti630"/>
+      <remap from="set_pose" to="set_pose_mti630"/>
+      <param name="disabled_at_startup" value="$(eval not arg('sim'))" type="bool"/>
+      <param name="frequency" value="$(arg control_rate)" type="double"/>
+    </node>
   </group>
 </launch>

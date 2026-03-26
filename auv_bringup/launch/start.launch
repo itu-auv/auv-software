@@ -3,6 +3,8 @@
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
   <arg name="dvl_virtual_port" default="/dev/auv_wayfinder_dvl" />
+  <arg name="mti630_imu_port" default="/dev/ttyUSB1" />
+  <arg name="mti630_imu_baudrate" default="115200" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
@@ -26,6 +28,8 @@
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="port" value="/dev/auv_imu" />
+    <arg name="mti630_imu_port" value="$(arg mti630_imu_port)" />
+    <arg name="mti630_imu_baudrate" value="$(arg mti630_imu_baudrate)" />
   </include>
 
   <!-- launch ping360 driver -->
