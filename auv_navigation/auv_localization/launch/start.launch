@@ -2,12 +2,14 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="rate" default="20" />
+  <arg name="control_config_file" default="$(find auv_control)/config/default.yaml" />
   <arg name="dvl_velocity_topic" default="$(eval 'dvl/velocity' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/velocity_raw')" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
 
   <group ns="$(arg namespace)">
     <rosparam file="$(find auv_localization)/config/$(arg namespace)/sensor_calibration_data.yaml" />
-
+    <rosparam file="$(arg control_config_file)" command="load" />
+    
     <node pkg="auv_localization" type="imu_odometry_node.py" name="imu_to_odom_node" output="screen">
       <param name="namespace" value="$(arg namespace)" />
       <param name="imu_frame" value="$(arg namespace)/base_link/imu_link" />
@@ -31,6 +33,8 @@
       <remap from="dvl/velocity_raw" to="$(arg dvl_velocity_topic)" />
       <remap from="dvl/is_valid" to="$(arg dvl_is_valid_topic)" />
       <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="wrench" to="wrench" />
+      <remap from="odometry" to="odometry" />
       <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable" />
       <param name="cmdvel_tau" value="0.2" />
     </node>
