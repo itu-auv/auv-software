@@ -1116,10 +1116,16 @@ class AlignFrame(smach.StateMachine):
 class SetPlanState(smach.State):
     """State that calls the /set_plan service"""
 
-    def __init__(self, target_frame: str, angle_offset: float = 0.0):
+    def __init__(
+        self,
+        target_frame: str,
+        angle_offset: float = 0.0,
+        dynamic: bool = True,
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.target_frame = target_frame
         self.angle_offset = angle_offset
+        self.dynamic = dynamic
 
     def execute(self, userdata) -> str:
         try:
@@ -1133,8 +1139,15 @@ class SetPlanState(smach.State):
             req = PlanPathRequest(
                 target_frame=self.target_frame,
                 angle_offset=self.angle_offset,
+                dynamic=self.dynamic,
             )
-            set_plan(req)
+            response = set_plan(req)
+            if not response.success:
+                rospy.logerr(
+                    "[SetPlanState] /set_plan returned success=False for target_frame=%s",
+                    self.target_frame,
+                )
+                return "aborted"
             return "succeeded"
 
         except Exception as e:
@@ -1159,6 +1172,7 @@ class DynamicPathState(smach.StateMachine):
         max_angular_velocity: float = None,
         angle_offset: float = 0.0,
         keep_orientation: bool = False,
+        dynamic: bool = True,
     ):
         if align_source_frame is None:
             align_source_frame = get_base_link()
@@ -1166,7 +1180,11 @@ class DynamicPathState(smach.StateMachine):
         with self:
             smach.StateMachine.add(
                 "SET_PATH_PLAN",
-                SetPlanState(target_frame=plan_target_frame, angle_offset=angle_offset),
+                SetPlanState(
+                    target_frame=plan_target_frame,
+                    angle_offset=angle_offset,
+                    dynamic=dynamic,
+                ),
                 transitions={
                     "succeeded": "SET_ALIGN_CONTROLLER_TARGET_PATH",
                     "preempted": "preempted",
