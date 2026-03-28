@@ -1,0 +1,8 @@
+dynamic_model:
+  covariance:
+    linear_x: 0.01
+    linear_y: 0.01
+    linear_z: 0.01
+    angular_x: 0.01
+    angular_y: 0.01
+    angular_z: 0.01
