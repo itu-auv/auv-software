@@ -22,7 +22,7 @@
 
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
-    <arg name="roll" default="true" doc="Enable roll mode for state machine"/>
+    <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
 
@@ -70,6 +70,8 @@
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+            <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
+
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
             <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable"/>
 
@@ -98,7 +100,6 @@
 
             <!--pipeline.py-->
             <remap from="toggle_pipeline_trajectory" to="toggle_pipeline_trajectory"/>
-            <remap from="toggle_image_annotator" to="yolo_image_annotator/toggle_annotator"/>
 
             <!--acoustic.py-->
             <remap from="modem/data/rx" to="modem/data/rx"/>
