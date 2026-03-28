@@ -13,7 +13,7 @@ from auv_navigation.follow_path_action.follow_path_helpers import combine_segmen
 class PathPlanners:
     def __init__(self, tf_buffer: tf2_ros.Buffer):
         self.tf_buffer = tf_buffer
-        self.base_link_frame: str = rospy.get_param("~base_link", "taluy/base_link")
+        self.base_link_frame: str = rospy.get_param("~robot_frame", "taluy/base_link")
         self.header_frame: str = rospy.get_param("~header_frame", "odom")
         self.gate_entrance_frame: str = rospy.get_param(
             "~gate_entrance_frame", "gate_entrance"
@@ -35,7 +35,6 @@ class PathPlanners:
         target_frame: str,
         angle_offset: float = 0.0,
         num_waypoints: int = 50,
-        n_turns: int = 0,
         interpolate_xy: bool = True,
         interpolate_z: bool = True,
         interpolate_yaw: bool = True,
@@ -48,7 +47,6 @@ class PathPlanners:
             target_frame: The destination frame.
             angle_offset: Additional angle offset (in radians) to add to the target orientation.
             num_waypoints: Number of waypoints to generate.
-            n_turns: Number of full 360-degree turns to add to the interpolation.
             interpolate_xy: If True, interpolate the x and y positions.
             interpolate_z: If True, interpolate the z position.
             interpolate_yaw: If True, interpolate the yaw orientation.
@@ -78,7 +76,7 @@ class PathPlanners:
 
             # Compute the angular difference (yaw only).
             angular_diff = PathPlanningHelper.compute_angular_difference(
-                source_euler, final_target_euler, n_turns
+                source_euler, final_target_euler
             )
 
             # Create a header for the path.
@@ -95,6 +93,7 @@ class PathPlanners:
                 interpolate_xy,
                 interpolate_z,
                 interpolate_yaw,
+                target_euler=list(final_target_euler),
             )
 
             # Create and return the final Path message.
@@ -130,7 +129,6 @@ class PathPlanners:
                         exit_path = self.straight_path_to_frame(
                             source_frame=self.gate_entrance_frame,
                             target_frame=self.gate_exit_frame,
-                            n_turns=0,
                         )
                     if entrance_path is not None and exit_path is not None:
                         combined_path, _ = combine_segments([entrance_path, exit_path])
