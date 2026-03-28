@@ -29,7 +29,12 @@
 
     <xacro:t200_thruster name="${namespace}/thruster_0" parent="${namespace}/base_link" position="0.157582 0.234119 ${0.104193 + $(arg angled_thruster_z_offset)}" orientation="0 ${-3*pi/4} ${pi/4}"/>
     <!-- on sol ust -->
-    <xacro:t200_thruster name="${namespace}/thruster_1" parent="${namespace}/base_link" position="0.157582 -0.234119 ${0.104193 + $(arg angled_thruster_z_offset)}" orientation="0 ${-3*pi/4} ${-pi/4}"/>
+    <xacro:t200_thruster
+      name="${namespace}/thruster_1"
+      parent="${namespace}/base_link"
+      position="0.157582 -0.234119 ${0.104193 + $(arg angled_thruster_z_offset)}"
+      orientation="0 ${-3*pi/4} ${-pi/4}"
+    />
     <!-- on sag ust -->
     <xacro:t200_thruster name="${namespace}/thruster_2" parent="${namespace}/base_link" position="0.157582 0.234119 ${-0.104193 + $(arg angled_thruster_z_offset)}" orientation="0 ${-pi/4} ${pi/4}"/>
     <!-- on sol alt -->
