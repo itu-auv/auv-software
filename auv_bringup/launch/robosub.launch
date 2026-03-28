@@ -10,6 +10,7 @@
   <arg name="localization" default="1" />
   <arg name="reconfigure" default="0" />
   <arg name="plotjuggler" default="0" />
+
   <!-- 1. Include start.launch -->
   <include file="$(find auv_bringup)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
