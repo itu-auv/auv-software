@@ -21,6 +21,7 @@ class TorpedoLauncherServer:
         tf2_ros.TransformListener(self.tf_buffer)
 
         self.base_frame = rospy.get_param("~base_frame", "taluy/base_link")
+        self.robot_name = rospy.get_param("~robot_name", "taluy")
 
         self.drop_frames = {
             1: rospy.get_param(
@@ -85,7 +86,7 @@ class TorpedoLauncherServer:
         return pose
 
     def get_vehicle_state(self):
-        vehicle_state = self.get_model_state("taluy", "world")
+        vehicle_state = self.get_model_state(self.robot_name, "world")
         vehicle_orientation = vehicle_state.pose.orientation
         quat = [
             vehicle_orientation.x,
