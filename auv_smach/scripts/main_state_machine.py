@@ -293,7 +293,7 @@ class MainStateMachineNode:
         self.previous_enabled = msg.data
 
         if falling_edge:
-            # restart logic??????
+            # TODO: maybe add restart logic
             rospy.logerr("KILLSWITCH!")
             rospy.signal_shutdown("Force stopping state machine")
 
