@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   auv_msgs
   dynamic_reconfigure
   geometry_msgs
+  sensor_msgs
   nav_msgs
   pluginlib
   roscpp
@@ -35,6 +36,7 @@ catkin_package(
     auv_msgs
     dynamic_reconfigure
     geometry_msgs
+    sensor_msgs
     nav_msgs
     roscpp
 )

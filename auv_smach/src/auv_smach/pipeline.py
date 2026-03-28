@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -22,22 +23,11 @@ class TransformServiceEnableState(smach_ros.ServiceState):
         )
 
 
-class ToggleAnnotatorServiceState(smach_ros.ServiceState):
-    def __init__(self, req: bool):
-        smach_ros.ServiceState.__init__(
-            self,
-            "toggle_image_annotator",
-            SetBool,
-            request=SetBoolRequest(data=req),
-        )
-
-
 class NavigateThroughPipelineState(smach.State):
     def __init__(self, pipeline_depth: float):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
         # Pipeline corner frame names (in navigation order)
         self.pipeline_frames = [
@@ -59,17 +49,8 @@ class NavigateThroughPipelineState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
-                "ENABLE_ANNOTATOR",
-                ToggleAnnotatorServiceState(req=True),
-                transitions={
-                    "succeeded": "SET_PIPELINE_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "SET_PIPELINE_DEPTH",
-                SetDepthState(depth=pipeline_depth, sleep_duration=3.0),
+                SetDepthState(depth=pipeline_depth),
                 transitions={
                     "succeeded": "ENABLE_PIPELINE_TRAJECTORY_PUBLISHER",
                     "preempted": "preempted",
@@ -357,15 +338,6 @@ class NavigateThroughPipelineState(smach.State):
                     confirm_duration=0.2,
                     max_angular_velocity=0.2,
                 ),
-                transitions={
-                    "succeeded": "DISABLE_ANNOTATOR",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_ANNOTATOR",
-                ToggleAnnotatorServiceState(req=False),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",

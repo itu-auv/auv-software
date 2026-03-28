@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy
-from auv_msgs.msg import Power
+from sensor_msgs.msg import BatteryState
 
 
 class BatteryMonitorNode:
@@ -30,7 +30,7 @@ class BatteryMonitorNode:
         self.print_interval = 1.0  # Start with a slow print interval (e.g., 1 seconds)
 
         # Subscribers
-        self.power_sub = rospy.Subscriber("power", Power, self.power_callback)
+        self.power_sub = rospy.Subscriber("power", BatteryState, self.power_callback)
 
         # Timers
         self.voltage_print_timer = rospy.Timer(

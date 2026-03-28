@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer
 from .initialize import *
 import smach
 import smach_ros
@@ -47,8 +48,7 @@ class NavigateToGpsTargetState(smach.State):
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.gps_target_frame = gps_target_frame
 
         # Initialize the state machine container
@@ -88,7 +88,6 @@ class NavigateToGpsTargetState(smach.State):
                 "SET_GPS_DEPTH",
                 SetDepthState(
                     depth=gps_depth,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 4.0),
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_GPS_TARGET",
@@ -124,7 +123,6 @@ class NavigateToGpsTargetState(smach.State):
                 "SET_FINAL_DEPTH",
                 SetDepthState(
                     depth=0.0,
-                    sleep_duration=rospy.get_param("~set_depth_sleep_duration", 5.0),
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
