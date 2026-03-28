@@ -64,8 +64,6 @@ class ControllerROS {
     nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
     nh_private.param<double>("odometry_timeout", odometry_timeout_, 1.0);
-    nh_private.param<bool>("require_fresh_odometry_for_wrench",
-                           require_fresh_odometry_for_wrench_, true);
 
     ROS_INFO_STREAM("kp: \n" << kp_.transpose());
     ROS_INFO_STREAM("ki: \n" << ki_.transpose());
@@ -149,11 +147,8 @@ class ControllerROS {
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
-      const bool has_valid_odometry =
-          !require_fresh_odometry_for_wrench_ || has_fresh_odometry();
-
       geometry_msgs::WrenchStamped wrench_msg;
-      if (is_control_enabled() && !is_timeouted() && has_valid_odometry) {
+      if (is_control_enabled() && !is_timeouted() && has_fresh_odometry()) {
         wrench_msg.header.stamp = ros::Time::now();
         wrench_msg.header.frame_id = body_frame_;
         wrench_msg.wrench =
@@ -161,8 +156,7 @@ class ControllerROS {
                                               geometry_msgs::Wrench>(
                 control_output);
         wrench_pub_.publish(wrench_msg);
-      } else if (is_control_enabled() && require_fresh_odometry_for_wrench_ &&
-                 !has_fresh_odometry()) {
+      } else if (is_control_enabled() && !has_fresh_odometry()) {
         ROS_WARN_THROTTLE(3.0,
                           "control enable requested but odometry is missing or "
                           "stale, not publishing wrench");
@@ -177,8 +171,6 @@ class ControllerROS {
   std::string body_frame_;
   double transform_timeout_;
   double odometry_timeout_;
-  bool require_fresh_odometry_for_wrench_;
-
   bool is_timeouted() const {
     const auto latest_time =
         std::max(latest_cmd_vel_time_, latest_cmd_pose_time_);

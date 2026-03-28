@@ -7,8 +7,6 @@
   <arg name="command_timeout" default="0.1" />
   <arg name="config_file" default="$(find auv_control)/config/$(arg namespace)/default.yaml" />
   <arg name="start_visual_servoing" default="true" />
-  <arg name="require_fresh_odometry_for_wrench" default="true" />
-
   <include file="$(find auv_description)/launch/start_state_publisher.launch"
     if="$(arg start_state_publisher)">
     <arg name="namespace" value="$(arg namespace)" />
@@ -19,7 +17,6 @@
     <node pkg="auv_control" type="auv_control_node" name="auv_control_node" output="screen">
       <param name="rate" value="$(arg rate)" />
       <param name="config_file" value="$(arg config_file)" />
-      <param name="require_fresh_odometry_for_wrench" value="$(arg require_fresh_odometry_for_wrench)" />
       <param name="body_frame" value="$(arg namespace)/base_link" />
 
       <remap from="odometry" to="odometry" />

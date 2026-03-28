@@ -4,7 +4,6 @@
   <arg name="control_rate" default="20" />
   <arg name="sim" default="true" />
   <arg name="use_gui" default="true" />
-  <arg name="require_fresh_odometry_for_wrench" default="true" />
   <arg name="dvl_velocity_topic" default="$(eval 'dvl/velocity' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/velocity_raw')" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
 
@@ -55,7 +54,6 @@
     <arg name="sim" value="$(arg sim)" />
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="false" />
-    <arg name="require_fresh_odometry_for_wrench" value="$(arg require_fresh_odometry_for_wrench)" />
     <arg name="config_file" value="$(find auv_sim_bridge)/config/$(arg namespace)/control_config.yaml"/>
   </include>
 
