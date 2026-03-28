@@ -9,12 +9,10 @@ class YoloBridge:
     def __init__(self):
         rospy.init_node("yolo_result_bridge", anonymous=True)
 
-        # Publisher for the standard Detection2DArray message
         self.detection_pub = rospy.Publisher(
             "/yolo_detections", Detection2DArray, queue_size=10
         )
 
-        # Subscriber to the custom YoloResult message
         rospy.Subscriber("/yolo_result_realsense", YoloResult, self.yolo_callback)
 
         rospy.loginfo(
@@ -22,15 +20,10 @@ class YoloBridge:
         )
 
     def yolo_callback(self, msg):
-        # The YoloResult message contains a Detection2DArray in its 'detections' field.
-        # We simply extract it and republish it.
 
-        # Create a new Detection2DArray message to publish
         detections_msg = msg.detections
 
-        # It's good practice to update the header timestamp
-        detections_msg.header.stamp = rospy.Time.now()
-
+        detections_msg.header = msg.header
         self.detection_pub.publish(detections_msg)
 
     def run(self):
