@@ -13,7 +13,7 @@ from auv_navigation.follow_path_action.follow_path_helpers import combine_segmen
 class PathPlanners:
     def __init__(self, tf_buffer: tf2_ros.Buffer):
         self.tf_buffer = tf_buffer
-        self.base_link_frame: str = rospy.get_param("~base_link", "taluy/base_link")
+        self.base_link_frame: str = rospy.get_param("~robot_frame", "taluy/base_link")
         self.header_frame: str = rospy.get_param("~header_frame", "odom")
         self.gate_entrance_frame: str = rospy.get_param(
             "~gate_entrance_frame", "gate_entrance"
