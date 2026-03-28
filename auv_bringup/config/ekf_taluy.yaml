@@ -49,11 +49,7 @@ odom2_differential: false
 odom2_relative: false
 
 odom4: /taluy/localization/odom_dynamic_model
-odom4_config: [false, false, false,
-               false, false, false,
-               false, false, false,
-               false, false, false,
-               false, false, false]
+odom4_config: [false, false, false, false, false, false, false, false, false, false, false, false, false, false, false]
 odom4_queue_size: 10
 odom4_nodelay: false
 odom4_differential: false
