@@ -6,7 +6,7 @@
     <xacro:include filename="$(find auv_common_descriptions)/urdf/actuators.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/materials.urdf.xacro"/>
-    <xacro:arg name="angled_thruster_z_offset" default="-0.031653"/>
+    <xacro:arg name="angled_thruster_z_offset" default="0.05"/>
     <xacro:arg name="use_models" default="${use_models}"/>
     <link name="${namespace}/base_link">
       <inertial>
