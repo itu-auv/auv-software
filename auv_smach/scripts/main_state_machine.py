@@ -24,8 +24,8 @@ from auv_bringup.cfg import SmachParametersConfig
 class MainStateMachineNode:
     def __init__(self):
         self.previous_enabled = False
+        self.sm = None
 
-        # Initialize dynamic reconfigure client
         self.dynamic_reconfigure_client = Client(
             "smach_parameters_server",
             timeout=10,
@@ -34,17 +34,14 @@ class MainStateMachineNode:
 
         self.return_home_station = "bin_exit"
 
-        # Get initial values from dynamic reconfigure
         self.selected_animal = "sawfish"
         self.slalom_mode = "close"
 
-        # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
         self.slalom_exit_angle_deg = 0.0
         self.bin_exit_angle_deg = 0.0
         self.torpedo_exit_angle_deg = 0.0
 
-        # Get current configuration from server
         try:
             current_config = self.dynamic_reconfigure_client.get_configuration()
             if current_config:
@@ -88,33 +85,27 @@ class MainStateMachineNode:
 
         self.pipeline_depth = -0.75
 
-        # GPS parameters
         self.gps_depth = -1.0
         self.gps_target_frame = "gps_target"
 
-        # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
-        self.acoustic_tx_publish_rate = 1.0  # Hz
-        self.acoustic_tx_duration = 5.0  # seconds
+        self.acoustic_tx_publish_rate = 1.0
+        self.acoustic_tx_duration = 5.0
 
-        # Acoustic receiver parameters
-        self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
-        self.acoustic_rx_timeout = 30.0  # seconds
+        self.acoustic_rx_expected_data = [1, 2, 3]
+        self.acoustic_rx_timeout = 30.0
 
         test_mode = rospy.get_param("~test_mode", False)
-        # Get test states from ROS param
         if test_mode:
             state_map = rospy.get_param("~state_map")
 
             short_state_list = rospy.get_param("~test_states", "").split(",")
 
-            # Parse state mapping
             state_mapping = {
                 item.split(":")[0].strip(): item.split(":")[1].strip()
                 for item in state_map.strip().split(",")
             }
 
-            # Map test states to full names
             self.state_list = [
                 state_mapping[state.strip()]
                 for state in short_state_list
@@ -123,13 +114,9 @@ class MainStateMachineNode:
         else:
             self.state_list = rospy.get_param("~full_mission_states")
 
-        # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
 
     def dynamic_reconfigure_callback(self, config):
-        """
-        Dynamic reconfigure callback for updating mission parameters
-        """
         if config is None:
             rospy.logwarn("Could not get parameters from server")
             return
@@ -144,7 +131,6 @@ class MainStateMachineNode:
             config.torpedo_exit_angle,
         )
 
-        # Update parameters
         self.selected_animal = config.selected_animal
         self.slalom_mode = config.slalom_mode
         self.gate_exit_angle_deg = config.gate_exit_angle
@@ -153,7 +139,6 @@ class MainStateMachineNode:
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
 
     def execute_state_machine(self):
-        # Convert degrees to radians
         gate_exit_angle_rad = math.radians(self.gate_exit_angle_deg)
         slalom_exit_angle_rad = math.radians(self.slalom_exit_angle_deg)
         bin_exit_angle_rad = math.radians(self.bin_exit_angle_deg)
@@ -163,7 +148,6 @@ class MainStateMachineNode:
             f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
         )
 
-        # Create torpedo fire frames based on selected animal
         torpedo_fire_frames = (
             [self.torpedo_shark_fire_frame, self.torpedo_sawfish_fire_frame]
             if self.selected_animal == "shark"
@@ -174,7 +158,6 @@ class MainStateMachineNode:
             f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
         )
 
-        # Map state names to their corresponding classes and parameters
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
             "NAVIGATE_THROUGH_GATE": (
@@ -248,7 +231,6 @@ class MainStateMachineNode:
             ),
         }
 
-        # Validate and execute state machine
         if not self.state_list:
             rospy.logerr("No states to execute")
             return
@@ -279,22 +261,29 @@ class MainStateMachineNode:
                     },
                 )
 
-        # Execute the state machine
+        self.sm = sm
         try:
-            outcome = sm.execute()
+            outcome = self.sm.execute()
             rospy.loginfo(f"State machine exited with outcome: {outcome}")
         except Exception as e:
             rospy.logerr(f"Error executing state machine: {e}")
+        finally:
+            self.sm = None
+
+    def start(self, _event=None):
+        if self.sm is not None:
+            rospy.Timer(rospy.Duration(0.1), self.start, oneshot=True)
+            return
+        self.execute_state_machine()
 
     def enabled_callback(self, msg):
         falling_edge = self.previous_enabled and not msg.data
 
         self.previous_enabled = msg.data
 
-        if falling_edge:
+        if falling_edge and self.sm is not None:
             self.sm.request_preempt()
-            # restart
-            rospy.Timer(rospy.Duration(0.1), self.start)
+            rospy.Timer(rospy.Duration(0.1), self.start, oneshot=True)
 
 
 if __name__ == "__main__":
@@ -303,6 +292,6 @@ if __name__ == "__main__":
         node = MainStateMachineNode()
         rospy.sleep(1.0)
         rospy.loginfo(f"Final selected animal before execution: {node.selected_animal}")
-        node.execute_state_machine()
+        node.start()
     except KeyboardInterrupt:
         rospy.loginfo("State machine node interrupted")
