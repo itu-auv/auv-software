@@ -33,19 +33,9 @@ class DynamicModelOdometry:
 
         self.load_dynamic_model()
 
-        self.wrench_sub = message_filters.Subscriber(
-            "wrench", WrenchStamped, tcp_nodelay=True
+        self.wrench_sub = rospy.Subscriber(
+            "wrench", WrenchStamped, self.wrench_callback, tcp_nodelay=True
         )
-        self.odom_sub = message_filters.Subscriber(
-            "odometry", Odometry, tcp_nodelay=True
-        )
-
-        self.sync = message_filters.ApproximateTimeSynchronizer(
-            [self.wrench_sub, self.odom_sub],
-            queue_size=10,
-            slop=0.1,
-        )
-        self.sync.registerCallback(self.synced_callback)
 
         self.odom_publisher = rospy.Publisher(
             "odom_dynamic_model", Odometry, queue_size=10
@@ -54,7 +44,15 @@ class DynamicModelOdometry:
         self.odom_msg.header.frame_id = "odom"
         self.odom_msg.child_frame_id = "taluy/base_link"
 
-        self.odom_msg.pose.covariance = np.zeros(36).tolist()
+        self.odom_msg.pose.covariance = (np.eye(6) * 1e9).flatten().tolist()
+        self.odom_msg.pose.pose.position.x = 0.0
+        self.odom_msg.pose.pose.position.y = 0.0
+        self.odom_msg.pose.pose.position.z = 0.0
+        self.odom_msg.pose.pose.orientation.x = 0.0
+        self.odom_msg.pose.pose.orientation.y = 0.0
+        self.odom_msg.pose.pose.orientation.z = 0.0
+        self.odom_msg.pose.pose.orientation.w = 1.0
+
         self.odom_msg.twist.covariance = np.zeros(36).tolist()
         self.update_twist_covariance()
 
@@ -137,8 +135,8 @@ class DynamicModelOdometry:
 
         return C
 
-    def compute_model_based_velocity(self, wrench, velocity, dt):
-        v = velocity.copy()
+    def compute_model_based_velocity(self, wrench, dt):
+        v = self.estimated_velocity.copy()
 
         damping_linear = np.dot(self.D_linear, v)
 
@@ -156,8 +154,8 @@ class DynamicModelOdometry:
 
         return self.estimated_velocity
 
-    def synced_callback(self, wrench_msg, odom_msg):
-        current_time = rospy.Time.now()
+    def wrench_callback(self, wrench_msg):
+        current_time = wrench_msg.header.stamp
         dt = (current_time - self.last_model_update).to_sec()
         self.last_model_update = current_time
 
@@ -175,18 +173,7 @@ class DynamicModelOdometry:
             ]
         )
 
-        velocity = np.array(
-            [
-                odom_msg.twist.twist.linear.x,
-                odom_msg.twist.twist.linear.y,
-                odom_msg.twist.twist.linear.z,
-                odom_msg.twist.twist.angular.x,
-                odom_msg.twist.twist.angular.y,
-                odom_msg.twist.twist.angular.z,
-            ]
-        )
-
-        model_vel = self.compute_model_based_velocity(wrench, velocity, dt)
+        model_vel = self.compute_model_based_velocity(wrench, dt)
 
         self.odom_msg.header.stamp = current_time
         self.odom_msg.twist.twist.linear.x = model_vel[0]
@@ -196,8 +183,12 @@ class DynamicModelOdometry:
         self.odom_msg.twist.twist.angular.y = model_vel[4]
         self.odom_msg.twist.twist.angular.z = model_vel[5]
 
-        self.odom_msg.pose.pose.position.x = 0.0
-        self.odom_msg.pose.pose.position.y = 0.0
+        rospy.loginfo_throttle(
+            1.0,
+            f"Wrench Y: {wrench[1]:.2f} N -> Model Vel Y: {model_vel[1]:.2f} m/s (If Wrench opposes Vel, system is stable. If signs match or cause it to grow, check Thruster/Control frame!)",
+        )
+
+        self.odom_publisher.publish(self.odom_msg)
         self.odom_msg.pose.pose.position.z = 0.0
 
         self.odom_publisher.publish(self.odom_msg)

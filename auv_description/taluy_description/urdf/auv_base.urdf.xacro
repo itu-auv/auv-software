@@ -11,8 +11,8 @@
     <link name="${namespace}/base_link">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0"/>
-        <mass value="29"/>
-        <inertia ixx="0.1" iyy="0.1" izz="0.1" ixy="0.01" iyz="0.01" ixz="0.1"/>
+        <mass value="29.8419"/>
+        <inertia ixx="0.9430" iyy="2.12" izz="2.18" ixy="0.0" iyz="0.0" ixz="0.0"/>
       </inertial>
       <visual>
         <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>

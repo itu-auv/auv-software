@@ -2,7 +2,7 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="rate" default="20" />
-  <arg name="control_config_file" default="$(find auv_control)/config/default.yaml" />
+  <arg name="control_config_file" default="$(find auv_control)/config/taluy/default.yaml" />
   <arg name="dvl_velocity_topic" default="$(eval 'dvl/velocity' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/velocity_raw')" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
 
