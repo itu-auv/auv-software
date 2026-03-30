@@ -21,6 +21,7 @@
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
     <arg name="log_filename" default="" />
     <arg name="start_bridge" default="true" />
+    <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_taluy.yaml" />
     <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
     <arg name="use_models" default="false" />
@@ -97,6 +98,7 @@
             <arg name="control_rate" value="$(arg control_rate)" />
             <arg name="sim" value="$(arg sim)" />
             <arg name="use_gui" value="$(arg use_gui)" />
+            <arg name="detection_config" value="$(arg detection_config)" />
         </include>
     </group>
 

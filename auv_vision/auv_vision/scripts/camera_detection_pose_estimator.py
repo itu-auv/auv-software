@@ -19,12 +19,10 @@ from std_msgs.msg import Float32
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
-from auv_msgs.srv import SetIdRemap, SetIdRemapResponse
 import auv_common_lib.vision.camera_calibrations as camera_calibrations
 import tf2_ros
 import tf2_geometry_msgs
 from dynamic_reconfigure.client import Client
-import json
 
 
 class CameraCalibration:
@@ -142,11 +140,6 @@ class BinSawfish(Prop):
         super().__init__(11, "bin_sawfish", 0.30480, 0.30480)
 
 
-class DockingBoard(Prop):
-    def __init__(self):
-        super().__init__(8, "docking_board", real_height=1.20, real_width=0.80)
-
-
 class CameraDetectionNode:
     def __init__(self):
         rospy.init_node("camera_detection_pose_estimator", anonymous=True)
@@ -163,13 +156,6 @@ class CameraDetectionNode:
 
         self.red_pipe_x = None
 
-        # ID remapping: allows input detection IDs to be remapped before processing
-        # Useful when a model outputs different IDs than expected (e.g., docking model outputs 0 instead of 8)
-        id_remap_raw = rospy.get_param("~id_remap", {})
-        self.id_remap = {int(k): int(v) for k, v in id_remap_raw.items()}
-        if self.id_remap:
-            rospy.loginfo(f"ID remapping configured: {self.id_remap}")
-
         self.object_id_map = {
             "gate": [0, 1],
             "pipe": [2, 3],
@@ -177,8 +163,7 @@ class CameraDetectionNode:
             "torpedo_holes": [5],
             "bin": [6],
             "octagon": [7],
-            "docking": [8],
-            "all": [0, 1, 2, 3, 4, 5, 6, 7, 8],
+            "all": [0, 1, 2, 3, 4, 5, 6, 7],
             "none": [],
         }
         self.active_front_camera_ids = self.object_id_map[
@@ -245,7 +230,6 @@ class CameraDetectionNode:
             "bin_shark_link": BinSawfish(),
             "torpedo_hole_shark_link": TorpedoHole(),
             "torpedo_hole_sawfish_link": TorpedoHole(),
-            "docking_board_link": DockingBoard(),
         }
 
         self.id_tf_map = {
@@ -257,7 +241,6 @@ class CameraDetectionNode:
                 4: "torpedo_map_link",
                 6: "bin_whole_link",
                 7: "octagon_link",
-                8: "docking_board_link",
             },
             f"{self.namespace}/cameras/cam_bottom": {
                 0: "bin_shark_link",
@@ -292,11 +275,6 @@ class CameraDetectionNode:
             "set_front_camera_focus",
             SetDetectionFocus,
             self.handle_set_front_camera_focus,
-        )
-        rospy.Service(
-            "set_id_remap",
-            SetIdRemap,
-            self.handle_set_id_remap,
         )
 
     def dynamic_reconfigure_callback(self, config):
@@ -361,27 +339,6 @@ class CameraDetectionNode:
         message = "Torpedo camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
-
-    def handle_set_id_remap(self, req):
-        """Handle service call to set ID remapping at runtime."""
-        try:
-            if not req.id_remap_json or req.id_remap_json.strip() == "":
-                self.id_remap = {}
-                message = "ID remapping cleared"
-            else:
-                remap_dict = json.loads(req.id_remap_json)
-                self.id_remap = {int(k): int(v) for k, v in remap_dict.items()}
-                message = f"ID remapping set to: {self.id_remap}"
-            rospy.loginfo(message)
-            return SetIdRemapResponse(success=True, message=message)
-        except json.JSONDecodeError as e:
-            message = f"Invalid JSON: {e}"
-            rospy.logwarn(message)
-            return SetIdRemapResponse(success=False, message=message)
-        except (ValueError, TypeError) as e:
-            message = f"Invalid ID remap format: {e}"
-            rospy.logwarn(message)
-            return SetIdRemapResponse(success=False, message=message)
 
     def altitude_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
@@ -687,8 +644,6 @@ class CameraDetectionNode:
                 continue
             skip_inside_image = False
             detection_id = detection.results[0].id
-            # Apply ID remapping if configured
-            detection_id = self.id_remap.get(detection_id, detection_id)
 
             if camera_source == "front_camera":
                 if detection_id not in self.active_front_camera_ids:

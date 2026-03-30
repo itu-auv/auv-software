@@ -36,7 +36,7 @@ class DockingTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_SEARCH_DEPTH",
-                SetDepthState(depth=search_depth, sleep_duration=3.0),
+                SetDepthState(depth=search_depth, timeout=3.0),
                 transitions={
                     "succeeded": "SEARCH_FOR_STATION",
                     "preempted": "preempted",
@@ -68,7 +68,6 @@ class DockingTaskState(smach.State):
                     transform_target_frame="docking_station",
                     max_linear_velocity=0.3,
                     transform_timeout=90.0,
-                    keep_orientation=True,
                 ),
                 transitions={
                     "succeeded": "ENABLE_DOCKING_TRAJECTORY",
@@ -165,7 +164,7 @@ class DockingTaskState(smach.State):
 
             smach.StateMachine.add(
                 "RISE_AFTER_DOCK",
-                SetDepthState(depth=search_depth, sleep_duration=3.0),
+                SetDepthState(depth=search_depth, timeout=3.0),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

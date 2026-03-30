@@ -9,10 +9,7 @@
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
   <arg name="device" default="cuda:0" />
   <arg name="world" default="pool" />
-
-  <!-- Set initial model config for camera_detection_pose_estimator -->
-  <param name="$(arg namespace)/camera_detection_pose_estimator/initial_model"
-         value="tac_docking" />
+  <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_tac.yaml" />
 
   <!-- 1a. Include start.launch (hardware + navigation) - for real robot -->
   <include unless="$(arg sim)" file="$(find auv_bringup)/launch/start.launch">
@@ -22,6 +19,7 @@
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="enable_logging" value="$(arg enable_logging)" />
     <arg name="logging_directory" value="$(arg logging_directory)" />
+    <arg name="detection_config" value="$(arg detection_config)" />
   </include>
 
   <!-- 1b. Include start_gazebo.launch (simulation) - for simulation -->
@@ -32,11 +30,11 @@
     <arg name="world" value="$(arg world)" />
     <arg name="enable_logging" value="$(arg enable_logging)" />
     <arg name="logging_directory" value="$(arg logging_directory)" />
+    <arg name="detection_config" value="$(arg detection_config)" />
   </include>
 
-  <!-- 2. TAC Docking detection: YOLO tracker -->
-  <include file="$(find auv_detection)/launch/inc/tracker_docking.launch">
-    <arg name="sim" value="$(arg sim)" />
+  <!-- 2. TAC Docking detection: YOLO tracker (not needed in sim — sim_bbox_node publishes ground truth) -->
+  <include unless="$(arg sim)" file="$(find auv_detection)/launch/inc/tracker_docking.launch">
     <arg name="device" value="$(arg device)" />
   </include>
 
