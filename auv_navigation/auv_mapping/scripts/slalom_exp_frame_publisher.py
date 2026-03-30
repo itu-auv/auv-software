@@ -49,8 +49,7 @@ class SlalomExpFramePublisher:
     def __init__(self):
         rospy.init_node("slalom_exp_frame_publisher")
 
-        self.namespace = rospy.get_param("~namespace", "taluy")
-        self.base_link_frame = f"{self.namespace}/base_link"
+        self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
 
         self.slalom_width = rospy.get_param("~slalom_width", 0.0254)
         self.slalom_height = rospy.get_param("~slalom_height", 0.9)

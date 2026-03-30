@@ -9,6 +9,8 @@ cameras:
     id_tf_map:
       0: gate_sawfish_link
       1: gate_shark_link
+      2: slalom_red_pipe_link
+      3: slalom_white_pipe_link
 
 # Prop dimensions for distance estimation (link_name -> dimensions)
 props:

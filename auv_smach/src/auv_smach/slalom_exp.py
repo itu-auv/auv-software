@@ -1,3 +1,4 @@
+from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
 import smach
 import smach_ros
@@ -71,6 +72,8 @@ class NavigateThroughSlalomExpState(smach.State):
         slalom_exit_angle: float = 0.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        self.base_link = get_base_link()
         self.slalom_depth = slalom_depth
         self.slalom_direction = slalom_direction
         self.slalom_exit_angle = slalom_exit_angle
@@ -114,7 +117,7 @@ class NavigateThroughSlalomExpState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_SEQUENCE_START",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="slalom_search_start",
                     confirm_duration=2.0,
                 ),
@@ -128,7 +131,7 @@ class NavigateThroughSlalomExpState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_FIRST_SEARCH",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame=f"slalom_search_{first_side}",
                     confirm_duration=2.0,
                     max_linear_velocity=0.2,
@@ -144,7 +147,7 @@ class NavigateThroughSlalomExpState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_SECOND_SEARCH",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame=f"slalom_search_{second_side}",
                     confirm_duration=2.0,
                     max_linear_velocity=0.2,
@@ -194,7 +197,7 @@ class NavigateThroughSlalomExpState(smach.State):
             smach.StateMachine.add(
                 f"ALIGN_WP_{self.slalom_direction}_0",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame=f"slalom_wp_{self.slalom_direction}_0",
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
@@ -214,7 +217,7 @@ class NavigateThroughSlalomExpState(smach.State):
                     alignment_frame=f"sus",
                     full_rotation=False,
                     set_frame_duration=3.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -227,7 +230,7 @@ class NavigateThroughSlalomExpState(smach.State):
             smach.StateMachine.add(
                 f"ALIGN_WP_{self.slalom_direction}_1",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame=f"slalom_wp_{self.slalom_direction}_1",
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
@@ -248,7 +251,7 @@ class NavigateThroughSlalomExpState(smach.State):
                     alignment_frame=f"sus",
                     full_rotation=False,
                     set_frame_duration=6.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -261,7 +264,7 @@ class NavigateThroughSlalomExpState(smach.State):
             smach.StateMachine.add(
                 f"ALIGN_WP_{self.slalom_direction}_2",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame=f"slalom_wp_{self.slalom_direction}_2",
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
