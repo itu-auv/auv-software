@@ -46,6 +46,14 @@
       <remap from="actuators/torpedo_1/launch" to="actuators/torpedo_1/launch" />
       <remap from="actuators/torpedo_2/launch" to="actuators/torpedo_2/launch" />
     </node>
+
+    <node name="pinger_sim_mock" pkg="auv_sim_bridge" type="pinger_sim_mock.py" output="screen">
+      <param name="mode" value="random" />
+      <param name="exact_model_match" value="true" />
+      <param name="odom_frame" value="odom" />
+      <param name="pinger_frame" value="pinger_link" />
+      <param name="publish_rate" value="10.0" />
+    </node>
   </group>
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
