@@ -85,3 +85,10 @@ install(DIRECTORY
 install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 )
+
+catkin_install_python(
+  PROGRAMS
+    scripts/oak_cam.py
+  DESTINATION
+    ${CATKIN_PACKAGE_BIN_DESTINATION}
+)

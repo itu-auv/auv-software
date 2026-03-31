@@ -1,8 +1,12 @@
 <launch>
   <arg name="namespace" default="taluy" />
 
-  <include file="$(find auv_detection)/launch/inc/tracker_segment.launch" />
-  <include file="$(find auv_detection)/launch/inc/tracker_detection.launch" />
+  <include file="$(find auv_detection)/launch/inc/tracker_segment.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+  <include file="$(find auv_detection)/launch/inc/tracker_detection.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
 
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="pipe_follower_legacy.py" name="pipe_follower_legacy" output="screen">
