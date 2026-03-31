@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
 from typing import Optional, Tuple
+
 import rospy
 import tf2_ros
 import tf.transformations
 from geometry_msgs.msg import Pose, TransformStamped
+from std_msgs.msg import Float32MultiArray, String
 from std_srvs.srv import SetBool, SetBoolResponse
 
 import numpy as np
@@ -33,9 +35,19 @@ class StationTrajectoryPublisherNode:
         self.torpedo_frame = str(
             rospy.get_param("~torpedo_frame", "torpedo_map_link")
         )
+        self.pinger_frame = str(rospy.get_param("~pinger_frame", "pinger_link"))
         self.station_frame = str(rospy.get_param("~station_frame", "station_frame"))
         self.publish_rate = self._get_float_param("~publish_rate", 5.0)
         self.station_yaw_override = self._get_float_param("~station_yaw_override", 0.0)
+        self.tie_tolerance_xy = self._get_float_param(
+            "~tie_tolerance_xy", 0.25
+        )
+        self.selection_topic = str(
+            rospy.get_param("~selection_topic", "station_target_selection")
+        )
+        self.selection_metrics_topic = str(
+            rospy.get_param("~selection_metrics_topic", "station_selection_metrics")
+        )
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -50,6 +62,21 @@ class StationTrajectoryPublisherNode:
             SetBool,
             self._handle_toggle_service,
         )
+        self.selection_publisher = rospy.Publisher(
+            self.selection_topic,
+            String,
+            queue_size=1,
+            latch=True,
+        )
+        self.selection_metrics_publisher = rospy.Publisher(
+            self.selection_metrics_topic,
+            Float32MultiArray,
+            queue_size=1,
+        )
+
+        self.last_station_success_stamp = rospy.Time(0)
+        self.last_station_message = "station frame not computed yet"
+        self.last_selection = ""
 
     def _handle_toggle_service(self, req):
         self.enable = req.data
@@ -148,6 +175,48 @@ class StationTrajectoryPublisherNode:
         )
         return station_pose
 
+    @staticmethod
+    def _distance_xy(a: Tuple[float, float], b: Tuple[float, float]) -> float:
+        return float(np.hypot(a[0] - b[0], a[1] - b[1]))
+
+    def _publish_selection(self, selection: str, d_torpedo: float, d_octagon: float):
+        self.last_selection = selection
+        self.selection_publisher.publish(String(data=selection))
+
+        metrics = Float32MultiArray()
+        metrics.data = [d_torpedo, d_octagon]
+        self.selection_metrics_publisher.publish(metrics)
+
+    def _compute_and_publish_selection(
+        self,
+        pinger_tf: TransformStamped,
+        torpedo_tf: TransformStamped,
+        octagon_tf: TransformStamped,
+    ):
+        pinger_xy = self._xy_from_transform(pinger_tf)
+        torpedo_xy = self._xy_from_transform(torpedo_tf)
+        octagon_xy = self._xy_from_transform(octagon_tf)
+
+        d_torpedo = self._distance_xy(pinger_xy, torpedo_xy)
+        d_octagon = self._distance_xy(pinger_xy, octagon_xy)
+
+        if abs(d_torpedo - d_octagon) <= self.tie_tolerance_xy:
+            selection = "NAVIGATE_TO_TORPEDO_TASK"
+        elif d_torpedo < d_octagon:
+            selection = "NAVIGATE_TO_TORPEDO_TASK"
+        else:
+            selection = "NAVIGATE_TO_OCTAGON_TASK"
+
+        self._publish_selection(selection, d_torpedo, d_octagon)
+        rospy.loginfo_throttle(
+            1.0,
+            "station selection=%s d_torpedo=%.3f d_octagon=%.3f eps=%.3f",
+            selection,
+            d_torpedo,
+            d_octagon,
+            self.tie_tolerance_xy,
+        )
+
     def _build_transform_message(self, child_frame_id: str, pose: Pose):
         transform = TransformStamped()
         transform.header.stamp = rospy.Time.now()
@@ -177,8 +246,15 @@ class StationTrajectoryPublisherNode:
         octagon_tf = self._lookup_transform(self.odom_frame, self.octagon_frame)
         torpedo_tf = self._lookup_transform(self.odom_frame, self.torpedo_frame)
         robot_tf = self._lookup_transform(self.odom_frame, self.robot_frame)
+        pinger_tf = self._lookup_transform(self.odom_frame, self.pinger_frame)
 
-        if octagon_tf is None or torpedo_tf is None or robot_tf is None:
+        if (
+            octagon_tf is None
+            or torpedo_tf is None
+            or robot_tf is None
+            or pinger_tf is None
+        ):
+            self.last_station_message = "missing required TF(s)"
             return
 
         octagon_xy = self._xy_from_transform(octagon_tf)
@@ -192,6 +268,7 @@ class StationTrajectoryPublisherNode:
         )
 
         if station_xy is None:
+            self.last_station_message = "station XY calculation failed"
             rospy.logwarn_throttle(
                 3.0,
                 "Station XY is not computed yet. Implement geometric function in station_trajectory_publisher.py",
@@ -206,6 +283,9 @@ class StationTrajectoryPublisherNode:
             self.station_frame, station_pose
         )
         self._send_transform(station_transform)
+        self.last_station_success_stamp = rospy.Time.now()
+        self.last_station_message = "station frame updated"
+        self._compute_and_publish_selection(pinger_tf, torpedo_tf, octagon_tf)
 
     def spin(self):
         rate = rospy.Rate(self.publish_rate)

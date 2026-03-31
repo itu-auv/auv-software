@@ -105,8 +105,11 @@
       <param name="robot_frame" value="$(arg namespace)/base_link" />
       <param name="octagon_frame" value="octagon_link" />
       <param name="torpedo_frame" value="torpedo_map_link" />
+      <param name="pinger_frame" value="pinger_link" />
       <param name="station_frame" value="station_frame" />
       <param name="publish_rate" value="5.0" />
+      <param name="selection_topic" value="station_target_selection" />
+      <param name="selection_metrics_topic" value="station_selection_metrics" />
       <remap from="toggle_station_trajectory" to="toggle_station_trajectory" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>

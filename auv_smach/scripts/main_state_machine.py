@@ -15,6 +15,7 @@ from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
+from auv_smach.station_branch import PingerDecisionAndExecutionState
 from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
@@ -106,7 +107,11 @@ class MainStateMachineNode:
         if test_mode:
             state_map = rospy.get_param("~state_map")
 
-            short_state_list = rospy.get_param("~test_states", "").split(",")
+            raw_test_states = rospy.get_param("~test_states", "")
+            if isinstance(raw_test_states, list):
+                short_state_list = [str(item).strip() for item in raw_test_states]
+            else:
+                short_state_list = str(raw_test_states).split(",")
 
             # Parse state mapping
             state_mapping = {
@@ -247,6 +252,19 @@ class MainStateMachineNode:
                 {"pipeline_depth": self.pipeline_depth},
             ),
         }
+
+        def make_state_instance(state_name: str):
+            state_def = state_mapping.get(state_name)
+            if state_def is None:
+                return None
+
+            state_class, params = state_def
+            return state_class(**params)
+
+        state_mapping["PINGER_DECISION_AND_EXECUTION"] = (
+            PingerDecisionAndExecutionState,
+            {"state_factory": make_state_instance},
+        )
 
         # Validate and execute state machine
         if not self.state_list:
