@@ -20,6 +20,7 @@ from auv_smach.common import (
     AlignFrame,
     DynamicPathState,
     SetDetectionFocusState,
+    ClearObjectMapState,
 )
 from auv_smach.initialize import DelayState
 
@@ -31,26 +32,6 @@ class PublishSearchPointsState(smach_ros.ServiceState):
             "slalom/publish_search_points",
             Trigger,
             request=TriggerRequest(),
-        )
-
-
-class StartPointSearchState(smach_ros.ServiceState):
-    def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self,
-            "slalom/start_point_search",
-            SetBool,
-            request=SetBoolRequest(data=True),
-        )
-
-
-class StopPointSearchState(smach_ros.ServiceState):
-    def __init__(self):
-        smach_ros.ServiceState.__init__(
-            self,
-            "slalom/stop_point_search",
-            SetBool,
-            request=SetBoolRequest(data=True),
         )
 
 
@@ -82,8 +63,52 @@ class NavigateThroughSlalomExpState(smach.State):
 
         with self.sm:
             smach.StateMachine.add(
+                "SET_DETECTION_FOCUS",
+                SetDetectionFocusState(focus_object="slalom"),
+                transitions={
+                    "succeeded": "SET_SLALOM_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
                 "SET_SLALOM_DEPTH",
                 SetDepthState(depth=self.slalom_depth),
+                transitions={
+                    "succeeded": "ROTATE_TO_FIND_RED_PIPE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "ROTATE_TO_FIND_RED_PIPE",
+                SearchForPropState(
+                    look_at_frame="slalom_red_pipe_link",
+                    alignment_frame="sus",
+                    full_rotation=False,
+                    set_frame_duration=0.0,
+                    source_frame=self.base_link,
+                    rotation_speed=0.2,
+                ),
+                transitions={
+                    "succeeded": "ROTATE_TO_FIND_WHITE_PIPE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "ROTATE_TO_FIND_WHITE_PIPE",
+                SearchForPropState(
+                    look_at_frame="slalom_white_pipe_link",
+                    alignment_frame="sus",
+                    full_rotation=False,
+                    set_frame_duration=0.0,
+                    source_frame=self.base_link,
+                    rotation_speed=0.2,
+                ),
                 transitions={
                     "succeeded": "PUBLISH_SEARCH_POINTS",
                     "preempted": "preempted",
@@ -95,17 +120,17 @@ class NavigateThroughSlalomExpState(smach.State):
                 "PUBLISH_SEARCH_POINTS",
                 PublishSearchPointsState(),
                 transitions={
-                    "succeeded": "START_POINT_SEARCH",
+                    "succeeded": "WAIT_FOR_SEARCH_POINTS",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
             smach.StateMachine.add(
-                "START_POINT_SEARCH",
-                StartPointSearchState(),
+                "WAIT_FOR_SEARCH_POINTS",
+                DelayState(delay_time=5.0),
                 transitions={
-                    "succeeded": "ALIGN_SEQUENCE_START",
+                    "succeeded": "START_SEARCH_ALIGN",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -115,7 +140,7 @@ class NavigateThroughSlalomExpState(smach.State):
             second_side = "left" if self.slalom_direction == "left" else "right"
 
             smach.StateMachine.add(
-                "ALIGN_SEQUENCE_START",
+                "START_SEARCH_ALIGN",
                 AlignFrame(
                     source_frame=self.base_link,
                     target_frame="slalom_search_start",
@@ -153,16 +178,6 @@ class NavigateThroughSlalomExpState(smach.State):
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
                 ),
-                transitions={
-                    "succeeded": "STOP_POINT_SEARCH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "STOP_POINT_SEARCH",
-                StopPointSearchState(),
                 transitions={
                     "succeeded": "PUBLISH_WAYPOINTS",
                     "preempted": "preempted",
