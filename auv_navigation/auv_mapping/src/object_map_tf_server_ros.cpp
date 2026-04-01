@@ -184,7 +184,7 @@ void ObjectMapTFServerROS::update_filter_frame_index(
   std::vector<std::pair<size_t, double>> filter_distances;
   filter_distances.reserve(it->second.size());
 
-  const std::string &base_link_frame = base_link_frame_;
+  const std::string& base_link_frame = base_link_frame_;
 
   for (size_t i = 0; i < it->second.size(); ++i) {
     const auto& transform = it->second[i]->getFilteredTransform();
