@@ -319,6 +319,7 @@ class DvlToOdom:
         self.last_model_update = current_time
 
         if is_valid_msg.data:
+            # rospy.loginfo_throttle(1.0, "Using valid DVL measurements for velocity")
             rotated_vector = self.transform_vector(
                 [velocity_msg.linear.x, velocity_msg.linear.y, velocity_msg.linear.z]
             )
@@ -333,6 +334,9 @@ class DvlToOdom:
             self.filter_cmd_vel()
 
             if self.dynamic_model_available and dt > 0.001 and dt < 1.0:
+                rospy.loginfo_throttle(
+                    1.0, "DVL invalid: Using dynamic model for velocity estimation"
+                )
                 model_vel = self.compute_model_based_velocity(dt)
 
                 velocity_msg.linear.x = model_vel[0]
@@ -345,6 +349,10 @@ class DvlToOdom:
                 self.update_twist_covariance(use_model_based=True)
 
             else:
+                rospy.logwarn_throttle(
+                    1.0,
+                    "DVL invalid and model unavailable/timeout: Using cmd_vel fallback",
+                )
                 velocity_msg.linear.x = self.filtered_cmd_vel.linear.x
                 velocity_msg.linear.y = self.filtered_cmd_vel.linear.y
                 velocity_msg.linear.z = self.filtered_cmd_vel.linear.z
