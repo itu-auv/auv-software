@@ -41,11 +41,11 @@ class ObjectMapTFServerROS {
   void update_filter_frame_index(const std::string &object_frame);
   std::optional<geometry_msgs::TransformStamped> transform_to_static_frame(
       const geometry_msgs::TransformStamped transform,
-      const ros::Time& lookup_time);
+      const ros::Time &lookup_time);
 
   std::optional<geometry_msgs::TransformStamped> get_transform(
       const std::string &target_frame, const std::string &source_frame,
-      const ros::Time& time, const ros::Duration timeout);
+      const ros::Time &time, const ros::Duration timeout);
 
   ros::NodeHandle nh_;
   tf2_ros::Buffer tf_buffer_;
