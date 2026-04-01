@@ -79,6 +79,35 @@ class Prop:
             rospy.logerr(f"Could not estimate distance for prop {self.name}")
             return None
 
+    def estimate_distance_diagonal(
+        self,
+        measured_height: float,
+        measured_width: float,
+        calibration: CameraCalibration,
+    ):
+        distance_from_height = None
+        distance_from_width = None
+
+        if self.real_height is not None:
+            distance_from_height = calibration.distance_from_height(
+                self.real_height, measured_height
+            )
+
+        if self.real_width is not None:
+            distance_from_width = calibration.distance_from_width(
+                self.real_width, measured_width
+            )
+
+        if distance_from_height is not None and distance_from_width is not None:
+            return math.sqrt(distance_from_height**2 + distance_from_width**2)
+        elif distance_from_height is not None:
+            return distance_from_height
+        elif distance_from_width is not None:
+            return distance_from_width
+        else:
+            rospy.logerr(f"Could not estimate distance for prop {self.name}")
+            return None
+
 
 def load_config(yaml_path: str) -> dict:
     """Load detection_objects.yaml and return parsed config dict."""

@@ -16,6 +16,7 @@ from geometry_msgs.msg import (
     PoseArray,
     PoseStamped,
     Pose,
+    Point,
     TransformStamped,
     Transform,
     Vector3,
@@ -50,6 +51,9 @@ class SlalomExpFramePublisher:
         rospy.init_node("slalom_exp_frame_publisher")
 
         self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
+        self.odom_frame = "odom"
+        self.red_pipe_prefix = "slalom_red_pipe_link"
+        self.white_pipe_prefix = "slalom_white_pipe_link"
 
         self.slalom_width = rospy.get_param("~slalom_width", 0.0254)
         self.slalom_height = rospy.get_param("~slalom_height", 0.9)
@@ -57,9 +61,6 @@ class SlalomExpFramePublisher:
         self.ratio = self.slalom_height / self.slalom_width
 
         self.cam = CameraCalibrationFetcher("cameras/cam_front").get_camera_info()
-        self.yolo_res = rospy.Subscriber(
-            "/yolo_result_front", YoloResult, self.yolo_callback
-        )
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -68,118 +69,183 @@ class SlalomExpFramePublisher:
             "set_object_transform", SetObjectTransform
         )
 
-        self.tfs = None
-        self.points = []
-        self.collecting = False
-        self.i = 0
-
         self.srv_publish_search_points = rospy.Service(
             "slalom/publish_search_points", Trigger, self.publish_search_points_callback
-        )
-        self.srv_start_point_search = rospy.Service(
-            "slalom/start_point_search", SetBool, self.start_point_search_callback
-        )
-        self.srv_stop_point_search = rospy.Service(
-            "slalom/stop_point_search", SetBool, self.stop_point_search_callback
         )
         self.srv_publish_waypoints = rospy.Service(
             "slalom/publish_waypoints", SetBool, self.publish_waypoints_callback
         )
 
+    def get_all_pipes(self, base_frame="odom"):
+        if not self.tf_buffer.can_transform(
+            base_frame, self.red_pipe_prefix, rospy.Time(0), rospy.Duration(0.05)
+        ) and self.tf_buffer.can_transform(
+            base_frame, self.white_pipe_prefix, rospy.Time(0), rospy.Duration(0.05)
+        ):
+            return [], []
+
+        red_pipes, white_pipes = [], []
+
+        red_pipes.append(
+            self.get_pos(
+                self.tf_buffer.lookup_transform(
+                    base_frame,
+                    self.red_pipe_prefix,
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+            )
+        )
+        white_pipes.append(
+            self.get_pos(
+                self.tf_buffer.lookup_transform(
+                    base_frame,
+                    self.white_pipe_prefix,
+                    rospy.Time(0),
+                    rospy.Duration(1.0),
+                )
+            )
+        )
+
+        i = 0
+        while self.tf_buffer.can_transform(
+            base_frame,
+            f"{self.red_pipe_prefix}_{i}",
+            rospy.Time(0),
+            rospy.Duration(0.05),
+        ):
+            red_pipes.append(
+                self.get_pos(
+                    self.tf_buffer.lookup_transform(
+                        base_frame,
+                        f"{self.red_pipe_prefix}_{i}",
+                        rospy.Time(0),
+                        rospy.Duration(1.0),
+                    )
+                )
+            )
+            i += 1
+        i = 0
+        while self.tf_buffer.can_transform(
+            base_frame,
+            f"{self.white_pipe_prefix}_{i}",
+            rospy.Time(0),
+            rospy.Duration(0.05),
+        ):
+            white_pipes.append(
+                self.get_pos(
+                    self.tf_buffer.lookup_transform(
+                        base_frame,
+                        f"{self.white_pipe_prefix}_{i}",
+                        rospy.Time(0),
+                        rospy.Duration(1.0),
+                    )
+                )
+            )
+            i += 1
+
+        return red_pipes, white_pipes
+
     def publish_search_points_callback(self, req):
+        red_pipes, white_pipes = self.get_all_pipes(self.odom_frame)
+        if len(red_pipes) == 0 or len(white_pipes) == 0:
+            return TriggerResponse(
+                success=False, message="Couldn't find frame to any pipes"
+            )
+
+        robot_trans = self.tf_buffer.lookup_transform(
+            self.odom_frame, self.base_link_frame, rospy.Time.now(), rospy.Duration(1.0)
+        )
+        robot_pos = self.get_pos(robot_trans)
+
+        red_pipes.sort(key=lambda x: np.linalg.norm(robot_pos - x))
+        closest_red = red_pipes[0]
+        # assume closest red and white pipes are in the same row
+        white_pipes.sort(key=lambda x: np.linalg.norm(robot_pos - x))
+        closest_white = white_pipes[0]
+
+        diff = closest_red - closest_white
+        diff_unit = diff / np.linalg.norm(diff)
+        perp = np.array([-diff_unit[1], diff_unit[0]])
+
+        q = robot_trans.transform.rotation
+        robot_yaw = transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])[2]
+
+        robot_fwd = np.array([math.cos(robot_yaw), math.sin(robot_yaw)])
+
+        if np.dot(perp, robot_fwd) < 0:
+            perp = -perp
+
+        target_pos = closest_red[:2] - (perp * 2.0)
+
+        target_yaw = math.atan2(perp[1], perp[0])
+        target_rot = transformations.quaternion_from_euler(0, 0, target_yaw)
+
         try:
             for c in ["start", "left", "right"]:
-                t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
-                t.header.frame_id = self.base_link_frame
-                t.child_frame_id = f"slalom_search_{c}"
-                t.transform.rotation.w = 1.0
-
-                if c == "start":
-                    pass
-                elif c == "left":
-                    t.transform.translation.y = 1.0
-                    q = transformations.quaternion_from_euler(0, 0, math.radians(30))
-                    t.transform.rotation = Quaternion(*q)
-                elif c == "right":
-                    t.transform.translation.y = -1.0
-                    q = transformations.quaternion_from_euler(0, 0, math.radians(-30))
-                    t.transform.rotation = Quaternion(*q)
-
-                pose_in_base = PoseStamped()
-                pose_in_base.header.frame_id = self.base_link_frame
-                pose_in_base.pose.position = t.transform.translation
-                pose_in_base.pose.orientation = t.transform.rotation
-
-                pose_in_odom = self.tf_buffer.transform(pose_in_base, "odom")
-
                 t_odom = TransformStamped()
                 t_odom.header.stamp = rospy.Time.now()
-                t_odom.header.frame_id = "odom"
-                t_odom.child_frame_id = t.child_frame_id
-                t_odom.transform.translation = Vector3(
-                    pose_in_odom.pose.position.x,
-                    pose_in_odom.pose.position.y,
-                    pose_in_odom.pose.position.z,
-                )
-                t_odom.transform.rotation = pose_in_odom.pose.orientation
+                t_odom.header.frame_id = self.odom_frame
+                t_odom.child_frame_id = f"slalom_search_{c}"
+                t_odom.transform.translation.x = target_pos[0]
+                t_odom.transform.translation.y = target_pos[1]
+                t_odom.transform.translation.z = 0.0
+                t_odom.transform.rotation = Quaternion(*target_rot)
+
+                if c == "left":
+                    t_odom.transform.translation.x -= math.sin(target_yaw) * 1.0
+                    t_odom.transform.translation.y += math.cos(target_yaw) * 1.0
+                    q_c = transformations.quaternion_from_euler(
+                        0, 0, target_yaw + math.radians(30)
+                    )
+                    t_odom.transform.rotation = Quaternion(*q_c)
+                elif c == "right":
+                    t_odom.transform.translation.x -= math.sin(target_yaw) * -1.0
+                    t_odom.transform.translation.y += math.cos(target_yaw) * -1.0
+                    q_c = transformations.quaternion_from_euler(
+                        0, 0, target_yaw + math.radians(-30)
+                    )
+                    t_odom.transform.rotation = Quaternion(*q_c)
 
                 req_obj = SetObjectTransformRequest()
                 req_obj.transform = t_odom
                 self.set_object_transform_service.call(req_obj)
 
-            return TriggerResponse(success=True, message="Published all search frames")
+            return TriggerResponse(
+                success=True, message="Published all search frames (start, left, right)"
+            )
         except Exception as e:
             return TriggerResponse(success=False, message=str(e))
 
-    def start_point_search_callback(self, req):
-        if req.data:
-            self.points = []
-            self.collecting = True
-            self.i = 0
-            rospy.loginfo("Started point collection")
-            return SetBoolResponse(success=True, message="Started point search")
-        else:
-            self.collecting = False
-            return SetBoolResponse(
-                success=True, message="Stopped point search (collection paused)"
-            )
-
-    def stop_point_search_callback(self, req):
-        self.collecting = False
-        rospy.loginfo(
-            f"Stopped point collection. Collected {len(self.points)} points. Filtering..."
-        )
-        self.filter_points()
-
-        if self.tfs:
-            for t in self.tfs:
-                req_obj = SetObjectTransformRequest()
-                req_obj.transform = t
-                self.set_object_transform_service.call(req_obj)
-
-        return SetBoolResponse(
-            success=True,
-            message=f"Processed and published {len(self.tfs) if self.tfs else 0} centroids",
-        )
-
     def publish_waypoints_callback(self, req):
-        if not self.tfs:
-            return SetBoolResponse(success=False, message="No centroids available")
+        base_frame = "slalom_search_start"
+        red_pipes, white_pipes = self.get_all_pipes(base_frame=base_frame)
 
-        # easier
-        groups = {}
-        for t in self.tfs:
-            parts = t.child_frame_id.split("_")
-            idx = int(parts[-1])
-            pt_type = parts[-2]
-            if idx not in groups:
-                groups[idx] = {}
-            groups[idx][pt_type] = np.array(
-                [t.transform.translation.x, t.transform.translation.y]
+        if len(red_pipes) != 3 or len(white_pipes) != 6:
+            return SetBoolResponse(
+                success=False,
+                message=f"Need exactly 3 red and 6 white pipes, got {len(red_pipes)} red and {len(white_pipes)} white",
             )
 
-        # TODO: what if we couldn't find all 9 pipes??
+        red_pipes.sort(key=lambda p: np.linalg.norm(p))
+
+        groups = {}
+        available_whites = list(white_pipes)
+
+        for i, red in enumerate(red_pipes):
+            available_whites.sort(key=lambda w: np.linalg.norm(red - w))
+            w1 = available_whites.pop(0)
+            w2 = available_whites.pop(0)
+
+            if w1[1] > w2[1]:
+                left = w1
+                right = w2
+            else:
+                left = w2
+                right = w1
+
+            groups[i] = {"left": left, "right": right, "mid": red}
+
         for idx, g in groups.items():
             for w in ["left", "right"]:
                 pos_wp = (g[w] + g["mid"]) / 2.0
@@ -187,16 +253,22 @@ class SlalomExpFramePublisher:
                 v_pipe = v_pipe / np.linalg.norm(v_pipe)
                 v_forward = np.array([-v_pipe[1], v_pipe[0]])
 
-                trans = self.tf_buffer.lookup_transform(
-                    "odom", self.base_link_frame, rospy.Time(0), rospy.Duration(1.0)
-                )
+                try:
+                    trans = self.tf_buffer.lookup_transform(
+                        self.odom_frame, base_frame, rospy.Time(0), rospy.Duration(1.0)
+                    )
+                except Exception as e:
+                    return SetBoolResponse(
+                        success=False,
+                        message=f"Failed to lookup {base_frame} to odom: {e}",
+                    )
+
                 q_base = [
                     trans.transform.rotation.x,
                     trans.transform.rotation.y,
                     trans.transform.rotation.z,
                     trans.transform.rotation.w,
                 ]
-                # ????
                 matrix_base = transformations.quaternion_matrix(q_base)
                 fwd_base = matrix_base[:2, 0]
 
@@ -204,239 +276,48 @@ class SlalomExpFramePublisher:
                     v_forward = -v_forward
 
                 yaw = math.atan2(v_forward[1], v_forward[0])
-                q = transformations.quaternion_from_euler(0, 0, yaw)
+                q_wp = transformations.quaternion_from_euler(0, 0, yaw)
 
-                t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
-                t.header.frame_id = "odom"
-                t.child_frame_id = f"slalom_wp_{w}_{idx}"
-                t.transform.translation.x = pos_wp[0]
-                t.transform.translation.y = pos_wp[1]
-                t.transform.rotation = Quaternion(*q)
+                pose_stamped = PoseStamped()
+                pose_stamped.header.frame_id = base_frame
+                pose_stamped.pose.position.x = pos_wp[0]
+                pose_stamped.pose.position.y = pos_wp[1]
+                pose_stamped.pose.position.z = 0.0
+                pose_stamped.pose.orientation.w = 1.0
+
+                try:
+                    odom_pose = self.tf_buffer.transform(
+                        pose_stamped, self.odom_frame, rospy.Duration(1.0)
+                    )
+                except Exception as e:
+                    return SetBoolResponse(
+                        success=False, message=f"Failed to transform wp to odom: {e}"
+                    )
+
+                t_wp = TransformStamped()
+                t_wp.header.stamp = rospy.Time.now()
+                t_wp.header.frame_id = self.odom_frame
+                t_wp.child_frame_id = f"slalom_wp_{w}_{idx}"
+                t_wp.transform.translation.x = odom_pose.pose.position.x
+                t_wp.transform.translation.y = odom_pose.pose.position.y
+                t_wp.transform.translation.z = 0.0
+                t_wp.transform.rotation = Quaternion(*q_wp)
 
                 req_obj = SetObjectTransformRequest()
-                req_obj.transform = t
+                req_obj.transform = t_wp
                 self.set_object_transform_service.call(req_obj)
 
-        return SetBoolResponse(success=True, message="Published waypoints")
-
-    def yolo_callback(self, msg):
-        if not self.collecting:
-            return
-
-        detections: Detection2DArray = msg.detections
-        if len(detections.detections) == 0:
-            return
-
-        for x in detections.detections:
-            # TODO: check_inside_image
-
-            if len(x.results) == 0:
-                continue
-            if not x.results[0].id in [2, 3]:
-                continue
-
-            self.i += 1
-            bbox = x.bbox
-
-            # slalom pipes might be inclined, if that's the case use diognal length instead of direct height
-            pipe_length = bbox.size_y
-            detection_ratio = bbox.size_y / bbox.size_x
-            if abs(detection_ratio - self.ratio) > self.ratio_threshold:
-                pipe_length = math.sqrt(bbox.size_y**2 + bbox.size_x**2)
-            off_x, off_y, off_z = self.world_pos_from_height(
-                self.slalom_height, pipe_length, bbox.center.x, bbox.center.y
-            )
-            # Too far
-            if off_z > 10:
-                continue
-
-            transform_stamped_msg = TransformStamped()
-            transform_stamped_msg.header.stamp = detections.header.stamp
-            transform_stamped_msg.header.frame_id = (
-                self.base_link_frame + "/front_camera_optical_link_stabilized"
-            )
-            transform_stamped_msg.child_frame_id = f"pipe_{self.i}"
-            transform_stamped_msg.transform.translation = Vector3(off_x, off_y, off_z)
-            transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
-
-            try:
-                pose_stamped = PoseStamped()
-                pose_stamped.header = transform_stamped_msg.header
-                pose_stamped.pose.position = transform_stamped_msg.transform.translation
-                pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
-
-                transformed_pose_stamped = self.tf_buffer.transform(
-                    pose_stamped, "odom", rospy.Duration(4.0)
-                )
-
-                wx = transformed_pose_stamped.pose.position.x
-                wy = transformed_pose_stamped.pose.position.y
-                self.points.append([wx, wy])
-
-            except Exception as e:
-                rospy.logwarn_throttle(5, f"transformation error: {e}")
-
-    def filter_points(self):
-        if not self.points:
-            self.tfs = []
-            return
-
-        pts = np.array(self.points)
-        x_min, y_min = np.min(pts, axis=0)
-        x_max, y_max = np.max(pts, axis=0)
-
-        width = x_max - x_min
-        height = y_max - y_min
-
-        if width == 0:
-            width = 1.0
-        if height == 0:
-            height = 1.0
-
-        # TODO: hardcoded
-        padding = 50
-        target_w = 640 - 2 * padding
-        target_h = 480 - 2 * padding
-
-        scale = min(target_w / width, target_h / height)
-
-        img = np.zeros((480, 640), dtype=np.uint8)
-
-        for center in pts:
-            u = int((center[0] - x_min) * scale + (640 - width * scale) / 2)
-            v = int((center[1] - y_min) * scale + (480 - height * scale) / 2)
-
-            u = max(0, min(639, u))
-            v = max(0, min(479, v))
-
-            cv2.circle(img, (u, v), 3, 255, -1)
-
-        opening = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones((6, 6), np.uint8))
-        _, binary = cv2.threshold(opening, 127, 255, cv2.THRESH_BINARY)
-
-        binary = binary.astype(np.float32) / 255.0
-        # TODO: hardcoded
-        heatmap = cv2.GaussianBlur(binary, (0, 0), sigmaX=15, sigmaY=15)
-
-        heatmap_copy = heatmap.copy()
-        X = 9
-        pixel_centers = []
-
-        for i in range(X):
-            minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(heatmap_copy)
-            if maxVal < 0.01:
-                break
-            pixel_centers.append(maxLoc)
-            # TODO: hardcoded
-            suppression_radius = int(25 * 2)
-            cv2.circle(heatmap_copy, maxLoc, suppression_radius, 0, -1)
-
-        heatmap_visa = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
-            np.uint8
+        return SetBoolResponse(
+            success=True, message="Published waypoints based on slalom_search_start"
         )
-        heatmap_vis = cv2.applyColorMap(heatmap_visa, cv2.COLORMAP_JET)
 
-        cv2.imwrite("/auv_ws/a.png", heatmap_vis)
-
-        def get_line_error(pts):
-            pts = np.array(pts)
-            doubles = list(itertools.combinations(pts, 2))
-            errors = [
-                (
-                    math.atan2(abs(pt[0][1] - pt[1][1]), abs(pt[0][0] - pt[1][0]))
-                    * 180
-                    / math.pi
-                )
-                for pt in doubles
+    def get_pos(self, transform: TransformStamped):
+        return np.array(
+            [
+                transform.transform.translation.x,
+                transform.transform.translation.y,
             ]
-            error_dif = max(errors) - min(errors)
-            if error_dif > 10:
-                return None
-            error = sum(errors) / len(errors)
-            return error
-
-        pixel_slalom = Slalom()
-        # TODO: this shouldn't be the final approach
-        all_triplets = list(itertools.combinations(pixel_centers, 3))
-        for tri in all_triplets:
-            err = get_line_error(tri)
-            if err and abs(err - 90) < 20:
-                a = np.array(list(tri)).reshape(-1, 1, 2)
-                vx, vy, x0, y0 = cv2.fitLine(a, cv2.DIST_L2, 0, 0.01, 0.01)
-                m_x, m_y = sorted(
-                    tri, key=lambda x: np.linalg.norm(np.array([x0[0], y0[0]]) - x)
-                )[0]
-                l_x, l_y = sorted(tri, key=lambda x: -x[1])[0]
-                r_x, r_y = sorted(tri, key=lambda x: x[1])[0]
-                pixel_slalom.groups.append(
-                    SlalomGroup(
-                        left=Point(l_x, l_y),
-                        right=Point(r_x, r_y),
-                        mid=Point(m_x, m_y),
-                    )
-                )
-
-        def pixel_to_world(p):
-            u, v = p.x, p.y
-            return Point(
-                ((u - (640 - width * scale) / 2) / scale) + x_min,
-                ((v - (480 - height * scale) / 2) / scale) + y_min,
-            )
-
-        world_slalom = Slalom()
-        for ps in pixel_slalom.groups:
-            world_slalom.groups.append(
-                SlalomGroup(
-                    left=pixel_to_world(ps.left),
-                    right=pixel_to_world(ps.right),
-                    mid=pixel_to_world(ps.mid),
-                )
-            )
-
-        world_slalom.groups.sort(key=lambda g: g.mid.x)
-
-        self.tfs = []
-        for i, g in enumerate(world_slalom.groups):
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_left_{i}"
-            t.transform.translation.x = g.left.x
-            t.transform.translation.y = g.left.y
-            t.transform.translation.z = 0
-            t.transform.rotation.w = 1.0
-            self.tfs.append(t)
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_right_{i}"
-            t.transform.translation.x = g.right.x
-            t.transform.translation.y = g.right.y
-            t.transform.translation.z = 0
-            t.transform.rotation.w = 1.0
-            self.tfs.append(t)
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_mid_{i}"
-            t.transform.translation.x = g.mid.x
-            t.transform.translation.y = g.mid.y
-            t.transform.translation.z = 0
-            t.transform.rotation.w = 1.0
-            self.tfs.append(t)
-
-    def world_pos_from_height(self, real_height, pixel_height, u, v):
-        fx = self.cam.K[0]
-        fy = self.cam.K[4]
-        cx = self.cam.K[2]
-        cy = self.cam.K[5]
-
-        Z = (fy * real_height) / pixel_height
-        X = (u - cx) * Z / fx
-        Y = (v - cy) * Z / fy
-
-        return X, Y, Z
+        )
 
     def spin(self):
         rospy.spin()
