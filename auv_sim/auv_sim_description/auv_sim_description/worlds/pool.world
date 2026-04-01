@@ -89,17 +89,17 @@
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_1</name>
-      <pose>6.5 -13.7 -1.35 0 0 1.57</pose>
+      <pose>6.5 -13.7 -1.35 0 0.3 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_2</name>
-      <pose>4.7 -12.18 -1.35 0 0 1.57</pose>
+      <pose>4.7 -12.18 -1.35 0 -0.2 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_slalom</uri>
       <name>robosub_slalom_3</name>
-      <pose>2.9 -13.3 -1.35 0 0 1.57</pose>
+      <pose>2.9 -13.3 -1.35 0 0.1 1.57</pose>
     </include>
     <include>
       <uri>model://robosub_octagon_animals</uri>

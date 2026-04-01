@@ -86,15 +86,20 @@ class FrontCameraHandler:
             if distance is None:
                 continue
 
-            # extra protection for slalom
-            if (
-                detection_id
-                in self.id_tf_map.ids_of(
-                    "slalom_red_pipe_link", "slalom_white_pipe_link"
-                )
-                and distance > 10
+            # cleanup in here
+            if detection_id in self.id_tf_map.ids_of(
+                "red_pipe_link", "white_pipe_link"
             ):
-                continue
+                ratio = prop.real_height / prop.real_width
+                detection_ratio = detection.bbox.size_y / detection.bbox.size_x
+                if abs(detection_ratio - ratio) > ratio * 0.1:
+                    distance = prop.estimate_distance_diagonal(
+                        detection.bbox.size_y,
+                        detection.bbox.size_x,
+                        self.calibration,
+                    )
+                if distance > 10:
+                    continue
 
             angles, offset_x, offset_y = calculate_angles_and_offsets(
                 self.calibration, detection.bbox.center, distance
