@@ -1,24 +1,28 @@
 #pragma once
 
-#include <auv_control/ControllerConfig.h>  // Include your dynamic reconfigure header
+#include <auv_control/ControllerConfig.h>
 #include <dynamic_reconfigure/server.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_listener.h>
 
-#include <type_traits>
+#include <algorithm>
+#include <fstream>
+#include <iomanip>
+#include <optional>
+#include <sstream>
+#include <stdexcept>
+#include <string>
 
 #include "auv_common_lib/ros/conversions.h"
 #include "auv_common_lib/ros/rosparam.h"
 #include "auv_common_lib/ros/subscriber_with_timeout.h"
 #include "auv_controllers/controller_base.h"
-#include "auv_controllers/multidof_pid_controller.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
 #include "geometry_msgs/Wrench.h"
 #include "nav_msgs/Odometry.h"
 #include "pluginlib/class_loader.h"
 #include "ros/ros.h"
 #include "std_msgs/Bool.h"
-#include "std_msgs/Float64.h"
 #include "tf2_ros/buffer.h"
 
 namespace auv {
@@ -29,10 +33,6 @@ class ControllerROS {
   using ControllerBase = SixDOFControllerBase;
   using Model = SixDOFModel;
   using ModelParser = auv::common::rosparam::parser<Model>;
-  using MatrixRosparamParser =
-      auv::common::rosparam::parser<ControllerBase::Matrix>;
-  using VectorRosparamParser =
-      auv::common::rosparam::parser<Eigen::Matrix<double, 12, 1>>;
   using Vector6RosparamParser =
       auv::common::rosparam::parser<Eigen::Matrix<double, 6, 1>>;
   using ControllerLoader = pluginlib::ClassLoader<SixDOFControllerBase>;
@@ -41,7 +41,7 @@ class ControllerROS {
   using ControlEnableSub =
       auv::common::ros::SubscriberWithTimeout<std_msgs::Bool>;
 
-  ControllerROS(const ros::NodeHandle& nh)
+  explicit ControllerROS(const ros::NodeHandle& nh)
       : nh_{nh},
         rate_{1.0},
         control_enable_sub_{nh},
@@ -49,14 +49,16 @@ class ControllerROS {
         tf_listener_{tf_buffer_} {
     ros::NodeHandle nh_private("~");
 
-    // default_frame as a ros parameter (default is odom)
     depth_control_reference_frame_ =
         nh_private.param<std::string>("depth_control_reference_frame", "odom");
+    controller_plugin_ = nh_private.param<std::string>(
+        "controller_plugin", "auv::control::SixDOFGeometricController");
 
-    auto model = ModelParser::parse("model", nh_private);
+    const auto model = ModelParser::parse("model", nh_private);
     load_parameters();
 
     ROS_INFO_STREAM("Model: \n" << model);
+    log_parameters();
 
     const auto rate = nh_private.param("rate", 10.0);
     rate_ = ros::Rate{rate};
@@ -65,32 +67,20 @@ class ControllerROS {
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
     nh_private.param<double>("odometry_timeout", odometry_timeout_, 1.0);
 
-    ROS_INFO_STREAM("kp: \n" << kp_.transpose());
-    ROS_INFO_STREAM("ki: \n" << ki_.transpose());
-    ROS_INFO_STREAM("kd: \n" << kd_.transpose());
-    ROS_INFO_STREAM("integral_clamp_limits: \n"
-                    << integral_clamp_limits_.transpose());
-    ROS_INFO_STREAM("gravity_compensation_z: " << gravity_compensation_z_);
-    load_controller("auv::control::SixDOFPIDController");
+    if (!load_controller(controller_plugin_)) {
+      throw std::runtime_error("failed to load controller plugin: " +
+                               controller_plugin_);
+    }
 
-    auto controller =
-        dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+    controller_->set_model(model);
+    apply_controller_parameters();
 
-    controller->set_model(model);
-    controller->set_kp(kp_);
-    controller->set_ki(ki_);
-    controller->set_kd(kd_);
-    controller->set_integral_clamp_limits(integral_clamp_limits_);
-    controller->set_gravity_compensation_z(gravity_compensation_z_);
-    controller->set_max_velocity_limits(max_velocity_);
-
-    // Set up dynamic reconfigure server with initial values
     auv_control::ControllerConfig initial_config;
     set_initial_config(initial_config);
 
     dynamic_reconfigure::Server<auv_control::ControllerConfig>::CallbackType f;
     f = boost::bind(&ControllerROS::reconfigure_callback, this, _1, _2);
-    dr_srv_.updateConfig(initial_config);  // Apply the initial configuration
+    dr_srv_.updateConfig(initial_config);
     dr_srv_.setCallback(f);
 
     const auto transport_hints = ros::TransportHints().tcpNoDelay(true);
@@ -120,7 +110,6 @@ class ControllerROS {
     try {
       controller_ = controller_loader_.createInstance(controller_name);
       ROS_INFO_STREAM("Controller loaded: " << controller_name);
-
       return true;
     } catch (pluginlib::PluginlibException& ex) {
       ROS_ERROR("The plugin failed to load for some reason. Error: %s",
@@ -130,26 +119,34 @@ class ControllerROS {
   }
 
   void spin() {
-    const auto dt = 1.0 / rate_.expectedCycleTime().toSec();
-
     while (ros::ok()) {
       ros::spinOnce();
-      rate_.sleep();
+
+      const ros::Time now = ros::Time::now();
+      double dt = rate_.expectedCycleTime().toSec();
+      if (!last_control_time_.isZero()) {
+        dt = (now - last_control_time_).toSec();
+      }
+      if (dt <= 0.0) {
+        dt = rate_.expectedCycleTime().toSec();
+      }
+      last_control_time_ = now;
 
       if (!controller_) {
+        rate_.sleep();
         continue;
       }
 
-      if ((ros::Time::now() - latest_cmd_vel_time_).toSec() > 1.0) {
-        desired_state_.tail(6) = ControllerBase::Vector::Zero();
+      if ((now - latest_cmd_vel_time_).toSec() > 1.0) {
+        desired_command_.twist_ff = SixDOFTwist{};
       }
 
       const auto control_output =
-          controller_->control(state_, desired_state_, d_state_, dt);
+          controller_->control(state_, desired_command_, state_derivative_, dt);
 
       geometry_msgs::WrenchStamped wrench_msg;
       if (is_control_enabled() && !is_timeouted() && has_fresh_odometry()) {
-        wrench_msg.header.stamp = ros::Time::now();
+        wrench_msg.header.stamp = now;
         wrench_msg.header.frame_id = body_frame_;
         wrench_msg.wrench =
             auv::common::conversions::convert<ControllerBase::WrenchVector,
@@ -161,16 +158,14 @@ class ControllerROS {
                           "control enable requested but odometry is missing or "
                           "stale, not publishing wrench");
       }
+
+      rate_.sleep();
     }
   }
 
  private:
   bool is_control_enabled() { return control_enable_sub_.get_message().data; }
-  tf2_ros::Buffer tf_buffer_;
-  tf2_ros::TransformListener tf_listener_;
-  std::string body_frame_;
-  double transform_timeout_;
-  double odometry_timeout_;
+
   bool is_timeouted() const {
     const auto latest_time =
         std::max(latest_cmd_vel_time_, latest_cmd_pose_time_);
@@ -186,39 +181,46 @@ class ControllerROS {
            odometry_timeout_;
   }
 
+  void apply_controller_parameters() {
+    if (!controller_) {
+      return;
+    }
+    controller_->set_parameters(parameters_);
+  }
+
+  void sync_command_pose_to_state() {
+    desired_command_.pose = state_.pose;
+    desired_command_.normalize_orientation();
+  }
+
   void odometry_callback(const nav_msgs::Odometry::ConstPtr& msg) {
-    state_ =
-        auv::common::conversions::convert<nav_msgs::Odometry,
-                                          ControllerBase::StateVector>(*msg);
-    d_state_.head(6) = state_.tail(6);
+    state_ = auv::common::conversions::convert<nav_msgs::Odometry, SixDOFState>(
+        *msg);
     latest_odometry_time_ =
         msg->header.stamp.isZero() ? ros::Time::now() : msg->header.stamp;
   }
 
   void cmd_vel_callback(const geometry_msgs::Twist::ConstPtr& msg) {
     if ((ros::Time::now() - latest_cmd_pose_time_).toSec() > 1.0) {
-      desired_state_.head(6) = state_.head(6);
+      sync_command_pose_to_state();
     }
 
-    desired_state_.tail(6) =
-        auv::common::conversions::convert<geometry_msgs::Twist,
-                                          ControllerBase::Vector>(*msg);
+    desired_command_.twist_ff =
+        auv::common::conversions::convert<geometry_msgs::Twist, SixDOFTwist>(
+            *msg);
     latest_cmd_vel_time_ = ros::Time::now();
   }
 
-  const std::optional<std::string> get_source_frame(
-      const std::string& source_frame) {
-    // no transform will be needed with an empty frame (assume odom frame)
+  std::optional<std::string> get_source_frame(
+      const std::string& source_frame) const {
     if (source_frame.empty()) {
       return std::nullopt;
     }
 
-    // no transform will be needed between two identical frames
     if (source_frame == depth_control_reference_frame_) {
       return std::nullopt;
     }
 
-    // Transform is required: remove leading slash if present
     if (source_frame[0] == '/') {
       return source_frame.substr(1);
     }
@@ -229,16 +231,9 @@ class ControllerROS {
     const auto source_frame = get_source_frame(msg->header.frame_id);
     auto transformed_pose = msg->pose;
 
-    static tf2_ros::Buffer tf_buffer;
-    static tf2_ros::TransformListener tf_listener(tf_buffer);
-    geometry_msgs::TransformStamped transform_stamped;
-
     if (source_frame.has_value()) {
-      ROS_DEBUG("Source frame: %s, Desired frame: %s",
-                source_frame.value().c_str(),
-                depth_control_reference_frame_.c_str());
       try {
-        transform_stamped = tf_buffer.lookupTransform(
+        const auto transform_stamped = tf_buffer_.lookupTransform(
             depth_control_reference_frame_, source_frame.value(), ros::Time(0),
             ros::Duration(transform_timeout_));
 
@@ -248,153 +243,136 @@ class ControllerROS {
         return;
       }
     }
-    ROS_DEBUG_STREAM("Final transformed command pose: "
-                     << transformed_pose.position.x << ", "
-                     << transformed_pose.position.y << ", "
-                     << transformed_pose.position.z);
 
-    desired_state_.head(6) = auv::common::conversions::convert<
-        geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
-
+    desired_command_.pose =
+        auv::common::conversions::convert<geometry_msgs::Pose, SixDOFPose>(
+            transformed_pose);
     latest_cmd_pose_time_ = ros::Time::now();
   }
 
   void accel_callback(
       const geometry_msgs::AccelWithCovarianceStamped::ConstPtr& msg) {
-    d_state_(6) = msg->accel.accel.linear.x;
-    d_state_(7) = msg->accel.accel.linear.y;
-    d_state_(8) = msg->accel.accel.linear.z;
-    d_state_.tail(3) = Eigen::Vector3d::Zero();
+    state_derivative_ = auv::common::conversions::convert<
+        geometry_msgs::Accel, SixDOFStateDerivative>(msg->accel.accel);
   }
 
   void reconfigure_callback(auv_control::ControllerConfig& config,
-                            uint32_t level) {
-    auto controller =
-        dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
-
-    kp_ << config.kp_0, config.kp_1, config.kp_2, config.kp_3, config.kp_4,
-        config.kp_5, config.kp_6, config.kp_7, config.kp_8, config.kp_9,
-        config.kp_10, config.kp_11;
-    ki_ << config.ki_0, config.ki_1, config.ki_2, config.ki_3, config.ki_4,
-        config.ki_5, config.ki_6, config.ki_7, config.ki_8, config.ki_9,
-        config.ki_10, config.ki_11;
-    kd_ << config.kd_0, config.kd_1, config.kd_2, config.kd_3, config.kd_4,
-        config.kd_5, config.kd_6, config.kd_7, config.kd_8, config.kd_9,
-        config.kd_10, config.kd_11;
-    integral_clamp_limits_ << config.integral_clamp_0, config.integral_clamp_1,
-        config.integral_clamp_2, config.integral_clamp_3,
-        config.integral_clamp_4, config.integral_clamp_5,
-        config.integral_clamp_6, config.integral_clamp_7,
-        config.integral_clamp_8, config.integral_clamp_9,
-        config.integral_clamp_10, config.integral_clamp_11;
-    controller->set_kp(kp_);
-    controller->set_ki(ki_);
-    controller->set_kd(kd_);
-    controller->set_integral_clamp_limits(integral_clamp_limits_);
-    controller->set_gravity_compensation_z(config.gravity_compensation_z);
-    gravity_compensation_z_ = config.gravity_compensation_z;
-
-    max_velocity_ << config.max_velocity_0, config.max_velocity_1,
+                            uint32_t /* level */) {
+    parameters_.pose_kp << config.pose_kp_0, config.pose_kp_1, config.pose_kp_2,
+        config.pose_kp_3, config.pose_kp_4, config.pose_kp_5;
+    parameters_.vel_kp << config.vel_kp_0, config.vel_kp_1, config.vel_kp_2,
+        config.vel_kp_3, config.vel_kp_4, config.vel_kp_5;
+    parameters_.vel_ki << config.vel_ki_0, config.vel_ki_1, config.vel_ki_2,
+        config.vel_ki_3, config.vel_ki_4, config.vel_ki_5;
+    parameters_.vel_kd << config.vel_kd_0, config.vel_kd_1, config.vel_kd_2,
+        config.vel_kd_3, config.vel_kd_4, config.vel_kd_5;
+    parameters_.vel_integral_clamp_limits << config.vel_integral_clamp_limits_0,
+        config.vel_integral_clamp_limits_1, config.vel_integral_clamp_limits_2,
+        config.vel_integral_clamp_limits_3, config.vel_integral_clamp_limits_4,
+        config.vel_integral_clamp_limits_5;
+    parameters_.max_velocity << config.max_velocity_0, config.max_velocity_1,
         config.max_velocity_2, config.max_velocity_3, config.max_velocity_4,
         config.max_velocity_5;
-    controller->set_max_velocity_limits(max_velocity_);
+    parameters_.gravity_compensation_z = config.gravity_compensation_z;
 
+    apply_controller_parameters();
     save_parameters();
   }
 
   void load_parameters() {
-    kp_ = VectorRosparamParser::parse("kp", ros::NodeHandle("~"));
-    ki_ = VectorRosparamParser::parse("ki", ros::NodeHandle("~"));
-    kd_ = VectorRosparamParser::parse("kd", ros::NodeHandle("~"));
-
-    // Load integral clamp limits with default values of 0 (0 means no clamping)
     ros::NodeHandle nh_private("~");
-    if (nh_private.hasParam("integral_clamp_limits")) {
-      integral_clamp_limits_ = VectorRosparamParser::parse(
-          "integral_clamp_limits", ros::NodeHandle("~"));
-      ROS_INFO("Loaded integral_clamp_limits parameter");
+
+    if (nh_private.hasParam("pose_kp")) {
+      parameters_.pose_kp = Vector6RosparamParser::parse("pose_kp", nh_private);
     } else {
-      // If parameter doesn't exist, no clamping
-      integral_clamp_limits_ = Eigen::Matrix<double, 12, 1>::Zero();
-      ROS_INFO(
-          "No integral_clamp_limits parameter found, integral clamping "
-          "disabled");
+      parameters_.pose_kp = ControllerBase::Vector::Zero();
     }
 
-    // Load gravity compensation parameter
-    gravity_compensation_z_ = nh_private.param("gravity_compensation_z", 0.0);
-
-    // Load max velocity limits
-    if (nh_private.hasParam("max_velocity")) {
-      max_velocity_ = Vector6RosparamParser::parse("max_velocity", nh_private);
-      ROS_INFO_STREAM("Loaded max_velocity: " << max_velocity_.transpose());
+    if (nh_private.hasParam("vel_kp")) {
+      parameters_.vel_kp = Vector6RosparamParser::parse("vel_kp", nh_private);
     } else {
-      max_velocity_ = Eigen::Matrix<double, 6, 1>::Constant(1e6);
-      ROS_WARN_STREAM("No max_velocity parameter found, limits disabled");
+      parameters_.vel_kp = ControllerBase::Vector::Zero();
+    }
+
+    if (nh_private.hasParam("vel_ki")) {
+      parameters_.vel_ki = Vector6RosparamParser::parse("vel_ki", nh_private);
+    } else {
+      parameters_.vel_ki = ControllerBase::Vector::Zero();
+    }
+
+    if (nh_private.hasParam("vel_kd")) {
+      parameters_.vel_kd = Vector6RosparamParser::parse("vel_kd", nh_private);
+    } else {
+      parameters_.vel_kd = ControllerBase::Vector::Zero();
+    }
+
+    if (nh_private.hasParam("vel_integral_clamp_limits")) {
+      parameters_.vel_integral_clamp_limits =
+          Vector6RosparamParser::parse("vel_integral_clamp_limits", nh_private);
+    } else {
+      parameters_.vel_integral_clamp_limits = ControllerBase::Vector::Zero();
+    }
+
+    parameters_.gravity_compensation_z =
+        nh_private.param("gravity_compensation_z", 0.0);
+
+    if (nh_private.hasParam("max_velocity")) {
+      parameters_.max_velocity =
+          Vector6RosparamParser::parse("max_velocity", nh_private);
+    } else {
+      parameters_.max_velocity = ControllerBase::Vector::Constant(1e6);
     }
   }
 
   void set_initial_config(auv_control::ControllerConfig& config) {
-    config.kp_0 = kp_(0);
-    config.kp_1 = kp_(1);
-    config.kp_2 = kp_(2);
-    config.kp_3 = kp_(3);
-    config.kp_4 = kp_(4);
-    config.kp_5 = kp_(5);
-    config.kp_6 = kp_(6);
-    config.kp_7 = kp_(7);
-    config.kp_8 = kp_(8);
-    config.kp_9 = kp_(9);
-    config.kp_10 = kp_(10);
-    config.kp_11 = kp_(11);
+    config.pose_kp_0 = parameters_.pose_kp(0);
+    config.pose_kp_1 = parameters_.pose_kp(1);
+    config.pose_kp_2 = parameters_.pose_kp(2);
+    config.pose_kp_3 = parameters_.pose_kp(3);
+    config.pose_kp_4 = parameters_.pose_kp(4);
+    config.pose_kp_5 = parameters_.pose_kp(5);
 
-    config.ki_0 = ki_(0);
-    config.ki_1 = ki_(1);
-    config.ki_2 = ki_(2);
-    config.ki_3 = ki_(3);
-    config.ki_4 = ki_(4);
-    config.ki_5 = ki_(5);
-    config.ki_6 = ki_(6);
-    config.ki_7 = ki_(7);
-    config.ki_8 = ki_(8);
-    config.ki_9 = ki_(9);
-    config.ki_10 = ki_(10);
-    config.ki_11 = ki_(11);
+    config.vel_kp_0 = parameters_.vel_kp(0);
+    config.vel_kp_1 = parameters_.vel_kp(1);
+    config.vel_kp_2 = parameters_.vel_kp(2);
+    config.vel_kp_3 = parameters_.vel_kp(3);
+    config.vel_kp_4 = parameters_.vel_kp(4);
+    config.vel_kp_5 = parameters_.vel_kp(5);
 
-    config.kd_0 = kd_(0);
-    config.kd_1 = kd_(1);
-    config.kd_2 = kd_(2);
-    config.kd_3 = kd_(3);
-    config.kd_4 = kd_(4);
-    config.kd_5 = kd_(5);
-    config.kd_6 = kd_(6);
-    config.kd_7 = kd_(7);
-    config.kd_8 = kd_(8);
-    config.kd_9 = kd_(9);
-    config.kd_10 = kd_(10);
-    config.kd_11 = kd_(11);
+    config.vel_ki_0 = parameters_.vel_ki(0);
+    config.vel_ki_1 = parameters_.vel_ki(1);
+    config.vel_ki_2 = parameters_.vel_ki(2);
+    config.vel_ki_3 = parameters_.vel_ki(3);
+    config.vel_ki_4 = parameters_.vel_ki(4);
+    config.vel_ki_5 = parameters_.vel_ki(5);
 
-    config.integral_clamp_0 = integral_clamp_limits_(0);
-    config.integral_clamp_1 = integral_clamp_limits_(1);
-    config.integral_clamp_2 = integral_clamp_limits_(2);
-    config.integral_clamp_3 = integral_clamp_limits_(3);
-    config.integral_clamp_4 = integral_clamp_limits_(4);
-    config.integral_clamp_5 = integral_clamp_limits_(5);
-    config.integral_clamp_6 = integral_clamp_limits_(6);
-    config.integral_clamp_7 = integral_clamp_limits_(7);
-    config.integral_clamp_8 = integral_clamp_limits_(8);
-    config.integral_clamp_9 = integral_clamp_limits_(9);
-    config.integral_clamp_10 = integral_clamp_limits_(10);
-    config.integral_clamp_11 = integral_clamp_limits_(11);
+    config.vel_kd_0 = parameters_.vel_kd(0);
+    config.vel_kd_1 = parameters_.vel_kd(1);
+    config.vel_kd_2 = parameters_.vel_kd(2);
+    config.vel_kd_3 = parameters_.vel_kd(3);
+    config.vel_kd_4 = parameters_.vel_kd(4);
+    config.vel_kd_5 = parameters_.vel_kd(5);
 
-    config.gravity_compensation_z = gravity_compensation_z_;
+    config.vel_integral_clamp_limits_0 =
+        parameters_.vel_integral_clamp_limits(0);
+    config.vel_integral_clamp_limits_1 =
+        parameters_.vel_integral_clamp_limits(1);
+    config.vel_integral_clamp_limits_2 =
+        parameters_.vel_integral_clamp_limits(2);
+    config.vel_integral_clamp_limits_3 =
+        parameters_.vel_integral_clamp_limits(3);
+    config.vel_integral_clamp_limits_4 =
+        parameters_.vel_integral_clamp_limits(4);
+    config.vel_integral_clamp_limits_5 =
+        parameters_.vel_integral_clamp_limits(5);
 
-    config.max_velocity_0 = max_velocity_(0);
-    config.max_velocity_1 = max_velocity_(1);
-    config.max_velocity_2 = max_velocity_(2);
-    config.max_velocity_3 = max_velocity_(3);
-    config.max_velocity_4 = max_velocity_(4);
-    config.max_velocity_5 = max_velocity_(5);
+    config.gravity_compensation_z = parameters_.gravity_compensation_z;
+    config.max_velocity_0 = parameters_.max_velocity(0);
+    config.max_velocity_1 = parameters_.max_velocity(1);
+    config.max_velocity_2 = parameters_.max_velocity(2);
+    config.max_velocity_3 = parameters_.max_velocity(3);
+    config.max_velocity_4 = parameters_.max_velocity(4);
+    config.max_velocity_5 = parameters_.max_velocity(5);
   }
 
   void save_parameters() {
@@ -416,51 +394,70 @@ class ControllerROS {
     std::string content = buffer.str();
     in_file.close();
 
-    auto replace_param = [](std::string& content, const std::string& param,
-                            const Eigen::Matrix<double, 12, 1>& values) {
+    auto replace_vector6_param = [](std::string& yaml, const std::string& param,
+                                    const ControllerBase::Vector& values) {
       std::stringstream ss;
-      ss << std::fixed << std::setprecision(1);
+      ss << std::fixed << std::setprecision(4);
       ss << param << ": [" << values(0);
-      for (int i = 1; i < 12; ++i) ss << ", " << values(i);
+      for (int i = 1; i < values.size(); ++i) {
+        ss << ", " << values(i);
+      }
       ss << "]";
 
-      std::string::size_type start_pos = content.find(param + ": [");
+      std::string::size_type start_pos = yaml.find(param + ": [");
       if (start_pos == std::string::npos) {
-        // If parameter not found, add it to the end
-        content += "\n" + ss.str();
+        yaml += "\n" + ss.str();
       } else {
-        std::string::size_type end_pos = content.find("]", start_pos);
-        content.replace(start_pos, end_pos - start_pos + 1, ss.str());
+        std::string::size_type end_pos = yaml.find("]", start_pos);
+        yaml.replace(start_pos, end_pos - start_pos + 1, ss.str());
       }
     };
 
-    replace_param(content, "kp", kp_);
-    replace_param(content, "ki", ki_);
-    replace_param(content, "kd", kd_);
-    replace_param(content, "integral_clamp_limits", integral_clamp_limits_);
-
-    // Save gravity compensation parameter
-    auto replace_scalar_param = [](std::string& content,
-                                   const std::string& param, double value) {
+    auto replace_scalar_param = [](std::string& yaml, const std::string& param,
+                                   double value) {
       std::stringstream ss;
-      ss << std::fixed << std::setprecision(1);
+      ss << std::fixed << std::setprecision(4);
       ss << param << ": " << value;
 
-      std::string::size_type start_pos = content.find(param + ": ");
+      std::string::size_type start_pos = yaml.find(param + ": ");
       if (start_pos == std::string::npos) {
-        // If parameter not found, add it to the end
-        content += "\n" + ss.str();
+        yaml += "\n" + ss.str();
       } else {
-        std::string::size_type end_pos = content.find("\n", start_pos);
+        std::string::size_type end_pos = yaml.find("\n", start_pos);
         if (end_pos == std::string::npos) {
-          end_pos = content.length();
+          end_pos = yaml.length();
         }
-        content.replace(start_pos, end_pos - start_pos, ss.str());
+        yaml.replace(start_pos, end_pos - start_pos, ss.str());
       }
     };
 
+    auto replace_string_param = [](std::string& yaml, const std::string& param,
+                                   const std::string& value) {
+      std::stringstream ss;
+      ss << param << ": \"" << value << "\"";
+
+      std::string::size_type start_pos = yaml.find(param + ": ");
+      if (start_pos == std::string::npos) {
+        yaml += "\n" + ss.str();
+      } else {
+        std::string::size_type end_pos = yaml.find("\n", start_pos);
+        if (end_pos == std::string::npos) {
+          end_pos = yaml.length();
+        }
+        yaml.replace(start_pos, end_pos - start_pos, ss.str());
+      }
+    };
+
+    replace_string_param(content, "controller_plugin", controller_plugin_);
+    replace_vector6_param(content, "pose_kp", parameters_.pose_kp);
+    replace_vector6_param(content, "vel_kp", parameters_.vel_kp);
+    replace_vector6_param(content, "vel_ki", parameters_.vel_ki);
+    replace_vector6_param(content, "vel_kd", parameters_.vel_kd);
+    replace_vector6_param(content, "vel_integral_clamp_limits",
+                          parameters_.vel_integral_clamp_limits);
+    replace_vector6_param(content, "max_velocity", parameters_.max_velocity);
     replace_scalar_param(content, "gravity_compensation_z",
-                         gravity_compensation_z_);
+                         parameters_.gravity_compensation_z);
 
     std::ofstream out_file(config_file_);
     if (!out_file.is_open()) {
@@ -470,8 +467,19 @@ class ControllerROS {
     }
     out_file << content;
     out_file.close();
+  }
 
-    ROS_INFO_STREAM("Parameters saved to " << config_file_);
+  void log_parameters() const {
+    ROS_INFO_STREAM("controller_plugin: " << controller_plugin_);
+    ROS_INFO_STREAM("pose_kp: \n" << parameters_.pose_kp.transpose());
+    ROS_INFO_STREAM("vel_kp: \n" << parameters_.vel_kp.transpose());
+    ROS_INFO_STREAM("vel_ki: \n" << parameters_.vel_ki.transpose());
+    ROS_INFO_STREAM("vel_kd: \n" << parameters_.vel_kd.transpose());
+    ROS_INFO_STREAM("vel_integral_clamp_limits: \n"
+                    << parameters_.vel_integral_clamp_limits.transpose());
+    ROS_INFO_STREAM(
+        "gravity_compensation_z: " << parameters_.gravity_compensation_z);
+    ROS_INFO_STREAM("max_velocity: \n" << parameters_.max_velocity.transpose());
   }
 
   ros::Rate rate_;
@@ -487,25 +495,25 @@ class ControllerROS {
   ros::Time latest_cmd_pose_time_{ros::Time(0)};
   ros::Time latest_cmd_vel_time_{ros::Time(0)};
   ros::Time latest_odometry_time_{ros::Time(0)};
+  ros::Time last_control_time_{ros::Time(0)};
 
-  ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
-  ControllerBase::StateVector desired_state_{
-      ControllerBase::StateVector::Zero()};
-  ControllerBase::StateVector d_state_{ControllerBase::StateVector::Zero()};
+  SixDOFState state_{};
+  SixDOFCommand desired_command_{};
+  SixDOFStateDerivative state_derivative_{};
 
   ControllerLoader controller_loader_{"auv_controllers",
                                       "auv::control::SixDOFControllerBase"};
 
-  dynamic_reconfigure::Server<auv_control::ControllerConfig>
-      dr_srv_;  // Dynamic reconfigure server
-  Eigen::Matrix<double, 12, 1> kp_, ki_,
-      kd_;  // Parameters to be dynamically reconfigured
-  Eigen::Matrix<double, 6, 1> max_velocity_;
-  Eigen::Matrix<double, 12, 1>
-      integral_clamp_limits_;           // Integral clamping limits
-  double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
-  std::string config_file_;             // Path to the config file
+  dynamic_reconfigure::Server<auv_control::ControllerConfig> dr_srv_;
+  SixDOFControllerParameters parameters_{};
+  std::string config_file_;
+  std::string controller_plugin_;
 
+  tf2_ros::Buffer tf_buffer_;
+  tf2_ros::TransformListener tf_listener_;
+  std::string body_frame_;
+  double transform_timeout_{1.0};
+  double odometry_timeout_{1.0};
   std::string depth_control_reference_frame_;
 };
 
