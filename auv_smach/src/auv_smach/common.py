@@ -670,7 +670,6 @@ class SetFrameLookingAtState(smach.State):
             ) as e:
                 rospy.logwarn(f"TF lookup exception: {e}")
 
-
             self.rate.sleep()
 
         rospy.loginfo(
