@@ -115,6 +115,7 @@ class DvlToOdom:
 
         # Model-based velocity estimator variables
         self.current_wrench = np.zeros(6)
+        self.last_wrench_time = rospy.Time.now()
         self.estimated_velocity = np.zeros(6)
         self.odom_velocity = np.zeros(6)
         self.last_model_update = rospy.Time.now()
@@ -215,6 +216,7 @@ class DvlToOdom:
         self.odom_received = True
 
     def wrench_callback(self, wrench_msg):
+        self.last_wrench_time = rospy.Time.now()
         self.current_wrench[0] = wrench_msg.wrench.force.x
         self.current_wrench[1] = wrench_msg.wrench.force.y
         self.current_wrench[2] = wrench_msg.wrench.force.z
@@ -286,6 +288,10 @@ class DvlToOdom:
         else:
             v = self.estimated_velocity.copy()
 
+        # Check for stale wrench (timeout > 0.5s)
+        if (rospy.Time.now() - self.last_wrench_time).to_sec() > 0.5:
+            self.current_wrench = np.zeros(6)
+
         # Linear damping
         damping_linear = np.dot(self.D_linear, v)
 
@@ -326,6 +332,14 @@ class DvlToOdom:
             velocity_msg.linear.x = rotated_vector[0]
             velocity_msg.linear.y = rotated_vector[1]
             velocity_msg.linear.z = rotated_vector[2]
+
+            # Seed the model with the valid DVL velocity so it starts right where DVL left off
+            self.estimated_velocity[0] = velocity_msg.linear.x
+            self.estimated_velocity[1] = velocity_msg.linear.y
+            self.estimated_velocity[2] = velocity_msg.linear.z
+            self.estimated_velocity[3] = velocity_msg.angular.x
+            self.estimated_velocity[4] = velocity_msg.angular.y
+            self.estimated_velocity[5] = velocity_msg.angular.z
 
             self.update_twist_covariance(use_model_based=False)
 
