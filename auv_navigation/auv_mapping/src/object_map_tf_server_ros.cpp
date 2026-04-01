@@ -162,7 +162,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
   // Find the closest filter to update
   double min_distance_squared = 1e9;
-  ObjectPositionFilter* closest_filter_ptr = nullptr;
+  ObjectPositionFilter *closest_filter_ptr = nullptr;
 
   // Calculate distance to each existing filter to find the absolute closest one
   for (auto &filter_ptr : it->second) {
@@ -184,8 +184,10 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     }
   }
 
-  // If the closest filter is within our acceptable distance threshold, update it
-  if (closest_filter_ptr != nullptr && min_distance_squared < current_distance_threshold_squared) {
+  // If the closest filter is within our acceptable distance threshold, update
+  // it
+  if (closest_filter_ptr != nullptr &&
+      min_distance_squared < current_distance_threshold_squared) {
     closest_filter_ptr->update(*static_transform, dt);
     filter_updated = true;
     ROS_DEBUG_STREAM("Updated closest filter for " << object_frame);
