@@ -1547,8 +1547,7 @@ class CheckForTransformState(smach.State):
         self.source_frame = source_frame
         self.target_frame = target_frame
         self.timeout = timeout
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(check_rate_hz)
 
     def is_transform_available(self):

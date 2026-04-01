@@ -3,9 +3,9 @@ import rospy
 import smach
 import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest
+import math
 from auv_smach.common import (
     AlignFrame,
-    CancelAlignControllerState,
     DynamicPathWithTransformCheck,
     SearchForPropState,
     SetDepthState,
@@ -91,7 +91,7 @@ class DockingTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/docking_puck_link",
                     target_frame="docking_station",
-                    angle_offset=1.5708,
+                    angle_offset=math.pi / 2,
                     dist_threshold=0.03,
                     yaw_threshold=0.04,
                     confirm_duration=1.0,
@@ -134,7 +134,7 @@ class DockingTaskState(smach.State):
                 AlignFrame(
                     source_frame="taluy/base_link/docking_puck_link",
                     target_frame="docking_puck_target",
-                    angle_offset=1.5708,
+                    angle_offset=math.pi / 2,
                     dist_threshold=0.03,
                     yaw_threshold=0.04,
                     confirm_duration=20.0,

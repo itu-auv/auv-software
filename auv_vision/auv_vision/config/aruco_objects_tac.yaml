@@ -1,0 +1,27 @@
+aruco_dictionary: DICT_ARUCO_ORIGINAL
+
+markers:
+  dock_tl: { aruco_id: 28, size: 0.145 }
+  dock_tr: { aruco_id: 7,  size: 0.145 }
+  dock_bl: { aruco_id: 19, size: 0.145 }
+  dock_br: { aruco_id: 96, size: 0.145 }
+
+boards:
+  docking_board:
+    tf_frame: "docking_station"
+    force_horizontal: true
+    marker_layout:
+      dock_tl: { x: -0.352, y: -0.552 }
+      dock_tr: { x:  0.207, y: -0.552 }
+      dock_bl: { x: -0.352, y:  0.407 }
+      dock_br: { x:  0.207, y:  0.407 }
+
+standalone_markers: {}
+
+cameras:
+  bottom:
+    ns: "taluy/cameras/cam_bottom"
+    frame: "taluy/base_link/bottom_camera_optical_link"
+    image_topic: "/taluy/cameras/cam_bottom/image_raw"
+    detect_boards: ["docking_board"]
+    detect_markers: []

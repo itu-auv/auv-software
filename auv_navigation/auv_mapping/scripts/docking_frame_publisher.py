@@ -107,7 +107,7 @@ class DockingFramePublisher:
                 self.odom_frame,
                 self.parent_frame,
                 rospy.Time(0),
-                rospy.Duration(1.0),
+                rospy.Duration(0.1),
             )
         except (
             tf2_ros.LookupException,

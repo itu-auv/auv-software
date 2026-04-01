@@ -9,7 +9,6 @@ import rospkg
 import threading
 from sensor_msgs.msg import Image, CompressedImage
 from std_srvs.srv import SetBool, SetBoolResponse
-from std_msgs.msg import Bool
 from geometry_msgs.msg import PoseStamped, TransformStamped, Vector3, Quaternion
 from cv_bridge import CvBridge, CvBridgeError
 import tf2_ros
@@ -92,6 +91,7 @@ class ArucoBoardEstimator:
         self.adaptive_thresh_win_size_max = 75
         self.adaptive_thresh_win_size_step = 8
         self.adaptive_thresh_constant = 5.0
+        self.debug_thresh_win_size = 41
         self.min_marker_perimeter_rate = 0.02
         self.max_marker_perimeter_rate = 4.0
         self.polygonal_approx_accuracy_rate = 0.05
@@ -130,8 +130,6 @@ class ArucoBoardEstimator:
         self.debug_threshold_pub = rospy.Publisher(
             "~debug_image_threshold/compressed", CompressedImage, queue_size=1
         )
-        self.board_detected_pub = rospy.Publisher("~board_detected", Bool, queue_size=1)
-
         self._debug_images_lock = threading.Lock()
         self._debug_images = None
         self._debug_images_ready = threading.Event()
@@ -146,6 +144,10 @@ class ArucoBoardEstimator:
         self.img_sub = rospy.Subscriber(image_topic, Image, self.image_cb)
 
         self.last_published_stamp = rospy.Time(0)
+        self._consecutive_misses = 0
+        self._frame_counter = 0
+        self._idle_skip = 5
+        self._idle_threshold = 5
         self.enabled = True
         self.set_enabled_srv = rospy.Service(
             "~set_enabled", SetBool, self._set_enabled_cb
@@ -251,6 +253,10 @@ class ArucoBoardEstimator:
         self.adaptive_thresh_win_size_max = config.adaptive_thresh_win_size_max
         self.adaptive_thresh_win_size_step = config.adaptive_thresh_win_size_step
         self.adaptive_thresh_constant = config.adaptive_thresh_constant
+        self.debug_thresh_win_size = config.debug_thresh_win_size
+        if self.debug_thresh_win_size % 2 == 0:
+            self.debug_thresh_win_size += 1
+            config.debug_thresh_win_size = self.debug_thresh_win_size
 
         self.min_marker_perimeter_rate = config.min_marker_perimeter_rate
         self.max_marker_perimeter_rate = config.max_marker_perimeter_rate
@@ -276,6 +282,14 @@ class ArucoBoardEstimator:
         rospy.loginfo(f"ArUco Board Estimator {state}")
         return SetBoolResponse(success=True, message=f"Estimator {state}")
 
+    def _has_debug_subscribers(self):
+        """Check if any debug image topic has subscribers."""
+        return (
+            self.debug_pub.get_num_connections() > 0
+            or self.debug_processed_pub.get_num_connections() > 0
+            or self.debug_threshold_pub.get_num_connections() > 0
+        )
+
     def _debug_publisher_loop(self):
         while not rospy.is_shutdown() and not self._shutdown:
             if not self._debug_images_ready.wait(timeout=0.1):
@@ -291,17 +305,20 @@ class ArucoBoardEstimator:
 
             try:
                 if not rospy.is_shutdown():
-                    self.debug_pub.publish(self._encode_compressed(debug_img, "bgr8"))
-                    self.debug_processed_pub.publish(
-                        self._encode_compressed(debug_gray, "bgr8")
-                    )
-                    self.debug_threshold_pub.publish(
-                        self._encode_compressed(thresh_img, "mono8")
-                    )
+                    if debug_img is not None and self.debug_pub.get_num_connections() > 0:
+                        self.debug_pub.publish(self._encode_compressed(debug_img))
+                    if debug_gray is not None and self.debug_processed_pub.get_num_connections() > 0:
+                        self.debug_processed_pub.publish(
+                            self._encode_compressed(debug_gray)
+                        )
+                    if thresh_img is not None and self.debug_threshold_pub.get_num_connections() > 0:
+                        self.debug_threshold_pub.publish(
+                            self._encode_compressed(thresh_img)
+                        )
             except Exception as e:
                 rospy.logwarn_throttle(5.0, f"Debug image publish failed: {e}")
 
-    def _encode_compressed(self, cv_image, encoding):
+    def _encode_compressed(self, cv_image):
         """Encode a CV image as a CompressedImage message (JPEG)."""
         msg = CompressedImage()
         msg.header.stamp = rospy.Time.now()
@@ -312,12 +329,20 @@ class ArucoBoardEstimator:
 
     def _queue_debug_images(self, debug_img, debug_gray, thresh_img):
         with self._debug_images_lock:
-            self._debug_images = (
-                debug_img.copy(),
-                debug_gray.copy(),
-                thresh_img.copy(),
-            )
+            self._debug_images = (debug_img, debug_gray, thresh_img)
         self._debug_images_ready.set()
+
+    def _draw_on_images(self, images, func, *args, **kwargs):
+        """Apply a drawing function to multiple images."""
+        for img in images:
+            func(img, *args, **kwargs)
+
+    def _put_text(self, images, text, pos, scale, color, thickness=4):
+        """Put text on multiple debug images."""
+        for img in images:
+            cv2.putText(
+                img, text, pos, cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness
+            )
 
     def _create_competition_board_points(self):
         """
@@ -371,6 +396,13 @@ class ArucoBoardEstimator:
         if not self.enabled or rospy.is_shutdown():
             return
 
+        self._frame_counter += 1
+        if (
+            self._consecutive_misses >= self._idle_threshold
+            and self._frame_counter % self._idle_skip != 0
+        ):
+            return
+
         try:
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except CvBridgeError as e:
@@ -384,20 +416,6 @@ class ArucoBoardEstimator:
         gray = clahe.apply(l_channel)
         gray = cv2.medianBlur(gray, self.blur_strength)
 
-        thresh_win_size = (
-            self.adaptive_thresh_win_size_min + self.adaptive_thresh_win_size_max
-        ) // 2
-        if thresh_win_size % 2 == 0:
-            thresh_win_size += 1
-        thresh_img = cv2.adaptiveThreshold(
-            gray,
-            255,
-            cv2.ADAPTIVE_THRESH_MEAN_C,
-            cv2.THRESH_BINARY,
-            thresh_win_size,
-            int(self.adaptive_thresh_constant),
-        )
-
         corners, ids, rejected = self.aruco_detector.detectMarkers(gray)
         corners, ids, rejected, _ = self.aruco_detector.refineDetectedMarkers(
             gray,
@@ -409,13 +427,10 @@ class ArucoBoardEstimator:
             self.dist_coeffs,
         )
 
-        debug_img = cv_image.copy()
-        debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+        board_detected = False
+        rvec, tvec = None, None
 
         if ids is not None and len(ids) > 0:
-            cv2.aruco.drawDetectedMarkers(debug_img, corners, ids)
-            cv2.aruco.drawDetectedMarkers(debug_gray, corners, ids)
-
             obj_points_list = []
             img_points_list = []
             matched_ids = []
@@ -427,6 +442,7 @@ class ArucoBoardEstimator:
                     matched_ids.append(marker_id)
 
             if len(matched_ids) > 0:
+                board_detected = True
                 obj_points = np.vstack(obj_points_list).astype(np.float32)
                 img_points = np.vstack(img_points_list).astype(np.float32)
 
@@ -452,24 +468,7 @@ class ArucoBoardEstimator:
                         1.0,
                         "solvePnPRansac failed or returned no inliers, skipping pose",
                     )
-                    cv2.putText(
-                        debug_img,
-                        f"RANSAC failed ({len(matched_ids)} markers)",
-                        (20, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        2.0,
-                        (0, 0, 255),
-                        4,
-                    )
-                    cv2.putText(
-                        debug_gray,
-                        f"RANSAC failed ({len(matched_ids)} markers)",
-                        (20, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        2.0,
-                        (0, 0, 255),
-                        4,
-                    )
+                    rvec, tvec = None, None
                 else:
                     inlier_indices = inliers.flatten()
                     inlier_obj_points = obj_points[inlier_indices]
@@ -483,117 +482,99 @@ class ArucoBoardEstimator:
                         tvec,
                     )
 
-                    inlier_set = set(inlier_indices)
+                    self.publish_board_transform(rvec, tvec, msg.header)
+
+        if board_detected:
+            self._consecutive_misses = 0
+        else:
+            self._consecutive_misses += 1
+
+        # Debug image generation — only when someone is subscribed
+        if not self._has_debug_subscribers():
+            return
+
+        debug_img = None
+        debug_gray = None
+        thresh_img = None
+
+        need_annotated = (
+            self.debug_pub.get_num_connections() > 0
+            or self.debug_processed_pub.get_num_connections() > 0
+        )
+
+        if need_annotated:
+            debug_img = cv_image.copy()
+            debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+            debug_imgs = [debug_img, debug_gray]
+
+            if ids is not None and len(ids) > 0:
+                for img in debug_imgs:
+                    cv2.aruco.drawDetectedMarkers(img, corners, ids)
+
+                if board_detected and rvec is not None:
+                    inlier_set = set(inliers.flatten())
                     for idx, pt in enumerate(img_points):
                         pt_int = tuple(pt.astype(int))
-                        cv2.circle(debug_img, pt_int, 15, (0, 0, 0), -1)
-                        cv2.circle(debug_gray, pt_int, 15, (0, 0, 0), -1)
+                        self._draw_on_images(
+                            debug_imgs, cv2.circle, pt_int, 15, (0, 0, 0), -1
+                        )
                         if idx in inlier_set:
-                            cv2.circle(debug_img, pt_int, 10, (0, 255, 0), -1)
-                            cv2.circle(debug_gray, pt_int, 10, (0, 255, 0), -1)
+                            self._draw_on_images(
+                                debug_imgs, cv2.circle, pt_int, 10, (0, 255, 0), -1
+                            )
                         else:
-                            cv2.circle(debug_img, pt_int, 12, (0, 0, 255), 4)
-                            cv2.circle(debug_gray, pt_int, 12, (0, 0, 255), 4)
-
-                    self.publish_board_transform(rvec, tvec, msg.header)
-                    self.board_detected_pub.publish(Bool(data=True))
+                            self._draw_on_images(
+                                debug_imgs, cv2.circle, pt_int, 12, (0, 0, 255), 4
+                            )
 
                     prev_log_level = cv2.getLogLevel()
                     cv2.setLogLevel(2)
-                    cv2.drawFrameAxes(
-                        debug_img,
-                        self.camera_matrix,
-                        self.dist_coeffs,
-                        rvec,
-                        tvec,
-                        0.15,
-                    )
-                    cv2.drawFrameAxes(
-                        debug_gray,
-                        self.camera_matrix,
-                        self.dist_coeffs,
-                        rvec,
-                        tvec,
-                        0.15,
-                    )
+                    for img in debug_imgs:
+                        cv2.drawFrameAxes(
+                            img,
+                            self.camera_matrix,
+                            self.dist_coeffs,
+                            rvec,
+                            tvec,
+                            0.15,
+                        )
                     cv2.setLogLevel(prev_log_level)
 
                     dist = np.linalg.norm(tvec)
-                    info_text = f"BOARD ({len(matched_ids)} markers, {len(inlier_indices)}/{len(img_points)} corners) {dist:.2f}m"
-                    cv2.putText(
-                        debug_img,
-                        info_text,
-                        (20, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.5,
-                        (0, 255, 0),
-                        4,
-                    )
-                    cv2.putText(
-                        debug_gray,
-                        info_text,
-                        (20, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.5,
-                        (0, 255, 0),
-                        4,
-                    )
-                    cv2.putText(
-                        debug_img,
+                    inlier_count = len(inliers.flatten())
+                    info_text = f"BOARD ({len(matched_ids)} markers, {inlier_count}/{len(img_points)} corners) {dist:.2f}m"
+                    self._put_text(debug_imgs, info_text, (20, 70), 1.5, (0, 255, 0))
+                    self._put_text(
+                        debug_imgs,
                         f"IDs: {sorted(matched_ids)}",
-                        (20, 130),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.8,
-                        (255, 255, 0),
-                        4,
+                        (20, 130), 1.8, (255, 255, 0),
                     )
-                    cv2.putText(
-                        debug_gray,
-                        f"IDs: {sorted(matched_ids)}",
-                        (20, 130),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        1.8,
-                        (255, 255, 0),
-                        4,
+                elif board_detected:
+                    self._put_text(
+                        debug_imgs,
+                        f"RANSAC failed ({len(matched_ids)} markers)",
+                        (20, 70), 2.0, (0, 0, 255),
+                    )
+                else:
+                    detected_ids = sorted(ids.flatten().tolist())
+                    self._put_text(
+                        debug_imgs,
+                        f"Unknown markers: {detected_ids}",
+                        (20, 70), 2.0, (0, 165, 255),
                     )
             else:
-                detected_ids = sorted(ids.flatten().tolist())
-                cv2.putText(
-                    debug_img,
-                    f"Unknown markers: {detected_ids}",
-                    (20, 70),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    2.0,
-                    (0, 165, 255),
-                    4,
+                self._put_text(
+                    debug_imgs, "SEARCHING FOR BOARD...", (20, 70), 2.0, (0, 0, 255)
                 )
-                cv2.putText(
-                    debug_gray,
-                    f"Unknown markers: {detected_ids}",
-                    (20, 70),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    2.0,
-                    (0, 165, 255),
-                    4,
-                )
-        else:
-            cv2.putText(
-                debug_img,
-                "SEARCHING FOR BOARD...",
-                (20, 70),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                2.0,
-                (0, 0, 255),
-                4,
-            )
-            cv2.putText(
-                debug_gray,
-                "SEARCHING FOR BOARD...",
-                (20, 70),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                2.0,
-                (0, 0, 255),
-                4,
+
+        if self.debug_threshold_pub.get_num_connections() > 0:
+            thresh_img = cv2.adaptiveThreshold(
+                gray,
+                255,
+                cv2.ADAPTIVE_THRESH_MEAN_C,
+                cv2.THRESH_BINARY,
+                self.debug_thresh_win_size,
+                int(self.adaptive_thresh_constant),
             )
 
         self._queue_debug_images(debug_img, debug_gray, thresh_img)
