@@ -670,9 +670,6 @@ class SetFrameLookingAtState(smach.State):
             ) as e:
                 rospy.logwarn(f"TF lookup exception: {e}")
 
-            except rospy.ServiceException as e:
-                rospy.logwarn(f"Service call failed: {e}")
-                return "aborted"
 
             self.rate.sleep()
 
