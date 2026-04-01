@@ -161,10 +161,10 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   }
 
   // Find the closest filter to update
-  std::vector<double> distances;
-  distances.reserve(it->second.size());
+  double min_distance_squared = 1e9;
+  ObjectPositionFilter* closest_filter_ptr = nullptr;
 
-  // Calculate distance to each existing filter
+  // Calculate distance to each existing filter to find the absolute closest one
   for (auto &filter_ptr : it->second) {
     const auto current = filter_ptr->getFilteredTransform();
     const auto d_position =
@@ -176,20 +176,19 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
                                   static_transform->transform.translation.z};
     const auto distance_squared = std::inner_product(
         d_position.begin(), d_position.end(), d_position.begin(), 0.0);
-    distances.push_back(distance_squared);
 
-    // If this filter is close enough, update it
-    if (distance_squared < current_distance_threshold_squared) {
-      filter_ptr->update(*static_transform, dt);
-      filter_updated = true;
-      ROS_DEBUG_STREAM("Updated filter for " << object_frame);
-
-      // For non-slalom objects, update only the first matching filter.
-      // For slalom gates, continue to update all filters within the threshold.
-      if (!is_slalom_gate) {
-        break;
-      }
+    // Keep track of the minimum distance and the corresponding filter
+    if (distance_squared < min_distance_squared) {
+      min_distance_squared = distance_squared;
+      closest_filter_ptr = filter_ptr.get();
     }
+  }
+
+  // If the closest filter is within our acceptable distance threshold, update it
+  if (closest_filter_ptr != nullptr && min_distance_squared < current_distance_threshold_squared) {
+    closest_filter_ptr->update(*static_transform, dt);
+    filter_updated = true;
+    ROS_DEBUG_STREAM("Updated closest filter for " << object_frame);
   }
 
   // If no filter was updated, create a new one
