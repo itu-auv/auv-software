@@ -25,6 +25,7 @@ from robot_localization.srv import SetPose, SetPoseRequest
 from tf.transformations import (
     quaternion_from_euler,
     euler_from_quaternion,
+    quaternion_about_axis,
     quaternion_multiply,
     quaternion_matrix,
 )
@@ -86,9 +87,7 @@ class ReferencePosePublisherNode:
         self.target_x = 0.0
         self.target_y = 0.0
         self.target_depth = -0.4  # z
-        self.target_roll = 0.0
-        self.target_pitch = 0.0
-        self.target_heading = 0.0  # yaw
+        self.target_orientation_q = np.array([0.0, 0.0, 0.0, 1.0], dtype=float)
 
         self.align_frame_active = False
         self.use_align_frame_depth = False
@@ -286,9 +285,7 @@ class ReferencePosePublisherNode:
                     self.target_x = rotated_pos.point.x
                     self.target_y = rotated_pos.point.y
 
-                self.target_roll, self.target_pitch, self.target_heading = (
-                    euler_from_quaternion(quaternion)
-                )
+                self.target_orientation_q = self._normalize_quaternion(quaternion)
 
             self.target_frame_id = req.target_frame
 
@@ -336,8 +333,10 @@ class ReferencePosePublisherNode:
             )
 
         with self.state_lock:
-            self.target_roll = 0.0
-            self.target_pitch = 0.0
+            _, _, yaw = euler_from_quaternion(self.target_orientation_q)
+            self.target_orientation_q = self._normalize_quaternion(
+                quaternion_from_euler(0.0, 0.0, yaw)
+            )
 
         rospy.loginfo("Roll and pitch reset to zero")
         return TriggerResponse(success=True, message="Orientation reset successfully")
@@ -463,10 +462,10 @@ class ReferencePosePublisherNode:
             self.latest_odometry.pose.pose.orientation.z,
             self.latest_odometry.pose.pose.orientation.w,
         ]
-        _, _, self.target_heading = euler_from_quaternion(quaternion)
-
-        self.target_roll = 0.0
-        self.target_pitch = 0.0
+        _, _, yaw = euler_from_quaternion(quaternion)
+        self.target_orientation_q = self._normalize_quaternion(
+            quaternion_from_euler(0.0, 0.0, yaw)
+        )
 
     def get_transformed_depth(
         self, target_frame: str, source_frame: str, target_depth: float
@@ -491,9 +490,7 @@ class ReferencePosePublisherNode:
         self,
         target_frame: str,
         source_frame: str,
-        roll: float,
-        pitch: float,
-        yaw: float,
+        quaternion,
     ):
         transform = self.tf_lookup(
             target_frame,
@@ -505,8 +502,6 @@ class ReferencePosePublisherNode:
         if transform is None:
             return None
 
-        q_orientation = quaternion_from_euler(roll, pitch, yaw)
-
         q_transform = [
             transform.transform.rotation.x,
             transform.transform.rotation.y,
@@ -514,10 +509,8 @@ class ReferencePosePublisherNode:
             transform.transform.rotation.w,
         ]
 
-        q_new = quaternion_multiply(q_transform, q_orientation)
-
-        new_roll, new_pitch, new_yaw = euler_from_quaternion(q_new)
-        return (new_roll, new_pitch, new_yaw)
+        q_new = quaternion_multiply(q_transform, quaternion)
+        return self._normalize_quaternion(q_new)
 
     def cmd_vel_callback(self, msg: Twist):
         if (
@@ -530,9 +523,7 @@ class ReferencePosePublisherNode:
         dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
         dt = min(dt, self.command_timeout)
 
-        q_current = quaternion_from_euler(
-            self.target_roll, self.target_pitch, self.target_heading
-        )
+        q_current = self._copy_quaternion(self.target_orientation_q)
 
         rotation_matrix = quaternion_matrix(q_current)[:3, :3]
 
@@ -543,27 +534,29 @@ class ReferencePosePublisherNode:
         self.target_y += linear_vel_odom[1] * dt
         self.target_depth += linear_vel_odom[2] * dt
 
-        angle = np.linalg.norm([msg.angular.x, msg.angular.y, msg.angular.z]) * dt
-        if angle > 1e-6:  # Avoid division by zero
-            axis = np.array([msg.angular.x, msg.angular.y, msg.angular.z]) / (
-                angle / dt
-            )
+        angular_velocity = np.array([msg.angular.x, msg.angular.y, msg.angular.z])
+        angle = np.linalg.norm(angular_velocity) * dt
+        if angle > 1e-6:
+            axis = angular_velocity / np.linalg.norm(angular_velocity)
             axis = axis / np.linalg.norm(axis)
-            q_delta = quaternion_from_euler(
-                axis[0] * angle, axis[1] * angle, axis[2] * angle
-            )
+            q_delta = quaternion_about_axis(angle, axis)
         else:
             q_delta = [0.0, 0.0, 0.0, 1.0]
 
-        # Multiply current orientation by delta rotation (cmd_pose frame rotation)
         q_new = quaternion_multiply(q_current, q_delta)
-
-        # Extract new euler angles
-        self.target_roll, self.target_pitch, self.target_heading = (
-            euler_from_quaternion(q_new)
-        )
+        self.target_orientation_q = self._normalize_quaternion(q_new)
 
         self.last_cmd_time = rospy.Time.now()
+
+    def _normalize_quaternion(self, quaternion):
+        q = np.asarray(quaternion, dtype=float)
+        norm = np.linalg.norm(q)
+        if norm < 1e-9:
+            return np.array([0.0, 0.0, 0.0, 1.0], dtype=float)
+        return q / norm
+
+    def _copy_quaternion(self, quaternion):
+        return np.asarray(quaternion, dtype=float).copy()
 
     def tf_lookup(
         self,
@@ -610,10 +603,7 @@ class ReferencePosePublisherNode:
             tx = self.target_x
             ty = self.target_y
             tz = self.target_depth
-
-            t_roll = self.target_roll
-            t_pitch = self.target_pitch
-            t_heading = self.target_heading
+            target_orientation = self._copy_quaternion(self.target_orientation_q)
 
             use_align_depth = self.use_align_frame_depth
             align_keep_orient = self.align_frame_keep_orientation
@@ -636,23 +626,17 @@ class ReferencePosePublisherNode:
             cmd_pose_stamped.pose.position.z = tz
 
         if align_keep_orient:
-            transformed_rpy = self.get_transformed_orientation(
+            quaternion = self.get_transformed_orientation(
                 frame_id,
                 "odom",
-                t_roll,
-                t_pitch,
-                t_heading,
+                target_orientation,
             )
-            if transformed_rpy is None:
+            if quaternion is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target orientation")
                 return
-            roll, pitch, yaw = transformed_rpy
         else:
-            roll = t_roll
-            pitch = t_pitch
-            yaw = t_heading
+            quaternion = target_orientation
 
-        quaternion = quaternion_from_euler(roll, pitch, yaw)
         cmd_pose_stamped.pose.orientation.x = quaternion[0]
         cmd_pose_stamped.pose.orientation.y = quaternion[1]
         cmd_pose_stamped.pose.orientation.z = quaternion[2]
