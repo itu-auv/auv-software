@@ -7,6 +7,8 @@ namespace auv_mapping {
 ObjectPositionFilter::ObjectPositionFilter(
     const geometry_msgs::TransformStamped &initial_transform, const double dt)
     : kf_(6, 3, 0),
+      nominal_dt_(dt),
+      last_update_time_(initial_transform.header.stamp),
       static_frame_(initial_transform.header.frame_id),
       child_frame_(initial_transform.child_frame_id) {
   // Initialize state vector: [x, y, z, vx, vy, vz]
@@ -58,7 +60,25 @@ void ObjectPositionFilter::predict(const double dt) {
 }
 
 void ObjectPositionFilter::update(
-    const geometry_msgs::TransformStamped &measurement, const double dt) {
+    const geometry_msgs::TransformStamped &measurement) {
+  double dt = nominal_dt_;
+  const auto measurement_time = measurement.header.stamp;
+
+  if (!measurement_time.isZero() && !last_update_time_.isZero()) {
+    dt = (measurement_time - last_update_time_).toSec();
+    if (dt < 0.0) {
+      ROS_WARN_STREAM_THROTTLE(1.0, "Received out-of-order measurement for "
+                                        << child_frame_
+                                        << "; clamping dt to "
+                                           "zero.");
+      dt = 0.0;
+    }
+  }
+
+  if (measurement_time > last_update_time_) {
+    last_update_time_ = measurement_time;
+  }
+
   predict(dt);
 
   // Create measurement vector [x, y, z]^T.

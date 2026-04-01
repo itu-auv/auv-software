@@ -24,7 +24,7 @@ class ObjectPositionFilter {
   /**
    * @brief Construct a new Object Filter object.
    * @param initial_transform The initial transform message.
-   * @param dt The initial time step.
+   * @param dt The nominal time step used when message timestamps are missing.
    */
   ObjectPositionFilter(const geometry_msgs::TransformStamped &initial_transform,
                        const double dt);
@@ -37,10 +37,8 @@ class ObjectPositionFilter {
   /**
    * @brief Update the filter with a new measurement.
    * @param measurement The incoming transform message.
-   * @param dt Time step since last update.
    */
-  void update(const geometry_msgs::TransformStamped &measurement,
-              const double dt);
+  void update(const geometry_msgs::TransformStamped &measurement);
   void updateFrameIndex(const std::string &new_frame_id);
   /// Get the filtered transform.
   geometry_msgs::TransformStamped getFilteredTransform() const;
@@ -59,6 +57,8 @@ class ObjectPositionFilter {
   cv::KalmanFilter
       kf_;  // State: [x,y,z,vx,vy,vz] (6x1); Measurement: [x,y,z] (3x1)
   tf2::Quaternion filtered_orientation_;  // Filtered orientation
+  double nominal_dt_;                     // Fallback period for missing stamps
+  ros::Time last_update_time_;            // Timestamp of last applied update
   std::string static_frame_;              // Parent (static) frame id
   std::string child_frame_;               // Child frame id for this object
 };
