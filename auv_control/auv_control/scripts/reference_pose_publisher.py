@@ -116,6 +116,7 @@ class ReferencePosePublisherNode:
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
         self.max_xy_offset = rospy.get_param("~max_xy_offset", 1.0)
+        self.max_z_offset = rospy.get_param("~max_z_offset", 0.1)
         self.max_z = rospy.get_param("~max_z", 0.0)
         self.min_z = rospy.get_param("~min_z", -2.0)
         self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
@@ -565,6 +566,12 @@ class ReferencePosePublisherNode:
                 xy_offset *= self.max_xy_offset / xy_distance
                 self.target_x = odom_position.x + xy_offset[0]
                 self.target_y = odom_position.y + xy_offset[1]
+
+            z_offset = self.target_depth - odom_position.z
+            if abs(z_offset) > self.max_z_offset:
+                self.target_depth = (
+                    odom_position.z + np.sign(z_offset) * self.max_z_offset
+                )
 
             self.target_depth = np.clip(self.target_depth, self.min_z, self.max_z)
 
