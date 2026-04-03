@@ -2,7 +2,10 @@
 #include "auv_common_lib/ros/conversions.h"
 
 #include <Eigen/Dense>
+#include <Eigen/Geometry>
 
+#include "auv_common_lib/control/controller_types.h"
+#include "geometry_msgs/Accel.h"
 #include "geometry_msgs/Pose.h"
 #include "geometry_msgs/Wrench.h"
 #include "nav_msgs/Odometry.h"
@@ -41,11 +44,74 @@ Eigen::Vector3d convert(const geometry_msgs::Quaternion& from) {
 }
 
 template <>
+Eigen::Quaterniond convert(const geometry_msgs::Quaternion& from) {
+  Eigen::Quaterniond to(from.w, from.x, from.y, from.z);
+  if (to.norm() <= 1e-9) {
+    return Eigen::Quaterniond::Identity();
+  }
+
+  to.normalize();
+  return to;
+}
+
+template <>
+geometry_msgs::Quaternion convert(const Eigen::Quaterniond& from) {
+  const Eigen::Quaterniond normalized =
+      from.norm() <= 1e-9 ? Eigen::Quaterniond::Identity() : from.normalized();
+
+  geometry_msgs::Quaternion to;
+  to.x = normalized.x();
+  to.y = normalized.y();
+  to.z = normalized.z();
+  to.w = normalized.w();
+  return to;
+}
+
+template <>
 geometry_msgs::Vector3 convert(const Eigen::Vector3d& from) {
   geometry_msgs::Vector3 to;
   to.x = from.x();
   to.y = from.y();
   to.z = from.z();
+  return to;
+}
+
+template <>
+auv::control::SixDOFPose convert(const geometry_msgs::Pose& from) {
+  auv::control::SixDOFPose to;
+  to.position = convert<geometry_msgs::Point, Eigen::Vector3d>(from.position);
+  to.orientation =
+      convert<geometry_msgs::Quaternion, Eigen::Quaterniond>(from.orientation);
+  to.normalize_orientation();
+  return to;
+}
+
+template <>
+auv::control::SixDOFTwist convert(const geometry_msgs::Twist& from) {
+  auv::control::SixDOFTwist to;
+  to.linear = convert<geometry_msgs::Vector3, Eigen::Vector3d>(from.linear);
+  to.angular = convert<geometry_msgs::Vector3, Eigen::Vector3d>(from.angular);
+  return to;
+}
+
+template <>
+auv::control::SixDOFState convert(const nav_msgs::Odometry& from) {
+  auv::control::SixDOFState to;
+  to.pose =
+      convert<geometry_msgs::Pose, auv::control::SixDOFPose>(from.pose.pose);
+  to.twist = convert<geometry_msgs::Twist, auv::control::SixDOFTwist>(
+      from.twist.twist);
+  to.normalize_orientation();
+  return to;
+}
+
+template <>
+auv::control::SixDOFStateDerivative convert(const geometry_msgs::Accel& from) {
+  auv::control::SixDOFStateDerivative to;
+  to.linear_acceleration =
+      convert<geometry_msgs::Vector3, Eigen::Vector3d>(from.linear);
+  to.angular_acceleration =
+      convert<geometry_msgs::Vector3, Eigen::Vector3d>(from.angular);
   return to;
 }
 
@@ -78,6 +144,14 @@ template <>
 Eigen::Matrix<double, 6, 1> convert(
     const geometry_msgs::TwistWithCovariance& from) {
   return convert<geometry_msgs::Twist, Eigen::Matrix<double, 6, 1>>(from.twist);
+}
+
+template <>
+Eigen::Matrix<double, 6, 1> convert(const geometry_msgs::Wrench& from) {
+  Eigen::Matrix<double, 6, 1> to;
+  to.head<3>() = convert<geometry_msgs::Vector3, Eigen::Vector3d>(from.force);
+  to.tail<3>() = convert<geometry_msgs::Vector3, Eigen::Vector3d>(from.torque);
+  return to;
 }
 
 template <>
