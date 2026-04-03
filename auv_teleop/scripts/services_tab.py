@@ -41,6 +41,23 @@ class ROSServiceCaller:
             print(f"Service not available: {e}")
             return False
 
+    def calibrate_imu(self, duration):
+        try:
+            rospy.wait_for_service("calibrate_imu", timeout=1)
+            from auv_localization.srv import CalibrateIMU, CalibrateIMURequest
+
+            calibrate_service = rospy.ServiceProxy("calibrate_imu", CalibrateIMU)
+            request = CalibrateIMURequest()
+            request.duration = float(duration)
+            response = calibrate_service(request)
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except (rospy.ROSException, ImportError) as e:
+            print(f"Service not available or import error: {e}")
+            return False
+
     def start_localization(self):
         try:
             rospy.wait_for_service("localization_enable", timeout=1)
@@ -166,8 +183,9 @@ class ROSServiceCaller:
 
 
 class ServicesTab(QWidget):
-    def __init__(self):
+    def __init__(self, include_simulation=True):
         super().__init__()
+        self.include_simulation = include_simulation
         self.ros_service_caller = ROSServiceCaller()
         self.init_ui()
 
@@ -187,6 +205,20 @@ class ServicesTab(QWidget):
         depth_layout.addWidget(self.depth_spin)
         depth_layout.addWidget(self.set_depth_btn)
         depth_group.setLayout(depth_layout)
+
+        # IMU Calibration
+        imu_calib_group = QGroupBox("IMU Calibration")
+        imu_calib_layout = QHBoxLayout()
+        self.imu_calib_spin = QDoubleSpinBox()
+        self.imu_calib_spin.setRange(1.0, 600.0)
+        self.imu_calib_spin.setValue(120.0)
+        self.imu_calib_spin.setSingleStep(30.0)
+        self.imu_calib_spin.setDecimals(1)
+        self.imu_calib_btn = QPushButton("Calibrate IMU")
+        imu_calib_layout.addWidget(QLabel("Duration:"))
+        imu_calib_layout.addWidget(self.imu_calib_spin)
+        imu_calib_layout.addWidget(self.imu_calib_btn)
+        imu_calib_group.setLayout(imu_calib_layout)
 
         button_width = 120
         button_height = 75
@@ -241,6 +273,8 @@ class ServicesTab(QWidget):
         mission_group.setLayout(mission_layout)
 
         layout.addWidget(depth_group)
+        if not self.include_simulation:
+            layout.addWidget(imu_calib_group)
         layout.addWidget(service_group)
         layout.addWidget(mission_group)
         self.setLayout(layout)
@@ -253,6 +287,8 @@ class ServicesTab(QWidget):
         self.mission_toggle.stateChanged.connect(self.toggle_missions)
         self.drop_ball_btn.clicked.connect(self.drop_ball)
         self.localization_btn.clicked.connect(self.start_localization)
+        if not self.include_simulation:
+            self.imu_calib_btn.clicked.connect(self.on_calibrate_imu)
         self.dvl_btn.clicked.connect(self.enable_dvl)
         self.clear_objects_btn.clicked.connect(self.clear_objects)
         self.cancel_align_btn.clicked.connect(self.cancel_alignment)
@@ -268,6 +304,18 @@ class ServicesTab(QWidget):
             print(f"Setting depth to: {depth}")
         else:
             QMessageBox.warning(self, "Error", "Failed to set depth.")
+
+    def on_calibrate_imu(self):
+        duration = self.imu_calib_spin.value()
+        success = self.ros_service_caller.calibrate_imu(duration)
+        if success:
+            QMessageBox.information(
+                self,
+                "Success",
+                f"IMU calibration finished with duration {duration:.1f}s",
+            )
+        else:
+            QMessageBox.warning(self, "Error", "Failed to start IMU calibration")
 
     def toggle_missions(self, state):
         enable = state == Qt.Checked

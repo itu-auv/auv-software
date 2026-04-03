@@ -18,6 +18,7 @@
 
         <remap from="align_frame/cancel" to="$(arg namespace)/control/align_frame/cancel"/>
         <remap from="reset_odometry" to="$(arg namespace)/reset_odometry"/>
+        <remap from="calibrate_imu" to="$(arg namespace)/calibrate_imu"/>
 
         <param name="topic_imu" value="$(arg namespace)/$(arg imu_topic)" />
         <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />
