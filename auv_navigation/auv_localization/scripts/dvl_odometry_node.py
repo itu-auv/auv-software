@@ -47,6 +47,8 @@ class DvlToOdom:
         self.model_covariance_multiplier = rospy.get_param(
             "~model_covariance_multiplier", 10.0
         )
+        # --- YENİ ---
+        self.dvl_timeout = rospy.get_param("~dvl_timeout", 0.5)
 
         self.load_dynamic_model()
 
@@ -120,6 +122,57 @@ class DvlToOdom:
         self.odom_velocity = np.zeros(6)
         self.last_model_update = rospy.Time.now()
         self.odom_received = False
+
+        # --- YENİ ---
+        self.last_dvl_time = rospy.Time.now()
+        self.model_timer = rospy.Timer(
+            rospy.Duration(0.05), self.model_timer_callback  # 20Hz
+        )
+
+    # --- YENİ ---
+    def model_timer_callback(self, event):
+        if not self.enabled:
+            return
+
+        dvl_elapsed = (rospy.Time.now() - self.last_dvl_time).to_sec()
+        if dvl_elapsed < self.dvl_timeout:
+            return  # DVL hala aktif, dvl_callback hallediyor
+
+        current_time = rospy.Time.now()
+        dt = (current_time - self.last_model_update).to_sec()
+        self.last_model_update = current_time
+
+        if dt <= 0.001 or dt >= 1.0:
+            return
+
+        self.filter_cmd_vel()
+
+        if self.dynamic_model_available:
+            rospy.loginfo_throttle(
+                1.0, "DVL timeout: Using dynamic model (timer) for velocity estimation"
+            )
+            model_vel = self.compute_model_based_velocity(dt)
+            velocity_msg = Twist()
+            velocity_msg.linear.x = model_vel[0]
+            velocity_msg.linear.y = model_vel[1]
+            velocity_msg.linear.z = model_vel[2]
+            velocity_msg.angular.x = model_vel[3]
+            velocity_msg.angular.y = model_vel[4]
+            velocity_msg.angular.z = model_vel[5]
+            self.update_twist_covariance(use_model_based=True)
+        else:
+            rospy.logwarn_throttle(
+                1.0, "DVL timeout and model unavailable: Using cmd_vel fallback (timer)"
+            )
+            velocity_msg = self.filtered_cmd_vel
+            self.update_twist_covariance(use_model_based=True)
+
+        self.odom_msg.header.stamp = rospy.Time.now()
+        self.odom_msg.twist.twist = velocity_msg
+        self.odom_msg.pose.pose.position.x = 0.0
+        self.odom_msg.pose.pose.position.y = 0.0
+        self.odom_msg.pose.pose.position.z = 0.0
+        self.odom_publisher.publish(self.odom_msg)
 
     def load_dynamic_model(self):
         try:
@@ -316,6 +369,8 @@ class DvlToOdom:
 
     def dvl_callback(self, velocity_msg, is_valid_msg):
         self.is_dvl_enabled = True
+        # --- YENİ ---
+        self.last_dvl_time = rospy.Time.now()
 
         if not self.enabled:
             return
