@@ -46,6 +46,8 @@ class ObjectMapTFServerROS {
       const std::string &target_frame, const std::string &source_frame,
       const ros::Duration timeout);
 
+  bool isFilterCandidate(const ObjectPositionFilter::Ptr &filter);
+
   ros::NodeHandle nh_;
   tf2_ros::Buffer tf_buffer_;
   tf2_ros::TransformListener tf_listener_;
@@ -53,6 +55,8 @@ class ObjectMapTFServerROS {
   double distance_threshold_squared_;
   std::string static_frame_;
   std::string base_link_frame_;
+  bool enable_candidate_filters_;
+  int candidate_update_limit_;
   FilterMap filters_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   //
