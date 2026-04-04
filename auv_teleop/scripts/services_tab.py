@@ -211,7 +211,7 @@ class ServicesTab(QWidget):
         imu_calib_layout = QHBoxLayout()
         self.imu_calib_spin = QDoubleSpinBox()
         self.imu_calib_spin.setRange(1.0, 600.0)
-        self.imu_calib_spin.setValue(120.0)
+        self.imu_calib_spin.setValue(150.0)
         self.imu_calib_spin.setSingleStep(30.0)
         self.imu_calib_spin.setDecimals(1)
         self.imu_calib_btn = QPushButton("Calibrate IMU")
