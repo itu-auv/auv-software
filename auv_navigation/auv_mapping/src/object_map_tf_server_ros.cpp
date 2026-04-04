@@ -377,8 +377,8 @@ ObjectMapTFServerROS::get_transform(const std::string &target_frame,
 
 bool ObjectMapTFServerROS::isFilterCandidate(
     const ObjectPositionFilter::Ptr &filter) {
-  return enable_candidate_filters_ &&
-         (filter->getUpdateCount() < candidate_update_limit_);
+  return enable_candidate_filters_ && filter->getUpdateCount() != -1 &&
+         filter->getUpdateCount() < candidate_update_limit_;
 }
 
 }  // namespace auv_mapping
