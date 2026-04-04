@@ -23,7 +23,7 @@
 
 namespace auv_mapping {
 
-ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle& nh)
+ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
     : nh_{nh},
       tf_buffer_{ros::Duration(60.0)},
       tf_listener_{tf_buffer_},
@@ -71,15 +71,15 @@ void ObjectMapTFServerROS::run() {
 
 void ObjectMapTFServerROS::broadcast_transforms() {
   auto lock = std::scoped_lock{mutex_};
-  for (auto& entry : filters_) {
-    for (const auto& filter_ptr : entry.second) {
+  for (auto &entry : filters_) {
+    for (const auto &filter_ptr : entry.second) {
       tf_broadcaster_.sendTransform(filter_ptr->getFilteredTransform());
     }
   }
 }
 
-bool ObjectMapTFServerROS::clear_map_handler(std_srvs::Trigger::Request& req,
-                                             std_srvs::Trigger::Response& res) {
+bool ObjectMapTFServerROS::clear_map_handler(std_srvs::Trigger::Request &req,
+                                             std_srvs::Trigger::Response &res) {
   auto lock = std::scoped_lock{mutex_};
   filters_.clear();
 
@@ -91,7 +91,7 @@ bool ObjectMapTFServerROS::clear_map_handler(std_srvs::Trigger::Request& req,
 }
 
 void ObjectMapTFServerROS::dynamic_transform_callback(
-    const geometry_msgs::TransformStamped::ConstPtr& msg) {
+    const geometry_msgs::TransformStamped::ConstPtr &msg) {
   auto lock = std::scoped_lock{mutex_};
 
   // Calculate actual dt
@@ -134,7 +134,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   distances.reserve(it->second.size());
 
   // Calculate distance to each existing filter
-  for (auto& filter_ptr : it->second) {
+  for (auto &filter_ptr : it->second) {
     const auto current = filter_ptr->getFilteredTransform();
     const auto d_position =
         std::array<double, 3>{current.transform.translation.x -
@@ -174,7 +174,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 }
 
 void ObjectMapTFServerROS::update_filter_frame_index(
-    const std::string& object_frame) {
+    const std::string &object_frame) {
   auto it = filters_.find(object_frame);
   if (it == filters_.end() || it->second.empty()) {
     return;
@@ -184,10 +184,10 @@ void ObjectMapTFServerROS::update_filter_frame_index(
   std::vector<std::pair<size_t, double>> filter_distances;
   filter_distances.reserve(it->second.size());
 
-  const std::string& base_link_frame = base_link_frame_;
+  const std::string &base_link_frame = base_link_frame_;
 
   for (size_t i = 0; i < it->second.size(); ++i) {
-    const auto& transform = it->second[i]->getFilteredTransform();
+    const auto &transform = it->second[i]->getFilteredTransform();
 
     // Create a point in the static frame at the filter's position
     geometry_msgs::PointStamped point;
@@ -214,7 +214,7 @@ void ObjectMapTFServerROS::update_filter_frame_index(
                     std::pow(point_in_base_link.point.z, 2));
 
       filter_distances.emplace_back(i, distance);
-    } catch (tf2::TransformException& ex) {
+    } catch (tf2::TransformException &ex) {
       ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
       // Fallback: use distance from static frame instead
       const double distance =
@@ -227,11 +227,11 @@ void ObjectMapTFServerROS::update_filter_frame_index(
 
   // Sort filters by distance (closest first)
   std::sort(filter_distances.begin(), filter_distances.end(),
-            [](const auto& a, const auto& b) { return a.second < b.second; });
+            [](const auto &a, const auto &b) { return a.second < b.second; });
 
   // Update frame IDs based on sorted distances
   for (size_t i = 0; i < filter_distances.size(); ++i) {
-    auto& filter = it->second[filter_distances[i].first];
+    auto &filter = it->second[filter_distances[i].first];
     auto transform = filter->getFilteredTransform();
 
     if (i == 0) {
@@ -307,21 +307,21 @@ ObjectMapTFServerROS::transform_to_static_frame(
 }
 
 std::optional<geometry_msgs::TransformStamped>
-ObjectMapTFServerROS::get_transform(const std::string& target_frame,
-                                    const std::string& source_frame,
+ObjectMapTFServerROS::get_transform(const std::string &target_frame,
+                                    const std::string &source_frame,
                                     const ros::Duration timeout) {
   try {
     auto transform = tf_buffer_.lookupTransform(target_frame, source_frame,
                                                 ros::Time(0), timeout);
     return transform;
-  } catch (tf2::TransformException& ex) {
+  } catch (tf2::TransformException &ex) {
     ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
     return std::nullopt;
   }
 }
 
 void ObjectMapTFServerROS::set_transform_callback(
-    const geometry_msgs::TransformStamped::ConstPtr& msg) {
+    const geometry_msgs::TransformStamped::ConstPtr &msg) {
   // 1. Translate message to Static Frame
   const auto static_transform = transform_to_static_frame(*msg);
 
