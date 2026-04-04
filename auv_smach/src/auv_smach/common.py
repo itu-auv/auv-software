@@ -1315,7 +1315,7 @@ class CreateFrameAtCurrentPositionState(smach.State):
         self.reference_frame = reference_frame
         self.tf_buffer = get_tf_buffer()
         self.set_object_transform_pub = rospy.Publisher(
-            "set_object_transform", TransformStamped, queue_size=10
+            "set_object_transform", TransformStamped, queue_size=10, latch=True
         )
 
     def execute(self, userdata):

@@ -104,16 +104,10 @@ class SetStartFrameState(smach.State):
             return "preempted"
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
-        t.header.frame_id = "taluy/base_link"
+        t.header.frame_id = get_base_link()
         t.child_frame_id = self.frame_name
         t.transform.rotation.w = 1.0
         try:
-            while self.pub.get_num_connections() < 1:
-                rospy.loginfo_throttle(
-                    2, f"Waiting for subscribers to {self.pub.name}..."
-                )
-                rospy.sleep(0.1)
-
             self.pub.publish(t)
             rospy.loginfo(f"SetStartFrameState: Published frame {self.frame_name}")
             return "succeeded"

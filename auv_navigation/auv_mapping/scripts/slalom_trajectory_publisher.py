@@ -389,7 +389,10 @@ class SlalomTrajectoryPublisher(object):
         if transform is None:
             rospy.logwarn_throttle(5, "Transform is None")
             return
-        self.set_object_transform_pub.publish(transform)
+        try:
+            self.set_object_transform_pub.publish(transform)
+        except Exception as e:
+            rospy.logerr_throttle(5, f"Slalom: Failed to publish transform: {e}")
 
     def save_parameters(self):
         """Save parameters to the YAML file."""

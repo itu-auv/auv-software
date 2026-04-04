@@ -570,7 +570,10 @@ class TransformServiceNode:
         return transform
 
     def send_transform(self, transform: TransformStamped):
-        self.set_object_transform_pub.publish(transform)
+        try:
+            self.set_object_transform_pub.publish(transform)
+        except Exception as e:
+            rospy.logerr_throttle(5, f" Gate Failed to publish transform: {e}")
 
     def handle_enable_service(self, request: SetBool):
         self.is_enabled = request.data
