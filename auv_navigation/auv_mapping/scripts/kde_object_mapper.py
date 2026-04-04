@@ -30,12 +30,12 @@ from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 # Color palette (BGR) for per-class visualization
 # ──────────────────────────────────────────────────────────────────────────────
 CLASS_COLORS_BGR = [
-    (80, 80, 255),    # soft red
-    (80, 220, 80),    # green
-    (255, 180, 50),   # blue-ish
-    (180, 50, 255),   # magenta
-    (220, 220, 50),   # cyan
-    (50, 140, 255),   # orange
+    (80, 80, 255),  # soft red
+    (80, 220, 80),  # green
+    (255, 180, 50),  # blue-ish
+    (180, 50, 255),  # magenta
+    (220, 220, 50),  # cyan
+    (50, 140, 255),  # orange
     (200, 100, 200),  # purple
     (100, 255, 255),  # yellow
     (255, 150, 150),  # light blue
@@ -63,9 +63,10 @@ class KdeObjectMapper:
         object_classes = rospy.get_param("~object_classes", [])
 
         if not object_classes:
-            rospy.logwarn("No object_classes configured — KDE mapper has nothing to do.")
+            rospy.logwarn(
+                "No object_classes configured — KDE mapper has nothing to do."
+            )
 
-        # ── State ─────────────────────────────────────────────────────────
         self.point_buffers = defaultdict(list)  # class_name -> [[x,y,z], ...]
         self.current_results = {}  # class_name -> [(x, y, z, confidence), ...]
         self.lock = threading.Lock()
@@ -76,7 +77,6 @@ class KdeObjectMapper:
         for i, cls in enumerate(object_classes):
             self.class_colors[cls] = CLASS_COLORS_BGR[i % len(CLASS_COLORS_BGR)]
 
-        # ── Subscribers (one per class) ───────────────────────────────────
         self.subscribers = {}
         for cls_name in object_classes:
             topic = f"kde_map/points/{cls_name}"
@@ -112,10 +112,6 @@ class KdeObjectMapper:
             f"bw={self.bandwidth}m, rate={self.update_rate}Hz"
         )
 
-    # ══════════════════════════════════════════════════════════════════════
-    # Callbacks
-    # ══════════════════════════════════════════════════════════════════════
-
     def _point_callback(self, msg, class_name):
         with self.lock:
             buf = self.point_buffers[class_name]
@@ -146,10 +142,6 @@ class KdeObjectMapper:
         finally:
             with self.lock:
                 self._kde_running = False
-
-    # ══════════════════════════════════════════════════════════════════════
-    # Core KDE processing
-    # ══════════════════════════════════════════════════════════════════════
 
     def _run_kde(self):
         # Snapshot the buffers under lock
@@ -206,14 +198,11 @@ class KdeObjectMapper:
                 "y_max": y_max,
             }
 
-            # ── Non-max suppression to extract peaks ──────────────────────
             peaks = []
             density_work = density.copy()
 
             for _ in range(self.max_peaks_per_class):
-                max_idx = np.unravel_index(
-                    np.argmax(density_work), density_work.shape
-                )
+                max_idx = np.unravel_index(np.argmax(density_work), density_work.shape)
                 max_val = density_work[max_idx]
                 if max_val < self.min_peak_density:
                     break
@@ -222,9 +211,7 @@ class KdeObjectMapper:
                 peak_y = float(yy[max_idx])
 
                 # Mean Z from nearby raw points
-                dists = np.sqrt(
-                    (pts[:, 0] - peak_x) ** 2 + (pts[:, 1] - peak_y) ** 2
-                )
+                dists = np.sqrt((pts[:, 0] - peak_x) ** 2 + (pts[:, 1] - peak_y) ** 2)
                 nearby = dists < self.suppression_radius
                 peak_z = float(
                     np.mean(pts[nearby, 2]) if np.any(nearby) else np.mean(pts[:, 2])
@@ -233,9 +220,7 @@ class KdeObjectMapper:
                 peaks.append((peak_x, peak_y, peak_z, float(max_val)))
 
                 # Suppress around this peak
-                dist_grid = np.sqrt(
-                    (xx - peak_x) ** 2 + (yy - peak_y) ** 2
-                )
+                dist_grid = np.sqrt((xx - peak_x) ** 2 + (yy - peak_y) ** 2)
                 density_work[dist_grid < self.suppression_radius] = 0.0
 
             results[cls_name] = peaks
@@ -248,10 +233,6 @@ class KdeObjectMapper:
 
         self._publish_results(results_snapshot)
         self._publish_visualization(kde_data, results_snapshot)
-
-    # ══════════════════════════════════════════════════════════════════════
-    # Publishing
-    # ══════════════════════════════════════════════════════════════════════
 
     def _publish_results(self, results):
         """Publish peaks via set_object_transform service.
@@ -286,10 +267,6 @@ class KdeObjectMapper:
                         10.0, f"set_object_transform failed for {frame_id}: {e}"
                     )
 
-    # ══════════════════════════════════════════════════════════════════════
-    # Visualisation (CompressedImage)
-    # ══════════════════════════════════════════════════════════════════════
-
     def _publish_visualization(self, kde_data, results):
         if not kde_data:
             return
@@ -300,7 +277,6 @@ class KdeObjectMapper:
         img_h = self.image_height
         padding = 60
 
-        # ── Global world bounds ───────────────────────────────────────────
         g_xmin = min(d["x_min"] for d in kde_data.values())
         g_xmax = max(d["x_max"] for d in kde_data.values())
         g_ymin = min(d["y_min"] for d in kde_data.values())
@@ -322,7 +298,6 @@ class KdeObjectMapper:
             v = int(img_h - ((wy - g_ymin) * scale + off_y))
             return u, v
 
-        # ── Canvas ────────────────────────────────────────────────────────
         canvas = np.full((img_h, img_w, 3), 30, dtype=np.uint8)
 
         # Draw grid lines
@@ -341,15 +316,25 @@ class KdeObjectMapper:
             u, _ = w2p(x, 0)
             cv2.line(canvas, (u, padding), (u, img_h - padding), (50, 50, 50), 1)
             cv2.putText(
-                canvas, f"{x:.1f}", (u - 10, img_h - padding + 15),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (120, 120, 120), 1,
+                canvas,
+                f"{x:.1f}",
+                (u - 10, img_h - padding + 15),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.3,
+                (120, 120, 120),
+                1,
             )
         for y in gy:
             _, v = w2p(0, y)
             cv2.line(canvas, (padding, v), (img_w - padding, v), (50, 50, 50), 1)
             cv2.putText(
-                canvas, f"{y:.1f}", (5, v + 4),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.3, (120, 120, 120), 1,
+                canvas,
+                f"{y:.1f}",
+                (5, v + 4),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.3,
+                (120, 120, 120),
+                1,
             )
 
         # ── Per-class density + points ────────────────────────────────────
@@ -405,8 +390,13 @@ class KdeObjectMapper:
                     cv2.circle(canvas, (u, v), 3, (255, 255, 255), -1)
                     label = f"{short}#{i} d={conf:.3f}"
                     cv2.putText(
-                        canvas, label, (u + 14, v - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1,
+                        canvas,
+                        label,
+                        (u + 14, v - 6),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.35,
+                        color,
+                        1,
                     )
 
             # Legend entry
@@ -414,36 +404,49 @@ class KdeObjectMapper:
             n_pts = len(pts)
             n_peaks = len(results.get(cls_name, []))
             cv2.rectangle(
-                canvas, (img_w - 280, legend_y - 10), (img_w - 270, legend_y),
-                color, -1,
+                canvas,
+                (img_w - 280, legend_y - 10),
+                (img_w - 270, legend_y),
+                color,
+                -1,
             )
             cv2.putText(
-                canvas, f"{short_name} ({n_pts}pts, {n_peaks}pk)",
+                canvas,
+                f"{short_name} ({n_pts}pts, {n_peaks}pk)",
                 (img_w - 265, legend_y),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1,
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.35,
+                color,
+                1,
             )
             legend_y += 18
 
         # ── Title & axes ──────────────────────────────────────────────────
         cv2.putText(
-            canvas, "KDE Object Map", (10, 20),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1,
+            canvas,
+            "KDE Object Map",
+            (10, 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            1,
         )
         cv2.putText(
             canvas,
             f"X:[{g_xmin:.1f},{g_xmax:.1f}]  Y:[{g_ymin:.1f},{g_ymax:.1f}]  "
             f"bw={self.bandwidth}m  res={self.grid_resolution}m",
             (10, img_h - 8),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.3, (150, 150, 150), 1,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.3,
+            (150, 150, 150),
+            1,
         )
 
         # ── Publish ──────────────────────────────────────────────────────
         msg = CompressedImage()
         msg.header.stamp = rospy.Time.now()
         msg.format = "jpeg"
-        success, buf = cv2.imencode(
-            ".jpg", canvas, [cv2.IMWRITE_JPEG_QUALITY, 85]
-        )
+        success, buf = cv2.imencode(".jpg", canvas, [cv2.IMWRITE_JPEG_QUALITY, 85])
         if success:
             msg.data = buf.tobytes()
             self.image_pub.publish(msg)
