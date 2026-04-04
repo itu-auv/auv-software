@@ -73,6 +73,9 @@ class DryTestTab(QWidget):
         super().__init__()
 
         self.topic_imu = rospy.get_param("~topic_imu", "imu/data")
+        self.topic_dvl_validity = rospy.get_param(
+            "~topic_dvl_validity", "sensors/dvl/is_valid"
+        )
         self.topic_pressure = rospy.get_param("~topic_pressure", "depth")
         self.topic_camera_bottom = rospy.get_param(
             "~topic_camera_bottom", "cam_bottom/image_raw"
@@ -108,6 +111,7 @@ class DryTestTab(QWidget):
         self.init_ui()
         self.imu_thread = None
         self.bar30_thread = None
+        self.dvl_validity_thread = None
         self.enable_thread = None
         self.enable_publishing = False
         self.launch_process = None
@@ -124,12 +128,16 @@ class DryTestTab(QWidget):
         self.imu_stop_btn = QPushButton("Stop Echo IMU")
         self.bar30_start_btn = QPushButton("Echo Bar30")
         self.bar30_stop_btn = QPushButton("Stop Echo Bar30")
+        self.dvl_validity_start_btn = QPushButton("Echo DVL Validity")
+        self.dvl_validity_stop_btn = QPushButton("Stop Echo DVL Validity")
 
         sensor_layout.addLayout(self.voltage_hbox, 0, 0, 1, 2)
         sensor_layout.addWidget(self.imu_start_btn, 1, 0)
         sensor_layout.addWidget(self.imu_stop_btn, 1, 1)
         sensor_layout.addWidget(self.bar30_start_btn, 2, 0)
         sensor_layout.addWidget(self.bar30_stop_btn, 2, 1)
+        sensor_layout.addWidget(self.dvl_validity_start_btn, 3, 0)
+        sensor_layout.addWidget(self.dvl_validity_stop_btn, 3, 1)
         sensor_group.setLayout(sensor_layout)
 
         self.output = QTextEdit()
@@ -186,6 +194,8 @@ class DryTestTab(QWidget):
         self.imu_stop_btn.clicked.connect(self.stop_imu)
         self.bar30_start_btn.clicked.connect(self.start_bar30)
         self.bar30_stop_btn.clicked.connect(self.stop_bar30)
+        self.dvl_validity_start_btn.clicked.connect(self.start_dvl_validity)
+        self.dvl_validity_stop_btn.clicked.connect(self.stop_dvl_validity)
         self.rqt_btn.clicked.connect(self.open_rqt)
         self.dry_test_btn.clicked.connect(self.run_dry_test)
         self.clear_btn.clicked.connect(self.clear_output)
@@ -225,6 +235,24 @@ class DryTestTab(QWidget):
             self.bar30_thread.wait()
             self.bar30_thread = None
             self.output.append("Bar30 echo stopped")
+
+    def start_dvl_validity(self):
+        if self.dvl_validity_thread and self.dvl_validity_thread.isRunning():
+            self.output.append("DVL validity echo is already running")
+            return
+
+        cmd = f"rostopic echo {self.topic_dvl_validity}"
+        self.output.append(f"Running: {cmd}")
+        self.dvl_validity_thread = CommandThread(cmd)
+        self.dvl_validity_thread.output_signal.connect(self.output.append)
+        self.dvl_validity_thread.start()
+
+    def stop_dvl_validity(self):
+        if self.dvl_validity_thread and self.dvl_validity_thread.isRunning():
+            self.dvl_validity_thread.stop()
+            self.dvl_validity_thread.wait()
+            self.dvl_validity_thread = None
+            self.output.append("DVL validity echo stopped")
 
     def open_rqt(self):
         subprocess.Popen("rqt -s rqt_image_view", shell=True)
