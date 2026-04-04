@@ -21,6 +21,8 @@ from geometry_msgs.msg import (
     Vector3,
     Quaternion,
 )
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from dataclasses import dataclass, field
@@ -49,6 +51,9 @@ class SlalomExpFramePublisher:
     def __init__(self):
         rospy.init_node("slalom_exp_frame_publisher")
 
+        self.frequency = rospy.get_param("~frequency", 10.0)
+        self.rate = rospy.Rate(self.frequency)
+
         self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
 
         self.slalom_width = rospy.get_param("~slalom_width", 0.0254)
@@ -72,6 +77,9 @@ class SlalomExpFramePublisher:
         self.points = []
         self.collecting = False
         self.i = 0
+        self.heatmap_vis = None
+        self.cv_bridge = CvBridge()
+        self.heatmap_pub = rospy.Publisher("slalom/heatmap_vis", Image, queue_size=1)
 
         self.srv_publish_search_points = rospy.Service(
             "slalom/publish_search_points", Trigger, self.publish_search_points_callback
@@ -278,6 +286,7 @@ class SlalomExpFramePublisher:
                 rospy.logwarn_throttle(5, f"transformation error: {e}")
 
     def filter_points(self):
+        self.heatmap_vis = None
         if not self.points:
             self.tfs = []
             return
@@ -335,9 +344,7 @@ class SlalomExpFramePublisher:
         heatmap_visa = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
             np.uint8
         )
-        heatmap_vis = cv2.applyColorMap(heatmap_visa, cv2.COLORMAP_JET)
-
-        cv2.imwrite("/auv_ws/a.png", heatmap_vis)
+        self.heatmap_vis = cv2.applyColorMap(heatmap_visa, cv2.COLORMAP_JET)
 
         def get_line_error(pts):
             pts = np.array(pts)
@@ -426,6 +433,13 @@ class SlalomExpFramePublisher:
             t.transform.rotation.w = 1.0
             self.tfs.append(t)
 
+        self.publish_heatmap()
+
+    def publish_heatmap(self):
+        if self.heatmap_vis is not None:
+            img_msg = self.cv_bridge.cv2_to_imgmsg(self.heatmap_vis, "bgr8")
+            self.heatmap_pub.publish(img_msg)
+
     def world_pos_from_height(self, real_height, pixel_height, u, v):
         fx = self.cam.K[0]
         fy = self.cam.K[4]
@@ -439,7 +453,9 @@ class SlalomExpFramePublisher:
         return X, Y, Z
 
     def spin(self):
-        rospy.spin()
+        while not rospy.is_shutdown():
+            self.publish_heatmap()
+            self.rate.sleep()
 
 
 if __name__ == "__main__":
