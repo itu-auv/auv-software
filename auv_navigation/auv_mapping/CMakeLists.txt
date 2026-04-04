@@ -20,6 +20,11 @@ find_package(catkin REQUIRED COMPONENTS
   std_srvs
   tf2_geometry_msgs
   tf2_ros
+  tf2_geometry_msgs
+  sensor_msgs
+  message_filters
+  pcl_ros
+  pcl_conversions
   vision_msgs
   visualization_msgs
   dynamic_reconfigure

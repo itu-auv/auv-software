@@ -34,7 +34,7 @@ class TorpedoTransformServiceNode:
         self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = "odom"
-        self.robot_frame = "taluy/base_link"
+        self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
         self.target_frame = "torpedo_target"
         self.realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_fire_frame = "torpedo_fire_frame"
