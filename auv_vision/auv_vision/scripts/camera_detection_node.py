@@ -59,6 +59,7 @@ class CameraDetectionNode:
         # Camera enable flags
         self.camera_enabled = {
             "front": True,
+            "front_kde": True,
             "bottom": False,
             "torpedo": False,
         }

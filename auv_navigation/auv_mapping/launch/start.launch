@@ -63,6 +63,21 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
       <param name="config_file" value="$(find auv_mapping)/config/slalom.yaml" />
     </node>
+    <node pkg="auv_mapping" type="kde_object_mapper.py" name="kde_object_mapper" output="screen">
+      <param name="bandwidth" value="1" />
+      <param name="static_frame" value="$(arg static_frame)" />
+      <param name="frame_suffix" value="_kde" />
+      <param name="update_rate" value="2.0" />
+      <param name="suppression_radius" value="0.5" />
+      <param name="max_peaks_per_class" value="1" />
+      <param name="min_points_for_kde" value="5" />
+      <param name="max_points_per_class" value="2000" />
+      <param name="grid_resolution" value="0.05" />
+      <rosparam param="object_classes">
+        [gate_sawfish_link, gate_shark_link, slalom_red_pipe_link, slalom_white_pipe_link, torpedo_map_link, bin_whole_link, octagon_link]
+      </rosparam>
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
 
     <node pkg="auv_mapping" type="gps_target_frame_publisher.py" name="gps_target_frame_publisher" output="screen">
       <param name="robot_frame" value="$(arg namespace)/base_link" />
