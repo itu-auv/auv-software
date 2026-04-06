@@ -94,7 +94,7 @@ bool ObjectMapTFServerROS::set_transform_handler(
     auv_msgs::SetObjectTransform::Request &req,
     auv_msgs::SetObjectTransform::Response &res) {
   const auto static_transform =
-      transform_to_static_frame(req.transform, req.transform.header.stamp);
+      transform_to_static_frame(req.transform, ros::Time(0));
 
   if (!static_transform.has_value()) {
     res.success = false;
@@ -145,7 +145,6 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     // Create first filter for this object
     filters_[object_frame].push_back(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-    ROS_DEBUG_STREAM("Created new filter for " << object_frame);
     return;
   }
 
