@@ -34,6 +34,8 @@ add_service_files(
   VisualServoing.srv
   SetDetectionFocus.srv
   SpawnDebugCube.srv
+  SetDampingTarget.srv
+  SetAddedMassTarget.srv
 )
 
 # # Generate added messages and services with any dependencies listed here

@@ -1,0 +1,6 @@
+bool enable
+float64 amplitude
+float64 frequency
+---
+bool success
+string message
