@@ -10,6 +10,7 @@
   <arg name="device" default="cuda:0" />
   <arg name="world" default="pool" />
   <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_tac.yaml" />
+  <arg name="aruco_config" default="$(find auv_vision)/config/aruco_objects_tac.yaml" />
 
   <!-- 1a. Include start.launch (hardware + navigation) - for real robot -->
   <include unless="$(arg sim)" file="$(find auv_bringup)/launch/start.launch">
@@ -38,10 +39,10 @@
     <arg name="device" value="$(arg device)" />
   </include>
 
-  <!-- 3. TAC Docking detection: ArUco board estimator -->
-  <node pkg="auv_vision" type="aruco_board_pose_estimator.py"
-        name="aruco_board_estimator" output="screen">
-    <param name="camera_ns" value="$(arg namespace)/cameras/cam_bottom" />
-    <param name="camera_frame" value="$(arg namespace)/base_link/bottom_camera_optical_link" />
+  <!-- 3. TAC Docking detection: config-driven ArUco detection node -->
+  <node pkg="auv_vision" type="aruco_detection_node.py"
+        name="aruco_detection_node" output="screen">
+    <param name="config_file" value="$(arg aruco_config)" />
+    <remap from="object_transform_updates" to="/$(arg namespace)/map/object_transform_updates" />
   </node>
 </launch>

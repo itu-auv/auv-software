@@ -112,11 +112,11 @@ class DockingTaskState(smach.State):
             def disable_estimator_cb(userdata):
                 try:
                     srv = rospy.ServiceProxy(
-                        "/aruco_board_estimator/set_enabled", SetBool
+                        "/aruco_detection_node/set_enabled", SetBool
                     )
                     srv.wait_for_service(timeout=5.0)
                     srv(False)
-                    rospy.loginfo("Disabled ArUco estimator")
+                    rospy.loginfo("Disabled ArUco detection node")
                 except rospy.ROSException as e:
                     rospy.logwarn(f"Failed to disable estimator: {e}")
                 return "succeeded"

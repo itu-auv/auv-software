@@ -311,8 +311,7 @@ class ArucoDetectionNode:
         self.cameras = {}
         for cam_key, cam_cfg in self.config.get("cameras", {}).items():
             try:
-                calib_ns = cam_cfg["ns"].split("/", 1)[1]
-                calib = CameraCalibration(calib_ns)
+                calib = CameraCalibration(cam_cfg["ns"])
                 camera_matrix = np.array(calib.calibration.K).reshape(3, 3)
                 dist_coeffs = np.array(calib.calibration.D)
 

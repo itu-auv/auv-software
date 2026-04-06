@@ -34,7 +34,6 @@ include_directories(
 
 catkin_install_python(
   PROGRAMS
-    scripts/aruco_board_pose_estimator.py
     scripts/aruco_detection_node.py
     scripts/dynamic_roll_compensation.py
     scripts/camera_detection_pose_estimator.py

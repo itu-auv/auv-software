@@ -8,6 +8,7 @@ clahe_tile_size: 8
 corner_refinement_max_iterations: 30
 corner_refinement_min_accuracy: 0.05
 corner_refinement_win_size: 7
+debug_thresh_win_size: 41
 error_correction_rate: 0.6
 max_marker_perimeter_rate: 4.0
 min_marker_perimeter_rate: 0.02
