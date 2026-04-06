@@ -33,6 +33,7 @@ include_directories(
 add_library(${PROJECT_NAME}
   src/model.cpp
   src/multidof_pid_controller.cpp
+  src/multidof_mrac_controller.cpp
 )
 
 install(TARGETS ${PROJECT_NAME}
@@ -58,6 +59,7 @@ install(FILES
 if(CATKIN_ENABLE_TESTING)
   catkin_add_gtest(${PROJECT_NAME}-test
     test/test_multidof_pid_controller/test_multidof_pid_controller.cpp
+    test/test_multidof_mrac_controller/test_multidof_mrac_controller.cpp
     test/main.cpp
   )
 
