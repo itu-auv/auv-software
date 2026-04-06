@@ -126,12 +126,6 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     const geometry_msgs::TransformStamped::ConstPtr &msg) {
   auto lock = std::scoped_lock{mutex_};
 
-  // Calculate actual dt
-  static auto last_time = ros::Time::now();
-  const auto current_time = ros::Time::now();
-  const auto dt = (current_time - last_time).toSec();
-  last_time = current_time;
-
   const auto object_frame = msg->child_frame_id;
   const auto detection_time = msg->header.stamp;
   const auto static_transform = transform_to_static_frame(*msg, detection_time);
@@ -181,7 +175,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
     // If this filter is close enough, update it
     if (distance_squared < current_distance_threshold_squared) {
-      filter_ptr->update(*static_transform, dt);
+      filter_ptr->update(*static_transform);
       filter_updated = true;
       ROS_DEBUG_STREAM("Updated filter for " << object_frame);
 
