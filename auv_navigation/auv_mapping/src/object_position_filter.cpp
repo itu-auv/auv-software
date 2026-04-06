@@ -1,12 +1,15 @@
 #include "auv_mapping/object_position_filter.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace auv_mapping {
 
 ObjectPositionFilter::ObjectPositionFilter(
-    const geometry_msgs::TransformStamped &initial_transform, const double dt)
+    const geometry_msgs::TransformStamped &initial_transform, const double dt,
+    const AdaptiveNoiseConfig &noise_config)
     : kf_(6, 3, 0),
+      noise_config_(noise_config),
       static_frame_(initial_transform.header.frame_id),
       child_frame_(initial_transform.child_frame_id) {
   // Initialize state vector: [x, y, z, vx, vy, vz]
@@ -32,13 +35,7 @@ ObjectPositionFilter::ObjectPositionFilter(
   kf_.measurementMatrix.at<float>(1, 1) = 1.0f;
   kf_.measurementMatrix.at<float>(2, 2) = 1.0f;
 
-  // Process noise covariance Q
-  const float q = 1e-4f;
-  kf_.processNoiseCov = cv::Mat::eye(6, 6, CV_32F) * q;
-
-  // Measurement noise covariance R
-  const float r = 1e-2f;
-  kf_.measurementNoiseCov = cv::Mat::eye(3, 3, CV_32F) * r;
+  updateNoiseCovariances(0.0, 0.0);
 
   // Initial error covariance
   kf_.errorCovPost = cv::Mat::eye(6, 6, CV_32F);
@@ -58,7 +55,9 @@ void ObjectPositionFilter::predict(const double dt) {
 }
 
 void ObjectPositionFilter::update(
-    const geometry_msgs::TransformStamped &measurement, const double dt) {
+    const geometry_msgs::TransformStamped &measurement, const double dt,
+    const double v, const double omega) {
+  updateNoiseCovariances(v, omega);
   predict(dt);
 
   // Create measurement vector [x, y, z]^T.
@@ -76,6 +75,38 @@ void ObjectPositionFilter::update(
   filtered_orientation_ = slerp(filtered_orientation_, meas_q, alpha);
   filtered_orientation_.normalize();
 }
+
+void ObjectPositionFilter::updateNoiseCovariances(const double v,
+                                                  const double omega) {
+  const double process_scale = computeStddevScale(
+      v, omega, noise_config_.q_v_gain, noise_config_.q_omega_gain,
+      noise_config_.q_stddev_scale_min, noise_config_.q_stddev_scale_max);
+  const double measurement_scale = computeStddevScale(
+      v, omega, noise_config_.r_v_gain, noise_config_.r_omega_gain,
+      noise_config_.r_stddev_scale_min, noise_config_.r_stddev_scale_max);
+
+  const double process_stddev = noise_config_.q_stddev * process_scale;
+  const double measurement_stddev = noise_config_.r_stddev * measurement_scale;
+
+  const float process_variance =
+      static_cast<float>(process_stddev * process_stddev);
+  const float measurement_variance =
+      static_cast<float>(measurement_stddev * measurement_stddev);
+
+  kf_.processNoiseCov = cv::Mat::eye(6, 6, CV_32F) * process_variance;
+  kf_.measurementNoiseCov = cv::Mat::eye(3, 3, CV_32F) * measurement_variance;
+}
+
+double ObjectPositionFilter::computeStddevScale(const double v,
+                                                const double omega,
+                                                const double v_gain,
+                                                const double omega_gain,
+                                                const double min_scale,
+                                                const double max_scale) const {
+  const double scale = 1.0 + v_gain * v + omega_gain * omega;
+  return std::clamp(scale, min_scale, max_scale);
+}
+
 void ObjectPositionFilter::updateFrameIndex(const std::string &new_frame_id) {
   child_frame_ = new_frame_id;
 }

@@ -1,5 +1,7 @@
 #include "auv_mapping/object_map_tf_server_ros.hpp"
 
+#include <algorithm>
+#include <array>
 #include <numeric>
 
 // #include <auv_msgs/SetObjectTransform.h>
@@ -30,12 +32,30 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
       rate_{10.0},
       distance_threshold_squared_{16.0},
       static_frame_{""},
+      v_magnitude_{0.0},
+      omega_magnitude_{0.0},
       tf_broadcaster_{} {
   auto node_handler_private = ros::NodeHandle{"~"};
 
   node_handler_private.param<std::string>("static_frame", static_frame_,
                                           "odom");
   node_handler_private.param<double>("rate", rate_, 10.0);
+  node_handler_private.param<double>("q_stddev", noise_config_.q_stddev, 0.01);
+  node_handler_private.param<double>("r_stddev", noise_config_.r_stddev, 0.1);
+  node_handler_private.param<double>("q_v_gain", noise_config_.q_v_gain, 0.0);
+  node_handler_private.param<double>("q_omega_gain", noise_config_.q_omega_gain,
+                                     0.0);
+  node_handler_private.param<double>("r_v_gain", noise_config_.r_v_gain, 0.0);
+  node_handler_private.param<double>("r_omega_gain", noise_config_.r_omega_gain,
+                                     0.0);
+  node_handler_private.param<double>("q_stddev_scale_min",
+                                     noise_config_.q_stddev_scale_min, 1.0);
+  node_handler_private.param<double>("q_stddev_scale_max",
+                                     noise_config_.q_stddev_scale_max, 1.0);
+  node_handler_private.param<double>("r_stddev_scale_min",
+                                     noise_config_.r_stddev_scale_min, 1.0);
+  node_handler_private.param<double>("r_stddev_scale_max",
+                                     noise_config_.r_stddev_scale_max, 1.0);
 
   double distance_threshold_;
   node_handler_private.param<double>("distance_threshold", distance_threshold_,
@@ -52,6 +72,9 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
   clear_service_ =
       nh_.advertiseService("clear_object_transforms",
                            &ObjectMapTFServerROS::clear_map_handler, this);
+
+  odom_sub_ = nh_.subscribe("odometry", 20,
+                            &ObjectMapTFServerROS::odometry_callback, this);
 
   dynamic_sub_ =
       nh_.subscribe("object_transform_updates", 10,
@@ -110,8 +133,8 @@ bool ObjectMapTFServerROS::set_transform_handler(
       filters_[target_frame].clear();
     }
 
-    filters_[target_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
+    filters_[target_frame].push_back(std::make_unique<ObjectPositionFilter>(
+        *static_transform, 1.0 / rate_, noise_config_));
   }
 
   ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
@@ -119,6 +142,19 @@ bool ObjectMapTFServerROS::set_transform_handler(
   res.success = true;
   res.message = "Stored transform for frame: " + target_frame;
   return true;
+}
+
+void ObjectMapTFServerROS::odometry_callback(
+    const nav_msgs::Odometry::ConstPtr &msg) {
+  auto lock = std::scoped_lock{mutex_};
+
+  const auto &linear = msg->twist.twist.linear;
+  v_magnitude_ = std::sqrt(linear.x * linear.x + linear.y * linear.y +
+                           linear.z * linear.z);
+
+  const auto &angular = msg->twist.twist.angular;
+  omega_magnitude_ = std::sqrt(angular.x * angular.x + angular.y * angular.y +
+                               angular.z * angular.z);
 }
 
 void ObjectMapTFServerROS::dynamic_transform_callback(
@@ -141,8 +177,8 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   auto it = filters_.find(object_frame);
   if (it == filters_.end()) {
     // Create first filter for this object
-    filters_[object_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
+    filters_[object_frame].push_back(std::make_unique<ObjectPositionFilter>(
+        *static_transform, 1.0 / rate_, noise_config_));
     ROS_DEBUG_STREAM("Created new filter for " << object_frame);
     return;
   }
@@ -180,7 +216,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
     // If this filter is close enough, update it
     if (distance_squared < current_distance_threshold_squared) {
-      filter_ptr->update(*static_transform, dt);
+      filter_ptr->update(*static_transform, dt, v_magnitude_, omega_magnitude_);
       filter_updated = true;
       ROS_DEBUG_STREAM("Updated filter for " << object_frame);
 
@@ -194,8 +230,8 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
 
   // If no filter was updated, create a new one
   if (!filter_updated) {
-    filters_[object_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
+    filters_[object_frame].push_back(std::make_unique<ObjectPositionFilter>(
+        *static_transform, 1.0 / rate_, noise_config_));
     ROS_DEBUG_STREAM("Created new filter for "
                      << object_frame << " due to distance threshold.");
   }
