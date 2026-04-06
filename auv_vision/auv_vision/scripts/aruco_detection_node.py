@@ -35,22 +35,22 @@ from utils.aruco_utils import (
 
 
 class BoardTarget:
-    def __init__(self, name, tf_frame, obj_points_by_id, aruco_ids, force_horizontal, cv_board):
+    def __init__(self, name, tf_frame, obj_points_by_id, aruco_ids, force_floor_orientation, cv_board):
         self.name = name
         self.tf_frame = tf_frame
         self.obj_points_by_id = obj_points_by_id
         self.aruco_ids = set(aruco_ids)
-        self.force_horizontal = force_horizontal
+        self.force_floor_orientation = force_floor_orientation
         self.cv_board = cv_board
 
 
 class MarkerTarget:
-    def __init__(self, name, tf_frame, aruco_id, obj_points, force_horizontal):
+    def __init__(self, name, tf_frame, aruco_id, obj_points, force_floor_orientation):
         self.name = name
         self.tf_frame = tf_frame
         self.aruco_id = aruco_id
         self.obj_points = obj_points
-        self.force_horizontal = force_horizontal
+        self.force_floor_orientation = force_floor_orientation
 
 
 class ArucoCamera:
@@ -92,7 +92,6 @@ class ArucoCamera:
             cv_image,
             params["clahe_clip_limit"],
             params["clahe_tile_size"],
-            params["blur_strength"],
         )
 
         orig_corners, orig_ids, orig_rejected = detector.detectMarkers(gray)
@@ -128,7 +127,7 @@ class ArucoCamera:
                     any_detected = True
                     claimed_ids.update(matched_ids)
                     quat = rvec_tvec_to_quaternion(
-                        rvec, tvec, board.force_horizontal
+                        rvec, tvec, board.force_floor_orientation
                     )
 
                     if stamp != self.last_published_stamp:
@@ -174,7 +173,7 @@ class ArucoCamera:
                 if success:
                     any_detected = True
                     quat = rvec_tvec_to_quaternion(
-                        rvec, tvec, marker.force_horizontal
+                        rvec, tvec, marker.force_floor_orientation
                     )
                     if stamp != self.last_published_stamp:
                         publish_pose_to_odom(
@@ -235,7 +234,6 @@ class ArucoDetectionNode:
         self.params = {
             "clahe_clip_limit": 2.0,
             "clahe_tile_size": 8,
-            "blur_strength": 3,
             "adaptive_thresh_win_size_min": 7,
             "adaptive_thresh_win_size_max": 75,
             "adaptive_thresh_win_size_step": 8,
@@ -281,7 +279,7 @@ class ArucoDetectionNode:
                 tf_frame=board_cfg["tf_frame"],
                 obj_points_by_id=obj_points,
                 aruco_ids=aruco_ids,
-                force_horizontal=board_cfg.get("force_horizontal", False),
+                force_floor_orientation=board_cfg.get("force_floor_orientation", False),
                 cv_board=cv_board,
             )
             rospy.loginfo(
@@ -300,7 +298,7 @@ class ArucoDetectionNode:
                 tf_frame=marker_cfg["tf_frame"],
                 aruco_id=marker_def["aruco_id"],
                 obj_points=obj_points,
-                force_horizontal=marker_cfg.get("force_horizontal", False),
+                force_floor_orientation=marker_cfg.get("force_floor_orientation", False),
             )
             rospy.loginfo(
                 f"Marker '{marker_name}' (ID {marker_def['aruco_id']}) -> "
@@ -431,44 +429,20 @@ class ArucoDetectionNode:
             self.aruco_dict, self.detector_params, self.refine_params
         )
 
+    # Params that must be odd (OpenCV kernel sizes)
+    _ODD_PARAMS = {"debug_thresh_win_size"}
+
     def _reconfigure_cb(self, config, level):
         rospy.loginfo("ArUco reconfigure request")
 
-        self.params["clahe_clip_limit"] = config.clahe_clip_limit
-        self.params["clahe_tile_size"] = config.clahe_tile_size
-        self.params["blur_strength"] = config.blur_strength
-        if self.params["blur_strength"] % 2 == 0:
-            self.params["blur_strength"] += 1
-            config.blur_strength = self.params["blur_strength"]
+        for key in self.params:
+            if hasattr(config, key):
+                self.params[key] = getattr(config, key)
 
-        self.params["adaptive_thresh_win_size_min"] = config.adaptive_thresh_win_size_min
-        self.params["adaptive_thresh_win_size_max"] = config.adaptive_thresh_win_size_max
-        self.params["adaptive_thresh_win_size_step"] = (
-            config.adaptive_thresh_win_size_step
-        )
-        self.params["adaptive_thresh_constant"] = config.adaptive_thresh_constant
-        self.params["debug_thresh_win_size"] = config.debug_thresh_win_size
-        if self.params["debug_thresh_win_size"] % 2 == 0:
-            self.params["debug_thresh_win_size"] += 1
-            config.debug_thresh_win_size = self.params["debug_thresh_win_size"]
-
-        self.params["min_marker_perimeter_rate"] = config.min_marker_perimeter_rate
-        self.params["max_marker_perimeter_rate"] = config.max_marker_perimeter_rate
-        self.params["polygonal_approx_accuracy_rate"] = (
-            config.polygonal_approx_accuracy_rate
-        )
-        self.params["error_correction_rate"] = config.error_correction_rate
-
-        self.params["corner_refinement_win_size"] = config.corner_refinement_win_size
-        self.params["corner_refinement_max_iterations"] = (
-            config.corner_refinement_max_iterations
-        )
-        self.params["corner_refinement_min_accuracy"] = (
-            config.corner_refinement_min_accuracy
-        )
-
-        self.params["ransac_iterations"] = config.ransac_iterations
-        self.params["ransac_reproj_error"] = config.ransac_reproj_error
+        for key in self._ODD_PARAMS:
+            if self.params[key] % 2 == 0:
+                self.params[key] += 1
+                setattr(config, key, self.params[key])
 
         self._apply_detector_params()
         self._save_params()
@@ -493,11 +467,7 @@ class ArucoDetectionNode:
             return
         try:
             with open(self.param_save_file, "w") as f:
-                yaml.dump(
-                    {k: v for k, v in self.params.items()},
-                    f,
-                    default_flow_style=False,
-                )
+                yaml.dump(dict(self.params), f, default_flow_style=False)
         except IOError as e:
             rospy.logerr(f"Failed to save parameters: {e}")
 
@@ -532,108 +502,15 @@ class ArucoDetectionNode:
 
         if result is not None and self._has_debug_subscribers(cam_key):
             gray, corners, ids, board_debug_info = result
-            self._generate_debug(cam_key, cv_image, gray, corners, ids, board_debug_info, camera)
+            with self._debug_lock:
+                self._debug_queue[cam_key] = (
+                    cv_image.copy(), gray, corners, ids, board_debug_info, camera
+                )
+            self._debug_ready.set()
 
     def _has_debug_subscribers(self, cam_key):
         pubs = self.cameras[cam_key].debug_pubs
         return any(p.get_num_connections() > 0 for p in pubs.values())
-
-    def _generate_debug(self, cam_key, cv_image, gray, corners, ids, board_debug_info, camera):
-        pubs = camera.debug_pubs
-        debug_img = None
-        debug_gray = None
-        thresh_img = None
-
-        need_annotated = (
-            pubs["debug"].get_num_connections() > 0
-            or pubs["processed"].get_num_connections() > 0
-        )
-
-        if need_annotated:
-            debug_img = cv_image.copy()
-            debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-            debug_imgs = [debug_img, debug_gray]
-
-            if ids is not None and len(ids) > 0:
-                for img in debug_imgs:
-                    cv2.aruco.drawDetectedMarkers(img, corners, ids)
-
-                for board, rvec, tvec, matched_ids, inliers, ref_corners, ref_ids in board_debug_info:
-                    if rvec is not None and inliers is not None:
-                        # Reconstruct img_points for inlier visualization
-                        img_pts_list = []
-                        for i, mid in enumerate(ref_ids.flatten()):
-                            if mid in board.obj_points_by_id:
-                                img_pts_list.append(ref_corners[i].reshape(4, 2))
-                        if img_pts_list:
-                            img_points = np.vstack(img_pts_list).astype(np.float32)
-                            inlier_set = set(inliers.flatten())
-                            for idx, pt in enumerate(img_points):
-                                pt_int = tuple(pt.astype(int))
-                                for img in debug_imgs:
-                                    cv2.circle(img, pt_int, 15, (0, 0, 0), -1)
-                                    if idx in inlier_set:
-                                        cv2.circle(img, pt_int, 10, (0, 255, 0), -1)
-                                    else:
-                                        cv2.circle(img, pt_int, 12, (0, 0, 255), 4)
-
-                        prev_log = cv2.getLogLevel()
-                        cv2.setLogLevel(2)
-                        for img in debug_imgs:
-                            cv2.drawFrameAxes(
-                                img,
-                                camera.camera_matrix,
-                                camera.dist_coeffs,
-                                rvec,
-                                tvec,
-                                0.15,
-                            )
-                        cv2.setLogLevel(prev_log)
-
-                        dist = np.linalg.norm(tvec)
-                        n_inliers = len(inliers.flatten())
-                        info_text = (
-                            f"{board.name} ({len(matched_ids)} mkrs, "
-                            f"{n_inliers} inliers) {dist:.2f}m"
-                        )
-                        for img in debug_imgs:
-                            cv2.putText(
-                                img, info_text, (20, 70),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3,
-                            )
-                            cv2.putText(
-                                img, f"IDs: {sorted(matched_ids)}", (20, 120),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 3,
-                            )
-                    elif matched_ids:
-                        for img in debug_imgs:
-                            cv2.putText(
-                                img,
-                                f"RANSAC failed ({len(matched_ids)} mkrs)",
-                                (20, 70),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3,
-                            )
-            else:
-                for img in debug_imgs:
-                    cv2.putText(
-                        img, "SEARCHING...", (20, 70),
-                        cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 0, 255), 4,
-                    )
-
-        if pubs["threshold"].get_num_connections() > 0:
-            win_size = self.params["debug_thresh_win_size"]
-            thresh_img = cv2.adaptiveThreshold(
-                gray,
-                255,
-                cv2.ADAPTIVE_THRESH_MEAN_C,
-                cv2.THRESH_BINARY,
-                win_size,
-                int(self.params["adaptive_thresh_constant"]),
-            )
-
-        with self._debug_lock:
-            self._debug_queue[cam_key] = (debug_img, debug_gray, thresh_img)
-        self._debug_ready.set()
 
     def _debug_publisher_loop(self):
         while not rospy.is_shutdown() and not self._shutdown:
@@ -645,19 +522,104 @@ class ArucoDetectionNode:
                 queue = dict(self._debug_queue)
                 self._debug_queue.clear()
 
-            for cam_key, (debug_img, debug_gray, thresh_img) in queue.items():
-                cam = self.cameras.get(cam_key)
-                if cam is None:
-                    continue
-                pubs = cam.debug_pubs
+            for cam_key, (cv_image, gray, corners, ids, board_debug_info, camera) in queue.items():
+                pubs = camera.debug_pubs
                 try:
-                    if not rospy.is_shutdown():
-                        if debug_img is not None and pubs["debug"].get_num_connections() > 0:
+                    if rospy.is_shutdown():
+                        break
+
+                    need_annotated = (
+                        pubs["debug"].get_num_connections() > 0
+                        or pubs["processed"].get_num_connections() > 0
+                    )
+
+                    if need_annotated:
+                        debug_img = cv_image
+                        debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+                        debug_imgs = [debug_img, debug_gray]
+
+                        if ids is not None and len(ids) > 0:
+                            for img in debug_imgs:
+                                cv2.aruco.drawDetectedMarkers(img, corners, ids)
+
+                            for board, rvec, tvec, matched_ids, inliers, ref_corners, ref_ids in board_debug_info:
+                                if rvec is not None and inliers is not None:
+                                    img_pts_list = []
+                                    for i, mid in enumerate(ref_ids.flatten()):
+                                        if mid in board.obj_points_by_id:
+                                            img_pts_list.append(ref_corners[i].reshape(4, 2))
+                                    if img_pts_list:
+                                        img_points = np.vstack(img_pts_list).astype(np.float32)
+                                        inlier_set = set(inliers.flatten())
+                                        for idx, pt in enumerate(img_points):
+                                            pt_int = tuple(pt.astype(int))
+                                            for img in debug_imgs:
+                                                cv2.circle(img, pt_int, 15, (0, 0, 0), -1)
+                                                if idx in inlier_set:
+                                                    cv2.circle(img, pt_int, 10, (0, 255, 0), -1)
+                                                else:
+                                                    cv2.circle(img, pt_int, 12, (0, 0, 255), 4)
+
+                                    prev_log = cv2.getLogLevel()
+                                    cv2.setLogLevel(2)
+                                    for img in debug_imgs:
+                                        cv2.drawFrameAxes(
+                                            img,
+                                            camera.camera_matrix,
+                                            camera.dist_coeffs,
+                                            rvec,
+                                            tvec,
+                                            0.15,
+                                        )
+                                    cv2.setLogLevel(prev_log)
+
+                                    dist = np.linalg.norm(tvec)
+                                    n_inliers = len(inliers.flatten())
+                                    info_text = (
+                                        f"{board.name} ({len(matched_ids)} mkrs, "
+                                        f"{n_inliers} inliers) {dist:.2f}m"
+                                    )
+                                    for img in debug_imgs:
+                                        cv2.putText(
+                                            img, info_text, (20, 70),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3,
+                                        )
+                                        cv2.putText(
+                                            img, f"IDs: {sorted(matched_ids)}", (20, 120),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 3,
+                                        )
+                                elif matched_ids:
+                                    for img in debug_imgs:
+                                        cv2.putText(
+                                            img,
+                                            f"RANSAC failed ({len(matched_ids)} mkrs)",
+                                            (20, 70),
+                                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3,
+                                        )
+                        else:
+                            for img in debug_imgs:
+                                cv2.putText(
+                                    img, "SEARCHING...", (20, 70),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 0, 255), 4,
+                                )
+
+                        if pubs["debug"].get_num_connections() > 0:
                             pubs["debug"].publish(self._encode_compressed(debug_img))
-                        if debug_gray is not None and pubs["processed"].get_num_connections() > 0:
+                        if pubs["processed"].get_num_connections() > 0:
                             pubs["processed"].publish(self._encode_compressed(debug_gray))
-                        if thresh_img is not None and pubs["threshold"].get_num_connections() > 0:
-                            pubs["threshold"].publish(self._encode_compressed(thresh_img))
+
+                    if pubs["threshold"].get_num_connections() > 0:
+                        win_size = self.params["debug_thresh_win_size"]
+                        thresh_img = cv2.adaptiveThreshold(
+                            gray,
+                            255,
+                            cv2.ADAPTIVE_THRESH_MEAN_C,
+                            cv2.THRESH_BINARY,
+                            win_size,
+                            int(self.params["adaptive_thresh_constant"]),
+                        )
+                        pubs["threshold"].publish(self._encode_compressed(thresh_img))
+
                 except Exception as e:
                     rospy.logwarn_throttle(5.0, f"Debug publish failed: {e}")
 

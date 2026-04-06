@@ -41,15 +41,20 @@ def get_aruco_dictionary(name):
     return cv2.aruco.getPredefinedDictionary(ARUCO_DICT_MAP[name])
 
 
-def preprocess_image(cv_image, clahe_clip, clahe_tile, blur_strength):
+_clahe_cache = {"clip": None, "tile": None, "obj": None}
+
+
+def preprocess_image(cv_image, clahe_clip, clahe_tile):
+    if _clahe_cache["clip"] != clahe_clip or _clahe_cache["tile"] != clahe_tile:
+        _clahe_cache["clip"] = clahe_clip
+        _clahe_cache["tile"] = clahe_tile
+        _clahe_cache["obj"] = cv2.createCLAHE(
+            clipLimit=clahe_clip, tileGridSize=(clahe_tile, clahe_tile)
+        )
+
     lab = cv2.cvtColor(cv_image, cv2.COLOR_BGR2LAB)
     l_channel = lab[:, :, 0]
-    clahe = cv2.createCLAHE(
-        clipLimit=clahe_clip, tileGridSize=(clahe_tile, clahe_tile)
-    )
-    gray = clahe.apply(l_channel)
-    gray = cv2.medianBlur(gray, blur_strength)
-    return gray
+    return _clahe_cache["obj"].apply(l_channel)
 
 
 def build_marker_object_points(marker_size):
@@ -67,7 +72,10 @@ def build_marker_object_points(marker_size):
 
 
 def build_board_object_points(board_config, markers_config):
-    """Build {aruco_id: 4x3 corner points} for a board's marker layout."""
+    """Build {aruco_id: 4x3 corner points} for a board's marker layout.
+
+    Each marker's (x, y) in the layout is the top-left corner position.
+    """
     obj_points = {}
     for marker_name, position in board_config["marker_layout"].items():
         marker = markers_config[marker_name]
@@ -161,11 +169,11 @@ def solve_marker_pose(marker_obj_points, marker_corners, camera_matrix, dist_coe
     return success, rvec, tvec
 
 
-def rvec_tvec_to_quaternion(rvec, tvec, force_horizontal=False):
+def rvec_tvec_to_quaternion(rvec, tvec, force_floor_orientation=False):
     """Convert solvePnP rvec to a quaternion.
 
     Applies 180-degree X rotation (ArUco -> ROS convention).
-    If force_horizontal, keeps only yaw (for floor-mounted boards/markers).
+    If force_floor_orientation, keeps only yaw (for floor-mounted boards/markers).
     """
     rot_mat, _ = cv2.Rodrigues(rvec)
     transform_matrix = np.eye(4)
@@ -177,7 +185,7 @@ def rvec_tvec_to_quaternion(rvec, tvec, force_horizontal=False):
 
     quat = tf.transformations.quaternion_from_matrix(transform_matrix)
 
-    if force_horizontal:
+    if force_floor_orientation:
         euler = tf.transformations.euler_from_quaternion(quat)
         yaw = euler[2]
         quat = tf.transformations.quaternion_from_euler(np.pi, 0.0, yaw)
@@ -206,7 +214,7 @@ def publish_pose_to_odom(
     )
 
     try:
-        transformed = tf_buffer.transform(pose_stamped, "odom", rospy.Duration(1.0))
+        transformed = tf_buffer.transform(pose_stamped, "odom", rospy.Duration(0.1))
 
         odom_transform = TransformStamped()
         odom_transform.header = transformed.header

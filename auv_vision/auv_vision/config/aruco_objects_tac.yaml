@@ -9,7 +9,7 @@ markers:
 boards:
   docking_board:
     tf_frame: "docking_station"
-    force_horizontal: true
+    force_floor_orientation: true
     marker_layout:
       dock_tl: { x: -0.352, y: -0.552 }
       dock_tr: { x:  0.207, y: -0.552 }
