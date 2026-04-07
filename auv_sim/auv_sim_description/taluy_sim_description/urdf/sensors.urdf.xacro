@@ -8,9 +8,64 @@
   <xacro:sonar_sim name="${namespace}/base_link/sonar_back" topic="sensors/sonar_back"/>
   <xacro:sonar_sim name="${namespace}/base_link/sonar_right" topic="sensors/sonar_right"/>
   <xacro:sonar_sim name="${namespace}/base_link/sonar_left" topic="sensors/sonar_left"/>
-  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/front_camera" topic_name="cameras/cam_front"/>
-  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/bottom_camera" topic_name="cameras/cam_bottom"/>
-  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/torpedo_camera" topic_name="cameras/cam_torpedo"/>
+
+  <!-- Share camera calibration with hardware. Plumb-bob order: [k1, k2, p1, p2, k3]. -->
+  <xacro:property name="cam_cfg" value="${xacro.load_yaml('$(find auv_bringup)/config/cameras_taluy.yaml')}"/>
+
+  <xacro:property name="front_cfg" value="${cam_cfg['cam_front']}"/>
+  <xacro:property name="front_w" value="${front_cfg['image_width']}"/>
+  <xacro:property name="front_h" value="${front_cfg['image_height']}"/>
+  <xacro:property name="front_fx" value="${front_cfg['camera_matrix']['data'][0]}"/>
+  <xacro:property name="front_d" value="${front_cfg['distortion_coefficients']['data']}"/>
+
+  <xacro:property name="bottom_cfg" value="${cam_cfg['cam_bottom']}"/>
+  <xacro:property name="bottom_w" value="${bottom_cfg['image_width']}"/>
+  <xacro:property name="bottom_h" value="${bottom_cfg['image_height']}"/>
+  <xacro:property name="bottom_fx" value="${bottom_cfg['camera_matrix']['data'][0]}"/>
+  <xacro:property name="bottom_d" value="${bottom_cfg['distortion_coefficients']['data']}"/>
+
+  <xacro:property name="torpedo_cfg" value="${cam_cfg['cam_torpedo']}"/>
+  <xacro:property name="torpedo_w" value="${torpedo_cfg['image_width']}"/>
+  <xacro:property name="torpedo_h" value="${torpedo_cfg['image_height']}"/>
+  <xacro:property name="torpedo_fx" value="${torpedo_cfg['camera_matrix']['data'][0]}"/>
+  <xacro:property name="torpedo_d" value="${torpedo_cfg['distortion_coefficients']['data']}"/>
+
+  <xacro:logitech_c920_camera_sim
+    name="${namespace}/base_link/front_camera"
+    topic_name="cameras/cam_front"
+    image_width="${front_w}"
+    image_height="${front_h}"
+    hfov="${2 * atan2(front_w, 2 * front_fx)}"
+    distortion_k1="${front_d[0]}"
+    distortion_k2="${front_d[1]}"
+    distortion_k3="${front_d[4]}"
+    distortion_t1="${front_d[2]}"
+    distortion_t2="${front_d[3]}"
+  />
+  <xacro:logitech_c920_camera_sim
+    name="${namespace}/base_link/bottom_camera"
+    topic_name="cameras/cam_bottom"
+    image_width="${bottom_w}"
+    image_height="${bottom_h}"
+    hfov="${2 * atan2(bottom_w, 2 * bottom_fx)}"
+    distortion_k1="${bottom_d[0]}"
+    distortion_k2="${bottom_d[1]}"
+    distortion_k3="${bottom_d[4]}"
+    distortion_t1="${bottom_d[2]}"
+    distortion_t2="${bottom_d[3]}"
+  />
+  <xacro:logitech_c920_camera_sim
+    name="${namespace}/base_link/torpedo_camera"
+    topic_name="cameras/cam_torpedo"
+    image_width="${torpedo_w}"
+    image_height="${torpedo_h}"
+    hfov="${2 * atan2(torpedo_w, 2 * torpedo_fx)}"
+    distortion_k1="${torpedo_d[0]}"
+    distortion_k2="${torpedo_d[1]}"
+    distortion_k3="${torpedo_d[4]}"
+    distortion_t1="${torpedo_d[2]}"
+    distortion_t2="${torpedo_d[3]}"
+  />
   <xacro:bar30_sim name="${namespace}/base_link/external_pressure_sensor" update_rate="$(arg pressure_update_rate)" namespace="${namespace}"/>
   <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg imu_update_rate)"/>
   <xacro:wayfinder_dvl_sim name="${namespace}/base_link/dvl" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg dvl_update_rate)"/>

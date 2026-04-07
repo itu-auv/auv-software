@@ -4,7 +4,28 @@
   <xacro:arg name="dvl_update_rate" default="20"/>
   <xacro:arg name="pressure_update_rate" default="20"/>
   <xacro:include filename="$(find auv_common_sim_descriptions)/urdf/sensors.urdf.xacro"/>
-  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/front_camera" topic_name="cameras/cam_front"/>
+
+  <!-- Share camera calibration with hardware. Plumb-bob order: [k1, k2, p1, p2, k3]. -->
+  <xacro:property name="cam_cfg" value="${xacro.load_yaml('$(find auv_bringup)/config/cameras_taluy_mini.yaml')}"/>
+
+  <xacro:property name="front_cfg" value="${cam_cfg['cam_front']}"/>
+  <xacro:property name="front_w" value="${front_cfg['image_width']}"/>
+  <xacro:property name="front_h" value="${front_cfg['image_height']}"/>
+  <xacro:property name="front_fx" value="${front_cfg['camera_matrix']['data'][0]}"/>
+  <xacro:property name="front_d" value="${front_cfg['distortion_coefficients']['data']}"/>
+
+  <xacro:logitech_c920_camera_sim
+    name="${namespace}/base_link/front_camera"
+    topic_name="cameras/cam_front"
+    image_width="${front_w}"
+    image_height="${front_h}"
+    hfov="${2 * atan2(front_w, 2 * front_fx)}"
+    distortion_k1="${front_d[0]}"
+    distortion_k2="${front_d[1]}"
+    distortion_k3="${front_d[4]}"
+    distortion_t1="${front_d[2]}"
+    distortion_t2="${front_d[3]}"
+  />
   <xacro:bar30_sim name="${namespace}/base_link/external_pressure_sensor" update_rate="$(arg pressure_update_rate)" namespace="${namespace}"/>
   <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg imu_update_rate)"/>
   <xacro:wayfinder_dvl_sim name="${namespace}/base_link/dvl" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg dvl_update_rate)"/>
