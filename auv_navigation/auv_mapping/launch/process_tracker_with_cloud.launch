@@ -16,11 +16,11 @@
   <arg name="camera_optical_frame" default="$(arg namespace)/camera_depth_optical_frame"/>
 
   <!-- YOLO Result Bridge Node (from auv_vision package) -->
-  <node name="yolo_result_bridge" pkg="auv_vision" type="yolo_result_bridge.py" output="screen">
+  <node name="yolo_result_bridge" ns="$(arg namespace)" pkg="auv_vision" type="yolo_result_bridge.py" output="screen">
   </node>
 
   <!-- Process Tracker With Cloud Node -->
-  <node name="process_tracker_with_cloud" pkg="auv_mapping" type="process_tracker_with_cloud" output="screen">
+  <node name="process_tracker_with_cloud" ns="$(arg namespace)" pkg="auv_mapping" type="process_tracker_with_cloud" output="screen">
     <!-- Parameters -->
     <param name="camera_info_topic" value="/$(arg namespace)/camera/color/camera_info"/>
     <param name="lidar_topic" value="$(arg point_cloud_topic)"/>
@@ -34,9 +34,9 @@
     <param name="base_link_frame" value="$(arg namespace)/base_link"/>
     <!-- Remaps -->
     <remap from="update_object_transforms" to="/$(arg namespace)/map/object_transform_updates"/>
-    <remap from="enable" to="/process_tracker_with_cloud/enable"/>
+    <remap from="enable" to="/$(arg namespace)/process_tracker_with_cloud/enable"/>
   </node>
 
   <!-- Start RViz Optionally-->
-  <node if="$(arg debug)" pkg="rviz" type="rviz" name="rviz"/>
+  <node if="$(arg debug)" pkg="rviz" type="rviz" name="rviz" ns="$(arg namespace)"/>
 </launch>

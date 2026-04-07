@@ -7,7 +7,7 @@
 
   <arg name="namespace" default="taluy"/>
 
-  <node name="sim_bbox_node" pkg="auv_vision" type="sim_bbox_node.py" output="screen">
+  <node name="sim_bbox_node" ns="$(arg namespace)" pkg="auv_vision" type="sim_bbox_node.py" output="screen">
     <param name="namespace" value="$(arg namespace)"/>
   </node>
 </launch>

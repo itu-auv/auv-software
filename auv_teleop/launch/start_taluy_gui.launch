@@ -4,27 +4,27 @@
   <arg name="imu_topic" default="$(eval '/vectornav/IMU' if arg('namespace') == 'taluy_mini' else 'sensors/imu/data')" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
 
-    <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen">
-        <remap from="set_depth" to="$(arg namespace)/set_depth"/>
-        <remap from="localization_enable" to="$(arg namespace)/auv_localization_node/enable"/>
-        <remap from="dvl/enable" to="$(arg namespace)/sensors/dvl/enable"/>
-        <remap from="ball_dropper/drop" to="$(arg namespace)/actuators/ball_dropper/drop"/>
-        <remap from="torpedo_1/launch" to="$(arg namespace)/actuators/torpedo_1/launch"/>
-        <remap from="torpedo_2/launch" to="$(arg namespace)/actuators/torpedo_2/launch"/>
-        <remap from="cmd_vel" to="$(arg namespace)/cmd_vel"/>
-        <remap from="enable" to="$(arg namespace)/enable"/>
-        <remap from="drive_pulse" to="$(arg namespace)/board/drive_pulse"/>
-        <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
-      <remap from="power" to="$(arg namespace)/mainboard/power_sensor/power" />
+    <node name="taluy_gui" ns="$(arg namespace)" pkg="auv_teleop" type="taluy_gui.py" output="screen">
+        <remap from="set_depth" to="set_depth"/>
+        <remap from="localization_enable" to="auv_localization_node/enable"/>
+        <remap from="dvl/enable" to="sensors/dvl/enable"/>
+        <remap from="ball_dropper/drop" to="actuators/ball_dropper/drop"/>
+        <remap from="torpedo_1/launch" to="actuators/torpedo_1/launch"/>
+        <remap from="torpedo_2/launch" to="actuators/torpedo_2/launch"/>
+        <remap from="cmd_vel" to="cmd_vel"/>
+        <remap from="enable" to="enable"/>
+        <remap from="drive_pulse" to="board/drive_pulse"/>
+        <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
+        <remap from="power" to="mainboard/power_sensor/power" />
 
-        <remap from="align_frame/cancel" to="$(arg namespace)/control/align_frame/cancel"/>
-        <remap from="reset_odometry" to="$(arg namespace)/reset_odometry"/>
-        <remap from="calibrate_imu" to="$(arg namespace)/calibrate_imu"/>
+        <remap from="align_frame/cancel" to="control/align_frame/cancel"/>
+        <remap from="reset_odometry" to="reset_odometry"/>
+        <remap from="calibrate_imu" to="calibrate_imu"/>
 
-        <param name="topic_imu" value="$(arg namespace)/$(arg imu_topic)" />
-        <param name="topic_dvl_validity" value="$(arg namespace)/$(arg dvl_is_valid_topic)" />
-        <param name="topic_pressure" value="$(arg namespace)/sensors/external_pressure_sensor/depth" />
-        <param name="topic_camera_bottom" value="$(arg namespace)/cameras/cam_bottom/image_raw" />
-        <param name="topic_camera_front" value="$(arg namespace)/cameras/cam_front/image_raw" />
+        <param name="topic_imu" value="$(arg imu_topic)" />
+        <param name="topic_dvl_validity" value="$(arg dvl_is_valid_topic)" />
+        <param name="topic_pressure" value="sensors/external_pressure_sensor/depth" />
+        <param name="topic_camera_bottom" value="cameras/cam_bottom/image_raw" />
+        <param name="topic_camera_front" value="cameras/cam_front/image_raw" />
     </node>
 </launch>
