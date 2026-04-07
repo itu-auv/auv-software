@@ -13,6 +13,7 @@
     <arg name="use_gui" default="true" />
     <arg name="debug" default="false" />
     <arg name="world" default="pool" />
+    <param name="/simulation_world" value="$(arg world)" />
     <arg name="use_ned_frame" default="false" />
     <arg name="imu_update_rate" default="20" />
     <arg name="dvl_update_rate" default="20" />
@@ -21,7 +22,8 @@
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
     <arg name="log_filename" default="" />
     <arg name="start_bridge" default="true" />
-    <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_taluy.yaml" />
+    <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_tac.yaml" if="$(eval arg('world') == 'tac_pool')" />
+    <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_taluy.yaml" unless="$(eval arg('world') == 'tac_pool')" />
     <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
     <arg name="use_models" default="false" />
@@ -49,20 +51,28 @@
     <arg name="x" default="7.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="x" default="-9.5" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="x" default="3.0" if="$(eval arg('world') == 'tac_sea')" />
+    <arg name="x" default="0.0" if="$(eval arg('world') == 'tac_pool')" />
     <arg name="y" default="-15.5" if="$(eval arg('world') == 'pool')" />
     <arg name="y" default="1.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="y" default="-3" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="y" default="0" if="$(eval arg('world') == 'tac_sea')" />
+    <arg name="y" default="-7.0" if="$(eval arg('world') == 'tac_pool')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'pool')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'tac_sea')" />
+    <arg name="z" default="-0.5" if="$(eval arg('world') == 'tac_pool')" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="0.7" if="$(eval arg('world') == 'seabed')" />
     <arg name="yaw" value="0" if="$(eval arg('world') == 'pool')" />
     <arg name="yaw" default="0" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="yaw" default="0.5" if="$(eval arg('world') == 'tac_sea')" />
+    <arg name="yaw" default="1.5708" if="$(eval arg('world') == 'tac_pool')" />
+
+    <!-- Pool depth (used by pressure_odometry_node valid range and bin altitude calc) -->
+    <arg name="pool_depth" default="6.0" if="$(eval arg('world') == 'tac_pool')" />
+    <arg name="pool_depth" default="2.134" unless="$(eval arg('world') == 'tac_pool')" />
 
     <!-- Start world launch -->
     <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch">
@@ -99,6 +109,7 @@
             <arg name="sim" value="$(arg sim)" />
             <arg name="use_gui" value="$(arg use_gui)" />
             <arg name="detection_config" value="$(arg detection_config)" />
+            <arg name="pool_depth" value="$(arg pool_depth)" />
         </include>
     </group>
 

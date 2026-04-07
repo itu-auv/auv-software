@@ -3,17 +3,16 @@
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
   <arg name="dvl_virtual_port" default="/tmp/vcom0" />
-  <arg name="sim" default="false" />
-  <arg name="use_gui" default="$(arg sim)" />
+  <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="true" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
   <arg name="device" default="cuda:0" />
-  <arg name="world" default="pool" />
   <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_tac.yaml" />
   <arg name="aruco_config" default="$(find auv_vision)/config/aruco_objects_tac.yaml" />
+  <arg name="pool_depth" default="2.134" />
 
-  <!-- 1a. Include start.launch (hardware + navigation) - for real robot -->
-  <include unless="$(arg sim)" file="$(find auv_bringup)/launch/start.launch">
+  <!-- 1. Include start.launch (hardware + navigation) -->
+  <include file="$(find auv_bringup)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="dvl_virtual_port" value="$(arg dvl_virtual_port)" />
@@ -21,21 +20,11 @@
     <arg name="enable_logging" value="$(arg enable_logging)" />
     <arg name="logging_directory" value="$(arg logging_directory)" />
     <arg name="detection_config" value="$(arg detection_config)" />
+    <arg name="pool_depth" value="$(arg pool_depth)" />
   </include>
 
-  <!-- 1b. Include start_gazebo.launch (simulation) - for simulation -->
-  <include if="$(arg sim)" file="$(find auv_sim_bringup)/launch/start_gazebo.launch">
-    <arg name="namespace" value="$(arg namespace)" />
-    <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="use_gui" value="$(arg use_gui)" />
-    <arg name="world" value="$(arg world)" />
-    <arg name="enable_logging" value="$(arg enable_logging)" />
-    <arg name="logging_directory" value="$(arg logging_directory)" />
-    <arg name="detection_config" value="$(arg detection_config)" />
-  </include>
-
-  <!-- 2. TAC Docking detection: YOLO tracker (not needed in sim — sim_bbox_node publishes ground truth) -->
-  <include unless="$(arg sim)" file="$(find auv_detection)/launch/inc/tracker_docking.launch">
+  <!-- 2. TAC Docking detection: YOLO tracker -->
+  <include file="$(find auv_detection)/launch/inc/tracker_docking.launch">
     <arg name="device" value="$(arg device)" />
   </include>
 

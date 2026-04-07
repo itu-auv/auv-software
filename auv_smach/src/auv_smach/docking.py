@@ -25,7 +25,7 @@ class ToggleDockingTrajectoryState(smach_ros.ServiceState):
 class DockingTaskState(smach.State):
     def __init__(
         self,
-        search_depth: float = -0.3,
+        search_depth: float = -3.85,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
