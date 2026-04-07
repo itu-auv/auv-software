@@ -45,9 +45,9 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
   node_handler_private.param<std::string>("base_link_frame", base_link_frame_,
                                           "taluy/base_link");
 
-  service_ =
-      nh_.advertiseService("set_object_transform",
-                           &ObjectMapTFServerROS::set_transform_handler, this);
+  set_transform_sub_ =
+      nh_.subscribe("set_object_transform", 10,
+                    &ObjectMapTFServerROS::set_transform_callback, this);
 
   clear_service_ =
       nh_.advertiseService("clear_object_transforms",
@@ -87,37 +87,6 @@ bool ObjectMapTFServerROS::clear_map_handler(std_srvs::Trigger::Request &req,
   res.message = "Cleared all object transforms and filters.";
 
   ROS_INFO("Cleared all object transforms and filters.");
-  return true;
-}
-
-bool ObjectMapTFServerROS::set_transform_handler(
-    auv_msgs::SetObjectTransform::Request &req,
-    auv_msgs::SetObjectTransform::Response &res) {
-  const auto static_transform = transform_to_static_frame(req.transform);
-
-  if (!static_transform.has_value()) {
-    res.success = false;
-    res.message = "Failed to capture transform";
-    return false;
-  }
-
-  const auto target_frame = req.transform.child_frame_id;
-
-  {
-    auto lock = std::scoped_lock{mutex_};
-    auto it = filters_.find(target_frame);
-    if (it != filters_.end()) {
-      filters_[target_frame].clear();
-    }
-
-    filters_[target_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-  }
-
-  ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
-                                                   << target_frame);
-  res.success = true;
-  res.message = "Stored transform for frame: " + target_frame;
   return true;
 }
 
@@ -349,6 +318,37 @@ ObjectMapTFServerROS::get_transform(const std::string &target_frame,
     ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
     return std::nullopt;
   }
+}
+
+void ObjectMapTFServerROS::set_transform_callback(
+    const geometry_msgs::TransformStamped::ConstPtr &msg) {
+  // 1. Translate message to Static Frame
+  const auto static_transform = transform_to_static_frame(*msg);
+
+  if (!static_transform.has_value()) {
+    ROS_WARN("Failed to capture transform");
+    return;
+  }
+
+  const auto target_frame = msg->child_frame_id;
+
+  {
+    // Thread-safe access to filters_
+    auto lock = std::scoped_lock{mutex_};
+
+    // clean old filters for this frame
+    auto it = filters_.find(target_frame);
+    if (it != filters_.end()) {
+      filters_[target_frame].clear();
+    }
+
+    // start a new filter for this frame
+    filters_[target_frame].push_back(
+        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
+  }
+
+  ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
+                                                   << target_frame);
 }
 
 }  // namespace auv_mapping
