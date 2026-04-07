@@ -37,11 +37,15 @@
     <!-- Run RViz -->
     <node
         name="rviz"
+        ns="$(arg namespace)"
         pkg="rviz"
         type="rviz"
         args="-d $(arg rviz_config)"
         if="$(arg use_gui)"
-    />
+    >
+        <remap from="/tf" to="/$(arg namespace)/tf" />
+        <remap from="/tf_static" to="/$(arg namespace)/tf_static" />
+    </node>
 
     <!-- Initial robot position and orientation -->
     <arg name="x" default="-7.0" if="$(eval arg('world') == 'pool')" />
@@ -70,69 +74,79 @@
         <arg name="namespace" value="$(arg namespace)" />
     </include>
 
-    <!-- Spawn robot -->
-    <include file="$(find auv_sim_bringup)/launch/inc/spawn_robot.launch">
-        <arg name="debug" value="$(arg debug)" />
-        <arg name="namespace" value="$(arg namespace)" />
-        <arg name="control_rate" value="$(arg control_rate)" />
-        <arg name="use_ned_frame" value="$(arg use_ned_frame)" />
-        <arg name="reference_frame" value="$(arg reference_frame)" />
-        <arg name="x" value="$(arg x)" />
-        <arg name="y" value="$(arg y)" />
-        <arg name="z" value="$(arg z)" />
-        <arg name="roll" value="$(arg roll)" />
-        <arg name="pitch" value="$(arg pitch)" />
-        <arg name="yaw" value="$(arg yaw)" />
-        <arg name="imu_update_rate" value="$(arg imu_update_rate)" />
-        <arg name="dvl_update_rate" value="$(arg dvl_update_rate)" />
-        <arg name="pressure_update_rate" value="$(arg pressure_update_rate)" />
-        <arg name="use_models" value="$(arg use_models)" />
-        <arg name="robot_description_file" value="$(arg robot_description_file)" />
-    </include>
+    <group>
+        <group>
+            <remap from="/tf" to="/$(arg namespace)/tf" />
+            <remap from="/tf_static" to="/$(arg namespace)/tf_static" />
 
-    <!-- Start bridge -->
-    <group if="$(arg start_bridge)">
-        <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch">
+            <!-- Spawn robot -->
+            <include file="$(find auv_sim_bringup)/launch/inc/spawn_robot.launch">
+                <arg name="debug" value="$(arg debug)" />
+                <arg name="namespace" value="$(arg namespace)" />
+                <arg name="control_rate" value="$(arg control_rate)" />
+                <arg name="use_ned_frame" value="$(arg use_ned_frame)" />
+                <arg name="reference_frame" value="$(arg reference_frame)" />
+                <arg name="x" value="$(arg x)" />
+                <arg name="y" value="$(eval str(float(arg('y')) + (1.0 if arg('namespace') == 'taluy_mini' else 0.0)))" />
+                <arg name="z" value="$(arg z)" />
+                <arg name="roll" value="$(arg roll)" />
+                <arg name="pitch" value="$(arg pitch)" />
+                <arg name="yaw" value="$(arg yaw)" />
+                <arg name="imu_update_rate" value="$(arg imu_update_rate)" />
+                <arg name="dvl_update_rate" value="$(arg dvl_update_rate)" />
+                <arg name="pressure_update_rate" value="$(arg pressure_update_rate)" />
+                <arg name="use_models" value="$(arg use_models)" />
+                <arg name="robot_description_file" value="$(arg robot_description_file)" />
+            </include>
+
+            <!-- Start bridge -->
+            <group if="$(arg start_bridge)">
+                <include file="$(find auv_sim_bringup)/launch/inc/start_bridge.launch">
+                    <arg name="namespace" value="$(arg namespace)" />
+                    <arg name="control_rate" value="$(arg control_rate)" />
+                    <arg name="sim" value="true" />
+                    <arg name="use_gui" value="$(arg use_gui)" />
+                </include>
+            </group>
+
+            <!-- Simulation ground truth bbox tracker -->
+            <include file="$(find auv_detection)/launch/tracker_sim.launch">
+                <arg name="namespace" value="$(arg namespace)" />
+            </include>
+
+            <!-- TF-Gazebo Debug Node -->
+            <node name="tf_gazebo_debug" ns="$(arg namespace)" pkg="auv_sim" type="tf_gazebo_debug.py" output="screen">
+              <remap from="/debug/frame_to_model" to="/$(arg namespace)/debug/frame_to_model" />
+              <remap from="/debug/delete_all" to="/$(arg namespace)/debug/delete_all" />
+              <param name="robot_name" value="$(arg namespace)" />
+              <param name="robot_base_frame" value="$(arg namespace)/base_link" />
+            </node>
+        </group>
+
+        <group if="$(arg enable_logging)">
+            <include file="$(find auv_bringup)/launch/logging.launch">
+                <arg name="namespace" value="$(arg namespace)" />
+                <arg name="logging_directory" value="$(arg logging_directory)" />
+                <arg name="log_filename" value="$(arg log_filename)" />
+            </include>
+        </group>
+
+        <!-- Start image processing -->
+        <include file="$(find auv_sim_bringup)/launch/inc/start_image_processing.launch">
             <arg name="namespace" value="$(arg namespace)" />
-            <arg name="control_rate" value="$(arg control_rate)" />
-            <arg name="sim" value="$(arg sim)" />
-            <arg name="use_gui" value="$(arg use_gui)" />
+            <arg name="cam_front_name" value="cam_front" />
+            <arg name="cam_bottom_name" value="cam_bottom" />
         </include>
+
+        <node pkg="rostopic" type="rostopic" name="propulsion_board_status_publisher" ns="$(arg namespace)"
+              args="pub /$(arg namespace)/propulsion_board/status std_msgs/Bool 'data: true' -r 1" />
+
+        <!-- Smach Monitor Node -->
+        <node name="smach_monitor_node" pkg="auv_smach" type="smach_monitor_node.py" output="screen" ns="$(arg namespace)">
+            <remap from="vision/set_front_camera_focus" to="vision/set_front_camera_focus"/>
+            <remap from="control/align_frame/cancel" to="control/align_frame/cancel"/>
+            <remap from="set_heading_control" to="set_heading_control"/>
+        </node>
+
     </group>
-
-    <group if="$(arg enable_logging)">
-        <include file="$(find auv_bringup)/launch/logging.launch">
-            <arg name="namespace" value="$(arg namespace)" />
-            <arg name="logging_directory" value="$(arg logging_directory)" />
-            <arg name="log_filename" value="$(arg log_filename)" />
-        </include>
-    </group>
-
-    <!-- Start image processing -->
-    <include file="$(find auv_sim_bringup)/launch/inc/start_image_processing.launch">
-        <arg name="namespace" value="$(arg namespace)" />
-        <arg name="cam_front_name" value="cam_front" />
-        <arg name="cam_bottom_name" value="cam_bottom" />
-    </include>
-
-    <node pkg="rostopic" type="rostopic" name="propulsion_board_status_publisher"
-          args="pub /$(arg namespace)/propulsion_board/status std_msgs/Bool 'data: true' -r 1" />
-
-    <!-- Smach Monitor Node -->
-    <node name="smach_monitor_node" pkg="auv_smach" type="smach_monitor_node.py" output="screen" ns="$(arg namespace)">
-        <remap from="vision/set_front_camera_focus" to="vision/set_front_camera_focus"/>
-        <remap from="control/align_frame/cancel" to="control/align_frame/cancel"/>
-        <remap from="set_heading_control" to="set_heading_control"/>
-    </node>
-
-    <!-- Simulation ground truth bbox tracker -->
-    <include file="$(find auv_detection)/launch/tracker_sim.launch">
-        <arg name="namespace" value="$(arg namespace)" />
-    </include>
-
-    <!-- TF-Gazebo Debug Node -->
-    <node name="tf_gazebo_debug" pkg="auv_sim" type="tf_gazebo_debug.py" output="screen">
-      <param name="robot_name" value="$(arg namespace)" />
-      <param name="robot_base_frame" value="$(arg namespace)/base_link" />
-    </node>
 </launch>
