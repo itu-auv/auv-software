@@ -13,7 +13,6 @@
 #include "auv_controllers/controller_base.h"
 #include "auv_controllers/multidof_pid_controller.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
-#include "geometry_msgs/Twist.h"
 #include "geometry_msgs/Wrench.h"
 #include "nav_msgs/Odometry.h"
 #include "pluginlib/class_loader.h"
@@ -115,8 +114,6 @@ class ControllerROS {
     control_enable_sub_.set_default_message(std_msgs::Bool{});
 
     wrench_pub_ = nh_.advertise<geometry_msgs::WrenchStamped>("wrench", 1);
-    desired_velocity_pub_ =
-        nh_.advertise<geometry_msgs::Twist>("desired_velocity", 1);
   }
 
   bool load_controller(const std::string& controller_name) {
@@ -149,21 +146,6 @@ class ControllerROS {
 
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
-
-      auto pid_controller =
-          dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
-          
-      // DÜZELTME BURADA: convert() kullanmak yerine Eigen vektörünü manuel olarak Twist mesajına atıyoruz.
-      geometry_msgs::Twist desired_vel_msg;
-      const auto& desired_vel_vector = pid_controller->get_desired_velocity();
-      desired_vel_msg.linear.x = desired_vel_vector(0);
-      desired_vel_msg.linear.y = desired_vel_vector(1);
-      desired_vel_msg.linear.z = desired_vel_vector(2);
-      desired_vel_msg.angular.x = desired_vel_vector(3);
-      desired_vel_msg.angular.y = desired_vel_vector(4);
-      desired_vel_msg.angular.z = desired_vel_vector(5);
-      
-      desired_velocity_pub_.publish(desired_vel_msg);
 
       geometry_msgs::WrenchStamped wrench_msg;
       if (is_control_enabled() && !is_timeouted() && has_fresh_odometry()) {
@@ -253,8 +235,8 @@ class ControllerROS {
 
     if (source_frame.has_value()) {
       ROS_DEBUG("Source frame: %s, Desired frame: %s",
-        source_frame.value().c_str(),
-        depth_control_reference_frame_.c_str());
+                source_frame.value().c_str(),
+                depth_control_reference_frame_.c_str());
       try {
         transform_stamped = tf_buffer.lookupTransform(
             depth_control_reference_frame_, source_frame.value(), ros::Time(0),
@@ -499,7 +481,6 @@ class ControllerROS {
   ros::Subscriber cmd_pose_sub_;
   ros::Subscriber accel_sub_;
   ros::Publisher wrench_pub_;
-  ros::Publisher desired_velocity_pub_;
 
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;

@@ -56,8 +56,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
     gravity_compensation_z_ = compensation;
   }
 
-  const Vectornd& get_desired_velocity() const { return desired_velocity_; }
-
   /**
    * @brief Calculate the control output, in the form of a wrench
    *
@@ -111,12 +109,12 @@ class MultiDOFPIDController : public ControllerBase<N> {
     }
 
     const auto velocity_state = state.tail(N);
-    desired_velocity_ = (desired_state.tail(N) + pos_pid_output)
-                            .cwiseMin(max_velocity_limits_)
-                            .cwiseMax(-max_velocity_limits_);
+    const auto desired_velocity = (desired_state.tail(N) + pos_pid_output)
+                                      .cwiseMin(max_velocity_limits_)
+                                      .cwiseMax(-max_velocity_limits_);
     const auto acceleration_state = d_state.tail(N);
 
-    const auto error = desired_velocity_ - velocity_state;
+    const auto error = desired_velocity - velocity_state;
     const auto p_term = kp_.template block<N, N>(N, N) * error;
 
     integral_.tail(N) += error * dt;
@@ -132,7 +130,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto pid_force = mass_matrix * pid_output;
 
     StateVector feedforward_state = desired_state;
-    feedforward_state.tail(N) = desired_velocity_;
+    feedforward_state.tail(N) = desired_velocity;
     const auto damping_force = damping_control(feedforward_state);
 
     WrenchVector wrench = pid_force + damping_force;
@@ -185,9 +183,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   // Default to effectively unlimited (1e6)
   Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
-
-  // Last computed desired velocity (for external access)
-  Vectornd desired_velocity_{Vectornd::Zero()};
 };
 
 using SixDOFPIDController = MultiDOFPIDController<6>;
