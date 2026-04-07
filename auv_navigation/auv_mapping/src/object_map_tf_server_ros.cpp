@@ -93,7 +93,8 @@ bool ObjectMapTFServerROS::clear_map_handler(std_srvs::Trigger::Request &req,
 bool ObjectMapTFServerROS::set_transform_handler(
     auv_msgs::SetObjectTransform::Request &req,
     auv_msgs::SetObjectTransform::Response &res) {
-  const auto static_transform = transform_to_static_frame(req.transform);
+  const auto static_transform =
+      transform_to_static_frame(req.transform, ros::Time(0));
 
   if (!static_transform.has_value()) {
     res.success = false;
@@ -132,7 +133,8 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   last_time = current_time;
 
   const auto object_frame = msg->child_frame_id;
-  const auto static_transform = transform_to_static_frame(*msg);
+  const auto detection_time = msg->header.stamp;
+  const auto static_transform = transform_to_static_frame(*msg, detection_time);
   if (!static_transform.has_value()) {
     ROS_ERROR("Failed to capture transform");
     return;
@@ -143,7 +145,6 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     // Create first filter for this object
     filters_[object_frame].push_back(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
-    ROS_DEBUG_STREAM("Created new filter for " << object_frame);
     return;
   }
 
@@ -280,11 +281,12 @@ void ObjectMapTFServerROS::update_filter_frame_index(
 
 std::optional<geometry_msgs::TransformStamped>
 ObjectMapTFServerROS::transform_to_static_frame(
-    const geometry_msgs::TransformStamped transform) {
+    const geometry_msgs::TransformStamped transform,
+    const ros::Time &lookup_time) {
   const auto parent_frame = transform.header.frame_id;
   const auto target_frame = transform.child_frame_id;
-  const auto static_to_parent_transform =
-      get_transform(static_frame_, parent_frame, ros::Duration(4.0));
+  const auto static_to_parent_transform = get_transform(
+      static_frame_, parent_frame, lookup_time, ros::Duration(4.0));
 
   if (!static_to_parent_transform.has_value()) {
     ROS_ERROR("Error occurred while looking up transform");
@@ -322,7 +324,7 @@ ObjectMapTFServerROS::transform_to_static_frame(
                    static_to_parent_orientation * parent_to_target_translation};
 
   auto static_transform = geometry_msgs::TransformStamped{};
-  static_transform.header.stamp = ros::Time::now();
+  static_transform.header.stamp = lookup_time;
   static_transform.header.frame_id = static_frame_;
   static_transform.child_frame_id = target_frame;
 
@@ -340,10 +342,11 @@ ObjectMapTFServerROS::transform_to_static_frame(
 std::optional<geometry_msgs::TransformStamped>
 ObjectMapTFServerROS::get_transform(const std::string &target_frame,
                                     const std::string &source_frame,
+                                    const ros::Time &time,
                                     const ros::Duration timeout) {
   try {
-    auto transform = tf_buffer_.lookupTransform(target_frame, source_frame,
-                                                ros::Time(0), timeout);
+    auto transform =
+        tf_buffer_.lookupTransform(target_frame, source_frame, time, timeout);
     return transform;
   } catch (tf2::TransformException &ex) {
     ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
