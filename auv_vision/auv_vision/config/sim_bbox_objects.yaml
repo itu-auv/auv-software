@@ -1,0 +1,280 @@
+cameras:
+  front:
+    image_topic: "/{ns}/cameras/cam_front/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_front/camera_info"
+    optical_frame: "{ns}/base_link/front_camera_optical_link_stabilized"
+    result_topic: "/yolo_result_front"
+    image_out_topic: "/yolo_image_front"
+
+  bottom:
+    image_topic: "/{ns}/cameras/cam_bottom/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_bottom/camera_info"
+    optical_frame: "{ns}/base_link/bottom_camera_optical_link"
+    result_topic: "/yolo_result_bottom"
+    image_out_topic: "/yolo_image_bottom"
+
+  torpedo:
+    image_topic: "/{ns}/cameras/cam_torpedo/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_torpedo/camera_info"
+    optical_frame: "{ns}/base_link/torpedo_camera_optical_link"
+    result_topic: "/yolo_result_torpedo"
+    image_out_topic: "/yolo_image_torpedo"
+
+  bottom_seg:
+    image_topic: "/{ns}/cameras/cam_bottom/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_bottom/camera_info"
+    optical_frame: "{ns}/base_link/bottom_camera_optical_link"
+    result_topic: "/yolo_result_seg"
+    image_out_topic: "/yolo_image_seg"
+
+  realsense:
+    image_topic: "/{ns}/camera/color/image_raw"
+    camera_info_topic: "/{ns}/camera/color/camera_info"
+    optical_frame: "{ns}/camera_depth_optical_frame"
+    result_topic: "/yolo_result_realsense"
+    image_out_topic: "/yolo_image_realsense"
+
+objects:
+  # Gate signs - 0.3048 m (1 ft) square, face in YZ plane
+  - class_id: 0
+    name: sawfish
+    cameras: [front, realsense]
+    gazebo_model: robosub_gate
+    offset: [0.0, -0.762, 1.356]
+    boundary:
+      shape: rect
+      args: [0, 0.1524, 0.1524]
+    occlusion_mesh: models/robosub_gate/meshes/gate.dae
+
+  - class_id: 1
+    name: shark
+    cameras: [front, realsense]
+    gazebo_model: robosub_gate
+    offset: [0.0, 0.762, 1.356]
+    boundary:
+      shape: rect
+      args: [0, 0.1524, 0.1524]
+
+  # Torpedo map panel - 0.6096 m (2 ft) square, face in YZ plane
+  - class_id: 4
+    name: torpedo_map
+    cameras: [front, realsense]
+    gazebo_model: robosub_torpedo
+    offset: [-0.1166, 0.6472, -0.9490]
+    boundary:
+      shape: rect
+      args: [0, 0.3048, -0.3048]
+
+  # Torpedo holes - 0.125 m diameter circles
+  # Both published as ID 5 - the pose estimator sorts upper/lower by image Y
+  - class_id: 5
+    name: torpedo_hole
+    cameras: [torpedo]
+    gazebo_model: robosub_torpedo
+    offset: [-0.1166, 0.6089, -0.9687]
+    boundary:
+      shape: circle
+      args: [0, 0.0625, 0.0625]
+
+  - class_id: 5
+    name: torpedo_hole
+    cameras: [torpedo]
+    gazebo_model: robosub_torpedo
+    offset: [-0.1166, 0.8619, -1.0787]
+    boundary:
+      shape: circle
+      args: [0, 0.0625, 0.0625]
+
+  # Slalom 1 pipes - vertical cylinders, radius 0.0127 m, height 0.9 m
+  - class_id: 3
+    name: white_pipe
+    cameras: [front, realsense]
+    gazebo_model: robosub_slalom_1
+    offset: [-1.5, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  - class_id: 2
+    name: red_pipe
+    cameras: [front, realsense]
+    gazebo_model: robosub_slalom_1
+    offset: [0.0, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  - class_id: 3
+    name: white_pipe
+    cameras: [front, realsense]
+    gazebo_model: robosub_slalom_1
+    offset: [1.5, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  # Slalom 2
+  - class_id: 3
+    name: white_pipe
+    cameras: [front, realsense]
+    gazebo_model: robosub_slalom_2
+    offset: [-1.5, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  - class_id: 2
+    name: red_pipe
+    cameras: [front, realsense]
+    gazebo_model: robosub_slalom_2
+    offset: [0.0, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  - class_id: 3
+    name: white_pipe
+    cameras: [front, realsense]
+    gazebo_model: robosub_slalom_2
+    offset: [1.5, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  # Slalom 3
+  - class_id: 3
+    name: white_pipe
+    cameras: [front, realsense]
+    gazebo_model: robosub_slalom_3
+    offset: [-1.5, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  - class_id: 2
+    name: red_pipe
+    cameras: [front, realsense]
+    gazebo_model: robosub_slalom_3
+    offset: [0.0, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  - class_id: 3
+    name: white_pipe
+    cameras: [front, realsense]
+    gazebo_model: robosub_slalom_3
+    offset: [1.5, 0.0, 0.45]
+    boundary:
+      shape: cylinder
+      args: [0.0127, 0.0127, 0.45]
+
+  # Bin - compound boundary: narrow base + wide overhang
+  - class_id: 6
+    name: bin_whole
+    cameras: [front, realsense]
+    gazebo_model: robosub_bin
+    offset: [0.0, 0.0812, 0.9337]
+    boundary:
+      - shape: rect
+        args: [0.315, 0, 0.162]
+        offset: [0.0, -0.076, 0.0]
+      - shape: rect
+        args: [0.457, 0, 0.305]
+        offset: [0.0, 0.075, 0.0]
+
+  # Bin bottom camera markers - class IDs 0/1 reused (per-camera id_tf_map)
+  - class_id: 0
+    name: bin_sawfish
+    cameras: [bottom]
+    gazebo_model: robosub_bin
+    offset: [-0.1525, 0.0144, 0.9337]
+    boundary:
+      shape: rect
+      args: [0.1524, 0, 0.1524]
+
+  - class_id: 1
+    name: bin_shark
+    cameras: [bottom]
+    gazebo_model: robosub_bin
+    offset: [0.1525, 0.0144, 0.9337]
+    boundary:
+      shape: rect
+      args: [0.1524, 0, 0.1524]
+
+  # Octagon - compound boundary: legs + basket level
+  - class_id: 7
+    name: octagon
+    cameras: [front, realsense]
+    gazebo_model: robosub_octagon
+    offset: [0.0, 0.0, 0.347]
+    boundary:
+      - shape: box
+        args: [0.32, 0.55, 0.27]
+        offset: [0.0, 0.0, -0.077]
+      - shape: box
+        args: [0.305, 0.55, 0.076]
+        offset: [0.0, 0.0, 0.270]
+
+  # Octagon table - central flat panel (bottom camera)
+  - class_id: 2
+    name: octagon_table
+    cameras: [bottom]
+    gazebo_model: robosub_octagon
+    offset: [0.0, 0.0, 0.6446]
+    boundary:
+      shape: rect
+      args: [0.3048, 0.3048, 0]
+
+  # Octagon bins (bottom camera)
+  - class_id: 4
+    name: octagon_bin_yellow
+    cameras: [bottom]
+    gazebo_model: robosub_octagon
+    offset: [-0.021, 0.432, 0.6865]
+    boundary:
+      shape: rect
+      args: [0.1715, 0.1175, 0]
+
+  - class_id: 3
+    name: octagon_bin_pink
+    cameras: [bottom]
+    gazebo_model: robosub_octagon
+    offset: [-0.021, -0.432, 0.6865]
+    boundary:
+      shape: rect
+      args: [0.1715, 0.1175, 0]
+
+  # TAC valve station - two valves inside one model
+  - class_id: 8
+    name: valve
+    cameras: [front]
+    gazebo_model: tac_valve
+    offset: [0.560, 0.555, 1.4205]
+    boundary:
+      shape: circle
+      args: [0, 0.12, 0.12]
+
+  - class_id: 5
+    name: valve
+    cameras: [bottom]
+    gazebo_model: tac_valve
+    offset: [0.0185, 0.518, 0.930]
+    boundary:
+      shape: circle
+      args: [0.12, 0.12, 0]
+
+  # Segmentation objects (mesh-based)
+  - class_id: 0
+    name: bottle
+    cameras: [bottom_seg]
+    gazebo_model: bottle_final1
+    match_prefix: true
+    mesh: models/robosub_bottle/meshes/bottle_final1.dae
+
+  - class_id: 1
+    name: ladle
+    cameras: [bottom_seg]
+    gazebo_model: ladle_final1
+    match_prefix: true
+    mesh: models/robosub_ladle/meshes/ladle.dae
