@@ -1,0 +1,45 @@
+# MRAC Controller Configuration for AUV
+# Load this file alongside default.yaml when using the MRAC controller
+
+# Controller type selection
+controller_type: "auv::control::SixDOFMRACController"
+
+# The model section is shared with default.yaml (mass, damping matrices)
+# Make sure default.yaml is also loaded for the model parameters.
+
+# MRAC-specific parameters
+mrac:
+  # Reference model bandwidth per DOF [surge, sway, heave, roll, pitch, yaw]
+  # A_m = diag(-ω), B_m = diag(ω) → first-order ideal response
+  # Higher values = faster ideal response (but more aggressive control)
+  reference_bandwidth: [1.0, 1.0, 1.5, 1.5, 1.5, 1.5]
+
+  # Learning rate diagonals for state feedback adaptation (Γ_x)
+  # Higher = faster adaptation but risks oscillation
+  gamma_x: [0.5, 0.5, 1.5, 0.2, 0.2, 0.2]
+
+  # Learning rate diagonals for input feedforward adaptation (Γ_r)
+  gamma_r: [0.5, 0.5, 1.5, 0.2, 0.2, 0.2]
+
+  # σ-modification leakage factor (robustness against unmodeled dynamics)
+  # Small positive value prevents gain drift. 0 = no leakage (pure MRAC)
+  sigma: 0.01
+
+  # Lyapunov P matrix diagonal elements
+  # Solves A_m^T P + P A_m = -Q; using diagonal approximation
+  lyapunov_p: [1.0, 1.0, 2.0, 1.0, 1.0, 1.0]
+
+  # Adaptive gain saturation limits (absolute max per row element)
+  kx_max: [10.0, 10.0, 10.0, 5.0, 5.0, 5.0]
+  kr_max: [10.0, 10.0, 10.0, 5.0, 5.0, 5.0]
+
+# Position PID gains (outer loop, retained from existing architecture)
+# Format: [x, y, z, roll, pitch, yaw]
+# Matched to sim's control_config.yaml (roll/pitch = 0 for Gazebo buoyancy)
+position_kp: [1.0, 1.0, 0.8, 0.0, 0.0, 2.0]
+position_ki: [0.0, 0.0, 0.001, 0.0, 0.0, 0.0]
+position_kd: [1.0, 1.0, 0.1, 0.0, 0.0, 0.3]
+position_integral_clamp: [0.0, 0.0, 5.0, 0.0, 0.0, 0.0]
+
+max_velocity: [0.6, 0.6, 0.6, 0.4, 0.4, 0.4]
+gravity_compensation_z: 0.0
