@@ -1,0 +1,10 @@
+q_stddev: 0.01
+r_stddev: 0.1
+q_v_gain: 0.0
+q_omega_gain: 0.0
+r_v_gain: 0.0
+r_omega_gain: 0.0
+q_stddev_scale_min: 1.0
+q_stddev_scale_max: 1.0
+r_stddev_scale_min: 1.0
+r_stddev_scale_max: 1.0
