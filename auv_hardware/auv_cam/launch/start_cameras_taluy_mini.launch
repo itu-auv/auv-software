@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy_mini" />
+  <arg name="compressed" default="true"/>
+  <arg name="verbose" default="false"/>
+  <arg name="pub_camera_info" default="true"/>
+
+  <group ns="$(arg namespace)/cameras">
+    <rosparam command="load" file="$(find auv_bringup)/config/cameras_$(arg namespace).yaml"/>
+    <group ns="cam_front">
+      <node name="cam_front_depthai" pkg="auv_cam" type="oak_cam.py" output="screen"/>
+      <node name="cam_front_proc" pkg="auv_cam" type="cv_image_proc.py" output="screen"/>
+    </group>
+    <node name="cam_bottom" type="auv_gst_cam_node" pkg="auv_cam" output="screen">
+      <param name="verbose" type="bool" value="$(arg verbose)" />
+      <param name="pub_camera_info" value="$(arg pub_camera_info)" />
+    </node>
+    <group ns="cam_bottom">
+      <node name="cam_bottom_proc" pkg="auv_cam" type="cv_image_proc.py" output="screen"/>
+    </group>
+  </group>
+</launch>
