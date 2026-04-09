@@ -1,7 +1,7 @@
 from .initialize import *
 import smach
 import smach_ros
-from auv_smach.tf_utils import get_base_link
+from auv_smach.tf_utils import get_base_link, get_tf_buffer
 from auv_smach.common import (
     NavigateToFrameState,
     SetAlignControllerTargetState,
@@ -100,8 +100,7 @@ class CheckBottleLinkState(smach.State):
         self.source_frame = source_frame
         self.target_frame = target_frame
         self.timeout = rospy.Duration(timeout)
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
     def execute(self, userdata) -> str:
         import rospy
@@ -341,13 +340,13 @@ class OctagonTaskState(smach.State):
                 "MOVE_GRIPPER",
                 GripperAngleOpenState(),
                 transitions={
-                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "succeeded": "ALIGN_TO_TABLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_TO_BOTTLE",
+                "ALIGN_TO_TABLE",
                 AlignFrame(
                     source_frame=self.base_link,
                     target_frame="octagon_table_link",
@@ -362,13 +361,13 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "a",
+                    "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "a",
+                "ALIGN_TO_BOTTLE",
                 AlignFrame(
                     source_frame="taluy/gripper_link",
                     target_frame="bottle_link",
