@@ -29,6 +29,28 @@ from dataclasses import dataclass, field
 from typing import List
 
 
+# copy paste from auv_vision.utils
+def check_inside_image(
+    detection, image_width: int = 640, image_height: int = 480
+) -> bool:
+    """Check if a detection bounding box is fully inside the image."""
+    center = detection.bbox.center
+    half_size_x = detection.bbox.size_x * 0.5
+    half_size_y = detection.bbox.size_y * 0.5
+    deadzone = 5  # pixels
+    if (
+        center.x + half_size_x >= image_width - deadzone
+        or center.x - half_size_x <= deadzone
+    ):
+        return False
+    if (
+        center.y + half_size_y >= image_height - deadzone
+        or center.y - half_size_y <= deadzone
+    ):
+        return False
+    return True
+
+
 @dataclass
 class Point:
     x: float
@@ -237,7 +259,9 @@ class SlalomExpFramePublisher:
             return
 
         for x in detections.detections:
-            # TODO: check_inside_image
+            # TODO: hardcoded width-height
+            if not check_inside_image(x, 640, 480):
+                continue
 
             if len(x.results) == 0:
                 continue
