@@ -35,7 +35,15 @@ from utils.aruco_utils import (
 
 
 class BoardTarget:
-    def __init__(self, name, tf_frame, obj_points_by_id, aruco_ids, force_floor_orientation, cv_board):
+    def __init__(
+        self,
+        name,
+        tf_frame,
+        obj_points_by_id,
+        aruco_ids,
+        force_floor_orientation,
+        cv_board,
+    ):
         self.name = name
         self.tf_frame = tf_frame
         self.obj_points_by_id = obj_points_by_id
@@ -217,7 +225,9 @@ class ArucoDetectionNode:
             os.makedirs(config_dir, exist_ok=True)
             self.param_save_file = os.path.join(config_dir, "aruco_debug_params.yaml")
         except rospkg.common.ResourceNotFound:
-            rospy.logerr("auv_vision package not found. Parameter persistence disabled.")
+            rospy.logerr(
+                "auv_vision package not found. Parameter persistence disabled."
+            )
             self.param_save_file = ""
 
         # ArUco detector
@@ -298,7 +308,9 @@ class ArucoDetectionNode:
                 tf_frame=marker_cfg["tf_frame"],
                 aruco_id=marker_def["aruco_id"],
                 obj_points=obj_points,
-                force_floor_orientation=marker_cfg.get("force_floor_orientation", False),
+                force_floor_orientation=marker_cfg.get(
+                    "force_floor_orientation", False
+                ),
             )
             rospy.loginfo(
                 f"Marker '{marker_name}' (ID {marker_def['aruco_id']}) -> "
@@ -368,9 +380,7 @@ class ArucoDetectionNode:
                     f"{len(cam_markers)} marker(s) on {cam_cfg['image_topic']}"
                 )
             except Exception as e:
-                rospy.logerr(
-                    f"Failed to initialize camera '{cam_key}': {e}. Skipping."
-                )
+                rospy.logerr(f"Failed to initialize camera '{cam_key}': {e}. Skipping.")
 
         # Enable/disable services
         for cam_key in self.cameras:
@@ -498,13 +508,20 @@ class ArucoDetectionNode:
             rospy.logerr(f"CV Bridge Error: {e}")
             return
 
-        result = camera.process(cv_image, msg.header.stamp, self.aruco_detector, self.params)
+        result = camera.process(
+            cv_image, msg.header.stamp, self.aruco_detector, self.params
+        )
 
         if result is not None and self._has_debug_subscribers(cam_key):
             gray, corners, ids, board_debug_info = result
             with self._debug_lock:
                 self._debug_queue[cam_key] = (
-                    cv_image.copy(), gray, corners, ids, board_debug_info, camera
+                    cv_image.copy(),
+                    gray,
+                    corners,
+                    ids,
+                    board_debug_info,
+                    camera,
                 )
             self._debug_ready.set()
 
@@ -522,7 +539,14 @@ class ArucoDetectionNode:
                 queue = dict(self._debug_queue)
                 self._debug_queue.clear()
 
-            for cam_key, (cv_image, gray, corners, ids, board_debug_info, camera) in queue.items():
+            for cam_key, (
+                cv_image,
+                gray,
+                corners,
+                ids,
+                board_debug_info,
+                camera,
+            ) in queue.items():
                 pubs = camera.debug_pubs
                 try:
                     if rospy.is_shutdown():
@@ -542,26 +566,42 @@ class ArucoDetectionNode:
                             for img in debug_imgs:
                                 cv2.aruco.drawDetectedMarkers(img, corners, ids)
 
-                            for board, rvec, tvec, matched_ids, inliers, ref_corners, ref_ids in board_debug_info:
+                            for (
+                                board,
+                                rvec,
+                                tvec,
+                                matched_ids,
+                                inliers,
+                                ref_corners,
+                                ref_ids,
+                            ) in board_debug_info:
                                 if rvec is not None and inliers is not None:
                                     img_pts_list = []
                                     for i, mid in enumerate(ref_ids.flatten()):
                                         if mid in board.obj_points_by_id:
-                                            img_pts_list.append(ref_corners[i].reshape(4, 2))
+                                            img_pts_list.append(
+                                                ref_corners[i].reshape(4, 2)
+                                            )
                                     if img_pts_list:
-                                        img_points = np.vstack(img_pts_list).astype(np.float32)
+                                        img_points = np.vstack(img_pts_list).astype(
+                                            np.float32
+                                        )
                                         inlier_set = set(inliers.flatten())
                                         for idx, pt in enumerate(img_points):
                                             pt_int = tuple(pt.astype(int))
                                             for img in debug_imgs:
-                                                cv2.circle(img, pt_int, 15, (0, 0, 0), -1)
+                                                cv2.circle(
+                                                    img, pt_int, 15, (0, 0, 0), -1
+                                                )
                                                 if idx in inlier_set:
-                                                    cv2.circle(img, pt_int, 10, (0, 255, 0), -1)
+                                                    cv2.circle(
+                                                        img, pt_int, 10, (0, 255, 0), -1
+                                                    )
                                                 else:
-                                                    cv2.circle(img, pt_int, 12, (0, 0, 255), 4)
+                                                    cv2.circle(
+                                                        img, pt_int, 12, (0, 0, 255), 4
+                                                    )
 
-                                    prev_log = cv2.getLogLevel()
-                                    cv2.setLogLevel(2)
                                     for img in debug_imgs:
                                         cv2.drawFrameAxes(
                                             img,
@@ -571,7 +611,6 @@ class ArucoDetectionNode:
                                             tvec,
                                             0.15,
                                         )
-                                    cv2.setLogLevel(prev_log)
 
                                     dist = np.linalg.norm(tvec)
                                     n_inliers = len(inliers.flatten())
@@ -581,12 +620,22 @@ class ArucoDetectionNode:
                                     )
                                     for img in debug_imgs:
                                         cv2.putText(
-                                            img, info_text, (20, 70),
-                                            cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 3,
+                                            img,
+                                            info_text,
+                                            (20, 70),
+                                            cv2.FONT_HERSHEY_SIMPLEX,
+                                            1.2,
+                                            (0, 255, 0),
+                                            3,
                                         )
                                         cv2.putText(
-                                            img, f"IDs: {sorted(matched_ids)}", (20, 120),
-                                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 0), 3,
+                                            img,
+                                            f"IDs: {sorted(matched_ids)}",
+                                            (20, 120),
+                                            cv2.FONT_HERSHEY_SIMPLEX,
+                                            1.5,
+                                            (255, 255, 0),
+                                            3,
                                         )
                                 elif matched_ids:
                                     for img in debug_imgs:
@@ -594,19 +643,29 @@ class ArucoDetectionNode:
                                             img,
                                             f"RANSAC failed ({len(matched_ids)} mkrs)",
                                             (20, 70),
-                                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 255), 3,
+                                            cv2.FONT_HERSHEY_SIMPLEX,
+                                            1.5,
+                                            (0, 0, 255),
+                                            3,
                                         )
                         else:
                             for img in debug_imgs:
                                 cv2.putText(
-                                    img, "SEARCHING...", (20, 70),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 2.0, (0, 0, 255), 4,
+                                    img,
+                                    "SEARCHING...",
+                                    (20, 70),
+                                    cv2.FONT_HERSHEY_SIMPLEX,
+                                    2.0,
+                                    (0, 0, 255),
+                                    4,
                                 )
 
                         if pubs["debug"].get_num_connections() > 0:
                             pubs["debug"].publish(self._encode_compressed(debug_img))
                         if pubs["processed"].get_num_connections() > 0:
-                            pubs["processed"].publish(self._encode_compressed(debug_gray))
+                            pubs["processed"].publish(
+                                self._encode_compressed(debug_gray)
+                            )
 
                     if pubs["threshold"].get_num_connections() > 0:
                         win_size = self.params["debug_thresh_win_size"]
