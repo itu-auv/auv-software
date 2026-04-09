@@ -156,7 +156,7 @@ class InitializeState(smach.State):
                 "ODOMETRY_ENABLE",
                 OdometryEnableState(),
                 transitions={
-                    "succeeded": "DISABLE_BOTTOM_DETECTION",
+                    "succeeded": "CLEAR_OBJECT_MAP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },

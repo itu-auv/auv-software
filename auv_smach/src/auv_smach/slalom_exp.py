@@ -83,7 +83,7 @@ class NavigateThroughSlalomExpState(smach.State):
         with self.sm:
             smach.StateMachine.add(
                 "SET_SLALOM_DEPTH",
-                SetDepthState(depth=self.slalom_depth),
+                SetDepthState(depth=-1.2),
                 transitions={
                     "succeeded": "PUBLISH_SEARCH_POINTS",
                     "preempted": "preempted",

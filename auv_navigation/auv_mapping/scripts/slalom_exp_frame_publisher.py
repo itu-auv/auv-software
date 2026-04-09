@@ -370,6 +370,9 @@ class SlalomExpFramePublisher:
         )
         self.heatmap_vis = cv2.applyColorMap(heatmap_visa, cv2.COLORMAP_JET)
 
+        spread_threshold =22
+        angle_threshold = 18
+
         def get_line_error(pts):
             pts = np.array(pts)
             doubles = list(itertools.combinations(pts, 2))
@@ -382,7 +385,7 @@ class SlalomExpFramePublisher:
                 for pt in doubles
             ]
             error_dif = max(errors) - min(errors)
-            if error_dif > 10:
+            if error_dif > spread_threshold:
                 return None
             error = sum(errors) / len(errors)
             return error
@@ -392,7 +395,22 @@ class SlalomExpFramePublisher:
         all_triplets = list(itertools.combinations(pixel_centers, 3))
         for tri in all_triplets:
             err = get_line_error(tri)
-            if err and abs(err - 90) < 20:
+            if err is None:
+                rospy.logwarn(
+                    f"Triplet REJECT spread>{spread_threshold}: tri={tri}"
+                )
+                continue
+
+            if abs(err - 90) >= angle_threshold:
+                rospy.logwarn(
+                    f"Triplet REJECT angle: tri={tri}, mean={err:.2f}, |mean-90|={abs(err-90):.2f}"
+                )
+                continue
+
+            rospy.logwarn(
+                f"Triplet ACCEPT: tri={tri}, mean={err:.2f}, |mean-90|={abs(err-90):.2f}"
+            )
+            if err and abs(err - 90) < angle_threshold:
                 a = np.array(list(tri)).reshape(-1, 1, 2)
                 vx, vy, x0, y0 = cv2.fitLine(a, cv2.DIST_L2, 0, 0.01, 0.01)
                 m_x, m_y = sorted(
