@@ -379,6 +379,7 @@ class OctagonTaskState(smach.State):
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     cancel_on_success=False,
+                    closest_yaw=True,
                 ),
                 transitions={
                     "succeeded": "m",
