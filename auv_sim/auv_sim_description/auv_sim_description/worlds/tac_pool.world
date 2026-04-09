@@ -1,0 +1,189 @@
+<sdf version='1.7'>
+  <world name='default'>
+    <light name='sun' type='directional'>
+      <cast_shadows>0</cast_shadows>
+      <pose>0 0 10 0 -0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type='adiabatic'/>
+    <physics type='ode'>
+      <max_step_size>0.002</max_step_size>
+      <real_time_factor>1</real_time_factor>
+      <real_time_update_rate>500</real_time_update_rate>
+    </physics>
+    <wind/>
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <latitude_deg>0</latitude_deg>
+      <longitude_deg>0</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <!-- TAC pool: 10m (X) x 20m (Y) x 6m (Z), centered at origin, water surface at z=0 -->
+    <model name='tac_pool'>
+      <static>1</static>
+      <pose>0 0 0 0 0 0</pose>
+      <link name='tac_pool_link'>
+        <pose>0 0 0 0 0 0</pose>
+
+        <!-- Floor -->
+        <collision name='floor_col'>
+          <pose>0 0 -6.1 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>10 20 0.2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='floor_vis'>
+          <pose>0 0 -6.1 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>10 20 0.2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+
+        <!-- +Y short wall -->
+        <collision name='wall_y_pos_col'>
+          <pose>0 10.1 -3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>10.4 0.2 6</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='wall_y_pos_vis'>
+          <pose>0 10.1 -3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>10.4 0.2 6</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+
+        <!-- -Y short wall -->
+        <collision name='wall_y_neg_col'>
+          <pose>0 -10.1 -3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>10.4 0.2 6</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='wall_y_neg_vis'>
+          <pose>0 -10.1 -3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>10.4 0.2 6</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+
+        <!-- +X long wall -->
+        <collision name='wall_x_pos_col'>
+          <pose>5.1 0 -3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.2 20 6</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='wall_x_pos_vis'>
+          <pose>5.1 0 -3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.2 20 6</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+
+        <!-- -X long wall -->
+        <collision name='wall_x_neg_col'>
+          <pose>-5.1 0 -3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.2 20 6</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='wall_x_neg_vis'>
+          <pose>-5.1 0 -3 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.2 20 6</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <diffuse>0.5 0.5 0.5 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+      </link>
+    </model>
+
+    <!-- TAC docking station: 3m from +Y short wall, centered on long sides.
+         Pool floor z=-6, STL Y-min=-0.072m after roll=pi/2, so z=-6+0.072=-5.928 -->
+    <include>
+      <uri>model://tac_docking_station</uri>
+      <name>tac_docking_station</name>
+      <pose>0 7 -5.928 1.5708 0 0</pose>
+    </include>
+
+    <scene>
+      <shadows>0</shadows>
+      <grid>false</grid>
+      <origin_visual>false</origin_visual>
+      <ambient>0.4 0.4 0.4 1</ambient>
+      <background>0.7 0.7 0.7 1</background>
+    </scene>
+    <gui fullscreen='0'>
+      <camera name='user_camera'>
+        <pose>-15 -15 8 0 0.5 0.8</pose>
+        <view_controller>orbit</view_controller>
+        <projection_type>perspective</projection_type>
+      </camera>
+    </gui>
+  </world>
+</sdf>
