@@ -284,7 +284,7 @@ class SlalomExpFramePublisher:
                 continue
 
             transform_stamped_msg = TransformStamped()
-            transform_stamped_msg.header.stamp = detections.header.stamp
+            transform_stamped_msg.header.stamp = msg.header.stamp
             transform_stamped_msg.header.frame_id = (
                 self.base_link_frame + "/front_camera_optical_link_stabilized"
             )
