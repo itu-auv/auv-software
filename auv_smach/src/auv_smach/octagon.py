@@ -547,9 +547,7 @@ class OctagonTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SURFACE_WITH_BOTTLE",
-                SetDepthState(
-                    depth=-0.15, max_velocity=0.1, depth_threshold=0.05
-                ),
+                SetDepthState(depth=-0.15, max_velocity=0.1, depth_threshold=0.05),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
