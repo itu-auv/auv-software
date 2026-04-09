@@ -54,5 +54,6 @@ install(TARGETS simulation_mock_node
 catkin_install_python(PROGRAMS
   scripts/sim_bin_mock.py
   scripts/sim_torpedo_mock.py
+  scripts/sim_gripper_service.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
