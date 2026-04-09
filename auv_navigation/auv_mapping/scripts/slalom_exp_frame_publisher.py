@@ -8,9 +8,7 @@ import numpy as np
 import tf2_ros
 import tf2_geometry_msgs
 import tf.transformations as transformations
-from dynamic_reconfigure.server import Server
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
-from auv_mapping.cfg import SlalomExpFrameConfig
 from ultralytics_ros.msg import YoloResult
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import (
@@ -118,30 +116,6 @@ class SlalomExpFramePublisher:
             "slalom/publish_waypoints", SetBool, self.publish_waypoints_callback
         )
 
-    def reconfigure_callback(self, config, level):
-        self.search_lateral_offset_m = config.search_lateral_offset_m
-        self.search_yaw_deg = config.search_yaw_deg
-        self.pipe_height_m = config.pipe_height_m
-        self.max_detection_distance_m = config.max_detection_distance_m
-        self.waypoint_forward_offset_m = config.waypoint_forward_offset_m
-
-        self.image_width_px = max(2, int(config.image_width_px))
-        self.image_height_px = max(2, int(config.image_height_px))
-        self.image_padding_px = max(0, int(config.image_padding_px))
-        self.opening_kernel_size_px = max(1, int(config.opening_kernel_size_px))
-        self.heatmap_sigma_px = max(0.1, float(config.heatmap_sigma_px))
-        self.max_peak_count = max(1, int(config.max_peak_count))
-        self.peak_min_value = max(0.0, float(config.peak_min_value))
-        self.suppression_radius_px = max(1, int(config.suppression_radius_px))
-        self.triplet_angle_spread_max_deg = max(
-            0.0, float(config.triplet_angle_spread_max_deg)
-        )
-        self.triplet_target_angle_deg = float(config.triplet_target_angle_deg)
-        self.triplet_target_tolerance_deg = max(
-            0.0, float(config.triplet_target_tolerance_deg)
-        )
-        return config
-
     def publish_search_points_callback(self, req):
         try:
             for c in ["start", "left", "right"]:
@@ -154,16 +128,12 @@ class SlalomExpFramePublisher:
                 if c == "start":
                     pass
                 elif c == "left":
-                    t.transform.translation.y = self.search_lateral_offset_m
-                    q = transformations.quaternion_from_euler(
-                        0, 0, math.radians(self.search_yaw_deg)
-                    )
+                    t.transform.translation.y = 1.0
+                    q = transformations.quaternion_from_euler(0, 0, math.radians(30))
                     t.transform.rotation = Quaternion(*q)
                 elif c == "right":
-                    t.transform.translation.y = -self.search_lateral_offset_m
-                    q = transformations.quaternion_from_euler(
-                        0, 0, math.radians(-self.search_yaw_deg)
-                    )
+                    t.transform.translation.y = -1.0
+                    q = transformations.quaternion_from_euler(0, 0, math.radians(-30))
                     t.transform.rotation = Quaternion(*q)
 
                 pose_in_base = PoseStamped()
@@ -310,7 +280,7 @@ class SlalomExpFramePublisher:
                 self.slalom_height, pipe_length, bbox.center.x, bbox.center.y
             )
             # Too far
-            if off_z > self.max_detection_distance_m:
+            if off_z > 10:
                 continue
 
             transform_stamped_msg = TransformStamped()
@@ -358,50 +328,44 @@ class SlalomExpFramePublisher:
         if height == 0:
             height = 1.0
 
-        image_w = max(2, int(self.image_width_px))
-        image_h = max(2, int(self.image_height_px))
-        padding = max(0, int(self.image_padding_px))
-        target_w = max(1, image_w - 2 * padding)
-        target_h = max(1, image_h - 2 * padding)
+        # TODO: hardcoded
+        padding = 50
+        target_w = 640 - 2 * padding
+        target_h = 480 - 2 * padding
 
         scale = min(target_w / width, target_h / height)
 
-        img = np.zeros((image_h, image_w), dtype=np.uint8)
+        img = np.zeros((480, 640), dtype=np.uint8)
 
         pixel_points = []
         for center, det_id in zip(pts, pts_with_ids[:, 2].astype(int)):
-            u = int((center[0] - x_min) * scale + (image_w - width * scale) / 2)
-            v = int((center[1] - y_min) * scale + (image_h - height * scale) / 2)
+            u = int((center[0] - x_min) * scale + (640 - width * scale) / 2)
+            v = int((center[1] - y_min) * scale + (480 - height * scale) / 2)
 
-            u = max(0, min(image_w - 1, u))
-            v = max(0, min(image_h - 1, v))
+            u = max(0, min(639, u))
+            v = max(0, min(479, v))
 
             cv2.circle(img, (u, v), 3, 255, -1)
             pixel_points.append((u, v, det_id))
 
-        kernel_size = max(1, int(self.opening_kernel_size_px))
-        opening = cv2.morphologyEx(
-            img, cv2.MORPH_OPEN, np.ones((kernel_size, kernel_size), np.uint8)
-        )
+        opening = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones((6, 6), np.uint8))
         _, binary = cv2.threshold(opening, 127, 255, cv2.THRESH_BINARY)
 
         binary = binary.astype(np.float32) / 255.0
-        heatmap = cv2.GaussianBlur(
-            binary,
-            (0, 0),
-            sigmaX=max(0.1, float(self.heatmap_sigma_px)),
-            sigmaY=max(0.1, float(self.heatmap_sigma_px)),
-        )
+        # TODO: hardcoded
+        heatmap = cv2.GaussianBlur(binary, (0, 0), sigmaX=15, sigmaY=15)
 
         heatmap_copy = heatmap.copy()
+        X = 9
         pixel_centers = []
 
-        for _ in range(max(1, int(self.max_peak_count))):
+        for i in range(X):
             minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(heatmap_copy)
-            if maxVal < self.peak_min_value:
+            if maxVal < 0.01:
                 break
             pixel_centers.append(maxLoc)
-            suppression_radius = max(1, int(self.suppression_radius_px))
+            # TODO: hardcoded
+            suppression_radius = int(25 * 2)
             cv2.circle(heatmap_copy, maxLoc, suppression_radius, 0, -1)
 
         pixel_center_colors = {}
@@ -440,7 +404,7 @@ class SlalomExpFramePublisher:
                 for pt in doubles
             ]
             error_dif = max(errors) - min(errors)
-            if error_dif > self.triplet_angle_spread_max_deg:
+            if error_dif > 10:
                 return None
             error = sum(errors) / len(errors)
             return error
@@ -450,11 +414,7 @@ class SlalomExpFramePublisher:
         all_triplets = list(itertools.combinations(pixel_centers, 3))
         for tri in all_triplets:
             err = get_line_error(tri)
-            if (
-                err
-                and abs(err - self.triplet_target_angle_deg)
-                < self.triplet_target_tolerance_deg
-            ):
+            if err and abs(err - 90) < 20:
                 a = np.array(list(tri)).reshape(-1, 1, 2)
                 vx, vy, x0, y0 = cv2.fitLine(a, cv2.DIST_L2, 0, 0.01, 0.01)
                 m_x, m_y = sorted(
@@ -473,8 +433,8 @@ class SlalomExpFramePublisher:
         def pixel_to_world(p):
             u, v = p.x, p.y
             return Point(
-                ((u - (image_w - width * scale) / 2) / scale) + x_min,
-                ((v - (image_h - height * scale) / 2) / scale) + y_min,
+                ((u - (640 - width * scale) / 2) / scale) + x_min,
+                ((v - (480 - height * scale) / 2) / scale) + y_min,
             )
 
         world_slalom = []
