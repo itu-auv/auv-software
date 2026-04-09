@@ -147,7 +147,7 @@ class SetDepthState(smach.State):
         depth: float,
         depth_threshold: float = 0.1,
         confirm_duration: float = 1.0,
-        timeout: float = 10.0,
+        timeout: float = 20.0,
         frame_id: str = "odom",
         max_velocity: float = 0.0,
     ):
@@ -708,8 +708,10 @@ class SetDetectionState(smach_ros.ServiceState):
     """
 
     def __init__(self, camera_name: str, enable: bool):
-        if camera_name not in ["front", "bottom", "torpedo"]:
-            raise ValueError("camera_name must be 'front', 'bottom', or 'torpedo'")
+        if camera_name not in ["front", "bottom", "torpedo", "segment"]:
+            raise ValueError(
+                "camera_name must be 'front', 'bottom', 'torpedo', or 'segment'"
+            )
 
         service_name = f"enable_{camera_name}_camera_detections"
         request = SetBoolRequest(data=enable)
@@ -717,6 +719,23 @@ class SetDetectionState(smach_ros.ServiceState):
         super(SetDetectionState, self).__init__(
             service_name,
             SetBool,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
+class SetDetectionFocusBottomState(smach_ros.ServiceState):
+    """
+    Calls the service to set the focus for the bottom camera detections.
+    """
+
+    def __init__(self, focus_object: str):
+        service_name = "set_bottom_camera_focus"
+        request = SetDetectionFocusRequest(focus_object=focus_object)
+
+        super(SetDetectionFocusBottomState, self).__init__(
+            service_name,
+            SetDetectionFocus,
             request=request,
             outcomes=["succeeded", "preempted", "aborted"],
         )
