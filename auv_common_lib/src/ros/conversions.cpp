@@ -75,6 +75,15 @@ Eigen::Matrix<double, 6, 1> convert(const geometry_msgs::Twist& from) {
 }
 
 template <>
+geometry_msgs::Twist convert(const Eigen::Matrix<double, 6, 1>& from) {
+  geometry_msgs::Twist to;
+  to.linear = convert<Eigen::Vector3d, geometry_msgs::Vector3>(from.head<3>());
+  to.angular = convert<Eigen::Vector3d, geometry_msgs::Vector3>(from.tail<3>());
+
+  return to;
+}
+
+template <>
 Eigen::Matrix<double, 6, 1> convert(
     const geometry_msgs::TwistWithCovariance& from) {
   return convert<geometry_msgs::Twist, Eigen::Matrix<double, 6, 1>>(from.twist);
