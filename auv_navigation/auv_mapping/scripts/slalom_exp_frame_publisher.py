@@ -201,6 +201,10 @@ class SlalomExpFramePublisher:
         groups = {}
         for t in self.tfs:
             parts = t.child_frame_id.split("_")
+            if len(parts) < 5:
+                continue
+            if parts[-2] not in ["left", "right", "mid"]:
+                continue
             idx = int(parts[-1])
             pt_type = parts[-2]
             if idx not in groups:
@@ -211,6 +215,9 @@ class SlalomExpFramePublisher:
 
         # TODO: what if we couldn't find all 9 pipes??
         for idx, g in groups.items():
+            if not all(k in g for k in ["left", "right", "mid"]):
+                rospy.logwarn_throttle(5, f"Skipping incomplete slalom group idx={idx}")
+                continue
             for w in ["left", "right"]:
                 pos_wp = (g[w] + g["mid"]) / 2.0
                 v_pipe = g[w] - g["mid"]
@@ -368,7 +375,7 @@ class SlalomExpFramePublisher:
             suppression_radius = int(25 * 2)
             cv2.circle(heatmap_copy, maxLoc, suppression_radius, 0, -1)
 
-        pixel_center_colors = {}
+        pixel_center_colors = {}    
         if pixel_centers:
             center_counts = [{2: 0, 3: 0} for _ in pixel_centers]
             for u, v, det_id in pixel_points:
@@ -461,6 +468,22 @@ class SlalomExpFramePublisher:
         world_slalom.sort(key=lambda item: item[0].mid.x)
 
         self.tfs = []
+        for i, center in enumerate(pixel_centers):
+            world_center = pixel_to_world(Point(center[0], center[1]))
+            center_color = pixel_center_colors.get((center[0], center[1]), "white")
+
+            t = TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "odom"
+            t.child_frame_id = f"slalom_pipe_{center_color}_center_{i}"
+            t.transform.translation.x = world_center.x
+            t.transform.translation.y = world_center.y
+            t.transform.translation.z = 0
+            t.transform.rotation.w = 1.0
+            self.tfs.append(t)
+        self.publish_heatmap()
+
+        return
         for i, (g, colors) in enumerate(world_slalom):
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
@@ -490,7 +513,6 @@ class SlalomExpFramePublisher:
             t.transform.rotation.w = 1.0
             self.tfs.append(t)
 
-        self.publish_heatmap()
 
     def publish_heatmap(self):
         if self.heatmap_vis is not None:
