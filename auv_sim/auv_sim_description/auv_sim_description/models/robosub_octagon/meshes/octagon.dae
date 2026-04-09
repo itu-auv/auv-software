@@ -44973,7 +44973,7 @@
         </extra>
       </node>
       <node name="octagon_top" id="octagon_top" sid="octagon_top">
-        <matrix sid="matrix">0.009239 0.003827 0.000000 0.000000 -0.003827 0.009239 0.000000 -0.000000 0.000000 0.000000 0.010000 1.646190 0.000000 0.000000 0.000000 1.000000</matrix>
+        <matrix sid="matrix">0.009239 0.003827 0.000000 0.000000 -0.003827 0.009239 0.000000 -0.000000 0.000000 0.000000 0.010000 2.000000 0.000000 0.000000 0.000000 1.000000</matrix>
         <instance_geometry url="#octagon_top-lib">
           <bind_material>
             <technique_common>
