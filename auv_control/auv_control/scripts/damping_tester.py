@@ -16,7 +16,7 @@ from nav_msgs.msg import Odometry
 
 import tf.transformations
 
-from std_srvs.srv import Trigger
+from std_srvs.srv import Trigger, TriggerResponse
 
 from auv_msgs.srv import SetDampingTarget, SetDampingTargetResponse
 
@@ -73,6 +73,8 @@ class DampingStepWrenchLogger:
         self.cmd_rate = float(rospy.get_param("~cmd_rate", 50.0))
         self.log_rate = float(rospy.get_param("~log_rate", 50.0))
 
+        self.stabilize_time = float(rospy.get_param("~stabilize_time", 4.0))
+
         self.log_dir = os.path.expanduser(
             rospy.get_param("~log_dir", "~/damping_tests")
         )
@@ -84,9 +86,15 @@ class DampingStepWrenchLogger:
             rospy.get_param("~controller_reconfigure_server", "auv_control_node")
         )
 
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.active: Optional[ActiveTest] = None
         self.stop_requested = False
+
+        self.sequence_targets = []
+        self.sequence_axis = ""
+        self.sequence_idx = 0
+        self.sequence_state = "IDLE"  # IDLE, STABILIZING, TESTING
+        self.sequence_timer = rospy.Time.now()
 
         self.last_odom: Optional[Odometry] = None
         self.last_wrench: Optional[WrenchStamped] = None
@@ -117,6 +125,12 @@ class DampingStepWrenchLogger:
         rospy.Service("~yaw", SetDampingTarget, self._srv_yaw)  # angular.z
         rospy.loginfo("Services: ~surge ~sway ~yaw  (enable, target)")
 
+        rospy.Service("~surge_seq", Trigger, self._srv_surge_seq)
+        rospy.Service("~sway_seq", Trigger, self._srv_sway_seq)
+        rospy.Service("~yaw_seq", Trigger, self._srv_yaw_seq)
+        rospy.Service("~stop_seq", Trigger, self._srv_stop_seq)
+        rospy.loginfo("Sequence Services: ~surge_seq ~sway_seq ~yaw_seq ~stop_seq")
+
         rospy.Timer(rospy.Duration(1.0 / self.cmd_rate), self._cmd_timer_cb)
         rospy.on_shutdown(self._restore_pid_gains)
 
@@ -134,6 +148,52 @@ class DampingStepWrenchLogger:
 
     def _srv_yaw(self, req):
         return self._handle(axis_name="yaw", enable=req.enable, target=req.target)
+
+    def _srv_surge_seq(self, req):
+        return self._handle_seq("surge")
+
+    def _srv_sway_seq(self, req):
+        return self._handle_seq("sway")
+
+    def _srv_yaw_seq(self, req):
+        return self._handle_seq("yaw")
+
+    def _srv_stop_seq(self, req):
+        with self._lock:
+            if self.sequence_state != "IDLE":
+                rospy.loginfo("Stopping sequence...")
+                self.sequence_state = "IDLE"
+            if self.active is not None:
+                self.stop_requested = True
+            return TriggerResponse(True, "Stopped sequence and active tests.")
+
+    def _handle_seq(self, axis_name: str) -> TriggerResponse:
+        with self._lock:
+            if self.sequence_state != "IDLE" or self.active is not None:
+                return TriggerResponse(
+                    False, "A test or sequence is already running. Stop it first."
+                )
+
+            # ADD PARAMETERS TO LAUNCH
+            default_targets = [2.5, 5.0, 7.5, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0]
+            targets = rospy.get_param(f"~{axis_name}_targets", default_targets)
+
+            full_seq = []
+            for t in targets:
+                full_seq.append(float(t))
+                full_seq.append(-float(t))
+
+            self.sequence_targets = full_seq
+            self.sequence_axis = axis_name
+            self.sequence_idx = 0
+
+            # Start stabilization phase before triggering first test
+            self.sequence_state = "STABILIZING"
+            self.sequence_timer = rospy.Time.now()
+
+            msg = f"Started '{axis_name}' sequence. Stabilizing for {self.stabilize_time}s..."
+            rospy.loginfo(msg)
+            return TriggerResponse(True, msg)
 
     def _handle(self, axis_name: str, enable: bool, target: float):
         with self._lock:
@@ -178,8 +238,29 @@ class DampingStepWrenchLogger:
             rospy.loginfo(msg)
             return SetDampingTargetResponse(True, msg)
 
+    # --- Timers
     def _cmd_timer_cb(self, _evt):
         with self._lock:
+            # 1) SEQUENCE MANAGER
+            if self.sequence_state == "STABILIZING":
+                dt_stab = (rospy.Time.now() - self.sequence_timer).to_sec()
+                if dt_stab >= self.stabilize_time:
+                    if self.sequence_idx >= len(self.sequence_targets):
+                        rospy.loginfo(
+                            f"*** Sequence for {self.sequence_axis} COMPLETED ***"
+                        )
+                        self.sequence_state = "IDLE"
+                    else:
+                        target = self.sequence_targets[self.sequence_idx]
+                        self.sequence_idx += 1
+                        rospy.loginfo(
+                            f"Sequence -> Starting {self.sequence_axis} target: {target}"
+                        )
+
+                        self._handle(self.sequence_axis, enable=True, target=target)
+                        self.sequence_state = "TESTING"
+
+            # 2) ACTIVE TEST MANAGER
             if self.active is None:
                 return
 
@@ -422,6 +503,17 @@ class DampingStepWrenchLogger:
 
         self.active = None
         self.stop_requested = False
+
+        if self.sequence_state == "TESTING":
+            if reason == "COMPLETED":
+                rospy.loginfo(
+                    f"Sequence -> Test completed. Stabilizing for {self.stabilize_time}s."
+                )
+                self.sequence_state = "STABILIZING"
+                self.sequence_timer = rospy.Time.now()
+            else:
+                rospy.logwarn(f"Sequence aborted due to condition: {reason}")
+                self.sequence_state = "IDLE"
 
 
 if __name__ == "__main__":
