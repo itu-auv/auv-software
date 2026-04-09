@@ -8,11 +8,13 @@ import tf.transformations as transformations
 import math
 import angles
 from auv_smach.tf_utils import get_tf_buffer, get_base_link
+import actionlib
 
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import AlignFrameController, AlignFrameControllerRequest
 from std_msgs.msg import Bool
 from geometry_msgs.msg import TransformStamped, PoseStamped
+from auv_msgs.msg import FollowPathAction, FollowPathGoal
 
 from auv_msgs.srv import (
     PlanPath,
@@ -145,7 +147,7 @@ class SetDepthState(smach.State):
         depth: float,
         depth_threshold: float = 0.1,
         confirm_duration: float = 1.0,
-        timeout: float = 10.0,
+        timeout: float = 20.0,
         frame_id: str = "odom",
         max_velocity: float = 0.0,
     ):
@@ -315,6 +317,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
         use_depth: bool = False,
+        closest_yaw: bool = False,
     ):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
@@ -322,6 +325,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         align_request.angle_offset = angle_offset
         align_request.keep_orientation = keep_orientation
         align_request.use_depth = use_depth
+        align_request.closest_yaw = closest_yaw
         if max_linear_velocity is not None:
             align_request.max_linear_velocity = max_linear_velocity
         if max_angular_velocity is not None:
@@ -706,8 +710,10 @@ class SetDetectionState(smach_ros.ServiceState):
     """
 
     def __init__(self, camera_name: str, enable: bool):
-        if camera_name not in ["front", "bottom", "torpedo"]:
-            raise ValueError("camera_name must be 'front', 'bottom', or 'torpedo'")
+        if camera_name not in ["front", "bottom", "torpedo", "segment"]:
+            raise ValueError(
+                "camera_name must be 'front', 'bottom', 'torpedo', or 'segment'"
+            )
 
         service_name = f"enable_{camera_name}_camera_detections"
         request = SetBoolRequest(data=enable)
@@ -715,6 +721,23 @@ class SetDetectionState(smach_ros.ServiceState):
         super(SetDetectionState, self).__init__(
             service_name,
             SetBool,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+
+
+class SetDetectionFocusBottomState(smach_ros.ServiceState):
+    """
+    Calls the service to set the focus for the bottom camera detections.
+    """
+
+    def __init__(self, focus_object: str):
+        service_name = "set_bottom_camera_focus"
+        request = SetDetectionFocusRequest(focus_object=focus_object)
+
+        super(SetDetectionFocusBottomState, self).__init__(
+            service_name,
+            SetDetectionFocus,
             request=request,
             outcomes=["succeeded", "preempted", "aborted"],
         )
@@ -760,17 +783,39 @@ class ExecutePathState(smach.State):
 
         # Check for preemption before proceeding
         if self.preempt_requested():
-            rospy.logwarn("[ExecutePathState] Preempt requested")
+            rospy.logwarn("[ExecutePathState] Preempt requested before execution")
+            self.service_preempt()
             return "preempted"
+
         try:
-            # We send an empty goal, as the action server now listens to a topic
-            success = self._client.execute_paths([])
-            if success:
-                rospy.logdebug("[ExecutePathState] Planned paths executed successfully")
-                return "succeeded"
-            else:
-                rospy.logwarn("[ExecutePathState] Execution of planned paths failed")
-                return "aborted"
+            goal = FollowPathGoal()
+            goal.paths = []
+            rospy.logdebug("[ExecutePathState] Sending paths goal...")
+            self._client.client.send_goal(goal)
+
+            while not rospy.is_shutdown():
+                if self.preempt_requested():
+                    rospy.logwarn(
+                        "[ExecutePathState] Preempt requested, cancelling goal"
+                    )
+                    self._client.client.cancel_goal()
+                    self.service_preempt()
+                    return "preempted"
+
+                if self._client.client.wait_for_result(rospy.Duration(0.1)):
+                    result = self._client.client.get_result()
+                    if result and result.success:
+                        rospy.logdebug(
+                            "[ExecutePathState] Planned paths executed successfully"
+                        )
+                        return "succeeded"
+                    else:
+                        rospy.logwarn(
+                            "[ExecutePathState] Execution of planned paths failed"
+                        )
+                        return "aborted"
+
+            return "aborted"
 
         except Exception as e:
             rospy.logerr("[ExecutePathState] Exception occurred: %s", str(e))
@@ -932,6 +977,7 @@ class CheckAlignmentState(smach.State):
         confirm_duration=0.0,
         keep_orientation=False,
         use_frame_depth=False,
+        closest_yaw=False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
@@ -943,6 +989,7 @@ class CheckAlignmentState(smach.State):
         self.confirm_duration = confirm_duration
         self.keep_orientation = keep_orientation
         self.use_frame_depth = use_frame_depth
+        self.closest_yaw = closest_yaw
         self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(10)
 
@@ -961,7 +1008,20 @@ class CheckAlignmentState(smach.State):
             _, _, yaw = transformations.euler_from_quaternion(
                 (rot.x, rot.y, rot.z, rot.w)
             )
-            yaw_error = abs(angles.normalize_angle(yaw + self.angle_offset))
+            yaw_with_offset = abs(
+                angles.shortest_angular_distance(0, yaw + self.angle_offset)
+            )
+            if self.closest_yaw:
+                yaw_error = min(
+                    yaw_with_offset,
+                    abs(
+                        angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + math.pi
+                        )
+                    ),
+                )
+            else:
+                yaw_error = yaw_with_offset
 
             return dist_error, yaw_error
         except (
@@ -1036,6 +1096,7 @@ class AlignFrame(smach.StateMachine):
         max_linear_velocity=None,
         max_angular_velocity=None,
         use_frame_depth=False,
+        closest_yaw=False,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
@@ -1054,6 +1115,7 @@ class AlignFrame(smach.StateMachine):
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
                     use_depth=use_frame_depth,
+                    closest_yaw=closest_yaw,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
@@ -1074,6 +1136,7 @@ class AlignFrame(smach.StateMachine):
                     confirm_duration,
                     keep_orientation=keep_orientation,
                     use_frame_depth=use_frame_depth,
+                    closest_yaw=closest_yaw,
                 ),
                 transitions={
                     "succeeded": watch_succeeded_transition,
@@ -1508,4 +1571,117 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
+            )
+
+
+class CheckForTransformState(smach.State):
+    def __init__(
+        self,
+        source_frame: str,
+        target_frame: str,
+        timeout: float = 60.0,
+        check_rate_hz: int = 10,
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.source_frame = source_frame
+        self.target_frame = target_frame
+        self.timeout = timeout
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.rate = rospy.Rate(check_rate_hz)
+
+    def is_transform_available(self):
+        try:
+            return self.tf_buffer.can_transform(
+                self.source_frame,
+                self.target_frame,
+                rospy.Time(0),
+                rospy.Duration(0.05),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logdebug(f"CheckForTransformState: Transform check failed: {e}")
+            return False
+
+    def execute(self, userdata):
+        start_time = rospy.Time.now()
+
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                rospy.loginfo("CheckForTransformState: Preempted")
+                self.service_preempt()
+                return "preempted"
+
+            elapsed = (rospy.Time.now() - start_time).to_sec()
+            if elapsed > self.timeout:
+                rospy.logwarn(
+                    f"CheckForTransformState: Timeout ({self.timeout}s) reached while waiting for transform from {self.source_frame} to {self.target_frame}"
+                )
+                return "aborted"
+
+            if self.is_transform_available():
+                rospy.loginfo(
+                    f"CheckForTransformState: Transform found from {self.source_frame} to {self.target_frame}"
+                )
+                return "succeeded"
+
+            rospy.logdebug_throttle(
+                1.0,
+                f"CheckForTransformState: Checking for transform from {self.source_frame} to {self.target_frame}...",
+            )
+            self.rate.sleep()
+
+        return "aborted"
+
+
+class DynamicPathWithTransformCheck(smach.Concurrence):
+
+    def __init__(
+        self,
+        plan_target_frame: str,
+        transform_source_frame: str,
+        transform_target_frame: str,
+        align_source_frame: str = "taluy/base_link",
+        align_target_frame: str = "dynamic_target",
+        max_linear_velocity: float = None,
+        max_angular_velocity: float = None,
+        angle_offset: float = 0.0,
+        keep_orientation: bool = False,
+        transform_timeout: float = 60.0,
+    ):
+        super().__init__(
+            outcomes=["succeeded", "preempted", "aborted"],
+            default_outcome="aborted",
+            outcome_map={
+                "succeeded": {"CHECK_FOR_TRANSFORM": "succeeded"},
+                "preempted": {"DYNAMIC_PATH": "preempted"},
+                "aborted": {"DYNAMIC_PATH": "aborted"},
+            },
+            child_termination_cb=lambda outcome_map: True,
+        )
+
+        with self:
+            smach.Concurrence.add(
+                "DYNAMIC_PATH",
+                DynamicPathState(
+                    plan_target_frame=plan_target_frame,
+                    align_source_frame=align_source_frame,
+                    align_target_frame=align_target_frame,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                    angle_offset=angle_offset,
+                    keep_orientation=keep_orientation,
+                ),
+            )
+
+            smach.Concurrence.add(
+                "CHECK_FOR_TRANSFORM",
+                CheckForTransformState(
+                    source_frame=transform_source_frame,
+                    target_frame=transform_target_frame,
+                    timeout=transform_timeout,
+                ),
             )

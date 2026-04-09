@@ -28,6 +28,7 @@ from tf.transformations import (
     quaternion_multiply,
     quaternion_matrix,
 )
+from angles import normalize_angle, shortest_angular_distance
 import numpy as np
 
 import dynamic_reconfigure.client
@@ -35,6 +36,10 @@ from auv_common_lib.control.enable_state import ControlEnableHandler
 from threading import Lock
 from tf2_geometry_msgs import do_transform_point, do_transform_vector3
 from geometry_msgs.msg import Vector3Stamped
+
+
+def normalize_angle(angle: float) -> float:
+    return np.arctan2(np.sin(angle), np.cos(angle))
 
 
 class ReferencePosePublisherNode:
@@ -111,6 +116,11 @@ class ReferencePosePublisherNode:
         self.base_frame = self.namespace + "/base_link"
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
+        self.max_xy_offset = rospy.get_param("~max_xy_offset", 1.0)
+        self.max_z_offset = rospy.get_param("~max_z_offset", 0.1)
+        self.max_z = rospy.get_param("~max_z", 0.0)
+        self.min_z = rospy.get_param("~min_z", -2.0)
+        self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
 
         self.killswitch_sub = rospy.Subscriber(
             "propulsion_board/status", Bool, self.killswitch_callback
@@ -289,6 +299,34 @@ class ReferencePosePublisherNode:
                 self.target_roll, self.target_pitch, self.target_heading = (
                     euler_from_quaternion(quaternion)
                 )
+
+                if req.closest_yaw:
+                    t_base = self.tf_lookup(
+                        req.target_frame,
+                        self.base_frame,
+                        rospy.Time(0),
+                        rospy.Duration(1.0),
+                    )
+                    if t_base is not None:
+                        _, _, base_yaw_in_target = euler_from_quaternion(
+                            [
+                                t_base.transform.rotation.x,
+                                t_base.transform.rotation.y,
+                                t_base.transform.rotation.z,
+                                t_base.transform.rotation.w,
+                            ]
+                        )
+                        flipped = normalize_angle(self.target_heading + np.pi)
+                        dist_normal = abs(
+                            shortest_angular_distance(
+                                self.target_heading, base_yaw_in_target
+                            )
+                        )
+                        dist_flipped = abs(
+                            shortest_angular_distance(flipped, base_yaw_in_target)
+                        )
+                        if dist_flipped < dist_normal:
+                            self.target_heading = flipped
 
             self.target_frame_id = req.target_frame
 
@@ -527,43 +565,77 @@ class ReferencePosePublisherNode:
         ):
             return
 
-        dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
-        dt = min(dt, self.command_timeout)
+        with self.state_lock:
+            now = rospy.Time.now()
+            dt = (now - self.last_cmd_time).to_sec()
+            dt = min(dt, self.command_timeout)
 
-        q_current = quaternion_from_euler(
-            self.target_roll, self.target_pitch, self.target_heading
-        )
-
-        rotation_matrix = quaternion_matrix(q_current)[:3, :3]
-
-        linear_vel_body = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
-        linear_vel_odom = rotation_matrix.dot(linear_vel_body)
-
-        self.target_x += linear_vel_odom[0] * dt
-        self.target_y += linear_vel_odom[1] * dt
-        self.target_depth += linear_vel_odom[2] * dt
-
-        angle = np.linalg.norm([msg.angular.x, msg.angular.y, msg.angular.z]) * dt
-        if angle > 1e-6:  # Avoid division by zero
-            axis = np.array([msg.angular.x, msg.angular.y, msg.angular.z]) / (
-                angle / dt
+            q_current = quaternion_from_euler(
+                self.target_roll, self.target_pitch, self.target_heading
             )
-            axis = axis / np.linalg.norm(axis)
-            q_delta = quaternion_from_euler(
-                axis[0] * angle, axis[1] * angle, axis[2] * angle
+
+            rotation_matrix = quaternion_matrix(q_current)[:3, :3]
+
+            linear_vel_body = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
+            linear_vel_odom = rotation_matrix.dot(linear_vel_body)
+
+            self.target_x += linear_vel_odom[0] * dt
+            self.target_y += linear_vel_odom[1] * dt
+            self.target_depth += linear_vel_odom[2] * dt
+
+            odom_position = self.latest_odometry.pose.pose.position
+            xy_offset = np.array(
+                [
+                    self.target_x - odom_position.x,
+                    self.target_y - odom_position.y,
+                ]
             )
-        else:
-            q_delta = [0.0, 0.0, 0.0, 1.0]
+            xy_distance = np.linalg.norm(xy_offset)
+            if xy_distance > self.max_xy_offset and xy_distance > 1e-6:
+                xy_offset *= self.max_xy_offset / xy_distance
+                self.target_x = odom_position.x + xy_offset[0]
+                self.target_y = odom_position.y + xy_offset[1]
 
-        # Multiply current orientation by delta rotation (cmd_pose frame rotation)
-        q_new = quaternion_multiply(q_current, q_delta)
+            z_offset = self.target_depth - odom_position.z
+            if abs(z_offset) > self.max_z_offset:
+                self.target_depth = (
+                    odom_position.z + np.sign(z_offset) * self.max_z_offset
+                )
 
-        # Extract new euler angles
-        self.target_roll, self.target_pitch, self.target_heading = (
-            euler_from_quaternion(q_new)
-        )
+            self.target_depth = np.clip(self.target_depth, self.min_z, self.max_z)
 
-        self.last_cmd_time = rospy.Time.now()
+            angle = np.linalg.norm([msg.angular.x, msg.angular.y, msg.angular.z]) * dt
+            if angle > 1e-6:  # Avoid division by zero
+                axis = np.array([msg.angular.x, msg.angular.y, msg.angular.z]) / (
+                    angle / dt
+                )
+                axis = axis / np.linalg.norm(axis)
+                q_delta = quaternion_from_euler(
+                    axis[0] * angle, axis[1] * angle, axis[2] * angle
+                )
+            else:
+                q_delta = [0.0, 0.0, 0.0, 1.0]
+
+            # Multiply current orientation by delta rotation (cmd_pose frame rotation)
+            q_new = quaternion_multiply(q_current, q_delta)
+
+            # Extract new euler angles
+            self.target_roll, self.target_pitch, self.target_heading = (
+                euler_from_quaternion(q_new)
+            )
+
+            odom_quaternion = [
+                self.latest_odometry.pose.pose.orientation.x,
+                self.latest_odometry.pose.pose.orientation.y,
+                self.latest_odometry.pose.pose.orientation.z,
+                self.latest_odometry.pose.pose.orientation.w,
+            ]
+            _, _, odom_yaw = euler_from_quaternion(odom_quaternion)
+            yaw_error = normalize_angle(self.target_heading - odom_yaw)
+            yaw_error = np.clip(yaw_error, -self.max_yaw_offset, self.max_yaw_offset)
+            self.target_heading = normalize_angle(odom_yaw + yaw_error)
+
+            self.last_cmd_time = now
 
     def tf_lookup(
         self,

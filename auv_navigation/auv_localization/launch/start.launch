@@ -23,8 +23,7 @@
       <rosparam file="$(find auv_localization)/config/$(arg namespace)/sensor_calibration_data.yaml" command="load" />
       <remap from="depth" to="sensors/external_pressure_sensor/depth" />
       <remap from="odom_pressure" to="localization/odom_pressure" />
-      <remap from="imu/data" to="sensors/imu/data" />
-      <remap from="dvl/altitude" to="sensors/dvl/altitude"/>
+      <remap from="odometry" to="odometry" />
     </node>
     <node pkg="auv_localization" type="dvl_odometry_node.py" name="dvl_to_odom_node" output="screen">
       <param name="namespace" value="$(arg namespace)" />
