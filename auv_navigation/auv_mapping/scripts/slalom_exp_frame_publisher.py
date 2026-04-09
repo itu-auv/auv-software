@@ -3,6 +3,7 @@
 import rospy
 import math
 import itertools
+from collections import Counter
 import cv2
 import numpy as np
 import tf2_ros
@@ -28,7 +29,7 @@ from cv_bridge import CvBridge
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional
 
 
 # copy paste from auv_vision.utils
@@ -57,6 +58,7 @@ def check_inside_image(
 class Point:
     x: float
     y: float
+    pipe_id: Optional[int] = None
 
 
 @dataclass
@@ -117,6 +119,14 @@ class SlalomExpFramePublisher:
         self.srv_publish_waypoints = rospy.Service(
             "slalom/publish_waypoints", SetBool, self.publish_waypoints_callback
         )
+
+    @staticmethod
+    def pipe_id_to_label(pipe_id: Optional[int]) -> str:
+        if pipe_id == 2:
+            return "red"
+        if pipe_id == 3:
+            return "white"
+        return "unknown"
 
     def reconfigure_callback(self, config, level):
         self.search_lateral_offset_m = config.search_lateral_offset_m
@@ -334,7 +344,7 @@ class SlalomExpFramePublisher:
 
                 wx = transformed_pose_stamped.pose.position.x
                 wy = transformed_pose_stamped.pose.position.y
-                self.points.append([wx, wy])
+                self.points.append(Point(wx, wy, pipe_id=int(x.results[0].id)))
 
             except Exception as e:
                 rospy.logwarn_throttle(5, f"transformation error: {e}")
@@ -345,7 +355,7 @@ class SlalomExpFramePublisher:
             self.tfs = []
             return
 
-        pts = np.array(self.points)
+        pts = np.array([[point.x, point.y] for point in self.points], dtype=np.float32)
         x_min, y_min = np.min(pts, axis=0)
         x_max, y_max = np.max(pts, axis=0)
 
@@ -366,15 +376,17 @@ class SlalomExpFramePublisher:
         scale = min(target_w / width, target_h / height)
 
         img = np.zeros((image_h, image_w), dtype=np.uint8)
+        point_pixels = []
 
-        for center in pts:
-            u = int((center[0] - x_min) * scale + (image_w - width * scale) / 2)
-            v = int((center[1] - y_min) * scale + (image_h - height * scale) / 2)
+        for point in self.points:
+            u = int((point.x - x_min) * scale + (image_w - width * scale) / 2)
+            v = int((point.y - y_min) * scale + (image_h - height * scale) / 2)
 
             u = max(0, min(image_w - 1, u))
             v = max(0, min(image_h - 1, v))
 
             cv2.circle(img, (u, v), 3, 255, -1)
+            point_pixels.append((u, v, point.pipe_id))
 
         kernel_size = max(1, int(self.opening_kernel_size_px))
         opening = cv2.morphologyEx(
@@ -400,6 +412,20 @@ class SlalomExpFramePublisher:
             pixel_centers.append(maxLoc)
             suppression_radius = max(1, int(self.suppression_radius_px))
             cv2.circle(heatmap_copy, maxLoc, suppression_radius, 0, -1)
+
+        center_pipe_ids = {}
+        if pixel_centers:
+            center_votes = {center: Counter() for center in pixel_centers}
+            for u, v, pipe_id in point_pixels:
+                nearest_center = min(
+                    pixel_centers,
+                    key=lambda center: (center[0] - u) ** 2 + (center[1] - v) ** 2,
+                )
+                center_votes[nearest_center][pipe_id] += 1
+
+            for center, votes in center_votes.items():
+                if votes:
+                    center_pipe_ids[center] = votes.most_common(1)[0][0]
 
         heatmap_visa = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
             np.uint8
@@ -442,9 +468,9 @@ class SlalomExpFramePublisher:
                 r_x, r_y = sorted(tri, key=lambda x: x[1])[0]
                 pixel_slalom.groups.append(
                     SlalomGroup(
-                        left=Point(l_x, l_y),
-                        right=Point(r_x, r_y),
-                        mid=Point(m_x, m_y),
+                        left=Point(l_x, l_y, center_pipe_ids.get((l_x, l_y))),
+                        right=Point(r_x, r_y, center_pipe_ids.get((r_x, r_y))),
+                        mid=Point(m_x, m_y, center_pipe_ids.get((m_x, m_y))),
                     )
                 )
 
@@ -453,6 +479,7 @@ class SlalomExpFramePublisher:
             return Point(
                 ((u - (image_w - width * scale) / 2) / scale) + x_min,
                 ((v - (image_h - height * scale) / 2) / scale) + y_min,
+                p.pipe_id,
             )
 
         world_slalom = Slalom()
@@ -469,10 +496,14 @@ class SlalomExpFramePublisher:
 
         self.tfs = []
         for i, g in enumerate(world_slalom.groups):
+            left_label = self.pipe_id_to_label(g.left.pipe_id)
+            right_label = self.pipe_id_to_label(g.right.pipe_id)
+            mid_label = self.pipe_id_to_label(g.mid.pipe_id)
+
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_left_{i}"
+            t.child_frame_id = f"slalom_pipe_{left_label}_left_{i}"
             t.transform.translation.x = g.left.x
             t.transform.translation.y = g.left.y
             t.transform.translation.z = 0
@@ -481,7 +512,7 @@ class SlalomExpFramePublisher:
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_right_{i}"
+            t.child_frame_id = f"slalom_pipe_{right_label}_right_{i}"
             t.transform.translation.x = g.right.x
             t.transform.translation.y = g.right.y
             t.transform.translation.z = 0
@@ -490,7 +521,7 @@ class SlalomExpFramePublisher:
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_mid_{i}"
+            t.child_frame_id = f"slalom_pipe_{mid_label}_mid_{i}"
             t.transform.translation.x = g.mid.x
             t.transform.translation.y = g.mid.y
             t.transform.translation.z = 0
