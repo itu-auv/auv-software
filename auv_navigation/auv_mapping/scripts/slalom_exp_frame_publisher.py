@@ -334,7 +334,7 @@ class SlalomExpFramePublisher:
 
                 wx = transformed_pose_stamped.pose.position.x
                 wy = transformed_pose_stamped.pose.position.y
-                self.points.append([wx, wy])
+                self.points.append([wx, wy, x.results[0].id])
 
             except Exception as e:
                 rospy.logwarn_throttle(5, f"transformation error: {e}")
@@ -345,7 +345,8 @@ class SlalomExpFramePublisher:
             self.tfs = []
             return
 
-        pts = np.array(self.points)
+        pts_with_ids = np.array(self.points)
+        pts = pts_with_ids[:, :2]
         x_min, y_min = np.min(pts, axis=0)
         x_max, y_max = np.max(pts, axis=0)
 
@@ -367,7 +368,8 @@ class SlalomExpFramePublisher:
 
         img = np.zeros((image_h, image_w), dtype=np.uint8)
 
-        for center in pts:
+        pixel_points = []
+        for center, det_id in zip(pts, pts_with_ids[:, 2].astype(int)):
             u = int((center[0] - x_min) * scale + (image_w - width * scale) / 2)
             v = int((center[1] - y_min) * scale + (image_h - height * scale) / 2)
 
@@ -375,6 +377,7 @@ class SlalomExpFramePublisher:
             v = max(0, min(image_h - 1, v))
 
             cv2.circle(img, (u, v), 3, 255, -1)
+            pixel_points.append((u, v, det_id))
 
         kernel_size = max(1, int(self.opening_kernel_size_px))
         opening = cv2.morphologyEx(
@@ -400,6 +403,25 @@ class SlalomExpFramePublisher:
             pixel_centers.append(maxLoc)
             suppression_radius = max(1, int(self.suppression_radius_px))
             cv2.circle(heatmap_copy, maxLoc, suppression_radius, 0, -1)
+
+        pixel_center_colors = {}
+        if pixel_centers:
+            center_counts = [{2: 0, 3: 0} for _ in pixel_centers]
+            for u, v, det_id in pixel_points:
+                closest_idx = min(
+                    range(len(pixel_centers)),
+                    key=lambda i: (pixel_centers[i][0] - u) ** 2
+                    + (pixel_centers[i][1] - v) ** 2,
+                )
+                center_counts[closest_idx][det_id] += 1
+            for center, counts in zip(pixel_centers, center_counts):
+                pixel_center_colors[center] = (
+                    "red" if counts[2] >= counts[3] else "white"
+                )
+            for i, counts in enumerate(center_counts):
+                rospy.loginfo(
+                    f"Cluster {i}: red={counts[2]}, white={counts[3]}, selected={pixel_center_colors[pixel_centers[i]]}"
+                )
 
         heatmap_visa = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
             np.uint8
@@ -455,24 +477,35 @@ class SlalomExpFramePublisher:
                 ((v - (image_h - height * scale) / 2) / scale) + y_min,
             )
 
-        world_slalom = Slalom()
+        world_slalom = []
         for ps in pixel_slalom.groups:
-            world_slalom.groups.append(
-                SlalomGroup(
-                    left=pixel_to_world(ps.left),
-                    right=pixel_to_world(ps.right),
-                    mid=pixel_to_world(ps.mid),
+            world_slalom.append(
+                (
+                    SlalomGroup(
+                        left=pixel_to_world(ps.left),
+                        right=pixel_to_world(ps.right),
+                        mid=pixel_to_world(ps.mid),
+                    ),
+                    {
+                        "left": pixel_center_colors.get(
+                            (ps.left.x, ps.left.y), "white"
+                        ),
+                        "right": pixel_center_colors.get(
+                            (ps.right.x, ps.right.y), "white"
+                        ),
+                        "mid": pixel_center_colors.get((ps.mid.x, ps.mid.y), "white"),
+                    },
                 )
             )
 
-        world_slalom.groups.sort(key=lambda g: g.mid.x)
+        world_slalom.sort(key=lambda item: item[0].mid.x)
 
         self.tfs = []
-        for i, g in enumerate(world_slalom.groups):
+        for i, (g, colors) in enumerate(world_slalom):
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_left_{i}"
+            t.child_frame_id = f"slalom_pipe_{colors['left']}_left_{i}"
             t.transform.translation.x = g.left.x
             t.transform.translation.y = g.left.y
             t.transform.translation.z = 0
@@ -481,7 +514,7 @@ class SlalomExpFramePublisher:
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_right_{i}"
+            t.child_frame_id = f"slalom_pipe_{colors['right']}_right_{i}"
             t.transform.translation.x = g.right.x
             t.transform.translation.y = g.right.y
             t.transform.translation.z = 0
@@ -490,7 +523,7 @@ class SlalomExpFramePublisher:
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
             t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_mid_{i}"
+            t.child_frame_id = f"slalom_pipe_{colors['mid']}_mid_{i}"
             t.transform.translation.x = g.mid.x
             t.transform.translation.y = g.mid.y
             t.transform.translation.z = 0
