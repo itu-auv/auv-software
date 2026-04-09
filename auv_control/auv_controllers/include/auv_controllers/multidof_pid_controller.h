@@ -56,6 +56,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
     gravity_compensation_z_ = compensation;
   }
 
+  void set_external_wrench(const WrenchVector& wrench) {
+    external_wrench_ = wrench;
+  }
+
   /**
    * @brief Calculate the control output, in the form of a wrench
    *
@@ -109,12 +113,12 @@ class MultiDOFPIDController : public ControllerBase<N> {
     }
 
     const auto velocity_state = state.tail(N);
-    const auto desired_velocity = (desired_state.tail(N) + pos_pid_output)
-                                      .cwiseMin(max_velocity_limits_)
-                                      .cwiseMax(-max_velocity_limits_);
+    Vectornd desired_velocity = (desired_state.tail(N) + pos_pid_output)
+                                    .cwiseMin(max_velocity_limits_)
+                                    .cwiseMax(-max_velocity_limits_);
     const auto acceleration_state = d_state.tail(N);
 
-    const auto error = desired_velocity - velocity_state;
+    Vectornd error = desired_velocity - velocity_state;
     const auto p_term = kp_.template block<N, N>(N, N) * error;
 
     integral_.tail(N) += error * dt;
@@ -124,7 +128,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto d_term = kd_.template block<N, N>(N, N) *
                         (Vectornd::Zero() - acceleration_state);
 
-    const auto pid_output = p_term + i_term + d_term;
+    Vectornd pid_output = p_term + i_term + d_term;
     const auto mass_matrix = actual_mass_matrix(state);
 
     const auto pid_force = mass_matrix * pid_output;
@@ -138,6 +142,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
     Eigen::Vector3d gravity_force_global = Eigen::Vector3d::Zero();
     gravity_force_global(2) = gravity_compensation_z_;
     wrench.head(3) += inverse_rotation_matrix * gravity_force_global;
+    wrench += external_wrench_;
 
     return wrench;
   }
@@ -183,6 +188,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   // Default to effectively unlimited (1e6)
   Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
+  WrenchVector external_wrench_{WrenchVector::Zero()};
 };
 
 using SixDOFPIDController = MultiDOFPIDController<6>;
