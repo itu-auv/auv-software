@@ -175,7 +175,10 @@ class DampingStepWrenchLogger:
                 )
 
             # ADD PARAMETERS TO LAUNCH
-            default_targets = [2.5, 5.0, 7.5, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0]
+            if axis_name == "yaw":
+                default_targets = [0.4, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 3.5, 4.0]
+            else:
+                default_targets = [2.5, 5.0, 7.5, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0]
             targets = rospy.get_param(f"~{axis_name}_targets", default_targets)
 
             full_seq = []
