@@ -13,7 +13,7 @@ def get_tf_buffer(cache_time=None):
 
     if _tf_buffer is None:
         if cache_time is None:
-            cache_time = rospy.Duration(15.0)
+            cache_time = rospy.Duration(100.0)
 
         _tf_buffer = tf2_ros.Buffer(cache_time=cache_time)
         _tf_listener = tf2_ros.TransformListener(_tf_buffer)

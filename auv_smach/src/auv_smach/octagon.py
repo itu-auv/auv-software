@@ -63,7 +63,7 @@ class GripperAngleCloseState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper/set_angle", UInt16, queue_size=1)
-        self.angle_value = 600
+        self.angle_value = 500
 
     def execute(self, userdata) -> str:
         try:
@@ -402,7 +402,7 @@ class OctagonTaskState(smach.State):
                 SetDepthState(
                     depth=-1.12,
                     max_velocity=0.1,
-                    confirm_duration=5.0,
+                    confirm_duration=1.0,
                     depth_threshold=0.03,
                 ),
                 transitions={

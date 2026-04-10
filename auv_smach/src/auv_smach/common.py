@@ -163,8 +163,7 @@ class SetDepthState(smach.State):
         self._stop_publishing = threading.Event()
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
         self.base_frame = get_base_link()
 
@@ -1586,8 +1585,7 @@ class CheckForTransformState(smach.State):
         self.source_frame = source_frame
         self.target_frame = target_frame
         self.timeout = timeout
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(check_rate_hz)
 
     def is_transform_available(self):
