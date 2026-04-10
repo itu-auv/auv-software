@@ -133,14 +133,6 @@ class CameraDetectionNode:
         # Odometry subscriber
         rospy.Subscriber("odometry", Odometry, self._odometry_callback)
 
-        # Segment measurement subscriber
-        rospy.Subscriber(
-            "segment_measurement",
-            SegmentMeasurement,
-            self._segment_measurement_callback,
-            queue_size=1,
-        )
-
         # Services
         rospy.Service(
             "enable_front_camera_detections",
@@ -193,7 +185,10 @@ class CameraDetectionNode:
             rospy.logwarn_throttle(15.0, f"Transform error: {e}")
             return
 
-        self.handlers[cam_key].handle(msg, seg_msg)
+        if cam_key == "bottom_seg":
+            self.handlers[cam_key].handle(msg, seg_msg)
+        else:
+            self.handlers[cam_key].handle(msg)
 
     def _odometry_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
