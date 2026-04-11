@@ -3,8 +3,9 @@
     <!--
     Stand Orientation Estimator
     ============================
-    Primary position: front camera bbox + known valve diameter (geometric estimation)
-    Orientation refinement: RealSense HSV + RANSAC (optional, when cloud available)
+    Position: front camera bbox + known valve diameter (geometric estimation)
+    Orientation: RealSense point cloud RANSAC (best-effort, uses valve position
+                 as anchor to find stand surface in point cloud)
     -->
 
     <arg name="namespace" default="taluy" />
@@ -18,39 +19,26 @@
         <param name="namespace" value="$(arg namespace)" />
 
         <!-- Front camera: primary position source -->
-        <param name="front_image_topic"      value="/$(arg namespace)/cameras/cam_front/image_raw" />
         <param name="front_camera_info_topic" value="/$(arg namespace)/cameras/cam_front/camera_info" />
-        <param name="front_optical_frame"    value="$(arg namespace)/base_link/front_camera_optical_link_stabilized" />
-        <param name="valve_diameter"         value="0.24" />
+        <param name="front_optical_frame"     value="$(arg namespace)/base_link/front_camera_optical_link_stabilized" />
+        <param name="valve_diameter"          value="0.24" />
 
-        <!-- YoloResult: valve bbox (sim_bbox_node publishes on /yolo_result_front) -->
-        <param name="bbox_topic"    value="/yolo_result_front" />
+        <!-- YoloResult: valve bbox (sim_bbox_node or real YOLO) -->
+        <param name="bbox_topic"     value="/yolo_result_front" />
         <param name="valve_class_id" value="8" />
 
-        <!-- RealSense: optional orientation refinement via RANSAC -->
-        <!-- color topic: Gazebo publishes under <namespace>/<cameraName>/<imageTopicName> -->
-        <param name="color_topic"           value="/$(arg namespace)/camera/color/image_raw" />
-        <!-- cloud topic: pointCloudTopicName is absolute (/points_filtered) in the Gazebo plugin -->
-        <param name="cloud_topic"           value="/points_filtered" />
-        <!-- RealSense depth optical frame (frameName in Gazebo plugin) -->
+        <!-- RealSense: point cloud for RANSAC orientation -->
+        <param name="cloud_topic"            value="/$(arg namespace)/camera/depth/color/points" />
         <param name="realsense_optical_frame" value="$(arg namespace)/camera_depth_optical_frame" />
 
-        <!-- Stand HSV (yellow panels) -->
-        <rosparam param="hsv_lower">[20, 80, 80]</rosparam>
-        <rosparam param="hsv_upper">[40, 255, 255]</rosparam>
-
-        <!-- Detection parameters -->
-        <param name="min_contour_area"   value="500" />
-        <param name="morph_kernel_size"  value="7" />
-
         <!-- RANSAC parameters -->
-        <param name="ransac_iterations"   value="300" />
-        <param name="ransac_threshold"    value="0.03" />
-        <param name="min_inlier_ratio"    value="0.3" />
+        <param name="ransac_iterations"    value="300" />
+        <param name="ransac_threshold"     value="0.03" />
+        <param name="min_inlier_ratio"     value="0.3" />
         <param name="min_points_for_plane" value="50" />
-
-        <!-- Debug -->
-        <param name="publish_debug_image" value="true" />
+        <param name="search_radius"        value="0.5" />
+        <!-- Exclude points within this radius of valve center (skip valve body) -->
+        <param name="valve_exclusion_radius" value="0.18" />
 
         <!-- Remap: publish to object_map_tf_server -->
         <remap from="object_transform_updates" to="map/set_object_transform" />

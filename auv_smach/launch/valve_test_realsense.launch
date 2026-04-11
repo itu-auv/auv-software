@@ -1,12 +1,16 @@
 <?xml version="1.0"?>
 <launch>
     <!--
-    Valve Test — RealSense Mode
-    ============================
-    Ground truth yerine RealSense derinlik kamerasından
-    stand oryantasyonu hesaplar.
+    Valve Test - Vision Mode (sim_bbox_node)
+    =========================================
+    Uses sim_bbox_node to publish YoloResult bounding boxes from Gazebo
+    ground truth, then stand_orientation_estimator converts bbox to 3D
+    position and publishes valve_stand_link TF.
 
-    Kullanım:
+    In real life, sim_bbox_node is replaced by the real YOLO tracker
+    (same YoloResult message format).
+
+    Usage:
       roslaunch auv_smach valve_test_realsense.launch
     -->
 
@@ -20,15 +24,21 @@
     <arg name="valve_approach_frame" default="valve_approach_frame" />
     <arg name="valve_contact_frame" default="valve_contact_frame" />
     <arg name="valve_exit_angle" default="0.0" />
+
+    <!-- use_ground_truth=true skips detection enable/focus service calls in SMACH.
+         sim_bbox_node always publishes, so these services are not needed. -->
     <arg name="use_ground_truth" default="true" />
 
+    <!-- sim_bbox_node is already launched by start_gazebo.launch (tracker_sim.launch) -->
+    <!-- It publishes YoloResult on /yolo_result_front with valve class_id=8 -->
+
     <group ns="$(arg namespace)">
-        <!-- Stand Orientation Estimator: RealSense'den oryantasyon hesaplar -->
+        <!-- 2. Stand Orientation Estimator: YoloResult bbox -> valve_stand_link TF -->
         <include file="$(find auv_vision)/launch/stand_orientation_estimator.launch">
             <arg name="namespace" value="$(arg namespace)" />
         </include>
 
-        <!-- Valve Trajectory Publisher: approach/contact frame'leri oluşturur -->
+        <!-- 3. Valve Trajectory Publisher: valve_stand_link -> 3 approach frames -->
         <node name="valve_trajectory_publisher"
               pkg="auv_mapping"
               type="valve_trajectory_publisher.py"
@@ -37,7 +47,7 @@
             <remap from="set_object_transform" to="map/set_object_transform" />
         </node>
 
-        <!-- Valve Test State Machine -->
+        <!-- 4. Valve Test State Machine -->
         <node name="valve_test_state_machine" pkg="auv_smach" type="valve_test.py" output="screen">
             <param name="~valve_depth" value="$(arg valve_depth)" />
             <param name="~valve_coarse_approach_frame" value="$(arg valve_coarse_approach_frame)" />
