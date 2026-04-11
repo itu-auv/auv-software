@@ -139,7 +139,9 @@ class StandOrientationEstimator:
         self.latest_valve_bbox_size = None
         self.latest_cloud = None
         self.cached_orientation = None  # last good RANSAC orientation
-        self.latest_valve_position = None  # last known 3D valve pos (front optical frame)
+        self.latest_valve_position = (
+            None  # last known 3D valve pos (front optical frame)
+        )
 
         # Default orientation: surface normal toward camera (-Z in optical frame)
         self.default_orientation = self._normal_to_quaternion(
@@ -311,7 +313,7 @@ class StandOrientationEstimator:
         if points_3d is None or len(points_3d) < self.min_points_for_plane:
             rospy.logdebug_throttle(
                 5.0,
-                f"Not enough points for RANSAC: {0 if points_3d is None else len(points_3d)}"
+                f"Not enough points for RANSAC: {0 if points_3d is None else len(points_3d)}",
             )
             return
 
@@ -325,7 +327,9 @@ class StandOrientationEstimator:
 
         normal, _, inlier_ratio = result
         if inlier_ratio < self.min_inlier_ratio:
-            rospy.logdebug_throttle(5.0, f"RANSAC inlier ratio too low: {inlier_ratio:.1%}")
+            rospy.logdebug_throttle(
+                5.0, f"RANSAC inlier ratio too low: {inlier_ratio:.1%}"
+            )
             return
 
         # Ensure normal points toward camera (-Z in RS optical frame)
@@ -464,8 +468,8 @@ class StandOrientationEstimator:
         if u_min >= u_max or v_min >= v_max:
             return None
 
-        radius_sq = self.search_radius ** 2
-        exclusion_sq = self.valve_exclusion_radius ** 2
+        radius_sq = self.search_radius**2
+        exclusion_sq = self.valve_exclusion_radius**2
         points = []
 
         # Subsample: step by 2 for efficiency
@@ -519,8 +523,8 @@ class StandOrientationEstimator:
         data = cloud_msg.data
         n_points = cloud_msg.width * cloud_msg.height
 
-        radius_sq = self.search_radius ** 2
-        exclusion_sq = self.valve_exclusion_radius ** 2
+        radius_sq = self.search_radius**2
+        exclusion_sq = self.valve_exclusion_radius**2
         points = []
 
         # Subsample for large clouds
