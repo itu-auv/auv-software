@@ -54,6 +54,7 @@ class ObjectPlaneFitter {
     pnh_.param<double>("min_inlier_ratio", min_inlier_ratio_, 0.5);
     pnh_.param<bool>("publish_debug", publish_debug_, true);
     pnh_.param<std::string>("output_frame_id", output_frame_id_, "");
+    pnh_.param<int>("sync_queue_size", sync_queue_size_, 90);
     pnh_.param<std::string>("camera_optical_frame", camera_optical_frame_,
                             "taluy/camera_depth_optical_frame");
     pnh_.param<std::string>("base_link_frame", base_link_frame_,
@@ -81,11 +82,12 @@ class ObjectPlaneFitter {
                       &ObjectPlaneFitter::originalCameraInfoCallback, this);
 
     // Synchronized subscribers for depth and detections
-    depth_sub_.subscribe(nh_, "depth", 1);
-    detection_sub_.subscribe(nh_, "detections", 10);
+    depth_sub_.subscribe(nh_, "depth", sync_queue_size_);
+    detection_sub_.subscribe(nh_, "detections", sync_queue_size_);
 
     // ApproximateTime synchronizer
-    sync_.reset(new Sync(SyncPolicy(10), depth_sub_, detection_sub_));
+    sync_.reset(
+        new Sync(SyncPolicy(sync_queue_size_), depth_sub_, detection_sub_));
     sync_->registerCallback(
         boost::bind(&ObjectPlaneFitter::syncCallback, this, _1, _2));
 
@@ -95,6 +97,7 @@ class ObjectPlaneFitter {
                                   : std::to_string(target_class_id_).c_str());
     ROS_INFO("[ObjectPlaneFitter] RANSAC threshold: %.4f m, max iterations: %d",
              ransac_distance_threshold_, ransac_max_iterations_);
+    ROS_INFO("[ObjectPlaneFitter] Sync queue size: %d", sync_queue_size_);
     ROS_INFO(
         "[ObjectPlaneFitter] BBox scaling enabled: YOLO boxes will be rescaled "
         "from original camera resolution to depth image resolution.");
@@ -519,6 +522,7 @@ class ObjectPlaneFitter {
   double min_inlier_ratio_;
   bool publish_debug_;
   std::string output_frame_id_;
+  int sync_queue_size_;
   std::map<int, std::string> id_to_prop_name_ = {
       {0, "gate_sawfish_link"}, {1, "gate_shark_link"},
       {2, "red_pipe_link"},     {3, "white_pipe_link"},

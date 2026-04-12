@@ -1,6 +1,7 @@
 <!-- Object Plane Fitter Launch File -->
 <launch>
     <arg name="namespace" default="taluy" />
+    <arg name="sim" default="false" />
 
     <arg name="depth_topic" default="depth_anything/raw_depth"/>
     <arg name="scaled_camera_info_topic" default="depth_anything/scaled_camera_info"/>
@@ -9,12 +10,14 @@
 
     <!-- Use -1 to accept all classes, or specify class ID (e.g., 0, 1, 2...) -->
     <arg name="target_class_id" default="4"/>
-    <arg name="ransac_distance_threshold" default="0.03"/>
+    <arg name="ransac_distance_threshold" default="0.05"/>
     <arg name="ransac_max_iterations" default="1000"/>
     <arg name="depth_scale_factor" default="1.0"/>
     <arg name="min_inlier_ratio" default="0.5"/>
     <arg name="publish_debug" default="true"/>
     <arg name="output_frame_id" default=""/>
+    <arg name="sync_queue_size_sim" default="90"/>
+    <arg name="sync_queue_size_real" default="30"/>
 
     <group ns="$(arg namespace)">
         <node name="object_plane_fitter" pkg="auv_mapping" type="object_plane_fitter_node" output="screen">
@@ -25,6 +28,8 @@
           <param name="min_inlier_ratio" value="$(arg min_inlier_ratio)"/>
           <param name="publish_debug" value="$(arg publish_debug)"/>
           <param name="output_frame_id" value="$(arg output_frame_id)"/>
+          <param if="$(arg sim)" name="sync_queue_size" value="$(arg sync_queue_size_sim)"/>
+          <param unless="$(arg sim)" name="sync_queue_size" value="$(arg sync_queue_size_real)"/>
 
           <remap from="depth" to="$(arg depth_topic)"/>
           <remap from="camera_info" to="$(arg scaled_camera_info_topic)"/>
