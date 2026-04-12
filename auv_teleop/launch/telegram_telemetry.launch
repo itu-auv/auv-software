@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="auv_teleop" type="telegram_telemetry_node.py" name="telegram_telemetry_node" output="screen">
+      <remap from="power" to="mainboard/power_sensor/power" />
+      <param name="battery_low_voltage" value="14.5" />
+      <param name="battery_low_debounce_seconds" value="2.0" />
+      <param name="battery_low_repeat_interval" value="60.0" />
+      <param name="power_message_timeout" value="5.0" />
+      <param name="session_name" value="$(optenv HOME)/.ros/telegram_telemetry_$(arg namespace)" />
+      <param name="telegram_api_id" value="$(optenv TELEGRAM_API_ID)" />
+      <param name="telegram_api_hash" value="$(optenv TELEGRAM_API_HASH)" />
+      <param name="telegram_bot_token" value="$(optenv TELEGRAM_BOT_TOKEN)" />
+      <param name="telegram_chat_id" value="$(optenv TELEGRAM_CHAT_ID)" type="str" />
+    </node>
+  </group>
+</launch>
