@@ -1,16 +1,15 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="logitech_c920_camera">
-  <xacro:macro name="logitech_c920_camera_sim" params="name topic_name
-    image_width image_height hfov
-    distortion_k1 distortion_k2 distortion_k3 distortion_t1 distortion_t2">
+  <xacro:macro name="logitech_c920_camera_sim" params="name topic_name calibration_params">
+    <xacro:property name="distortion" value="${calibration_params['distortion_coefficients']['data']}"/>
     <gazebo reference="${name}_link">
       <sensor type="camera" name="${name}_sensor">
         <update_rate>30.0</update_rate>
         <camera name="head">
-          <horizontal_fov>${hfov}</horizontal_fov>
+          <horizontal_fov>${2 * atan2(calibration_params['image_width'], 2 * calibration_params['camera_matrix']['data'][0])}</horizontal_fov>
           <image>
-            <width>${image_width}</width>
-            <height>${image_height}</height>
+            <width>${calibration_params['image_width']}</width>
+            <height>${calibration_params['image_height']}</height>
             <format>B8G8R8</format>
           </image>
           <clip>
@@ -18,11 +17,11 @@
             <far>300</far>
           </clip>
           <distortion>
-            <k1>${distortion_k1}</k1>
-            <k2>${distortion_k2}</k2>
-            <k3>${distortion_k3}</k3>
-            <p1>${distortion_t1}</p1>
-            <p2>${distortion_t2}</p2>
+            <k1>${distortion[0]}</k1>
+            <k2>${distortion[1]}</k2>
+            <k3>${distortion[4]}</k3>
+            <p1>${distortion[2]}</p1>
+            <p2>${distortion[3]}</p2>
             <center>0.5 0.5</center>
           </distortion>
           <noise>
@@ -41,11 +40,11 @@
           <imageTopicName>image_raw</imageTopicName>
           <frameName>${name}_optical_link</frameName>
           <hackBaseline>0.07</hackBaseline>
-          <distortionK1>${distortion_k1}</distortionK1>
-          <distortionK2>${distortion_k2}</distortionK2>
-          <distortionK3>${distortion_k3}</distortionK3>
-          <distortionT1>${distortion_t1}</distortionT1>
-          <distortionT2>${distortion_t2}</distortionT2>
+          <distortionK1>${distortion[0]}</distortionK1>
+          <distortionK2>${distortion[1]}</distortionK2>
+          <distortionK3>${distortion[4]}</distortionK3>
+          <distortionT1>${distortion[2]}</distortionT1>
+          <distortionT2>${distortion[3]}</distortionT2>
         </plugin>
       </sensor>
     </gazebo>
