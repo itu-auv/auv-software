@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MetricAnything DepthMap ROS Node - ZeroMQ client."""
+"""Depth Anything 3 ROS Node - ZeroMQ Client"""
 
 import cv2
 import numpy as np
@@ -12,13 +12,14 @@ from sensor_msgs.msg import CameraInfo, Image
 ZMQ_TIMEOUT_MS = 30000
 
 
-class MetricDepthNode:
+class DepthAnythingNode:
     def __init__(self) -> None:
         self.bridge = CvBridge()
 
         self.zmq_host = rospy.get_param("~zmq_host", "localhost")
         self.zmq_port = rospy.get_param("~zmq_port", 5555)
         self.rate_hz = rospy.get_param("~rate", 10.0)
+        self.process_res = rospy.get_param("~process_res", 640)
         self.camera_namespace = rospy.get_param(
             "~camera_namespace", "cameras/cam_front"
         )
@@ -48,8 +49,8 @@ class MetricDepthNode:
         rospy.on_shutdown(self.cleanup)
 
         if not self._ping_server():
-            rospy.logwarn("[MetricDepth] Server not responding. Will retry in loop.")
-        rospy.loginfo(f"[MetricDepth] Ready: {self.zmq_host}:{self.zmq_port}")
+            rospy.logwarn("[DA3] Server not responding. Will retry in loop.")
+        rospy.loginfo(f"[DA3] Ready: {self.zmq_host}:{self.zmq_port}")
 
     def _reset_zmq(self) -> None:
         if self.socket:
@@ -74,47 +75,11 @@ class MetricDepthNode:
     def _image_cb(self, msg: Image) -> None:
         self.latest_image = msg
 
-    def _compute_scaled_intrinsics(self, h: int, w: int):
-        if self.camera_info is None:
-            return None
-
-        orig_w = self.camera_info.width
-        orig_h = self.camera_info.height
-        if orig_w == 0 or orig_h == 0:
-            rospy.logerr_throttle(
-                5.0, "[MetricDepth] Camera resolution is 0, cannot scale intrinsics."
-            )
-            return None
-
-        scale_w = w / float(orig_w)
-        scale_h = h / float(orig_h)
-        return {
-            "width": w,
-            "height": h,
-            "fx": self.camera_info.K[0] * scale_w,
-            "fy": self.camera_info.K[4] * scale_h,
-            "cx": self.camera_info.K[2] * scale_w,
-            "cy": self.camera_info.K[5] * scale_h,
-        }
-
     def _infer(self, cv_img: np.ndarray) -> dict:
         rgb = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
-        h, w = rgb.shape[:2]
-        req_intrinsics = self._compute_scaled_intrinsics(h, w)
-
-        payload = {
-            "command": "inference",
-            "image": rgb,
-        }
-        if req_intrinsics is not None:
-            payload["f_px"] = (req_intrinsics["fx"] + req_intrinsics["fy"]) / 2.0
-        else:
-            rospy.logwarn_throttle(
-                10.0,
-                "[MetricDepth] Camera intrinsics unavailable; server will fallback to image width.",
-            )
-
-        self.socket.send_pyobj(payload)
+        self.socket.send_pyobj(
+            {"command": "inference", "image": rgb, "process_res": self.process_res}
+        )
         response = self.socket.recv_pyobj()
         if response["status"] != "success":
             raise RuntimeError(response.get("error", "Unknown error"))
@@ -125,23 +90,35 @@ class MetricDepthNode:
             return
 
         if (
-            self.scaled_intrinsics is not None
-            and self.scaled_intrinsics["width"] == w
-            and self.scaled_intrinsics["height"] == h
+            self.scaled_intrinsics is None
+            or self.scaled_intrinsics["width"] != w
+            or self.scaled_intrinsics["height"] != h
         ):
-            return
+            orig_w = self.camera_info.width
+            orig_h = self.camera_info.height
 
-        scaled = self._compute_scaled_intrinsics(h, w)
-        if scaled is None:
-            return
+            if orig_w == 0 or orig_h == 0:
+                rospy.logerr_throttle(
+                    5.0, "[DA3] Camera resolution is 0, cannot scale intrinsics."
+                )
+                return
 
-        self.scaled_intrinsics = scaled
-        rospy.loginfo(
-            f"[MetricDepth] Scaled intrinsics from {self.camera_info.width}x{self.camera_info.height} to {w}x{h}"
-        )
-        self._publish_scaled_camera_info()
+            scale_w = w / float(orig_w)
+            scale_h = h / float(orig_h)
+
+            self.scaled_intrinsics = {
+                "width": w,
+                "height": h,
+                "fx": self.camera_info.K[0] * scale_w,
+                "fy": self.camera_info.K[4] * scale_h,
+                "cx": self.camera_info.K[2] * scale_w,
+                "cy": self.camera_info.K[5] * scale_h,
+            }
+            rospy.loginfo(f"[DA3] Scaled intrinsics from {orig_w}x{orig_h} to {w}x{h}")
+            self._publish_scaled_camera_info()
 
     def _publish_scaled_camera_info(self) -> None:
+        """Publish the scaled camera info as a CameraInfo message."""
         if self.scaled_intrinsics is None or self.camera_info is None:
             return
 
@@ -157,8 +134,13 @@ class MetricDepthNode:
         cx = self.scaled_intrinsics["cx"]
         cy = self.scaled_intrinsics["cy"]
 
+        # Intrinsic matrix K (3x3 row-major)
         msg.K = [fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0]
+
+        # Rectification matrix R (identity for monocular)
         msg.R = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+
+        # Projection matrix P (3x4 row-major)
         msg.P = [fx, 0.0, cx, 0.0, 0.0, fy, cy, 0.0, 0.0, 0.0, 1.0, 0.0]
 
         self.camera_info_pub.publish(msg)
@@ -178,38 +160,42 @@ class MetricDepthNode:
             try:
                 cv_img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
                 result = self._infer(cv_img)
-                depth = np.asarray(result["depth"], dtype=np.float32)
+                raw_depth = result["depth"]
 
-                h, w = depth.shape[:2]
+                h, w = raw_depth.shape[:2]
                 self._update_intrinsics(h, w)
+
+                if self.scaled_intrinsics:
+                    fx = self.scaled_intrinsics["fx"]
+                    fy = self.scaled_intrinsics["fy"]
+                    # metric depth: depth = focal * net_output / 300 (as per DA3 paper)
+                    focal = (fx + fy) / 2.0
+                    depth = raw_depth * focal / 300.0
+                else:
+                    depth = raw_depth
 
                 depth_msg = self.bridge.cv2_to_imgmsg(depth, "32FC1")
                 depth_msg.header = msg.header
                 self.depth_pub.publish(depth_msg)
 
-            except (zmq.error.ZMQError, zmq.error.Again) as exc:
-                rospy.logwarn_throttle(
-                    5.0, f"[MetricDepth] ZMQ error: {exc}. Reconnecting..."
-                )
+            except (zmq.error.ZMQError, zmq.error.Again) as e:
+                rospy.logwarn_throttle(5.0, f"[DA3] ZMQ error: {e}. Reconnecting...")
                 self._reset_zmq()
-            except Exception as exc:
-                rospy.logerr_throttle(5.0, f"[MetricDepth] Inference failed: {exc}")
+            except Exception as e:
+                rospy.logerr_throttle(5.0, f"[DA3] Inference failed: {e}")
 
             rate.sleep()
 
     def cleanup(self) -> None:
-        rospy.loginfo("[MetricDepth] Shutting down...")
-        try:
-            if self.socket is not None:
-                self.socket.close(linger=0)
-        finally:
-            self.context.term()
+        rospy.loginfo("[DA3] Shutting down...")
+        self.socket.close(linger=0)
+        self.context.term()
 
 
 if __name__ == "__main__":
-    rospy.init_node("metric_depth_node")
+    rospy.init_node("depth_anything_node")
     try:
-        node = MetricDepthNode()
+        node = DepthAnythingNode()
         node.run()
     except rospy.ROSInterruptException:
         pass
