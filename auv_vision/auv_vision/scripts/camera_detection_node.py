@@ -11,6 +11,7 @@ from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
 import tf2_ros
+import message_filters
 
 # Add scripts directory to path so we can import detection_utils and handlers
 scripts_dir = os.path.dirname(os.path.abspath(__file__))
@@ -55,7 +56,6 @@ class CameraDetectionNode:
         self.shared_state = {
             "altitude": None,
             "pool_depth": rospy.get_param("/env/pool_depth"),
-            "last_segment_measurement": None,
         }
 
         # Camera enable flags
@@ -94,13 +94,36 @@ class CameraDetectionNode:
                 )
                 self.handlers[cam_key] = handler
 
-                # Create subscriber
-                rospy.Subscriber(
-                    cam_cfg["yolo_topic"],
-                    YoloResult,
-                    lambda msg, k=cam_key: self._dispatch(msg, k),
-                    queue_size=1,
-                )
+                if cam_key == "bottom_seg":
+                    self.segment_result_sub = message_filters.Subscriber(
+                        cam_cfg["yolo_topic"],
+                        YoloResult,
+                        queue_size=1,
+                        buff_size=2**24,
+                    )
+                    self.segment_measurement_sub = message_filters.Subscriber(
+                        "segment_measurement",
+                        SegmentMeasurement,
+                        queue_size=1,
+                    )
+                    self.segment_sync = message_filters.ApproximateTimeSynchronizer(
+                        [self.segment_result_sub, self.segment_measurement_sub],
+                        queue_size=10,
+                        slop=0.05,
+                    )
+                    self.segment_sync.registerCallback(
+                        lambda detection_msg, seg_msg, k=cam_key: self._dispatch(
+                            detection_msg, k, seg_msg
+                        )
+                    )
+                else:
+                    rospy.Subscriber(
+                        cam_cfg["yolo_topic"],
+                        YoloResult,
+                        lambda msg, k=cam_key: self._dispatch(msg, k),
+                        queue_size=1,
+                        buff_size=2**24,
+                    )
             except Exception as e:
                 rospy.logerr(
                     f"Failed to initialize camera '{cam_key}': {e}. "
@@ -109,14 +132,6 @@ class CameraDetectionNode:
 
         # Odometry subscriber
         rospy.Subscriber("odometry", Odometry, self._odometry_callback)
-
-        # Segment measurement subscriber
-        rospy.Subscriber(
-            "segment_measurement",
-            SegmentMeasurement,
-            self._segment_measurement_callback,
-            queue_size=1,
-        )
 
         # Services
         rospy.Service(
@@ -150,7 +165,7 @@ class CameraDetectionNode:
             self._handle_enable_segment_camera,
         )
 
-    def _dispatch(self, msg, cam_key):
+    def _dispatch(self, msg, cam_key, seg_msg=None):
         if not self.camera_enabled.get(cam_key, False):
             return
 
@@ -170,7 +185,10 @@ class CameraDetectionNode:
             rospy.logwarn_throttle(15.0, f"Transform error: {e}")
             return
 
-        self.handlers[cam_key].handle(msg)
+        if cam_key == "bottom_seg":
+            self.handlers[cam_key].handle(msg, seg_msg)
+        else:
+            self.handlers[cam_key].handle(msg)
 
     def _odometry_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
@@ -179,10 +197,6 @@ class CameraDetectionNode:
             f"Calculated altitude from odometry Z: {self.shared_state['altitude']:.2f} m "
             f"(pool_depth={self.shared_state['pool_depth']})"
         )
-
-    def _segment_measurement_callback(self, msg: SegmentMeasurement):
-        """Store segment measurement for use by segment handler."""
-        self.shared_state["last_segment_measurement"] = msg
 
     def _handle_enable_front_camera(self, req):
         self.camera_enabled["front"] = req.data
