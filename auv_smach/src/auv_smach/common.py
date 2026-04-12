@@ -8,6 +8,7 @@ import tf.transformations as transformations
 import math
 import angles
 from auv_smach.tf_utils import get_tf_buffer, get_base_link
+from auv_common_lib.transform import lookup_fresh_transform
 import actionlib
 
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
@@ -509,12 +510,14 @@ class RotationState(smach.State):
 
     def is_transform_available(self):
         try:
-            return self.tf_buffer.can_transform(
+            lookup_fresh_transform(
+                self.tf_buffer,
                 self.source_frame,
                 self.look_at_frame,
-                rospy.Time.now(),
-                rospy.Duration(0.2),
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
             )
+            return True
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
@@ -991,12 +994,12 @@ class CheckAlignmentState(smach.State):
 
     def get_error(self):
         try:
-            query_time = rospy.Time.now()
-            transform = self.tf_buffer.lookup_transform(
+            transform = lookup_fresh_transform(
+                self.tf_buffer,
                 self.source_frame,
                 self.target_frame,
-                query_time,
-                rospy.Duration(0.2),
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
             )
             trans = transform.transform.translation
             rot = transform.transform.rotation
@@ -1578,12 +1581,14 @@ class CheckForTransformState(smach.State):
 
     def is_transform_available(self):
         try:
-            return self.tf_buffer.can_transform(
+            lookup_fresh_transform(
+                self.tf_buffer,
                 self.source_frame,
                 self.target_frame,
-                rospy.Time.now(),
-                rospy.Duration(0.2),
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
             )
+            return True
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
