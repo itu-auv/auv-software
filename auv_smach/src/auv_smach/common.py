@@ -991,8 +991,12 @@ class CheckAlignmentState(smach.State):
 
     def get_error(self):
         try:
+            query_time = rospy.Time.now()
             transform = self.tf_buffer.lookup_transform(
-                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(4.0)
+                self.source_frame,
+                self.target_frame,
+                query_time,
+                rospy.Duration(0.2),
             )
             trans = transform.transform.translation
             rot = transform.transform.rotation
@@ -1012,7 +1016,7 @@ class CheckAlignmentState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"CheckAlignmentState: TF lookup failed: {e}")
+            rospy.logwarn_throttle(3.0, f"CheckAlignmentState: TF lookup failed: {e}")
             return None, None
 
     def is_aligned_distance_only(self, dist_error):
@@ -1057,6 +1061,8 @@ class CheckAlignmentState(smach.State):
                         return "succeeded"
                 else:
                     first_success_time = None
+            else:
+                first_success_time = None
 
             self.rate.sleep()
 
@@ -1575,8 +1581,8 @@ class CheckForTransformState(smach.State):
             return self.tf_buffer.can_transform(
                 self.source_frame,
                 self.target_frame,
-                rospy.Time(0),
-                rospy.Duration(0.05),
+                rospy.Time.now(),
+                rospy.Duration(0.2),
             )
         except (
             tf2_ros.LookupException,

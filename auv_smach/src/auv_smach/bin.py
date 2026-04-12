@@ -95,7 +95,10 @@ class CheckForDropAreaState(smach.State):
             # Check for both blue and red bin frames
             for frame in self.target_frames:
                 if self.tf_buffer.can_transform(
-                    self.source_frame, frame, rospy.Time(0), self.timeout
+                    self.source_frame,
+                    frame,
+                    rospy.Time.now(),
+                    rospy.Duration(0.2),
                 ):
                     rospy.loginfo(
                         f"[CheckForDropAreaState] Target selection '{self.target_selection}': Transform from '{self.source_frame}' to '{frame}' found."

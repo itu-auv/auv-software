@@ -120,6 +120,9 @@ class ReferencePosePublisherNode:
         self.max_z = rospy.get_param("~max_z", 0.0)
         self.min_z = rospy.get_param("~min_z", -2.0)
         self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
+        self.tf_lookup_timeout = rospy.Duration(
+            rospy.get_param("~tf_lookup_timeout", 0.2)
+        )
 
         self.killswitch_sub = rospy.Subscriber(
             "propulsion_board/status", Bool, self.killswitch_callback
@@ -182,10 +185,12 @@ class ReferencePosePublisherNode:
             if req.frame_id == "" or req.frame_id is None:
                 req.frame_id = "odom"
 
+            query_time = rospy.Time.now()
             depth = self.get_transformed_depth(
                 "odom",
                 req.frame_id,
                 req.target_depth,
+                query_time,
             )
             if depth is None:
                 return SetDepthResponse(
@@ -221,6 +226,7 @@ class ReferencePosePublisherNode:
         self, req: AlignFrameController
     ) -> AlignFrameControllerResponse:
         with self.state_lock:
+            query_time = rospy.Time.now()
             if self.align_frame_active:
                 self.set_target_to_odometry()
                 self.use_align_frame_depth = False
@@ -229,7 +235,10 @@ class ReferencePosePublisherNode:
             self.align_frame_active = True
 
             t = self.tf_lookup(
-                req.source_frame, self.base_frame, rospy.Time(0), rospy.Duration(1.0)
+                req.source_frame,
+                self.base_frame,
+                query_time,
+                self.tf_lookup_timeout,
             )
 
             if t is None:
@@ -250,8 +259,8 @@ class ReferencePosePublisherNode:
                 source_in_target = self.tf_lookup(
                     req.target_frame,
                     req.source_frame,
-                    rospy.Time(0),
-                    rospy.Duration(1.0),
+                    query_time,
+                    self.tf_lookup_timeout,
                 )
                 if source_in_target is None:
                     return AlignFrameControllerResponse(
@@ -454,10 +463,12 @@ class ReferencePosePublisherNode:
 
         # If use_align_frame_depth=False, depth is already in odom frame
         if self.target_frame_id != "odom" and self.use_align_frame_depth:
+            query_time = rospy.Time.now()
             depth = self.get_transformed_depth(
                 "odom",
                 self.target_frame_id,
                 self.target_depth,
+                query_time,
             )
             if depth is None:
                 return
@@ -478,16 +489,20 @@ class ReferencePosePublisherNode:
         self.target_pitch = 0.0
 
     def get_transformed_depth(
-        self, target_frame: str, source_frame: str, target_depth: float
+        self,
+        target_frame: str,
+        source_frame: str,
+        target_depth: float,
+        query_time: rospy.Time,
     ):
         source_to_odom = self.tf_lookup(
-            "odom", source_frame, rospy.Time(0), rospy.Duration(1.0)
+            "odom", source_frame, query_time, self.tf_lookup_timeout
         )
         if source_to_odom is None:
             return None
 
         target_to_odom = self.tf_lookup(
-            "odom", target_frame, rospy.Time(0), rospy.Duration(1.0)
+            "odom", target_frame, query_time, self.tf_lookup_timeout
         )
         if target_to_odom is None:
             return None
@@ -503,12 +518,13 @@ class ReferencePosePublisherNode:
         roll: float,
         pitch: float,
         yaw: float,
+        query_time: rospy.Time,
     ):
         transform = self.tf_lookup(
             target_frame,
             source_frame,
-            rospy.Time(0),
-            rospy.Duration(1.0),
+            query_time,
+            self.tf_lookup_timeout,
         )
 
         if transform is None:
@@ -648,6 +664,7 @@ class ReferencePosePublisherNode:
             rospy.logwarn_throttle(5.0, f"Failed to publish cmd_pose frame: {e}")
 
     def control_loop(self):
+        query_time = rospy.Time.now()
         with self.state_lock:
             frame_id = self.target_frame_id
             tx = self.target_x
@@ -663,14 +680,16 @@ class ReferencePosePublisherNode:
             align_active = self.align_frame_active
 
         cmd_pose_stamped = PoseStamped()
-        cmd_pose_stamped.header.stamp = rospy.Time.now()
+        cmd_pose_stamped.header.stamp = query_time
         cmd_pose_stamped.header.frame_id = frame_id
 
         cmd_pose_stamped.pose.position.x = tx
         cmd_pose_stamped.pose.position.y = ty
 
         if not use_align_depth:
-            transformed_depth = self.get_transformed_depth(frame_id, "odom", tz)
+            transformed_depth = self.get_transformed_depth(
+                frame_id, "odom", tz, query_time
+            )
             if transformed_depth is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target depth")
                 return
@@ -685,6 +704,7 @@ class ReferencePosePublisherNode:
                 t_roll,
                 t_pitch,
                 t_heading,
+                query_time,
             )
             if transformed_rpy is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target orientation")

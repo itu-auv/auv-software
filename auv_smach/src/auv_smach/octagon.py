@@ -113,7 +113,10 @@ class CheckBottleLinkState(smach.State):
                 return "preempted"
 
             if self.tf_buffer.can_transform(
-                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(0.5)
+                self.source_frame,
+                self.target_frame,
+                rospy.Time.now(),
+                rospy.Duration(0.2),
             ):
                 rospy.loginfo(
                     f"[CheckBottleLinkState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
