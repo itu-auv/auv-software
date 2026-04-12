@@ -15,6 +15,8 @@
     </include>
   </group>
 
+  <include file="$(find auv_mapping)/launch/object_plane_fitter.launch" />
+
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="camera_detection_node.py" name="camera_detection_pose_estimator" output="screen">
       <rosparam command="load" file="$(find auv_bringup)/config/environment.yaml" />
