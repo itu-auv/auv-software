@@ -647,9 +647,10 @@ class ReferencePosePublisherNode:
                 transform, self.tf_freshness_threshold
             ):
                 age = abs((rospy.Time.now() - transform.header.stamp).to_sec())
-                rospy.logerr(
+                rospy.logwarn_throttle(
+                    1.0,
                     f"TF lookup from {source_frame} to {target_frame} returned stale data "
-                    f"({age:.3f}s > {self.tf_freshness_threshold.to_sec():.3f}s)"
+                    f"({age:.3f}s > {self.tf_freshness_threshold.to_sec():.3f}s)",
                 )
                 return None
             return transform
@@ -658,7 +659,9 @@ class ReferencePosePublisherNode:
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logerr(f"TF lookup failed from {source_frame} to {target_frame}: {e}")
+            rospy.logwarn_throttle(
+                1.0, f"TF lookup failed from {source_frame} to {target_frame}: {e}"
+            )
             return None
 
     def publish_cmd_pose_frame(self, cmd_pose: PoseStamped):
@@ -704,7 +707,7 @@ class ReferencePosePublisherNode:
                 self.tf_lookup_timeout,
             )
             if target_to_odom is None:
-                rospy.logerr_throttle(
+                rospy.logwarn_throttle(
                     1.0, f"Failed to lookup target frame '{frame_id}'"
                 )
                 return
