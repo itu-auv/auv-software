@@ -82,6 +82,7 @@
       <param name="reference_frame" value="world" />
       <param name="preset_path" value="$(find auv_sim_bridge)/config/$(arg namespace)/teleport_presets.yaml" />
       <param name="custom_path" value="$(find auv_sim_bridge)/config/$(arg namespace)/teleport_custom.yaml" />
+      <param name="clear_object_transforms_service" value="map/clear_object_transforms" />
       <param name="sync_cmd_pose_service" value="sync_cmd_pose" />
       <param name="post_teleport_sync_delay" value="0.2" />
     </node>

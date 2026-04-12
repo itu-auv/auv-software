@@ -20,6 +20,9 @@ class SimPoseBookmarks:
         self.preset_path = rospy.get_param("~preset_path")
         self.custom_path = rospy.get_param("~custom_path")
         self.latest_id = rospy.get_param("~latest_id", "latest")
+        self.clear_object_transforms_service_name = rospy.get_param(
+            "~clear_object_transforms_service", "map/clear_object_transforms"
+        )
         self.sync_cmd_pose_service_name = rospy.get_param(
             "~sync_cmd_pose_service", "sync_cmd_pose"
         )
@@ -34,6 +37,9 @@ class SimPoseBookmarks:
         )
         self.set_model_state = rospy.ServiceProxy(
             "/gazebo/set_model_state", SetModelState
+        )
+        self.clear_object_transforms = rospy.ServiceProxy(
+            self.clear_object_transforms_service_name, Trigger
         )
         self.sync_cmd_pose = rospy.ServiceProxy(
             self.sync_cmd_pose_service_name, Trigger
@@ -163,6 +169,18 @@ class SimPoseBookmarks:
                 "[sim_pose_bookmarks] Failed to sync cmd_pose after teleport: %s", exc
             )
 
+    def _clear_object_transforms_best_effort(self):
+        try:
+            rospy.wait_for_service(
+                self.clear_object_transforms_service_name, timeout=0.5
+            )
+            self.clear_object_transforms()
+        except Exception as exc:
+            rospy.logwarn(
+                "[sim_pose_bookmarks] Failed to clear object transforms after teleport: %s",
+                exc,
+            )
+
     def handle_teleport_pose(self, req):
         resolved_pose_id = self._normalize_pose_id(req.pose_id)
         try:
@@ -176,6 +194,7 @@ class SimPoseBookmarks:
                     resolved_pose_id=resolved_pose_id,
                 )
 
+            self._clear_object_transforms_best_effort()
             self._sync_cmd_pose_best_effort()
             message = f"Teleported '{self.robot_name}' to pose '{resolved_pose_id}'"
             rospy.loginfo("[sim_pose_bookmarks] %s", message)
