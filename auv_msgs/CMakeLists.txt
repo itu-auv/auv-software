@@ -31,6 +31,7 @@ add_service_files(
   FILES
   AlignFrameController.srv
   PlanPath.srv
+  PoseBookmark.srv
   SendAcoustic.srv
   SetDepth.srv
   SetObjectTransform.srv

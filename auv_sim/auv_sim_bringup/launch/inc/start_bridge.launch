@@ -76,6 +76,15 @@
       <remap from="actuators/gripper/close" to="actuators/gripper/close" />
       <remap from="actuators/gripper/neutral" to="actuators/gripper/neutral" />
     </node>
+
+    <node name="sim_pose_bookmarks" pkg="auv_sim_bridge" type="sim_pose_bookmarks.py" output="screen">
+      <param name="robot_name" value="$(arg namespace)" />
+      <param name="reference_frame" value="world" />
+      <param name="preset_path" value="$(find auv_sim_bridge)/config/$(arg namespace)/teleport_presets.yaml" />
+      <param name="custom_path" value="$(find auv_sim_bridge)/config/$(arg namespace)/teleport_custom.yaml" />
+      <param name="sync_cmd_pose_service" value="sync_cmd_pose" />
+      <param name="post_teleport_sync_delay" value="0.2" />
+    </node>
   </group>
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
