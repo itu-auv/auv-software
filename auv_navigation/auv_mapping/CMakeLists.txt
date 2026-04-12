@@ -8,7 +8,6 @@ add_compile_options(-std=c++17)
 
 find_package(catkin REQUIRED COMPONENTS
   auv_msgs
-  cv_bridge
   geometry_msgs
   message_filters
   pcl_conversions
@@ -20,13 +19,13 @@ find_package(catkin REQUIRED COMPONENTS
   std_srvs
   tf2_geometry_msgs
   tf2_ros
-  tf2_geometry_msgs
   sensor_msgs
   message_filters
   pcl_ros
   pcl_conversions
   vision_msgs
   visualization_msgs
+  cv_bridge
   dynamic_reconfigure
 )
 
