@@ -512,8 +512,8 @@ class RotationState(smach.State):
             return self.tf_buffer.can_transform(
                 self.source_frame,
                 self.look_at_frame,
-                rospy.Time(0),
-                rospy.Duration(0.05),
+                rospy.Time.now(),
+                rospy.Duration(0.2),
             )
         except (
             tf2_ros.LookupException,
