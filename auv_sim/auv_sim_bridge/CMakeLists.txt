@@ -47,12 +47,17 @@ install(DIRECTORY include/${PROJECT_NAME}/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 )
 
+install(DIRECTORY config/
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+)
+
 install(TARGETS simulation_mock_node
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 catkin_install_python(PROGRAMS
   scripts/sim_bin_mock.py
+  scripts/sim_pose_bookmarks.py
   scripts/sim_torpedo_mock.py
   scripts/sim_gripper_service.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}

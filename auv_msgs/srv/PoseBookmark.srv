@@ -1,0 +1,5 @@
+string pose_id
+---
+bool success
+string message
+string resolved_pose_id

@@ -41,3 +41,6 @@
 # ultralytics models
 *.pt
 *.pth
+
+# developer-local sim pose bookmarks
+auv_sim/auv_sim_bridge/config/*/teleport_custom.yaml
