@@ -6,6 +6,7 @@ replacing the previous ZMQ-based architecture that required Python 3.10.
 """
 
 from pathlib import Path
+from typing import Tuple
 
 import cv2
 import numpy as np
@@ -20,7 +21,7 @@ _cuda_context = _cuda_device.make_context()
 
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from cv_bridge import CvBridge
-from sensor_msgs.msg import CameraInfo, Image
+from sensor_msgs.msg import CameraInfo, Image, PointCloud2, PointField
 
 # ============================================================================
 # Preprocessing Constants (Depth Anything 3 defaults)
@@ -121,6 +122,9 @@ class DepthAnythingTRTNode:
         self.frame_id = rospy.get_param(
             "~frame_id", "taluy/base_link/torpedo_camera_optical_link"
         )
+        self.publish_rgb_point_cloud = rospy.get_param(
+            "~publish_rgb_point_cloud", False
+        )
 
         # Validate engine path
         if not Path(engine_path).exists():
@@ -148,6 +152,19 @@ class DepthAnythingTRTNode:
         self.camera_info_pub = rospy.Publisher(
             "scaled_camera_info", CameraInfo, queue_size=1, latch=True
         )
+        self.point_cloud_pub = None
+        self.point_cloud_fields = None
+        self.point_cloud_pixels = None
+        if self.publish_rgb_point_cloud:
+            self.point_cloud_pub = rospy.Publisher(
+                "rgb_point_cloud", PointCloud2, queue_size=1
+            )
+            self.point_cloud_fields = [
+                PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
+                PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
+                PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
+                PointField(name="rgb", offset=12, datatype=PointField.FLOAT32, count=1),
+            ]
 
         # Publish scaled camera info once
         if self.scaled_intrinsics:
@@ -211,7 +228,7 @@ class DepthAnythingTRTNode:
     def _image_cb(self, msg: Image) -> None:
         self.latest_image = msg
 
-    def _preprocess(self, cv_img: np.ndarray) -> np.ndarray:
+    def _preprocess(self, cv_img: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """Preprocess image for TensorRT inference.
 
         Pipeline:
@@ -238,7 +255,93 @@ class DepthAnythingTRTNode:
         chw = normalized.transpose(2, 0, 1)
 
         # Add batch dimension: (3, H, W) -> (1, 3, H, W)
-        return np.expand_dims(chw, axis=0).astype(np.float32)
+        return np.expand_dims(chw, axis=0).astype(np.float32), resized
+
+    def _update_point_cloud_pixels(self, h: int, w: int) -> None:
+        if (
+            self.point_cloud_pixels is None
+            or self.point_cloud_pixels["width"] != w
+            or self.point_cloud_pixels["height"] != h
+        ):
+            v_coords, u_coords = np.indices((h, w), dtype=np.float32)
+            self.point_cloud_pixels = {
+                "width": w,
+                "height": h,
+                "u": u_coords.reshape(-1),
+                "v": v_coords.reshape(-1),
+            }
+
+    def _publish_rgb_point_cloud(
+        self, depth: np.ndarray, bgr_img: np.ndarray, header
+    ) -> None:
+        if (
+            self.point_cloud_pub is None
+            or self.point_cloud_pub.get_num_connections() == 0
+        ):
+            return
+
+        if self.scaled_intrinsics is None:
+            rospy.logwarn_throttle(
+                5.0, "[DA3-TRT] Cannot publish RGB point cloud without intrinsics."
+            )
+            return
+
+        fx = self.scaled_intrinsics["fx"]
+        fy = self.scaled_intrinsics["fy"]
+        if fx == 0.0 or fy == 0.0:
+            rospy.logwarn_throttle(
+                5.0,
+                "[DA3-TRT] Cannot publish RGB point cloud with zero focal length.",
+            )
+            return
+
+        h, w = depth.shape[:2]
+        self._update_point_cloud_pixels(h, w)
+
+        depth_flat = depth.reshape(-1)
+        valid_mask = np.isfinite(depth_flat) & (depth_flat > 0.0)
+        point_count = int(np.count_nonzero(valid_mask))
+
+        points = np.zeros(
+            point_count,
+            dtype=[
+                ("x", np.float32),
+                ("y", np.float32),
+                ("z", np.float32),
+                ("rgb", np.float32),
+            ],
+        )
+
+        if point_count > 0:
+            z = depth_flat[valid_mask].astype(np.float32, copy=False)
+            u = self.point_cloud_pixels["u"][valid_mask]
+            v = self.point_cloud_pixels["v"][valid_mask]
+            cx = self.scaled_intrinsics["cx"]
+            cy = self.scaled_intrinsics["cy"]
+
+            points["x"] = (u - cx) * z / fx
+            points["y"] = (v - cy) * z / fy
+            points["z"] = z
+
+            colors = bgr_img.reshape(-1, 3)[valid_mask]
+            rgb = (
+                (colors[:, 2].astype(np.uint32) << 16)
+                | (colors[:, 1].astype(np.uint32) << 8)
+                | colors[:, 0].astype(np.uint32)
+            )
+            points["rgb"] = rgb.view(np.float32)
+
+        cloud_msg = PointCloud2()
+        cloud_msg.header = header
+        cloud_msg.height = 1
+        cloud_msg.width = point_count
+        cloud_msg.fields = self.point_cloud_fields
+        cloud_msg.is_bigendian = False
+        cloud_msg.point_step = points.dtype.itemsize
+        cloud_msg.row_step = cloud_msg.point_step * point_count
+        cloud_msg.is_dense = True
+        cloud_msg.data = points.tobytes()
+        self.point_cloud_pub.publish(cloud_msg)
 
     def run(self) -> None:
         """Main loop."""
@@ -257,7 +360,7 @@ class DepthAnythingTRTNode:
                 cv_img = self.bridge.imgmsg_to_cv2(msg, "bgr8")
 
                 # Preprocess and run inference
-                input_tensor = self._preprocess(cv_img)
+                input_tensor, resized_bgr = self._preprocess(cv_img)
                 raw_output = self.engine.infer(input_tensor)
 
                 # Output shape: (1, 1, H, W) -> (H, W)
@@ -276,6 +379,9 @@ class DepthAnythingTRTNode:
                 depth_msg = self.bridge.cv2_to_imgmsg(depth, "32FC1")
                 depth_msg.header = msg.header
                 self.depth_pub.publish(depth_msg)
+
+                if self.point_cloud_pub is not None:
+                    self._publish_rgb_point_cloud(depth, resized_bgr, msg.header)
 
             except Exception as e:
                 rospy.logerr_throttle(5.0, f"[DA3-TRT] Inference failed: {e}")

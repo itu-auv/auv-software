@@ -8,6 +8,8 @@
     <arg name="input_image_topic" default="$(arg camera_namespace)/image_rect_color" />
     <arg name="output_depth_topic" default="depth_anything/raw_depth" />
     <arg name="scaled_camera_info_topic" default="depth_anything/scaled_camera_info" />
+    <arg name="publish_rgb_point_cloud" default="false" />
+    <arg name="output_rgb_point_cloud_topic" default="depth_anything/rgb_point_cloud" />
     <arg name="frame_id" default="taluy/base_link/torpedo_camera_optical_link" />
 
     <group ns="$(arg namespace)">
@@ -16,10 +18,12 @@
             <param name="rate" value="$(arg rate)" />
             <param name="camera_namespace" value="$(arg camera_namespace)" />
             <param name="frame_id" value="$(arg frame_id)" />
+            <param name="publish_rgb_point_cloud" value="$(arg publish_rgb_point_cloud)" />
 
             <remap from="image_raw" to="$(arg input_image_topic)" />
             <remap from="raw_depth" to="$(arg output_depth_topic)" />
             <remap from="scaled_camera_info" to="$(arg scaled_camera_info_topic)" />
+            <remap from="rgb_point_cloud" to="$(arg output_rgb_point_cloud_topic)" />
         </node>
     </group>
 </launch>
