@@ -351,12 +351,8 @@ class SlalomExpFramePublisher:
         if heatmap_data is None:
             return
 
-        heatmap_vis = cv2.normalize(
-            heatmap_data["heatmap"], None, 0, 255, cv2.NORM_MINMAX
-        ).astype(np.uint8)
-        self.heatmap_vis = cv2.applyColorMap(heatmap_vis, cv2.COLORMAP_JET)
-        self.overlay_sampled_detection_points(
-            self.heatmap_vis, heatmap_data["pixel_points"]
+        self.heatmap_vis = self.build_heatmap_visualization(
+            heatmap_data["heatmap"], heatmap_data["pixel_points"]
         )
         self.publish_heatmap()
 
@@ -375,11 +371,7 @@ class SlalomExpFramePublisher:
         width = heatmap_data["width"]
         height = heatmap_data["height"]
         scale = heatmap_data["scale"]
-        heatmap_vis = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
-            np.uint8
-        )
-        self.heatmap_vis = cv2.applyColorMap(heatmap_vis, cv2.COLORMAP_JET)
-        self.overlay_sampled_detection_points(self.heatmap_vis, pixel_points)
+        self.heatmap_vis = self.build_heatmap_visualization(heatmap, pixel_points)
 
         heatmap_copy = heatmap.copy()
         max_centers = 9
@@ -574,22 +566,133 @@ class SlalomExpFramePublisher:
         t.transform.rotation.w = 1.0
         return t
 
-    def overlay_sampled_detection_points(self, heatmap_vis, pixel_points):
+    def build_heatmap_visualization(self, heatmap, pixel_points):
+        heatmap_vis = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
+            np.uint8
+        )
+        density_view = cv2.applyColorMap(heatmap_vis, cv2.COLORMAP_JET)
+        self.overlay_sampled_detection_rings(density_view, pixel_points)
+        self.draw_heatmap_axes_indicator(density_view)
+        return density_view
+
+    def get_sampled_pixel_points(self, pixel_points):
         sample_step = max(1, int(self.heatmap_color_sample_step))
+        return [
+            point
+            for index, point in enumerate(pixel_points)
+            if index % sample_step == 0
+        ]
+
+    def overlay_sampled_detection_points(self, heatmap_vis, pixel_points):
         color_map = {
             2: (0, 0, 255),
             3: (255, 255, 255),
         }
 
-        for index, (u, v, det_id) in enumerate(pixel_points):
-            if index % sample_step != 0:
-                continue
-
+        for u, v, det_id in self.get_sampled_pixel_points(pixel_points):
             color = color_map.get(det_id)
             if color is None:
                 continue
 
-            cv2.circle(heatmap_vis, (u, v), 2, color, -1)
+            cv2.circle(heatmap_vis, (u, v), 3, color, -1)
+            cv2.circle(heatmap_vis, (u, v), 3, (0, 0, 0), 1)
+
+    def overlay_sampled_detection_rings(self, heatmap_vis, pixel_points):
+        color_map = {
+            2: ((0, 0, 255), (255, 245, 245)),
+            3: ((255, 255, 255), (30, 30, 30)),
+        }
+
+        for u, v, det_id in self.get_sampled_pixel_points(pixel_points):
+            colors = color_map.get(det_id)
+            if colors is None:
+                continue
+
+            ring_color, center_color = colors
+            cv2.circle(heatmap_vis, (u, v), 7, (0, 0, 0), 2)
+            cv2.circle(heatmap_vis, (u, v), 6, ring_color, 2)
+            cv2.circle(heatmap_vis, (u, v), 2, center_color, -1)
+
+    def draw_heatmap_axes_indicator(self, heatmap_vis):
+        origin = (heatmap_vis.shape[1] - 28, 28)
+        x_end = (origin[0] - 36, origin[1])
+        y_end = (origin[0], origin[1] + 36)
+        axis_color = (235, 235, 235)
+        outline_color = (15, 15, 15)
+
+        cv2.circle(heatmap_vis, origin, 3, outline_color, -1)
+        cv2.arrowedLine(
+            heatmap_vis,
+            origin,
+            x_end,
+            outline_color,
+            4,
+            tipLength=0.25,
+        )
+        cv2.arrowedLine(
+            heatmap_vis,
+            origin,
+            y_end,
+            outline_color,
+            4,
+            tipLength=0.25,
+        )
+        cv2.arrowedLine(
+            heatmap_vis,
+            origin,
+            x_end,
+            axis_color,
+            2,
+            tipLength=0.25,
+        )
+        cv2.arrowedLine(
+            heatmap_vis,
+            origin,
+            y_end,
+            axis_color,
+            2,
+            tipLength=0.25,
+        )
+        cv2.putText(
+            heatmap_vis,
+            "x",
+            (x_end[0] - 12, x_end[1] - 6),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            outline_color,
+            3,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            heatmap_vis,
+            "x",
+            (x_end[0] - 12, x_end[1] - 6),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            axis_color,
+            1,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            heatmap_vis,
+            "y",
+            (y_end[0] + 6, y_end[1] + 4),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            outline_color,
+            3,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            heatmap_vis,
+            "y",
+            (y_end[0] + 6, y_end[1] + 4),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.45,
+            axis_color,
+            1,
+            cv2.LINE_AA,
+        )
 
     def publish_transform_group(self, transforms: List[TransformStamped]):
         for transform in transforms:
