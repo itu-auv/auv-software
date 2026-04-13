@@ -40,11 +40,11 @@ class MainControlPanel(QWidget):
         tabs_layout = QVBoxLayout()
 
         if include_simulation:
-            tabs_layout.addWidget(ServicesTab())
+            tabs_layout.addWidget(ServicesTab(include_simulation))
             tabs_layout.addWidget(VehicleControlTab())
             tabs_layout.addWidget(SimulationTab())
         else:
-            tabs_layout.addWidget(ServicesTab())
+            tabs_layout.addWidget(ServicesTab(include_simulation))
             tabs_layout.addWidget(DryTestTab())
 
         main_layout.addLayout(tabs_layout)
