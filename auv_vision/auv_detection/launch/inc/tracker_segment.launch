@@ -3,7 +3,7 @@
   <arg name="namespace" default="taluy"/>
   <arg name="sim" default="0"/>
   <arg name="use_gui" default="false"/>
-  <arg name="yolo_model" default="joy-seg.pt"/>
+  <arg name="yolo_model" default="pipe-seg.pt"/>
   <arg name="model_source_path" default="$(find auv_detection)/models/$(arg yolo_model)"/>
   <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
   <arg name="input_topic" default="/$(arg namespace)/cameras/cam_bottom/image_rect_color"/>
@@ -44,8 +44,6 @@
     <rosparam param="classes" subst_value="true">$(arg classes)</rosparam>
     <rosparam param="device" subst_value="true">$(arg device)</rosparam>
   </node>
-
-  <arg name="namespace" default="taluy"/>
 
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="yolo_seg_to_mask.py" name="yolo_seg_to_mask" output="screen">
