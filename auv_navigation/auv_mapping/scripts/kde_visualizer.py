@@ -210,7 +210,7 @@ class KdeVisualizer:
             # Draw peaks with labels
             if cls_name in results:
                 short = cls_name.replace("_link", "")
-                for i, (px, py, _pz, conf) in enumerate(results[cls_name]):
+                for i, (px, py, conf) in enumerate(results[cls_name]):
                     u, v = w2p(px, py)
                     cv2.circle(canvas, (u, v), 10, color, 2)
                     cv2.circle(canvas, (u, v), 3, (255, 255, 255), -1)

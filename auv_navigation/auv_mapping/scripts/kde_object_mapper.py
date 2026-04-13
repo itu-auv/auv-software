@@ -57,8 +57,8 @@ class KdeObjectMapper:
                 "No object_classes configured — KDE mapper has nothing to do."
             )
 
-        self.point_buffers = defaultdict(list)  # class_name -> [[x,y,z], ...]
-        self.current_results = {}  # class_name -> [(x, y, z, confidence), ...]
+        self.point_buffers = defaultdict(list)  # class_name -> [[x, y], ...]
+        self.current_results = {}  # class_name -> [(x, y, confidence), ...]
         self.lock = threading.Lock()
         self._kde_running = False  # re-entrancy guard
 
@@ -107,7 +107,7 @@ class KdeObjectMapper:
     def _point_callback(self, msg, class_name):
         with self.lock:
             buf = self.point_buffers[class_name]
-            buf.append([msg.point.x, msg.point.y, msg.point.z])
+            buf.append([msg.point.x, msg.point.y])
             # Keep buffer bounded
             if len(buf) > self.max_points_per_class:
                 del buf[: len(buf) - self.max_points_per_class]
@@ -202,14 +202,7 @@ class KdeObjectMapper:
                 peak_x = float(xx[max_idx])
                 peak_y = float(yy[max_idx])
 
-                # Mean Z from nearby raw points
-                dists = np.sqrt((pts[:, 0] - peak_x) ** 2 + (pts[:, 1] - peak_y) ** 2)
-                nearby = dists < self.suppression_radius
-                peak_z = float(
-                    np.mean(pts[nearby, 2]) if np.any(nearby) else np.mean(pts[:, 2])
-                )
-
-                peaks.append((peak_x, peak_y, peak_z, float(max_val)))
+                peaks.append((peak_x, peak_y, float(max_val)))
 
                 # Suppress around this peak
                 dist_grid = np.sqrt((xx - peak_x) ** 2 + (yy - peak_y) ** 2)
@@ -234,9 +227,9 @@ class KdeObjectMapper:
         Publishing from both sources causes duplicate/conflicting frames.
         """
         for cls_name, peaks in list(results.items()):
-            peaks_sorted = sorted(peaks, key=lambda p: -p[3])
+            peaks_sorted = sorted(peaks, key=lambda p: -p[2])
 
-            for i, (px, py, pz, _conf) in enumerate(peaks_sorted):
+            for i, (px, py, _conf) in enumerate(peaks_sorted):
                 frame_id = (
                     f"{cls_name}{self.frame_suffix}"
                     if i == 0
@@ -247,7 +240,7 @@ class KdeObjectMapper:
                 t.header.stamp = rospy.Time.now()
                 t.header.frame_id = self.static_frame
                 t.child_frame_id = frame_id
-                t.transform.translation = Vector3(px, py, pz)
+                t.transform.translation = Vector3(px, py, 0.0)
                 t.transform.rotation = Quaternion(0, 0, 0, 1)
 
                 try:
