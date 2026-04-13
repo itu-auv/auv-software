@@ -178,7 +178,8 @@ class KdeVisualizer:
                 tw = max(abs(u_max - u_min), 1)
                 th = max(abs(v_max_p - v_min_p), 1)
 
-                dn_resized = cv2.resize(dn, (tw, th), interpolation=cv2.INTER_LINEAR)
+                dn_flipped = cv2.flip(dn, 0)
+                dn_resized = cv2.resize(dn_flipped, (tw, th), interpolation=cv2.INTER_LINEAR)
                 layer = np.zeros((th, tw, 3), dtype=np.uint8)
                 for ch in range(3):
                     layer[:, :, ch] = (dn_resized * (color[ch] / 255.0)).astype(
