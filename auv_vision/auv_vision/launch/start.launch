@@ -5,7 +5,7 @@
     <!-- YOLO Segmentation to Mask Node -->
     <node
       pkg="auv_vision"
-      type="yolo_to_mask_node.py"
+      type="yolo_seg_to_mask.py"
       name="yolo_seg_to_mask_node"
       output="screen">
       <remap from="yolo_result_seg" to="/yolo_result_seg" />
