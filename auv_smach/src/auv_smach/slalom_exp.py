@@ -1,25 +1,13 @@
-from auv_smach.tf_utils import get_tf_buffer, get_base_link
+from auv_smach.tf_utils import get_base_link
 from .initialize import *
 import smach
 import smach_ros
-import rospy
-import tf2_ros
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from auv_msgs.srv import (
-    PlanPath,
-    PlanPathRequest,
-    SetDetectionFocus,
-    SetDetectionFocusRequest,
-)
 from auv_smach.common import (
-    SetAlignControllerTargetState,
     CancelAlignControllerState,
     SearchForPropState,
     SetDepthState,
-    ExecutePathState,
     AlignFrame,
-    DynamicPathState,
-    SetDetectionFocusState,
 )
 from auv_smach.initialize import DelayState
 
@@ -76,7 +64,6 @@ class NavigateThroughSlalomExpState(smach.State):
         self.base_link = get_base_link()
         self.slalom_depth = slalom_depth
         self.slalom_direction = slalom_direction
-        self.slalom_exit_angle = slalom_exit_angle
 
         self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
 
@@ -170,9 +157,6 @@ class NavigateThroughSlalomExpState(smach.State):
                 },
             )
 
-            first_wp_side = self.slalom_direction
-            first_wp_state = f"ALIGN_WP_{first_wp_side}_0"
-
             smach.StateMachine.add(
                 "PUBLISH_WAYPOINTS",
                 PublishWaypointsState(),
@@ -188,32 +172,32 @@ class NavigateThroughSlalomExpState(smach.State):
                 "WAIT_FOR_TF",
                 DelayState(delay_time=1.0),
                 transitions={
-                    "succeeded": first_wp_state,
+                    "succeeded": "ALIGN_WP_0",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
             smach.StateMachine.add(
-                f"ALIGN_WP_{self.slalom_direction}_0",
+                "ALIGN_WP_0",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame=f"slalom_wp_{self.slalom_direction}_0",
+                    target_frame="slalom_wp_0",
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
                 ),
                 transitions={
-                    "succeeded": f"LOOK_WP_{self.slalom_direction}_1",
+                    "succeeded": "LOOK_WP_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
             smach.StateMachine.add(
-                f"LOOK_WP_{self.slalom_direction}_1",
+                "LOOK_WP_1",
                 SearchForPropState(
-                    look_at_frame=f"slalom_wp_{self.slalom_direction}_1",
+                    look_at_frame="slalom_wp_1",
                     alignment_frame=f"sus",
                     full_rotation=False,
                     set_frame_duration=3.0,
@@ -221,33 +205,33 @@ class NavigateThroughSlalomExpState(smach.State):
                     rotation_speed=0.2,
                 ),
                 transitions={
-                    "succeeded": f"ALIGN_WP_{self.slalom_direction}_1",
+                    "succeeded": "ALIGN_WP_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
             smach.StateMachine.add(
-                f"ALIGN_WP_{self.slalom_direction}_1",
+                "ALIGN_WP_1",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame=f"slalom_wp_{self.slalom_direction}_1",
+                    target_frame="slalom_wp_1",
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
                     keep_orientation=True,
                 ),
                 transitions={
-                    "succeeded": f"LOOK_WP_{self.slalom_direction}_2",
+                    "succeeded": "LOOK_WP_2",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
             smach.StateMachine.add(
-                f"LOOK_WP_{self.slalom_direction}_2",
+                "LOOK_WP_2",
                 SearchForPropState(
-                    look_at_frame=f"slalom_wp_{self.slalom_direction}_2",
+                    look_at_frame="slalom_wp_2",
                     alignment_frame=f"sus",
                     full_rotation=False,
                     set_frame_duration=6.0,
@@ -255,17 +239,17 @@ class NavigateThroughSlalomExpState(smach.State):
                     rotation_speed=0.2,
                 ),
                 transitions={
-                    "succeeded": f"ALIGN_WP_{self.slalom_direction}_2",
+                    "succeeded": "ALIGN_WP_2",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
             smach.StateMachine.add(
-                f"ALIGN_WP_{self.slalom_direction}_2",
+                "ALIGN_WP_2",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame=f"slalom_wp_{self.slalom_direction}_2",
+                    target_frame="slalom_wp_2",
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,

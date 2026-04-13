@@ -2,7 +2,7 @@
 
 import rospy
 import math
-import itertools
+import time
 import cv2
 import numpy as np
 import tf2_ros
@@ -10,14 +10,11 @@ import tf2_geometry_msgs
 import tf.transformations as transformations
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from ultralytics_ros.msg import YoloResult
+from dynamic_reconfigure.client import Client
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import (
-    PointStamped,
-    PoseArray,
     PoseStamped,
-    Pose,
     TransformStamped,
-    Transform,
     Vector3,
     Quaternion,
 )
@@ -58,15 +55,16 @@ class Point:
 
 
 @dataclass
-class SlalomGroup:
-    left: Point
-    right: Point
-    mid: Point
+class SlalomRow:
+    white_left: Point
+    red: Point
+    white_right: Point
 
 
 @dataclass
-class Slalom:
-    groups: List[SlalomGroup] = field(default_factory=list)
+class SlalomTFGroup:
+    object_tfs: List[TransformStamped] = field(default_factory=list)
+    waypoint_tfs: List[TransformStamped] = field(default_factory=list)
 
 
 class SlalomExpFramePublisher:
@@ -90,18 +88,30 @@ class SlalomExpFramePublisher:
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
 
-        self.tfs = None
+        self.slalom_rows = []
+        self.object_tfs = []
+        self.waypoint_tfs = []
         self.points = []
         self.collecting = False
         self.i = 0
         self.heatmap_vis = None
+        self.heatmap_build_interval = rospy.get_param("~heatmap_build_interval", 0.2)
+        self.last_heatmap_build_time = 0.0
+        self.heatmap_color_sample_step = rospy.get_param(
+            "~heatmap_color_sample_step", 10
+        )
+        self.slalom_direction = rospy.get_param("~slalom_direction", "left")
         self.cv_bridge = CvBridge()
         self.heatmap_pub = rospy.Publisher("slalom/heatmap_vis", Image, queue_size=1)
+        self.smach_params_client = Client(
+            "smach_parameters_server",
+            timeout=10,
+            config_callback=self.smach_params_callback,
+        )
 
         self.srv_publish_search_points = rospy.Service(
             "slalom/publish_search_points", Trigger, self.publish_search_points_callback
@@ -165,8 +175,14 @@ class SlalomExpFramePublisher:
     def start_point_search_callback(self, req):
         if req.data:
             self.points = []
+            self.slalom_rows = []
+            self.object_tfs = []
+            self.waypoint_tfs = []
             self.collecting = True
             self.i = 0
+            self.last_heatmap_build_time = 0.0
+            self.heatmap_vis = np.zeros((480, 640, 3), dtype=np.uint8)
+            self.publish_heatmap()
             rospy.loginfo("Started point collection")
             return SetBoolResponse(success=True, message="Started point search")
         else:
@@ -182,73 +198,33 @@ class SlalomExpFramePublisher:
         )
         self.filter_points()
 
-        if self.tfs:
-            for t in self.tfs:
-                req_obj = SetObjectTransformRequest()
-                req_obj.transform = t
-                self.set_object_transform_service.call(req_obj)
+        self.publish_transform_group(self.object_tfs)
 
         return SetBoolResponse(
             success=True,
-            message=f"Processed and published {len(self.tfs) if self.tfs else 0} centroids",
+            message=f"Processed and published {len(self.object_tfs)} slalom objects",
         )
 
     def publish_waypoints_callback(self, req):
-        if not self.tfs:
-            return SetBoolResponse(success=False, message="No centroids available")
+        if self.slalom_rows:
+            self.waypoint_tfs = self.build_waypoint_transforms(self.slalom_rows)
 
-        # easier
-        groups = {}
-        for t in self.tfs:
-            parts = t.child_frame_id.split("_")
-            idx = int(parts[-1])
-            pt_type = parts[-2]
-            if idx not in groups:
-                groups[idx] = {}
-            groups[idx][pt_type] = np.array(
-                [t.transform.translation.x, t.transform.translation.y]
-            )
+        if not self.waypoint_tfs:
+            return SetBoolResponse(success=False, message="No waypoints available")
 
-        # TODO: what if we couldn't find all 9 pipes??
-        for idx, g in groups.items():
-            for w in ["left", "right"]:
-                pos_wp = (g[w] + g["mid"]) / 2.0
-                v_pipe = g[w] - g["mid"]
-                v_pipe = v_pipe / np.linalg.norm(v_pipe)
-                v_forward = np.array([-v_pipe[1], v_pipe[0]])
+        self.publish_transform_group(self.waypoint_tfs)
+        return SetBoolResponse(
+            success=True, message=f"Published {len(self.waypoint_tfs)} waypoints"
+        )
 
-                trans = self.tf_buffer.lookup_transform(
-                    "odom", self.base_link_frame, rospy.Time(0), rospy.Duration(1.0)
-                )
-                q_base = [
-                    trans.transform.rotation.x,
-                    trans.transform.rotation.y,
-                    trans.transform.rotation.z,
-                    trans.transform.rotation.w,
-                ]
-                # ????
-                matrix_base = transformations.quaternion_matrix(q_base)
-                fwd_base = matrix_base[:2, 0]
-
-                if np.dot(v_forward, fwd_base) < 0:
-                    v_forward = -v_forward
-
-                yaw = math.atan2(v_forward[1], v_forward[0])
-                q = transformations.quaternion_from_euler(0, 0, yaw)
-
-                t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
-                t.header.frame_id = "odom"
-                t.child_frame_id = f"slalom_wp_{w}_{idx}"
-                t.transform.translation.x = pos_wp[0]
-                t.transform.translation.y = pos_wp[1]
-                t.transform.rotation = Quaternion(*q)
-
-                req_obj = SetObjectTransformRequest()
-                req_obj.transform = t
-                self.set_object_transform_service.call(req_obj)
-
-        return SetBoolResponse(success=True, message="Published waypoints")
+    def smach_params_callback(self, config):
+        if config is None:
+            rospy.logwarn("Could not get parameters from smach_parameters_server")
+            return
+        self.slalom_direction = config.slalom_direction
+        if self.slalom_rows:
+            self.waypoint_tfs = self.build_waypoint_transforms(self.slalom_rows)
+        rospy.loginfo(f"Slalom direction updated to: {self.slalom_direction}")
 
     def yolo_callback(self, msg):
         if not self.collecting:
@@ -305,15 +281,15 @@ class SlalomExpFramePublisher:
                 wx = transformed_pose_stamped.pose.position.x
                 wy = transformed_pose_stamped.pose.position.y
                 self.points.append([wx, wy, x.results[0].id])
+                self.update_heatmap_vis()
 
             except Exception as e:
                 rospy.logwarn_throttle(5, f"transformation error: {e}")
 
-    def filter_points(self):
-        self.heatmap_vis = None
+    def build_heatmap_data(self):
         if not self.points:
-            self.tfs = []
-            return
+            self.heatmap_vis = np.zeros((480, 640, 3), dtype=np.uint8)
+            return None
 
         pts_with_ids = np.array(self.points)
         pts = pts_with_ids[:, :2]
@@ -355,12 +331,62 @@ class SlalomExpFramePublisher:
         # TODO: hardcoded
         heatmap = cv2.GaussianBlur(binary, (0, 0), sigmaX=15, sigmaY=15)
 
+        return {
+            "heatmap": heatmap,
+            "pixel_points": pixel_points,
+            "x_min": x_min,
+            "y_min": y_min,
+            "width": width,
+            "height": height,
+            "scale": scale,
+        }
+
+    def update_heatmap_vis(self):
+        now = time.monotonic()
+        if now - self.last_heatmap_build_time < self.heatmap_build_interval:
+            return
+        self.last_heatmap_build_time = now
+
+        heatmap_data = self.build_heatmap_data()
+        if heatmap_data is None:
+            return
+
+        heatmap_vis = cv2.normalize(
+            heatmap_data["heatmap"], None, 0, 255, cv2.NORM_MINMAX
+        ).astype(np.uint8)
+        self.heatmap_vis = cv2.applyColorMap(heatmap_vis, cv2.COLORMAP_JET)
+        self.overlay_sampled_detection_points(
+            self.heatmap_vis, heatmap_data["pixel_points"]
+        )
+        self.publish_heatmap()
+
+    def filter_points(self):
+        heatmap_data = self.build_heatmap_data()
+        if heatmap_data is None:
+            self.slalom_rows = []
+            self.object_tfs = []
+            self.waypoint_tfs = []
+            return
+
+        heatmap = heatmap_data["heatmap"]
+        pixel_points = heatmap_data["pixel_points"]
+        x_min = heatmap_data["x_min"]
+        y_min = heatmap_data["y_min"]
+        width = heatmap_data["width"]
+        height = heatmap_data["height"]
+        scale = heatmap_data["scale"]
+        heatmap_vis = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
+            np.uint8
+        )
+        self.heatmap_vis = cv2.applyColorMap(heatmap_vis, cv2.COLORMAP_JET)
+        self.overlay_sampled_detection_points(self.heatmap_vis, pixel_points)
+
         heatmap_copy = heatmap.copy()
-        X = 9
+        max_centers = 9
         pixel_centers = []
 
-        for i in range(X):
-            minVal, maxVal, minLoc, maxLoc = cv2.minMaxLoc(heatmap_copy)
+        for _ in range(max_centers):
+            _, maxVal, _, maxLoc = cv2.minMaxLoc(heatmap_copy)
             if maxVal < 0.01:
                 break
             pixel_centers.append(maxLoc)
@@ -387,49 +413,6 @@ class SlalomExpFramePublisher:
                     f"Cluster {i}: red={counts[2]}, white={counts[3]}, selected={pixel_center_colors[pixel_centers[i]]}"
                 )
 
-        heatmap_visa = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
-            np.uint8
-        )
-        self.heatmap_vis = cv2.applyColorMap(heatmap_visa, cv2.COLORMAP_JET)
-
-        def get_line_error(pts):
-            pts = np.array(pts)
-            doubles = list(itertools.combinations(pts, 2))
-            errors = [
-                (
-                    math.atan2(abs(pt[0][1] - pt[1][1]), abs(pt[0][0] - pt[1][0]))
-                    * 180
-                    / math.pi
-                )
-                for pt in doubles
-            ]
-            error_dif = max(errors) - min(errors)
-            if error_dif > 10:
-                return None
-            error = sum(errors) / len(errors)
-            return error
-
-        pixel_slalom = Slalom()
-        # TODO: this shouldn't be the final approach
-        all_triplets = list(itertools.combinations(pixel_centers, 3))
-        for tri in all_triplets:
-            err = get_line_error(tri)
-            if err and abs(err - 90) < 20:
-                a = np.array(list(tri)).reshape(-1, 1, 2)
-                vx, vy, x0, y0 = cv2.fitLine(a, cv2.DIST_L2, 0, 0.01, 0.01)
-                m_x, m_y = sorted(
-                    tri, key=lambda x: np.linalg.norm(np.array([x0[0], y0[0]]) - x)
-                )[0]
-                l_x, l_y = sorted(tri, key=lambda x: -x[1])[0]
-                r_x, r_y = sorted(tri, key=lambda x: x[1])[0]
-                pixel_slalom.groups.append(
-                    SlalomGroup(
-                        left=Point(l_x, l_y),
-                        right=Point(r_x, r_y),
-                        mid=Point(m_x, m_y),
-                    )
-                )
-
         def pixel_to_world(p):
             u, v = p.x, p.y
             return Point(
@@ -437,60 +420,182 @@ class SlalomExpFramePublisher:
                 ((v - (480 - height * scale) / 2) / scale) + y_min,
             )
 
-        world_slalom = []
-        for ps in pixel_slalom.groups:
-            world_slalom.append(
-                (
-                    SlalomGroup(
-                        left=pixel_to_world(ps.left),
-                        right=pixel_to_world(ps.right),
-                        mid=pixel_to_world(ps.mid),
-                    ),
-                    {
-                        "left": pixel_center_colors.get(
-                            (ps.left.x, ps.left.y), "white"
-                        ),
-                        "right": pixel_center_colors.get(
-                            (ps.right.x, ps.right.y), "white"
-                        ),
-                        "mid": pixel_center_colors.get((ps.mid.x, ps.mid.y), "white"),
-                    },
-                )
-            )
-
-        world_slalom.sort(key=lambda item: item[0].mid.x)
-
-        self.tfs = []
-        for i, (g, colors) in enumerate(world_slalom):
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_{colors['left']}_left_{i}"
-            t.transform.translation.x = g.left.x
-            t.transform.translation.y = g.left.y
-            t.transform.translation.z = 0
-            t.transform.rotation.w = 1.0
-            self.tfs.append(t)
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_{colors['right']}_right_{i}"
-            t.transform.translation.x = g.right.x
-            t.transform.translation.y = g.right.y
-            t.transform.translation.z = 0
-            t.transform.rotation.w = 1.0
-            self.tfs.append(t)
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_pipe_{colors['mid']}_mid_{i}"
-            t.transform.translation.x = g.mid.x
-            t.transform.translation.y = g.mid.y
-            t.transform.translation.z = 0
-            t.transform.rotation.w = 1.0
-            self.tfs.append(t)
+        world_points = [
+            pixel_to_world(Point(center[0], center[1])) for center in pixel_centers
+        ]
+        colors = [pixel_center_colors.get(center, "white") for center in pixel_centers]
+        self.slalom_rows = self.build_slalom_rows(world_points, colors)
+        tf_group = SlalomTFGroup(
+            object_tfs=self.build_object_transforms(self.slalom_rows),
+            waypoint_tfs=self.build_waypoint_transforms(self.slalom_rows),
+        )
+        self.object_tfs = tf_group.object_tfs
+        self.waypoint_tfs = tf_group.waypoint_tfs
 
         self.publish_heatmap()
+
+    def build_slalom_rows(
+        self, world_points: List[Point], colors: List[str]
+    ) -> List[SlalomRow]:
+        reds = []
+        whites = []
+        for point, color in zip(world_points, colors):
+            if color == "red":
+                reds.append(point)
+            else:
+                whites.append(point)
+
+        if not reds or len(whites) < 2:
+            rospy.logwarn(
+                "Not enough colored slalom detections to build rows. red=%d white=%d",
+                len(reds),
+                len(whites),
+            )
+            return []
+
+        whites_sorted_by_y = sorted(whites, key=lambda point: point.y, reverse=True)
+        split_index = len(whites_sorted_by_y) // 2
+        white_left = sorted(whites_sorted_by_y[:split_index], key=lambda point: point.x)
+        white_right = sorted(
+            whites_sorted_by_y[split_index:], key=lambda point: point.x
+        )
+        reds = sorted(reds, key=lambda point: point.x)
+
+        row_count = min(len(reds), len(white_left), len(white_right))
+        if row_count == 0:
+            rospy.logwarn("No complete semantic slalom rows could be built")
+            return []
+
+        if (
+            row_count < len(reds)
+            or row_count < len(white_left)
+            or row_count < len(white_right)
+        ):
+            rospy.logwarn(
+                "Truncating semantic slalom rows to %d entries (red=%d left=%d right=%d)",
+                row_count,
+                len(reds),
+                len(white_left),
+                len(white_right),
+            )
+
+        return [
+            SlalomRow(
+                white_left=white_left[i],
+                red=reds[i],
+                white_right=white_right[i],
+            )
+            for i in range(row_count)
+        ]
+
+    def build_object_transforms(self, rows: List[SlalomRow]) -> List[TransformStamped]:
+        transforms = []
+        for i, row in enumerate(rows):
+            transforms.append(
+                self.make_position_transform(f"pipe_white_left_{i}", row.white_left)
+            )
+            transforms.append(self.make_position_transform(f"pipe_red_{i}", row.red))
+            transforms.append(
+                self.make_position_transform(f"pipe_white_right_{i}", row.white_right)
+            )
+        return transforms
+
+    def build_waypoint_transforms(
+        self, rows: List[SlalomRow]
+    ) -> List[TransformStamped]:
+        transforms = []
+        side = self.get_selected_waypoint_side()
+
+        for i, row in enumerate(rows):
+            side_point = row.white_left if side == "left" else row.white_right
+            side_vec = np.array([side_point.x, side_point.y])
+            red_vec = np.array([row.red.x, row.red.y])
+
+            pos_wp = (side_vec + red_vec) / 2.0
+            v_pipe = side_vec - red_vec
+            v_pipe = v_pipe / np.linalg.norm(v_pipe)
+            v_forward = np.array([-v_pipe[1], v_pipe[0]])
+            try:
+                v_forward = self.align_forward_vector_with_base(v_forward)
+            except Exception as e:
+                rospy.logwarn(
+                    "Failed to align waypoint %d with base_link forward axis: %s", i, e
+                )
+                continue
+            yaw = math.atan2(v_forward[1], v_forward[0])
+            q = transformations.quaternion_from_euler(0, 0, yaw)
+
+            t = TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = "odom"
+            t.child_frame_id = f"slalom_wp_{i}"
+            t.transform.translation.x = pos_wp[0]
+            t.transform.translation.y = pos_wp[1]
+            t.transform.rotation = Quaternion(*q)
+            transforms.append(t)
+
+        return transforms
+
+    def get_selected_waypoint_side(self):
+        if self.slalom_direction in ["left", "right"]:
+            return self.slalom_direction
+
+        rospy.logwarn(
+            "Unsupported slalom_direction '%s'. Falling back to 'left'",
+            self.slalom_direction,
+        )
+        return "left"
+
+    def align_forward_vector_with_base(self, v_forward):
+        trans = self.tf_buffer.lookup_transform(
+            "odom", self.base_link_frame, rospy.Time(0), rospy.Duration(1.0)
+        )
+        q_base = [
+            trans.transform.rotation.x,
+            trans.transform.rotation.y,
+            trans.transform.rotation.z,
+            trans.transform.rotation.w,
+        ]
+        matrix_base = transformations.quaternion_matrix(q_base)
+        fwd_base = matrix_base[:2, 0]
+
+        if np.dot(v_forward, fwd_base) < 0:
+            v_forward = -v_forward
+        return v_forward
+
+    def make_position_transform(self, child_frame_id: str, point: Point):
+        t = TransformStamped()
+        t.header.stamp = rospy.Time.now()
+        t.header.frame_id = "odom"
+        t.child_frame_id = child_frame_id
+        t.transform.translation.x = point.x
+        t.transform.translation.y = point.y
+        t.transform.translation.z = 0
+        t.transform.rotation.w = 1.0
+        return t
+
+    def overlay_sampled_detection_points(self, heatmap_vis, pixel_points):
+        sample_step = max(1, int(self.heatmap_color_sample_step))
+        color_map = {
+            2: (0, 0, 255),
+            3: (255, 255, 255),
+        }
+
+        for index, (u, v, det_id) in enumerate(pixel_points):
+            if index % sample_step != 0:
+                continue
+
+            color = color_map.get(det_id)
+            if color is None:
+                continue
+
+            cv2.circle(heatmap_vis, (u, v), 2, color, -1)
+
+    def publish_transform_group(self, transforms: List[TransformStamped]):
+        for transform in transforms:
+            req_obj = SetObjectTransformRequest()
+            req_obj.transform = transform
+            self.set_object_transform_service.call(req_obj)
 
     def publish_heatmap(self):
         if self.heatmap_vis is not None:
