@@ -9,7 +9,7 @@
   <arg name="enable_dvl" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="enable_vectornav" default="$(eval arg('namespace') == 'taluy_mini')" />
   <arg name="use_gui" default="false" />
-  <arg name="enable_logging" default="false" />
+  <arg name="enable_logging" default="true" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
   <arg name="log_filename" default="" />
 
