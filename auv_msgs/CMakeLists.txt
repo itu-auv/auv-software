@@ -21,7 +21,10 @@ add_message_files(
   FILES
   EulerOrientation.msg
   ObjectPose.msg
+  Keypoint.msg
+  KeypointResult.msg
   PropsYaw.msg
+  SegmentMeasurement.msg
   TDOA.msg
 )
 
