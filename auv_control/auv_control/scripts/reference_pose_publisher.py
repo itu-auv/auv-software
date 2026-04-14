@@ -170,7 +170,9 @@ class ReferencePosePublisherNode:
                     self.align_frame_keep_orientation = False
                     if self.reconfigure_client:
                         self._restore_controller_cfg()
-            rospy.loginfo_throttle(1.0, "Killswitch inactive; alignment deactivated")
+                    rospy.loginfo_throttle(
+                        1.0, "Killswitch inactive; alignment deactivated"
+                    )
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         with self.state_lock:
