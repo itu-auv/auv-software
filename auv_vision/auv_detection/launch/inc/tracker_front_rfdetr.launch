@@ -15,8 +15,8 @@
   <arg name="conf_thres" default="0.25"/>
   <arg name="max_det" default="300"/>
   <arg name="classes" default=""/>
-  <arg name="class_names" default="{0: 'sawfish', 1: 'shark', 2: 'red_pipe', 3: 'white_pipe', 4: 'torpedo_map', 5: 'torpedo_hole', 6: 'bin_whole', 7: 'octagon'}"/>
-  <arg name="class_id_map" default="{0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7}"/>
+  <arg name="class_names" default="{'0': 'sawfish', '1': 'shark', '2': 'red_pipe', '3': 'white_pipe', '4': 'torpedo_map', '5': 'torpedo_hole', '6': 'bin_whole', '7': 'octagon'}"/>
+  <arg name="class_id_map" default="{'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7}"/>
   <arg name="labels_output_name" default="labels"/>
   <arg name="boxes_output_name" default="dets"/>
   <arg name="device" default="cuda:0"/>
@@ -40,10 +40,10 @@
     <param name="result_font_size" value="$(arg result_font_size)"/>
     <param name="result_labels" value="$(arg result_labels)"/>
     <param name="result_boxes" value="$(arg result_boxes)"/>
-    <rosparam param="classes" subst_value="true">$(arg classes)</rosparam>
-    <rosparam param="class_names" subst_value="true">$(arg class_names)</rosparam>
-    <rosparam param="class_id_map" subst_value="true">$(arg class_id_map)</rosparam>
-    <rosparam param="device" subst_value="true">$(arg device)</rosparam>
+    <param name="classes" value="$(arg classes)"/>
+    <param name="class_names" value="$(arg class_names)"/>
+    <param name="class_id_map" value="$(arg class_id_map)"/>
+    <param name="device" value="$(arg device)"/>
 
     <remap from="input_image" to="$(arg input_topic)"/>
     <remap from="result" to="$(arg result_topic)"/>
@@ -64,10 +64,10 @@
     <param name="result_font_size" value="$(arg result_font_size)"/>
     <param name="result_labels" value="$(arg result_labels)"/>
     <param name="result_boxes" value="$(arg result_boxes)"/>
-    <rosparam param="classes" subst_value="true">$(arg classes)</rosparam>
-    <rosparam param="class_names" subst_value="true">$(arg class_names)</rosparam>
-    <rosparam param="class_id_map" subst_value="true">$(arg class_id_map)</rosparam>
-    <rosparam param="device" subst_value="true">$(arg device)</rosparam>
+    <param name="classes" value="$(arg classes)"/>
+    <param name="class_names" value="$(arg class_names)"/>
+    <param name="class_id_map" value="$(arg class_id_map)"/>
+    <param name="device" value="$(arg device)"/>
 
     <remap from="input_image" to="$(arg input_topic)"/>
     <remap from="result" to="$(arg result_topic)"/>
