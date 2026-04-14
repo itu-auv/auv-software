@@ -20,7 +20,7 @@ class ModelOdometryNode:
 
         self.namespace = rospy.get_param("~namespace", "taluy")
 
-        # DVL timeout definition
+        self.publish_rate = rospy.get_param("~rate", 20.0)
         self.dvl_timeout = rospy.get_param("~dvl_timeout", 0.5)
         self.cmdvel_tau = rospy.get_param("~cmdvel_tau", 0.1)
 
@@ -81,7 +81,9 @@ class ModelOdometryNode:
         self.last_dvl_valid_time = rospy.Time.now()
         self.is_dvl_valid = False
 
-        self.model_timer = rospy.Timer(rospy.Duration(0.05), self.model_timer_callback)
+        self.model_timer = rospy.Timer(
+            rospy.Duration(1.0 / self.publish_rate), self.model_timer_callback
+        )
 
     def update_twist_covariance(self):
         multiplier = self.model_covariance_multiplier
@@ -130,7 +132,6 @@ class ModelOdometryNode:
         self.is_dvl_valid = msg.data
         if self.is_dvl_valid:
             self.last_dvl_valid_time = rospy.Time.now()
-            # If valid, sync model velocity with current odometry so it tracks the real movement
             if self.odom_received:
                 self.estimated_velocity = self.odom_velocity.copy()
 
@@ -241,7 +242,6 @@ class ModelOdometryNode:
         if dt <= 0.001 or dt >= 1.0:
             return
 
-        # Yalnizca DVL verisi invalid ise yayin yap (model veya cmd_vel)
         if not self.is_dvl_valid:
             self.filter_cmd_vel()
             velocity_msg = Twist()
