@@ -68,16 +68,9 @@
   </group>
 
   <!-- launch cameras -->
-  <group if="$(eval arg('namespace') == 'taluy_mini')">
-    <include file="$(find auv_cam)/launch/start_cameras_taluy_mini.launch">
+  <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras_$(arg namespace).launch">
       <arg name="namespace" value="$(arg namespace)" />
-    </include>
-  </group>
-  <group if="$(eval arg('namespace') == 'taluy')">
-    <include file="$(find auv_bringup)/launch/inc/sensors/start_cameras.launch.xml">
-      <arg name="namespace" value="$(arg namespace)" />
-    </include>
-  </group>
+  </include>
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
     <arg name="namespace" value="$(arg namespace)" />

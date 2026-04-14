@@ -7,16 +7,16 @@
 
   <group ns="$(arg namespace)/cameras">
     <rosparam command="load" file="$(find auv_bringup)/config/cameras_$(arg namespace).yaml"/>
-    <group ns="cam_front">
-      <node name="cam_front_depthai" pkg="auv_cam" type="oak_cam.py" output="screen"/>
-      <!-- image_transport c++ da kendisi yayınlıyor compressedi -->
-      <node if="$(arg compressed)" name="republish_raw" pkg="image_transport" type="republish" args="raw in:=image_raw compressed out:=image_raw"/>
-    </group>
+  </group>
+
+  <group ns="$(arg namespace)/cameras/cam_front">
+    <node name="cam_front_depthai" pkg="auv_cam" type="oak_cam.py" output="screen"/>
+    <!-- image_transport publishes image_raw/compressed automatically in c++ -->
+    <node if="$(arg compressed)" name="republish_raw" pkg="image_transport" type="republish" args="raw in:=image_raw compressed out:=image_raw"/>
   </group>
   <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
     <arg name="camera_namespace" value="$(arg namespace)/cameras/cam_front" />
   </include>
-
 
   <include file="$(find auv_cam)/launch/start_gst_camera.launch">
     <arg name="namespace" value="$(arg namespace)"/>
