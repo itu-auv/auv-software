@@ -165,11 +165,14 @@ class OctagonFramePublisherServiceState(smach_ros.ServiceState):
 
 
 class OctagonTaskState(smach.State):
-    def __init__(self, octagon_depth: float, animal: str):
+    def __init__(self, octagon_depth: float, animal: str,
+                 octagon_search_frame: str = "octagon_link",
+                 animal_search_kde_frame: str = None):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.griper_mode = True
         self.base_link = get_base_link()
-        self.animal_frame = f"gate_{animal}_link"
+        self.octagon_search_frame = octagon_search_frame
+        self.animal_frame = animal_search_kde_frame if animal_search_kde_frame else f"gate_{animal}_link"
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -198,7 +201,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "FIND_AIM_OCTAGON",
                 SearchForPropState(
-                    look_at_frame="octagon_link",
+                    look_at_frame=self.octagon_search_frame,
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     set_frame_duration=4.0,

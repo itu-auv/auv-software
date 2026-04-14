@@ -56,6 +56,7 @@ class NavigateThroughSlalomState(smach.State):
         slalom_depth: float,
         slalom_exit_angle: float = 0.0,
         slalom_mode: str = "close",
+        slalom_search_frame: str = "red_pipe_link",
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -63,6 +64,7 @@ class NavigateThroughSlalomState(smach.State):
         self.base_link = get_base_link()
         self.slalom_exit_angle = slalom_exit_angle
         self.slalom_mode = slalom_mode
+        self.slalom_search_frame = slalom_search_frame
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -157,7 +159,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "SEARCH_FOR_RED_PIPE",
                 SearchForPropState(
-                    look_at_frame="red_pipe_link",
+                    look_at_frame=self.slalom_search_frame,
                     alignment_frame="search_for_red_pipe",
                     full_rotation=False,
                     set_frame_duration=5.0,

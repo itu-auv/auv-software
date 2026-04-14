@@ -182,11 +182,13 @@ class BinSecondTrialState(smach.StateMachine):
         bin_front_look_depth,
         bin_bottom_look_depth,
         target_selection="shark",
+        bin_search_frame="bin_whole_link",
     ):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
         self.base_link = get_base_link()
+        self.bin_search_frame = bin_search_frame
 
         with self:
             smach.StateMachine.add(
@@ -250,7 +252,7 @@ class BinSecondTrialState(smach.StateMachine):
             smach.StateMachine.add(
                 "FIND_AND_AIM_BIN_SECOND_TRIAL",
                 SearchForPropState(
-                    look_at_frame="bin_whole_link",
+                    look_at_frame=self.bin_search_frame,
                     alignment_frame="bin_search",
                     full_rotation=False,
                     set_frame_duration=5.0,
@@ -327,9 +329,11 @@ class BinTaskState(smach.State):
         bin_bottom_look_depth,
         target_selection="shark",
         bin_exit_angle=0.0,
+        bin_search_frame="bin_whole_link",
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.base_link = get_base_link()
+        self.bin_search_frame = bin_search_frame
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -366,7 +370,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_BIN",
                 SearchForPropState(
-                    look_at_frame="bin_whole_link",
+                    look_at_frame=self.bin_search_frame,
                     alignment_frame="bin_search",
                     full_rotation=False,
                     set_frame_duration=7.0,
@@ -741,6 +745,7 @@ class BinTaskState(smach.State):
                     bin_front_look_depth,
                     bin_bottom_look_depth,
                     target_selection,
+                    bin_search_frame=self.bin_search_frame,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
