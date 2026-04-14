@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   nav_msgs
   rospy
   std_msgs
+  std_srvs
   tf
 )
 
@@ -23,7 +24,7 @@ generate_messages(
 )
 
 catkin_package(
-  CATKIN_DEPENDS angles auv_msgs geometry_msgs message_runtime nav_msgs std_msgs tf
+  CATKIN_DEPENDS angles auv_msgs geometry_msgs message_runtime nav_msgs std_msgs std_srvs tf
 )
 
 include_directories(
@@ -35,6 +36,7 @@ catkin_install_python(PROGRAMS
   scripts/imu_odometry_node.py
   scripts/pressure_odometry_node.py
   scripts/dvl_odometry_node.py
+  scripts/model_odometry_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

@@ -38,6 +38,18 @@
       <param name="cmdvel_tau" value="0.2" />
     </node>
 
+    <node pkg="auv_localization" type="model_odometry_node.py" name="model_odometry_node" output="screen">
+      <param name="namespace" value="$(arg namespace)" />
+      <remap from="odom_model" to="localization/odom_model" />
+      <remap from="dvl/is_valid" to="$(arg dvl_is_valid_topic)" />
+      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="wrench" to="wrench" />
+      <remap from="odometry" to="odometry" />
+      <param name="cmdvel_tau" value="0.2" />
+      <param name="dvl_timeout" value="0.5" />
+      <param name="model_covariance_multiplier" value="10.0" />
+    </node>
+
     <!-- Euler Orientation Publisher Node -->
     <node pkg="auv_localization" type="euler_orientation_publisher.py" name="euler_orientation_publisher" output="screen">
       <remap from="odometry" to="odometry" />
