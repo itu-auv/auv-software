@@ -1,21 +1,21 @@
 cam_front:
-  width: 1280
-  height: 720
+  width: 1920
+  height: 1080
   fps: 30
   device: /dev/auv_oak
 
-  image_width: 1280
-  image_height: 720
+  image_width: 1920
+  image_height: 1080
   camera_name: cam_front
   camera_matrix:
     rows: 3
     cols: 3
-    data: [768.247626, 0.0, 669.410586, 0.0, 772.874141, 342.206987, 0.0, 0.0, 1.0]
+    data: [1300.278562, 0.0, 963.616380, 0.0, 1301.913143, 502.538883, 0.0, 0.0, 1.0]
   distortion_model: plumb_bob
   distortion_coefficients:
     rows: 1
     cols: 5
-    data: [-0.216644, 0.053616, -0.002322, 0.001698, 0.0]
+    data: [-0.330122, 0.135823, 0.001839, 0.000819, 0.0]
   rectification_matrix:
     rows: 3
     cols: 3
@@ -23,7 +23,7 @@ cam_front:
   projection_matrix:
     rows: 3
     cols: 4
-    data: [642.776639, 0.0, 685.001385, 0.0, 0.0, 734.126134, 338.941703, 0.0, 0.0, 0.0, 1.0, 0.0]
+    data: [1068.462402, 0.0, 967.401311, 0.0, 0.0, 1223.300049, 498.828315, 0.0, 0.0, 0.0, 1.0, 0.0]
 
 cam_bottom:
   width: 1920
