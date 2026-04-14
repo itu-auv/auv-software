@@ -1668,17 +1668,20 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
 
 
 class MonitorVisibilityState(smach.State):
-    def __init__(self, prop_name, timeout=3.0):
+    def __init__(self, prop_name, timeout=3.0, camera_name="front"):
         smach.State.__init__(self, outcomes=["target_lost", "preempted"])
         self.prop_name = prop_name
         self.timeout = timeout
+        self.camera_name = camera_name
         self.last_seen_time = None
         self.subscriber = None
 
         namespace = rospy.get_namespace().strip("/")
         if not namespace:
             namespace = "taluy"  # fallback
-        self.topic_name = f"/{namespace}/vision/front/{prop_name}_is_inside_image"
+        self.topic_name = (
+            f"/{namespace}/vision/{camera_name}/{prop_name}_is_inside_image"
+        )
 
     def is_visible_cb(self, msg):
         if msg.data:
@@ -1724,6 +1727,7 @@ class AlignFrameWithVisibilityCheck(smach.Concurrence):
         target_frame,
         prop_name=None,
         lost_timeout=3.0,
+        camera_name="front",
         **align_kwargs,
     ):
         smach.Concurrence.__init__(
@@ -1751,7 +1755,9 @@ class AlignFrameWithVisibilityCheck(smach.Concurrence):
             )
             smach.Concurrence.add(
                 "MONITOR",
-                MonitorVisibilityState(prop_name=prop_name, timeout=lost_timeout),
+                MonitorVisibilityState(
+                    prop_name=prop_name, timeout=lost_timeout, camera_name=camera_name
+                ),
             )
 
 
@@ -1776,6 +1782,7 @@ class DynamicPathWithTransformAndVisibilityCheck(smach.Concurrence):
         transform_timeout: float = 60.0,
         prop_name: str = None,
         lost_timeout: float = 3.0,
+        camera_name: str = "front",
     ):
         smach.Concurrence.__init__(
             self,
@@ -1811,5 +1818,7 @@ class DynamicPathWithTransformAndVisibilityCheck(smach.Concurrence):
             )
             smach.Concurrence.add(
                 "MONITOR",
-                MonitorVisibilityState(prop_name=prop_name, timeout=lost_timeout),
+                MonitorVisibilityState(
+                    prop_name=prop_name, timeout=lost_timeout, camera_name=camera_name
+                ),
             )

@@ -111,8 +111,9 @@ class BinTaskMiniState(smach.State):
                     transform_target_frame=self.target_animal,
                     align_source_frame=self.base_link,
                     prop_name=self.bin_look_at_frame,
-                    lost_timeout=6.0,
+                    lost_timeout=15.0,
                     transform_timeout=20.0,
+                    camera_name="bottom",
                 ),
                 transitions={
                     "succeeded": "ALIGN_PRECISELY_TO_BIN",
@@ -133,6 +134,7 @@ class BinTaskMiniState(smach.State):
                     timeout=20.0,
                     cancel_on_success=True,
                     keep_orientation=True,
+                    camera_name="bottom",
                 ),
                 transitions={
                     "succeeded": "SET_DROP_DEPTH",
