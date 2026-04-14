@@ -2,6 +2,7 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="10" />
+  <arg name="sim" default="false" />
   <arg name="enable_realsense_nodes" default="$(eval arg('namespace') == 'taluy')" />
   <arg name="static_frame" default="odom" />
   <arg name="target_gate_frame" default="gate_shark_link" />
@@ -14,6 +15,11 @@
       <arg name="namespace" value="$(arg namespace)" />
     </include>
   </group>
+
+  <include file="$(find auv_mapping)/launch/object_plane_fitter.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+    <arg name="sim" value="$(arg sim)" />
+  </include>
 
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="camera_detection_node.py" name="camera_detection_pose_estimator" output="screen">
