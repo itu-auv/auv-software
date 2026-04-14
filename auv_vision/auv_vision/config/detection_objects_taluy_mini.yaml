@@ -1,0 +1,26 @@
+cameras:
+  front:
+    ns: "taluy_mini/cameras/cam_front"
+    frame: "taluy_mini/base_link/front_camera_optical_link_stabilized"
+    yolo_topic: "/yolo_result_front"
+    handler: "front_camera_handler"
+    image_width: 1280
+    image_height: 720
+    id_tf_map:
+      0: gate_sawfish_link
+      1: gate_shark_link
+
+# Prop dimensions for distance estimation (link_name -> dimensions)
+props:
+  gate_sawfish_link: {name: "sawfish", real_height: 0.3048, real_width: 0.3048}
+  gate_shark_link: {name: "shark", real_height: 0.3048, real_width: 0.3048}
+
+  # Front camera focus service object groups (keyed by YOLO detection ID)
+object_groups:
+  gate: [0, 1]
+  torpedo: [4]
+  torpedo_holes: [5]
+  bin: [6]
+  octagon: [7]
+  all: [0, 1, 4, 5, 6, 7]
+  none: []

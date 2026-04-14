@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <created>2026-04-09</created>
+    <modified>2026-04-09</modified>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_effects>
+    <effect id="finger-effect">
+      <profile_COMMON>
+        <technique sid="common">
+          <phong>
+            <diffuse>
+              <color sid="diffuse">0.35 0.35 0.35 1</color>
+            </diffuse>
+            <specular>
+              <color sid="specular">0.2 0.2 0.2 1</color>
+            </specular>
+            <shininess>
+              <float sid="shininess">40</float>
+            </shininess>
+          </phong>
+        </technique>
+      </profile_COMMON>
+    </effect>
+  </library_effects>
+  <library_materials>
+    <material id="finger-material" name="FingerMaterial">
+      <instance_effect url="#finger-effect"/>
+    </material>
+  </library_materials>
+  <library_geometries>
+    <geometry id="box-mesh" name="Box">
+      <mesh>
+        <source id="box-positions">
+          <float_array id="box-positions-array" count="24">0.0 -0.039 -0.0125 0.064 -0.039 -0.0125 0.064 0.039 -0.0125 0.0 0.039 -0.0125 0.0 -0.039 0.0125 0.064 -0.039 0.0125 0.064 0.039 0.0125 0.0 0.039 0.0125</float_array>
+          <technique_common>
+            <accessor source="#box-positions-array" count="8" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <source id="box-normals">
+          <float_array id="box-normals-array" count="18">0 0 -1 0 0 1 0 -1 0 1 0 0 0 1 0 -1 0 0</float_array>
+          <technique_common>
+            <accessor source="#box-normals-array" count="6" stride="3">
+              <param name="X" type="float"/>
+              <param name="Y" type="float"/>
+              <param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="box-vertices">
+          <input semantic="POSITION" source="#box-positions"/>
+        </vertices>
+        <triangles count="12" material="finger-material">
+          <input semantic="VERTEX" offset="0" source="#box-vertices"/>
+          <input semantic="NORMAL" offset="1" source="#box-normals"/>
+          <p>0 0 1 0 2 0 0 0 2 0 3 0 4 1 6 1 5 1 4 1 7 1 6 1 0 2 5 2 1 2 0 2 4 2 5 2 1 3 6 3 2 3 1 3 5 3 6 3 3 4 7 4 6 4 2 4 6 4 3 4 0 5 3 5 7 5 0 5 7 5 4 5</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <node id="Box" name="Box" type="NODE">
+        <instance_geometry url="#box-mesh">
+          <bind_material>
+            <technique_common>
+              <instance_material symbol="finger-material" target="#finger-material"/>
+            </technique_common>
+          </bind_material>
+        </instance_geometry>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

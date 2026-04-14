@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy_mini" />
+  <arg name="name" default="cam_front" />
+  <arg name="camera_model" default="OAK-D" />
+  <arg name="camera_config" default="$(find auv_bringup)/config/cameras_mini.yaml" />
+  <arg name="rectify_rgb" default="true" />
+
+  <group ns="$(arg namespace)/cameras/$(arg name)">
+    <rosparam command="load" file="$(arg camera_config)" ns="$(arg name)" subst_value="true"/>
+    <node name="$(arg name)" pkg="auv_cam" type="oak_cam.py" output="screen"/>
+  </group>
+</launch>
