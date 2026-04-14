@@ -10,7 +10,9 @@ import tf2_geometry_msgs
 import tf.transformations as transformations
 from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from ultralytics_ros.msg import YoloResult
+from dynamic_reconfigure.server import Server
 from dynamic_reconfigure.client import Client
+from auv_mapping.cfg import SlalomExpFrameConfig
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import (
     PoseStamped,
@@ -28,13 +30,12 @@ from typing import List
 
 # copy paste from auv_vision.utils
 def check_inside_image(
-    detection, image_width: int = 640, image_height: int = 480
+    detection, image_width: int = 640, image_height: int = 480, deadzone: int = 5
 ) -> bool:
     """Check if a detection bounding box is fully inside the image."""
     center = detection.bbox.center
     half_size_x = detection.bbox.size_x * 0.5
     half_size_y = detection.bbox.size_y * 0.5
-    deadzone = 5  # pixels
     if (
         center.x + half_size_x >= image_width - deadzone
         or center.x - half_size_x <= deadzone
@@ -104,9 +105,30 @@ class SlalomExpFramePublisher:
         self.heatmap_color_sample_step = rospy.get_param(
             "~heatmap_color_sample_step", 10
         )
+        self.heatmap_image_width_px = rospy.get_param("~heatmap_image_width_px", 640)
+        self.heatmap_image_height_px = rospy.get_param("~heatmap_image_height_px", 480)
+        self.heatmap_padding_px = rospy.get_param("~heatmap_padding_px", 50)
+        self.heatmap_detection_deadzone_px = rospy.get_param(
+            "~heatmap_detection_deadzone_px", 5
+        )
+        self.heatmap_point_radius_px = rospy.get_param("~heatmap_point_radius_px", 3)
+        self.heatmap_opening_kernel_px = rospy.get_param(
+            "~heatmap_opening_kernel_px", 6
+        )
+        self.heatmap_gaussian_sigma_px = rospy.get_param(
+            "~heatmap_gaussian_sigma_px", 8.0
+        )
+        self.heatmap_max_centers = rospy.get_param("~heatmap_max_centers", 9)
+        self.heatmap_peak_threshold = rospy.get_param("~heatmap_peak_threshold", 0.01)
+        self.heatmap_suppression_radius_px = rospy.get_param(
+            "~heatmap_suppression_radius_px", 50
+        )
         self.slalom_direction = rospy.get_param("~slalom_direction", "left")
         self.cv_bridge = CvBridge()
         self.heatmap_pub = rospy.Publisher("slalom/heatmap_vis", Image, queue_size=1)
+        self.reconfigure_server = Server(
+            SlalomExpFrameConfig, self.reconfigure_callback
+        )
         self.smach_params_client = Client(
             "smach_parameters_server",
             timeout=10,
@@ -125,6 +147,19 @@ class SlalomExpFramePublisher:
         self.srv_publish_waypoints = rospy.Service(
             "slalom/publish_waypoints", SetBool, self.publish_waypoints_callback
         )
+
+    def reconfigure_callback(self, config, level):
+        self.heatmap_image_width_px = config.heatmap_image_width_px
+        self.heatmap_image_height_px = config.heatmap_image_height_px
+        self.heatmap_padding_px = config.heatmap_padding_px
+        self.heatmap_detection_deadzone_px = config.heatmap_detection_deadzone_px
+        self.heatmap_point_radius_px = config.heatmap_point_radius_px
+        self.heatmap_opening_kernel_px = config.heatmap_opening_kernel_px
+        self.heatmap_gaussian_sigma_px = config.heatmap_gaussian_sigma_px
+        self.heatmap_max_centers = config.heatmap_max_centers
+        self.heatmap_peak_threshold = config.heatmap_peak_threshold
+        self.heatmap_suppression_radius_px = config.heatmap_suppression_radius_px
+        return config
 
     def publish_search_points_callback(self, req):
         try:
@@ -181,7 +216,10 @@ class SlalomExpFramePublisher:
             self.collecting = True
             self.i = 0
             self.last_heatmap_build_time = 0.0
-            self.heatmap_vis = np.zeros((480, 640, 3), dtype=np.uint8)
+            self.heatmap_vis = np.zeros(
+                (self.heatmap_image_height_px, self.heatmap_image_width_px, 3),
+                dtype=np.uint8,
+            )
             self.publish_heatmap()
             rospy.loginfo("Started point collection")
             return SetBoolResponse(success=True, message="Started point search")
@@ -235,8 +273,12 @@ class SlalomExpFramePublisher:
             return
 
         for x in detections.detections:
-            # TODO: hardcoded width-height
-            if not check_inside_image(x, 640, 480):
+            if not check_inside_image(
+                x,
+                self.cam.width,
+                self.cam.height,
+                self.heatmap_detection_deadzone_px,
+            ):
                 continue
 
             if len(x.results) == 0:
@@ -288,7 +330,10 @@ class SlalomExpFramePublisher:
 
     def build_heatmap_data(self):
         if not self.points:
-            self.heatmap_vis = np.zeros((480, 640, 3), dtype=np.uint8)
+            self.heatmap_vis = np.zeros(
+                (self.heatmap_image_height_px, self.heatmap_image_width_px, 3),
+                dtype=np.uint8,
+            )
             return None
 
         pts_with_ids = np.array(self.points)
@@ -304,38 +349,62 @@ class SlalomExpFramePublisher:
         if height == 0:
             height = 1.0
 
-        # TODO: hardcoded
-        padding = 50
-        target_w = 640 - 2 * padding
-        target_h = 480 - 2 * padding
+        padding = self.heatmap_padding_px
+        target_w = max(1, self.heatmap_image_width_px - 2 * padding)
+        target_h = max(1, self.heatmap_image_height_px - 2 * padding)
 
-        scale = min(target_w / width, target_h / height)
+        # Render a top-down odom view: +x forward is up, +y left is left.
+        scale = min(target_w / height, target_h / width)
 
-        img = np.zeros((480, 640), dtype=np.uint8)
+        img = np.zeros(
+            (self.heatmap_image_height_px, self.heatmap_image_width_px),
+            dtype=np.uint8,
+        )
 
         pixel_points = []
         for center, det_id in zip(pts, pts_with_ids[:, 2].astype(int)):
-            u = int((center[0] - x_min) * scale + (640 - width * scale) / 2)
-            v = int((center[1] - y_min) * scale + (480 - height * scale) / 2)
+            u = int(
+                (y_max - center[1]) * scale
+                + (self.heatmap_image_width_px - height * scale) / 2
+            )
+            v = int(
+                (x_max - center[0]) * scale
+                + (self.heatmap_image_height_px - width * scale) / 2
+            )
 
-            u = max(0, min(639, u))
-            v = max(0, min(479, v))
+            u = max(0, min(self.heatmap_image_width_px - 1, u))
+            v = max(0, min(self.heatmap_image_height_px - 1, v))
 
-            cv2.circle(img, (u, v), 3, 255, -1)
+            cv2.circle(img, (u, v), self.heatmap_point_radius_px, 255, -1)
             pixel_points.append((u, v, det_id))
 
-        opening = cv2.morphologyEx(img, cv2.MORPH_OPEN, np.ones((6, 6), np.uint8))
-        _, binary = cv2.threshold(opening, 127, 255, cv2.THRESH_BINARY)
+        binary_img = img
+        if self.heatmap_opening_kernel_px > 0:
+            kernel = np.ones(
+                (
+                    self.heatmap_opening_kernel_px,
+                    self.heatmap_opening_kernel_px,
+                ),
+                np.uint8,
+            )
+            binary_img = cv2.morphologyEx(img, cv2.MORPH_OPEN, kernel)
+        _, binary = cv2.threshold(binary_img, 127, 255, cv2.THRESH_BINARY)
 
         binary = binary.astype(np.float32) / 255.0
-        # TODO: hardcoded
-        heatmap = cv2.GaussianBlur(binary, (0, 0), sigmaX=15, sigmaY=15)
+        heatmap = cv2.GaussianBlur(
+            binary,
+            (0, 0),
+            sigmaX=self.heatmap_gaussian_sigma_px,
+            sigmaY=self.heatmap_gaussian_sigma_px,
+        )
 
         return {
             "heatmap": heatmap,
             "pixel_points": pixel_points,
             "x_min": x_min,
+            "x_max": x_max,
             "y_min": y_min,
+            "y_max": y_max,
             "width": width,
             "height": height,
             "scale": scale,
@@ -367,24 +436,25 @@ class SlalomExpFramePublisher:
         heatmap = heatmap_data["heatmap"]
         pixel_points = heatmap_data["pixel_points"]
         x_min = heatmap_data["x_min"]
+        x_max = heatmap_data["x_max"]
         y_min = heatmap_data["y_min"]
+        y_max = heatmap_data["y_max"]
         width = heatmap_data["width"]
         height = heatmap_data["height"]
         scale = heatmap_data["scale"]
         self.heatmap_vis = self.build_heatmap_visualization(heatmap, pixel_points)
 
         heatmap_copy = heatmap.copy()
-        max_centers = 9
         pixel_centers = []
 
-        for _ in range(max_centers):
+        for _ in range(self.heatmap_max_centers):
             _, maxVal, _, maxLoc = cv2.minMaxLoc(heatmap_copy)
-            if maxVal < 0.01:
+            if maxVal < self.heatmap_peak_threshold:
                 break
             pixel_centers.append(maxLoc)
-            # TODO: hardcoded
-            suppression_radius = int(25 * 2)
-            cv2.circle(heatmap_copy, maxLoc, suppression_radius, 0, -1)
+            cv2.circle(
+                heatmap_copy, maxLoc, self.heatmap_suppression_radius_px, 0, -1
+            )
 
         pixel_center_colors = {}
         if pixel_centers:
@@ -408,8 +478,24 @@ class SlalomExpFramePublisher:
         def pixel_to_world(p):
             u, v = p.x, p.y
             return Point(
-                ((u - (640 - width * scale) / 2) / scale) + x_min,
-                ((v - (480 - height * scale) / 2) / scale) + y_min,
+                (
+                    (
+                        v
+                        - (self.heatmap_image_height_px - width * scale) / 2
+                    )
+                    / scale
+                )
+                * -1
+                + x_max,
+                (
+                    (
+                        u
+                        - (self.heatmap_image_width_px - height * scale) / 2
+                    )
+                    / scale
+                )
+                * -1
+                + y_max,
             )
 
         world_points = [
@@ -614,9 +700,9 @@ class SlalomExpFramePublisher:
             cv2.circle(heatmap_vis, (u, v), 2, center_color, -1)
 
     def draw_heatmap_axes_indicator(self, heatmap_vis):
-        origin = (heatmap_vis.shape[1] - 28, 28)
-        x_end = (origin[0] - 36, origin[1])
-        y_end = (origin[0], origin[1] + 36)
+        origin = (heatmap_vis.shape[1] - 28, 48)
+        x_end = (origin[0], origin[1] - 36)
+        y_end = (origin[0] - 36, origin[1])
         axis_color = (235, 235, 235)
         outline_color = (15, 15, 15)
 
@@ -656,7 +742,7 @@ class SlalomExpFramePublisher:
         cv2.putText(
             heatmap_vis,
             "x",
-            (x_end[0] - 12, x_end[1] - 6),
+            (x_end[0] + 6, x_end[1] + 4),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.45,
             outline_color,
@@ -666,7 +752,7 @@ class SlalomExpFramePublisher:
         cv2.putText(
             heatmap_vis,
             "x",
-            (x_end[0] - 12, x_end[1] - 6),
+            (x_end[0] + 6, x_end[1] + 4),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.45,
             axis_color,
@@ -676,7 +762,7 @@ class SlalomExpFramePublisher:
         cv2.putText(
             heatmap_vis,
             "y",
-            (y_end[0] + 6, y_end[1] + 4),
+            (y_end[0] - 14, y_end[1] - 6),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.45,
             outline_color,
@@ -686,7 +772,7 @@ class SlalomExpFramePublisher:
         cv2.putText(
             heatmap_vis,
             "y",
-            (y_end[0] + 6, y_end[1] + 4),
+            (y_end[0] - 14, y_end[1] - 6),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.45,
             axis_color,

@@ -48,6 +48,7 @@ endif()
 
 generate_dynamic_reconfigure_options(
   cfg/SlalomTrajectory.cfg
+  cfg/SlalomExpFrame.cfg
   cfg/GateTrajectory.cfg
   cfg/TorpedoTrajectory.cfg
   cfg/GpsTargetFrame.cfg
