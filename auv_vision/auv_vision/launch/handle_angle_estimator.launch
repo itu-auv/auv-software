@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<launch>
+    <!--
+    Handle Angle Estimator
+    =======================
+    3D point-cloud protrusion + PCA based valve handle angle detection.
+    Requires valve_stand_link TF to be published (stand_orientation_estimator).
+
+    Publishes:
+      valve_handle_angle       (std_msgs/Float32)   — [0, pi) radians
+      valve_handle_debug/image (sensor_msgs/Image)  — BGR overlay
+    -->
+
+    <arg name="namespace" default="taluy" />
+
+    <node name="handle_angle_estimator"
+          pkg="auv_vision"
+          type="handle_angle_estimator.py"
+          output="screen">
+
+        <param name="namespace" value="$(arg namespace)" />
+        <param name="valve_frame" value="valve_stand_link" />
+
+        <!-- Front camera (for debug image overlay) -->
+        <param name="front_camera_info_topic" value="/$(arg namespace)/cameras/cam_front/camera_info" />
+        <param name="front_image_topic"       value="/$(arg namespace)/cameras/cam_front/image_raw" />
+        <param name="front_optical_frame"     value="$(arg namespace)/base_link/front_camera_optical_link_stabilized" />
+
+        <!-- RealSense point cloud -->
+        <param name="cloud_topic" value="/$(arg namespace)/camera/depth/color/points" />
+
+        <!-- Geometry thresholds (m) -->
+        <param name="bucket_radius"      value="0.07" />
+        <param name="protrusion_min"     value="0.02" />
+        <param name="protrusion_max"     value="0.08" />
+        <param name="min_handle_points"  value="30" />
+        <param name="median_window"      value="15" />
+    </node>
+</launch>

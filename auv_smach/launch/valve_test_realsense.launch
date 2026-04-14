@@ -38,6 +38,11 @@
             <arg name="namespace" value="$(arg namespace)" />
         </include>
 
+        <!-- 2b. Handle Angle Estimator: valve_stand_link + point cloud -> handle angle -->
+        <include file="$(find auv_vision)/launch/handle_angle_estimator.launch">
+            <arg name="namespace" value="$(arg namespace)" />
+        </include>
+
         <!-- 3. Valve Trajectory Publisher: valve_stand_link -> 3 approach frames -->
         <node name="valve_trajectory_publisher"
               pkg="auv_mapping"

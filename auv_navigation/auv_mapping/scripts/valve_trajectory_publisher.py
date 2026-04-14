@@ -71,7 +71,7 @@ class ValveTrajectoryPublisherNode:
 
         # Default offset değerleri (dynamic reconfigure ile değiştirilir)
         self.coarse_approach_offset = 1.75  # metre
-        self.approach_offset = 1.25  # metre
+        self.approach_offset = 0.75  # metre (kol tespiti için sweet spot)
         self.contact_offset = 0.625  # metre
 
         # Dynamic reconfigure server

@@ -1,0 +1,34 @@
+FROM ros:noetic
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    DEBCONF_NONINTERACTIVE_SEEN=true \
+    TZ=Etc/UTC
+
+RUN apt-get update && apt-get install -y \
+    git curl gnupg python3-pip python3-vcstool python3-catkin-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y \
+    ros-noetic-ros-control ros-noetic-ros-controllers \
+    ros-noetic-robot-state-publisher ros-noetic-joint-state-publisher \
+    ros-noetic-joy ros-noetic-xacro ros-noetic-rosfmt \
+    ros-noetic-smach-ros ros-noetic-rosserial-python \
+    ros-noetic-move-base ros-noetic-pcl-ros ros-noetic-pcl-conversions \
+    ros-noetic-robot-localization ros-noetic-cv-bridge \
+    ros-noetic-image-transport \
+    ros-noetic-gazebo-ros ros-noetic-gazebo-ros-pkgs \
+    ros-noetic-gazebo-plugins ros-noetic-rviz \
+    ros-noetic-rqt ros-noetic-rqt-common-plugins \
+    ros-noetic-tf-conversions \
+    ros-noetic-image-proc \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install setuptools==45.2.0
+
+WORKDIR /auv_ws
+
+RUN echo '#!/bin/bash\nset -e\nsource /opt/ros/noetic/setup.bash\nexec "$@"' > /ros_entrypoint.sh && \
+    chmod +x /ros_entrypoint.sh
+
+ENTRYPOINT ["/ros_entrypoint.sh"]
+CMD ["bash"]
