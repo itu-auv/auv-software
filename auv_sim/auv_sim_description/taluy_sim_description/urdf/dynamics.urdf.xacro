@@ -43,8 +43,8 @@
           0 0 0 0 0 0
           0 0 0 0 0 0
         </added_mass>
-        <linear_damping>-30 -31 -89 -1.87 -1.87 -1.87</linear_damping>
-        <quadratic_damping>-77 -155 -136 -7.98 -7.98 -7.98</quadratic_damping>
+        <linear_damping>-45.8 -42.37 -89.2 -1.87 -1.87 -5.646</linear_damping>
+        <quadratic_damping>-141.9 -221.7 -136.16 -7.98 -7.98 -2.608</quadratic_damping>
       </hydrodynamic_model>
     </link>
   </xacro:macro>
