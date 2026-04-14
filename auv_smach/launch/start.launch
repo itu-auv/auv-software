@@ -9,9 +9,11 @@
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
+        gate_mini:NAVIGATE_THROUGH_GATE_MINI,
         slalom:NAVIGATE_THROUGH_SLALOM,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
+        bin_mini:NAVIGATE_TO_BIN_MINI_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
         gps:NAVIGATE_TO_GPS_TARGET,
         acoustic_tx:ACOUSTIC_TRANSMITTER,
@@ -33,6 +35,7 @@
         'NAVIGATE_THROUGH_SLALOM',
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
+        'NAVIGATE_TO_BIN_MINI_TASK',
         'NAVIGATE_TO_OCTAGON_TASK',
         'NAVIGATE_TO_GPS_TARGET',
         'ACOUSTIC_TRANSMITTER',
@@ -84,6 +87,7 @@
             <remap from="odometry" to="odometry"/>
             <remap from="wrench" to="wrench"/>
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
+            <remap from="toggle_gate_single_frame_trajectory" to="toggle_gate_single_frame_trajectory"/>
             <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable"/>
 
             <!--initialize.py-->

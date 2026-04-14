@@ -1665,3 +1665,151 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
                     timeout=transform_timeout,
                 ),
             )
+
+
+class MonitorVisibilityState(smach.State):
+    def __init__(self, prop_name, timeout=3.0):
+        smach.State.__init__(self, outcomes=["target_lost", "preempted"])
+        self.prop_name = prop_name
+        self.timeout = timeout
+        self.last_seen_time = None
+        self.subscriber = None
+
+        namespace = rospy.get_namespace().strip("/")
+        if not namespace:
+            namespace = "taluy"  # fallback
+        self.topic_name = f"/{namespace}/vision/front/{prop_name}_is_inside_image"
+
+    def is_visible_cb(self, msg):
+        if msg.data:
+            self.last_seen_time = rospy.Time.now()
+
+    def execute(self, userdata):
+        self.last_seen_time = rospy.Time.now()
+        self.subscriber = rospy.Subscriber(self.topic_name, Bool, self.is_visible_cb)
+
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                if self.subscriber:
+                    self.subscriber.unregister()
+                self.service_preempt()
+                return "preempted"
+
+            if self.last_seen_time is not None:
+                if (rospy.Time.now() - self.last_seen_time).to_sec() > self.timeout:
+                    rospy.logwarn(
+                        f"[MonitorVisibility] Target has not been seen for {self.timeout} seconds! ({self.topic_name})"
+                    )
+                    if self.subscriber:
+                        self.subscriber.unregister()
+                    return "target_lost"
+
+            rate.sleep()
+
+        if self.subscriber:
+            self.subscriber.unregister()
+        return "preempted"
+
+
+class AlignFrameWithVisibilityCheck(smach.Concurrence):
+    """
+    Runs the standard AlignFrame state concurrently with a MonitorVisibilityState.
+    If the target is not seen for 'lost_timeout' seconds, the alignment is halted and returns 'target_lost'.
+    """
+
+    def __init__(
+        self,
+        source_frame,
+        target_frame,
+        prop_name=None,
+        lost_timeout=3.0,
+        **align_kwargs,
+    ):
+        smach.Concurrence.__init__(
+            self,
+            outcomes=["succeeded", "target_lost", "preempted", "aborted"],
+            default_outcome="aborted",
+            child_termination_cb=lambda so: True,  # Stop the other state when one finishes
+            outcome_map={
+                "succeeded": {"ALIGN": "succeeded"},
+                "target_lost": {"MONITOR": "target_lost"},
+                "aborted": {"ALIGN": "aborted"},
+            },
+        )
+
+        # Use target_frame name if prop_name is not provided
+        if prop_name is None:
+            prop_name = target_frame
+
+        with self:
+            smach.Concurrence.add(
+                "ALIGN",
+                AlignFrame(
+                    source_frame=source_frame, target_frame=target_frame, **align_kwargs
+                ),
+            )
+            smach.Concurrence.add(
+                "MONITOR",
+                MonitorVisibilityState(prop_name=prop_name, timeout=lost_timeout),
+            )
+
+
+class DynamicPathWithTransformAndVisibilityCheck(smach.Concurrence):
+    """
+    Runs DynamicPathWithTransformCheck concurrently with a MonitorVisibilityState.
+    If the target is not seen for 'lost_timeout' seconds, it halts and returns 'target_lost'.
+    Nested concurrences are fully supported in SMACH.
+    """
+
+    def __init__(
+        self,
+        plan_target_frame: str,
+        transform_source_frame: str,
+        transform_target_frame: str,
+        align_source_frame: str = "taluy/base_link",
+        align_target_frame: str = "dynamic_target",
+        max_linear_velocity: float = None,
+        max_angular_velocity: float = None,
+        angle_offset: float = 0.0,
+        keep_orientation: bool = False,
+        transform_timeout: float = 60.0,
+        prop_name: str = None,
+        lost_timeout: float = 3.0,
+    ):
+        smach.Concurrence.__init__(
+            self,
+            outcomes=["succeeded", "target_lost", "preempted", "aborted"],
+            default_outcome="aborted",
+            child_termination_cb=lambda so: True,
+            outcome_map={
+                "succeeded": {"DYNAMIC_PATH": "succeeded"},
+                "target_lost": {"MONITOR": "target_lost"},
+                "aborted": {"DYNAMIC_PATH": "aborted"},
+                "preempted": {"DYNAMIC_PATH": "preempted"},
+            },
+        )
+
+        if prop_name is None:
+            prop_name = transform_target_frame
+
+        with self:
+            smach.Concurrence.add(
+                "DYNAMIC_PATH",
+                DynamicPathWithTransformCheck(
+                    plan_target_frame=plan_target_frame,
+                    transform_source_frame=transform_source_frame,
+                    transform_target_frame=transform_target_frame,
+                    align_source_frame=align_source_frame,
+                    align_target_frame=align_target_frame,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                    angle_offset=angle_offset,
+                    keep_orientation=keep_orientation,
+                    transform_timeout=transform_timeout,
+                ),
+            )
+            smach.Concurrence.add(
+                "MONITOR",
+                MonitorVisibilityState(prop_name=prop_name, timeout=lost_timeout),
+            )
