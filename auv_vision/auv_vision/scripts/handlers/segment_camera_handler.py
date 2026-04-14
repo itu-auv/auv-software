@@ -39,15 +39,8 @@ class SegmentCameraHandler:
         self.props_yaw_pub = publishers["props_yaw"]
         self.shared_state = shared_state
 
-    def handle(self, detection_msg: YoloResult):
-        seg = self.shared_state.get("last_segment_measurement")
-
-        # Use segment measurement timestamp if available, otherwise detection stamp
-        # ı did this beacuse ı do not want to abandon the bottle frame completly.
-        if seg is not None and seg.valid:
-            stamp = seg.header.stamp
-        else:
-            stamp = detection_msg.header.stamp
+    def handle(self, detection_msg: YoloResult, seg):
+        stamp = detection_msg.header.stamp
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
@@ -118,38 +111,31 @@ class SegmentCameraHandler:
 
             # Calculate bottle orientation from segment angle + robot yaw
             if seg is not None and seg.valid:
-                dt = abs((stamp - seg.header.stamp).to_sec())
-                if dt < 10000:
-                    try:
-                        transform = self.tf_buffer.lookup_transform(
-                            "odom",
-                            "taluy/base_link",
-                            seg.header.stamp,
-                            rospy.Duration(0.5),
-                        )
-                        _, _, robot_yaw = tf_transformations.euler_from_quaternion(
-                            [
-                                transform.transform.rotation.x,
-                                transform.transform.rotation.y,
-                                transform.transform.rotation.z,
-                                transform.transform.rotation.w,
-                            ]
-                        )
-                        bottle_angle_odom = robot_yaw + seg.angle
-                        quat = tf_transformations.quaternion_from_euler(
-                            0, 0, bottle_angle_odom
-                        )
-                        transform_stamped_msg.transform.rotation = Quaternion(*quat)
-                    except (
-                        tf2_ros.LookupException,
-                        tf2_ros.ConnectivityException,
-                        tf2_ros.ExtrapolationException,
-                    ):
-                        transform_stamped_msg.transform.rotation = Quaternion(
-                            0, 0, 0, 1
-                        )
-                else:
-                    rospy.logwarn_throttle(5, "Segment measurement is too old")
+                try:
+                    transform = self.tf_buffer.lookup_transform(
+                        "odom",
+                        "taluy/base_link",
+                        stamp,
+                        rospy.Duration(0.5),
+                    )
+                    _, _, robot_yaw = tf_transformations.euler_from_quaternion(
+                        [
+                            transform.transform.rotation.x,
+                            transform.transform.rotation.y,
+                            transform.transform.rotation.z,
+                            transform.transform.rotation.w,
+                        ]
+                    )
+                    bottle_angle_odom = robot_yaw + seg.angle
+                    quat = tf_transformations.quaternion_from_euler(
+                        0, 0, bottle_angle_odom
+                    )
+                    transform_stamped_msg.transform.rotation = Quaternion(*quat)
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
+                ):
                     transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
             else:
                 transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
