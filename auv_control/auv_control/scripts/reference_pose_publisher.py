@@ -329,6 +329,8 @@ class ReferencePosePublisherNode:
                         )
                         if dist_flipped < dist_normal:
                             self.target_heading = flipped
+                            self.target_x = -self.target_x
+                            self.target_y = -self.target_y
 
             self.target_frame_id = req.target_frame
 
