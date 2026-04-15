@@ -53,8 +53,6 @@ catkin_install_python(PROGRAMS
   scripts/visual_servoing_controller.py
   scripts/damping_tester.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-  scripts/visual_servoing_controller.py
-  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 add_executable(${PROJECT_NAME}_node
