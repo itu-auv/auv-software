@@ -12,7 +12,7 @@ from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from ultralytics_ros.msg import YoloResult
 from dynamic_reconfigure.server import Server
 from dynamic_reconfigure.client import Client
-from auv_mapping.cfg import SlalomExpFrameConfig
+from auv_mapping.cfg import SlalomHeatmapConfig
 from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import (
     PoseStamped,
@@ -68,9 +68,9 @@ class SlalomTFGroup:
     waypoint_tfs: List[TransformStamped] = field(default_factory=list)
 
 
-class SlalomExpFramePublisher:
+class SlalomHeatmapMapper:
     def __init__(self):
-        rospy.init_node("slalom_exp_frame_publisher")
+        rospy.init_node("slalom_heatmap_mapper")
 
         self.frequency = rospy.get_param("~frequency", 10.0)
         self.rate = rospy.Rate(self.frequency)
@@ -126,9 +126,7 @@ class SlalomExpFramePublisher:
         self.slalom_direction = rospy.get_param("~slalom_direction", "left")
         self.cv_bridge = CvBridge()
         self.heatmap_pub = rospy.Publisher("slalom/heatmap_vis", Image, queue_size=1)
-        self.reconfigure_server = Server(
-            SlalomExpFrameConfig, self.reconfigure_callback
-        )
+        self.reconfigure_server = Server(SlalomHeatmapConfig, self.reconfigure_callback)
         self.smach_params_client = Client(
             "smach_parameters_server",
             timeout=10,
@@ -807,5 +805,5 @@ class SlalomExpFramePublisher:
 
 
 if __name__ == "__main__":
-    node = SlalomExpFramePublisher()
+    node = SlalomHeatmapMapper()
     node.spin()

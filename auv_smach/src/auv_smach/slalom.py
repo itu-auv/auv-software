@@ -52,7 +52,7 @@ class PublishWaypointsState(smach_ros.ServiceState):
         )
 
 
-class NavigateThroughSlalomExpState(smach.State):
+class NavigateThroughSlalomState(smach.State):
     def __init__(
         self,
         slalom_depth: float,

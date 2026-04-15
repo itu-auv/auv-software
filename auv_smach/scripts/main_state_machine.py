@@ -7,7 +7,6 @@ import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.slalom import NavigateThroughSlalomState
-from auv_smach.slalom_exp import NavigateThroughSlalomExpState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
@@ -193,14 +192,6 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_THROUGH_SLALOM": (
                 NavigateThroughSlalomState,
-                {
-                    "slalom_depth": self.slalom_depth,
-                    "slalom_exit_angle": slalom_exit_angle_rad,
-                    "slalom_mode": self.slalom_mode,
-                },
-            ),
-            "NAVIGATE_THROUGH_SLALOM_EXP": (
-                NavigateThroughSlalomExpState,
                 {
                     "slalom_depth": self.slalom_depth,
                     "slalom_exit_angle": slalom_exit_angle_rad,

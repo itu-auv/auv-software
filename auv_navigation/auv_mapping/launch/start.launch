@@ -60,13 +60,7 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
-    <node pkg="auv_mapping" type="slalom_trajectory_publisher.py" name="slalom_trajectory_publisher" output="screen">
-      <rosparam command="load" file="$(find auv_mapping)/config/slalom.yaml" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-      <param name="config_file" value="$(find auv_mapping)/config/slalom.yaml" />
-    </node>
-
-    <node pkg="auv_mapping" type="slalom_exp_frame_publisher.py" name="slalom_exp_frame_publisher" output="screen">
+    <node pkg="auv_mapping" type="slalom_heatmap_mapper.py" name="slalom_heatmap_mapper" output="screen">
       <param name="base_link_frame" value="$(arg namespace)/base_link" />
       <remap from="set_object_transform" to="map/set_object_transform" />
       <remap from="/yolo_result_front" to="/yolo_result_front" />

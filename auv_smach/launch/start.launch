@@ -17,8 +17,7 @@
         acoustic_tx:ACOUSTIC_TRANSMITTER,
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
-        pipeline:NAVIGATE_THROUGH_PIPELINE,
-        slalom_exp:NAVIGATE_THROUGH_SLALOM_EXP
+        pipeline:NAVIGATE_THROUGH_PIPELINE
     "/>
 
     <!-- Test Mode Configuration -->
@@ -39,8 +38,7 @@
         'ACOUSTIC_TRANSMITTER',
         'ACOUSTIC_RECEIVER',
         'NAVIGATE_RETURN_THROUGH_GATE',
-        'NAVIGATE_THROUGH_PIPELINE',
-        'NAVIGATE_THROUGH_SLALOM_EXP'
+        'NAVIGATE_THROUGH_PIPELINE'
     ]" doc="Full sequence of mission states"/>
 
     <!-- Test Mission States -->
