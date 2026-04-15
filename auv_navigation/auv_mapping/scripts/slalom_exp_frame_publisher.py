@@ -288,6 +288,14 @@ class SlalomExpFramePublisher:
 
             self.i += 1
             bbox = x.bbox
+            if bbox.size_x <= 0 or bbox.size_y <= 0:
+                rospy.logwarn_throttle(
+                    5,
+                    "Skipping slalom detection with non-positive bbox size: size_x=%s size_y=%s",
+                    bbox.size_x,
+                    bbox.size_y,
+                )
+                continue
 
             # slalom pipes might be inclined, if that's the case use diognal length instead of direct height
             pipe_length = bbox.size_y
@@ -353,7 +361,6 @@ class SlalomExpFramePublisher:
         target_w = max(1, self.heatmap_image_width_px - 2 * padding)
         target_h = max(1, self.heatmap_image_height_px - 2 * padding)
 
-        # Render a top-down odom view: +x forward is up, +y left is left.
         scale = min(target_w / height, target_h / width)
 
         img = np.zeros(
@@ -452,9 +459,7 @@ class SlalomExpFramePublisher:
             if maxVal < self.heatmap_peak_threshold:
                 break
             pixel_centers.append(maxLoc)
-            cv2.circle(
-                heatmap_copy, maxLoc, self.heatmap_suppression_radius_px, 0, -1
-            )
+            cv2.circle(heatmap_copy, maxLoc, self.heatmap_suppression_radius_px, 0, -1)
 
         pixel_center_colors = {}
         if pixel_centers:
@@ -478,23 +483,9 @@ class SlalomExpFramePublisher:
         def pixel_to_world(p):
             u, v = p.x, p.y
             return Point(
-                (
-                    (
-                        v
-                        - (self.heatmap_image_height_px - width * scale) / 2
-                    )
-                    / scale
-                )
-                * -1
+                ((v - (self.heatmap_image_height_px - width * scale) / 2) / scale) * -1
                 + x_max,
-                (
-                    (
-                        u
-                        - (self.heatmap_image_width_px - height * scale) / 2
-                    )
-                    / scale
-                )
-                * -1
+                ((u - (self.heatmap_image_width_px - height * scale) / 2) / scale) * -1
                 + y_max,
             )
 
@@ -591,7 +582,13 @@ class SlalomExpFramePublisher:
 
             pos_wp = (side_vec + red_vec) / 2.0
             v_pipe = side_vec - red_vec
-            v_pipe = v_pipe / np.linalg.norm(v_pipe)
+            v_pipe_norm = np.linalg.norm(v_pipe)
+            if v_pipe_norm <= 1e-6:
+                rospy.logwarn(
+                    "Skipping waypoint %d because selected pipe points overlap", i
+                )
+                continue
+            v_pipe = v_pipe / v_pipe_norm
             v_forward = np.array([-v_pipe[1], v_pipe[0]])
             try:
                 v_forward = self.align_forward_vector_with_base(v_forward)
