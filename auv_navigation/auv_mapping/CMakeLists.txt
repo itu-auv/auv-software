@@ -47,7 +47,6 @@ if(NOT OpenCV_FOUND)
 endif()
 
 generate_dynamic_reconfigure_options(
-  cfg/SlalomTrajectory.cfg
   cfg/SlalomHeatmap.cfg
   cfg/GateTrajectory.cfg
   cfg/TorpedoTrajectory.cfg
