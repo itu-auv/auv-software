@@ -32,6 +32,7 @@ import numpy as np
 
 import dynamic_reconfigure.client
 from auv_common_lib.control.enable_state import ControlEnableHandler
+from auv_common_lib.transform import is_transform_fresh
 from threading import Lock
 from tf2_geometry_msgs import do_transform_point, do_transform_vector3
 from geometry_msgs.msg import Vector3Stamped
@@ -120,6 +121,12 @@ class ReferencePosePublisherNode:
         self.max_z = rospy.get_param("~max_z", 0.0)
         self.min_z = rospy.get_param("~min_z", -2.0)
         self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
+        self.tf_lookup_timeout = rospy.Duration(
+            rospy.get_param("~tf_lookup_timeout", 0.2)
+        )
+        self.tf_freshness_threshold = rospy.Duration(
+            rospy.get_param("~tf_freshness_threshold", 0.2)
+        )
 
         self.killswitch_sub = rospy.Subscriber(
             "propulsion_board/status", Bool, self.killswitch_callback
@@ -169,7 +176,9 @@ class ReferencePosePublisherNode:
                     self.align_frame_keep_orientation = False
                     if self.reconfigure_client:
                         self._restore_controller_cfg()
-            rospy.loginfo_throttle(1.0, "Killswitch inactive; alignment deactivated")
+                    rospy.loginfo_throttle(
+                        1.0, "Killswitch inactive; alignment deactivated"
+                    )
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         with self.state_lock:
@@ -229,7 +238,10 @@ class ReferencePosePublisherNode:
             self.align_frame_active = True
 
             t = self.tf_lookup(
-                req.source_frame, self.base_frame, rospy.Time(0), rospy.Duration(1.0)
+                req.source_frame,
+                self.base_frame,
+                rospy.Time(0),
+                self.tf_lookup_timeout,
             )
 
             if t is None:
@@ -251,7 +263,7 @@ class ReferencePosePublisherNode:
                     req.target_frame,
                     req.source_frame,
                     rospy.Time(0),
-                    rospy.Duration(1.0),
+                    self.tf_lookup_timeout,
                 )
                 if source_in_target is None:
                     return AlignFrameControllerResponse(
@@ -478,16 +490,23 @@ class ReferencePosePublisherNode:
         self.target_pitch = 0.0
 
     def get_transformed_depth(
-        self, target_frame: str, source_frame: str, target_depth: float
+        self,
+        target_frame: str,
+        source_frame: str,
+        target_depth: float,
+        lookup_time: rospy.Time = None,
     ):
+        if lookup_time is None:
+            lookup_time = rospy.Time(0)
+
         source_to_odom = self.tf_lookup(
-            "odom", source_frame, rospy.Time(0), rospy.Duration(1.0)
+            "odom", source_frame, lookup_time, self.tf_lookup_timeout
         )
         if source_to_odom is None:
             return None
 
         target_to_odom = self.tf_lookup(
-            "odom", target_frame, rospy.Time(0), rospy.Duration(1.0)
+            "odom", target_frame, lookup_time, self.tf_lookup_timeout
         )
         if target_to_odom is None:
             return None
@@ -503,12 +522,16 @@ class ReferencePosePublisherNode:
         roll: float,
         pitch: float,
         yaw: float,
+        lookup_time: rospy.Time = None,
     ):
+        if lookup_time is None:
+            lookup_time = rospy.Time(0)
+
         transform = self.tf_lookup(
             target_frame,
             source_frame,
-            rospy.Time(0),
-            rospy.Duration(1.0),
+            lookup_time,
+            self.tf_lookup_timeout,
         )
 
         if transform is None:
@@ -622,13 +645,25 @@ class ReferencePosePublisherNode:
                 time,
                 timeout,
             )
+            if time == rospy.Time(0) and not is_transform_fresh(
+                transform, self.tf_freshness_threshold
+            ):
+                age = abs((rospy.Time.now() - transform.header.stamp).to_sec())
+                rospy.logwarn_throttle(
+                    1.0,
+                    f"TF lookup from {source_frame} to {target_frame} returned stale data "
+                    f"({age:.3f}s > {self.tf_freshness_threshold.to_sec():.3f}s)",
+                )
+                return None
             return transform
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logerr(f"TF lookup failed from {source_frame} to {target_frame}: {e}")
+            rospy.logwarn_throttle(
+                1.0, f"TF lookup failed from {source_frame} to {target_frame}: {e}"
+            )
             return None
 
     def publish_cmd_pose_frame(self, cmd_pose: PoseStamped):
@@ -663,14 +698,35 @@ class ReferencePosePublisherNode:
             align_active = self.align_frame_active
 
         cmd_pose_stamped = PoseStamped()
-        cmd_pose_stamped.header.stamp = rospy.Time.now()
         cmd_pose_stamped.header.frame_id = frame_id
+
+        cmd_pose_stamp = rospy.Time.now()
+        if frame_id != "odom":
+            target_to_odom = self.tf_lookup(
+                "odom",
+                frame_id,
+                rospy.Time(0),
+                self.tf_lookup_timeout,
+            )
+            if target_to_odom is None:
+                rospy.logwarn_throttle(
+                    1.0, f"Failed to lookup target frame '{frame_id}'"
+                )
+                return
+            cmd_pose_stamp = target_to_odom.header.stamp
+
+        cmd_pose_stamped.header.stamp = cmd_pose_stamp
 
         cmd_pose_stamped.pose.position.x = tx
         cmd_pose_stamped.pose.position.y = ty
 
         if not use_align_depth:
-            transformed_depth = self.get_transformed_depth(frame_id, "odom", tz)
+            transformed_depth = self.get_transformed_depth(
+                frame_id,
+                "odom",
+                tz,
+                cmd_pose_stamp,
+            )
             if transformed_depth is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target depth")
                 return
@@ -685,6 +741,7 @@ class ReferencePosePublisherNode:
                 t_roll,
                 t_pitch,
                 t_heading,
+                cmd_pose_stamp,
             )
             if transformed_rpy is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target orientation")

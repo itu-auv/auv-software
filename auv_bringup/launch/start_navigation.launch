@@ -28,6 +28,7 @@
   <include file="$(find auv_mapping)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="sim" value="$(arg sim)" />
   </include>
 
   <include file="$(find auv_navigation)/launch/start.launch">
