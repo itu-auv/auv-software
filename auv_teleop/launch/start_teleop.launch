@@ -18,8 +18,8 @@
       <param name="use_vel" value="$(arg use_vel)" />
       <param name="controller_reconfigure_server" value="auv_control_node" />
 
-      <remap from="cmd_vel" to="cmd_vel" />
-      <remap from="enable" to="enable" />
+      <remap from="cmd_vel" to="wrench" />
+      <remap from="enable" to="enable_no" />
       <remap from="joy" to="joy" />
       <remap from="reset_command_orientation" to="reset_command_orientation" />
       <remap from="sync_cmd_pose" to="sync_cmd_pose" />

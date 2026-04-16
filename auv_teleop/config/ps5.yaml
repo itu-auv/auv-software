@@ -4,10 +4,10 @@ buttons:
   drop_ball: 0
   z_axis_pos:
     index: 5
-    gain: 0.4
+    gain: 50
   z_axis_neg:
     index: 4
-    gain: 0.4
+    gain: 50
   # ROV mode buttons (when rov=1)
   rov_pitch_pos: 0
   rov_pitch_neg: 3
@@ -18,10 +18,10 @@ buttons:
 axes:
   x_axis:
     index: 1
-    gain: 0.4
+    gain: 20.0
   y_axis:
     index: 0
-    gain: 0.4
+    gain: 20.0
   yaw_axis:
     index: 3
     gain: 0.5

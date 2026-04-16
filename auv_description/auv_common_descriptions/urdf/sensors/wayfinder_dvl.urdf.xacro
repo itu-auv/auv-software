@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro" name="wayfinder_dvl">
   <xacro:macro name="wayfinder_dvl" params="name parent position:='0 0 0' orientation:='0 0 0' use_models:='false'">
-    <xacro:property name="sensor_orientation" value="${math.pi/3 if 'taluy_mini' in name else -3*math.pi/4}"/>
+    <xacro:property name="sensor_orientation" value="${1.244419 if 'taluy_mini' in name else -3*math.pi/4}"/>
     <link name="${name}_mount_link">
       <xacro:if value="${use_models}">
         <visual>

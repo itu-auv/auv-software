@@ -47,7 +47,7 @@ odom2_queue_size: 5
 odom2_nodelay: false
 odom2_differential: false
 odom2_relative: false
-odom2_twist_rejection_threshold: 2.0
+odom2_twist_rejection_threshold: 1.8
 
 use_control: false
 

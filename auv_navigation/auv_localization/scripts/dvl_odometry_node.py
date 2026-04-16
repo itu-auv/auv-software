@@ -187,6 +187,7 @@ class DvlToOdom:
             velocity_msg.linear.z = rotated_vector[2]
             self.last_valid_velocity = velocity_msg
         else:
+            return
             velocity_msg.linear.x = self.filtered_cmd_vel.linear.x
             velocity_msg.linear.y = self.filtered_cmd_vel.linear.y
             velocity_msg.linear.z = self.filtered_cmd_vel.linear.z
