@@ -9,12 +9,16 @@ add_compile_options(-std=c++17)
 find_package(catkin REQUIRED COMPONENTS
   auv_msgs
   geometry_msgs
+  message_filters
+  pcl_conversions
+  pcl_ros
   roscpp
   rospy
+  sensor_msgs
   std_msgs
   std_srvs
-  tf2_ros
   tf2_geometry_msgs
+  tf2_ros
   sensor_msgs
   message_filters
   pcl_ros
@@ -25,7 +29,8 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
 )
 
-find_package(PCL REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common segmentation)
+find_package(Eigen3 REQUIRED)
 
 find_package(OpenCV 4 QUIET COMPONENTS
   opencv_core
@@ -65,6 +70,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
 )
 
 link_directories(
@@ -111,6 +117,10 @@ add_executable(realsense_filter_node
   src/realsense_filter.cpp
 )
 
+add_executable(object_plane_fitter_node
+  src/object_plane_fitter_node.cpp
+)
+
 # Link libraries
 target_link_libraries(object_map_tf_server_node
   ${catkin_LIBRARIES}
@@ -128,7 +138,12 @@ target_link_libraries(realsense_filter_node
   ${PCL_LIBRARIES}
 )
 
-install(TARGETS object_map_tf_server_node object_position_filter process_tracker_with_cloud realsense_filter_node
+target_link_libraries(object_plane_fitter_node
+  ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+)
+
+install(TARGETS object_map_tf_server_node object_position_filter process_tracker_with_cloud realsense_filter_node object_plane_fitter_node
   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
