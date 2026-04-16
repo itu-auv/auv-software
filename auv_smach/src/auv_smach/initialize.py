@@ -128,24 +128,24 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_KILLSWITCH_ENABLED",
                 WaitForKillswitchEnabledState(),
-                transitions={
-                    "succeeded": "DVL_ENABLE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DVL_ENABLE",
-                DVLEnableState(),
-                transitions={
-                    "succeeded": "DELAY_FOR_DVL_ENABLE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DELAY_FOR_DVL_ENABLE",
-                DelayState(delay_time=4.4),
+                #     transitions={
+                #         "succeeded": "DVL_ENABLE",
+                #         "preempted": "preempted",
+                #         "aborted": "aborted",
+                #     },
+                # )
+                # smach.StateMachine.add(
+                #     "DVL_ENABLE",
+                #     DVLEnableState(),
+                #     transitions={
+                #         "succeeded": "DELAY_FOR_DVL_ENABLE",
+                #         "preempted": "preempted",
+                #         "aborted": "aborted",
+                #     },
+                # )
+                # smach.StateMachine.add(
+                #     "DELAY_FOR_DVL_ENABLE",
+                #     DelayState(delay_time=4.4),
                 transitions={
                     "succeeded": "ODOMETRY_ENABLE",
                     "preempted": "preempted",

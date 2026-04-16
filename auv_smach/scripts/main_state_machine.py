@@ -7,9 +7,11 @@ import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.slalom import NavigateThroughSlalomState
+from auv_smach.gate_mini import NavigateThroughGateMiniState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
+from auv_smach.bin_mini import BinTaskMiniState
 from auv_smach.octagon import OctagonTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
@@ -186,6 +188,16 @@ class MainStateMachineNode:
                     "gate_exit_angle": gate_exit_angle_rad,
                 },
             ),
+            "NAVIGATE_THROUGH_GATE_MINI": (
+                NavigateThroughGateMiniState,
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_search_depth": self.gate_search_depth,
+                    "roll_depth": self.roll_depth,
+                    "gate_exit_angle": gate_exit_angle_rad,
+                    "target_animal": f"gate_{self.selected_animal}_link",
+                },
+            ),
             "NAVIGATE_THROUGH_SLALOM": (
                 NavigateThroughSlalomState,
                 {
@@ -211,6 +223,12 @@ class MainStateMachineNode:
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
                     "target_selection": self.selected_animal,
                     "bin_exit_angle": bin_exit_angle_rad,
+                },
+            ),
+            "NAVIGATE_TO_BIN_MINI_TASK": (
+                BinTaskMiniState,
+                {
+                    "target_animal": f"bin_{self.selected_animal}_link",
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
