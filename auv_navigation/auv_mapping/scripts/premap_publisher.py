@@ -14,6 +14,7 @@ from auv_msgs.srv import SetPremap, SetPremapResponse
 import tf2_ros
 import tf2_geometry_msgs
 
+
 class PremapPublisher:
     def __init__(self):
         rospy.init_node("premap_publisher", anonymous=False)
@@ -21,7 +22,7 @@ class PremapPublisher:
 
         self.world_frame = rospy.get_param("~static_frame", "odom")
         self.rate_hz = rospy.get_param("~rate", 10.0)
-        
+
         self.lock = threading.Lock()
         self.tf_buffer = tf2_ros.Buffer(rospy.Duration(60.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -38,8 +39,7 @@ class PremapPublisher:
         )
 
         rospy.loginfo(
-            f"Premap Publisher initialized. "
-            f"premap_objects={len(self.premap)}"
+            f"Premap Publisher initialized. " f"premap_objects={len(self.premap)}"
         )
 
     def _load_premap(self, filepath: str):
@@ -106,7 +106,11 @@ class PremapPublisher:
                         tf_pose = tf2_geometry_msgs.do_transform_pose(
                             p_stamped, transform_stamped
                         ).pose
-                        pos = [tf_pose.position.x, tf_pose.position.y, tf_pose.position.z]
+                        pos = [
+                            tf_pose.position.x,
+                            tf_pose.position.y,
+                            tf_pose.position.z,
+                        ]
                         orient = [
                             tf_pose.orientation.x,
                             tf_pose.orientation.y,
@@ -136,28 +140,41 @@ class PremapPublisher:
         orient = obj_data.get("orientation", [0, 0, 0, 1])
 
         if not isinstance(pos, (list, tuple)) or len(pos) != 3:
-            rospy.logwarn(f"Skipping premap object '{label}': position must be length-3 list")
+            rospy.logwarn(
+                f"Skipping premap object '{label}': position must be length-3 list"
+            )
             return None
         if not isinstance(orient, (list, tuple)) or len(orient) != 4:
-            rospy.logwarn(f"Skipping premap object '{label}': orientation must be length-4 list")
+            rospy.logwarn(
+                f"Skipping premap object '{label}': orientation must be length-4 list"
+            )
             return None
 
         try:
             pos = [float(pos[0]), float(pos[1]), float(pos[2])]
             orient = [
-                float(orient[0]), float(orient[1]), float(orient[2]), float(orient[3])
+                float(orient[0]),
+                float(orient[1]),
+                float(orient[2]),
+                float(orient[3]),
             ]
         except (TypeError, ValueError):
-            rospy.logwarn(f"Skipping premap object '{label}': non-numeric position/orientation")
+            rospy.logwarn(
+                f"Skipping premap object '{label}': non-numeric position/orientation"
+            )
             return None
 
         if not np.all(np.isfinite(pos)) or not np.all(np.isfinite(orient)):
-            rospy.logwarn(f"Skipping premap object '{label}': non-finite position/orientation")
+            rospy.logwarn(
+                f"Skipping premap object '{label}': non-finite position/orientation"
+            )
             return None
 
         q_norm = np.linalg.norm(orient)
         if q_norm < 1e-8:
-            rospy.logwarn(f"Skipping premap object '{label}': zero-norm orientation quaternion")
+            rospy.logwarn(
+                f"Skipping premap object '{label}': zero-norm orientation quaternion"
+            )
             return None
         orient = [o / q_norm for o in orient]
 
@@ -247,7 +264,10 @@ class PremapPublisher:
                 yaml_data_objects[label] = {
                     "position": [float(pos.x), float(pos.y), float(pos.z)],
                     "orientation": [
-                        float(orient.x), float(orient.y), float(orient.z), float(orient.w)
+                        float(orient.x),
+                        float(orient.y),
+                        float(orient.z),
+                        float(orient.w),
                     ],
                 }
 
@@ -262,7 +282,9 @@ class PremapPublisher:
         with self.lock:
             self.premap = new_premap_data
 
-        rospy.loginfo(f"Pre-map reset update complete. Loaded {len(self.premap)} objects.")
+        rospy.loginfo(
+            f"Pre-map reset update complete. Loaded {len(self.premap)} objects."
+        )
         if self.premap_yaml_path:
             try:
                 yaml_dir = os.path.dirname(self.premap_yaml_path)
@@ -279,7 +301,9 @@ class PremapPublisher:
                             timestamp = old_dt.strftime("%Y%m%d_%H%M")
                         else:
                             mtime = os.path.getmtime(self.premap_yaml_path)
-                            timestamp = datetime.fromtimestamp(mtime).strftime("%Y%m%d_%H%M")
+                            timestamp = datetime.fromtimestamp(mtime).strftime(
+                                "%Y%m%d_%H%M"
+                            )
                     except Exception:
                         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 
@@ -295,7 +319,9 @@ class PremapPublisher:
                 }
 
                 with open(self.premap_yaml_path, "w") as f:
-                    yaml.dump(yaml_final_data, f, default_flow_style=False, sort_keys=False)
+                    yaml.dump(
+                        yaml_final_data, f, default_flow_style=False, sort_keys=False
+                    )
 
                 rospy.loginfo(f"Saved premap to {self.premap_yaml_path}")
             except Exception as yaml_err:
@@ -327,6 +353,7 @@ class PremapPublisher:
         while not rospy.is_shutdown():
             self.broadcast_transforms()
             rate.sleep()
+
 
 if __name__ == "__main__":
     try:
