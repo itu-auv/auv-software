@@ -2,7 +2,7 @@
 
 import rospy
 from sensor_msgs.msg import Joy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Twist, WrenchStamped
 from std_msgs.msg import Bool
 import threading
 from std_srvs.srv import Trigger, TriggerRequest
@@ -25,7 +25,7 @@ class JoystickNode:
     def __init__(self):
         rospy.init_node("joystick_node", anonymous=True)
 
-        self.cmd_vel_pub = rospy.Publisher("cmd_vel", Twist, queue_size=10)
+        self.wrench_pub = rospy.Publisher("wrench", WrenchStamped, queue_size=10)
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=10)
 
         self.joy_data = None
@@ -295,7 +295,16 @@ class JoystickNode:
                     twist.angular.z = 0.0
 
             self.enable_pub.publish(Bool(True))
-            self.cmd_vel_pub.publish(twist)
+            wrench = WrenchStamped()
+            wrench.header.stamp = rospy.Time.now()
+            wrench.wrench.force.x = twist.linear.x
+            wrench.wrench.force.y = twist.linear.y
+            wrench.wrench.force.z = twist.linear.z
+            wrench.wrench.torque.x = twist.angular.x
+            wrench.wrench.torque.y = twist.angular.y
+            wrench.wrench.torque.z = twist.angular.z
+
+            self.wrench_pub.publish(wrench)
             self.rate.sleep()
 
 
