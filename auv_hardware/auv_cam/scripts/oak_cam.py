@@ -71,7 +71,8 @@ class OakCameraNode:
             img_msg.header.stamp = stamp
             img_msg.header.frame_id = self.frame_id
 
-            self.cam_info_msg.stamp = stamp
+            self.cam_info_msg = self._build_camera_info()
+            self.cam_info_msg.header.stamp = stamp
 
             self.pub_info.publish(self.cam_info_msg)
             self.pub_raw.publish(img_msg)
