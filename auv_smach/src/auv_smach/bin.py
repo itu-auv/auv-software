@@ -5,6 +5,7 @@ import smach_ros
 import rospy
 from std_srvs.srv import SetBool, SetBoolRequest, SetBoolResponse
 import tf2_ros
+from auv_common_lib.transform import lookup_fresh_transform
 
 from auv_smach.common import (
     SetAlignControllerTargetState,
@@ -94,14 +95,25 @@ class CheckForDropAreaState(smach.State):
 
             # Check for both blue and red bin frames
             for frame in self.target_frames:
-                if self.tf_buffer.can_transform(
-                    self.source_frame, frame, rospy.Time(0), self.timeout
-                ):
+                try:
+                    lookup_fresh_transform(
+                        self.tf_buffer,
+                        self.source_frame,
+                        frame,
+                        rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                        rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                    )
                     rospy.loginfo(
                         f"[CheckForDropAreaState] Target selection '{self.target_selection}': Transform from '{self.source_frame}' to '{frame}' found."
                     )
                     userdata.found_frame = frame
                     return "succeeded"
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
+                ):
+                    pass
 
             rate.sleep()
 

@@ -8,6 +8,7 @@ import tf.transformations as transformations
 import math
 import angles
 from auv_smach.tf_utils import get_tf_buffer, get_base_link
+from auv_common_lib.transform import lookup_fresh_transform
 import actionlib
 
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
@@ -509,12 +510,14 @@ class RotationState(smach.State):
 
     def is_transform_available(self):
         try:
-            return self.tf_buffer.can_transform(
+            lookup_fresh_transform(
+                self.tf_buffer,
                 self.source_frame,
                 self.look_at_frame,
-                rospy.Time(0),
-                rospy.Duration(0.05),
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
             )
+            return True
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
@@ -991,8 +994,12 @@ class CheckAlignmentState(smach.State):
 
     def get_error(self):
         try:
-            transform = self.tf_buffer.lookup_transform(
-                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(4.0)
+            transform = lookup_fresh_transform(
+                self.tf_buffer,
+                self.source_frame,
+                self.target_frame,
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
             )
             trans = transform.transform.translation
             rot = transform.transform.rotation
@@ -1012,7 +1019,7 @@ class CheckAlignmentState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"CheckAlignmentState: TF lookup failed: {e}")
+            rospy.logwarn_throttle(3.0, f"CheckAlignmentState: TF lookup failed: {e}")
             return None, None
 
     def is_aligned_distance_only(self, dist_error):
@@ -1057,6 +1064,8 @@ class CheckAlignmentState(smach.State):
                         return "succeeded"
                 else:
                     first_success_time = None
+            else:
+                first_success_time = None
 
             self.rate.sleep()
 
@@ -1572,12 +1581,14 @@ class CheckForTransformState(smach.State):
 
     def is_transform_available(self):
         try:
-            return self.tf_buffer.can_transform(
+            lookup_fresh_transform(
+                self.tf_buffer,
                 self.source_frame,
                 self.target_frame,
-                rospy.Time(0),
-                rospy.Duration(0.05),
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
             )
+            return True
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
