@@ -20,8 +20,82 @@ from auv_smach.common import (
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from std_msgs.msg import UInt16
+from std_msgs.msg import UInt16, String
 import tf2_ros
+
+
+class TargetUpdateState(smach.State):
+    def __init__(self):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["tutulacak_obje", "atilacak_sepet", "bakilacak_resim"],
+        )
+        self.object_list = []
+        self.msg_received = False
+
+    def callback(self, msg):
+        if msg.data:
+            self.object_list = [x.strip() for x in msg.data.split(",") if x.strip()]
+            self.msg_received = True
+
+    def execute(self, userdata) -> str:
+        rospy.loginfo(
+            "[TargetUpdateState] Entering state, subscribing to get the object list..."
+        )
+        self.msg_received = False
+        self.object_list = []
+
+        # State'e tam girildiğinde abone ol
+        sub = rospy.Subscriber("task/object_list", String, self.callback)
+        rate = rospy.Rate(10)
+
+        # O anki güncel mesaj gelene kadar bekle
+        while not rospy.is_shutdown() and not self.msg_received:
+            if self.preempt_requested():
+                sub.unregister()
+                return "preempted"
+            rate.sleep()
+
+        # İlk mesajı aldık, eski verilerle karışmaması için aboneliği sonlandır
+        sub.unregister()
+
+        if not self.object_list:
+            return "aborted"
+
+        # 1. Update tutulacak_obje
+        tutulacak_obje = self.object_list[0]
+        userdata.tutulacak_obje = tutulacak_obje
+
+        # 2. Update atilacak_sepet
+        if tutulacak_obje in ["nutbolt_link", "electric_link"]:
+            atilacak_sepet = "warning_link"
+        else:
+            atilacak_sepet = "redcross_link"
+        userdata.atilacak_sepet = atilacak_sepet
+
+        # 3. Update bakilacak_resim
+        list_length = len(self.object_list)
+        if list_length >= 3:
+            if atilacak_sepet == "warning_link":
+                bakilacak_resim = "survey_link"
+            else:
+                bakilacak_resim = "search_link"
+        elif list_length >= 1:
+            if atilacak_sepet == "warning_link":
+                bakilacak_resim = "repair_link"
+            else:
+                bakilacak_resim = "rescue_link"
+        else:
+            bakilacak_resim = "survey_link"  # Default fallback
+
+        userdata.bakilacak_resim = bakilacak_resim
+
+        rospy.loginfo(
+            f"[TargetUpdateState] Targets Updated! Tutulacak: {tutulacak_obje}, Sepet: {atilacak_sepet}, Resim: {bakilacak_resim}"
+        )
+
+        return "succeeded"
 
 
 class GripperAngleOpenState(smach.State):
@@ -299,7 +373,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_batuhan_DEPTH",
-                SetDepthState(depth=-0.4),
+                SetDepthState(depth=-0.6),
                 transitions={
                     "succeeded": "ENABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
@@ -339,7 +413,7 @@ class OctagonTaskState(smach.State):
                     plan_target_frame="octagon_link",
                     transform_source_frame="odom",
                     transform_target_frame="octagon_table_link",
-                    max_linear_velocity=0.1,
+                    max_linear_velocity=0.2,
                     keep_orientation=True,
                 ),
                 transitions={
@@ -372,6 +446,15 @@ class OctagonTaskState(smach.State):
                     max_angular_velocity=0.1,
                     cancel_on_success=False,
                 ),
+                transitions={
+                    "succeeded": "UPDATE_TARGETS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "UPDATE_TARGETS",
+                TargetUpdateState(),
                 transitions={
                     "succeeded": "ALIGN_TO_BOTTLE",
                     "preempted": "preempted",
