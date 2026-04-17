@@ -77,11 +77,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
       const auto velocity_state = d_state.head(N);
 
       Vectornd error_world = Vectornd::Zero();
-      error_world.head(3) =
-          desired_position.head(3) - position_state.head(3);
+      error_world.head(3) = desired_position.head(3) - position_state.head(3);
       for (size_t i = 3; i < N; ++i) {
-        error_world(i) = angles::shortest_angular_distance(
-            position_state(i), desired_position(i));
+        error_world(i) = angles::shortest_angular_distance(position_state(i),
+                                                           desired_position(i));
       }
 
       Vectornd p_term = kp_.template block<N, N>(0, 0) * error_world;
@@ -108,8 +107,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
           -inverse_rotation_matrix.transpose() * velocity_state.head(3);
       velocity_error_world.tail(3) = -velocity_state.tail(3);
 
-      Vectornd d_term =
-          kd_.template block<N, N>(0, 0) * velocity_error_world;
+      Vectornd d_term = kd_.template block<N, N>(0, 0) * velocity_error_world;
       d_term.head(3) = inverse_rotation_matrix * d_term.head(3);
 
       pos_pid_output = p_term + i_term + d_term;
