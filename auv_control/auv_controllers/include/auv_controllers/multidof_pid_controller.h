@@ -102,10 +102,13 @@ class MultiDOFPIDController : public ControllerBase<N> {
       i_term.head(3) = inverse_rotation_matrix * i_term.head(3);
 
       // d/dt (desired) is considered to be zero
-      Vectornd velocity_error_world = Vectornd::Zero();
-      velocity_error_world.head(3) =
-          -inverse_rotation_matrix.transpose() * velocity_state.head(3);
-      velocity_error_world.tail(3) = -velocity_state.tail(3);
+      Vectornd desired_velocity_world = Vectornd::Zero();
+      Vectornd current_velocity_world = velocity_state;
+      current_velocity_world.head(3) =
+          inverse_rotation_matrix.transpose() * velocity_state.head(3);
+
+      Vectornd velocity_error_world =
+          desired_velocity_world - current_velocity_world;
 
       Vectornd d_term = kd_.template block<N, N>(0, 0) * velocity_error_world;
       d_term.head(3) = inverse_rotation_matrix * d_term.head(3);
