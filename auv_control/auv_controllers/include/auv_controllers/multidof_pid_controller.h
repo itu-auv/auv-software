@@ -76,30 +76,31 @@ class MultiDOFPIDController : public ControllerBase<N> {
       const auto desired_position = desired_state.head(N);
       const auto velocity_state = d_state.head(N);
 
-      Vectornd error = Vectornd::Zero();
-      error.head(3) = desired_position.head(3) - position_state.head(3);
-      error.head(3) = inverse_rotation_matrix * error.head(3);
+      Vectornd error_world = Vectornd::Zero();
+      error_world.head(3) =
+          desired_position.head(3) - position_state.head(3);
       for (size_t i = 3; i < N; ++i) {
-        error(i) = angles::shortest_angular_distance(position_state(i),
-                                                     desired_position(i));
+        error_world(i) = angles::shortest_angular_distance(
+            position_state(i), desired_position(i));
       }
 
-      const auto p_term = kp_.template block<N, N>(0, 0) * error;
+      Vectornd p_term = kp_.template block<N, N>(0, 0) * error_world;
+      p_term.head(3) = inverse_rotation_matrix * p_term.head(3);
 
-      integral_.head(N) += error * dt;
+      integral_.head(N) += error_world * dt;
 
       // Apply integral clamping (anti-windup)
       if (integral_clamp_limits_.norm() > 0) {  // Check if limits are set
         for (size_t i = 0; i < 2 * N; ++i) {
           const double limit = integral_clamp_limits_(i);
           if (limit > 0) {  // Only clamp if limit is positive
-            double before_clamp = integral_(i);
             integral_(i) = std::max(-limit, std::min(limit, integral_(i)));
           }
         }
       }
 
-      const auto i_term = ki_.template block<N, N>(0, 0) * integral_.head(N);
+      Vectornd i_term = ki_.template block<N, N>(0, 0) * integral_.head(N);
+      i_term.head(3) = inverse_rotation_matrix * i_term.head(3);
 
       // d/dt (desired) is considered to be zero
       const auto d_term =
