@@ -13,13 +13,13 @@ import math
 class ModelSpawner:
     def __init__(self):
         rospy.init_node("spawn_model_server")
-        self.keys = ["bottle", "ladle"]
+        self.keys = ["bandaid", "electric", "nutbolt", "pill"]
         self.configs = {}
         for key in self.keys:
             pkg = rospy.get_param(f"~{key}_model_package", "auv_sim_description")
-            subdir = rospy.get_param(f"~{key}_model_subdir", f"models/robosub_{key}")
+            subdir = rospy.get_param(f"~{key}_model_subdir", f"models/{key}")
             fname = rospy.get_param(f"~{key}_model_file", "model.sdf")
-            model_name = rospy.get_param(f"~{key}_model_name", f"{key}_final1")
+            model_name = rospy.get_param(f"~{key}_model_name", f"{key}")
             service_name = rospy.get_param(
                 f"~{key}_service_name", f"actuators/{key}/spawn"
             )
@@ -78,12 +78,10 @@ class ModelSpawner:
         return f"{base}_{count}"
 
     def _auto_spawn_models(self):
-        """Automatically spawn the bottle and ladle models with 90 degree rotation on startup."""
-        bottle_x, bottle_y = self._get_random_table_pose()
-        self._spawn_single_model("bottle", bottle_x, bottle_y, -1.0)
-
-        ladle_x, ladle_y = self._get_random_table_pose()
-        self._spawn_single_model("ladle", ladle_x, ladle_y, -1.0)
+        """Automatically spawn the task 5 models with 90 degree rotation on startup."""
+        for key in self.keys:
+            x, y = self._get_random_table_pose()
+            self._spawn_single_model(key, x, y, -1.0)
 
     def _spawn_single_model(self, key, x, y, z):
         if key not in self.configs:
@@ -137,10 +135,10 @@ class ModelSpawner:
             rospy.logerr(err)
             return False, err
 
-    def handle_spawn(self, req, key="bottle") -> TriggerResponse:
+    def handle_spawn(self, req, key="bandaid") -> TriggerResponse:
         """Handle a Trigger request and spawn the model identified by `key`.
 
-        key: one of the keys listed in self.keys (default 'bottle').
+        key: one of the keys listed in self.keys (default 'bandaid').
         """
         if key not in self.configs:
             msg = f"Unknown model key: {key}"
