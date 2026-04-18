@@ -50,10 +50,10 @@ class ModelSpawner:
 
         self._auto_spawn_models()
 
-    def _get_random_table_pose(self, min_dist=0.2):
+    def _get_random_table_pose(self, min_dist=0.15):
         """Pick a random (x, y) on the table that is at least min_dist from all
         previously spawned positions."""
-        for _ in range(100):
+        for _ in range(1000):
             x = random.uniform(12.8, 13.2)
             y = random.uniform(-4.45, -4.05)
             too_close = False
@@ -63,7 +63,10 @@ class ModelSpawner:
                     break
             if not too_close:
                 return x, y
-        return 13.0, -4.25
+        
+        # Fallback to a slightly shifted position based on spawn count if space is completely exhausted
+        fallback_offset = len(self.spawned_positions) * 0.05
+        return 13.0 + (fallback_offset % 0.2), -4.25 + (fallback_offset % 0.2)
 
     def _get_unique_model_name(self, key):
         """Return a unique Gazebo model name for the given key.
@@ -78,7 +81,7 @@ class ModelSpawner:
         return f"{base}_{count}"
 
     def _auto_spawn_models(self):
-        """Automatically spawn the task 5 models with 90 degree rotation on startup."""
+        """Automatically spawn the task 5 models facing upwards on startup."""
         for key in self.keys:
             x, y = self._get_random_table_pose()
             self._spawn_single_model(key, x, y, -1.0)
@@ -103,7 +106,7 @@ class ModelSpawner:
             pose.position.z = z
 
             q = tft.quaternion_from_euler(
-                0, math.pi / 2, random.uniform(0, 2 * math.pi)
+                0, 0, random.uniform(0, 2 * math.pi)
             )
             pose.orientation.x = q[0]
             pose.orientation.y = q[1]
