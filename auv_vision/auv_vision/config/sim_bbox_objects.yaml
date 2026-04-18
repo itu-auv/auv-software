@@ -266,15 +266,29 @@ objects:
 
   # Segmentation objects (mesh-based)
   - class_id: 0
-    name: bottle
+    name: electric
     cameras: [bottom_seg]
-    gazebo_model: bottle_final1
+    gazebo_model: electric
     match_prefix: true
-    mesh: models/robosub_bottle/meshes/bottle_final1.dae
+    mesh: models/electric/meshes/electric.dae
 
   - class_id: 1
-    name: ladle
+    name: bandaid
     cameras: [bottom_seg]
-    gazebo_model: ladle_final1
+    gazebo_model: bandaid
     match_prefix: true
-    mesh: models/robosub_ladle/meshes/ladle.dae
+    mesh: models/bandaid/meshes/bandaid.dae
+
+  - class_id: 2
+    name: nutbolt
+    cameras: [bottom_seg]
+    gazebo_model: nutbolt
+    match_prefix: true
+    mesh: models/nutbolt/meshes/nutbolt.dae
+
+  - class_id: 3
+    name: pill
+    cameras: [bottom_seg]
+    gazebo_model: pill
+    match_prefix: true
+    mesh: models/pill/meshes/pill.dae

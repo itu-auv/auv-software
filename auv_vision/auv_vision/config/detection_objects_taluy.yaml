@@ -40,7 +40,10 @@ cameras:
     image_width: 640
     image_height: 480
     id_tf_map:
-      0: bottle_link
+      0: electric_link
+      1: bandaid_link
+      2: nutbolt_link
+      3: pill_link
 
 # Prop dimensions for distance estimation (link_name -> dimensions)
 props:
@@ -55,7 +58,10 @@ props:
   bin_shark_link: {name: "bin_shark", real_height: 0.30480, real_width: 0.30480}
   bin_sawfish_link: {name: "bin_sawfish", real_height: 0.30480, real_width: 0.30480}
   octagon_table_link: {name: "octagon_table", real_height: null, real_width: null}
-  bottle_link: {name: "bottle", real_height: null, real_width: 0.06}
+  electric_link: {name: "electric", real_height: null, real_width: 0.087}
+  bandaid_link: {name: "bandaid", real_height: null, real_width: 0.087}
+  nutbolt_link: {name: "nutbolt", real_height: null, real_width: 0.07}
+  pill_link: {name: "pill", real_height: null, real_width: 0.07}
 
 # Front camera focus service object groups (keyed by YOLO detection ID)
 object_groups:
