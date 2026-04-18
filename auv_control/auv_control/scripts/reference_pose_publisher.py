@@ -32,9 +32,14 @@ import numpy as np
 
 import dynamic_reconfigure.client
 from auv_common_lib.control.enable_state import ControlEnableHandler
+from auv_common_lib.transform import is_transform_fresh
 from threading import Lock
 from tf2_geometry_msgs import do_transform_point, do_transform_vector3
 from geometry_msgs.msg import Vector3Stamped
+
+
+def normalize_angle(angle: float) -> float:
+    return np.arctan2(np.sin(angle), np.cos(angle))
 
 
 class ReferencePosePublisherNode:
@@ -111,6 +116,17 @@ class ReferencePosePublisherNode:
         self.base_frame = self.namespace + "/base_link"
         self.update_rate = rospy.get_param("~update_rate", 10)
         self.command_timeout = rospy.get_param("~command_timeout", 0.1)
+        self.max_xy_offset = rospy.get_param("~max_xy_offset", 1.0)
+        self.max_z_offset = rospy.get_param("~max_z_offset", 0.1)
+        self.max_z = rospy.get_param("~max_z", 0.0)
+        self.min_z = rospy.get_param("~min_z", -2.0)
+        self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
+        self.tf_lookup_timeout = rospy.Duration(
+            rospy.get_param("~tf_lookup_timeout", 0.2)
+        )
+        self.tf_freshness_threshold = rospy.Duration(
+            rospy.get_param("~tf_freshness_threshold", 0.2)
+        )
 
         self.killswitch_sub = rospy.Subscriber(
             "propulsion_board/status", Bool, self.killswitch_callback
@@ -160,7 +176,9 @@ class ReferencePosePublisherNode:
                     self.align_frame_keep_orientation = False
                     if self.reconfigure_client:
                         self._restore_controller_cfg()
-            rospy.loginfo_throttle(1.0, "Killswitch inactive; alignment deactivated")
+                    rospy.loginfo_throttle(
+                        1.0, "Killswitch inactive; alignment deactivated"
+                    )
 
     def target_depth_handler(self, req: SetDepthRequest) -> SetDepthResponse:
         with self.state_lock:
@@ -220,7 +238,10 @@ class ReferencePosePublisherNode:
             self.align_frame_active = True
 
             t = self.tf_lookup(
-                req.source_frame, self.base_frame, rospy.Time(0), rospy.Duration(1.0)
+                req.source_frame,
+                self.base_frame,
+                rospy.Time(0),
+                self.tf_lookup_timeout,
             )
 
             if t is None:
@@ -242,7 +263,7 @@ class ReferencePosePublisherNode:
                     req.target_frame,
                     req.source_frame,
                     rospy.Time(0),
-                    rospy.Duration(1.0),
+                    self.tf_lookup_timeout,
                 )
                 if source_in_target is None:
                     return AlignFrameControllerResponse(
@@ -469,16 +490,23 @@ class ReferencePosePublisherNode:
         self.target_pitch = 0.0
 
     def get_transformed_depth(
-        self, target_frame: str, source_frame: str, target_depth: float
+        self,
+        target_frame: str,
+        source_frame: str,
+        target_depth: float,
+        lookup_time: rospy.Time = None,
     ):
+        if lookup_time is None:
+            lookup_time = rospy.Time(0)
+
         source_to_odom = self.tf_lookup(
-            "odom", source_frame, rospy.Time(0), rospy.Duration(1.0)
+            "odom", source_frame, lookup_time, self.tf_lookup_timeout
         )
         if source_to_odom is None:
             return None
 
         target_to_odom = self.tf_lookup(
-            "odom", target_frame, rospy.Time(0), rospy.Duration(1.0)
+            "odom", target_frame, lookup_time, self.tf_lookup_timeout
         )
         if target_to_odom is None:
             return None
@@ -494,12 +522,16 @@ class ReferencePosePublisherNode:
         roll: float,
         pitch: float,
         yaw: float,
+        lookup_time: rospy.Time = None,
     ):
+        if lookup_time is None:
+            lookup_time = rospy.Time(0)
+
         transform = self.tf_lookup(
             target_frame,
             source_frame,
-            rospy.Time(0),
-            rospy.Duration(1.0),
+            lookup_time,
+            self.tf_lookup_timeout,
         )
 
         if transform is None:
@@ -527,43 +559,77 @@ class ReferencePosePublisherNode:
         ):
             return
 
-        dt = (rospy.Time.now() - self.last_cmd_time).to_sec()
-        dt = min(dt, self.command_timeout)
+        with self.state_lock:
+            now = rospy.Time.now()
+            dt = (now - self.last_cmd_time).to_sec()
+            dt = min(dt, self.command_timeout)
 
-        q_current = quaternion_from_euler(
-            self.target_roll, self.target_pitch, self.target_heading
-        )
-
-        rotation_matrix = quaternion_matrix(q_current)[:3, :3]
-
-        linear_vel_body = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
-        linear_vel_odom = rotation_matrix.dot(linear_vel_body)
-
-        self.target_x += linear_vel_odom[0] * dt
-        self.target_y += linear_vel_odom[1] * dt
-        self.target_depth += linear_vel_odom[2] * dt
-
-        angle = np.linalg.norm([msg.angular.x, msg.angular.y, msg.angular.z]) * dt
-        if angle > 1e-6:  # Avoid division by zero
-            axis = np.array([msg.angular.x, msg.angular.y, msg.angular.z]) / (
-                angle / dt
+            q_current = quaternion_from_euler(
+                self.target_roll, self.target_pitch, self.target_heading
             )
-            axis = axis / np.linalg.norm(axis)
-            q_delta = quaternion_from_euler(
-                axis[0] * angle, axis[1] * angle, axis[2] * angle
+
+            rotation_matrix = quaternion_matrix(q_current)[:3, :3]
+
+            linear_vel_body = np.array([msg.linear.x, msg.linear.y, msg.linear.z])
+            linear_vel_odom = rotation_matrix.dot(linear_vel_body)
+
+            self.target_x += linear_vel_odom[0] * dt
+            self.target_y += linear_vel_odom[1] * dt
+            self.target_depth += linear_vel_odom[2] * dt
+
+            odom_position = self.latest_odometry.pose.pose.position
+            xy_offset = np.array(
+                [
+                    self.target_x - odom_position.x,
+                    self.target_y - odom_position.y,
+                ]
             )
-        else:
-            q_delta = [0.0, 0.0, 0.0, 1.0]
+            xy_distance = np.linalg.norm(xy_offset)
+            if xy_distance > self.max_xy_offset and xy_distance > 1e-6:
+                xy_offset *= self.max_xy_offset / xy_distance
+                self.target_x = odom_position.x + xy_offset[0]
+                self.target_y = odom_position.y + xy_offset[1]
 
-        # Multiply current orientation by delta rotation (cmd_pose frame rotation)
-        q_new = quaternion_multiply(q_current, q_delta)
+            z_offset = self.target_depth - odom_position.z
+            if abs(z_offset) > self.max_z_offset:
+                self.target_depth = (
+                    odom_position.z + np.sign(z_offset) * self.max_z_offset
+                )
 
-        # Extract new euler angles
-        self.target_roll, self.target_pitch, self.target_heading = (
-            euler_from_quaternion(q_new)
-        )
+            self.target_depth = np.clip(self.target_depth, self.min_z, self.max_z)
 
-        self.last_cmd_time = rospy.Time.now()
+            angle = np.linalg.norm([msg.angular.x, msg.angular.y, msg.angular.z]) * dt
+            if angle > 1e-6:  # Avoid division by zero
+                axis = np.array([msg.angular.x, msg.angular.y, msg.angular.z]) / (
+                    angle / dt
+                )
+                axis = axis / np.linalg.norm(axis)
+                q_delta = quaternion_from_euler(
+                    axis[0] * angle, axis[1] * angle, axis[2] * angle
+                )
+            else:
+                q_delta = [0.0, 0.0, 0.0, 1.0]
+
+            # Multiply current orientation by delta rotation (cmd_pose frame rotation)
+            q_new = quaternion_multiply(q_current, q_delta)
+
+            # Extract new euler angles
+            self.target_roll, self.target_pitch, self.target_heading = (
+                euler_from_quaternion(q_new)
+            )
+
+            odom_quaternion = [
+                self.latest_odometry.pose.pose.orientation.x,
+                self.latest_odometry.pose.pose.orientation.y,
+                self.latest_odometry.pose.pose.orientation.z,
+                self.latest_odometry.pose.pose.orientation.w,
+            ]
+            _, _, odom_yaw = euler_from_quaternion(odom_quaternion)
+            yaw_error = normalize_angle(self.target_heading - odom_yaw)
+            yaw_error = np.clip(yaw_error, -self.max_yaw_offset, self.max_yaw_offset)
+            self.target_heading = normalize_angle(odom_yaw + yaw_error)
+
+            self.last_cmd_time = now
 
     def tf_lookup(
         self,
@@ -579,13 +645,25 @@ class ReferencePosePublisherNode:
                 time,
                 timeout,
             )
+            if time == rospy.Time(0) and not is_transform_fresh(
+                transform, self.tf_freshness_threshold
+            ):
+                age = abs((rospy.Time.now() - transform.header.stamp).to_sec())
+                rospy.logwarn_throttle(
+                    1.0,
+                    f"TF lookup from {source_frame} to {target_frame} returned stale data "
+                    f"({age:.3f}s > {self.tf_freshness_threshold.to_sec():.3f}s)",
+                )
+                return None
             return transform
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logerr(f"TF lookup failed from {source_frame} to {target_frame}: {e}")
+            rospy.logwarn_throttle(
+                1.0, f"TF lookup failed from {source_frame} to {target_frame}: {e}"
+            )
             return None
 
     def publish_cmd_pose_frame(self, cmd_pose: PoseStamped):
@@ -620,14 +698,35 @@ class ReferencePosePublisherNode:
             align_active = self.align_frame_active
 
         cmd_pose_stamped = PoseStamped()
-        cmd_pose_stamped.header.stamp = rospy.Time.now()
         cmd_pose_stamped.header.frame_id = frame_id
+
+        cmd_pose_stamp = rospy.Time.now()
+        if frame_id != "odom":
+            target_to_odom = self.tf_lookup(
+                "odom",
+                frame_id,
+                rospy.Time(0),
+                self.tf_lookup_timeout,
+            )
+            if target_to_odom is None:
+                rospy.logwarn_throttle(
+                    1.0, f"Failed to lookup target frame '{frame_id}'"
+                )
+                return
+            cmd_pose_stamp = target_to_odom.header.stamp
+
+        cmd_pose_stamped.header.stamp = cmd_pose_stamp
 
         cmd_pose_stamped.pose.position.x = tx
         cmd_pose_stamped.pose.position.y = ty
 
         if not use_align_depth:
-            transformed_depth = self.get_transformed_depth(frame_id, "odom", tz)
+            transformed_depth = self.get_transformed_depth(
+                frame_id,
+                "odom",
+                tz,
+                cmd_pose_stamp,
+            )
             if transformed_depth is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target depth")
                 return
@@ -642,6 +741,7 @@ class ReferencePosePublisherNode:
                 t_roll,
                 t_pitch,
                 t_heading,
+                cmd_pose_stamp,
             )
             if transformed_rpy is None:
                 rospy.logerr_throttle(1.0, "Failed to transform target orientation")
