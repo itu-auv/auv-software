@@ -50,6 +50,9 @@ cameras:
       1: bandaid_link
       2: nutbolt_link
       3: pill_link
+      4: basket_redcross_segment_link
+      5: basket_warning_segment_link
+      6: octagon_table_segment_link
 
 # Prop dimensions for distance estimation (link_name -> dimensions)
 props:
@@ -74,6 +77,9 @@ props:
   bandaid_link: {name: "bandaid", real_height: null, real_width: 0.087}
   nutbolt_link: {name: "nutbolt", real_height: null, real_width: 0.07}
   pill_link: {name: "pill", real_height: null, real_width: 0.07}
+  basket_redcross_segment_link: {name: "basket_redcross_segment", real_height: 0.25, real_width: 0.25}
+  basket_warning_segment_link: {name: "basket_warning_segment", real_height: 0.25, real_width: 0.25}
+  octagon_table_segment_link: {name: "octagon_table_segment", real_height: 0.3048, real_width: 0.3048}
 
 # Front camera focus service object groups (keyed by YOLO detection ID)
 object_groups:
