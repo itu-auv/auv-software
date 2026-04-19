@@ -78,7 +78,7 @@ class SegmentCameraHandler:
             return prop.estimate_distance(
                 measured_height, measured_width, self.calibration
             )
-        #just in case geometry fails //No need actually
+        # just in case geometry fails //No need actually
         return prop.estimate_distance(
             detection.bbox.size_y,
             detection.bbox.size_x,
@@ -230,8 +230,12 @@ class SegmentCameraHandler:
                 try:
                     pose_stamped = PoseStamped()
                     pose_stamped.header = transform_stamped_msg.header
-                    pose_stamped.pose.position = transform_stamped_msg.transform.translation
-                    pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
+                    pose_stamped.pose.position = (
+                        transform_stamped_msg.transform.translation
+                    )
+                    pose_stamped.pose.orientation = (
+                        transform_stamped_msg.transform.rotation
+                    )
 
                     transformed_pose_stamped = self.tf_buffer.transform(
                         pose_stamped, "odom", rospy.Duration(4.0)
