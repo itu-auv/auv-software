@@ -926,6 +926,7 @@ class OctagonTaskState(smach.State):
     #         "aborted": "aborted",
     #     },
     # )
+    #
 
     def execute(self, userdata):
         # Execute the state machine

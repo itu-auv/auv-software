@@ -63,7 +63,7 @@ class ModelSpawner:
                     break
             if not too_close:
                 return x, y
-        
+
         # Fallback to a slightly shifted position based on spawn count if space is completely exhausted
         fallback_offset = len(self.spawned_positions) * 0.05
         return 13.0 + (fallback_offset % 0.2), -4.25 + (fallback_offset % 0.2)
@@ -105,9 +105,7 @@ class ModelSpawner:
             pose.position.y = y
             pose.position.z = z
 
-            q = tft.quaternion_from_euler(
-                0, 0, random.uniform(0, 2 * math.pi)
-            )
+            q = tft.quaternion_from_euler(0, 0, random.uniform(0, 2 * math.pi))
             pose.orientation.x = q[0]
             pose.orientation.y = q[1]
             pose.orientation.z = q[2]
