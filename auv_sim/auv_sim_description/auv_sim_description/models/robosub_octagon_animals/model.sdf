@@ -3,78 +3,157 @@
   <model name="two_hangings">
     <static>true</static>  <!-- Static for stability -->
 
-    <!-- First Hanging -->
+    <!-- First Hanging (facing +X) -->
     <link name="hanging1">
       <!-- Front face -->
       <visual name="visual1_front">
         <geometry>
           <plane>
-            <normal>1 0 0</normal>  <!-- Faces +X direction -->
-            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+            <normal>1 0 0</normal>
+            <size>0.305 0.305</size>
           </plane>
         </geometry>
         <material>
           <script>
             <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>ReefSharkMaterial</name>
+            <uri>model://robosub_octagon_animals/materials/textures</uri>
+            <name>Task5RepairMaterial</name>
           </script>
         </material>
-        <pose>0 0 0.1525 1.5708 0 1.5708</pose>  <!-- 90° clockwise rotation -->
+        <pose>0 0 0.1525 1.5708 0 1.5708</pose>
       </visual>
       <!-- Back face -->
       <visual name="visual1_back">
         <geometry>
           <plane>
-            <normal>-1 0 0</normal>  <!-- Faces -X direction -->
-            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+            <normal>-1 0 0</normal>
+            <size>0.305 0.305</size>
           </plane>
         </geometry>
         <material>
           <script>
             <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>ReefSharkBackMaterial</name>
+            <name>Task5BackMaterial</name>
           </script>
         </material>
-        <pose>0 0 0.1525 1.5708 0 1.5708</pose>  <!-- 90° clockwise rotation -->
+        <pose>0 0 0.1525 1.5708 0 1.5708</pose>
       </visual>
-      <pose>0 0 0.4 0 0 0</pose>  <!-- Ground level -->
+      <pose>0 0 0.4 0 0 0</pose>
     </link>
 
-    <!-- Second Hanging -->
+    <!-- Second Hanging (facing -X) -->
     <link name="hanging2">
       <!-- Front face -->
       <visual name="visual2_front">
         <geometry>
           <plane>
-            <normal>-1 0 0</normal>  <!-- Faces -X direction (towards first hanging) -->
-            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+            <normal>-1 0 0</normal>
+            <size>0.305 0.305</size>
           </plane>
         </geometry>
         <material>
           <script>
             <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>SawfishMaterial</name>
+            <uri>model://robosub_octagon_animals/materials/textures</uri>
+            <name>Task5RescueMaterial</name>
           </script>
         </material>
-        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>  <!-- 90° clockwise rotation -->
+        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
       </visual>
       <!-- Back face -->
       <visual name="visual2_back">
         <geometry>
           <plane>
-            <normal>1 0 0</normal>  <!-- Faces +X direction -->
-            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+            <normal>1 0 0</normal>
+            <size>0.305 0.305</size>
           </plane>
         </geometry>
         <material>
           <script>
             <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>SawfishBackMaterial</name>
+            <name>Task5BackMaterial</name>
           </script>
         </material>
-        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>  <!-- 90° clockwise rotation -->
+        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
       </visual>
-      <pose>2.7 0 0.4 0 0 0</pose>  <!-- 2.7m away from first hanging -->
+      <pose>2.7 0 0.4 0 0 0</pose>
     </link>
+
+    <!-- Third Hanging (facing -Y) -->
+    <link name="hanging3">
+      <!-- Front face -->
+      <visual name="visual3_front">
+        <geometry>
+          <plane>
+            <normal>0 -1 0</normal>
+            <size>0.305 0.305</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <uri>model://robosub_octagon_animals/materials/textures</uri>
+            <name>Task5SearchMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0.1525 1.5708 0 0</pose>
+      </visual>
+      <!-- Back face -->
+      <visual name="visual3_back">
+        <geometry>
+          <plane>
+            <normal>0 1 0</normal>
+            <size>0.305 0.305</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <name>Task5BackMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0.1525 1.5708 0 0</pose>
+      </visual>
+      <pose>1.35 1.35 0.4 0 0 0</pose>
+    </link>
+
+    <!-- Fourth Hanging (facing +Y) -->
+    <link name="hanging4">
+      <!-- Front face -->
+      <visual name="visual4_front">
+        <geometry>
+          <plane>
+            <normal>0 1 0</normal>
+            <size>0.305 0.305</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <uri>model://robosub_octagon_animals/materials/textures</uri>
+            <name>Task5SurveyMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0.1525 1.5708 0 3.14159</pose>
+      </visual>
+      <!-- Back face -->
+      <visual name="visual4_back">
+        <geometry>
+          <plane>
+            <normal>0 -1 0</normal>
+            <size>0.305 0.305</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <name>Task5BackMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0.1525 1.5708 0 3.14159</pose>
+      </visual>
+      <pose>1.35 -1.35 0.4 0 0 0</pose>
+    </link>
+
   </model>
 </sdf>
