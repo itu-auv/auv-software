@@ -60,6 +60,24 @@ def _base_debug_canvas(mask: np.ndarray, color=(255, 255, 0)):
     return vis
 
 
+def _geometry_metric_lines(geometry: dict):
+    lines = []
+    yaw = geometry.get("yaw")
+    width_px = geometry.get("width_px")
+    height_px = geometry.get("height_px")
+    radius_px = geometry.get("radius_px")
+    diameter_px = geometry.get("diameter_px")
+
+    if yaw is not None:
+        lines.append(f"yaw={math.degrees(yaw):+.1f} deg")
+    if width_px is not None and height_px is not None:
+        lines.append(f"w={width_px:.1f} h={height_px:.1f}")
+    if radius_px is not None and diameter_px is not None:
+        lines.append(f"r={radius_px:.1f} d={diameter_px:.1f}")
+
+    return lines
+
+
 def findposes_rect(mask: np.ndarray, debug: bool = False):
     binary, contour = _largest_contour(mask)
     debug_image = _base_debug_canvas(binary) if debug else None
@@ -107,26 +125,6 @@ def findposes_rect(mask: np.ndarray, debug: bool = False):
             2,
         )
         cv2.circle(vis, (int(round(cx)), int(round(cy))), 4, (255, 255, 255), -1)
-        cv2.putText(
-            vis,
-            f"yaw={math.degrees(yaw):+.1f} deg",
-            (8, 22),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
-            vis,
-            f"w={width_px:.1f} h={height_px:.1f}",
-            (8, 44),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 255, 0),
-            2,
-            cv2.LINE_AA,
-        )
 
     return result
 
@@ -158,16 +156,6 @@ def findposes_circle(mask: np.ndarray, debug: bool = False):
         center = (int(round(cx)), int(round(cy)))
         cv2.circle(vis, center, int(round(radius_px)), (0, 255, 0), 2)
         cv2.circle(vis, center, 4, (255, 255, 255), -1)
-        cv2.putText(
-            vis,
-            f"r={radius_px:.1f} d={diameter_px:.1f}",
-            (8, 22),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
 
     return result
 
@@ -228,6 +216,19 @@ def publish_debug_image(
         2,
         cv2.LINE_AA,
     )
+
+    metrics = _geometry_metric_lines(geometry)
+    for i, line in enumerate(metrics):
+        cv2.putText(
+            vis,
+            line,
+            (8, 22 + i * 22),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (0, 255, 255) if i == 0 else (0, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )
 
     if bridge is None:
         bridge = CvBridge()
@@ -308,7 +309,7 @@ def publish_merged_debug_image(publisher, header, debug_items, bridge=None):
                 1,
             )
 
-        label_y = min(22 + idx * 20, vis.shape[0] - 8)
+        label_y = min(22 + idx * 44, vis.shape[0] - 8)
         cv2.putText(
             vis,
             prop_name,
@@ -319,6 +320,21 @@ def publish_merged_debug_image(publisher, header, debug_items, bridge=None):
             2,
             cv2.LINE_AA,
         )
+
+        metrics = _geometry_metric_lines(geometry)
+        for line_idx, line in enumerate(metrics[:2]):
+            metric_y = min(label_y + 16 + line_idx * 16, vis.shape[0] - 8)
+            metric_color = (0, 255, 255) if line_idx == 0 else (0, 255, 0)
+            cv2.putText(
+                vis,
+                line,
+                (18, metric_y),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                metric_color,
+                1,
+                cv2.LINE_AA,
+            )
 
     if bridge is None:
         bridge = CvBridge()
