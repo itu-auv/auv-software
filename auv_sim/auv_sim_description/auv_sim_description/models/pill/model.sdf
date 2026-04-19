@@ -56,7 +56,7 @@
         <laser_retro>0.0</laser_retro>
         <max_contacts>200</max_contacts>
       </collision>
-      
+
       <!-- Primary visual (untextured DAE mesh) -->
   <visual name="pill_vis_base">
         <pose>0 0 0 0 0 0</pose>
