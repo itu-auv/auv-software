@@ -185,7 +185,7 @@ objects:
 
   # Bin bottom camera markers - class IDs 0/1 reused (per-camera id_tf_map)
   - class_id: 0
-    name: bin_sawfish
+    name: bin_blood_link
     cameras: [bottom]
     gazebo_model: robosub_bin
     offset: [-0.1525, 0.0144, 0.9337]
@@ -194,7 +194,7 @@ objects:
       args: [0.1524, 0, 0.1524]
 
   - class_id: 1
-    name: bin_shark
+    name: bin_fire_link
     cameras: [bottom]
     gazebo_model: robosub_bin
     offset: [0.1525, 0.0144, 0.9337]
@@ -216,37 +216,105 @@ objects:
         args: [0.305, 0.55, 0.076]
         offset: [0.0, 0.0, 0.270]
 
+  # Octagon hanging animals - 0.305 m square panels inside the frame
+  - class_id: 8
+    name: octagon_repair_link
+    cameras: [front, realsense]
+    gazebo_model: robosub_octagon_animals
+    offset: [0.0, 0.0, 0.5525]
+    boundary:
+      shape: rect
+      args: [0, 0.1525, 0.1525]
+
+  - class_id: 9
+    name: octagon_rescue_link
+    cameras: [front, realsense]
+    gazebo_model: robosub_octagon_animals
+    offset: [2.7, 0.0, 0.5525]
+    boundary:
+      shape: rect
+      args: [0, 0.1525, 0.1525]
+
+  - class_id: 10
+    name: octagon_search_link
+    cameras: [front, realsense]
+    gazebo_model: robosub_octagon_animals
+    offset: [1.35, 1.35, 0.5525]
+    boundary:
+      shape: rect
+      args: [0.1525, 0, 0.1525]
+
+  - class_id: 11
+    name: octagon_survey_link
+    cameras: [front, realsense]
+    gazebo_model: robosub_octagon_animals
+    offset: [1.35, -1.35, 0.5525]
+    boundary:
+      shape: rect
+      args: [0.1525, 0, 0.1525]
+
   # Octagon table - central flat panel (bottom camera)
   - class_id: 2
-    name: octagon_table
+    name: octagon_table_link
     cameras: [bottom]
     gazebo_model: robosub_octagon
-    offset: [0.0, 0.0, 0.6446]
+    offset: [0.0, 0.0, 0.6245]
     boundary:
       shape: rect
       args: [0.3048, 0.3048, 0]
 
   # Octagon bins (bottom camera)
   - class_id: 4
-    name: octagon_bin_yellow
+    name: basket_warning_link
     cameras: [bottom]
     gazebo_model: robosub_octagon
-    offset: [-0.021, 0.432, 0.6865]
+    offset: [-0.02144, 0.4319, 0.6138]
     boundary:
       shape: rect
       args: [0.1715, 0.1175, 0]
 
   - class_id: 3
-    name: octagon_bin_pink
+    name: basket_redcross_link
     cameras: [bottom]
     gazebo_model: robosub_octagon
-    offset: [-0.021, -0.432, 0.6865]
+    offset: [-0.02144, -0.4319, 0.6138]
     boundary:
       shape: rect
       args: [0.1715, 0.1175, 0]
 
+  # Octagon segment objects (bottom camera)
+  - class_id: 4
+    name: basket_redcross_segment_link
+    cameras: [bottom_seg]
+    gazebo_model: robosub_octagon
+    offset: [-0.02144, -0.4319, 0.6138]
+    boundary:
+      shape: rect
+      args: [0.1715, 0.1175, 0]
+    render_mask: true
+
+  - class_id: 5
+    name: basket_warning_segment_link
+    cameras: [bottom_seg]
+    gazebo_model: robosub_octagon
+    offset: [-0.02144, 0.4319, 0.6138]
+    boundary:
+      shape: rect
+      args: [0.1715, 0.1175, 0]
+    render_mask: true
+
+  - class_id: 6
+    name: octagon_table_segment_link
+    cameras: [bottom_seg]
+    gazebo_model: robosub_octagon
+    offset: [0.0, 0.0, 0.6245]
+    boundary:
+      shape: rect
+      args: [0.3048, 0.3048, 0]
+    render_mask: true
+
   # TAC valve station - two valves inside one model
-  - class_id: 8
+  - class_id: 12
     name: valve
     cameras: [front]
     gazebo_model: tac_valve
@@ -266,15 +334,29 @@ objects:
 
   # Segmentation objects (mesh-based)
   - class_id: 0
-    name: bottle
+    name: electric
     cameras: [bottom_seg]
-    gazebo_model: bottle_final1
+    gazebo_model: electric
     match_prefix: true
-    mesh: models/robosub_bottle/meshes/bottle_final1.dae
+    mesh: models/electric/meshes/electric.dae
 
   - class_id: 1
-    name: ladle
+    name: bandaid
     cameras: [bottom_seg]
-    gazebo_model: ladle_final1
+    gazebo_model: bandaid
     match_prefix: true
-    mesh: models/robosub_ladle/meshes/ladle.dae
+    mesh: models/bandaid/meshes/bandaid.dae
+
+  - class_id: 2
+    name: nutbolt
+    cameras: [bottom_seg]
+    gazebo_model: nutbolt
+    match_prefix: true
+    mesh: models/nutbolt/meshes/nutbolt.dae
+
+  - class_id: 3
+    name: pill
+    cameras: [bottom_seg]
+    gazebo_model: pill
+    match_prefix: true
+    mesh: models/pill/meshes/pill.dae
