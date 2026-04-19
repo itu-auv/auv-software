@@ -26,16 +26,29 @@ class ImuToOdom:
         self.imu_frame = rospy.get_param(
             "~imu_frame", f"{self.namespace}/base_link/imu"
         )
+        self.gravity_magnitude = rospy.get_param(
+            "~gravity_magnitude", rospy.get_param("/env/gravity", 9.81)
+        )
 
         self.tf_listener = tf.TransformListener()
 
         self.imu_to_base_q = self.get_frame_rotation(self.imu_frame)
+        self.imu_to_base_rotation_matrix = None
+        self.base_to_imu_q = None
+        if self.imu_to_base_q is not None:
+            self.imu_to_base_rotation_matrix = tf.transformations.quaternion_matrix(
+                self.imu_to_base_q
+            )[:3, :3]
+            self.base_to_imu_q = tf.transformations.quaternion_inverse(
+                self.imu_to_base_q
+            )
 
         # Subscribers and Publishers
         self.imu_subscriber = rospy.Subscriber(
             "imu/data", Imu, self.imu_callback, tcp_nodelay=True
         )
         self.odom_publisher = rospy.Publisher("odom_imu", Odometry, queue_size=10)
+        self.imu_publisher = rospy.Publisher("imu", Imu, queue_size=10)
 
         # Initialize the odometry message
         self.odom_msg = Odometry()
@@ -53,10 +66,13 @@ class ImuToOdom:
         self.odom_msg.pose.covariance = self.default_pose_cov.flatten().tolist()
         self.odom_msg.twist.covariance = self.default_twist_cov.flatten().tolist()
 
-        # Variables for drift correction
-        self.drift = np.zeros(3)
-        self.calibrating = False
-        self.calibration_data = []
+        # Variables for bias correction
+        self.angular_velocity_bias = np.zeros(3)
+        self.linear_acceleration_bias = np.zeros(3)
+        self.calibrating_angular_velocity = False
+        self.angular_velocity_calibration_data = []
+        self.calibrating_linear_acceleration = False
+        self.linear_acceleration_calibration_data = []
 
         # Load calibration data if available
         self.load_calibration_data()
@@ -64,6 +80,11 @@ class ImuToOdom:
         # Service for IMU calibration
         self.calibration_service = rospy.Service(
             "calibrate_imu", CalibrateIMU, self.calibrate_imu
+        )
+        self.linear_acceleration_calibration_service = rospy.Service(
+            "calibrate_imu_acceleration",
+            CalibrateIMU,
+            self.calibrate_linear_acceleration,
         )
 
     def get_frame_rotation(self, frame_id):
@@ -96,34 +117,70 @@ class ImuToOdom:
 
     def insert_covariance_block(self, base_covariance_6x6, input_covariance_3x3_flat):
         updated_covariance_6x6 = base_covariance_6x6.copy()
-        if len(input_covariance_3x3_flat) == 9:
+        if len(input_covariance_3x3_flat) == 9 and input_covariance_3x3_flat[0] != -1:
             input_covariance_3x3_matrix = np.array(input_covariance_3x3_flat).reshape(
                 3, 3
             )
             updated_covariance_6x6[3:6, 3:6] = input_covariance_3x3_matrix
         return updated_covariance_6x6.flatten().tolist()
 
-    def imu_callback(self, imu_msg):
-        if self.calibrating:
-            self.calibration_data.append(
-                [
-                    imu_msg.angular_velocity.x,
-                    imu_msg.angular_velocity.y,
-                    imu_msg.angular_velocity.z,
-                ]
+    def rotate_vector(self, vector):
+        if self.imu_to_base_rotation_matrix is None:
+            return vector
+        return np.dot(self.imu_to_base_rotation_matrix, vector)
+
+    def rotate_covariance(self, covariance_flat):
+        if len(covariance_flat) != 9 or covariance_flat[0] == -1:
+            return list(covariance_flat)
+
+        if self.imu_to_base_rotation_matrix is None:
+            return list(covariance_flat)
+
+        covariance_matrix = np.array(covariance_flat).reshape(3, 3)
+        rotated_covariance = np.dot(
+            self.imu_to_base_rotation_matrix,
+            np.dot(covariance_matrix, self.imu_to_base_rotation_matrix.T),
+        )
+        return rotated_covariance.flatten().tolist()
+
+    def get_expected_gravity(self, orientation_q):
+        norm = np.linalg.norm(orientation_q)
+        if norm == 0.0:
+            return np.zeros(3)
+
+        normalized_orientation_q = orientation_q / norm
+        rotation_matrix = tf.transformations.quaternion_matrix(
+            normalized_orientation_q
+        )[:3, :3]
+        return np.dot(rotation_matrix.T, np.array([0.0, 0.0, self.gravity_magnitude]))
+
+    def calibrate_bias(
+        self, duration, calibration_name, flag_attr, data_attr, bias_attr
+    ):
+        rospy.loginfo(
+            f"{calibration_name} calibration started for {duration} seconds..."
+        )
+        setattr(self, flag_attr, True)
+        setattr(self, data_attr, [])
+        rospy.sleep(duration)
+        setattr(self, flag_attr, False)
+
+        calibration_data = getattr(self, data_attr)
+        if len(calibration_data) == 0:
+            return CalibrateIMUResponse(
+                success=False, message=f"{calibration_name} calibration failed"
             )
 
-        self.odom_msg.header.stamp = imu_msg.header.stamp
-
-        corrected_angular_velocity = np.array(
-            [
-                imu_msg.angular_velocity.x - self.drift[0],
-                imu_msg.angular_velocity.y - self.drift[1],
-                imu_msg.angular_velocity.z - self.drift[2],
-            ]
+        bias = np.mean(calibration_data, axis=0)
+        setattr(self, bias_attr, bias)
+        self.save_calibration_data()
+        rospy.loginfo(f"{calibration_name} calibration completed. Bias: {bias}")
+        return CalibrateIMUResponse(
+            success=True, message=f"{calibration_name} calibration successful"
         )
 
-        orientation_q = np.array(
+    def imu_callback(self, imu_msg):
+        raw_orientation_q = np.array(
             [
                 imu_msg.orientation.x,
                 imu_msg.orientation.y,
@@ -131,22 +188,59 @@ class ImuToOdom:
                 imu_msg.orientation.w,
             ]
         )
+        raw_angular_velocity = np.array(
+            [
+                imu_msg.angular_velocity.x,
+                imu_msg.angular_velocity.y,
+                imu_msg.angular_velocity.z,
+            ]
+        )
+        raw_linear_acceleration = np.array(
+            [
+                imu_msg.linear_acceleration.x,
+                imu_msg.linear_acceleration.y,
+                imu_msg.linear_acceleration.z,
+            ]
+        )
+
+        if self.calibrating_angular_velocity:
+            self.angular_velocity_calibration_data.append(raw_angular_velocity.tolist())
+
+        if self.calibrating_linear_acceleration:
+            self.linear_acceleration_calibration_data.append(
+                (
+                    raw_linear_acceleration
+                    - self.get_expected_gravity(raw_orientation_q)
+                ).tolist()
+            )
+
+        self.odom_msg.header.stamp = imu_msg.header.stamp
+
+        corrected_angular_velocity = raw_angular_velocity - self.angular_velocity_bias
+        corrected_linear_acceleration = (
+            raw_linear_acceleration - self.linear_acceleration_bias
+        )
+
+        orientation_q = raw_orientation_q.copy()
+        rotated_orientation_covariance = self.rotate_covariance(
+            imu_msg.orientation_covariance
+        )
+        rotated_angular_velocity_covariance = self.rotate_covariance(
+            imu_msg.angular_velocity_covariance
+        )
+        rotated_linear_acceleration_covariance = self.rotate_covariance(
+            imu_msg.linear_acceleration_covariance
+        )
 
         if self.imu_to_base_q is not None:
             # q_base^odom = q_imu^odom * q_base^imu = q_imu^odom * inv(q_imu^base)
-            imu_to_base_q_inv = tf.transformations.quaternion_inverse(
-                self.imu_to_base_q
-            )
-            orientation_q = self.quaternion_multiply(orientation_q, imu_to_base_q_inv)
+            orientation_q = self.quaternion_multiply(orientation_q, self.base_to_imu_q)
 
-            # For angular velocity: omega_base = R_imu^base * omega_imu
-            # Get rotation matrix from quaternion
-            rotation_matrix = tf.transformations.quaternion_matrix(self.imu_to_base_q)[
-                :3, :3
-            ]
-            corrected_angular_velocity = np.dot(
-                rotation_matrix, corrected_angular_velocity
+            corrected_angular_velocity = self.rotate_vector(corrected_angular_velocity)
+            corrected_linear_acceleration = self.rotate_vector(
+                corrected_linear_acceleration
             )
+
         self.odom_msg.twist.twist.angular.x = corrected_angular_velocity[0]
         self.odom_msg.twist.twist.angular.y = corrected_angular_velocity[1]
         self.odom_msg.twist.twist.angular.z = corrected_angular_velocity[2]
@@ -159,10 +253,10 @@ class ImuToOdom:
         )
 
         self.odom_msg.pose.covariance = self.insert_covariance_block(
-            self.default_pose_cov, imu_msg.orientation_covariance
+            self.default_pose_cov, rotated_orientation_covariance
         )
         self.odom_msg.twist.covariance = self.insert_covariance_block(
-            self.default_twist_cov, imu_msg.angular_velocity_covariance
+            self.default_twist_cov, rotated_angular_velocity_covariance
         )
 
         self.odom_msg.pose.pose.position.x = 0.0
@@ -172,28 +266,61 @@ class ImuToOdom:
         self.odom_msg.twist.twist.linear.y = 0.0
         self.odom_msg.twist.twist.linear.z = 0.0
 
+        output_imu_msg = Imu()
+        output_imu_msg.header.stamp = imu_msg.header.stamp
+        output_imu_msg.header.frame_id = (
+            self.base_frame
+            if self.imu_to_base_rotation_matrix is not None
+            else imu_msg.header.frame_id
+        )
+        output_imu_msg.orientation = Quaternion(
+            x=orientation_q[0],
+            y=orientation_q[1],
+            z=orientation_q[2],
+            w=orientation_q[3],
+        )
+        output_imu_msg.orientation_covariance = rotated_orientation_covariance
+        output_imu_msg.angular_velocity = Vector3(
+            x=corrected_angular_velocity[0],
+            y=corrected_angular_velocity[1],
+            z=corrected_angular_velocity[2],
+        )
+        output_imu_msg.angular_velocity_covariance = rotated_angular_velocity_covariance
+        output_imu_msg.linear_acceleration = Vector3(
+            x=corrected_linear_acceleration[0],
+            y=corrected_linear_acceleration[1],
+            z=corrected_linear_acceleration[2],
+        )
+        output_imu_msg.linear_acceleration_covariance = (
+            rotated_linear_acceleration_covariance
+        )
+
+        self.imu_publisher.publish(output_imu_msg)
         self.odom_publisher.publish(self.odom_msg)
 
     def calibrate_imu(self, req):
-        duration = req.duration
-        rospy.loginfo(f"IMU Calibration started for {duration} seconds...")
-        self.calibrating = True
-        self.calibration_data = []
-        rospy.sleep(duration)
-        self.calibrating = False
+        return self.calibrate_bias(
+            req.duration,
+            "IMU angular velocity bias",
+            "calibrating_angular_velocity",
+            "angular_velocity_calibration_data",
+            "angular_velocity_bias",
+        )
 
-        if len(self.calibration_data) > 0:
-            self.drift = np.mean(self.calibration_data, axis=0)
-            self.save_calibration_data()
-            rospy.loginfo(f"IMU Calibration completed. Drift: {self.drift}")
-            return CalibrateIMUResponse(
-                success=True, message="IMU Calibration successful"
-            )
-        else:
-            return CalibrateIMUResponse(success=False, message="IMU Calibration failed")
+    def calibrate_linear_acceleration(self, req):
+        return self.calibrate_bias(
+            req.duration,
+            "IMU linear acceleration bias",
+            "calibrating_linear_acceleration",
+            "linear_acceleration_calibration_data",
+            "linear_acceleration_bias",
+        )
 
     def save_calibration_data(self):
-        calibration_data = {"drift": self.drift.tolist()}
+        calibration_data = {
+            "drift": self.angular_velocity_bias.tolist(),
+            "linear_acceleration_bias": self.linear_acceleration_bias.tolist(),
+        }
         try:
             with open(self.imu_calibration_data_path, "w") as f:
                 yaml.dump(calibration_data, f)
@@ -204,9 +331,23 @@ class ImuToOdom:
     def load_calibration_data(self):
         try:
             with open(self.imu_calibration_data_path, "r") as f:
-                calibration_data = yaml.safe_load(f)
-                self.drift = np.array(calibration_data["drift"])
-            rospy.loginfo(f"IMU Calibration data loaded. Drift: {self.drift}")
+                calibration_data = yaml.safe_load(f) or {}
+
+            self.angular_velocity_bias = np.array(
+                calibration_data.get(
+                    "angular_velocity_bias",
+                    calibration_data.get("drift", [0.0, 0.0, 0.0]),
+                )
+            )
+            self.linear_acceleration_bias = np.array(
+                calibration_data.get("linear_acceleration_bias", [0.0, 0.0, 0.0])
+            )
+            rospy.loginfo(
+                "IMU Calibration data loaded. Angular velocity bias: %s, "
+                "linear acceleration bias: %s",
+                self.angular_velocity_bias,
+                self.linear_acceleration_bias,
+            )
         except FileNotFoundError:
             rospy.logwarn("No calibration data found.")
 
