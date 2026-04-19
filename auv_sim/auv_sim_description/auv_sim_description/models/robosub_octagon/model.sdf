@@ -83,7 +83,7 @@
     </link>
 
     <!-- RedCross Basket Photo -->
-    <link name="redcross_link">
+    <link name="basket_redcross_link">
       <visual name="redcross_visual">
         <geometry>
           <plane>
@@ -104,7 +104,7 @@
     </link>
 
     <!-- Warning Basket Photo -->
-    <link name="warning_link">
+    <link name="basket_warning_link">
       <visual name="warning_visual">
         <geometry>
           <plane>
@@ -122,6 +122,11 @@
         <pose>0 0 0 0 0 0</pose>
       </visual>
       <pose>-0.02144 0.431928 0.56 0 0 0</pose>
+    </link>
+
+    <!-- Table Link -->
+    <link name="octagon_table_link">
+      <pose>0 0 0.6245 0 0 0</pose>
     </link>
 
   </model>

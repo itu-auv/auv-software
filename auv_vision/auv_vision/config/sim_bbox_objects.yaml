@@ -185,7 +185,7 @@ objects:
 
   # Bin bottom camera markers - class IDs 0/1 reused (per-camera id_tf_map)
   - class_id: 0
-    name: bin_sawfish
+    name: bin_blood_link
     cameras: [bottom]
     gazebo_model: robosub_bin
     offset: [-0.1525, 0.0144, 0.9337]
@@ -194,7 +194,7 @@ objects:
       args: [0.1524, 0, 0.1524]
 
   - class_id: 1
-    name: bin_shark
+    name: bin_fire_link
     cameras: [bottom]
     gazebo_model: robosub_bin
     offset: [0.1525, 0.0144, 0.9337]
@@ -218,29 +218,29 @@ objects:
 
   # Octagon table - central flat panel (bottom camera)
   - class_id: 2
-    name: octagon_table
+    name: octagon_table_link
     cameras: [bottom]
     gazebo_model: robosub_octagon
-    offset: [0.0, 0.0, 0.6446]
+    offset: [0.0, 0.0, 0.6245]
     boundary:
       shape: rect
       args: [0.3048, 0.3048, 0]
 
   # Octagon bins (bottom camera)
   - class_id: 4
-    name: octagon_bin_yellow
+    name: basket_warning_link
     cameras: [bottom]
     gazebo_model: robosub_octagon
-    offset: [-0.021, 0.432, 0.6865]
+    offset: [-0.02144, 0.4319, 0.6138]
     boundary:
       shape: rect
       args: [0.1715, 0.1175, 0]
 
   - class_id: 3
-    name: octagon_bin_pink
+    name: basket_redcross_link
     cameras: [bottom]
     gazebo_model: robosub_octagon
-    offset: [-0.021, -0.432, 0.6865]
+    offset: [-0.02144, -0.4319, 0.6138]
     boundary:
       shape: rect
       args: [0.1715, 0.1175, 0]
