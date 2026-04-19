@@ -272,12 +272,13 @@ class PickAndDropSequence(smach.StateMachine):
                     target_frame="target_object",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
+                    closest_yaw=True,
                     confirm_duration=5.0,
                     timeout=30.0,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     cancel_on_success=False,
-                ),  # closest yaw true
+                ),
                 transitions={
                     "succeeded": "DEPTH_TO_COLLECT_OBJECT",
                     "preempted": "preempted",
@@ -323,12 +324,13 @@ class PickAndDropSequence(smach.StateMachine):
                     target_frame="middle_basket_link",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
+                    closest_yaw=True,
                     confirm_duration=1.0,
                     timeout=30.0,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     cancel_on_success=False,
-                ),  # closest yaw true
+                ),
                 transitions={
                     "succeeded": "SURFACE_WITH_OBJECT",
                     "preempted": "preempted",
@@ -366,12 +368,13 @@ class PickAndDropSequence(smach.StateMachine):
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
+                    closest_yaw=True,
                     confirm_duration=5.0,
                     timeout=30.0,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     cancel_on_success=False,
-                ),  # closest yaw true
+                ),
                 transitions={
                     "succeeded": "DEPTH_TO_DROP_OBJECT",
                     "preempted": "preempted",
@@ -418,12 +421,13 @@ class PickAndDropSequence(smach.StateMachine):
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
+                    closest_yaw=True,
                     confirm_duration=4.0,
                     timeout=60.0,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     cancel_on_success=False,
-                ),  # closest yaw true
+                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -638,7 +642,70 @@ class OctagonTaskState(smach.State):
                 "UPDATE_TARGETS",
                 TargetUpdateState(),
                 transitions={
-                    "succeeded": "ALIGN_TO_BOTTLE",
+                    "succeeded": "PICK_AND_DROP_SEQUENCE_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PICK_AND_DROP_SEQUENCE_1",
+                PickAndDropSequence(),
+                transitions={
+                    "succeeded": "UPDATE_TARGETS_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "UPDATE_TARGETS_2",
+                TargetUpdateState(),
+                transitions={
+                    "succeeded": "PICK_AND_DROP_SEQUENCE_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PICK_AND_DROP_SEQUENCE_2",
+                PickAndDropSequence(),
+                transitions={
+                    "succeeded": "UPDATE_TARGETS_3",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "UPDATE_TARGETS_3",
+                TargetUpdateState(),
+                transitions={
+                    "succeeded": "PICK_AND_DROP_SEQUENCE_3",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PICK_AND_DROP_SEQUENCE_3",
+                PickAndDropSequence(),
+                transitions={
+                    "succeeded": "UPDATE_TARGETS_4",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "UPDATE_TARGETS_4",
+                TargetUpdateState(),
+                transitions={
+                    "succeeded": "PICK_AND_DROP_SEQUENCE_4",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PICK_AND_DROP_SEQUENCE_4",
+                PickAndDropSequence(),
+                transitions={
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
