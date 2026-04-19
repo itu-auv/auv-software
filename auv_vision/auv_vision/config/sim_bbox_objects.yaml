@@ -216,6 +216,43 @@ objects:
         args: [0.305, 0.55, 0.076]
         offset: [0.0, 0.0, 0.270]
 
+  # Octagon hanging animals - 0.305 m square panels inside the frame
+  - class_id: 8
+    name: octagon_repair_link
+    cameras: [front, realsense]
+    gazebo_model: robosub_octagon_animals
+    offset: [0.0, 0.0, 0.5525]
+    boundary:
+      shape: rect
+      args: [0, 0.1525, 0.1525]
+
+  - class_id: 9
+    name: octagon_rescue_link
+    cameras: [front, realsense]
+    gazebo_model: robosub_octagon_animals
+    offset: [2.7, 0.0, 0.5525]
+    boundary:
+      shape: rect
+      args: [0, 0.1525, 0.1525]
+
+  - class_id: 10
+    name: octagon_search_link
+    cameras: [front, realsense]
+    gazebo_model: robosub_octagon_animals
+    offset: [1.35, 1.35, 0.5525]
+    boundary:
+      shape: rect
+      args: [0.1525, 0, 0.1525]
+
+  - class_id: 11
+    name: octagon_survey_link
+    cameras: [front, realsense]
+    gazebo_model: robosub_octagon_animals
+    offset: [1.35, -1.35, 0.5525]
+    boundary:
+      shape: rect
+      args: [0.1525, 0, 0.1525]
+
   # Octagon table - central flat panel (bottom camera)
   - class_id: 2
     name: octagon_table_link
@@ -246,7 +283,7 @@ objects:
       args: [0.1715, 0.1175, 0]
 
   # TAC valve station - two valves inside one model
-  - class_id: 8
+  - class_id: 12
     name: valve
     cameras: [front]
     gazebo_model: tac_valve
