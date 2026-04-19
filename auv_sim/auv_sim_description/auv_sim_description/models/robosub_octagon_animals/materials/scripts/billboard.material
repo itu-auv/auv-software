@@ -5,11 +5,14 @@ material Task5RepairMaterial
     pass
     {
       lighting off
+      scene_blend alpha_blend
+      depth_write off
+      alpha_rejection greater_equal 128
       cull_hardware clockwise
       texture_unit
       {
         texture Task5_Repair.png
-        filtering none
+        filtering anisotropic
       }
     }
   }
@@ -22,11 +25,14 @@ material Task5RescueMaterial
     pass
     {
       lighting off
+      scene_blend alpha_blend
+      depth_write off
+      alpha_rejection greater_equal 128
       cull_hardware clockwise
       texture_unit
       {
         texture Task5_Rescue.png
-        filtering none
+        filtering anisotropic
       }
     }
   }
@@ -39,11 +45,14 @@ material Task5SearchMaterial
     pass
     {
       lighting off
+      scene_blend alpha_blend
+      depth_write off
+      alpha_rejection greater_equal 128
       cull_hardware clockwise
       texture_unit
       {
         texture Task5_Search.png
-        filtering none
+        filtering anisotropic
       }
     }
   }
@@ -56,11 +65,14 @@ material Task5SurveyMaterial
     pass
     {
       lighting off
+      scene_blend alpha_blend
+      depth_write off
+      alpha_rejection greater_equal 128
       cull_hardware clockwise
       texture_unit
       {
         texture Task5_Survey.png
-        filtering none
+        filtering anisotropic
       }
     }
   }
