@@ -7,6 +7,7 @@ import rospy
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, Vector3
 from sensor_msgs.msg import Image
+from std_msgs.msg import String
 from ultralytics_ros.msg import YoloResult
 import tf2_ros
 from tf import transformations as tf_transformations
@@ -20,6 +21,14 @@ from utils.segment_utils import (
 
 
 class SegmentCameraHandler:
+    OCTAGON_TASK_OBJECT_ORDER = (
+        "electric_link",
+        "bandaid_link",
+        "nutbolt_link",
+        "pill_link",
+    )
+    OCTAGON_TABLE_SEGMENT_NAME = "octagon_table_segment_link"
+
     def __init__(
         self,
         camera_config,
@@ -49,6 +58,9 @@ class SegmentCameraHandler:
             rospy.Publisher(self.debug_image_topic, Image, queue_size=1)
             if self.debug_segment_pose
             else None
+        )
+        self.task_object_list_pub = rospy.Publisher(
+            "task/object_list", String, queue_size=1
         )
 
     def _mask_to_cv2(self, mask_msg):
@@ -130,10 +142,47 @@ class SegmentCameraHandler:
 
         return Quaternion(0, 0, 0, 1)
 
+    def _publish_octagon_task_object_list(self, table_mask, object_centers):
+        if table_mask is None:
+            return
+
+        visible_objects = []
+        height, width = table_mask.shape[:2]
+
+        for prop_name in self.OCTAGON_TASK_OBJECT_ORDER:
+            center = object_centers.get(prop_name)
+            if center is None:
+                continue
+
+            center_x = int(round(center[0]))
+            center_y = int(round(center[1]))
+            if (
+                center_x < 0
+                or center_x >= width
+                or center_y < 0
+                or center_y >= height
+                or table_mask[center_y, center_x] <= 0
+            ):
+                continue
+
+            visible_objects.append(prop_name)
+
+        if not visible_objects:
+            return
+
+        object_list_msg = String(data=",".join(visible_objects))
+        self.task_object_list_pub.publish(object_list_msg)
+        rospy.loginfo_throttle(
+            1.0,
+            f"[SegmentCameraHandler] Published octagon task object list: {visible_objects}",
+        )
+
     def handle(self, detection_msg: YoloResult):
         masks_msgs = list(detection_msg.masks) if detection_msg.masks else []
         stamp = detection_msg.header.stamp
         masks_by_id = defaultdict(deque)
+        octagon_table_mask = None
+        octagon_task_object_centers = {}
 
         # Prefer explicit mask IDs from mask headers.
         for mask_msg in masks_msgs:
@@ -212,6 +261,14 @@ class SegmentCameraHandler:
                 else:
                     center = detection.bbox.center
 
+                if (
+                    prop_name == self.OCTAGON_TABLE_SEGMENT_NAME
+                    and mask_msg is not None
+                ):
+                    octagon_table_mask = self._mask_to_cv2(mask_msg)
+                elif prop_name in self.OCTAGON_TASK_OBJECT_ORDER:
+                    octagon_task_object_centers[prop_name] = (center.x, center.y)
+
                 angles, offset_x, offset_y = calculate_angles_and_offsets(
                     self.calibration, center, distance
                 )
@@ -265,6 +322,10 @@ class SegmentCameraHandler:
                     f"Segment detection processing failed for id={detection_id}: {e}",
                 )
                 continue
+
+        self._publish_octagon_task_object_list(
+            octagon_table_mask, octagon_task_object_centers
+        )
         if self.debug_segment_pose and debug_items_by_id:
             publish_merged_debug_image(
                 self.segment_pose_debug_pub,

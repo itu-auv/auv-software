@@ -21,6 +21,7 @@ from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from std_msgs.msg import UInt16, String
+from geometry_msgs.msg import TransformStamped
 import tf2_ros
 
 
@@ -33,6 +34,7 @@ class TargetUpdateState(smach.State):
         )
         self.object_list = []
         self.msg_received = False
+        self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
 
     def callback(self, msg):
         if msg.data:
@@ -88,6 +90,32 @@ class TargetUpdateState(smach.State):
         rospy.loginfo(
             f"[TargetUpdateState] Targets Updated! Object: {target_object}, Basket: {target_basket}, Image: {target_image}"
         )
+
+        t1 = TransformStamped()
+        t1.header.stamp = rospy.Time.now()
+        t1.header.frame_id = target_object
+        t1.child_frame_id = "target_object"
+        t1.transform.translation.x = 0.0
+        t1.transform.translation.y = 0.0
+        t1.transform.translation.z = 0.0
+        t1.transform.rotation.x = 0.0
+        t1.transform.rotation.y = 0.0
+        t1.transform.rotation.z = 0.0
+        t1.transform.rotation.w = 1.0
+
+        t2 = TransformStamped()
+        t2.header.stamp = rospy.Time.now()
+        t2.header.frame_id = target_basket
+        t2.child_frame_id = "target_basket"
+        t2.transform.translation.x = 0.0
+        t2.transform.translation.y = 0.0
+        t2.transform.translation.z = 0.0
+        t2.transform.rotation.x = 0.0
+        t2.transform.rotation.y = 0.0
+        t2.transform.rotation.z = 0.0
+        t2.transform.rotation.w = 1.0
+
+        self.static_broadcaster.sendTransform([t1, t2])
 
         return "succeeded"
 
@@ -321,7 +349,7 @@ class PickAndDropSequence(smach.StateMachine):
                 "ALIGN_TO_MIDDLE_BASKET",
                 AlignFrame(
                     source_frame=base_link,
-                    target_frame="middle_basket_link",
+                    target_frame="middle_basket",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     closest_yaw=True,
@@ -342,7 +370,7 @@ class PickAndDropSequence(smach.StateMachine):
                 SetDepthState(
                     depth=-0.2,
                     max_velocity=0.1,
-                    dist_threshold=0.05,
+                    depth_threshold=0.05,
                     confirm_duration=2.0,
                 ),
                 transitions={
@@ -596,16 +624,15 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
                 DynamicPathWithTransformCheck(
-                    plan_target_frame="octagon_link",
+                    plan_target_frame="octagon_further_link",
                     transform_source_frame="odom",
                     transform_target_frame="octagon_table_link",
                     max_linear_velocity=0.2,
-                    keep_orientation=True,
                 ),
                 transitions={
                     "succeeded": "MOVE_GRIPPER",
                     "preempted": "preempted",
-                    "aborted": "SEARCH_RIGHT",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
