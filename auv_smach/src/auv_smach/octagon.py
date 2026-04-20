@@ -66,9 +66,9 @@ class TargetUpdateState(smach.State):
         userdata.target_object = target_object
 
         if target_object in ["nutbolt_link", "electric_link"]:
-            target_basket = "warning_link"
+            target_basket = "basket_warning_segment_link"
         else:
-            target_basket = "redcross_link"
+            target_basket = "basket_redcross_segment_link"
         userdata.target_basket = target_basket
 
         list_length = len(self.object_list)
@@ -533,20 +533,20 @@ class OctagonTaskState(smach.State):
                 "CLOSE_DETECTION",
                 SetDetectionFocusState(focus_object="none"),
                 transitions={
-                    "succeeded": "CLOSE_OCTAGON_PUBLİSHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CLOSE_OCTAGON_PUBLİSHER",
-                OctagonFramePublisherServiceState(req=False),
-                transitions={
                     "succeeded": "SET_OCTAGON_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            # smach.StateMachine.add(
+            #     "CLOSE_OCTAGON_PUBLİSHER",
+            #     OctagonFramePublisherServiceState(req=False),
+            #     transitions={
+            #         "succeeded": "SET_OCTAGON_DEPTH",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
                 "SET_OCTAGON_DEPTH",
                 SetDepthState(depth=octagon_depth),

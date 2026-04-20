@@ -22,10 +22,10 @@ from utils.segment_utils import (
 
 class SegmentCameraHandler:
     OCTAGON_TASK_OBJECT_ORDER = (
+        "pill_link",
+        "nutbolt_link",
         "electric_link",
         "bandaid_link",
-        "nutbolt_link",
-        "pill_link",
     )
     OCTAGON_TABLE_SEGMENT_NAME = "octagon_table_segment_link"
 
