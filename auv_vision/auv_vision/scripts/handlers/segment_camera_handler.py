@@ -50,6 +50,7 @@ class SegmentCameraHandler:
             if self.debug_segment_pose
             else None
         )
+        self.last_yaws = {}
 
     def _mask_to_cv2(self, mask_msg):
         try:
@@ -78,7 +79,7 @@ class SegmentCameraHandler:
             return prop.estimate_distance(
                 measured_height, measured_width, self.calibration
             )
-        #just in case geometry fails //No need actually
+        # just in case geometry fails //No need actually
         return prop.estimate_distance(
             detection.bbox.size_y,
             detection.bbox.size_x,
@@ -176,17 +177,21 @@ class SegmentCameraHandler:
                 if mask_msg is not None:
                     mask = self._mask_to_cv2(mask_msg)
                     if mask is not None:
+                        last_yaw = self.last_yaws.get(detection_id)
                         if prop_name == "electric_link" or prop_name == "bandaid_link":
                             geometry = findposes_rect(
-                                mask, debug=self.debug_segment_pose
+                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
                             )
                         elif prop_name == "nutbolt_link" or prop_name == "pill_link":
                             geometry = findposes_circle(
-                                mask, debug=self.debug_segment_pose
+                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
                             )
 
                         if geometry is not None and not geometry["valid"]:
                             geometry = None
+
+                        if geometry is not None and geometry.get("yaw") is not None:
+                            self.last_yaws[detection_id] = geometry["yaw"]
 
                 if geometry is not None and self.debug_segment_pose:
                     debug_items_by_id[detection_id] = {
@@ -230,8 +235,12 @@ class SegmentCameraHandler:
                 try:
                     pose_stamped = PoseStamped()
                     pose_stamped.header = transform_stamped_msg.header
-                    pose_stamped.pose.position = transform_stamped_msg.transform.translation
-                    pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
+                    pose_stamped.pose.position = (
+                        transform_stamped_msg.transform.translation
+                    )
+                    pose_stamped.pose.orientation = (
+                        transform_stamped_msg.transform.rotation
+                    )
 
                     transformed_pose_stamped = self.tf_buffer.transform(
                         pose_stamped, "odom", rospy.Duration(4.0)
