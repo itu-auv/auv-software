@@ -13,8 +13,7 @@ def _invalid_result(debug_image=None):
         "valid": False,
         "center": None,
         "yaw": None,
-        "width_px": None,
-        "height_px": None,
+        "edges_px": None,
         "radius_px": None,
         "diameter_px": None,
         "debug_image": debug_image,
@@ -63,8 +62,8 @@ def _base_debug_canvas(mask: np.ndarray, color=(255, 255, 0)):
 def _geometry_metric_lines(geometry: dict):
     lines = []
     yaw = geometry.get("yaw")
-    width_px = geometry.get("width_px")
-    height_px = geometry.get("height_px")
+    # longest -> height, shortest -> width
+    height_px, width_px = geometry.get("edges_px")
     radius_px = geometry.get("radius_px")
     diameter_px = geometry.get("diameter_px")
 
@@ -78,7 +77,7 @@ def _geometry_metric_lines(geometry: dict):
     return lines
 
 
-def findposes_rect(mask: np.ndarray, debug: bool = False):
+def findposes_rect(mask: np.ndarray, last_yaw: float = None, debug: bool = False):
     binary, contour = _largest_contour(mask)
     debug_image = _base_debug_canvas(binary) if debug else None
     if contour is None or len(contour) < 4:
@@ -99,16 +98,28 @@ def findposes_rect(mask: np.ndarray, debug: bool = False):
     longest_length, edge_start, edge_end, longest_vec = max(edges, key=lambda e: e[0])
     if longest_length <= 0.0:
         return _invalid_result(debug_image=debug_image)
+    shortest_length, _, _, _ = min(edges, key=lambda e: e[0])
 
     dx, dy = float(longest_vec[0]), float(longest_vec[1])
-    yaw = _normalize_line_angle(math.atan2(-dy, dx))
+    yaw_base = math.atan2(-dy, dx)
+
+    if last_yaw is not None:
+        candidates = [yaw_base + i * (math.pi / 2) for i in range(4)]
+        yaw = min(
+            candidates,
+            key=lambda a: abs(
+                math.atan2(math.sin(a - last_yaw), math.cos(a - last_yaw))
+            ),
+        )
+        yaw = math.atan2(math.sin(yaw), math.cos(yaw))
+    else:
+        yaw = _normalize_line_angle(yaw_base)
 
     result = {
         "valid": True,
         "center": (float(cx), float(cy)),
         "yaw": yaw,
-        "width_px": float(width_px),
-        "height_px": float(height_px),
+        "edges_px": (float(longest_length), float(shortest_length)),
         "radius_px": None,
         "diameter_px": None,
         "debug_image": debug_image,
@@ -129,7 +140,7 @@ def findposes_rect(mask: np.ndarray, debug: bool = False):
     return result
 
 
-def findposes_circle(mask: np.ndarray, debug: bool = False):
+def findposes_circle(mask: np.ndarray, last_yaw: float = None, debug: bool = False):
     binary, contour = _largest_contour(mask)
     debug_image = _base_debug_canvas(binary, color=(0, 255, 255)) if debug else None
     if contour is None or len(contour) < 5:
@@ -144,8 +155,7 @@ def findposes_circle(mask: np.ndarray, debug: bool = False):
         "valid": True,
         "center": (float(cx), float(cy)),
         "yaw": None,
-        "width_px": None,
-        "height_px": None,
+        "edges_px": (None, None),
         "radius_px": float(radius_px),
         "diameter_px": diameter_px,
         "debug_image": debug_image,
