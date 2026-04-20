@@ -6,7 +6,6 @@ import tf.transformations
 import numpy as np
 from geometry_msgs.msg import Pose, TransformStamped, Vector3, Quaternion
 from std_srvs.srv import SetBool, SetBoolResponse
-from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
 
 class PipelineTransformServiceNode:
@@ -18,10 +17,9 @@ class PipelineTransformServiceNode:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # Service to broadcast transforms
-        self.set_object_transform_service = rospy.ServiceProxy(
-            "set_object_transform", SetObjectTransform
+        self.set_object_transform_pub = rospy.Publisher(
+            "set_object_transform", TransformStamped, queue_size=10
         )
-        self.set_object_transform_service.wait_for_service()
 
         # Parameters
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
@@ -76,17 +74,11 @@ class PipelineTransformServiceNode:
         return t
 
     def send_transform(self, transform: TransformStamped):
-        """Send transform via service"""
-        req = SetObjectTransformRequest()
-        req.transform = transform
+        """Send transform via publisher"""
         try:
-            resp = self.set_object_transform_service.call(req)
-            if not resp.success:
-                rospy.logwarn(
-                    f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
-                )
-        except rospy.ServiceException as e:
-            rospy.logerr(f"Service call failed: {e}")
+            self.set_object_transform_pub.publish(transform)
+        except Exception as e:
+            rospy.logerr(f"Failed to publish transform: {e}")
 
     def create_relative_pose(
         self, base_pose: Pose, forward: float, left: float, up: float = 0.0
