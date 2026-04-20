@@ -338,25 +338,41 @@ objects:
     cameras: [bottom_seg]
     gazebo_model: electric
     match_prefix: true
-    mesh: models/electric/meshes/electric.dae
+    render_mask: true
+    offset: [0, 0, 0.03]
+    boundary:
+      shape: rect
+      args: [0.04375, 0.04375, 0]
 
   - class_id: 1
     name: bandaid
     cameras: [bottom_seg]
     gazebo_model: bandaid
     match_prefix: true
-    mesh: models/bandaid/meshes/bandaid.dae
+    render_mask: true
+    offset: [0, 0, 0.03]
+    boundary:
+      shape: rect
+      args: [0.04375, 0.04375, 0]
 
   - class_id: 2
     name: nutbolt
     cameras: [bottom_seg]
     gazebo_model: nutbolt
     match_prefix: true
-    mesh: models/nutbolt/meshes/nutbolt.dae
+    render_mask: true
+    offset: [0, 0, 0.03]
+    boundary:
+      shape: circle
+      args: [0.03525, 0.03525, 0]
 
   - class_id: 3
     name: pill
     cameras: [bottom_seg]
     gazebo_model: pill
     match_prefix: true
-    mesh: models/pill/meshes/pill.dae
+    render_mask: true
+    offset: [0, 0, 0.03]
+    boundary:
+      shape: circle
+      args: [0.03525, 0.03525, 0]
