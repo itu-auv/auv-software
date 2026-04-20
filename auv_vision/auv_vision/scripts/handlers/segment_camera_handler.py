@@ -69,16 +69,13 @@ class SegmentCameraHandler:
                     self.calibration,
                 )
 
-            width_px = geometry.get("width_px")
-            height_px = geometry.get("height_px")
-            if width_px is None or height_px is None:
+            longest_edge, shortest_edge = geometry.get("edges_px")
+            if longest_edge is None or shortest_edge is None:
                 return None
 
-            measured_height = height_px if prop.real_height is not None else None
-            measured_width = width_px if prop.real_width is not None else None
-            return prop.estimate_distance(
-                measured_height, measured_width, self.calibration
-            )
+            # longest  -> height
+            # shortest -> width
+            return prop.estimate_distance(longest_edge, shortest_edge, self.calibration)
         # just in case geometry fails //No need actually
         return prop.estimate_distance(
             detection.bbox.size_y,
