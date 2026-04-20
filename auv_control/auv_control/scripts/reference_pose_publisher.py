@@ -172,12 +172,7 @@ class ReferencePosePublisherNode:
         if not msg.data:
             with self.state_lock:
                 if self.align_frame_active:
-                    self.set_target_to_odometry()
-                    self.align_frame_active = False
-                    self.use_align_frame_depth = False
-                    self.align_frame_keep_orientation = False
-                    if self.reconfigure_client:
-                        self._restore_controller_cfg()
+                    self.cancel_align_controller()
                     rospy.loginfo_throttle(
                         1.0, "Killswitch inactive; alignment deactivated"
                     )
@@ -233,9 +228,7 @@ class ReferencePosePublisherNode:
     ) -> AlignFrameControllerResponse:
         with self.state_lock:
             if self.align_frame_active:
-                self.set_target_to_odometry()
-                self.use_align_frame_depth = False
-                self.align_frame_keep_orientation = False
+                self.cancel_align_controller()
 
             self.align_frame_active = True
 
@@ -247,6 +240,7 @@ class ReferencePosePublisherNode:
             )
 
             if t is None:
+                self.cancel_align_controller()
                 return AlignFrameControllerResponse(
                     success=False,
                     message="Failed to lookup transform",
@@ -268,6 +262,7 @@ class ReferencePosePublisherNode:
                     self.tf_lookup_timeout,
                 )
                 if source_in_target is None:
+                    self.cancel_align_controller()
                     return AlignFrameControllerResponse(
                         success=False,
                         message="Failed to lookup source frame in target frame",
@@ -393,13 +388,7 @@ class ReferencePosePublisherNode:
                     success=False, message="Alignment is not active."
                 )
 
-            self.set_target_to_odometry()
-            self.align_frame_active = False
-            self.use_align_frame_depth = False
-            self.align_frame_keep_orientation = False
-
-            if self.reconfigure_client:
-                self._restore_controller_cfg()
+            self.cancel_align_controller()
 
         rospy.loginfo("Align frame control canceled")
         return TriggerResponse(success=True, message="Alignment deactivated")
@@ -424,6 +413,15 @@ class ReferencePosePublisherNode:
             self.set_target_to_odometry()
         rospy.loginfo("cmd_pose synced to current odometry")
         return TriggerResponse(success=True, message="cmd_pose synced to odometry")
+
+    def cancel_align_controller(self):
+        self.set_target_to_odometry()
+        self.align_frame_active = False
+        self.use_align_frame_depth = False
+        self.align_frame_keep_orientation = False
+
+        if self.reconfigure_client:
+            self._restore_controller_cfg()
 
     # --- Helper methods for dynamic reconfigure handling ---
     def _read_controller_cfg(self):
