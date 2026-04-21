@@ -65,25 +65,44 @@ objects:
       shape: rect
       args: [0, 0.3048, -0.3048]
 
-  # Torpedo holes - 0.125 m diameter circles
-  # Both published as ID 5 - the pose estimator sorts upper/lower by image Y
+  # Torpedo holes - 4 red circles printed on the torpedo_map texture.
+  # Two small (0.100 m diameter) and two large (0.125 m diameter).
+  # All published as ID 5 - the pose estimator sorts upper/lower by image Y.
   - class_id: 5
     name: torpedo_hole
     cameras: [torpedo]
     gazebo_model: robosub_torpedo
-    offset: [-0.1166, 0.6089, -0.9687]
+    offset: [-0.1166, 0.8348, -0.9472]
     boundary:
       shape: circle
-      args: [0, 0.0625, 0.0625]
+      args: [0, 0.0500, 0.0500]
 
   - class_id: 5
     name: torpedo_hole
     cameras: [torpedo]
     gazebo_model: robosub_torpedo
-    offset: [-0.1166, 0.8619, -1.0787]
+    offset: [-0.1166, 0.7077, -0.7443]
     boundary:
       shape: circle
-      args: [0, 0.0625, 0.0625]
+      args: [0, 0.0626, 0.0626]
+
+  - class_id: 5
+    name: torpedo_hole
+    cameras: [torpedo]
+    gazebo_model: robosub_torpedo
+    offset: [-0.1166, 0.4471, -0.9443]
+    boundary:
+      shape: circle
+      args: [0, 0.0500, 0.0500]
+
+  - class_id: 5
+    name: torpedo_hole
+    cameras: [torpedo]
+    gazebo_model: robosub_torpedo
+    offset: [-0.1166, 0.4314, -1.1587]
+    boundary:
+      shape: circle
+      args: [0, 0.0626, 0.0626]
 
   # Slalom 1 pipes - vertical cylinders, radius 0.0127 m, height 0.9 m
   - class_id: 3
