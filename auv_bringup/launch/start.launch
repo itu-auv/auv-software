@@ -80,6 +80,10 @@
     <arg name="config_file" value="$(find auv_control)/config/$(arg namespace)/default.yaml" />
   </include>
 
+  <include file="$(find auv_teleop)/launch/telegram_telemetry.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
   <!-- launch logging -->
     <group if="$(arg enable_logging)">
       <include file="$(find auv_bringup)/launch/logging.launch">
