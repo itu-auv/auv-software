@@ -13,6 +13,7 @@
       <param name="imu_frame" value="$(arg namespace)/base_link/imu_link" />
       <param name="imu_calibration_path" value="$(find auv_localization)/config/$(arg namespace)/imu_calibration_data.yaml" />
       <remap from="imu/data" to="sensors/imu/data" />
+      <remap from="imu" to="localization/imu" />
       <remap from="odom_imu" to="localization/odom_imu" />
     </node>
     <node pkg="auv_localization" type="pressure_odometry_node.py" name="pressure_to_odom_node"
