@@ -35,7 +35,7 @@
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
 
-    <!-- TAC pool: 10m (X) x 20m (Y) x 6m (Z), centered at origin, water surface at z=0 -->
+    <!-- TAC pool: 10m (X) x 20m (Y) x 4m (Z), centered at origin, water surface at z=0 -->
     <model name='tac_pool'>
       <static>1</static>
       <pose>0 0 0 0 0 0</pose>
@@ -44,7 +44,7 @@
 
         <!-- Floor -->
         <collision name='floor_col'>
-          <pose>0 0 -6.1 0 0 0</pose>
+          <pose>0 0 -4.1 0 0 0</pose>
           <geometry>
             <box>
               <size>10 20 0.2</size>
@@ -52,7 +52,7 @@
           </geometry>
         </collision>
         <visual name='floor_vis'>
-          <pose>0 0 -6.1 0 0 0</pose>
+          <pose>0 0 -4.1 0 0 0</pose>
           <geometry>
             <box>
               <size>10 20 0.2</size>
@@ -67,18 +67,18 @@
 
         <!-- +Y short wall -->
         <collision name='wall_y_pos_col'>
-          <pose>0 10.1 -3 0 0 0</pose>
+          <pose>0 10.1 -2 0 0 0</pose>
           <geometry>
             <box>
-              <size>10.4 0.2 6</size>
+              <size>10.4 0.2 4</size>
             </box>
           </geometry>
         </collision>
         <visual name='wall_y_pos_vis'>
-          <pose>0 10.1 -3 0 0 0</pose>
+          <pose>0 10.1 -2 0 0 0</pose>
           <geometry>
             <box>
-              <size>10.4 0.2 6</size>
+              <size>10.4 0.2 4</size>
             </box>
           </geometry>
           <material>
@@ -90,18 +90,18 @@
 
         <!-- -Y short wall -->
         <collision name='wall_y_neg_col'>
-          <pose>0 -10.1 -3 0 0 0</pose>
+          <pose>0 -10.1 -2 0 0 0</pose>
           <geometry>
             <box>
-              <size>10.4 0.2 6</size>
+              <size>10.4 0.2 4</size>
             </box>
           </geometry>
         </collision>
         <visual name='wall_y_neg_vis'>
-          <pose>0 -10.1 -3 0 0 0</pose>
+          <pose>0 -10.1 -2 0 0 0</pose>
           <geometry>
             <box>
-              <size>10.4 0.2 6</size>
+              <size>10.4 0.2 4</size>
             </box>
           </geometry>
           <material>
@@ -113,18 +113,18 @@
 
         <!-- +X long wall -->
         <collision name='wall_x_pos_col'>
-          <pose>5.1 0 -3 0 0 0</pose>
+          <pose>5.1 0 -2 0 0 0</pose>
           <geometry>
             <box>
-              <size>0.2 20 6</size>
+              <size>0.2 20 4</size>
             </box>
           </geometry>
         </collision>
         <visual name='wall_x_pos_vis'>
-          <pose>5.1 0 -3 0 0 0</pose>
+          <pose>5.1 0 -2 0 0 0</pose>
           <geometry>
             <box>
-              <size>0.2 20 6</size>
+              <size>0.2 20 4</size>
             </box>
           </geometry>
           <material>
@@ -136,18 +136,18 @@
 
         <!-- -X long wall -->
         <collision name='wall_x_neg_col'>
-          <pose>-5.1 0 -3 0 0 0</pose>
+          <pose>-5.1 0 -2 0 0 0</pose>
           <geometry>
             <box>
-              <size>0.2 20 6</size>
+              <size>0.2 20 4</size>
             </box>
           </geometry>
         </collision>
         <visual name='wall_x_neg_vis'>
-          <pose>-5.1 0 -3 0 0 0</pose>
+          <pose>-5.1 0 -2 0 0 0</pose>
           <geometry>
             <box>
-              <size>0.2 20 6</size>
+              <size>0.2 20 4</size>
             </box>
           </geometry>
           <material>
@@ -164,11 +164,11 @@
     </model>
 
     <!-- TAC docking station: 3m from +Y short wall, centered on long sides.
-         Pool floor z=-6, STL Y-min=-0.072m after roll=pi/2, so z=-6+0.072=-5.928 -->
+         Pool floor z=-4, STL Y-min=-0.072m after roll=pi/2, so z=-4+0.072=-3.928 -->
     <include>
       <uri>model://tac_docking_station</uri>
       <name>tac_docking_station</name>
-      <pose>0 7 -5.928 1.5708 0 0</pose>
+      <pose>0 7 -3.928 1.5708 0 0</pose>
     </include>
 
     <scene>

@@ -32,6 +32,7 @@
     <arg name="control_rate" value="$(arg control_rate)" />
     <arg name="detection_config" value="$(arg detection_config)" />
     <arg name="pool_depth" value="$(arg pool_depth)" />
+    <arg name="sim" value="$(arg sim)" />
   </include>
 
   <include file="$(find auv_navigation)/launch/start.launch">
