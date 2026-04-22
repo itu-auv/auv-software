@@ -4,6 +4,7 @@ from collections import defaultdict, deque
 import re
 
 import rospy
+import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, Vector3
 from sensor_msgs.msg import Image
@@ -144,6 +145,16 @@ class SegmentCameraHandler:
         if table_mask is None:
             return
 
+        # Find the external boundaries (contours) of the table mask to avoid holes inside
+        contours, _ = cv2.findContours(
+            table_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        if not contours:
+            return
+
+        # Select the contour with the largest area as the actual table boundary (ignores background noise)
+        table_contour = max(contours, key=cv2.contourArea)
+
         visible_objects = []
         height, width = table_mask.shape[:2]
 
@@ -154,13 +165,13 @@ class SegmentCameraHandler:
 
             center_x = int(round(center[0]))
             center_y = int(round(center[1]))
-            if (
-                center_x < 0
-                or center_x >= width
-                or center_y < 0
-                or center_y >= height
-                or table_mask[center_y, center_x] <= 0
-            ):
+
+            if center_x < 0 or center_x >= width or center_y < 0 or center_y >= height:
+                continue
+
+            # Check if the object's center point is inside or on the edge of the table contour.
+            # pointPolygonTest returns: > 0 (inside), == 0 (on edge), < 0 (outside)
+            if cv2.pointPolygonTest(table_contour, (center_x, center_y), False) < 0:
                 continue
 
             visible_objects.append(prop_name)
