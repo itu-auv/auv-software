@@ -38,11 +38,11 @@
       <param name="cmdvel_tau" value="0.2" />
     </node>
 
-    <node pkg="auv_localization" type="model_odometry_node.py" name="model_odometry_node" output="screen">
+    <node pkg="auv_localization" type="model_odometry_node.py" name="model_odometry_node" output="screen" if="$(eval arg('namespace') == 'taluy')">
       <param name="namespace" value="$(arg namespace)" />
       <remap from="odom_model" to="localization/odom_model" />
       <remap from="dvl/is_valid" to="$(arg dvl_is_valid_topic)" />
-      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="desired_velocity" to="desired_velocity" />
       <remap from="wrench" to="wrench" />
       <remap from="odometry" to="odometry" />
       <param name="cmdvel_tau" value="0.2" />

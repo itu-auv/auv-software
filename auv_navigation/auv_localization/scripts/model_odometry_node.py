@@ -30,8 +30,8 @@ class ModelOdometryNode:
         self.is_valid_subscriber = rospy.Subscriber(
             "dvl/is_valid", Bool, self.dvl_valid_cb, tcp_nodelay=True
         )
-        self.cmd_vel_subscriber = rospy.Subscriber(
-            "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
+        self.desired_velocity_subscriber = rospy.Subscriber(
+            "desired_velocity", Twist, self.desired_velocity_callback, tcp_nodelay=True
         )
         self.odom_sub = rospy.Subscriber(
             "odometry", Odometry, self.odom_callback, tcp_nodelay=True
@@ -66,9 +66,9 @@ class ModelOdometryNode:
         self.update_twist_covariance()
 
         # Fallback variables
-        self.cmd_vel_twist = Twist()
-        self.filtered_cmd_vel = Twist()
-        self.last_cmd_update_time = rospy.Time.now()
+        self.desired_vel_twist = Twist()
+        self.filtered_desired_vel = Twist()
+        self.last_desired_vel_update_time = rospy.Time.now()
 
         # Model-based velocity estimator variables
         self.current_wrench = np.zeros(6)
@@ -135,8 +135,8 @@ class ModelOdometryNode:
             if self.odom_received:
                 self.estimated_velocity = self.odom_velocity.copy()
 
-    def cmd_vel_callback(self, msg):
-        self.cmd_vel_twist = msg
+    def desired_velocity_callback(self, msg):
+        self.desired_vel_twist = msg
 
     def odom_callback(self, msg):
         self.odom_velocity[0] = msg.twist.twist.linear.x
@@ -156,37 +156,37 @@ class ModelOdometryNode:
         self.current_wrench[4] = msg.wrench.torque.y
         self.current_wrench[5] = msg.wrench.torque.z
 
-    def filter_cmd_vel(self):
+    def filter_desired_velocity(self):
         current_time = rospy.Time.now()
-        dt = (current_time - self.last_cmd_update_time).to_sec()
+        dt = (current_time - self.last_desired_vel_update_time).to_sec()
         self.alpha = dt / (self.cmdvel_tau + dt)
 
-        self.filtered_cmd_vel.linear.x = (
-            self.filtered_cmd_vel.linear.x * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.linear.x
+        self.filtered_desired_vel.linear.x = (
+            self.filtered_desired_vel.linear.x * (1.0 - self.alpha)
+            + self.alpha * self.desired_vel_twist.linear.x
         )
-        self.filtered_cmd_vel.linear.y = (
-            self.filtered_cmd_vel.linear.y * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.linear.y
+        self.filtered_desired_vel.linear.y = (
+            self.filtered_desired_vel.linear.y * (1.0 - self.alpha)
+            + self.alpha * self.desired_vel_twist.linear.y
         )
-        self.filtered_cmd_vel.linear.z = (
-            self.filtered_cmd_vel.linear.z * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.linear.z
+        self.filtered_desired_vel.linear.z = (
+            self.filtered_desired_vel.linear.z * (1.0 - self.alpha)
+            + self.alpha * self.desired_vel_twist.linear.z
         )
-        self.filtered_cmd_vel.angular.x = (
-            self.filtered_cmd_vel.angular.x * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.angular.x
+        self.filtered_desired_vel.angular.x = (
+            self.filtered_desired_vel.angular.x * (1.0 - self.alpha)
+            + self.alpha * self.desired_vel_twist.angular.x
         )
-        self.filtered_cmd_vel.angular.y = (
-            self.filtered_cmd_vel.angular.y * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.angular.y
+        self.filtered_desired_vel.angular.y = (
+            self.filtered_desired_vel.angular.y * (1.0 - self.alpha)
+            + self.alpha * self.desired_vel_twist.angular.y
         )
-        self.filtered_cmd_vel.angular.z = (
-            self.filtered_cmd_vel.angular.z * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.angular.z
+        self.filtered_desired_vel.angular.z = (
+            self.filtered_desired_vel.angular.z * (1.0 - self.alpha)
+            + self.alpha * self.desired_vel_twist.angular.z
         )
 
-        self.last_cmd_update_time = current_time
+        self.last_desired_vel_update_time = current_time
 
     def skew(self, v):
         return np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
@@ -243,12 +243,12 @@ class ModelOdometryNode:
             return
 
         if not self.is_dvl_valid:
-            self.filter_cmd_vel()
+            self.filter_desired_velocity()
             velocity_msg = Twist()
 
             if self.dynamic_model_available:
                 rospy.loginfo_throttle(
-                    2.0, "DVL is invalid: Publishing dynamic model velocity"
+                    5.0, "DVL is invalid: Publishing dynamic model velocity"
                 )
                 model_vel = self.compute_model_based_velocity(dt)
                 velocity_msg.linear.x = model_vel[0]
@@ -259,10 +259,10 @@ class ModelOdometryNode:
                 velocity_msg.angular.z = model_vel[5]
             else:
                 rospy.logwarn_throttle(
-                    2.0,
-                    "DVL is invalid and model unavailable: Publishing cmd_vel fallback",
+                    5.0,
+                    "DVL is invalid and model unavailable: Publishing desired velocity fallback",
                 )
-                velocity_msg = self.filtered_cmd_vel
+                velocity_msg = self.filtered_desired_vel
 
             self.odom_msg.header.stamp = current_time
             self.odom_msg.twist.twist = velocity_msg
