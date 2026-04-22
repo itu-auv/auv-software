@@ -6,6 +6,8 @@
   <arg name="use_gui" default="false" />
   <arg name="start_state_publisher" default="false" />
   <arg name="config_file" default="$(find auv_control)/config/$(arg namespace)/default.yaml" />
+  <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_$(arg namespace).yaml" />
+  <arg name="pool_depth" default="2.134" />
 
   <include file="$(find auv_localization)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
@@ -28,6 +30,8 @@
   <include file="$(find auv_mapping)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
     <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="detection_config" value="$(arg detection_config)" />
+    <arg name="pool_depth" value="$(arg pool_depth)" />
     <arg name="sim" value="$(arg sim)" />
   </include>
 
