@@ -7,7 +7,8 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 import angles
-from auv_smach.tf_utils import get_tf_buffer, get_base_link
+from auv_smach.tf_utils import get_tf_buffer, get_base_link, reset_tf_buffer
+from auv_common_lib.transform import lookup_fresh_transform
 import actionlib
 
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
@@ -163,8 +164,7 @@ class SetDepthState(smach.State):
         self._stop_publishing = threading.Event()
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
         self.base_frame = get_base_link()
 
@@ -334,7 +334,16 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
             "align_frame/start",
             AlignFrameController,
             request=align_request,
+            response_cb=self.response_cb,
         )
+
+    @staticmethod
+    def response_cb(userdata, response):
+        if not response.success:
+            rospy.logwarn("SetAlignControllerTargetState failed: %s", response.message)
+            return "aborted"
+
+        return "succeeded"
 
 
 class NavigateToFrameState(smach.State):
@@ -509,12 +518,14 @@ class RotationState(smach.State):
 
     def is_transform_available(self):
         try:
-            return self.tf_buffer.can_transform(
+            lookup_fresh_transform(
+                self.tf_buffer,
                 self.source_frame,
                 self.look_at_frame,
-                rospy.Time(0),
-                rospy.Duration(0.05),
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
             )
+            return True
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
@@ -699,7 +710,17 @@ class ClearObjectMapState(smach_ros.ServiceState):
             "clear_object_transforms",
             Trigger,
             request=TriggerRequest(),
+            response_cb=self.response_cb,
         )
+
+    @staticmethod
+    def response_cb(userdata, response):
+        if not response.success:
+            rospy.logwarn("ClearObjectMapState: clear_object_transforms failed")
+            return "aborted"
+
+        reset_tf_buffer()
+        return "succeeded"
 
 
 class SetDetectionState(smach_ros.ServiceState):
@@ -991,8 +1012,12 @@ class CheckAlignmentState(smach.State):
 
     def get_error(self):
         try:
-            transform = self.tf_buffer.lookup_transform(
-                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(4.0)
+            transform = lookup_fresh_transform(
+                self.tf_buffer,
+                self.source_frame,
+                self.target_frame,
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
             )
             trans = transform.transform.translation
             rot = transform.transform.rotation
@@ -1012,7 +1037,7 @@ class CheckAlignmentState(smach.State):
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
-            rospy.logwarn(f"CheckAlignmentState: TF lookup failed: {e}")
+            rospy.logwarn_throttle(3.0, f"CheckAlignmentState: TF lookup failed: {e}")
             return None, None
 
     def is_aligned_distance_only(self, dist_error):
@@ -1057,6 +1082,8 @@ class CheckAlignmentState(smach.State):
                         return "succeeded"
                 else:
                     first_success_time = None
+            else:
+                first_success_time = None
 
             self.rate.sleep()
 
@@ -1566,18 +1593,19 @@ class CheckForTransformState(smach.State):
         self.source_frame = source_frame
         self.target_frame = target_frame
         self.timeout = timeout
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(check_rate_hz)
 
     def is_transform_available(self):
         try:
-            return self.tf_buffer.can_transform(
+            lookup_fresh_transform(
+                self.tf_buffer,
                 self.source_frame,
                 self.target_frame,
-                rospy.Time(0),
-                rospy.Duration(0.05),
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
             )
+            return True
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
