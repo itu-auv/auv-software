@@ -7,19 +7,43 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(catkin REQUIRED COMPONENTS
   auv_detection
-  rospy
-  image_transport
+  auv_msgs
   cv_bridge
+  gazebo_msgs
+  geometry_msgs
+  image_transport
+  message_filters
+  nav_msgs
+  rospy
   sensor_msgs
+  std_msgs
+  std_srvs
   tf
+  tf2_geometry_msgs
+  tf2_ros
+  ultralytics_ros
+  vision_msgs
 )
 
 catkin_package(
   CATKIN_DEPENDS
     auv_detection
+    auv_msgs
+    cv_bridge
+    gazebo_msgs
+    geometry_msgs
+    image_transport
+    message_filters
+    nav_msgs
     rospy
     sensor_msgs
+    std_msgs
+    std_srvs
     tf
+    tf2_geometry_msgs
+    tf2_ros
+    ultralytics_ros
+    vision_msgs
 )
 
 include_directories(
