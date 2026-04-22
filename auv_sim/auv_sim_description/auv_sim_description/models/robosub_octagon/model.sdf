@@ -81,5 +81,53 @@
       </inertial>
 
     </link>
+
+    <!-- RedCross Basket Photo -->
+    <link name="basket_redcross_link">
+      <visual name="redcross_visual">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>0.25 0.25</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon/materials/scripts</uri>
+            <uri>model://robosub_octagon/materials/textures</uri>
+            <name>OctagonRedCrossMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0 0 0 0</pose>
+      </visual>
+      <pose>-0.02144 -0.431928 0.56 0 0 0</pose>
+    </link>
+
+    <!-- Warning Basket Photo -->
+    <link name="basket_warning_link">
+      <visual name="warning_visual">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>0.25 0.25</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon/materials/scripts</uri>
+            <uri>model://robosub_octagon/materials/textures</uri>
+            <name>OctagonWarningMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0 0 0 0</pose>
+      </visual>
+      <pose>-0.02144 0.431928 0.56 0 0 0</pose>
+    </link>
+
+    <!-- Table Link -->
+    <link name="octagon_table_link">
+      <pose>0 0 0.6245 0 0 0</pose>
+    </link>
+
   </model>
 </sdf>
