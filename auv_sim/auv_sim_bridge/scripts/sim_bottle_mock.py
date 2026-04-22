@@ -13,13 +13,13 @@ import math
 class ModelSpawner:
     def __init__(self):
         rospy.init_node("spawn_model_server")
-        self.keys = ["bottle", "ladle"]
+        self.keys = ["bandaid", "electric", "nutbolt", "pill"]
         self.configs = {}
         for key in self.keys:
             pkg = rospy.get_param(f"~{key}_model_package", "auv_sim_description")
-            subdir = rospy.get_param(f"~{key}_model_subdir", f"models/robosub_{key}")
+            subdir = rospy.get_param(f"~{key}_model_subdir", f"models/{key}")
             fname = rospy.get_param(f"~{key}_model_file", "model.sdf")
-            model_name = rospy.get_param(f"~{key}_model_name", f"{key}_final1")
+            model_name = rospy.get_param(f"~{key}_model_name", f"{key}")
             service_name = rospy.get_param(
                 f"~{key}_service_name", f"actuators/{key}/spawn"
             )
@@ -50,10 +50,10 @@ class ModelSpawner:
 
         self._auto_spawn_models()
 
-    def _get_random_table_pose(self, min_dist=0.2):
+    def _get_random_table_pose(self, min_dist=0.15):
         """Pick a random (x, y) on the table that is at least min_dist from all
         previously spawned positions."""
-        for _ in range(100):
+        for _ in range(1000):
             x = random.uniform(12.8, 13.2)
             y = random.uniform(-4.45, -4.05)
             too_close = False
@@ -63,7 +63,10 @@ class ModelSpawner:
                     break
             if not too_close:
                 return x, y
-        return 13.0, -4.25
+
+        # Fallback to a slightly shifted position based on spawn count if space is completely exhausted
+        fallback_offset = len(self.spawned_positions) * 0.05
+        return 13.0 + (fallback_offset % 0.2), -4.25 + (fallback_offset % 0.2)
 
     def _get_unique_model_name(self, key):
         """Return a unique Gazebo model name for the given key.
@@ -78,12 +81,10 @@ class ModelSpawner:
         return f"{base}_{count}"
 
     def _auto_spawn_models(self):
-        """Automatically spawn the bottle and ladle models with 90 degree rotation on startup."""
-        bottle_x, bottle_y = self._get_random_table_pose()
-        self._spawn_single_model("bottle", bottle_x, bottle_y, -1.0)
-
-        ladle_x, ladle_y = self._get_random_table_pose()
-        self._spawn_single_model("ladle", ladle_x, ladle_y, -1.0)
+        """Automatically spawn the task 5 models facing upwards on startup."""
+        for key in self.keys:
+            x, y = self._get_random_table_pose()
+            self._spawn_single_model(key, x, y, -1.0)
 
     def _spawn_single_model(self, key, x, y, z):
         if key not in self.configs:
@@ -104,9 +105,7 @@ class ModelSpawner:
             pose.position.y = y
             pose.position.z = z
 
-            q = tft.quaternion_from_euler(
-                0, math.pi / 2, random.uniform(0, 2 * math.pi)
-            )
+            q = tft.quaternion_from_euler(0, 0, random.uniform(0, 2 * math.pi))
             pose.orientation.x = q[0]
             pose.orientation.y = q[1]
             pose.orientation.z = q[2]
@@ -137,10 +136,10 @@ class ModelSpawner:
             rospy.logerr(err)
             return False, err
 
-    def handle_spawn(self, req, key="bottle") -> TriggerResponse:
+    def handle_spawn(self, req, key="bandaid") -> TriggerResponse:
         """Handle a Trigger request and spawn the model identified by `key`.
 
-        key: one of the keys listed in self.keys (default 'bottle').
+        key: one of the keys listed in self.keys (default 'bandaid').
         """
         if key not in self.configs:
             msg = f"Unknown model key: {key}"
