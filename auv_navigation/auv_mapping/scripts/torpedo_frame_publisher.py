@@ -18,6 +18,13 @@ from auv_mapping.cfg import TorpedoTrajectoryConfig
 
 
 class TorpedoTransformServiceNode:
+    HOLE_NAMES = (
+        "left_mid",
+        "bottom_right",
+        "bottom_mid",
+        "top_mid",
+    )
+
     def __init__(self):
         rospy.init_node("create_torpedo_frames_node")
 
@@ -43,25 +50,14 @@ class TorpedoTransformServiceNode:
         self.torpedo_realsense_frame = rospy.get_param(
             "~torpedo_realsense_frame", "torpedo_map_link_realsense"
         )
-        self.torpedo_hole_shark_frame = rospy.get_param(
-            "~torpedo_hole_shark_frame", "torpedo_hole_shark_link"
-        )
-        self.torpedo_hole_sawfish_frame = rospy.get_param(
-            "~torpedo_hole_sawfish_frame", "torpedo_hole_sawfish_link"
-        )
-        self.torpedo_shark_fire_frame = rospy.get_param(
-            "~torpedo_shark_fire_frame", "torpedo_shark_fire_frame"
-        )
-        self.torpedo_sawfish_fire_frame = rospy.get_param(
-            "~torpedo_sawfish_fire_frame", "torpedo_sawfish_fire_frame"
-        )
+        self.hole_fire_configs = [
+            self._load_hole_fire_config(hole_name) for hole_name in self.HOLE_NAMES
+        ]
 
         # Initialize default values for dynamic reconfigure parameters
         self.initial_offset = 2.5
         self.realsense_offset = 1.4
         self.fire_offset = -0.4
-        self.shark_fire_y_offset = 0.0
-        self.sawfish_fire_y_offset = 0.0
 
         # Dynamic reconfigure server
         self.reconfigure_server = Server(
@@ -112,6 +108,18 @@ class TorpedoTransformServiceNode:
             rospy.logerr(
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
+
+    def _load_hole_fire_config(self, hole_name: str) -> dict:
+        return {
+            "hole_frame": rospy.get_param(
+                f"~torpedo_hole_{hole_name}_frame",
+                f"torpedo_hole_{hole_name}_link",
+            ),
+            "fire_frame": rospy.get_param(
+                f"~torpedo_{hole_name}_fire_frame",
+                f"torpedo_{hole_name}_fire_frame",
+            ),
+        }
 
     def apply_offsets(self, pose: Pose, offsets: list, yaw_offset: float = 0.0) -> Pose:
         """
@@ -257,97 +265,59 @@ class TorpedoTransformServiceNode:
             pass
 
     def create_torpedo_hole_target_frame(self):
-        # Shark fire frame
         try:
-            torpedo_hole_shark_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame,
-                self.torpedo_hole_shark_frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
-            )
             realsense_target_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.realsense_target_frame,
                 rospy.Time.now(),
                 rospy.Duration(4.0),
             )
-            torpedo_hole_shark_pose = self.get_pose(torpedo_hole_shark_tf)
             realsense_target_pose = self.get_pose(realsense_target_tf)
-
-            q = [
-                realsense_target_pose.orientation.x,
-                realsense_target_pose.orientation.y,
-                realsense_target_pose.orientation.z,
-                realsense_target_pose.orientation.w,
-            ]
-            (_, _, yaw) = tf.transformations.euler_from_quaternion(q)
-            q_yaw = tf.transformations.quaternion_from_euler(0, 0, yaw)
-
-            torpedo_hole_shark_pose.orientation.x = q_yaw[0]
-            torpedo_hole_shark_pose.orientation.y = q_yaw[1]
-            torpedo_hole_shark_pose.orientation.z = q_yaw[2]
-            torpedo_hole_shark_pose.orientation.w = q_yaw[3]
-
-            shark_fire_pose = self.apply_offsets(
-                torpedo_hole_shark_pose,
-                [self.fire_offset, self.shark_fire_y_offset, 0.0],
-            )
-            shark_fire_transform = self.build_transform_message(
-                self.torpedo_shark_fire_frame, shark_fire_pose
-            )
-            self.send_transform(shark_fire_transform)
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ):
-            pass
-        # Sawfish fire frame
-        try:
-            torpedo_hole_sawfish_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame,
-                self.torpedo_hole_sawfish_frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
-            )
-            realsense_target_tf = self.tf_buffer.lookup_transform(
-                self.odom_frame,
-                self.realsense_target_frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
-            )
-            torpedo_hole_sawfish_pose = self.get_pose(torpedo_hole_sawfish_tf)
-            realsense_target_pose = self.get_pose(realsense_target_tf)
+            return
 
-            # Use the yaw from realsense target (already rotated 90 degrees)
-            q = [
-                realsense_target_pose.orientation.x,
-                realsense_target_pose.orientation.y,
-                realsense_target_pose.orientation.z,
-                realsense_target_pose.orientation.w,
-            ]
-            (_, _, yaw) = tf.transformations.euler_from_quaternion(q)
-            q_yaw = tf.transformations.quaternion_from_euler(0, 0, yaw)
+        q = [
+            realsense_target_pose.orientation.x,
+            realsense_target_pose.orientation.y,
+            realsense_target_pose.orientation.z,
+            realsense_target_pose.orientation.w,
+        ]
+        (_, _, yaw) = tf.transformations.euler_from_quaternion(q)
+        q_yaw = tf.transformations.quaternion_from_euler(0, 0, yaw)
 
-            torpedo_hole_sawfish_pose.orientation.x = q_yaw[0]
-            torpedo_hole_sawfish_pose.orientation.y = q_yaw[1]
-            torpedo_hole_sawfish_pose.orientation.z = q_yaw[2]
-            torpedo_hole_sawfish_pose.orientation.w = q_yaw[3]
+        for config in self.hole_fire_configs:
+            try:
+                torpedo_hole_tf = self.tf_buffer.lookup_transform(
+                    self.odom_frame,
+                    config["hole_frame"],
+                    rospy.Time.now(),
+                    rospy.Duration(4.0),
+                )
+                torpedo_hole_pose = self.get_pose(torpedo_hole_tf)
 
-            sawfish_fire_pose = self.apply_offsets(
-                torpedo_hole_sawfish_pose,
-                [self.fire_offset, self.sawfish_fire_y_offset, 0.0],
-            )
-            sawfish_fire_transform = self.build_transform_message(
-                self.torpedo_sawfish_fire_frame, sawfish_fire_pose
-            )
-            self.send_transform(sawfish_fire_transform)
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ):
-            pass
+                torpedo_hole_pose.orientation.x = q_yaw[0]
+                torpedo_hole_pose.orientation.y = q_yaw[1]
+                torpedo_hole_pose.orientation.z = q_yaw[2]
+                torpedo_hole_pose.orientation.w = q_yaw[3]
+
+                fire_pose = self.apply_offsets(
+                    torpedo_hole_pose,
+                    [self.fire_offset, 0.0, 0.0],
+                )
+                fire_transform = self.build_transform_message(
+                    config["fire_frame"], fire_pose
+                )
+                self.send_transform(fire_transform)
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ):
+                continue
 
     def handle_enable_target_service(self, req):
         self.enable_target = req.data
@@ -374,8 +344,6 @@ class TorpedoTransformServiceNode:
         self.initial_offset = config.initial_offset
         self.realsense_offset = config.realsense_offset
         self.fire_offset = config.fire_offset
-        self.shark_fire_y_offset = config.shark_fire_y_offset
-        self.sawfish_fire_y_offset = config.sawfish_fire_y_offset
         rospy.loginfo("Torpedo trajectory parameters updated via dynamic reconfigure")
         return config
 
