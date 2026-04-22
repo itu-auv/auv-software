@@ -61,7 +61,6 @@ class TorpedoCameraHandler:
         self._process_torpedo_holes(detection_msg, stamp)
 
     def _process_torpedo_holes(self, detection_msg: YoloResult, stamp):
-        """Publish 4 torpedo-hole frames using layout bootstrap, then continue by tracking."""
         detected_holes = self._get_detected_holes(detection_msg)
 
         if len(detected_holes) == self.bootstrap_holes_required:
@@ -106,7 +105,6 @@ class TorpedoCameraHandler:
         return detected_holes
 
     def _assign_labels_from_layout(self, detected_holes):
-        """Bootstrap hole labels from the visible 4-hole layout in image coordinates."""
         selected_holes = sorted(
             detected_holes,
             key=lambda detection: detection.bbox.size_x * detection.bbox.size_y,
@@ -132,7 +130,6 @@ class TorpedoCameraHandler:
         }
 
     def _assign_labels_from_tracking(self, detected_holes):
-        """Track the last labeled hole positions when fewer than 4 holes remain visible."""
         if not detected_holes:
             return {}
 
@@ -191,7 +188,6 @@ class TorpedoCameraHandler:
         }
 
     def _publish_hole_transform(self, detection, child_frame_id, stamp):
-        """Estimate distance and publish transform for a single torpedo hole."""
         prop = self.torpedo_hole_props.get(child_frame_id)
         if not prop:
             rospy.logerr(f"Prop for '{child_frame_id}' not found.")

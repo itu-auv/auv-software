@@ -36,15 +36,10 @@ cameras:
     handler: "torpedo_camera_handler"
     image_width: 640
     image_height: 480
-    # Bootstrap labels when all 4 holes are visible, then keep updating by tracking.
     bootstrap_holes_required: 4
-    # Minimum allowed center-distance in pixels for tracking a previously labeled hole.
     hole_tracking_min_distance_px: 60.0
-    # Additional adaptive distance gate scaled by bbox diagonal.
     hole_tracking_distance_scale: 0.9
-    # If center-distance is large, IoU above this value still allows a match.
     hole_tracking_min_iou: 0.05
-    # Higher values make bbox overlap matter more than center-distance.
     hole_tracking_iou_weight: 0.35
     id_tf_map:
       5: torpedo_hole_link
