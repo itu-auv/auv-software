@@ -8,9 +8,12 @@
   <xacro:sonar_sim name="${namespace}/base_link/sonar_back" topic="sensors/sonar_back"/>
   <xacro:sonar_sim name="${namespace}/base_link/sonar_right" topic="sensors/sonar_right"/>
   <xacro:sonar_sim name="${namespace}/base_link/sonar_left" topic="sensors/sonar_left"/>
-  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/front_camera" topic_name="cameras/cam_front"/>
-  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/bottom_camera" topic_name="cameras/cam_bottom"/>
-  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/torpedo_camera" topic_name="cameras/cam_torpedo"/>
+
+  <xacro:property name="camera_calibrations" value="${xacro.load_yaml('$(find auv_bringup)/config/cameras_taluy.yaml')}"/>
+
+  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/front_camera" topic_name="cameras/cam_front" calibration_params="${camera_calibrations['cam_front']}"/>
+  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/bottom_camera" topic_name="cameras/cam_bottom" calibration_params="${camera_calibrations['cam_bottom']}"/>
+  <xacro:logitech_c920_camera_sim name="${namespace}/base_link/torpedo_camera" topic_name="cameras/cam_torpedo" calibration_params="${camera_calibrations['cam_torpedo']}"/>
   <xacro:bar30_sim name="${namespace}/base_link/external_pressure_sensor" update_rate="$(arg pressure_update_rate)" namespace="${namespace}"/>
   <xacro:xsens_mti_g710_sim name="${namespace}/base_link/imu" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg imu_update_rate)"/>
   <xacro:wayfinder_dvl_sim name="${namespace}/base_link/dvl" namespace="${namespace}" static_reference_frame="${inertial_reference_frame}" update_rate="$(arg dvl_update_rate)"/>
