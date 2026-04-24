@@ -20,104 +20,8 @@ from auv_smach.common import (
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from std_msgs.msg import UInt16, String
-from geometry_msgs.msg import TransformStamped
+from std_msgs.msg import UInt16
 import tf2_ros
-
-
-class TargetUpdateState(smach.State):
-    def __init__(self):
-        smach.State.__init__(
-            self,
-            outcomes=["succeeded", "preempted", "aborted"],
-            output_keys=["target_object", "target_basket", "target_image"],
-        )
-        self.object_list = []
-        self.msg_received = False
-        self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
-
-    def callback(self, msg):
-        if msg.data:
-            self.object_list = [x.strip() for x in msg.data.split(",") if x.strip()]
-            self.msg_received = True
-
-    def execute(self, userdata) -> str:
-        rospy.loginfo(
-            "[TargetUpdateState] Entering state, subscribing to get the object list..."
-        )
-        self.msg_received = False
-        self.object_list = []
-
-        sub = rospy.Subscriber("task/object_list", String, self.callback)
-        rate = rospy.Rate(10)
-
-        while not rospy.is_shutdown() and not self.msg_received:
-            if self.preempt_requested():
-                sub.unregister()
-                return "preempted"
-            rate.sleep()
-
-        sub.unregister()
-
-        if not self.object_list:
-            return "aborted"
-
-        target_object = self.object_list[0]
-        userdata.target_object = target_object
-
-        if target_object in ["nutbolt_link", "electric_link"]:
-            target_basket = "basket_warning_segment_link"
-        else:
-            target_basket = "basket_redcross_segment_link"
-        userdata.target_basket = target_basket
-
-        list_length = len(self.object_list)
-        if list_length >= 3:
-            if target_basket == "warning_link":
-                target_image = "survey_link"
-            else:
-                target_image = "search_link"
-        elif list_length >= 1:
-            if target_basket == "warning_link":
-                target_image = "repair_link"
-            else:
-                target_image = "rescue_link"
-        else:
-            target_image = "rescue_link"
-
-        userdata.target_image = target_image
-
-        rospy.loginfo(
-            f"[TargetUpdateState] Targets Updated! Object: {target_object}, Basket: {target_basket}, Image: {target_image}"
-        )
-
-        t1 = TransformStamped()
-        t1.header.stamp = rospy.Time.now()
-        t1.header.frame_id = target_object
-        t1.child_frame_id = "target_object"
-        t1.transform.translation.x = 0.0
-        t1.transform.translation.y = 0.0
-        t1.transform.translation.z = 0.0
-        t1.transform.rotation.x = 0.0
-        t1.transform.rotation.y = 0.0
-        t1.transform.rotation.z = 0.0
-        t1.transform.rotation.w = 1.0
-
-        t2 = TransformStamped()
-        t2.header.stamp = rospy.Time.now()
-        t2.header.frame_id = target_basket
-        t2.child_frame_id = "target_basket"
-        t2.transform.translation.x = 0.0
-        t2.transform.translation.y = 0.0
-        t2.transform.translation.z = 0.0
-        t2.transform.rotation.x = 0.0
-        t2.transform.rotation.y = 0.0
-        t2.transform.rotation.z = 0.0
-        t2.transform.rotation.w = 1.0
-
-        self.static_broadcaster.sendTransform([t1, t2])
-
-        return "succeeded"
 
 
 class GripperAngleOpenState(smach.State):
@@ -273,11 +177,10 @@ class OctagonFramePublisherServiceState(smach_ros.ServiceState):
 
 
 class PickAndDropSequence(smach.StateMachine):
-    def __init__(self):
+    def __init__(self, target_object: str, target_basket: str):
         smach.StateMachine.__init__(
             self,
             outcomes=["succeeded", "preempted", "aborted"],
-            input_keys=["target_object", "target_basket"],
         )
         base_link = get_base_link()
 
@@ -297,7 +200,7 @@ class PickAndDropSequence(smach.StateMachine):
                 "ALIGN_TARGET_OBJECT",
                 AlignFrame(
                     source_frame="taluy/gripper_link",
-                    target_frame="target_object",
+                    target_frame=target_object,
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
                     closest_yaw=True,
@@ -393,7 +296,7 @@ class PickAndDropSequence(smach.StateMachine):
                 "ALIGN_TARGET_BASKET",
                 AlignFrame(
                     source_frame="taluy/gripper_link",
-                    target_frame="target_basket",
+                    target_frame=target_basket,
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -471,6 +374,12 @@ class OctagonTaskState(smach.State):
         self.griper_mode = True
         self.base_link = get_base_link()
         self.animal_frame = f"gate_{animal}_link"
+        pick_and_drop_targets = [
+            ("electric_link", "basket_warning_segment_link"),
+            ("nutbolt_link", "basket_warning_segment_link"),
+            ("bandaid_link", "basket_redcross_segment_link"),
+            ("pill_link", "basket_redcross_segment_link"),
+        ]
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -661,15 +570,6 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "UPDATE_TARGETS",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "UPDATE_TARGETS",
-                TargetUpdateState(),
-                transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_1",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -677,16 +577,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "PICK_AND_DROP_SEQUENCE_1",
-                PickAndDropSequence(),
-                transitions={
-                    "succeeded": "UPDATE_TARGETS_2",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "UPDATE_TARGETS_2",
-                TargetUpdateState(),
+                PickAndDropSequence(*pick_and_drop_targets[0]),
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_2",
                     "preempted": "preempted",
@@ -695,16 +586,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "PICK_AND_DROP_SEQUENCE_2",
-                PickAndDropSequence(),
-                transitions={
-                    "succeeded": "UPDATE_TARGETS_3",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "UPDATE_TARGETS_3",
-                TargetUpdateState(),
+                PickAndDropSequence(*pick_and_drop_targets[1]),
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_3",
                     "preempted": "preempted",
@@ -713,16 +595,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "PICK_AND_DROP_SEQUENCE_3",
-                PickAndDropSequence(),
-                transitions={
-                    "succeeded": "UPDATE_TARGETS_4",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "UPDATE_TARGETS_4",
-                TargetUpdateState(),
+                PickAndDropSequence(*pick_and_drop_targets[2]),
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_4",
                     "preempted": "preempted",
@@ -731,7 +604,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "PICK_AND_DROP_SEQUENCE_4",
-                PickAndDropSequence(),
+                PickAndDropSequence(*pick_and_drop_targets[3]),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
