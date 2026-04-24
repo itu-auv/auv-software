@@ -188,7 +188,7 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "DEPTH_BEFORE_ALIGNING_OBJECT",
                 SetDepthState(
-                    depth=-0.5,
+                    depth=-0.6,
                 ),
                 transitions={
                     "succeeded": "ALIGN_TARGET_OBJECT",
@@ -220,7 +220,7 @@ class PickAndDropSequence(smach.StateMachine):
                 "DEPTH_TO_COLLECT_OBJECT",
                 SetDepthState(
                     depth=-1.12,
-                    max_velocity=0.1,
+                    max_velocity=0.07,
                     depth_threshold=0.03,
                     confirm_duration=1.0,
                     timeout=15.0,
@@ -375,10 +375,11 @@ class OctagonTaskState(smach.State):
         self.base_link = get_base_link()
         self.animal_frame = f"gate_{animal}_link"
         pick_and_drop_targets = [
-            ("electric_link", "basket_warning_segment_link"),
-            ("nutbolt_link", "basket_warning_segment_link"),
             ("bandaid_link", "basket_redcross_segment_link"),
             ("pill_link", "basket_redcross_segment_link"),
+            ("electric_link", "basket_warning_segment_link"),
+            ("nutbolt_link", "basket_warning_segment_link"),
+
         ]
         # Initialize the state machine
         self.state_machine = smach.StateMachine(
@@ -490,6 +491,15 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
+                    "succeeded": "anana",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "anana",
+                OctagonFramePublisherServiceState(req=False),
+                transitions={
                     "succeeded": "SET_batuhan_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -569,6 +579,15 @@ class OctagonTaskState(smach.State):
                     max_angular_velocity=0.1,
                     cancel_on_success=False,
                 ),
+                transitions={
+                    "succeeded": "baba",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "baba",
+                OctagonFramePublisherServiceState(req=True),
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_1",
                     "preempted": "preempted",

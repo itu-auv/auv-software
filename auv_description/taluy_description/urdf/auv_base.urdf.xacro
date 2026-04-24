@@ -65,7 +65,7 @@
     />
 
     <!-- Parallel Gripper -->
-    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.124 0.0 -0.398" mount_rpy="0 0 0" mass_scale="0.001"/>
+    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.093552 0.0 -0.40624" mount_rpy="0 0 0" mass_scale="0.001"/>
 
     <!-- <link name="base_footprint">
       <inertial>
