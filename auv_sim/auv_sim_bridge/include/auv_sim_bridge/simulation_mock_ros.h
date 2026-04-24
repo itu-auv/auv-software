@@ -127,11 +127,11 @@ class SimulationMockROS {
       // rotateVelocity(velocity_raw_msg, 135.0);
 
       is_valid_msg.data = true;
+      velocity_raw_pub_.publish(velocity_raw_msg);
     }
     altitude_msg.data = msg.altitude;
 
     altitude_pub_.publish(altitude_msg);
-    velocity_raw_pub_.publish(velocity_raw_msg);
     is_valid_pub_.publish(is_valid_msg);
   }
 
