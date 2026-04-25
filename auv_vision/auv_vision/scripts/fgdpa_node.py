@@ -49,9 +49,9 @@ class FSTS(nn.Module):
         return weighted_block1 * weighted_block2 + self.bias
 
 
-class FGDRAUIENetS(nn.Module):
+class FGDPAUIENetS(nn.Module):
     def __init__(self, channels, fft_size=32):
-        super(FGDRAUIENetS, self).__init__()
+        super(FGDPAUIENetS, self).__init__()
         self.channels = channels
         self.fft_size = fft_size
 
@@ -66,9 +66,9 @@ class FGDRAUIENetS(nn.Module):
 
         self.body = FSTS(nn.Conv2d(channels, channels, 3, 1, 1), channels)
 
-        # fgdra convs (slim target)
-        self.fgdra_fca = nn.Conv2d(2 * channels, channels, 1, 1)
-        self.fgdra_fgsa = nn.Conv2d(2, channels, 1, 1)
+        # fgdpa convs (slim target)
+        self.fgdpa_fca = nn.Conv2d(2 * channels, channels, 1, 1)
+        self.fgdpa_fgsa = nn.Conv2d(2, channels, 1, 1)
 
         # gate params (loaded from slim)
         self.alpha = nn.Parameter(torch.ones(1))
@@ -77,7 +77,7 @@ class FGDRAUIENetS(nn.Module):
 
         self.tail = nn.Conv2d(channels, 3, 3, 1, 1)
 
-    def _fgdra_attention(self, F: torch.Tensor) -> torch.Tensor:
+    def _fgdpa_attention(self, F: torch.Tensor) -> torch.Tensor:
         B, C, H, W = F.shape
 
         F_ds = downsample_to_target_avgpool(F, target=self.fft_size)
@@ -90,18 +90,18 @@ class FGDRAUIENetS(nn.Module):
         max_map, _ = torch.max(F, dim=1, keepdim=True)
         avg_map = torch.mean(F, dim=1, keepdim=True)
 
-        fgdra_spatial_in = torch.cat([max_map, avg_map], dim=1)
+        fgdpa_spatial_in = torch.cat([max_map, avg_map], dim=1)
 
-        A_s = torch.sigmoid(self.fgdra_fgsa(fgdra_spatial_in))
+        A_s = torch.sigmoid(self.fgdpa_fgsa(fgdpa_spatial_in))
 
         gap_F = torch.mean(F, dim=(2, 3), keepdim=True)
 
         gap_M = torch.mean(M, dim=(2, 3), keepdim=True)
         gap_M = gap_M / (gap_M.mean(dim=1, keepdim=True) + 1e-6)
 
-        fgdra_channel_in = torch.cat([gap_F, gap_M], dim=1)
+        fgdpa_channel_in = torch.cat([gap_F, gap_M], dim=1)
 
-        A_c = torch.sigmoid(self.fgdra_fca(fgdra_channel_in))
+        A_c = torch.sigmoid(self.fgdpa_fca(fgdpa_channel_in))
 
         Ag, Al = A_c, A_s
         lam = torch.clamp(self.lam, 0.0, 1.0)
@@ -116,28 +116,28 @@ class FGDRAUIENetS(nn.Module):
         x0 = self.head(x)
         F = self.body(x0)
 
-        A = self._fgdra_attention(F)
+        A = self._fgdpa_attention(F)
         F_hat = A * F
 
         return self.tail(F_hat)
 
 
-class FGDRANode:
+class FGDPANode:
     def __init__(self):
-        rospy.init_node("fgdra_enhancement_node", anonymous=False)
+        rospy.init_node("fgdpa_enhancement_node", anonymous=False)
 
         # Parameters
         self.model_path = rospy.get_param("~model_path", None)
         self.channels = rospy.get_param("~channels", 12)
         self.input_topic = rospy.get_param("~input_topic", "/camera/image_raw")
-        self.output_topic = rospy.get_param("~output_topic", "/fgdra/enhanced_image")
+        self.output_topic = rospy.get_param("~output_topic", "/fgdpa/enhanced_image")
         self.device_str = rospy.get_param(
             "~device", "cuda" if torch.cuda.is_available() else "cpu"
         )
 
         # Device setup
         self.device = torch.device(self.device_str)
-        rospy.loginfo(f"[FGDRA] Using device: {self.device}")
+        rospy.loginfo(f"[FGDPA] Using device: {self.device}")
 
         # Model setup
         self.model = None
@@ -146,10 +146,10 @@ class FGDRANode:
         self.output_compressed_topic = self.output_topic + "/compressed"
 
         if self.model_path and self._load_model():
-            rospy.loginfo(f"[FGDRA] Model loaded from: {self.model_path}")
+            rospy.loginfo(f"[FGDPA] Model loaded from: {self.model_path}")
         else:
-            rospy.logwarn("[FGDRA] No valid model path provided or loading failed")
-            rospy.logwarn("[FGDRA] Set _model_path parameter in launch file")
+            rospy.logwarn("[FGDPA] No valid model path provided or loading failed")
+            rospy.logwarn("[FGDPA] Set _model_path parameter in launch file")
 
         self.sub_image = rospy.Subscriber(
             self.input_topic, Image, self.image_callback, queue_size=1
@@ -161,28 +161,28 @@ class FGDRANode:
             self.output_compressed_topic, CompressedImage, queue_size=1
         )
 
-        rospy.loginfo(f"[FGDRA] Node initialized")
-        rospy.loginfo(f"[FGDRA] Subscribing to: {self.input_topic}")
-        rospy.loginfo(f"[FGDRA] Publishing to: {self.output_topic}")
+        rospy.loginfo(f"[FGDPA] Node initialized")
+        rospy.loginfo(f"[FGDPA] Subscribing to: {self.input_topic}")
+        rospy.loginfo(f"[FGDPA] Publishing to: {self.output_topic}")
 
     def _load_model(self):
         if not self.model_path:
             return False
 
         try:
-            self.model = FGDRAUIENetS(channels=self.channels).to(self.device)
+            self.model = FGDPAUIENetS(channels=self.channels).to(self.device)
             checkpoint = torch.load(self.model_path, map_location=self.device)
             self.model.load_state_dict(checkpoint)
             self.model.eval()
             self.is_loaded = True
             return True
         except Exception as e:
-            rospy.logerr(f"[FGDRA] Failed to load model: {e}")
+            rospy.logerr(f"[FGDPA] Failed to load model: {e}")
             return False
 
     def image_callback(self, msg):
         if not self.is_loaded or self.model is None:
-            rospy.logwarn_throttle(5, "[FGDRA] Model not loaded, skipping frame")
+            rospy.logwarn_throttle(5, "[FGDPA] Model not loaded, skipping frame")
             return
 
         try:
@@ -216,14 +216,14 @@ class FGDRANode:
             ).tobytes()
             self.pub_compressed.publish(compressed_msg)
 
-            rospy.logdebug("[FGDRA] Frame processed")
+            rospy.logdebug("[FGDPA] Frame processed")
 
         except CvBridgeError as e:
-            rospy.logerr(f"[FGDRA] CV Bridge error: {e}")
+            rospy.logerr(f"[FGDPA] CV Bridge error: {e}")
         except Exception as e:
-            rospy.logerr(f"[FGDRA] Processing error: {e}")
+            rospy.logerr(f"[FGDPA] Processing error: {e}")
 
 
 if __name__ == "__main__":
-    node = FGDRANode()
+    node = FGDPANode()
     rospy.spin()

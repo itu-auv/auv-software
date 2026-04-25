@@ -2,15 +2,15 @@
     <arg name="namespace" default="taluy" />
     <arg name="rate" default="20.0" />
 
-    <arg name="model_path" default="$(find auv_detection)/models/fgdra-best.pkl" />
+    <arg name="model_path" default="$(find auv_detection)/models/fgdpa-best.pkl" />
 
     <arg name="camera" default="cam_front" />
     <arg name="camera_namespace" default="cameras/$(arg camera)" />
     <arg name="input_topic" default="$(arg camera_namespace)/image_rect_color" />
-    <arg name="output_topic" default="$(arg camera_namespace)/fgdra/enhanced_image" />
+    <arg name="output_topic" default="$(arg camera_namespace)/fgdpa/enhanced_image" />
 
     <group ns="$(arg namespace)">
-        <node pkg="auv_vision" type="fgdra_node.py" name="fgdra_$(arg camera)_node" output="screen">
+        <node pkg="auv_vision" type="fgdpa_node.py" name="fgdpa_$(arg camera)_node" output="screen">
             <param name="input_topic" value="$(arg input_topic)" />
             <param name="output_topic" value="$(arg output_topic)" />
             <param name="model_path" value="$(arg model_path)" />
