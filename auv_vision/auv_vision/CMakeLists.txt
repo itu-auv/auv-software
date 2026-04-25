@@ -21,7 +21,6 @@ find_package(catkin REQUIRED COMPONENTS
   tf
   tf2_geometry_msgs
   tf2_ros
-  ultralytics_ros
   vision_msgs
 )
 
@@ -42,7 +41,6 @@ catkin_package(
     tf
     tf2_geometry_msgs
     tf2_ros
-    ultralytics_ros
     vision_msgs
 )
 
