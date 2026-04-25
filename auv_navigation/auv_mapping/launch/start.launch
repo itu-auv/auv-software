@@ -34,6 +34,7 @@
       <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
       <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
       <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus"/>
+      <remap from="octagon/object_list" to="octagon/object_list"/>
     </node>
 
     <node pkg="auv_mapping" type="object_map_tf_server_node" name="object_map_tf_server_node">
