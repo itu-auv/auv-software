@@ -137,7 +137,7 @@ class MainStateMachineNode:
             return
 
         rospy.loginfo(
-            "Received reconfigure request: selected_animal=%s, slalom_direction=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            "Received reconfigure request: selected_animal=%s, slalom_mode=%s, slalom_direction=%s, gate_exit_angle=%.3f, slalom_exit_angle=%.3f, bin_exit_angle=%.3f, torpedo_exit_angle=%.3f",
             config.selected_animal,
             config.slalom_mode,
             config.slalom_direction,
