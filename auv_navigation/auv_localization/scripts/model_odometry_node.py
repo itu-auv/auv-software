@@ -78,7 +78,6 @@ class ModelOdometryNode:
         self.last_model_update = rospy.Time.now()
         self.odom_received = False
 
-        self.last_dvl_valid_time = rospy.Time.now()
         self.is_dvl_valid = False
 
         self.model_timer = rospy.Timer(
@@ -130,10 +129,8 @@ class ModelOdometryNode:
 
     def dvl_valid_cb(self, msg):
         self.is_dvl_valid = msg.data
-        if self.is_dvl_valid:
-            self.last_dvl_valid_time = rospy.Time.now()
-            if self.odom_received:
-                self.estimated_velocity = self.odom_velocity.copy()
+        if self.is_dvl_valid and self.odom_received:
+            self.estimated_velocity = self.odom_velocity.copy()
 
     def desired_velocity_callback(self, msg):
         self.desired_vel_twist = msg
@@ -159,31 +156,31 @@ class ModelOdometryNode:
     def filter_desired_velocity(self):
         current_time = rospy.Time.now()
         dt = (current_time - self.last_desired_vel_update_time).to_sec()
-        self.alpha = dt / (self.cmdvel_tau + dt)
+        alpha = dt / (self.cmdvel_tau + dt)
 
         self.filtered_desired_vel.linear.x = (
-            self.filtered_desired_vel.linear.x * (1.0 - self.alpha)
-            + self.alpha * self.desired_vel_twist.linear.x
+            self.filtered_desired_vel.linear.x * (1.0 - alpha)
+            + alpha * self.desired_vel_twist.linear.x
         )
         self.filtered_desired_vel.linear.y = (
-            self.filtered_desired_vel.linear.y * (1.0 - self.alpha)
-            + self.alpha * self.desired_vel_twist.linear.y
+            self.filtered_desired_vel.linear.y * (1.0 - alpha)
+            + alpha * self.desired_vel_twist.linear.y
         )
         self.filtered_desired_vel.linear.z = (
-            self.filtered_desired_vel.linear.z * (1.0 - self.alpha)
-            + self.alpha * self.desired_vel_twist.linear.z
+            self.filtered_desired_vel.linear.z * (1.0 - alpha)
+            + alpha * self.desired_vel_twist.linear.z
         )
         self.filtered_desired_vel.angular.x = (
-            self.filtered_desired_vel.angular.x * (1.0 - self.alpha)
-            + self.alpha * self.desired_vel_twist.angular.x
+            self.filtered_desired_vel.angular.x * (1.0 - alpha)
+            + alpha * self.desired_vel_twist.angular.x
         )
         self.filtered_desired_vel.angular.y = (
-            self.filtered_desired_vel.angular.y * (1.0 - self.alpha)
-            + self.alpha * self.desired_vel_twist.angular.y
+            self.filtered_desired_vel.angular.y * (1.0 - alpha)
+            + alpha * self.desired_vel_twist.angular.y
         )
         self.filtered_desired_vel.angular.z = (
-            self.filtered_desired_vel.angular.z * (1.0 - self.alpha)
-            + self.alpha * self.desired_vel_twist.angular.z
+            self.filtered_desired_vel.angular.z * (1.0 - alpha)
+            + alpha * self.desired_vel_twist.angular.z
         )
 
         self.last_desired_vel_update_time = current_time
@@ -214,9 +211,12 @@ class ModelOdometryNode:
         return C
 
     def compute_model_based_velocity(self, dt):
-        v = self.estimated_velocity.copy()
+        if self.odom_received:
+            v = self.odom_velocity.copy()
+        else:
+            v = self.estimated_velocity.copy()
 
-        if (rospy.Time.now() - self.last_wrench_time).to_sec() > 0.5:
+        if (rospy.Time.now() - self.last_wrench_time).to_sec() > self.dvl_timeout:
             self.current_wrench = np.zeros(6)
 
         damping_linear = np.dot(self.D_linear, v)
@@ -275,7 +275,7 @@ class ModelOdometryNode:
 
 if __name__ == "__main__":
     try:
-        node = ModelOdometryNode()
+        ModelOdometryNode()
         rospy.spin()
     except rospy.ROSInterruptException:
         pass
