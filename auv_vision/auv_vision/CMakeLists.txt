@@ -38,6 +38,8 @@ catkin_install_python(
     scripts/pipe_follower_legacy.py
     scripts/sim_bbox_node.py
     scripts/sim_keypoint_node.py
+    scripts/depth_anything_trt_node.py
+    scripts/depth_anything_zmq_client.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
