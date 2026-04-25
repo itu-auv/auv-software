@@ -52,7 +52,7 @@ if(NOT OpenCV_FOUND)
 endif()
 
 generate_dynamic_reconfigure_options(
-  cfg/SlalomTrajectory.cfg
+  cfg/SlalomHeatmap.cfg
   cfg/GateTrajectory.cfg
   cfg/TorpedoTrajectory.cfg
   cfg/GpsTargetFrame.cfg
@@ -85,7 +85,7 @@ catkin_install_python(PROGRAMS
   scripts/gate_trajectory_publisher.py
   scripts/bin_trajectory_publisher.py
   scripts/torpedo_frame_publisher.py
-  scripts/slalom_trajectory_publisher.py
+  scripts/slalom_heatmap_mapper.py
   scripts/octagon_trajectory_publisher.py
   scripts/gps_target_frame_publisher.py
   scripts/acoustic_transmitter.py
