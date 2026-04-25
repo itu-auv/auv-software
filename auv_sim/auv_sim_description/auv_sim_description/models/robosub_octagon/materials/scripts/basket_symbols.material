@@ -1,0 +1,39 @@
+material OctagonRedCrossMaterial
+{
+  receive_shadows off
+  technique
+  {
+    pass
+    {
+      lighting off
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+
+      texture_unit
+      {
+        texture Task5_RedCross.png
+        filtering trilinear
+      }
+    }
+  }
+}
+
+material OctagonWarningMaterial
+{
+  receive_shadows off
+  technique
+  {
+    pass
+    {
+      lighting off
+      ambient 1.0 1.0 1.0 1.0
+      diffuse 1.0 1.0 1.0 1.0
+
+      texture_unit
+      {
+        texture Task5_Warning.png
+        filtering trilinear
+      }
+    }
+  }
+}
