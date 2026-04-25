@@ -375,10 +375,11 @@ class OctagonTaskState(smach.State):
         self.base_link = get_base_link()
         self.animal_frame = f"gate_{animal}_link"
         pick_and_drop_targets = [
-            ("bandaid_link", "basket_redcross_segment_link"),
             ("pill_link", "basket_redcross_segment_link"),
-            ("electric_link", "basket_warning_segment_link"),
             ("nutbolt_link", "basket_warning_segment_link"),
+            ("electric_link", "basket_warning_segment_link"),
+            ("bandaid_link", "basket_redcross_segment_link"),
+
 
         ]
         # Initialize the state machine
@@ -546,7 +547,7 @@ class OctagonTaskState(smach.State):
                 DynamicPathWithTransformCheck(
                     plan_target_frame="octagon_further_link",
                     transform_source_frame="odom",
-                    transform_target_frame="octagon_table_link",
+                    transform_target_frame="bandaid_link",
                     max_linear_velocity=0.2,
                 ),
                 transitions={
@@ -568,7 +569,7 @@ class OctagonTaskState(smach.State):
                 "ALIGN_TO_TABLE",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame="octagon_table_link",
+                    target_frame="bandaid_link",
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,

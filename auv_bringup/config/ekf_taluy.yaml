@@ -28,11 +28,11 @@ base_link_frame: $(arg namespace)/base_link
 world_frame: odom
 
 odom0: /$(arg namespace)/localization/odom_imu
-odom0_config: [false, false, false, true, true, true, false, false, false, true, true, true, false, false, false]
+odom0_config: [false, false, false, true, true, false, false, false, false, true, true, true, false, false, false]
 odom0_queue_size: 10
 odom0_nodelay: false
 odom0_differential: false
-odom0_relative: true
+odom0_relative: false
 
 odom1: /$(arg namespace)/localization/odom_pressure
 odom1_config: [false, false, true, false, false, false, false, false, false, false, false, false, false, false, false]

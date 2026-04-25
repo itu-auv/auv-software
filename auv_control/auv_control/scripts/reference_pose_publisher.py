@@ -122,7 +122,7 @@ class ReferencePosePublisherNode:
         self.max_z_offset = rospy.get_param("~max_z_offset", 0.1)
         self.max_z = rospy.get_param("~max_z", 0.0)
         self.min_z = rospy.get_param("~min_z", -2.0)
-        self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 18.0)
+        self.max_yaw_offset = rospy.get_param("~max_yaw_offset", np.pi / 4.0)
         self.tf_lookup_timeout = rospy.Duration(
             rospy.get_param("~tf_lookup_timeout", 0.2)
         )
