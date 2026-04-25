@@ -1,0 +1,20 @@
+# Example per-path overrides for test_follow_waypoints.launch.
+# Usage:
+#   roslaunch auv_smach test_follow_waypoints.launch \
+#       test_states:=init,path1,path2 \
+#       paths_yaml:=$(rospack find auv_smach)/config/test_paths_example.yaml
+#
+# Any path token in test_states that has no entry here (or omits waypoints /
+# waypoint_frames) falls back to TF auto-discovery. That requires the GUI to
+# be publishing that path's frames live (i.e. A and B visible in TF).
+
+paths:
+  path1:
+    waypoints: 3
+    final_align: true
+    max_linear_velocity: 0.25
+
+  path2:
+    waypoint_frames: [path2_wp1, path2_wp2]
+    final_align: false
+    keep_orientation: true

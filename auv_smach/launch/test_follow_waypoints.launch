@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="namespace" default="taluy" />
+
+    <!--
+      Comma-separated test states (same convention as start.launch).
+      Supported tokens:
+        init         -> InitializeState
+        path<N>      -> DynamicPathExecutionState for that path
+      Example:
+        test_states:=init,path1,path2
+    -->
+    <arg name="test_states" default="path1" />
+
+    <!--
+      Optional YAML with per-path overrides. Must define ~paths as a mapping:
+
+        paths:
+          path1:
+            waypoints: 3              # or: waypoint_frames: [path1_wp1, ...]
+            final_align: true
+            max_linear_velocity: 0.25
+          path2:
+            waypoints: 2
+
+      When a path token has no entry (or no waypoints/waypoint_frames), the
+      runner auto-discovers waypoints from TF — requires the GUI to be
+      publishing them live.
+    -->
+    <arg name="paths_yaml" default="" />
+
+    <arg name="world_frame" default="odom" />
+    <arg name="final_align" default="true" />
+    <arg name="wait_timeout" default="120.0" />
+    <arg name="auto_max_waypoints" default="20" />
+    <arg name="max_linear_velocity" default="0.3" />
+    <arg name="max_angular_velocity" default="0.45" />
+
+    <param name="/smach/max_linear_velocity" value="$(arg max_linear_velocity)" />
+    <param name="/smach/max_angular_velocity" value="$(arg max_angular_velocity)" />
+
+    <group ns="$(arg namespace)">
+        <node name="test_follow_waypoints" pkg="auv_smach" type="test_follow_waypoints.py" output="screen" required="true">
+            <param name="base_link" value="$(arg namespace)/base_link" />
+            <param name="test_states" value="$(arg test_states)" />
+            <param name="world_frame" value="$(arg world_frame)" />
+            <param name="final_align" value="$(arg final_align)" />
+            <param name="wait_timeout" value="$(arg wait_timeout)" />
+            <param name="auto_max_waypoints" value="$(arg auto_max_waypoints)" />
+            <param name="max_linear_velocity" value="$(arg max_linear_velocity)" />
+            <param name="max_angular_velocity" value="$(arg max_angular_velocity)" />
+
+            <rosparam command="load" file="$(arg paths_yaml)" if="$(eval paths_yaml != '')" />
+
+            <!-- same remaps the main SM uses so AlignFrame / InitializeState work -->
+            <remap from="align_frame/start" to="control/align_frame/start" />
+            <remap from="align_frame/cancel" to="control/align_frame/cancel" />
+            <remap from="set_depth" to="set_depth" />
+            <remap from="set_pose" to="set_pose" />
+            <remap from="reset_odometry" to="reset_odometry" />
+            <remap from="dvl/enable" to="sensors/dvl/enable" />
+            <remap from="localization_enable" to="auv_localization_node/enable" />
+            <remap from="enable" to="enable" />
+            <remap from="propulsion_board/status" to="propulsion_board/status" />
+            <remap from="odometry" to="odometry" />
+            <remap from="cmd_vel" to="cmd_vel" />
+        </node>
+    </group>
+</launch>

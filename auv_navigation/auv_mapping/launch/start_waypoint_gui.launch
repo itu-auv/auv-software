@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="namespace" default="taluy" />
+    <arg name="world_frame" default="odom" />
+    <arg name="waypoint_prefix" default="path" />
+    <arg name="default_waypoint_z" default="-1.0" />
+    <arg name="broadcast_rate_hz" default="20.0" />
+
+    <!--
+      Canvas bounds in the per-path local frame (A = 0,0; +x forward in ref coords).
+      Canvas horizontal = -y_ref, canvas vertical = +x_ref, so these bounds read as:
+        x_min/x_max -> horizontal span of the canvas in metres (left/right of A)
+        y_min/y_max -> vertical span of the canvas in metres (behind/ahead of A)
+    -->
+    <arg name="canvas_x_min" default="-8.0" />
+    <arg name="canvas_x_max" default="8.0" />
+    <arg name="canvas_y_min" default="-2.0" />
+    <arg name="canvas_y_max" default="18.0" />
+    <arg name="b_arrow_length" default="14.0" />
+
+    <group ns="$(arg namespace)">
+        <node name="waypoint_gui" pkg="auv_mapping" type="waypoint_gui.py" output="screen">
+            <param name="world_frame" value="$(arg world_frame)" />
+            <param name="waypoint_prefix" value="$(arg waypoint_prefix)" />
+            <param name="default_waypoint_z" value="$(arg default_waypoint_z)" />
+            <param name="broadcast_rate_hz" value="$(arg broadcast_rate_hz)" />
+
+            <param name="canvas_x_min" value="$(arg canvas_x_min)" />
+            <param name="canvas_x_max" value="$(arg canvas_x_max)" />
+            <param name="canvas_y_min" value="$(arg canvas_y_min)" />
+            <param name="canvas_y_max" value="$(arg canvas_y_max)" />
+            <param name="b_arrow_length" value="$(arg b_arrow_length)" />
+
+            <rosparam param="known_object_frames">
+                - "gate_shark_link"
+                - "gate_sawfish_link"
+                - "gate_whole_link"
+                - "bin_whole_link"
+                - "torpedo_map_link"
+                - "octagon_link"
+            </rosparam>
+
+            <rosparam param="reference_frame_options">
+                - "odom"
+                - "coin_flip"
+                - "gate_whole_link"
+                - "bin_whole_link"
+                - "torpedo_map_link"
+                - "octagon_link"
+                - "gate_shark_link"
+                - "gate_sawfish_link"
+            </rosparam>
+        </node>
+    </group>
+</launch>
