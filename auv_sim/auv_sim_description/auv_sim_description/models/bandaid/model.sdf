@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="bandaid">
+    <pose>0 0 0 0 0 0</pose>
+    <static>false</static>
+    <allow_auto_disable>false</allow_auto_disable>
+    <self_collide>false</self_collide>
+
+  <link name="bandaid_link">
+      <pose>0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0.0118 0 0 0</pose>
+        <mass>0.5</mass>
+        <inertia>
+          <ixx>0.05</ixx>
+          <iyy>0.05</iyy>
+          <izz>0.05</izz>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyz>0</iyz>
+        </inertia>
+      </inertial>
+
+      <velocity_decay>
+        <linear>0.05</linear>
+        <angular>0.8</angular>
+      </velocity_decay>
+  <collision name="bandaid_col">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://bandaid/meshes/bandaid.dae</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <contact>
+            <ode>
+              <kp>3000000</kp>
+              <kd>300</kd>
+              <max_vel>0.3</max_vel>
+              <min_depth>0.03</min_depth>
+            </ode>
+          </contact>
+          <friction>
+            <ode>
+              <mu>50.0</mu>
+              <mu2>50.0</mu2>
+              <slip1>0.0</slip1>
+              <slip2>0.0</slip2>
+            </ode>
+          </friction>
+          <bounce>
+            <restitution_coefficient>0.2</restitution_coefficient>
+          </bounce>
+        </surface>
+        <laser_retro>0.0</laser_retro>
+        <max_contacts>200</max_contacts>
+      </collision>
+
+      <!-- Primary visual (untextured DAE mesh) -->
+  <visual name="bandaid_vis_base">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://bandaid/meshes/bandaid.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+
+      <!-- Decal visuals to display the texture on the caps -->
+  <visual name="bandaid_vis_decal_top">
+        <pose>0 0 0.0305 0 0 0</pose>
+        <geometry>
+          <box><size>0.087 0.087 0.001</size></box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://bandaid/materials/scripts</uri>
+            <uri>model://bandaid/materials/textures</uri>
+            <name>Task5BandAidMaterial</name>
+          </script>
+        </material>
+      </visual>
+
+  <visual name="bandaid_vis_decal_bot">
+        <pose>0 0 -0.0025 0 3.14159 0</pose>
+        <geometry>
+          <box><size>0.087 0.087 0.001</size></box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://bandaid/materials/scripts</uri>
+            <uri>model://bandaid/materials/textures</uri>
+            <name>Task5BandAidMaterial</name>
+          </script>
+        </material>
+      </visual>
+
+    </link>
+  </model>
+</sdf>
