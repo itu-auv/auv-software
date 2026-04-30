@@ -34,13 +34,34 @@ cameras:
     frame: "taluy/base_link/torpedo_camera_optical_link"
     yolo_topic: "/yolo_result_torpedo"
     handler: "torpedo_camera_handler"
-    image_width: 640
-    image_height: 480
+    image_width: 800
+    image_height: 448
     bootstrap_holes_required: 4
     hole_tracking_min_distance_px: 60.0
     hole_tracking_distance_scale: 0.9
     hole_tracking_min_iou: 0.05
     hole_tracking_iou_weight: 0.35
+    forbidden_side_masks:
+      - - [0, 0]
+        - [185, 0]
+        - [145, 45]
+        - [118, 95]
+        - [102, 155]
+        - [96, 225]
+        - [106, 290]
+        - [130, 360]
+        - [175, 447]
+        - [0, 447]
+      - - [799, 0]
+        - [615, 0]
+        - [655, 45]
+        - [682, 95]
+        - [698, 155]
+        - [704, 225]
+        - [694, 290]
+        - [670, 360]
+        - [625, 447]
+        - [799, 447]
     id_tf_map:
       5: torpedo_hole_link
   bottom_seg:

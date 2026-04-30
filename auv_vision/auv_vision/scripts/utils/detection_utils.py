@@ -164,6 +164,110 @@ def check_inside_image(
     return True
 
 
+TORPEDO_MASK_REFERENCE_WIDTH = 800.0
+TORPEDO_MASK_REFERENCE_HEIGHT = 448.0
+TORPEDO_FORBIDDEN_SIDE_MASKS = (
+    (
+        (0.0, 0.0),
+        (185.0, 0.0),
+        (145.0, 45.0),
+        (118.0, 95.0),
+        (102.0, 155.0),
+        (96.0, 225.0),
+        (106.0, 290.0),
+        (130.0, 360.0),
+        (175.0, 447.0),
+        (0.0, 447.0),
+    ),
+    (
+        (799.0, 0.0),
+        (615.0, 0.0),
+        (655.0, 45.0),
+        (682.0, 95.0),
+        (698.0, 155.0),
+        (704.0, 225.0),
+        (694.0, 290.0),
+        (670.0, 360.0),
+        (625.0, 447.0),
+        (799.0, 447.0),
+    ),
+)
+
+
+def _scale_polygon(points, image_width: int, image_height: int):
+    scale_x = image_width / TORPEDO_MASK_REFERENCE_WIDTH
+    scale_y = image_height / TORPEDO_MASK_REFERENCE_HEIGHT
+    return tuple((x * scale_x, y * scale_y) for x, y in points)
+
+
+def _point_in_polygon(point, polygon) -> bool:
+    """Return True when point is inside polygon, including polygon boundary."""
+    point_x, point_y = point
+    inside = False
+
+    for index, current in enumerate(polygon):
+        next_point = polygon[(index + 1) % len(polygon)]
+        x1, y1 = current
+        x2, y2 = next_point
+
+        cross_product = (point_y - y1) * (x2 - x1) - (point_x - x1) * (y2 - y1)
+        if (
+            abs(cross_product) < 1e-9
+            and min(x1, x2) <= point_x <= max(x1, x2)
+            and min(y1, y2) <= point_y <= max(y1, y2)
+        ):
+            return True
+
+        if (y1 > point_y) != (y2 > point_y):
+            intersection_x = (x2 - x1) * (point_y - y1) / (y2 - y1) + x1
+            if point_x <= intersection_x:
+                inside = not inside
+
+    return inside
+
+
+def check_inside_image_torpedo(
+    detection,
+    image_width: int = 640,
+    image_height: int = 480,
+    forbidden_side_masks=None,
+) -> bool:
+    """Check if a torpedo detection bbox is inside the usable image area."""
+    center = detection.bbox.center
+    half_size_x = detection.bbox.size_x * 0.5
+    half_size_y = detection.bbox.size_y * 0.5
+    deadzone = 5  # pixels
+    if (
+        center.x + half_size_x >= image_width - deadzone
+        or center.x - half_size_x <= deadzone
+    ):
+        return False
+    if (
+        center.y + half_size_y >= image_height - deadzone
+        or center.y - half_size_y <= deadzone
+    ):
+        return False
+
+    bbox_corners = (
+        (center.x - half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y + half_size_y),
+        (center.x - half_size_x, center.y + half_size_y),
+    )
+
+    if forbidden_side_masks is None:
+        forbidden_side_masks = (
+            _scale_polygon(mask, image_width, image_height)
+            for mask in TORPEDO_FORBIDDEN_SIDE_MASKS
+        )
+
+    for forbidden_mask in forbidden_side_masks:
+        if any(_point_in_polygon(corner, forbidden_mask) for corner in bbox_corners):
+            return False
+
+    return True
+
+
 def calculate_angles_and_offsets(calibration, bbox_center, distance):
     """Calculate viewing angles and XY offsets from calibration, bbox center, and distance.
 
