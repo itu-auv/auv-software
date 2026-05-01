@@ -1,0 +1,3 @@
+# Valve trajectory publisher default parameters
+approach_offset: 2.00 # Approach frame distance (m) along surface normal — yaw alignment here
+contact_offset: 0.625 # Contact frame distance (m) along surface normal — final contact pose
