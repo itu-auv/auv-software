@@ -3,7 +3,7 @@ import rospy
 import cv2
 import numpy as np
 import math
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage, Image
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge
 from std_srvs.srv import Trigger, TriggerResponse
@@ -17,7 +17,7 @@ class PipeFollowerLegacy:
 
         self.bridge = CvBridge()
         self.pub_cmd = rospy.Publisher("cmd_vel", Twist, queue_size=1)
-        self.pub_debug = rospy.Publisher("debug_image", Image, queue_size=1)
+        self.pub_debug = None
 
         self.sub_mask = rospy.Subscriber("seg_mask", Image, self.cb_mask, queue_size=1)
         self.start_service = rospy.Service("~enable", Trigger, self.cb_start)
@@ -25,11 +25,18 @@ class PipeFollowerLegacy:
 
     def cb_start(self, req):
         self.is_enabled = True
+        if self.pub_debug is None:
+            self.pub_debug = rospy.Publisher(
+                "debug_image/compressed", CompressedImage, queue_size=1
+            )
         return TriggerResponse(success=True, message="Pipe follower legacy enabled")
 
     def cb_stop(self, req):
         self.is_enabled = False
         self.pub_cmd.publish(Twist())
+        if self.pub_debug is not None:
+            self.pub_debug.unregister()
+            self.pub_debug = None
         return TriggerResponse(success=True, message="Pipe follower legacy disabled")
 
     def cb_mask(self, msg):
@@ -102,12 +109,16 @@ class PipeFollowerLegacy:
 
         self.pub_cmd.publish(tw)
 
-        try:
-            self.pub_debug.publish(
-                self.bridge.cv2_to_imgmsg(debug_vis, encoding="bgr8")
+        if self.pub_debug is not None:
+            ok, encoded = cv2.imencode(
+                ".jpg", debug_vis, [cv2.IMWRITE_JPEG_QUALITY, 80]
             )
-        except Exception:
-            pass
+            if ok:
+                debug_msg = CompressedImage()
+                debug_msg.header = msg.header
+                debug_msg.format = "jpeg"
+                debug_msg.data = np.array(encoded).tobytes()
+                self.pub_debug.publish(debug_msg)
 
 
 def main():

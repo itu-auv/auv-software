@@ -47,7 +47,7 @@
     <node pkg="auv_vision" type="pipe_follower_legacy.py" name="pipe_follower_legacy" output="screen">
       <remap from="seg_mask" to="$(arg pipe_legacy_mask_topic)" />
       <remap from="cmd_vel" to="$(arg pipe_legacy_cmd_vel_topic)" />
-      <remap from="debug_image" to="pipe_follower_legacy/debug_image" />
+      <remap from="debug_image/compressed" to="pipe_follower_legacy/debug_image/compressed" />
     </node>
   </group>
 </launch>

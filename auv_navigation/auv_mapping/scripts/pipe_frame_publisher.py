@@ -11,7 +11,7 @@ import rospy
 import tf2_ros
 from tf.transformations import quaternion_from_euler
 from geometry_msgs.msg import Pose, TransformStamped
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage, Image
 from std_srvs.srv import Trigger, TriggerResponse
 from auv_msgs.srv import (
     SetObjectTransform,
@@ -62,7 +62,7 @@ class PipeFramePublisher:
         self.sub_mask = rospy.Subscriber(
             "/seg_mask", Image, self.cb_mask, queue_size=1, buff_size=2**24
         )
-        self.pub_debug = rospy.Publisher("/pipe_result_debug", Image, queue_size=1)
+        self.pub_debug = None
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -88,10 +88,17 @@ class PipeFramePublisher:
 
     def cb_start(self, req):
         self.is_enabled = True
+        if self.pub_debug is None:
+            self.pub_debug = rospy.Publisher(
+                "/pipe_result_debug/compressed", CompressedImage, queue_size=1
+            )
         return TriggerResponse(success=True, message="Pipe frame publisher enabled")
 
     def cb_stop(self, req):
         self.is_enabled = False
+        if self.pub_debug is not None:
+            self.pub_debug.unregister()
+            self.pub_debug = None
         return TriggerResponse(success=True, message="Pipe frame publisher disabled")
 
     def cb_mask(self, msg):
@@ -326,6 +333,9 @@ class PipeFramePublisher:
     def _publish_debug_img(
         self, msg, debug_img, segments, target_segment_index, target_point, width=None
     ):
+        if self.pub_debug is None:
+            return
+
         if self.image_center:
             cv2.circle(debug_img, tuple(self.image_center), 4, (0, 255, 0), -1)
 
@@ -353,8 +363,14 @@ class PipeFramePublisher:
                 if target_point is not None and np.all(pt == target_point.astype(int)):
                     color = (0, 255, 0)
                 cv2.circle(debug_img, tuple(pt), 4, color, -1)
-        img_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding="bgr8")
+        ok, encoded = cv2.imencode(".jpg", debug_img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if not ok:
+            return
+
+        img_msg = CompressedImage()
         img_msg.header = msg.header
+        img_msg.format = "jpeg"
+        img_msg.data = np.array(encoded).tobytes()
         self.pub_debug.publish(img_msg)
 
     def _remove_close_points_global(self, lines):

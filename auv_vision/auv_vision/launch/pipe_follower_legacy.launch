@@ -9,6 +9,7 @@
             <!-- Connections -->
             <remap from="seg_mask" to="$(arg mask_topic)" />
             <remap from="cmd_vel" to="$(arg cmd_vel_topic)" />
+            <remap from="debug_image/compressed" to="pipe_follower_legacy/debug_image/compressed" />
 
             <!-- Parameters (using hardcoded defaults in code if not provided here) -->
             <param name="k_p" value="1.5" />
