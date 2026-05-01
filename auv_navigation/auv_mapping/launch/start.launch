@@ -9,6 +9,7 @@
   <arg name="torpedo_frame" default="torpedo_map_link" />
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
+  <arg name="pipe_camera_forward_direction" default="right" />
 
   <group if="$(arg enable_realsense_nodes)">
     <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch">
@@ -101,6 +102,14 @@
       <param name="robot_frame" value="$(arg namespace)/base_link" />
       <remap from="set_transform_octagon_frame" to="set_transform_octagon_frame" />
       <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
+    <node pkg="auv_mapping" type="pipe_frame_publisher.py" name="pipe_frame_publisher" output="screen">
+      <rosparam command="load" file="$(find auv_mapping)/config/pipe_frame_publisher_params.yaml" />
+      <param name="camera_forward_direction" value="$(arg pipe_camera_forward_direction)" />
+      <remap from="seg_mask" to="seg_mask"/>
+      <remap from="set_object_transform" to="map/set_object_transform"/>
+      <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
     <node pkg="auv_mapping" type="pipeline_trajectory_publisher.py" name="pipeline_trajectory_publisher">

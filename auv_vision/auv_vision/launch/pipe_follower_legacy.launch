@@ -1,0 +1,31 @@
+<launch>
+    <!-- Simple launch file for the simplified pipe follower -->
+    <arg name="namespace" default="taluy" />
+    <arg name="mask_topic" default="bottle_mask" />
+    <arg name="cmd_vel_topic" default="cmd_vel" />
+    <arg name="camera_forward_direction" default="right" />
+    <arg name="linear_x" default="0.2" />
+    <arg name="target_width" default="320" />
+    <arg name="close_kernel_size" default="25" />
+    <arg name="open_kernel_size" default="5" />
+    <arg name="min_contour_area" default="250" />
+
+    <group ns="$(arg namespace)">
+        <node pkg="auv_vision" type="pipe_follower_legacy.py" name="pipe_follower_legacy" output="screen">
+            <!-- Connections -->
+            <remap from="seg_mask" to="$(arg mask_topic)" />
+            <remap from="cmd_vel" to="$(arg cmd_vel_topic)" />
+            <remap from="debug_image/compressed" to="pipe_follower_legacy/debug_image/compressed" />
+
+            <!-- Parameters (using hardcoded defaults in code if not provided here) -->
+            <param name="k_p" value="1.5" />
+            <param name="max_angular_z" value="0.8" />
+            <param name="camera_forward_direction" value="$(arg camera_forward_direction)" />
+            <param name="linear_x" value="$(arg linear_x)" />
+            <param name="target_width" value="$(arg target_width)" />
+            <param name="close_kernel_size" value="$(arg close_kernel_size)" />
+            <param name="open_kernel_size" value="$(arg open_kernel_size)" />
+            <param name="min_contour_area" value="$(arg min_contour_area)" />
+        </node>
+    </group>
+</launch>
