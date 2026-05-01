@@ -3,6 +3,9 @@
   <arg name="pipe_camera_forward_direction" default="right" />
   <arg name="pipe_legacy_linear_x" default="0.2" />
   <arg name="pipe_legacy_target_width" default="320" />
+  <arg name="pipe_legacy_close_kernel_size" default="25" />
+  <arg name="pipe_legacy_open_kernel_size" default="5" />
+  <arg name="pipe_legacy_min_contour_area" default="250" />
 
   <include file="$(find auv_detection)/launch/inc/tracker_segment.launch">
     <arg name="namespace" value="$(arg namespace)" />
@@ -22,6 +25,9 @@
       <param name="camera_forward_direction" value="$(arg pipe_camera_forward_direction)" />
       <param name="linear_x" value="$(arg pipe_legacy_linear_x)" />
       <param name="target_width" value="$(arg pipe_legacy_target_width)" />
+      <param name="close_kernel_size" value="$(arg pipe_legacy_close_kernel_size)" />
+      <param name="open_kernel_size" value="$(arg pipe_legacy_open_kernel_size)" />
+      <param name="min_contour_area" value="$(arg pipe_legacy_min_contour_area)" />
     </node>
   </group>
 </launch>

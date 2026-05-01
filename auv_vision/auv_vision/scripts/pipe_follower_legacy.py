@@ -15,6 +15,9 @@ class PipeFollowerLegacy:
         self.max_angular_z = rospy.get_param("~max_angular_z", 0.8)
         self.linear_x = rospy.get_param("~linear_x", 0.2)
         self.target_width = rospy.get_param("~target_width", 320)
+        self.close_kernel_size = rospy.get_param("~close_kernel_size", 25)
+        self.open_kernel_size = rospy.get_param("~open_kernel_size", 5)
+        self.min_contour_area = rospy.get_param("~min_contour_area", 250)
         self.camera_forward_direction = rospy.get_param(
             "~camera_forward_direction", "right"
         ).lower()
@@ -64,6 +67,21 @@ class PipeFollowerLegacy:
         mask = cv2.resize(
             mask, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
         )
+        _, mask = cv2.threshold(mask, 1, 255, cv2.THRESH_BINARY)
+
+        if self.close_kernel_size > 1:
+            close_kernel = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE,
+                (self.close_kernel_size, self.close_kernel_size),
+            )
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, close_kernel)
+
+        if self.open_kernel_size > 1:
+            open_kernel = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE,
+                (self.open_kernel_size, self.open_kernel_size),
+            )
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, open_kernel)
 
         _ret = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         if len(_ret) == 3:
@@ -71,7 +89,11 @@ class PipeFollowerLegacy:
         else:
             contours, _hier = _ret
 
-        contours = list(contours) if contours is not None else []
+        contours = [
+            contour
+            for contour in (list(contours) if contours is not None else [])
+            if cv2.contourArea(contour) >= self.min_contour_area
+        ]
         if len(contours) == 0:
             return
         contours = sorted(contours, key=cv2.contourArea, reverse=True)
