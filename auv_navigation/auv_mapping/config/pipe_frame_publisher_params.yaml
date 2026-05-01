@@ -4,3 +4,4 @@ merge_segment_eps: 200
 ang_error_eps: 20
 ang_error_close_point_eps: 40
 pipe_width: 0.2
+camera_forward_direction: right

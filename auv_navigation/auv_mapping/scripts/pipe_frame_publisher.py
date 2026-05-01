@@ -36,6 +36,15 @@ class PipeFramePublisher:
         self.approx_poly_epsilon_factor = 0.05
 
         self.center_offset_threshold = 50
+        self.camera_forward_direction = rospy.get_param(
+            "~camera_forward_direction", "right"
+        ).lower()
+        if self.camera_forward_direction not in ("right", "left", "up", "down"):
+            rospy.logwarn(
+                "[PipeFramePublisher] Invalid camera_forward_direction '%s', using 'right'",
+                self.camera_forward_direction,
+            )
+            self.camera_forward_direction = "right"
 
         self.close_point_filter_eps = rospy.get_param("~close_point_filter_eps", 20)
         self.short_segment_filter_eps = rospy.get_param(
@@ -208,20 +217,24 @@ class PipeFramePublisher:
         target_point_index = None
         if len(segments) > 0:
             seg = segments[target_segment_index]
-            # make first segment from left to right (according to image)
-            # kinda risky but it was my only idea to decide for what direction we should move
-            if seg[0][0] > seg[-1][0]:
+            forward_axis = (
+                0 if self.camera_forward_direction in ("right", "left") else 1
+            )
+            forward_sign = (
+                1 if self.camera_forward_direction in ("right", "down") else -1
+            )
+
+            if (seg[-1][forward_axis] - seg[0][forward_axis]) * forward_sign < 0:
                 seg = seg[::-1]
                 segments[target_segment_index] = seg
 
             possible_targets = self._find_turns(seg)
 
-            # filter targets close to image center x
-            # TODO: direct distance check could be better?
             possible_targets = list(
                 filter(
-                    lambda x: x[1][0]
-                    >= self.image_center[0] + self.center_offset_threshold,
+                    lambda x: (x[1][forward_axis] - self.image_center[forward_axis])
+                    * forward_sign
+                    >= self.center_offset_threshold,
                     possible_targets,
                 )
             )
@@ -253,7 +266,13 @@ class PipeFramePublisher:
                 segments[target_segment_index][target_point_index - 1],
                 segments[target_segment_index][target_point_index],
             )
-            ang_err = self._normalize_angle(ang - math.pi)
+            forward_reference_angle = {
+                "right": math.pi,
+                "left": 0.0,
+                "up": math.pi / 2,
+                "down": -math.pi / 2,
+            }[self.camera_forward_direction]
+            ang_err = self._normalize_angle(ang - forward_reference_angle)
 
             self._relocate_carrot(rx, ry, rz - 1.50, rot_offset=ang_err)
 
@@ -335,6 +354,33 @@ class PipeFramePublisher:
     ):
         if self.pub_debug is None:
             return
+
+        h, w = debug_img.shape[:2]
+        arrow_margin = 18
+        arrow_len = 54
+        arrow_x = max(arrow_margin, w - 45)
+        arrow_y = 32
+        if self.camera_forward_direction == "right":
+            arrow_start = (max(arrow_margin, w - arrow_len - arrow_margin), arrow_y)
+            arrow_end = (w - arrow_margin, arrow_y)
+        elif self.camera_forward_direction == "left":
+            arrow_start = (w - arrow_margin, arrow_y)
+            arrow_end = (max(arrow_margin, w - arrow_len - arrow_margin), arrow_y)
+        elif self.camera_forward_direction == "up":
+            arrow_start = (arrow_x, min(h - arrow_margin, arrow_y + arrow_len // 2))
+            arrow_end = (arrow_x, arrow_margin)
+        else:
+            arrow_start = (arrow_x, arrow_margin)
+            arrow_end = (arrow_x, min(h - arrow_margin, arrow_y + arrow_len // 2))
+        cv2.arrowedLine(
+            debug_img,
+            arrow_start,
+            arrow_end,
+            (0, 255, 255),
+            2,
+            cv2.LINE_AA,
+            tipLength=0.35,
+        )
 
         if self.image_center:
             cv2.circle(debug_img, tuple(self.image_center), 4, (0, 255, 0), -1)

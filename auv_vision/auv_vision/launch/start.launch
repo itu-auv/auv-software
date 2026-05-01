@@ -2,6 +2,8 @@
   <arg name="namespace" default="taluy" />
   <arg name="pipe_legacy_mask_topic" default="/seg_mask" />
   <arg name="pipe_legacy_cmd_vel_topic" default="cmd_vel" />
+  <arg name="pipe_camera_forward_direction" default="right" />
+  <arg name="pipe_legacy_linear_x" default="0.2" />
 
   <group ns="$(arg namespace)">
     <!-- YOLO Segmentation to Mask Node -->
@@ -48,6 +50,8 @@
       <remap from="seg_mask" to="$(arg pipe_legacy_mask_topic)" />
       <remap from="cmd_vel" to="$(arg pipe_legacy_cmd_vel_topic)" />
       <remap from="debug_image/compressed" to="pipe_follower_legacy/debug_image/compressed" />
+      <param name="camera_forward_direction" value="$(arg pipe_camera_forward_direction)" />
+      <param name="linear_x" value="$(arg pipe_legacy_linear_x)" />
     </node>
   </group>
 </launch>
