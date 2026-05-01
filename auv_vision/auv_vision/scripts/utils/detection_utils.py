@@ -2,6 +2,7 @@
 
 import math
 import yaml
+import numpy as np
 import rospy
 from geometry_msgs.msg import (
     PointStamped,
@@ -185,10 +186,20 @@ def transform_to_odom_and_publish(
     detection_stamp,
     tf_buffer,
     publisher,
+    rotation_quat=None,
 ):
     """Transform a detection from camera frame to odom and publish as TransformStamped.
 
     Uses detection_stamp for the header timestamp.
+
+    Args:
+        rotation_quat: Optional (x, y, z, w) in camera_frame.  When None
+            (default, legacy YOLO-bbox path) the published rotation is the
+            camera-frame identity quaternion — appropriate for a 2D bbox
+            detection that carries no orientation.  When supplied (PnP /
+            ArUco / any 6-DOF source), the orientation is transformed
+            through TF along with the position so the published rotation
+            is the actual pose in odom.
     """
     transform_stamped_msg = TransformStamped()
     transform_stamped_msg.header.stamp = detection_stamp
@@ -196,7 +207,15 @@ def transform_to_odom_and_publish(
     transform_stamped_msg.child_frame_id = child_frame_id
 
     transform_stamped_msg.transform.translation = Vector3(offset_x, offset_y, distance)
-    transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+    if rotation_quat is None:
+        transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+    else:
+        transform_stamped_msg.transform.rotation = Quaternion(
+            float(rotation_quat[0]),
+            float(rotation_quat[1]),
+            float(rotation_quat[2]),
+            float(rotation_quat[3]),
+        )
 
     try:
         pose_stamped = PoseStamped()
@@ -216,9 +235,16 @@ def transform_to_odom_and_publish(
         final_transform_stamped.transform.translation = (
             transformed_pose_stamped.pose.position
         )
-        final_transform_stamped.transform.rotation = (
-            transform_stamped_msg.transform.rotation
-        )
+        if rotation_quat is None:
+            # Legacy bbox behaviour: keep the camera-frame identity quat.
+            final_transform_stamped.transform.rotation = (
+                transform_stamped_msg.transform.rotation
+            )
+        else:
+            # Real 6-DOF pose: use the rotation as transformed into odom.
+            final_transform_stamped.transform.rotation = (
+                transformed_pose_stamped.pose.orientation
+            )
 
         publisher.publish(final_transform_stamped)
     except (
@@ -244,3 +270,60 @@ def calculate_intersection_with_plane(point1_odom, point2_odom, z_plane):
     else:
         rospy.logwarn("The line segment is parallel to the ground plane.")
         return None
+
+
+# ---------------------------------------------------------------------------
+# Shape factories — shared by sim_bbox_node, sim_keypoint_node, keypoint_pose_node
+# ---------------------------------------------------------------------------
+
+
+def rect(half_extents):
+    axes = [row for row in np.diag(half_extents) if np.any(row)]
+    if len(axes) != 2:
+        raise ValueError("Exactly two non-zero half-extents required")
+    return [sx * axes[0] + sy * axes[1] for sx in [1, -1] for sy in [1, -1]]
+
+
+def circle(radii, n=16):
+    axes = [row for row in np.diag(radii) if np.any(row)]
+    if len(axes) != 2:
+        raise ValueError("Exactly two non-zero radii required")
+    return [
+        axes[0] * np.cos(t) + axes[1] * np.sin(t)
+        for t in np.linspace(0, 2 * np.pi, n, endpoint=False)
+    ]
+
+
+def box(half_x, half_y, half_z):
+    return [
+        np.array([sx * half_x, sy * half_y, sz * half_z])
+        for sx in [1, -1]
+        for sy in [1, -1]
+        for sz in [1, -1]
+    ]
+
+
+def cylinder(half_extents, n=8):
+    e = np.array(half_extents)
+    for i in range(3):
+        j, k = [x for x in range(3) if x != i]
+        if e[j] == e[k]:
+            a0, a1, h = np.zeros(3), np.zeros(3), np.zeros(3)
+            a0[j], a1[k], h[i] = e[j], e[k], e[i]
+            return [
+                a0 * np.cos(t) + a1 * np.sin(t) + s * h
+                for s in [1, -1]
+                for t in np.linspace(0, 2 * np.pi, n, endpoint=False)
+            ]
+    raise ValueError("Exactly two equal half-extents (radii) required")
+
+
+SHAPE_FACTORIES = {
+    "rect": lambda args: rect(tuple(args)),
+    "circle": lambda args: circle(tuple(args)),
+    "box": lambda args: box(*args),
+    "cylinder": lambda args: cylinder(tuple(args)),
+    # Explicit list of 3D points — for objects whose keypoints don't fit a
+    # parametric shape (e.g. valve: 8 bolts in a ring + face center).
+    "points": lambda args: [np.array(p, dtype=np.float64) for p in args],
+}

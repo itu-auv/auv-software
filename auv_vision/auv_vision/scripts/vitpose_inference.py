@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Self-contained ViTPose-B inference for the valve dataset.
 Dependencies: torch, numpy, cv2  — nothing else.
@@ -28,18 +30,21 @@ import torch.utils.checkpoint as checkpoint
 # ViT Backbone
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _ntuple(n):
     def parse(x):
         if isinstance(x, collections.abc.Iterable) and not isinstance(x, str):
             return x
         return tuple(repeat(x, n))
+
     return parse
+
 
 to_2tuple = _ntuple(2)
 
 
-def drop_path(x, drop_prob=0., training=False):
-    if drop_prob == 0. or not training:
+def drop_path(x, drop_prob=0.0, training=False):
+    if drop_prob == 0.0 or not training:
         return x
     keep_prob = 1 - drop_prob
     shape = (x.shape[0],) + (1,) * (x.ndim - 1)
@@ -51,18 +56,19 @@ def drop_path(x, drop_prob=0., training=False):
 
 def _trunc_normal_(tensor, mean, std, a, b):
     def norm_cdf(x):
-        return (1. + math.erf(x / math.sqrt(2.))) / 2.
+        return (1.0 + math.erf(x / math.sqrt(2.0))) / 2.0
+
     l = norm_cdf((a - mean) / std)
     u = norm_cdf((b - mean) / std)
     tensor.uniform_(2 * l - 1, 2 * u - 1)
     tensor.erfinv_()
-    tensor.mul_(std * math.sqrt(2.))
+    tensor.mul_(std * math.sqrt(2.0))
     tensor.add_(mean)
     tensor.clamp_(min=a, max=b)
     return tensor
 
 
-def trunc_normal_(tensor, mean=0., std=1., a=-2., b=2.):
+def trunc_normal_(tensor, mean=0.0, std=1.0, a=-2.0, b=2.0):
     with torch.no_grad():
         return _trunc_normal_(tensor, mean, std, a, b)
 
@@ -77,8 +83,14 @@ class DropPath(nn.Module):
 
 
 class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None,
-                 act_layer=nn.GELU, drop=0.):
+    def __init__(
+        self,
+        in_features,
+        hidden_features=None,
+        out_features=None,
+        act_layer=nn.GELU,
+        drop=0.0,
+    ):
         super().__init__()
         out_features = out_features or in_features
         hidden_features = hidden_features or in_features
@@ -92,15 +104,23 @@ class Mlp(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None,
-                 attn_drop=0., proj_drop=0., attn_head_dim=None):
+    def __init__(
+        self,
+        dim,
+        num_heads=8,
+        qkv_bias=False,
+        qk_scale=None,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        attn_head_dim=None,
+    ):
         super().__init__()
         self.num_heads = num_heads
         head_dim = dim // num_heads
         if attn_head_dim is not None:
             head_dim = attn_head_dim
         all_head_dim = head_dim * self.num_heads
-        self.scale = qk_scale or head_dim ** -0.5
+        self.scale = qk_scale or head_dim**-0.5
         self.qkv = nn.Linear(dim, all_head_dim * 3, bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(all_head_dim, dim)
@@ -117,17 +137,37 @@ class Attention(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None,
-                 drop=0., attn_drop=0., drop_path=0., act_layer=nn.GELU,
-                 norm_layer=nn.LayerNorm):
+    def __init__(
+        self,
+        dim,
+        num_heads,
+        mlp_ratio=4.0,
+        qkv_bias=False,
+        qk_scale=None,
+        drop=0.0,
+        attn_drop=0.0,
+        drop_path=0.0,
+        act_layer=nn.GELU,
+        norm_layer=nn.LayerNorm,
+    ):
         super().__init__()
         self.norm1 = norm_layer(dim)
-        self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias,
-                              qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.attn = Attention(
+            dim,
+            num_heads=num_heads,
+            qkv_bias=qkv_bias,
+            qk_scale=qk_scale,
+            attn_drop=attn_drop,
+            proj_drop=drop,
+        )
+        self.drop_path = DropPath(drop_path) if drop_path > 0.0 else nn.Identity()
         self.norm2 = norm_layer(dim)
-        self.mlp = Mlp(in_features=dim, hidden_features=int(dim * mlp_ratio),
-                       act_layer=act_layer, drop=drop)
+        self.mlp = Mlp(
+            in_features=dim,
+            hidden_features=int(dim * mlp_ratio),
+            act_layer=act_layer,
+            drop=drop,
+        )
 
     def forward(self, x):
         x = x + self.drop_path(self.attn(self.norm1(x)))
@@ -140,12 +180,18 @@ class PatchEmbed(nn.Module):
         super().__init__()
         img_size = to_2tuple(img_size)
         patch_size = to_2tuple(patch_size)
-        self.patch_shape = (int(img_size[0] // patch_size[0] * ratio),
-                            int(img_size[1] // patch_size[1] * ratio))
-        self.num_patches = self.patch_shape[0] * self.patch_shape[1] * (ratio ** 2)
-        self.proj = nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size,
-                              stride=(patch_size[0] // ratio),
-                              padding=4 + 2 * (ratio // 2 - 1))
+        self.patch_shape = (
+            int(img_size[0] // patch_size[0] * ratio),
+            int(img_size[1] // patch_size[1] * ratio),
+        )
+        self.num_patches = self.patch_shape[0] * self.patch_shape[1] * (ratio**2)
+        self.proj = nn.Conv2d(
+            in_chans,
+            embed_dim,
+            kernel_size=patch_size,
+            stride=(patch_size[0] // ratio),
+            padding=4 + 2 * (ratio // 2 - 1),
+        )
 
     def forward(self, x):
         x = self.proj(x)
@@ -154,27 +200,59 @@ class PatchEmbed(nn.Module):
 
 
 class ViT(nn.Module):
-    def __init__(self, img_size=224, patch_size=16, in_chans=3, embed_dim=768,
-                 depth=12, num_heads=12, mlp_ratio=4., qkv_bias=False, qk_scale=None,
-                 drop_rate=0., attn_drop_rate=0., drop_path_rate=0., norm_layer=None,
-                 use_checkpoint=False, ratio=1, last_norm=True, **kwargs):
+    def __init__(
+        self,
+        img_size=224,
+        patch_size=16,
+        in_chans=3,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        mlp_ratio=4.0,
+        qkv_bias=False,
+        qk_scale=None,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.0,
+        norm_layer=None,
+        use_checkpoint=False,
+        ratio=1,
+        last_norm=True,
+        **kwargs,
+    ):
         super().__init__()
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         self.embed_dim = embed_dim
         self.use_checkpoint = use_checkpoint
-        self.patch_embed = PatchEmbed(img_size=img_size, patch_size=patch_size,
-                                      in_chans=in_chans, embed_dim=embed_dim, ratio=ratio)
+        self.patch_embed = PatchEmbed(
+            img_size=img_size,
+            patch_size=patch_size,
+            in_chans=in_chans,
+            embed_dim=embed_dim,
+            ratio=ratio,
+        )
         self.pos_embed = nn.Parameter(
-            torch.zeros(1, self.patch_embed.num_patches + 1, embed_dim))
+            torch.zeros(1, self.patch_embed.num_patches + 1, embed_dim)
+        )
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]
-        self.blocks = nn.ModuleList([
-            Block(dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio,
-                  qkv_bias=qkv_bias, qk_scale=qk_scale, drop=drop_rate,
-                  attn_drop=attn_drop_rate, drop_path=dpr[i], norm_layer=norm_layer)
-            for i in range(depth)
-        ])
+        self.blocks = nn.ModuleList(
+            [
+                Block(
+                    dim=embed_dim,
+                    num_heads=num_heads,
+                    mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias,
+                    qk_scale=qk_scale,
+                    drop=drop_rate,
+                    attn_drop=attn_drop_rate,
+                    drop_path=dpr[i],
+                    norm_layer=norm_layer,
+                )
+                for i in range(depth)
+            ]
+        )
         self.last_norm = norm_layer(embed_dim) if last_norm else nn.Identity()
-        trunc_normal_(self.pos_embed, std=.02)
+        trunc_normal_(self.pos_embed, std=0.02)
 
     def forward(self, x):
         B, C, H, W = x.shape
@@ -190,10 +268,18 @@ class ViT(nn.Module):
 # Keypoint Head
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TopdownHeatmapSimpleHead(nn.Module):
-    def __init__(self, in_channels, out_channels, num_deconv_layers=2,
-                 num_deconv_filters=(256, 256), num_deconv_kernels=(4, 4),
-                 extra=None, **kwargs):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        num_deconv_layers=2,
+        num_deconv_filters=(256, 256),
+        num_deconv_kernels=(4, 4),
+        extra=None,
+        **kwargs,
+    ):
         super().__init__()
         self.in_channels = in_channels
         layers = []
@@ -203,20 +289,30 @@ class TopdownHeatmapSimpleHead(nn.Module):
             out_pad = 0 if k == 4 else (1 if k == 3 else 0)
             planes = num_deconv_filters[i]
             layers += [
-                nn.ConvTranspose2d(self.in_channels, planes, kernel_size=k,
-                                   stride=2, padding=padding,
-                                   output_padding=out_pad, bias=False),
+                nn.ConvTranspose2d(
+                    self.in_channels,
+                    planes,
+                    kernel_size=k,
+                    stride=2,
+                    padding=padding,
+                    output_padding=out_pad,
+                    bias=False,
+                ),
                 nn.BatchNorm2d(planes),
                 nn.ReLU(inplace=True),
             ]
             self.in_channels = planes
         self.deconv_layers = nn.Sequential(*layers)
 
-        final_kernel = extra.get('final_conv_kernel', 1) if extra else 1
+        final_kernel = extra.get("final_conv_kernel", 1) if extra else 1
         padding = 1 if final_kernel == 3 else 0
-        self.final_layer = nn.Conv2d(self.in_channels, out_channels,
-                                     kernel_size=final_kernel, stride=1,
-                                     padding=padding)
+        self.final_layer = nn.Conv2d(
+            self.in_channels,
+            out_channels,
+            kernel_size=final_kernel,
+            stride=1,
+            padding=padding,
+        )
 
     def forward(self, x):
         return self.final_layer(self.deconv_layers(x))
@@ -225,6 +321,7 @@ class TopdownHeatmapSimpleHead(nn.Module):
 # ══════════════════════════════════════════════════════════════════════════════
 # Full model
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 class ViTPose(nn.Module):
     def __init__(self, backbone_cfg, head_cfg):
@@ -236,16 +333,40 @@ class ViTPose(nn.Module):
         return self.keypoint_head(self.backbone(x))
 
 
-# ── default config: ViT-B, 8 keypoints ───────────────────────────────────────
-BACKBONE_CFG = dict(
-    img_size=(320, 256), patch_size=16, embed_dim=768, depth=12,
-    num_heads=12, ratio=1, use_checkpoint=False, mlp_ratio=4,
-    qkv_bias=True, drop_path_rate=0.3,
+# ── default configs ───────────────────────────────────────────────────────────
+BACKBONE_CFG_B = dict(
+    img_size=(320, 256),
+    patch_size=16,
+    embed_dim=768,
+    depth=12,
+    num_heads=12,
+    ratio=1,
+    use_checkpoint=False,
+    mlp_ratio=4,
+    qkv_bias=True,
+    drop_path_rate=0.3,
 )
+BACKBONE_CFG_L = dict(
+    img_size=(320, 256),
+    patch_size=16,
+    embed_dim=1024,
+    depth=24,
+    num_heads=16,
+    ratio=1,
+    use_checkpoint=False,
+    mlp_ratio=4,
+    qkv_bias=True,
+    drop_path_rate=0.3,
+)
+# Keep BACKBONE_CFG as alias for backward compatibility
+BACKBONE_CFG = BACKBONE_CFG_B
 HEAD_CFG = dict(
-    in_channels=768, out_channels=8,
-    num_deconv_layers=2, num_deconv_filters=(256, 256),
-    num_deconv_kernels=(4, 4), extra=dict(final_conv_kernel=1),
+    in_channels=768,
+    out_channels=8,
+    num_deconv_layers=2,
+    num_deconv_filters=(256, 256),
+    num_deconv_kernels=(4, 4),
+    extra=dict(final_conv_kernel=1),
 )
 
 
@@ -254,9 +375,9 @@ HEAD_CFG = dict(
 # ══════════════════════════════════════════════════════════════════════════════
 
 IMG_W, IMG_H = 256, 320
-PIXEL_STD    = 200
+PIXEL_STD = 200
 MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
-STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 
 def _get_3rd_point(a, b):
@@ -274,8 +395,8 @@ def get_affine_transform(center, scale, pixel_std, rot, output_size):
     src_w = scale_tmp[0]
     dst_w, dst_h = output_size
     rot_rad = np.pi * rot / 180
-    src_dir = np.array(_rotate_point([0., src_w * -0.5], rot_rad), dtype=np.float32)
-    dst_dir = np.array([0., dst_w * -0.5], dtype=np.float32)
+    src_dir = np.array(_rotate_point([0.0, src_w * -0.5], rot_rad), dtype=np.float32)
+    dst_dir = np.array([0.0, dst_w * -0.5], dtype=np.float32)
     src = np.zeros((3, 2), dtype=np.float32)
     src[0] = center
     src[1] = center + src_dir
@@ -295,7 +416,7 @@ def _get_max_preds(heatmaps):
     preds = np.tile(idx, (1, 1, 2)).astype(np.float32)
     preds[:, :, 0] = preds[:, :, 0] % W
     preds[:, :, 1] = preds[:, :, 1] // W
-    preds = np.where(np.tile(maxvals, (1, 1, 2)) > 0., preds, -1)
+    preds = np.where(np.tile(maxvals, (1, 1, 2)) > 0.0, preds, -1)
     return preds, maxvals
 
 
@@ -303,12 +424,16 @@ def _taylor(heatmap, coord):
     H, W = heatmap.shape[:2]
     px, py = int(coord[0]), int(coord[1])
     if 1 < px < W - 2 and 1 < py < H - 2:
-        dx  = 0.5  * (heatmap[py][px+1] - heatmap[py][px-1])
-        dy  = 0.5  * (heatmap[py+1][px] - heatmap[py-1][px])
-        dxx = 0.25 * (heatmap[py][px+2] - 2*heatmap[py][px] + heatmap[py][px-2])
-        dxy = 0.25 * (heatmap[py+1][px+1] - heatmap[py-1][px+1]
-                      - heatmap[py+1][px-1] + heatmap[py-1][px-1])
-        dyy = 0.25 * (heatmap[py+2][px] - 2*heatmap[py][px] + heatmap[py-2][px])
+        dx = 0.5 * (heatmap[py][px + 1] - heatmap[py][px - 1])
+        dy = 0.5 * (heatmap[py + 1][px] - heatmap[py - 1][px])
+        dxx = 0.25 * (heatmap[py][px + 2] - 2 * heatmap[py][px] + heatmap[py][px - 2])
+        dxy = 0.25 * (
+            heatmap[py + 1][px + 1]
+            - heatmap[py - 1][px + 1]
+            - heatmap[py + 1][px - 1]
+            + heatmap[py - 1][px - 1]
+        )
+        dyy = 0.25 * (heatmap[py + 2][px] - 2 * heatmap[py][px] + heatmap[py - 2][px])
         derivative = np.array([dx, dy])
         hessian = np.array([[dxx, dxy], [dxy, dyy]])
         if dxx * dyy - dxy**2 != 0:
@@ -322,7 +447,7 @@ def _gaussian_blur(heatmaps, kernel=11):
     for i in range(N):
         for j in range(K):
             origin_max = np.max(heatmaps[i, j])
-            dr = np.zeros((H + 2*border, W + 2*border), dtype=np.float32)
+            dr = np.zeros((H + 2 * border, W + 2 * border), dtype=np.float32)
             dr[border:-border, border:-border] = heatmaps[i, j].copy()
             dr = cv2.GaussianBlur(dr, (kernel, kernel), 0)
             heatmaps[i, j] = dr[border:-border, border:-border]
@@ -364,7 +489,10 @@ def keypoints_from_heatmaps(heatmaps, center, scale, kernel=11):
 
 # Adjacent pairs connecting the 8 bolt-hole keypoints in a circular ring.
 # Indices 0–7 are arranged at 45° increments around the valve face.
-SKELETON = [(i, (i + 1) % 8) for i in range(8)]
+# Index 8 = valve face origin, index 9 = valve stem tip (if present).
+SKELETON_8 = [(i, (i + 1) % 8) for i in range(8)]
+SKELETON_10 = SKELETON_8 + [(8, 9)]  # origin → stem tip
+SKELETON = SKELETON_8  # default for backward compat
 
 # Horizontal-flip keypoint swap map for TTA.
 # Bolt holes sit at 45° increments: -135, -90, -45, 0, 45, 90, 135, 180.
@@ -381,20 +509,36 @@ class ValvePose:
         device: 'cuda' | 'cpu'
     """
 
-    def __init__(self, ckpt: str, device: str = 'cuda'):
+    def __init__(self, ckpt: str, device: str = "cuda"):
         import os
+
         if os.path.isdir(ckpt):
-            candidates = sorted(glob.glob(os.path.join(ckpt, '*/best.pth')))
+            candidates = sorted(glob.glob(os.path.join(ckpt, "*/best.pth")))
             if not candidates:
                 raise FileNotFoundError(f"No best.pth found under {ckpt}")
             ckpt = candidates[-1]
 
-        self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
-        self.model = ViTPose(BACKBONE_CFG, HEAD_CFG)
-        state = torch.load(ckpt, map_location='cpu', weights_only=True)
+        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
+        state = torch.load(ckpt, map_location="cpu", weights_only=True)
+
+        # Auto-detect architecture from checkpoint
+        embed_dim = state["backbone.patch_embed.proj.bias"].shape[0]
+        num_kps = state["keypoint_head.final_layer.bias"].shape[0]
+        if embed_dim == 1024:
+            backbone_cfg = dict(BACKBONE_CFG_L)
+            variant = "L"
+        else:
+            backbone_cfg = dict(BACKBONE_CFG_B)
+            variant = "B"
+        head_cfg = dict(HEAD_CFG, in_channels=embed_dim, out_channels=num_kps)
+
+        self.num_kps = num_kps
+        self.model = ViTPose(backbone_cfg, head_cfg)
         self.model.load_state_dict(state)
         self.model.to(self.device).eval()
-        print(f"ValvePose loaded: {ckpt}  ({self.device})")
+        print(
+            f"ValvePose loaded: {ckpt}  (ViT-{variant}, {num_kps} kps, {self.device})"
+        )
 
     @torch.no_grad()
     def predict(self, img_rgb: np.ndarray, bbox_xywh, flip: bool = True):
@@ -419,18 +563,31 @@ class ValvePose:
         center = np.array([cx, cy], dtype=np.float32)
 
         trans = get_affine_transform(center, scale, PIXEL_STD, 0, (IMG_W, IMG_H))
-        crop  = cv2.warpAffine(img_rgb, trans, (IMG_W, IMG_H), flags=cv2.INTER_LINEAR)
-        inp   = torch.from_numpy(
-            ((crop.astype(np.float32) / 255.0 - MEAN) / STD).transpose(2, 0, 1)
-        ).unsqueeze(0).float().to(self.device)
+        crop = cv2.warpAffine(img_rgb, trans, (IMG_W, IMG_H), flags=cv2.INTER_LINEAR)
+        inp = (
+            torch.from_numpy(
+                ((crop.astype(np.float32) / 255.0 - MEAN) / STD).transpose(2, 0, 1)
+            )
+            .unsqueeze(0)
+            .float()
+            .to(self.device)
+        )
 
         heatmaps = self.model(inp).cpu().numpy()
 
-        if flip:
+        # Flip TTA only when FLIP_INDEX covers all channels (8-kp models)
+        if flip and self.num_kps == 8:
             crop_flip = crop[:, ::-1, :].copy()
-            inp_flip  = torch.from_numpy(
-                ((crop_flip.astype(np.float32) / 255.0 - MEAN) / STD).transpose(2, 0, 1)
-            ).unsqueeze(0).float().to(self.device)
+            inp_flip = (
+                torch.from_numpy(
+                    ((crop_flip.astype(np.float32) / 255.0 - MEAN) / STD).transpose(
+                        2, 0, 1
+                    )
+                )
+                .unsqueeze(0)
+                .float()
+                .to(self.device)
+            )
             hm_flip = self.model(inp_flip).cpu().numpy()
             # Mirror heatmaps back spatially and swap keypoint channels
             hm_flip = hm_flip[:, :, :, ::-1].copy()
@@ -438,5 +595,6 @@ class ValvePose:
             heatmaps = (heatmaps + hm_flip) * 0.5
 
         preds, scores = keypoints_from_heatmaps(
-            heatmaps, center[None], (scale * PIXEL_STD)[None])
+            heatmaps, center[None], (scale * PIXEL_STD)[None]
+        )
         return preds[0], scores[0]

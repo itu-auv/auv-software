@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<!--
+  Brings up the valve keypoint pipeline:
+
+    valve_keypoint_node    HSV bbox + ViTPose       → /keypoint_result_front
+    keypoint_pose_node     PnP + transform_to_odom  → map/object_transform_updates
+    object_map_tf_server   per-object Kalman filter → tac/valve TF
+
+  The keypoint topic and camera_info topic are absolute paths matching the
+  entries in auv_vision/config/keypoint_objects.yaml, so they don't depend
+  on the namespace under which the producer/consumer run.
+
+  Use for live runs or bag replay.  For bag replay, pass use_sim_time:=true
+  and play the bag with the clock flag.
+-->
+<launch>
+  <arg name="namespace"           default="taluy" />
+  <arg name="image_topic"         default="/taluy/cameras/cam_front/image_raw" />
+  <arg name="vitpose_model_path"  default="$(find auv_detection)/models/valve_vitpose.pth" />
+  <arg name="device"              default="cpu" />
+  <arg name="conf_threshold"      default="0.5" />
+  <arg name="static_frame"        default="odom" />
+  <arg name="control_rate"        default="10" />
+  <arg name="use_sim_time"        default="false" />
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)" />
+
+  <group ns="$(arg namespace)">
+    <!-- Producer: image → KeypointResult -->
+    <node pkg="auv_vision" type="valve_keypoint_node.py"
+          name="valve_keypoint_node" output="screen">
+      <param name="image_topic"        value="$(arg image_topic)" />
+      <param name="vitpose_model_path" value="$(arg vitpose_model_path)" />
+      <param name="device"             value="$(arg device)" />
+      <param name="conf_threshold"     value="$(arg conf_threshold)" />
+      <param name="result_topic"       value="/keypoint_result_front" />
+      <param name="image_out_topic"    value="/keypoint_image_front" />
+    </node>
+
+    <!-- Consumer: KeypointResult → object_transform_updates -->
+    <node pkg="auv_vision" type="keypoint_pose_node.py"
+          name="keypoint_pose_node" output="screen">
+      <param name="config_file"
+             value="$(find auv_vision)/config/keypoint_objects.yaml" />
+      <remap from="object_transform_updates"
+             to="map/object_transform_updates" />
+    </node>
+
+    <!-- Map server: object_transform_updates → /tf (tac/valve) -->
+    <node pkg="auv_mapping" type="object_map_tf_server_node"
+          name="object_map_tf_server_node" output="screen">
+      <param name="rate"                value="$(arg control_rate)" />
+      <param name="static_frame"        value="$(arg static_frame)" />
+      <param name="distance_threshold"  value="4.0" />
+      <param name="base_link_frame"     value="$(arg namespace)/base_link" />
+      <remap from="set_object_transform"      to="map/set_object_transform" />
+      <remap from="clear_object_transforms"   to="map/clear_object_transforms" />
+      <remap from="object_transform_updates"  to="map/object_transform_updates" />
+    </node>
+  </group>
+</launch>

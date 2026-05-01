@@ -191,6 +191,7 @@ def project_keypoints(
     intrinsics: Tuple[float, float, float, float],
     image_w: int,
     image_h: int,
+    object_name: str,
 ) -> List[Keypoint]:
     """Project 3D keypoints into pixel space, returning only visible ones."""
     fx, fy, cx, cy = intrinsics
@@ -212,6 +213,7 @@ def project_keypoints(
         msg.x = float(u)
         msg.y = float(v)
         msg.confidence = 1.0
+        msg.object = object_name
         results.append(msg)
 
     return results
@@ -315,6 +317,7 @@ class SimKeypointCamera:
                     self.intrinsics,
                     self.image_w,
                     self.image_h,
+                    obj.name,
                 )
                 all_keypoints.extend(kps)
 

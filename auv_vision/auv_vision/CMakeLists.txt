@@ -35,12 +35,10 @@ catkin_install_python(
     scripts/pipe_follower.py
     scripts/sim_bbox_node.py
     scripts/sim_keypoint_node.py
+    scripts/keypoint_pose_node.py
+    scripts/valve_keypoint_node.py
     scripts/depth_anything_trt_node.py
     scripts/depth_anything_zmq_client.py
-    scripts/sim_auto_labeler.py
-    scripts/valve_label_viewer.py
-    scripts/valve_inference_runner.py
-    scripts/valve_pnp_node.py
     scripts/vitpose_inference.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
