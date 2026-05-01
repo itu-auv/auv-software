@@ -16,6 +16,10 @@ find_package(catkin REQUIRED COMPONENTS
   auv_common_lib
 )
 
+generate_dynamic_reconfigure_options(
+  cfg/Aruco.cfg
+)
+
 catkin_package(
   CATKIN_DEPENDS
     auv_detection
@@ -32,6 +36,7 @@ include_directories(
 
 catkin_install_python(
   PROGRAMS
+    scripts/aruco_detection_node.py
     scripts/dynamic_roll_compensation.py
     scripts/yolo_result_bridge.py
     scripts/yolo_seg_to_mask.py
