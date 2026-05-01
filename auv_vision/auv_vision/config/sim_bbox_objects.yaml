@@ -230,7 +230,7 @@ objects:
     name: bin_fire_link
     cameras: [bottom]
     gazebo_model: robosub_bin
-    offset: [-0.7480, 0.2883, -0.2803]  # basket-1
+    offset: [-0.7480, 0.2883, -0.2803] # basket-1
     boundary:
       shape: rect
       args: [0.16, 0.16, 0]
@@ -239,7 +239,7 @@ objects:
     name: bin_fire_link
     cameras: [bottom]
     gazebo_model: robosub_bin
-    offset: [-0.4330, 1.5468, 0.2042]  # basket-2
+    offset: [-0.4330, 1.5468, 0.2042] # basket-2
     boundary:
       shape: rect
       args: [0.16, 0.16, 0]
@@ -248,7 +248,7 @@ objects:
     name: bin_blood_link
     cameras: [bottom]
     gazebo_model: robosub_bin
-    offset: [-0.0880, 0.6145, -0.2168]  # basket-3
+    offset: [-0.0880, 0.6145, -0.2168] # basket-3
     boundary:
       shape: rect
       args: [0.16, 0.16, 0]
@@ -257,7 +257,7 @@ objects:
     name: bin_blood_link
     cameras: [bottom]
     gazebo_model: robosub_bin
-    offset: [-1.0381, 1.2940, -0.0540]  # basket-4
+    offset: [-1.0381, 1.2940, -0.0540] # basket-4
     boundary:
       shape: rect
       args: [0.16, 0.16, 0]
