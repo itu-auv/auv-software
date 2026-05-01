@@ -1,0 +1,66 @@
+aruco_dictionary: DICT_4X4_50
+
+cameras:
+  bottom:
+    ns: "cameras/cam_bottom"
+    frame: "taluy/base_link/bottom_camera_optical_link"
+    image_topic: "/taluy/cameras/cam_bottom/image_rect_color"
+    detect_markers:
+      - pipe_aruco_0
+      - pipe_aruco_1
+      - pipe_aruco_2
+      - pipe_aruco_3
+      - pipe_aruco_4
+      - pipe_aruco_5
+      - pipe_aruco_6
+      - pipe_aruco_7
+      - pipe_aruco_8
+
+markers:
+  aruco_0: {aruco_id: 0, size: 0.08}
+  aruco_1: {aruco_id: 1, size: 0.08}
+  aruco_2: {aruco_id: 2, size: 0.08}
+  aruco_3: {aruco_id: 3, size: 0.08}
+  aruco_4: {aruco_id: 4, size: 0.08}
+  aruco_5: {aruco_id: 5, size: 0.08}
+  aruco_6: {aruco_id: 6, size: 0.08}
+  aruco_7: {aruco_id: 7, size: 0.08}
+  aruco_8: {aruco_id: 8, size: 0.08}
+
+standalone_markers:
+  pipe_aruco_0:
+    marker_ref: aruco_0
+    tf_frame: pipe_aruco_0
+    force_floor_orientation: true
+  pipe_aruco_1:
+    marker_ref: aruco_1
+    tf_frame: pipe_aruco_1
+    force_floor_orientation: true
+  pipe_aruco_2:
+    marker_ref: aruco_2
+    tf_frame: pipe_aruco_2
+    force_floor_orientation: true
+  pipe_aruco_3:
+    marker_ref: aruco_3
+    tf_frame: pipe_aruco_3
+    force_floor_orientation: true
+  pipe_aruco_4:
+    marker_ref: aruco_4
+    tf_frame: pipe_aruco_4
+    force_floor_orientation: true
+  pipe_aruco_5:
+    marker_ref: aruco_5
+    tf_frame: pipe_aruco_5
+    force_floor_orientation: true
+  pipe_aruco_6:
+    marker_ref: aruco_6
+    tf_frame: pipe_aruco_6
+    force_floor_orientation: true
+  pipe_aruco_7:
+    marker_ref: aruco_7
+    tf_frame: pipe_aruco_7
+    force_floor_orientation: true
+  pipe_aruco_8:
+    marker_ref: aruco_8
+    tf_frame: pipe_aruco_8
+    force_floor_orientation: true

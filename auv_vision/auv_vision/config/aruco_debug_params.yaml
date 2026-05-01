@@ -1,0 +1,16 @@
+adaptive_thresh_constant: 5.0
+adaptive_thresh_win_size_max: 75
+adaptive_thresh_win_size_min: 7
+adaptive_thresh_win_size_step: 8
+clahe_clip_limit: 6.390000000000001
+clahe_tile_size: 8
+corner_refinement_max_iterations: 30
+corner_refinement_min_accuracy: 0.05
+corner_refinement_win_size: 7
+debug_thresh_win_size: 41
+error_correction_rate: 0.97
+max_marker_perimeter_rate: 7.6
+min_marker_perimeter_rate: 0.24451
+polygonal_approx_accuracy_rate: 0.16915
+ransac_iterations: 1073
+ransac_reproj_error: 70.28999999999999

@@ -10,6 +10,7 @@ import numpy as np
 import rospy
 import rospkg
 from sensor_msgs.msg import Image, CompressedImage
+
 from std_srvs.srv import SetBool, SetBoolResponse
 from geometry_msgs.msg import TransformStamped
 from cv_bridge import CvBridge, CvBridgeError
@@ -21,7 +22,7 @@ scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
-from utils.detection_utils import CameraCalibration
+from auv_common_lib.vision.camera_calibrations import CameraCalibrationFetcher
 from utils.aruco_utils import (
     get_aruco_dictionary,
     preprocess_image,
@@ -202,7 +203,7 @@ class ArucoCamera:
 
 class ArucoDetectionNode:
     def __init__(self):
-        rospy.init_node("aruco_detection", anonymous=True)
+        rospy.init_node("aruco_detection")
         rospy.loginfo("ArUco detection node started")
 
         # Load config
@@ -256,6 +257,7 @@ class ArucoDetectionNode:
             "ransac_reproj_error": 20.0,
         }
         self._apply_detector_params()
+        self.initial_enabled = rospy.get_param("~enabled", False)
 
         # Shared resources
         self.bridge = CvBridge()
@@ -317,9 +319,9 @@ class ArucoDetectionNode:
         self.cameras = {}
         for cam_key, cam_cfg in self.config.get("cameras", {}).items():
             try:
-                calib = CameraCalibration(cam_cfg["ns"])
-                camera_matrix = np.array(calib.calibration.K).reshape(3, 3)
-                dist_coeffs = np.array(calib.calibration.D)
+                cam_info = CameraCalibrationFetcher(cam_cfg["ns"]).get_camera_info()
+                camera_matrix = np.array(cam_info.K).reshape(3, 3)
+                dist_coeffs = np.array(cam_info.D)
 
                 cam_boards = [
                     self.all_boards[b]
@@ -361,6 +363,7 @@ class ArucoDetectionNode:
                     transform_pub=self.transform_pub,
                     debug_pubs=debug_pubs,
                 )
+                camera.enabled = self.initial_enabled
                 self.cameras[cam_key] = camera
 
                 rospy.Subscriber(
@@ -378,14 +381,13 @@ class ArucoDetectionNode:
             except Exception as e:
                 rospy.logerr(f"Failed to initialize camera '{cam_key}': {e}. Skipping.")
 
-        # Enable/disable services
+        # Per-camera enable/disable services
         for cam_key in self.cameras:
             rospy.Service(
                 f"~{cam_key}/set_enabled",
                 SetBool,
                 lambda req, k=cam_key: self._set_camera_enabled_cb(req, k),
             )
-        rospy.Service("~set_enabled", SetBool, self._set_global_enabled_cb)
 
         # Debug image publishing thread
         self._debug_lock = threading.Lock()
@@ -485,14 +487,6 @@ class ArucoDetectionNode:
         rospy.loginfo(msg)
         return SetBoolResponse(success=True, message=msg)
 
-    def _set_global_enabled_cb(self, req):
-        for cam in self.cameras.values():
-            cam.enabled = req.data
-        state = "enabled" if req.data else "disabled"
-        msg = f"All ArUco cameras {state}"
-        rospy.loginfo(msg)
-        return SetBoolResponse(success=True, message=msg)
-
     def _image_callback(self, msg, cam_key):
         camera = self.cameras.get(cam_key)
         if camera is None or not camera.enabled:
@@ -508,7 +502,7 @@ class ArucoDetectionNode:
             cv_image, msg.header.stamp, self.aruco_detector, self.params
         )
 
-        if result is not None and self._has_debug_subscribers(cam_key):
+        if result is not None:
             gray, corners, ids, board_debug_info = result
             with self._debug_lock:
                 self._debug_queue[cam_key] = (
@@ -520,10 +514,6 @@ class ArucoDetectionNode:
                     camera,
                 )
             self._debug_ready.set()
-
-    def _has_debug_subscribers(self, cam_key):
-        pubs = self.cameras[cam_key].debug_pubs
-        return any(p.get_num_connections() > 0 for p in pubs.values())
 
     def _debug_publisher_loop(self):
         while not rospy.is_shutdown() and not self._shutdown:
@@ -548,132 +538,119 @@ class ArucoDetectionNode:
                     if rospy.is_shutdown():
                         break
 
-                    need_annotated = (
-                        pubs["debug"].get_num_connections() > 0
-                        or pubs["processed"].get_num_connections() > 0
-                    )
+                    debug_img = cv_image
+                    debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+                    debug_imgs = [debug_img, debug_gray]
 
-                    if need_annotated:
-                        debug_img = cv_image
-                        debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-                        debug_imgs = [debug_img, debug_gray]
+                    if ids is not None and len(ids) > 0:
+                        for img in debug_imgs:
+                            cv2.aruco.drawDetectedMarkers(img, corners, ids)
 
-                        if ids is not None and len(ids) > 0:
-                            for img in debug_imgs:
-                                cv2.aruco.drawDetectedMarkers(img, corners, ids)
-
-                            for (
-                                board,
-                                rvec,
-                                tvec,
-                                matched_ids,
-                                inliers,
-                                ref_corners,
-                                ref_ids,
-                            ) in board_debug_info:
-                                if rvec is not None and inliers is not None:
-                                    img_pts_list = []
-                                    for i, mid in enumerate(ref_ids.flatten()):
-                                        if mid in board.obj_points_by_id:
-                                            img_pts_list.append(
-                                                ref_corners[i].reshape(4, 2)
-                                            )
-                                    if img_pts_list:
-                                        img_points = np.vstack(img_pts_list).astype(
-                                            np.float32
+                        for (
+                            board,
+                            rvec,
+                            tvec,
+                            matched_ids,
+                            inliers,
+                            ref_corners,
+                            ref_ids,
+                        ) in board_debug_info:
+                            if rvec is not None and inliers is not None:
+                                img_pts_list = []
+                                for i, mid in enumerate(ref_ids.flatten()):
+                                    if mid in board.obj_points_by_id:
+                                        img_pts_list.append(
+                                            ref_corners[i].reshape(4, 2)
                                         )
-                                        inlier_set = set(inliers.flatten())
-                                        for idx, pt in enumerate(img_points):
-                                            pt_int = tuple(pt.astype(int))
-                                            for img in debug_imgs:
-                                                cv2.circle(
-                                                    img, pt_int, 15, (0, 0, 0), -1
-                                                )
-                                                if idx in inlier_set:
-                                                    cv2.circle(
-                                                        img, pt_int, 10, (0, 255, 0), -1
-                                                    )
-                                                else:
-                                                    cv2.circle(
-                                                        img, pt_int, 12, (0, 0, 255), 4
-                                                    )
-
-                                    for img in debug_imgs:
-                                        cv2.drawFrameAxes(
-                                            img,
-                                            camera.camera_matrix,
-                                            camera.dist_coeffs,
-                                            rvec,
-                                            tvec,
-                                            0.15,
-                                        )
-
-                                    dist = np.linalg.norm(tvec)
-                                    n_inliers = len(inliers.flatten())
-                                    info_text = (
-                                        f"{board.name} ({len(matched_ids)} mkrs, "
-                                        f"{n_inliers} inliers) {dist:.2f}m"
+                                if img_pts_list:
+                                    img_points = np.vstack(img_pts_list).astype(
+                                        np.float32
                                     )
-                                    for img in debug_imgs:
-                                        cv2.putText(
-                                            img,
-                                            info_text,
-                                            (20, 70),
-                                            cv2.FONT_HERSHEY_SIMPLEX,
-                                            1.2,
-                                            (0, 255, 0),
-                                            3,
-                                        )
-                                        cv2.putText(
-                                            img,
-                                            f"IDs: {sorted(matched_ids)}",
-                                            (20, 120),
-                                            cv2.FONT_HERSHEY_SIMPLEX,
-                                            1.5,
-                                            (255, 255, 0),
-                                            3,
-                                        )
-                                elif matched_ids:
-                                    for img in debug_imgs:
-                                        cv2.putText(
-                                            img,
-                                            f"RANSAC failed ({len(matched_ids)} mkrs)",
-                                            (20, 70),
-                                            cv2.FONT_HERSHEY_SIMPLEX,
-                                            1.5,
-                                            (0, 0, 255),
-                                            3,
-                                        )
-                        else:
-                            for img in debug_imgs:
-                                cv2.putText(
-                                    img,
-                                    "SEARCHING...",
-                                    (20, 70),
-                                    cv2.FONT_HERSHEY_SIMPLEX,
-                                    2.0,
-                                    (0, 0, 255),
-                                    4,
-                                )
+                                    inlier_set = set(inliers.flatten())
+                                    for idx, pt in enumerate(img_points):
+                                        pt_int = tuple(pt.astype(int))
+                                        for img in debug_imgs:
+                                            cv2.circle(img, pt_int, 15, (0, 0, 0), -1)
+                                            if idx in inlier_set:
+                                                cv2.circle(
+                                                    img, pt_int, 10, (0, 255, 0), -1
+                                                )
+                                            else:
+                                                cv2.circle(
+                                                    img, pt_int, 12, (0, 0, 255), 4
+                                                )
 
-                        if pubs["debug"].get_num_connections() > 0:
-                            pubs["debug"].publish(self._encode_compressed(debug_img))
-                        if pubs["processed"].get_num_connections() > 0:
-                            pubs["processed"].publish(
-                                self._encode_compressed(debug_gray)
+                                for img in debug_imgs:
+                                    cv2.drawFrameAxes(
+                                        img,
+                                        camera.camera_matrix,
+                                        camera.dist_coeffs,
+                                        rvec,
+                                        tvec,
+                                        0.15,
+                                    )
+
+                                dist = np.linalg.norm(tvec)
+                                n_inliers = len(inliers.flatten())
+                                info_text = (
+                                    f"{board.name} ({len(matched_ids)} mkrs, "
+                                    f"{n_inliers} inliers) {dist:.2f}m"
+                                )
+                                for img in debug_imgs:
+                                    cv2.putText(
+                                        img,
+                                        info_text,
+                                        (20, 70),
+                                        cv2.FONT_HERSHEY_SIMPLEX,
+                                        1.2,
+                                        (0, 255, 0),
+                                        3,
+                                    )
+                                    cv2.putText(
+                                        img,
+                                        f"IDs: {sorted(matched_ids)}",
+                                        (20, 120),
+                                        cv2.FONT_HERSHEY_SIMPLEX,
+                                        1.5,
+                                        (255, 255, 0),
+                                        3,
+                                    )
+                            elif matched_ids:
+                                for img in debug_imgs:
+                                    cv2.putText(
+                                        img,
+                                        f"RANSAC failed ({len(matched_ids)} mkrs)",
+                                        (20, 70),
+                                        cv2.FONT_HERSHEY_SIMPLEX,
+                                        1.5,
+                                        (0, 0, 255),
+                                        3,
+                                    )
+                    else:
+                        for img in debug_imgs:
+                            cv2.putText(
+                                img,
+                                "SEARCHING...",
+                                (20, 70),
+                                cv2.FONT_HERSHEY_SIMPLEX,
+                                2.0,
+                                (0, 0, 255),
+                                4,
                             )
 
-                    if pubs["threshold"].get_num_connections() > 0:
-                        win_size = self.params["debug_thresh_win_size"]
-                        thresh_img = cv2.adaptiveThreshold(
-                            gray,
-                            255,
-                            cv2.ADAPTIVE_THRESH_MEAN_C,
-                            cv2.THRESH_BINARY,
-                            win_size,
-                            int(self.params["adaptive_thresh_constant"]),
-                        )
-                        pubs["threshold"].publish(self._encode_compressed(thresh_img))
+                    pubs["debug"].publish(self._encode_compressed(debug_img))
+                    pubs["processed"].publish(self._encode_compressed(debug_gray))
+
+                    win_size = self.params["debug_thresh_win_size"]
+                    thresh_img = cv2.adaptiveThreshold(
+                        gray,
+                        255,
+                        cv2.ADAPTIVE_THRESH_MEAN_C,
+                        cv2.THRESH_BINARY,
+                        win_size,
+                        int(self.params["adaptive_thresh_constant"]),
+                    )
+                    pubs["threshold"].publish(self._encode_compressed(thresh_img))
 
                 except Exception as e:
                     rospy.logwarn_throttle(5.0, f"Debug publish failed: {e}")

@@ -8,6 +8,7 @@
   <arg name="pipe_legacy_close_kernel_size" default="25" />
   <arg name="pipe_legacy_open_kernel_size" default="5" />
   <arg name="pipe_legacy_min_contour_area" default="250" />
+  <arg name="aruco_config_file" default="$(find auv_vision)/config/aruco_objects_$(arg namespace).yaml" />
 
   <group ns="$(arg namespace)">
     <!-- YOLO Segmentation to Mask Node -->
@@ -60,6 +61,13 @@
       <param name="close_kernel_size" value="$(arg pipe_legacy_close_kernel_size)" />
       <param name="open_kernel_size" value="$(arg pipe_legacy_open_kernel_size)" />
       <param name="min_contour_area" value="$(arg pipe_legacy_min_contour_area)" />
+    </node>
+
+    <node pkg="auv_vision" type="aruco_detection_node.py" name="aruco_detection" output="screen">
+      <param name="config_file" value="$(arg aruco_config_file)" />
+      <param name="enabled" value="false" />
+      <remap from="object_transform_updates" to="map/object_transform_updates" />
+      <remap from="aruco_detection/set_enabled" to="aruco_detection/set_enabled"/>
     </node>
   </group>
 </launch>
