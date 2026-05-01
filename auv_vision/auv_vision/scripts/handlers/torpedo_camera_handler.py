@@ -2,15 +2,23 @@
 
 import rospy
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw
 from utils.detection_utils import (
     check_inside_image,
     calculate_angles_and_offsets,
     transform_to_odom_and_publish,
 )
+from geometry_msgs.msg import PoseStamped
+import tf2_ros
 
 
 class TorpedoCameraHandler:
+    HOLE_FRAME_IDS = (
+        "torpedo_hole_left_mid_link",
+        "torpedo_hole_bottom_right_link",
+        "torpedo_hole_bottom_mid_link",
+        "torpedo_hole_top_mid_link",
+    )
+
     def __init__(
         self,
         camera_config,
@@ -33,123 +41,159 @@ class TorpedoCameraHandler:
         self.props_yaw_pub = publishers["props_yaw"]
         self.shared_state = shared_state
 
-        # Torpedo hole props for distance estimation
         self.torpedo_hole_props = {
-            "torpedo_hole_shark_link": self.props.get("torpedo_hole_link"),
-            "torpedo_hole_sawfish_link": self.props.get("torpedo_hole_link"),
+            frame_id: self.props.get(frame_id) for frame_id in self.HOLE_FRAME_IDS
         }
+        self.tracked_holes_odom = {}
+        self.bootstrap_holes_required = camera_config.get("bootstrap_holes_required", 4)
+        self.hole_tracking_min_distance_px = camera_config.get(
+            "hole_tracking_min_distance_px", 60.0
+        )
+        self.hole_tracking_distance_scale = camera_config.get(
+            "hole_tracking_distance_scale", 0.9
+        )
 
     def handle(self, detection_msg: YoloResult):
         stamp = detection_msg.header.stamp
 
-        # First: process torpedo holes (ID=5) with special 2-hole logic
         self._process_torpedo_holes(detection_msg, stamp)
 
+    def _process_torpedo_holes(self, detection_msg: YoloResult, stamp):
+        detected_holes = self._get_detected_holes(detection_msg)
+
+        if len(detected_holes) == self.bootstrap_holes_required:
+            assignments = self._assign_labels_from_layout(detected_holes)
+        elif self.tracked_holes_odom:
+            assignments = self._assign_labels_from_tracking_3d(detected_holes, stamp)
+        else:
+            rospy.logwarn_throttle(
+                5.0,
+                "Torpedo holes need an initial 4-hole view before tracking can continue.",
+            )
+            return
+
+        if not assignments:
+            rospy.logwarn_throttle(
+                5.0,
+                f"Could not match {len(detected_holes)} torpedo hole detection(s) to tracked holes.",
+            )
+            return
+
+        for child_frame_id, detection in assignments.items():
+            self._publish_hole_transform(detection, child_frame_id, stamp)
+
+    def _get_detected_holes(self, detection_msg: YoloResult):
+        detected_holes = []
+        target_detection_id = self.id_tf_map.id_of("torpedo_hole_link")
+
         for detection in detection_msg.detections.detections:
-            continue
-            if len(detection.results) == 0:
+            if not detection.results:
                 continue
-            detection_id = detection.results[0].id
-
-            # Skip torpedo holes — already processed above
-            if detection_id == self.id_tf_map.id_of("torpedo_hole_link"):
-                continue
-
-            if detection_id not in self.id_tf_map:
+            if detection.results[0].id != target_detection_id:
                 continue
 
             if not check_inside_image(detection, self.image_width, self.image_height):
                 continue
 
-            prop_name = self.id_tf_map[detection_id]
-            if prop_name not in self.props:
+            detected_holes.append(detection)
+
+        return detected_holes
+
+    def _assign_labels_from_layout(self, detected_holes):
+        selected_holes = sorted(
+            detected_holes,
+            key=lambda detection: detection.bbox.size_x * detection.bbox.size_y,
+            reverse=True,
+        )[: self.bootstrap_holes_required]
+
+        remaining_holes = list(selected_holes)
+
+        left_mid_hole = min(remaining_holes, key=self._bbox_center_x)
+        remaining_holes.remove(left_mid_hole)
+
+        bottom_right_hole = max(remaining_holes, key=self._bbox_center_x)
+        remaining_holes.remove(bottom_right_hole)
+
+        top_mid_hole = min(remaining_holes, key=self._bbox_center_y)
+        bottom_mid_hole = max(remaining_holes, key=self._bbox_center_y)
+
+        return {
+            "torpedo_hole_left_mid_link": left_mid_hole,
+            "torpedo_hole_bottom_right_link": bottom_right_hole,
+            "torpedo_hole_bottom_mid_link": bottom_mid_hole,
+            "torpedo_hole_top_mid_link": top_mid_hole,
+        }
+
+    def _assign_labels_from_tracking_3d(self, detected_holes, stamp):
+        if not detected_holes:
+            return {}
+
+        projected_points_2d = {}
+        fx = self.calibration.calibration.K[0]
+        fy = self.calibration.calibration.K[4]
+        cx = self.calibration.calibration.K[2]
+        cy = self.calibration.calibration.K[5]
+
+        # Project 3D odom points to camera pixels
+        for child_frame_id, odom_point in self.tracked_holes_odom.items():
+            try:
+                pose_stamped = PoseStamped()
+                pose_stamped.header.stamp = stamp
+                pose_stamped.header.frame_id = "odom"
+                pose_stamped.pose.position = odom_point
+                pose_stamped.pose.orientation.w = 1.0
+
+                transformed_pose = self.tf_buffer.transform(
+                    pose_stamped, self.camera_frame, rospy.Duration(0.1)
+                )
+                p = transformed_pose.pose.position
+                if p.z > 0:
+                    u = (p.x * fx / p.z) + cx
+                    v = (p.y * fy / p.z) + cy
+                    projected_points_2d[child_frame_id] = (u, v)
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                rospy.logwarn_throttle(
+                    2.0, f"Failed to project {child_frame_id} from odom: {e}"
+                )
+
+        candidates = []
+        for child_frame_id, proj_pt in projected_points_2d.items():
+            for detection_idx, detection in enumerate(detected_holes):
+                center = detection.bbox.center
+                dist = (
+                    (center.x - proj_pt[0]) ** 2 + (center.y - proj_pt[1]) ** 2
+                ) ** 0.5
+
+                adaptive_threshold = max(
+                    self.hole_tracking_min_distance_px * 2.0,
+                    self.hole_tracking_distance_scale
+                    * self._bbox_diag(detection)
+                    * 2.0,
+                )
+
+                if dist <= adaptive_threshold:
+                    candidates.append((dist, child_frame_id, detection_idx))
+
+        candidates.sort(key=lambda item: item[0])
+        assignments = {}
+        matched_detection_indices = set()
+
+        for dist, child_frame_id, detection_idx in candidates:
+            if (
+                child_frame_id in assignments
+                or detection_idx in matched_detection_indices
+            ):
                 continue
+            matched_detection_indices.add(detection_idx)
+            assignments[child_frame_id] = detected_holes[detection_idx]
 
-            prop = self.props[prop_name]
-            distance = prop.estimate_distance(
-                detection.bbox.size_y,
-                detection.bbox.size_x,
-                self.calibration,
-            )
-
-            if distance is None:
-                continue
-
-            angles, offset_x, offset_y = calculate_angles_and_offsets(
-                self.calibration, detection.bbox.center, distance
-            )
-
-            # Publish props yaw
-            props_yaw_msg = PropsYaw()
-            props_yaw_msg.header.stamp = stamp
-            props_yaw_msg.object = prop.name
-            props_yaw_msg.angle = -angles[0]
-            self.props_yaw_pub.publish(props_yaw_msg)
-
-            # Max distance check
-            if (offset_x**2 + offset_y**2 + distance**2) > 30**2:
-                rospy.logdebug(f"Detection for {prop_name} is too far away. Skipping.")
-                continue
-
-            transform_to_odom_and_publish(
-                self.camera_frame,
-                prop_name,
-                offset_x,
-                offset_y,
-                distance,
-                stamp,
-                self.tf_buffer,
-                self.object_transform_pub,
-            )
-
-    def _process_torpedo_holes(self, detection_msg: YoloResult, stamp):
-        """Find exactly 2 torpedo holes, assign upper/bottom and shark/sawfish, publish transforms."""
-        detected_holes = []
-
-        for detection in detection_msg.detections.detections:
-            if len(detection.results) == 0:
-                continue
-            detection_id = detection.results[0].id
-
-            if detection_id == self.id_tf_map.id_of("torpedo_hole_link"):
-                if check_inside_image(detection, self.image_width, self.image_height):
-                    detected_holes.append(detection)
-
-        if len(detected_holes) != 2:
-            rospy.logwarn_throttle(
-                5,
-                f"Expected 2 torpedo holes, but found {len(detected_holes)}. Skipping.",
-            )
-            return
-
-        hole1 = detected_holes[0]
-        hole2 = detected_holes[1]
-
-        # Determine upper/bottom by Y coordinate (smaller Y = higher in image)
-        if hole1.bbox.center.y < hole2.bbox.center.y:
-            upper_hole = hole1
-            bottom_hole = hole2
-        else:
-            upper_hole = hole2
-            bottom_hole = hole1
-
-        # Assign shark/sawfish by X position relative to each other
-        if upper_hole.bbox.center.x > bottom_hole.bbox.center.x:
-            upper_child_frame = "torpedo_hole_sawfish_link"
-            bottom_child_frame = "torpedo_hole_shark_link"
-        else:
-            upper_child_frame = "torpedo_hole_shark_link"
-            bottom_child_frame = "torpedo_hole_sawfish_link"
-
-        rospy.loginfo_once(
-            f"Upper hole assigned to {upper_child_frame}, bottom to {bottom_child_frame}"
-        )
-
-        self._publish_hole_transform(upper_hole, upper_child_frame, stamp)
-        self._publish_hole_transform(bottom_hole, bottom_child_frame, stamp)
+        return assignments
 
     def _publish_hole_transform(self, detection, child_frame_id, stamp):
-        """Estimate distance and publish transform for a single torpedo hole."""
         prop = self.torpedo_hole_props.get(child_frame_id)
         if not prop:
             rospy.logerr(f"Prop for '{child_frame_id}' not found.")
@@ -168,7 +212,7 @@ class TorpedoCameraHandler:
             self.calibration, detection.bbox.center, distance
         )
 
-        transform_to_odom_and_publish(
+        final_transform = transform_to_odom_and_publish(
             self.camera_frame,
             child_frame_id,
             offset_x,
@@ -178,6 +222,23 @@ class TorpedoCameraHandler:
             self.tf_buffer,
             self.object_transform_pub,
         )
+
+        if final_transform:
+            self.tracked_holes_odom[child_frame_id] = (
+                final_transform.transform.translation
+            )
+
+    @staticmethod
+    def _bbox_center_x(detection):
+        return detection.bbox.center.x
+
+    @staticmethod
+    def _bbox_center_y(detection):
+        return detection.bbox.center.y
+
+    @staticmethod
+    def _bbox_diag(detection):
+        return (detection.bbox.size_x**2 + detection.bbox.size_y**2) ** 0.5
 
 
 def create_handler(
