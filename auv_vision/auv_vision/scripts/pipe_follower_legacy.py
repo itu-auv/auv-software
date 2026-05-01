@@ -6,20 +6,36 @@ import math
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge
+from std_srvs.srv import Trigger, TriggerResponse
 
 
 class PipeFollowerLegacy:
     def __init__(self):
         self.k_p = rospy.get_param("~k_p", 1.5)
         self.max_angular_z = rospy.get_param("~max_angular_z", 0.8)
+        self.is_enabled = False
 
         self.bridge = CvBridge()
         self.pub_cmd = rospy.Publisher("cmd_vel", Twist, queue_size=1)
         self.pub_debug = rospy.Publisher("debug_image", Image, queue_size=1)
 
         self.sub_mask = rospy.Subscriber("seg_mask", Image, self.cb_mask, queue_size=1)
+        self.start_service = rospy.Service("~enable", Trigger, self.cb_start)
+        self.stop_service = rospy.Service("~disable", Trigger, self.cb_stop)
+
+    def cb_start(self, req):
+        self.is_enabled = True
+        return TriggerResponse(success=True, message="Pipe follower legacy enabled")
+
+    def cb_stop(self, req):
+        self.is_enabled = False
+        self.pub_cmd.publish(Twist())
+        return TriggerResponse(success=True, message="Pipe follower legacy disabled")
 
     def cb_mask(self, msg):
+        if not self.is_enabled:
+            return
+
         try:
             mask = self.bridge.imgmsg_to_cv2(msg, desired_encoding="mono8")
         except Exception as e:

@@ -92,6 +92,7 @@ class MainStateMachineNode:
         # Pipe Follower params
         self.pipe_map_depth = -0.75
         self.pipe_target_frame = "pipe_carrot"
+        self.pipe_method = rospy.get_param("~pipe_method", "new")
 
         # GPS parameters
         self.gps_depth = -1.0
@@ -256,6 +257,7 @@ class MainStateMachineNode:
                 {
                     "pipe_map_depth": self.pipe_map_depth,
                     "pipe_target_frame": self.pipe_target_frame,
+                    "pipe_method": self.pipe_method,
                 },
             ),
         }

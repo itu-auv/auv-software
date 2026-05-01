@@ -27,7 +27,7 @@ from dynamic_reconfigure.server import Server
 class PipeFramePublisher:
     def __init__(self):
         rospy.loginfo("[PipeFramePublisher] Initializing...")
-        self.callback_time = rospy.Time.now()
+        self.callback_time = rospy.Time(0)
 
         self.image_center = None
         self.target_width = 320
@@ -98,7 +98,7 @@ class PipeFramePublisher:
         if not self.is_enabled:
             return
 
-        self.callback_time = rospy.Time.now()
+        self.callback_time = msg.header.stamp
 
         try:
             img_og = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")

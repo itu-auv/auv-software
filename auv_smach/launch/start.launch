@@ -2,6 +2,8 @@
 <launch>
     <arg name="namespace" default="taluy" />
     <arg name="enable_rate" default="20" />
+    <arg name="pipe_method" default="new" doc="Pipe follower implementation: new or legacy"/>
+    <arg name="pipe_legacy_duration" default="60.0" doc="Duration to run legacy pipe follower in seconds"/>
     <param name="/smach/max_linear_velocity" value="0.3" />
     <param name="/smach/max_angular_velocity" value="0.45" />
 
@@ -56,6 +58,8 @@
             <param name="roll" value="$(arg roll)"/>
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
+            <param name="pipe_method" value="$(arg pipe_method)"/>
+            <param name="pipe_legacy_duration" value="$(arg pipe_legacy_duration)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
