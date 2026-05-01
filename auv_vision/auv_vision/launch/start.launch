@@ -4,6 +4,7 @@
   <arg name="pipe_legacy_cmd_vel_topic" default="cmd_vel" />
   <arg name="pipe_camera_forward_direction" default="right" />
   <arg name="pipe_legacy_linear_x" default="0.2" />
+  <arg name="pipe_legacy_target_width" default="320" />
 
   <group ns="$(arg namespace)">
     <!-- YOLO Segmentation to Mask Node -->
@@ -52,6 +53,7 @@
       <remap from="debug_image/compressed" to="pipe_follower_legacy/debug_image/compressed" />
       <param name="camera_forward_direction" value="$(arg pipe_camera_forward_direction)" />
       <param name="linear_x" value="$(arg pipe_legacy_linear_x)" />
+      <param name="target_width" value="$(arg pipe_legacy_target_width)" />
     </node>
   </group>
 </launch>

@@ -5,6 +5,7 @@
     <arg name="cmd_vel_topic" default="cmd_vel" />
     <arg name="camera_forward_direction" default="right" />
     <arg name="linear_x" default="0.2" />
+    <arg name="target_width" default="320" />
 
     <group ns="$(arg namespace)">
         <node pkg="auv_vision" type="pipe_follower_legacy.py" name="pipe_follower_legacy" output="screen">
@@ -18,6 +19,7 @@
             <param name="max_angular_z" value="0.8" />
             <param name="camera_forward_direction" value="$(arg camera_forward_direction)" />
             <param name="linear_x" value="$(arg linear_x)" />
+            <param name="target_width" value="$(arg target_width)" />
         </node>
     </group>
 </launch>

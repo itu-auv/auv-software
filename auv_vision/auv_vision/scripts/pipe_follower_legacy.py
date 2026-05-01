@@ -14,6 +14,7 @@ class PipeFollowerLegacy:
         self.k_p = rospy.get_param("~k_p", 1.5)
         self.max_angular_z = rospy.get_param("~max_angular_z", 0.8)
         self.linear_x = rospy.get_param("~linear_x", 0.2)
+        self.target_width = rospy.get_param("~target_width", 320)
         self.camera_forward_direction = rospy.get_param(
             "~camera_forward_direction", "right"
         ).lower()
@@ -57,6 +58,12 @@ class PipeFollowerLegacy:
         except Exception as e:
             rospy.logerr(f"CvBridge error: {e}")
             return
+
+        h_og, w_og = mask.shape[:2]
+        scale = self.target_width / float(w_og)
+        mask = cv2.resize(
+            mask, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST
+        )
 
         _ret = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         if len(_ret) == 3:

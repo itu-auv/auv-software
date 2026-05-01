@@ -2,6 +2,7 @@
   <arg name="namespace" default="taluy" />
   <arg name="pipe_camera_forward_direction" default="right" />
   <arg name="pipe_legacy_linear_x" default="0.2" />
+  <arg name="pipe_legacy_target_width" default="320" />
 
   <include file="$(find auv_detection)/launch/inc/tracker_segment.launch">
     <arg name="namespace" value="$(arg namespace)" />
@@ -20,6 +21,7 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
       <param name="camera_forward_direction" value="$(arg pipe_camera_forward_direction)" />
       <param name="linear_x" value="$(arg pipe_legacy_linear_x)" />
+      <param name="target_width" value="$(arg pipe_legacy_target_width)" />
     </node>
   </group>
 </launch>
