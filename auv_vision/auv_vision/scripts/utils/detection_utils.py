@@ -221,12 +221,14 @@ def transform_to_odom_and_publish(
         )
 
         publisher.publish(final_transform_stamped)
+        return final_transform_stamped
     except (
         tf2_ros.LookupException,
         tf2_ros.ConnectivityException,
         tf2_ros.ExtrapolationException,
     ) as e:
         rospy.logwarn_throttle(5.0, f"Transform error for {child_frame_id}: {e}")
+        return None
 
 
 def calculate_intersection_with_plane(point1_odom, point2_odom, z_plane):

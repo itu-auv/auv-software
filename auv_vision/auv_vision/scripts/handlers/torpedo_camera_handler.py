@@ -7,6 +7,8 @@ from utils.detection_utils import (
     calculate_angles_and_offsets,
     transform_to_odom_and_publish,
 )
+from geometry_msgs.msg import PoseStamped
+import tf2_ros
 
 
 class TorpedoCameraHandler:
@@ -42,17 +44,13 @@ class TorpedoCameraHandler:
         self.torpedo_hole_props = {
             frame_id: self.props.get(frame_id) for frame_id in self.HOLE_FRAME_IDS
         }
-        self.tracked_holes = {}
+        self.tracked_holes_odom = {}
         self.bootstrap_holes_required = camera_config.get("bootstrap_holes_required", 4)
         self.hole_tracking_min_distance_px = camera_config.get(
             "hole_tracking_min_distance_px", 60.0
         )
         self.hole_tracking_distance_scale = camera_config.get(
             "hole_tracking_distance_scale", 0.9
-        )
-        self.hole_tracking_min_iou = camera_config.get("hole_tracking_min_iou", 0.05)
-        self.hole_tracking_iou_weight = camera_config.get(
-            "hole_tracking_iou_weight", 0.35
         )
 
     def handle(self, detection_msg: YoloResult):
@@ -65,8 +63,8 @@ class TorpedoCameraHandler:
 
         if len(detected_holes) == self.bootstrap_holes_required:
             assignments = self._assign_labels_from_layout(detected_holes)
-        elif self.tracked_holes:
-            assignments = self._assign_labels_from_tracking(detected_holes)
+        elif self.tracked_holes_odom:
+            assignments = self._assign_labels_from_tracking_3d(detected_holes, stamp)
         else:
             rospy.logwarn_throttle(
                 5.0,
@@ -82,7 +80,6 @@ class TorpedoCameraHandler:
             return
 
         for child_frame_id, detection in assignments.items():
-            self._update_tracked_hole(child_frame_id, detection)
             self._publish_hole_transform(detection, child_frame_id, stamp)
 
     def _get_detected_holes(self, detection_msg: YoloResult):
@@ -90,11 +87,9 @@ class TorpedoCameraHandler:
         target_detection_id = self.id_tf_map.id_of("torpedo_hole_link")
 
         for detection in detection_msg.detections.detections:
-            if len(detection.results) == 0:
+            if not detection.results:
                 continue
-            detection_id = detection.results[0].id
-
-            if detection_id != target_detection_id:
+            if detection.results[0].id != target_detection_id:
                 continue
 
             if not check_inside_image(detection, self.image_width, self.image_height):
@@ -129,63 +124,74 @@ class TorpedoCameraHandler:
             "torpedo_hole_top_mid_link": top_mid_hole,
         }
 
-    def _assign_labels_from_tracking(self, detected_holes):
+    def _assign_labels_from_tracking_3d(self, detected_holes, stamp):
         if not detected_holes:
             return {}
 
+        projected_points_2d = {}
+        fx = self.calibration.calibration.K[0]
+        fy = self.calibration.calibration.K[4]
+        cx = self.calibration.calibration.K[2]
+        cy = self.calibration.calibration.K[5]
+
+        # Project 3D odom points to camera pixels
+        for child_frame_id, odom_point in self.tracked_holes_odom.items():
+            try:
+                pose_stamped = PoseStamped()
+                pose_stamped.header.stamp = stamp
+                pose_stamped.header.frame_id = "odom"
+                pose_stamped.pose.position = odom_point
+                pose_stamped.pose.orientation.w = 1.0
+
+                transformed_pose = self.tf_buffer.transform(
+                    pose_stamped, self.camera_frame, rospy.Duration(0.1)
+                )
+                p = transformed_pose.pose.position
+                if p.z > 0:
+                    u = (p.x * fx / p.z) + cx
+                    v = (p.y * fy / p.z) + cy
+                    projected_points_2d[child_frame_id] = (u, v)
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                rospy.logwarn_throttle(
+                    2.0, f"Failed to project {child_frame_id} from odom: {e}"
+                )
+
         candidates = []
-        for child_frame_id, previous_bbox in self.tracked_holes.items():
+        for child_frame_id, proj_pt in projected_points_2d.items():
             for detection_idx, detection in enumerate(detected_holes):
-                center_distance = self._bbox_center_distance(detection, previous_bbox)
-                current_diag = self._bbox_diag(detection)
-                previous_diag = self._bbox_diag(previous_bbox)
+                center = detection.bbox.center
+                dist = (
+                    (center.x - proj_pt[0]) ** 2 + (center.y - proj_pt[1]) ** 2
+                ) ** 0.5
+
                 adaptive_threshold = max(
-                    self.hole_tracking_min_distance_px,
+                    self.hole_tracking_min_distance_px * 2.0,
                     self.hole_tracking_distance_scale
-                    * max(current_diag, previous_diag),
-                )
-                iou = self._bbox_iou(detection, previous_bbox)
-
-                if (
-                    center_distance > adaptive_threshold
-                    and iou < self.hole_tracking_min_iou
-                ):
-                    continue
-
-                normalized_distance = center_distance / max(
-                    max(current_diag, previous_diag), 1.0
-                )
-                cost = normalized_distance - (self.hole_tracking_iou_weight * iou)
-                candidates.append(
-                    (cost, center_distance, child_frame_id, detection_idx)
+                    * self._bbox_diag(detection)
+                    * 2.0,
                 )
 
-        candidates.sort(key=lambda item: (item[0], item[1]))
+                if dist <= adaptive_threshold:
+                    candidates.append((dist, child_frame_id, detection_idx))
 
-        matched_labels = set()
-        matched_detection_indices = set()
+        candidates.sort(key=lambda item: item[0])
         assignments = {}
+        matched_detection_indices = set()
 
-        for _, _, child_frame_id, detection_idx in candidates:
+        for dist, child_frame_id, detection_idx in candidates:
             if (
-                child_frame_id in matched_labels
+                child_frame_id in assignments
                 or detection_idx in matched_detection_indices
             ):
                 continue
-
-            matched_labels.add(child_frame_id)
             matched_detection_indices.add(detection_idx)
             assignments[child_frame_id] = detected_holes[detection_idx]
 
         return assignments
-
-    def _update_tracked_hole(self, child_frame_id, detection):
-        self.tracked_holes[child_frame_id] = {
-            "center_x": detection.bbox.center.x,
-            "center_y": detection.bbox.center.y,
-            "size_x": detection.bbox.size_x,
-            "size_y": detection.bbox.size_y,
-        }
 
     def _publish_hole_transform(self, detection, child_frame_id, stamp):
         prop = self.torpedo_hole_props.get(child_frame_id)
@@ -206,7 +212,7 @@ class TorpedoCameraHandler:
             self.calibration, detection.bbox.center, distance
         )
 
-        transform_to_odom_and_publish(
+        final_transform = transform_to_odom_and_publish(
             self.camera_frame,
             child_frame_id,
             offset_x,
@@ -217,6 +223,11 @@ class TorpedoCameraHandler:
             self.object_transform_pub,
         )
 
+        if final_transform:
+            self.tracked_holes_odom[child_frame_id] = (
+                final_transform.transform.translation
+            )
+
     @staticmethod
     def _bbox_center_x(detection):
         return detection.bbox.center.x
@@ -226,52 +237,8 @@ class TorpedoCameraHandler:
         return detection.bbox.center.y
 
     @staticmethod
-    def _bbox_diag(detection_or_bbox):
-        if hasattr(detection_or_bbox, "bbox"):
-            bbox = detection_or_bbox.bbox
-            size_x = bbox.size_x
-            size_y = bbox.size_y
-        else:
-            size_x = detection_or_bbox["size_x"]
-            size_y = detection_or_bbox["size_y"]
-
-        return (size_x**2 + size_y**2) ** 0.5
-
-    @staticmethod
-    def _bbox_center_distance(detection, previous_bbox):
-        dx = detection.bbox.center.x - previous_bbox["center_x"]
-        dy = detection.bbox.center.y - previous_bbox["center_y"]
-        return (dx**2 + dy**2) ** 0.5
-
-    @staticmethod
-    def _bbox_iou(detection, previous_bbox):
-        current_left = detection.bbox.center.x - (detection.bbox.size_x * 0.5)
-        current_right = detection.bbox.center.x + (detection.bbox.size_x * 0.5)
-        current_top = detection.bbox.center.y - (detection.bbox.size_y * 0.5)
-        current_bottom = detection.bbox.center.y + (detection.bbox.size_y * 0.5)
-
-        previous_left = previous_bbox["center_x"] - (previous_bbox["size_x"] * 0.5)
-        previous_right = previous_bbox["center_x"] + (previous_bbox["size_x"] * 0.5)
-        previous_top = previous_bbox["center_y"] - (previous_bbox["size_y"] * 0.5)
-        previous_bottom = previous_bbox["center_y"] + (previous_bbox["size_y"] * 0.5)
-
-        inter_left = max(current_left, previous_left)
-        inter_right = min(current_right, previous_right)
-        inter_top = max(current_top, previous_top)
-        inter_bottom = min(current_bottom, previous_bottom)
-
-        if inter_left >= inter_right or inter_top >= inter_bottom:
-            return 0.0
-
-        intersection_area = (inter_right - inter_left) * (inter_bottom - inter_top)
-        current_area = detection.bbox.size_x * detection.bbox.size_y
-        previous_area = previous_bbox["size_x"] * previous_bbox["size_y"]
-        union_area = current_area + previous_area - intersection_area
-
-        if union_area <= 0.0:
-            return 0.0
-
-        return intersection_area / union_area
+    def _bbox_diag(detection):
+        return (detection.bbox.size_x**2 + detection.bbox.size_y**2) ** 0.5
 
 
 def create_handler(
