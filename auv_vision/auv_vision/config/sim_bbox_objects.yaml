@@ -196,7 +196,7 @@ objects:
     offset: [-0.7432, 0.2978, -0.1486]
     boundary:
       shape: box
-      args: [0.341, 0.317, 0.321]
+      args: [0.17, 0.17, 0.17]
 
   - class_id: 6
     name: bin_basket_front
@@ -205,7 +205,7 @@ objects:
     offset: [-0.4462, 1.5502, 0.3349]
     boundary:
       shape: box
-      args: [0.346, 0.314, 0.331]
+      args: [0.17, 0.17, 0.17]
 
   - class_id: 6
     name: bin_basket_front
@@ -214,7 +214,7 @@ objects:
     offset: [-0.0937, 0.6191, -0.0805]
     boundary:
       shape: box
-      args: [0.342, 0.334, 0.320]
+      args: [0.17, 0.17, 0.17]
 
   - class_id: 6
     name: bin_basket_front
@@ -223,7 +223,7 @@ objects:
     offset: [-1.0420, 1.2816, 0.0919]
     boundary:
       shape: box
-      args: [0.340, 0.335, 0.331]
+      args: [0.17, 0.17, 0.17]
 
   # Bin bottom camera markers
   - class_id: 1
@@ -233,7 +233,7 @@ objects:
     offset: [-0.7480, 0.2883, -0.2803]  # basket-1
     boundary:
       shape: rect
-      args: [0.32, 0.32, 0]
+      args: [0.16, 0.16, 0]
 
   - class_id: 1
     name: bin_fire_link
@@ -242,7 +242,7 @@ objects:
     offset: [-0.4330, 1.5468, 0.2042]  # basket-2
     boundary:
       shape: rect
-      args: [0.32, 0.32, 0]
+      args: [0.16, 0.16, 0]
 
   - class_id: 0
     name: bin_blood_link
@@ -251,7 +251,7 @@ objects:
     offset: [-0.0880, 0.6145, -0.2168]  # basket-3
     boundary:
       shape: rect
-      args: [0.32, 0.32, 0]
+      args: [0.16, 0.16, 0]
 
   - class_id: 0
     name: bin_blood_link
@@ -260,7 +260,7 @@ objects:
     offset: [-1.0381, 1.2940, -0.0540]  # basket-4
     boundary:
       shape: rect
-      args: [0.32, 0.32, 0]
+      args: [0.16, 0.16, 0]
 
   # Octagon - compound boundary: legs + basket level
   - class_id: 7
