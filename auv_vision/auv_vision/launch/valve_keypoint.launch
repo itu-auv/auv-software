@@ -2,17 +2,17 @@
 <!--
   Brings up the valve keypoint pipeline plus the trajectory publisher:
 
-    valve_keypoint_node          HSV bbox + ViTPose       → /keypoint_result_front
+    tracker_node_tac_valve       valve_yolo.pt            → /yolo_result_tac_valve
+    valve_keypoint_node          YOLO bbox + ViTPose      → /keypoint_result_front
     keypoint_pose_node           PnP + transform_to_odom  → map/object_transform_updates
     object_map_tf_server         per-object Kalman filter → tac/valve TF
     valve_trajectory_publisher   reads tac/valve          → valve_approach_frame,
                                                              valve_contact_frame
 
-  The trajectory publisher is started with `start_enabled:=true` so both
-  approach and contact frames are broadcast continuously, without anything
-  calling its SetBool services.  This is the configuration we want for bag
-  replay visualization in RViz; the production sim/competition launches
-  leave start_enabled false so the smach gates publication per phase.
+  The trajectory publisher starts with both phases disabled and is enabled
+  per phase via its SetBool services.  For bag-replay visualization, call
+  `set_transform_valve_approach_frame` and `set_transform_valve_contact_frame`
+  with `data: true` after launch to make both frames broadcast continuously.
 
   The keypoint topic and camera_info topic are absolute paths matching the
   entries in auv_vision/config/keypoint_objects.yaml, so they don't depend
@@ -27,17 +27,30 @@
   <arg name="vitpose_model_path"  default="$(find auv_detection)/models/valve_vitpose.pth" />
   <arg name="device"              default="cpu" />
   <arg name="conf_threshold"      default="0.5" />
+  <arg name="yolo_result_topic"   default="/yolo_result_tac_valve" />
+  <arg name="yolo_conf_thres"     default="0.25" />
   <arg name="static_frame"        default="odom" />
   <arg name="control_rate"        default="10" />
   <arg name="use_sim_time"        default="false" />
 
   <param name="/use_sim_time" value="$(arg use_sim_time)" />
 
+  <!-- Bbox producer: image → YoloResult (valve_yolo.pt).  Routed through the
+       same `device` arg as the keypoint node so cpu/gpu propagates uniformly. -->
+  <include file="$(find auv_detection)/launch/inc/tracker_tac_valve.launch">
+    <arg name="namespace"    value="$(arg namespace)" />
+    <arg name="input_topic"  value="$(arg image_topic)" />
+    <arg name="result_topic" value="$(arg yolo_result_topic)" />
+    <arg name="conf_thres"   value="$(arg yolo_conf_thres)" />
+    <arg name="device"       value="$(arg device)" />
+  </include>
+
   <group ns="$(arg namespace)">
-    <!-- Producer: image → KeypointResult -->
+    <!-- Producer: image + YOLO bbox → KeypointResult -->
     <node pkg="auv_vision" type="valve_keypoint_node.py"
           name="valve_keypoint_node" output="screen">
       <param name="image_topic"        value="$(arg image_topic)" />
+      <param name="yolo_result_topic"  value="$(arg yolo_result_topic)" />
       <param name="vitpose_model_path" value="$(arg vitpose_model_path)" />
       <param name="device"             value="$(arg device)" />
       <param name="conf_threshold"     value="$(arg conf_threshold)" />
@@ -71,7 +84,6 @@
           name="valve_trajectory_publisher" output="screen">
       <rosparam command="load"
                 file="$(find auv_mapping)/config/valve_trajectory_publisher_params.yaml" />
-      <param name="start_enabled" value="true" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
   </group>

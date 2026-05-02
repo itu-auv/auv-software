@@ -13,12 +13,19 @@ Topics published (per camera):
 """
 
 import os
+import sys
 import threading
 
 import cv2
 import numpy as np
 import rospy
 import yaml
+
+# Add scripts directory to path so we can import the shared utils package
+# (mirrors camera_detection_node.py).
+_scripts_dir = os.path.dirname(os.path.abspath(__file__))
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
 
 from collections import deque
 from cv_bridge import CvBridge
@@ -34,59 +41,7 @@ import rospkg
 import tf2_ros
 import tf.transformations as tft
 
-
-# ---------------------------------------------------------------------------
-# Shape factories — same as sim_bbox_node
-# ---------------------------------------------------------------------------
-
-
-def rect(half_extents: Tuple[float, float, float]) -> List[np.ndarray]:
-    axes = [row for row in np.diag(half_extents) if np.any(row)]
-    if len(axes) != 2:
-        raise ValueError("Exactly two non-zero half-extents required")
-    return [sx * axes[0] + sy * axes[1] for sx in [1, -1] for sy in [1, -1]]
-
-
-def circle(radii: Tuple[float, float, float], n: int = 16) -> List[np.ndarray]:
-    axes = [row for row in np.diag(radii) if np.any(row)]
-    if len(axes) != 2:
-        raise ValueError("Exactly two non-zero radii required")
-    return [
-        axes[0] * np.cos(t) + axes[1] * np.sin(t)
-        for t in np.linspace(0, 2 * np.pi, n, endpoint=False)
-    ]
-
-
-def box(half_x: float, half_y: float, half_z: float) -> List[np.ndarray]:
-    return [
-        np.array([sx * half_x, sy * half_y, sz * half_z])
-        for sx in [1, -1]
-        for sy in [1, -1]
-        for sz in [1, -1]
-    ]
-
-
-def cylinder(half_extents: Tuple[float, float, float], n: int = 8) -> List[np.ndarray]:
-    e = np.array(half_extents)
-    for i in range(3):
-        j, k = [x for x in range(3) if x != i]
-        if e[j] == e[k]:
-            a0, a1, h = np.zeros(3), np.zeros(3), np.zeros(3)
-            a0[j], a1[k], h[i] = e[j], e[k], e[i]
-            return [
-                a0 * np.cos(t) + a1 * np.sin(t) + s * h
-                for s in [1, -1]
-                for t in np.linspace(0, 2 * np.pi, n, endpoint=False)
-            ]
-    raise ValueError("Exactly two equal half-extents (radii) required")
-
-
-SHAPE_FACTORIES = {
-    "rect": lambda args: rect(tuple(args)),
-    "circle": lambda args: circle(tuple(args)),
-    "box": lambda args: box(*args),
-    "cylinder": lambda args: cylinder(tuple(args)),
-}
+from utils.detection_utils import SHAPE_FACTORIES
 
 
 # ---------------------------------------------------------------------------

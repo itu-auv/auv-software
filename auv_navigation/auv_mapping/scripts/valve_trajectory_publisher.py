@@ -19,10 +19,9 @@ Params:
   ~valve_frame    (str, default "tac/valve")    — source frame to read
   ~approach_frame (str, default "valve_approach_frame")
   ~contact_frame  (str, default "valve_contact_frame")
-  ~start_enabled  (bool, default False)         — when True, both phases
-      are enabled at startup and published continuously without anything
-      calling the SetBool services. Used by the debug launch for bag-replay
-      visualization. Production smach behavior leaves this False.
+
+Both phases start disabled; enable per phase via the SetBool services
+`set_transform_valve_approach_frame` and `set_transform_valve_contact_frame`.
 """
 
 import numpy as np
@@ -63,10 +62,9 @@ class ValveTrajectoryPublisherNode:
         self.approach_frame = rospy.get_param("~approach_frame", "valve_approach_frame")
         self.contact_frame = rospy.get_param("~contact_frame", "valve_contact_frame")
 
-        # Phase enable flags (toggled via SetBool services or ~start_enabled)
-        start_enabled = bool(rospy.get_param("~start_enabled", False))
-        self.enable_approach = start_enabled
-        self.enable_contact = start_enabled
+        # Phase enable flags — toggled via the SetBool services below.
+        self.enable_approach = False
+        self.enable_contact = False
 
         # Default offsets — overwritten immediately by dynamic reconfigure
         self.approach_offset = 0.75
@@ -90,8 +88,7 @@ class ValveTrajectoryPublisherNode:
         )
 
         rospy.loginfo(
-            "Valve trajectory publisher started "
-            f"(valve_frame={self.valve_frame}, start_enabled={start_enabled})"
+            f"Valve trajectory publisher started (valve_frame={self.valve_frame})"
         )
 
     # =========================================================================
