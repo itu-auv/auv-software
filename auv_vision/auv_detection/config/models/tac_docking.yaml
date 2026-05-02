@@ -1,0 +1,24 @@
+# TAC Docking Task Configuration
+# Model: tracker_docking.pt
+
+model_name: tac_docking
+description: Single-class detection for TAC subsea docking task
+
+cameras:
+  front:
+    model_file: tracker_docking.pt
+    classes:
+      docking_station:
+        id: 0
+        tf_frame: docking_station_yolo
+        real_height: 1.20
+        real_width: 0.80
+
+  # Bottom camera not used for docking (ArUco board used instead)
+  bottom:
+    classes: {}
+
+focus_groups:
+  all:
+    - docking_station
+  none: []
