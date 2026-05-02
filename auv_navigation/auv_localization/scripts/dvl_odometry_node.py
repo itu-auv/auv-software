@@ -47,7 +47,6 @@ class DvlToOdom:
         self.model_covariance_multiplier = rospy.get_param(
             "~model_covariance_multiplier", 10.0
         )
-        # --- YENİ ---
         self.dvl_timeout = rospy.get_param("~dvl_timeout", 0.5)
 
         self.load_dynamic_model()
@@ -123,20 +122,18 @@ class DvlToOdom:
         self.last_model_update = rospy.Time.now()
         self.odom_received = False
 
-        # --- YENİ ---
         self.last_dvl_time = rospy.Time.now()
         self.model_timer = rospy.Timer(
             rospy.Duration(0.05), self.model_timer_callback  # 20Hz
         )
 
-    # --- YENİ ---
     def model_timer_callback(self, event):
         if not self.enabled:
             return
 
         dvl_elapsed = (rospy.Time.now() - self.last_dvl_time).to_sec()
         if dvl_elapsed < self.dvl_timeout:
-            return  # DVL hala aktif, dvl_callback hallediyor
+            return
 
         current_time = rospy.Time.now()
         dt = (current_time - self.last_model_update).to_sec()
@@ -369,7 +366,6 @@ class DvlToOdom:
 
     def dvl_callback(self, velocity_msg, is_valid_msg):
         self.is_dvl_enabled = True
-        # --- YENİ ---
         self.last_dvl_time = rospy.Time.now()
 
         if not self.enabled:
