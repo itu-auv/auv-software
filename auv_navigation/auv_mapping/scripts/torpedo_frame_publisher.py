@@ -112,8 +112,8 @@ class TorpedoTransformServiceNode:
     def _load_hole_fire_config(self, hole_name: str) -> dict:
         return {
             "hole_frame": rospy.get_param(
-                f"~torpedo_close_hole_{hole_name}_frame",
-                f"torpedo_close_hole_{hole_name}_link",
+                f"~torpedo_hole_{hole_name}_frame",
+                f"torpedo_hole_{hole_name}_link",
             ),
             "fire_frame": rospy.get_param(
                 f"~torpedo_{hole_name}_fire_frame",

@@ -145,6 +145,11 @@ class CameraDetectionNode:
             self._handle_set_front_camera_focus,
         )
         rospy.Service(
+            "set_torpedo_hole_focus",
+            SetDetectionFocus,
+            self._handle_set_torpedo_hole_focus,
+        )
+        rospy.Service(
             "enable_segment_camera_detections",
             SetBool,
             self._handle_enable_segment_camera,
@@ -293,6 +298,16 @@ class CameraDetectionNode:
 
         rospy.loginfo(message)
         return SetDetectionFocusResponse(success=True, message=message)
+
+    def _handle_set_torpedo_hole_focus(self, req):
+        torpedo_handler = self.handlers.get("torpedo")
+        if torpedo_handler is None or not hasattr(torpedo_handler, "set_hole_focus"):
+            message = "Torpedo camera handler is not available."
+            rospy.logwarn(message)
+            return SetDetectionFocusResponse(success=False, message=message)
+
+        success, message = torpedo_handler.set_hole_focus(req.focus_object)
+        return SetDetectionFocusResponse(success=success, message=message)
 
     def run(self):
         rospy.spin()

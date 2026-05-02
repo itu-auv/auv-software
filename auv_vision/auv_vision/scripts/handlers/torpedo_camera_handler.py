@@ -2,9 +2,8 @@
 
 import rospy
 import tf2_ros
-from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, Vector3
+from geometry_msgs.msg import Point, PoseStamped, Quaternion
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw
 from utils.detection_utils import (
     check_inside_image,
     calculate_angles_and_offsets,
@@ -13,6 +12,13 @@ from utils.detection_utils import (
 
 
 class TorpedoCameraHandler:
+    HOLE_FRAME_IDS = (
+        "torpedo_hole_left_link",
+        "torpedo_hole_right_link",
+        "torpedo_hole_bottom_link",
+        "torpedo_hole_top_link",
+    )
+
     def __init__(
         self,
         camera_config,
@@ -35,13 +41,19 @@ class TorpedoCameraHandler:
         self.props_yaw_pub = publishers["props_yaw"]
         self.shared_state = shared_state
 
-        self.reference_hole_frames = [
-            "torpedo_reference_hole_left_mid_link",
-            "torpedo_reference_hole_bottom_right_link",
-            "torpedo_reference_hole_bottom_mid_link",
-            "torpedo_reference_hole_top_mid_link",
-        ]
-        self.reference_holes_ready = False
+        self.hole_focus = "none"
+
+    def set_hole_focus(self, focus: str):
+        focus = focus.strip().lower()
+        if focus not in ("top", "bottom", "none"):
+            message = "Invalid torpedo hole focus. Expected one of: top, bottom, none."
+            rospy.logwarn(message)
+            return False, message
+
+        self.hole_focus = focus
+        message = f"Torpedo hole focus set to: {self.hole_focus}"
+        rospy.loginfo(message)
+        return True, message
 
     def handle(self, detection_msg: YoloResult):
         stamp = detection_msg.header.stamp
@@ -49,73 +61,118 @@ class TorpedoCameraHandler:
         self._process_torpedo_holes(detection_msg, stamp)
 
     def _process_torpedo_holes(self, detection_msg: YoloResult, stamp):
+        detected_holes = self._get_detected_holes(detection_msg)
+
+        if len(detected_holes) == 4:
+            assignments = self._assign_all_holes(detected_holes)
+        elif len(detected_holes) in (2, 3):
+            assignments = (
+                self._assign_nearest_existing_holes(detected_holes, stamp)
+                if self.hole_focus == "none"
+                else self._assign_focused_holes(detected_holes)
+            )
+        elif len(detected_holes) == 1:
+            assignments = self._assign_nearest_existing_holes(detected_holes, stamp)
+        else:
+            return
+
+        self._publish_hole_assignments(assignments, stamp)
+
+    def _get_detected_holes(self, detection_msg: YoloResult):
         detected_holes = []
+        target_detection_id = self.id_tf_map.id_of("torpedo_hole_link")
 
         for detection in detection_msg.detections.detections:
             if len(detection.results) == 0:
                 continue
-            detection_id = detection.results[0].id
 
-            if detection_id == self.id_tf_map.id_of("torpedo_hole_link"):
-                if check_inside_image(detection, self.image_width, self.image_height):
-                    detected_holes.append(detection)
-
-        self.reference_holes_ready = self._can_transform_all_reference_holes(stamp)
-        if len(detected_holes) == len(self.reference_hole_frames):
-            self._publish_reference_holes(detected_holes, stamp)
-        if not self.reference_holes_ready:
-            return
-
-        reference_positions = self._lookup_reference_hole_positions(stamp)
-        if len(reference_positions) != len(self.reference_hole_frames):
-            rospy.logwarn_throttle(
-                5,
-                "Could not read all torpedo reference hole frames. Skipping close holes.",
-            )
-            return
-
-        for detection in detected_holes:
-            nearest_reference_frame = self._nearest_reference_frame(
-                detection, reference_positions, stamp
-            )
-            if nearest_reference_frame is None:
+            if detection.results[0].id != target_detection_id:
                 continue
 
-            close_frame = self._close_frame_for_reference(nearest_reference_frame)
-            self._publish_hole_transform(detection, close_frame, stamp)
+            if check_inside_image(detection, self.image_width, self.image_height):
+                detected_holes.append(detection)
 
-    def _publish_reference_holes(self, detected_holes, stamp):
-        if len(detected_holes) != len(self.reference_hole_frames):
-            rospy.logwarn_throttle(
-                5,
-                f"Expected {len(self.reference_hole_frames)} torpedo holes, but found {len(detected_holes)}. Skipping.",
-            )
-            return
+        return detected_holes
 
+    def _assign_all_holes(self, detected_holes):
         remaining_holes = list(detected_holes)
 
-        left_mid_hole = min(remaining_holes, key=self._bbox_center_x)
-        remaining_holes.remove(left_mid_hole)
+        left_hole = min(remaining_holes, key=self._bbox_center_x)
+        remaining_holes.remove(left_hole)
 
-        bottom_right_hole = max(remaining_holes, key=self._bbox_center_x)
-        remaining_holes.remove(bottom_right_hole)
+        right_hole = max(remaining_holes, key=self._bbox_center_x)
+        remaining_holes.remove(right_hole)
 
-        top_mid_hole = min(remaining_holes, key=self._bbox_center_y)
-        bottom_mid_hole = max(remaining_holes, key=self._bbox_center_y)
+        top_hole = min(remaining_holes, key=self._bbox_center_y)
+        bottom_hole = max(remaining_holes, key=self._bbox_center_y)
 
-        assignments = [
-            ("torpedo_reference_hole_left_mid_link", left_mid_hole),
-            ("torpedo_reference_hole_bottom_right_link", bottom_right_hole),
-            ("torpedo_reference_hole_bottom_mid_link", bottom_mid_hole),
-            ("torpedo_reference_hole_top_mid_link", top_mid_hole),
-        ]
+        return {
+            "torpedo_hole_left_link": left_hole,
+            "torpedo_hole_right_link": right_hole,
+            "torpedo_hole_bottom_link": bottom_hole,
+            "torpedo_hole_top_link": top_hole,
+        }
 
-        for child_frame_id, detection in assignments:
+    def _assign_focused_holes(self, detected_holes):
+        if len(detected_holes) == 2:
+            hole_names = (
+                ("left", "top") if self.hole_focus == "top" else ("bottom", "right")
+            )
+            sorted_holes = sorted(detected_holes, key=self._bbox_center_x)
+            return {
+                self._frame_for_hole(hole_name): detection
+                for hole_name, detection in zip(hole_names, sorted_holes)
+            }
+
+        focus_top = self.hole_focus == "top"
+        holes_by_focus_y = sorted(
+            enumerate(detected_holes),
+            key=lambda indexed_hole: self._bbox_center_y(indexed_hole[1]),
+            reverse=not focus_top,
+        )
+        focus_pair = [indexed_hole[1] for indexed_hole in holes_by_focus_y[:2]]
+        remaining_hole = holes_by_focus_y[2][1]
+        left_side_hole, right_side_hole = sorted(focus_pair, key=self._bbox_center_x)
+
+        if focus_top:
+            return {
+                "torpedo_hole_left_link": left_side_hole,
+                "torpedo_hole_top_link": right_side_hole,
+                "torpedo_hole_bottom_link": remaining_hole,
+            }
+
+        return {
+            "torpedo_hole_bottom_link": left_side_hole,
+            "torpedo_hole_right_link": right_side_hole,
+            "torpedo_hole_top_link": remaining_hole,
+        }
+
+    def _assign_nearest_existing_hole(self, detection, stamp):
+        hole_positions = self._lookup_hole_positions(stamp)
+        if not hole_positions:
+            rospy.logwarn_throttle(
+                5,
+                "Could not read any torpedo hole frames. Skipping nearest-hole assignment.",
+            )
+            return {}
+
+        nearest_frame = self._nearest_hole_frame(detection, hole_positions, stamp)
+        return {} if nearest_frame is None else {nearest_frame: detection}
+
+    def _assign_nearest_existing_holes(self, detected_holes, stamp):
+        assignments = []
+        for detection in detected_holes:
+            assignments.extend(
+                self._assign_nearest_existing_hole(detection, stamp).items()
+            )
+        return assignments
+
+    def _publish_hole_assignments(self, assignments, stamp):
+        assignment_items = (
+            assignments.items() if hasattr(assignments, "items") else assignments
+        )
+        for child_frame_id, detection in assignment_items:
             self._publish_hole_transform(detection, child_frame_id, stamp)
-
-        self.reference_holes_ready = self._can_transform_all_reference_holes(stamp)
-        if self.reference_holes_ready:
-            rospy.loginfo("All torpedo reference hole frames are available in TF.")
 
     def _publish_hole_transform(self, detection, child_frame_id, stamp):
         """Estimate distance and publish transform for a single torpedo hole."""
@@ -137,29 +194,34 @@ class TorpedoCameraHandler:
             self.calibration, detection.bbox.center, distance
         )
 
-        return self._publish_odom_transform(
-            child_frame_id, offset_x, offset_y, distance, stamp
+        transform_to_odom_and_publish(
+            self.camera_frame,
+            child_frame_id,
+            offset_x,
+            offset_y,
+            distance,
+            stamp,
+            self.tf_buffer,
+            self.object_transform_pub,
         )
 
-    def _nearest_reference_frame(self, detection, reference_positions, stamp):
-        nearest_reference_frame = None
+    def _nearest_hole_frame(self, detection, hole_positions, stamp):
+        nearest_hole_frame = None
         nearest_distance = None
 
-        for reference_frame, reference_position in reference_positions.items():
+        for hole_frame, hole_position in hole_positions.items():
             projected_position = self._project_hole_to_odom(
-                detection, stamp, reference_frame
+                detection, stamp, hole_frame
             )
             if projected_position is None:
                 continue
 
-            distance_squared = self._distance_squared(
-                projected_position, reference_position
-            )
+            distance_squared = self._distance_squared(projected_position, hole_position)
             if nearest_distance is None or distance_squared < nearest_distance:
-                nearest_reference_frame = reference_frame
+                nearest_hole_frame = hole_frame
                 nearest_distance = distance_squared
 
-        return nearest_reference_frame
+        return nearest_hole_frame
 
     def _project_hole_to_odom(self, detection, stamp, reference_frame):
         prop = self._prop_for_hole_frame(reference_frame)
@@ -179,26 +241,6 @@ class TorpedoCameraHandler:
             self.calibration, detection.bbox.center, distance
         )
         return self._transform_camera_point_to_odom(offset_x, offset_y, distance, stamp)
-
-    def _publish_odom_transform(
-        self, child_frame_id, offset_x, offset_y, distance, stamp
-    ):
-        position = self._transform_camera_point_to_odom(
-            offset_x, offset_y, distance, stamp
-        )
-        if position is None:
-            return None
-
-        transform_stamped_msg = TransformStamped()
-        transform_stamped_msg.header.stamp = stamp
-        transform_stamped_msg.header.frame_id = "odom"
-        transform_stamped_msg.child_frame_id = child_frame_id
-        transform_stamped_msg.transform.translation = Vector3(
-            position.x, position.y, position.z
-        )
-        transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
-        self.object_transform_pub.publish(transform_stamped_msg)
-        return position
 
     def _transform_camera_point_to_odom(self, offset_x, offset_y, distance, stamp):
         pose_stamped = PoseStamped()
@@ -220,10 +262,10 @@ class TorpedoCameraHandler:
             rospy.logwarn_throttle(5.0, f"Transform error for torpedo hole: {e}")
             return None
 
-    def _lookup_reference_hole_positions(self, stamp):
-        reference_positions = {}
+    def _lookup_hole_positions(self, stamp):
+        hole_positions = {}
 
-        for frame_id in self.reference_hole_frames:
+        for frame_id in self.HOLE_FRAME_IDS:
             try:
                 transform = self.tf_buffer.lookup_transform(
                     "odom",
@@ -231,7 +273,7 @@ class TorpedoCameraHandler:
                     stamp,
                     rospy.Duration(1.0),
                 )
-                reference_positions[frame_id] = transform.transform.translation
+                hole_positions[frame_id] = transform.transform.translation
             except (
                 tf2_ros.LookupException,
                 tf2_ros.ConnectivityException,
@@ -240,25 +282,14 @@ class TorpedoCameraHandler:
                 rospy.logwarn_throttle(5.0, f"Transform error for {frame_id}: {e}")
                 continue
 
-        return reference_positions
-
-    def _can_transform_all_reference_holes(self, stamp):
-        return all(
-            self.tf_buffer.can_transform("odom", frame_id, stamp, rospy.Duration(0.1))
-            for frame_id in self.reference_hole_frames
-        )
+        return hole_positions
 
     def _prop_for_hole_frame(self, frame_id):
-        prop_name = frame_id
-        for prefix in ("torpedo_reference_", "torpedo_close_"):
-            if prop_name.startswith(prefix):
-                prop_name = prop_name.replace(prefix, "torpedo_", 1)
-                break
-        return self.props.get(prop_name) or self.props.get("torpedo_hole_link")
+        return self.props.get(frame_id) or self.props.get("torpedo_hole_link")
 
     @staticmethod
-    def _close_frame_for_reference(reference_frame):
-        return reference_frame.replace("torpedo_reference_", "torpedo_close_", 1)
+    def _frame_for_hole(hole_name):
+        return f"torpedo_hole_{hole_name}_link"
 
     @staticmethod
     def _bbox_center_x(detection):
