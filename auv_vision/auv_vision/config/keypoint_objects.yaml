@@ -1,0 +1,54 @@
+# Runtime keypoint object catalog for keypoint_pose_node.
+#
+# Producers (e.g. valve_keypoint_node, sim_keypoint_node) publish KeypointResult
+# messages on the per-camera keypoint_topic. Each Keypoint carries an `object`
+# string; keypoint_pose_node groups by that string, looks up the matching
+# entry below via `object_names`, runs PnP on the model points, and broadcasts
+# a TransformStamped per `outputs` entry.
+
+cameras:
+  front:
+    frame: "taluy/base_link/front_camera_optical_link"
+    camera_info_topic: "/taluy/cameras/cam_front/camera_info"
+    keypoint_topic: "/keypoint_result_front"
+
+objects:
+  - name: valve
+    object_names: [valve] # matches kp.object set by valve_keypoint_node
+    cameras: [front]
+    id_start: 1 # producer emits kps with id 1..9 → model[0..8]
+    #   (kp10 also arrives with object="valve" but
+    #   has no model entry — used by refinement)
+    min_keypoints: 6 # need 6/9 visible to bother solving
+    solver: sqpnp # 8 bolts at x=0.020 + face center at x=0.000:
+    #   two parallel planes, well-conditioned for PnP
+    confidence_threshold: 0.5
+    reprojection_error_threshold: 5.0
+    max_distance: 8.0
+    model:
+      - shape: points
+        args:
+          - [0.020, -0.072832, -0.072832] # kp1: bolt -135°
+          - [0.020, 0.000000, -0.103000] # kp2: bolt -90°
+          - [0.020, 0.072832, -0.072832] # kp3: bolt -45°
+          - [0.020, 0.103000, 0.000000] # kp4: bolt 0°
+          - [0.020, 0.072832, 0.072832] # kp5: bolt 45°
+          - [0.020, 0.000000, 0.103000] # kp6: bolt 90°
+          - [0.020, -0.072832, 0.072832] # kp7: bolt 135°
+          - [0.020, -0.103000, 0.000000] # kp8: bolt 180°
+          - [0.000, 0.000000, 0.000000] # kp9: face center
+    outputs:
+      - child_frame_id: tac/valve
+        offset: [0.0, 0.0, 0.0]
+    # The bolts give us the face plane, but the rotation around the normal
+    # that PnP returns is anchored to bolt #1 — irrelevant for the gripper
+    # task, since the handle spins independently. kp10 is the handle tip
+    # (at x=0 in the model frame, on the face plane through the center);
+    # we back-project it into the face plane and use it as the +Z axis so
+    # the gripper aligns directly to the handle direction. Skip publishing
+    # if kp10 is missing/low-conf rather than emit a frame with a wrong yaw.
+    orientation_refinement:
+      keypoint_id: 10
+      output_axis: z
+      confidence_threshold: 0.5
+      parallel_eps_rad: 0.087 # ~5°: skip if valve seen edge-on

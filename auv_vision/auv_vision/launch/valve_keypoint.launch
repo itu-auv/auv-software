@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+<!--
+  Brings up the valve keypoint pipeline plus the trajectory publisher:
+
+    tracker_node_tac_valve       valve_yolo.pt            → /yolo_result_tac_valve
+    valve_keypoint_node          YOLO bbox + ViTPose      → /keypoint_result_front
+    keypoint_pose_node           PnP + transform_to_odom  → map/object_transform_updates
+    object_map_tf_server         per-object Kalman filter → tac/valve TF
+    valve_trajectory_publisher   reads tac/valve          → valve_approach_frame,
+                                                             valve_contact_frame
+
+  The trajectory publisher starts with both phases disabled and is enabled
+  per phase via its SetBool services.  For bag-replay visualization, call
+  `set_transform_valve_approach_frame` and `set_transform_valve_contact_frame`
+  with `data: true` after launch to make both frames broadcast continuously.
+
+  The keypoint topic and camera_info topic are absolute paths matching the
+  entries in auv_vision/config/keypoint_objects.yaml, so they don't depend
+  on the namespace under which the producer/consumer run.
+
+  Use for live runs or bag replay.  For bag replay, pass use_sim_time:=true
+  and play the bag with the clock flag.
+-->
+<launch>
+  <arg name="namespace"           default="taluy" />
+  <arg name="image_topic"         default="/taluy/cameras/cam_front/image_raw" />
+  <arg name="vitpose_model_path"  default="$(find auv_detection)/models/valve_vitpose.pth" />
+  <arg name="device"              default="cpu" />
+  <arg name="conf_threshold"      default="0.5" />
+  <arg name="yolo_result_topic"   default="/yolo_result_tac_valve" />
+  <arg name="yolo_conf_thres"     default="0.25" />
+  <arg name="static_frame"        default="odom" />
+  <arg name="control_rate"        default="10" />
+  <arg name="use_sim_time"        default="false" />
+
+  <!-- AUV camera bringup.  Defaults to false so laptop/bag testing is
+       unaffected (in those cases another producer publishes on
+       $(arg image_topic) — webcam_publisher.py, a bag, or sim).  Pass
+       start_cameras:=true on the AUV to bring up the GStreamer cam_front
+       (and cam_bottom) directly. -->
+  <arg name="start_cameras"       default="false" />
+
+  <!-- Localization bringup.  Defaults to true so live runs work out of the
+       box.  Set enable_localization:=false for bag replays that already
+       contain /tf and /tf_static. -->
+  <arg name="enable_localization"     default="true" />
+
+  <!-- Robot state publisher bringup.  Publishes the URDF-defined static TFs
+       (base_link → all sensors), including the front_camera_optical_link
+       frame that keypoint_pose_node looks up.  Defaults to true; set false
+       for bag replays that already contain /tf_static. -->
+  <arg name="enable_state_publisher"  default="true" />
+  <arg name="sim"                     default="false" />
+
+  <param name="/use_sim_time" value="$(arg use_sim_time)" />
+
+  <include if="$(arg start_cameras)"
+           file="$(find auv_bringup)/launch/inc/sensors/start_cameras_taluy.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- Robot state publisher: URDF → /tf_static (camera optical frames, etc.) -->
+  <include if="$(arg enable_state_publisher)"
+           file="$(find auv_bringup)/launch/inc/localization/start_state_publisher.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- Localization: sensor odometry nodes (IMU/DVL/pressure → odom_*) -->
+  <include if="$(arg enable_localization)"
+           file="$(find auv_localization)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- Localization: robot_localization EKF (fuses odom_* → odometry + TF) -->
+  <include if="$(arg enable_localization)"
+           file="$(find auv_bringup)/launch/robot_localization.launch">
+    <arg name="namespace"    value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="sim"          value="$(arg sim)" />
+  </include>
+
+  <!-- Bbox producer: image → YoloResult (valve_yolo.pt).  Routed through the
+       same `device` arg as the keypoint node so cpu/gpu propagates uniformly. -->
+  <include file="$(find auv_detection)/launch/inc/tracker_tac_valve.launch">
+    <arg name="namespace"    value="$(arg namespace)" />
+    <arg name="input_topic"  value="$(arg image_topic)" />
+    <arg name="result_topic" value="$(arg yolo_result_topic)" />
+    <arg name="conf_thres"   value="$(arg yolo_conf_thres)" />
+    <arg name="device"       value="$(arg device)" />
+  </include>
+
+  <group ns="$(arg namespace)">
+    <!-- Producer: image + YOLO bbox → KeypointResult -->
+    <node pkg="auv_vision" type="valve_keypoint_node.py"
+          name="valve_keypoint_node" output="screen">
+      <param name="image_topic"        value="$(arg image_topic)" />
+      <param name="yolo_result_topic"  value="$(arg yolo_result_topic)" />
+      <param name="vitpose_model_path" value="$(arg vitpose_model_path)" />
+      <param name="device"             value="$(arg device)" />
+      <param name="conf_threshold"     value="$(arg conf_threshold)" />
+      <param name="result_topic"       value="/keypoint_result_front" />
+      <param name="image_out_topic"    value="/keypoint_image_front" />
+    </node>
+
+    <!-- Consumer: KeypointResult → object_transform_updates -->
+    <node pkg="auv_vision" type="keypoint_pose_node.py"
+          name="keypoint_pose_node" output="screen">
+      <param name="config_file"
+             value="$(find auv_vision)/config/keypoint_objects.yaml" />
+      <remap from="object_transform_updates"
+             to="map/object_transform_updates" />
+    </node>
+
+    <!-- Map server: object_transform_updates → /tf (tac/valve) -->
+    <node pkg="auv_mapping" type="object_map_tf_server_node"
+          name="object_map_tf_server_node" output="screen">
+      <param name="rate"                value="$(arg control_rate)" />
+      <param name="static_frame"        value="$(arg static_frame)" />
+      <param name="distance_threshold"  value="4.0" />
+      <param name="base_link_frame"     value="$(arg namespace)/base_link" />
+      <remap from="set_object_transform"      to="map/set_object_transform" />
+      <remap from="clear_object_transforms"   to="map/clear_object_transforms" />
+      <remap from="object_transform_updates"  to="map/object_transform_updates" />
+    </node>
+
+    <!-- Trajectory publisher: tac/valve → valve_approach_frame, valve_contact_frame -->
+    <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
+          name="valve_trajectory_publisher" output="screen">
+      <rosparam command="load"
+                file="$(find auv_mapping)/config/valve_trajectory_publisher_params.yaml" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+  </group>
+</launch>

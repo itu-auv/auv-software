@@ -47,21 +47,21 @@
     <arg name="x" default="-7.0" if="$(eval arg('world') == 'pool')" />
     <arg name="x" default="7.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="x" default="-9.5" if="$(eval arg('world') == 'semi_final_pool')" />
-    <arg name="x" default="3.0" if="$(eval arg('world') == 'tac_sea')" />
+    <arg name="x" default="6.78" if="$(eval arg('world') == 'tac_sea')" />
     <arg name="y" default="-15.5" if="$(eval arg('world') == 'pool')" />
     <arg name="y" default="1.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="y" default="-3" if="$(eval arg('world') == 'semi_final_pool')" />
-    <arg name="y" default="0" if="$(eval arg('world') == 'tac_sea')" />
+    <arg name="y" default="-3.97" if="$(eval arg('world') == 'tac_sea')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'pool')" />
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'seabed')" />
-    <arg name="z" default="-0.5" if="$(eval arg('world') == 'tac_sea')" />
+    <arg name="z" default="-1.61" if="$(eval arg('world') == 'tac_sea')" />
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="0.7" if="$(eval arg('world') == 'seabed')" />
     <arg name="yaw" value="0" if="$(eval arg('world') == 'pool')" />
     <arg name="yaw" default="0" if="$(eval arg('world') == 'semi_final_pool')" />
-    <arg name="yaw" default="0.5" if="$(eval arg('world') == 'tac_sea')" />
+    <arg name="yaw" default="0.72" if="$(eval arg('world') == 'tac_sea')" />
 
     <!-- Start world launch -->
     <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch">
@@ -135,4 +135,39 @@
       <param name="robot_name" value="$(arg namespace)" />
       <param name="robot_base_frame" value="$(arg namespace)/base_link" />
     </node>
+
+    <!-- TAC sea world: valve keypoint pipeline (GT producer + PnP consumer)
+         and trajectory publisher.  Mirrors the live setup in
+         auv_vision/launch/valve_keypoint.launch, but swaps valve_keypoint_node
+         (ViTPose) for sim_keypoint_node (Gazebo ground truth).  The smach
+         gates approach/contact publication per phase via the trajectory
+         publisher's SetBool services.  object_map_tf_server is NOT launched
+         here — it comes from auv_mapping/launch/start.launch which is
+         included by the navigation bringup. -->
+    <group if="$(eval arg('world') == 'tac_sea')" ns="$(arg namespace)">
+      <!-- Producer: Gazebo GT → KeypointResult -->
+      <node pkg="auv_vision" type="sim_keypoint_node.py"
+            name="sim_keypoint_node" output="screen">
+        <param name="namespace" value="$(arg namespace)" />
+        <param name="config"
+               value="$(find auv_vision)/config/sim_keypoint_objects.yaml" />
+      </node>
+
+      <!-- Consumer: KeypointResult → object_transform_updates -->
+      <node pkg="auv_vision" type="keypoint_pose_node.py"
+            name="keypoint_pose_node" output="screen">
+        <param name="config_file"
+               value="$(find auv_vision)/config/keypoint_objects.yaml" />
+        <remap from="object_transform_updates"
+               to="map/object_transform_updates" />
+      </node>
+
+      <!-- Trajectory publisher: tac/valve → valve_approach_frame, valve_contact_frame -->
+      <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
+            name="valve_trajectory_publisher" output="screen">
+        <rosparam command="load"
+                  file="$(find auv_mapping)/config/valve_trajectory_publisher_params.yaml" />
+        <remap from="set_object_transform" to="map/set_object_transform" />
+      </node>
+    </group>
 </launch>
