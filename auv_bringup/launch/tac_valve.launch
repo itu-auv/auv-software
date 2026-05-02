@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<!--
+  Production launch for the TAC valve task.
+
+  Brings up the full robot stack via start.launch (cameras, state publisher,
+  localization, mapping with object_map_tf_server, control, navigation,
+  smach monitor, vision base) and adds the valve-specific keypoint pipeline
+  on top:
+
+    tracker_node_tac_valve       valve_yolo.pt            → /yolo_result_tac_valve
+    valve_keypoint_node          YOLO bbox + ViTPose      → /keypoint_result_front
+    keypoint_pose_node           PnP + transform_to_odom  → map/object_transform_updates
+    valve_trajectory_publisher   reads tac/valve          → valve_approach_frame,
+                                                             valve_contact_frame
+
+  The trajectory publisher starts with both phases disabled. The smach (or a
+  manual `rosservice call`) enables them per phase via the SetBool services
+  `set_transform_valve_approach_frame` / `set_transform_valve_contact_frame`.
+
+  Mirrors the structure of robosub.launch.
+-->
+<launch>
+  <arg name="namespace"           default="taluy" />
+  <arg name="control_rate"        default="20.0" />
+  <arg name="dvl_virtual_port"    default="/tmp/vcom0" />
+  <arg name="use_gui"             default="false" />
+  <arg name="enable_logging"      default="true" />
+  <arg name="logging_directory"   default="$(optenv HOME)/bags" />
+  <arg name="propulsion"          default="0" />
+  <arg name="localization"        default="1" />
+  <arg name="reconfigure"         default="0" />
+  <arg name="plotjuggler"         default="0" />
+
+  <!-- Valve keypoint pipeline args -->
+  <arg name="image_topic"         default="/$(arg namespace)/cameras/cam_front/image_raw" />
+  <arg name="vitpose_model_path"  default="$(find auv_detection)/models/valve_vitpose_l_fp16.engine" />
+  <arg name="device"              default="cuda:0" />
+  <arg name="conf_threshold"      default="0.5" />
+  <arg name="yolo_result_topic"   default="/yolo_result_tac_valve" />
+  <arg name="yolo_conf_thres"     default="0.25" />
+
+  <!-- 1. Include start.launch -->
+  <include file="$(find auv_bringup)/launch/start.launch">
+    <arg name="namespace"         value="$(arg namespace)" />
+    <arg name="control_rate"      value="$(arg control_rate)" />
+    <arg name="dvl_virtual_port"  value="$(arg dvl_virtual_port)" />
+    <arg name="use_gui"           value="$(arg use_gui)" />
+    <arg name="enable_logging"    value="$(arg enable_logging)" />
+    <arg name="logging_directory" value="$(arg logging_directory)" />
+  </include>
+
+  <!-- 2. Optional: Publish propulsion board status message -->
+  <group if="$(eval arg('propulsion') == 1)">
+    <node name="propulsion_status_publisher" pkg="rostopic" type="rostopic"
+          args="pub /$(arg namespace)/propulsion_board/status std_msgs/Bool 'data: true' -r 20"
+          output="screen" />
+  </group>
+
+  <!-- 3. Optional: Call auv_localization_node enable service -->
+  <group if="$(eval arg('localization') == 1)">
+    <node name="enable_localization_service" pkg="rosservice" type="rosservice"
+          args="call /$(arg namespace)/auv_localization_node/enable '{}'"
+          output="screen" />
+  </group>
+
+  <!-- 4. Valve YOLO bbox producer: image → YoloResult (valve_yolo.pt) -->
+  <include file="$(find auv_detection)/launch/inc/tracker_tac_valve.launch">
+    <arg name="namespace"    value="$(arg namespace)" />
+    <arg name="input_topic"  value="$(arg image_topic)" />
+    <arg name="result_topic" value="$(arg yolo_result_topic)" />
+    <arg name="conf_thres"   value="$(arg yolo_conf_thres)" />
+    <arg name="device"       value="$(arg device)" />
+  </include>
+
+  <group ns="$(arg namespace)">
+    <!-- 5. Valve keypoint producer: image + YOLO bbox → KeypointResult -->
+    <node pkg="auv_vision" type="valve_keypoint_node.py"
+          name="valve_keypoint_node" output="screen">
+      <param name="image_topic"        value="$(arg image_topic)" />
+      <param name="yolo_result_topic"  value="$(arg yolo_result_topic)" />
+      <param name="vitpose_model_path" value="$(arg vitpose_model_path)" />
+      <param name="device"             value="$(arg device)" />
+      <param name="conf_threshold"     value="$(arg conf_threshold)" />
+      <param name="result_topic"       value="/keypoint_result_front" />
+      <param name="image_out_topic"    value="/keypoint_image_front" />
+    </node>
+
+    <!-- 6. Keypoint pose consumer: KeypointResult → object_transform_updates -->
+    <node pkg="auv_vision" type="keypoint_pose_node.py"
+          name="keypoint_pose_node" output="screen">
+      <param name="config_file"
+             value="$(find auv_vision)/config/keypoint_objects.yaml" />
+      <remap from="object_transform_updates"
+             to="map/object_transform_updates" />
+    </node>
+
+    <!-- 7. Valve trajectory publisher: tac/valve → valve_approach_frame, valve_contact_frame.
+         Both phases start disabled; smach enables them per phase. -->
+    <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
+          name="valve_trajectory_publisher" output="screen">
+      <rosparam command="load"
+                file="$(find auv_mapping)/config/valve_trajectory_publisher_params.yaml" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+  </group>
+
+  <!-- 8. Optional: Launch rqt_reconfigure if parameter is set to 1 -->
+  <group if="$(eval arg('reconfigure') == 1)">
+    <node name="rqt_reconfigure" pkg="rqt_reconfigure" type="rqt_reconfigure"
+          output="screen" />
+  </group>
+
+  <!-- 9. Optional: Launch PlotJuggler if parameter is set to 1 -->
+  <group if="$(eval arg('plotjuggler') == 1)">
+    <node name="plotjuggler" pkg="plotjuggler" type="plotjuggler"
+          output="screen" />
+  </group>
+
+</launch>

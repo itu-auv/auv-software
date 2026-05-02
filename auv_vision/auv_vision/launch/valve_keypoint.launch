@@ -40,11 +40,43 @@
        (and cam_bottom) directly. -->
   <arg name="start_cameras"       default="false" />
 
+  <!-- Localization bringup.  Defaults to true so live runs work out of the
+       box.  Set enable_localization:=false for bag replays that already
+       contain /tf and /tf_static. -->
+  <arg name="enable_localization"     default="true" />
+
+  <!-- Robot state publisher bringup.  Publishes the URDF-defined static TFs
+       (base_link → all sensors), including the front_camera_optical_link
+       frame that keypoint_pose_node looks up.  Defaults to true; set false
+       for bag replays that already contain /tf_static. -->
+  <arg name="enable_state_publisher"  default="true" />
+  <arg name="sim"                     default="false" />
+
   <param name="/use_sim_time" value="$(arg use_sim_time)" />
 
   <include if="$(arg start_cameras)"
            file="$(find auv_bringup)/launch/inc/sensors/start_cameras_taluy.launch">
     <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- Robot state publisher: URDF → /tf_static (camera optical frames, etc.) -->
+  <include if="$(arg enable_state_publisher)"
+           file="$(find auv_bringup)/launch/inc/localization/start_state_publisher.launch.xml">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- Localization: sensor odometry nodes (IMU/DVL/pressure → odom_*) -->
+  <include if="$(arg enable_localization)"
+           file="$(find auv_localization)/launch/start.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+
+  <!-- Localization: robot_localization EKF (fuses odom_* → odometry + TF) -->
+  <include if="$(arg enable_localization)"
+           file="$(find auv_bringup)/launch/robot_localization.launch">
+    <arg name="namespace"    value="$(arg namespace)" />
+    <arg name="control_rate" value="$(arg control_rate)" />
+    <arg name="sim"          value="$(arg sim)" />
   </include>
 
   <!-- Bbox producer: image → YoloResult (valve_yolo.pt).  Routed through the
