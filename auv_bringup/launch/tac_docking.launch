@@ -2,7 +2,6 @@
 <launch>
   <arg name="namespace" default="taluy" />
   <arg name="control_rate" default="20.0" />
-  <arg name="dvl_virtual_port" default="/tmp/vcom0" />
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="true" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
@@ -14,11 +13,6 @@
   <!-- 1. Include start.launch (hardware + navigation) -->
   <include file="$(find auv_bringup)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />
-    <arg name="control_rate" value="$(arg control_rate)" />
-    <arg name="dvl_virtual_port" value="$(arg dvl_virtual_port)" />
-    <arg name="use_gui" value="$(arg use_gui)" />
-    <arg name="enable_logging" value="$(arg enable_logging)" />
-    <arg name="logging_directory" value="$(arg logging_directory)" />
     <arg name="detection_config" value="$(arg detection_config)" />
     <arg name="pool_depth" value="$(arg pool_depth)" />
   </include>

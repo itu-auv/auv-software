@@ -25,7 +25,7 @@ class ToggleDockingTrajectoryState(smach_ros.ServiceState):
 class DockingTaskState(smach.State):
     def __init__(
         self,
-        search_depth: float = -3.85,
+        search_depth: float = -0.75,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -98,8 +98,8 @@ class DockingTaskState(smach.State):
                     timeout=90.0,
                     cancel_on_success=True,
                     keep_orientation=False,
-                    max_linear_velocity=0.2,
-                    max_angular_velocity=0.2,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
                     use_frame_depth=False,
                 ),
                 transitions={
@@ -141,7 +141,7 @@ class DockingTaskState(smach.State):
                     timeout=40.0,
                     cancel_on_success=True,
                     keep_orientation=False,
-                    max_linear_velocity=0.1,
+                    max_linear_velocity=0.3,
                     max_angular_velocity=0.2,
                     use_frame_depth=True,
                 ),

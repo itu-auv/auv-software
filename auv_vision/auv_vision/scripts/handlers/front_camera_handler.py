@@ -63,14 +63,13 @@ class FrontCameraHandler:
 
             if detection_id not in self.id_tf_map:
                 continue
-
+            if not check_inside_image(detection, self.image_width, self.image_height):
+                continue
             # bin_whole uses altitude projection — special path
-            if detection_id == self.id_tf_map.id_of("bin_whole_link"):
+            if detection_id == self.id_tf_map.id_of("docking_station_yolo"):
                 self._process_altitude_projection(detection, stamp)
                 continue
 
-            if not check_inside_image(detection, self.image_width, self.image_height):
-                continue
 
             prop_name = self.id_tf_map[detection_id]
             if prop_name not in self.props:
