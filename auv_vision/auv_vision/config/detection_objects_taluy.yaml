@@ -59,9 +59,10 @@ props:
   gate_sawfish_link: {name: "sawfish", real_height: 0.3048, real_width: 0.3048}
   gate_shark_link: {name: "shark", real_height: 0.3048, real_width: 0.3048}
   torpedo_map_link: {name: "torpedo_map", real_height: 0.6096, real_width: 0.6096}
-  torpedo_hole_link: {name: "torpedo_hole", real_height: 0.125, real_width: 0.125}
-  torpedo_hole_shark_link: {name: "torpedo_hole", real_height: 0.125, real_width: 0.125}
-  torpedo_hole_sawfish_link: {name: "torpedo_hole", real_height: 0.125, real_width: 0.125}
+  torpedo_hole_left_link: {name: "torpedo_hole", real_height: 0.15, real_width: 0.15}
+  torpedo_hole_right_link: {name: "torpedo_hole", real_height: 0.15, real_width: 0.15}
+  torpedo_hole_bottom_link: {name: "torpedo_hole", real_height: 0.125, real_width: 0.125}
+  torpedo_hole_top_link: {name: "torpedo_hole", real_height: 0.125, real_width: 0.125}
   bin_basket_front_link: {name: "bin_basket_front", real_height: 0.341, real_width: 0.341}
   octagon_link: {name: "octagon", real_height: 0.74, real_width: 0.91}
   octagon_repair_link: {name: "octagon_repair", real_height: 0.305, real_width: 0.305}
