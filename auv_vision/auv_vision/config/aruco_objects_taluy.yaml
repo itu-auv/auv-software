@@ -1,4 +1,4 @@
-aruco_dictionary: DICT_4X4_50
+aruco_dictionary: DICT_ARUCO_ORIGINAL
 
 cameras:
   bottom:
@@ -17,7 +17,7 @@ cameras:
       - pipe_aruco_8
 
 markers:
-  aruco_0: {aruco_id: 0, size: 0.08}
+  aruco_0: {aruco_id: 100, size: 0.20}
   aruco_1: {aruco_id: 1, size: 0.08}
   aruco_2: {aruco_id: 2, size: 0.08}
   aruco_3: {aruco_id: 3, size: 0.08}
