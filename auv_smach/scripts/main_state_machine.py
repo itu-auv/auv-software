@@ -78,8 +78,8 @@ class MainStateMachineNode:
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
         self.torpedo_fire_frame = "torpedo_fire_frame"
-        self.torpedo_shark_fire_frame = "torpedo_left_mid_fire_frame"
-        self.torpedo_sawfish_fire_frame = "torpedo_top_mid_fire_frame"
+        self.torpedo_shark_fire_frame = "torpedo_left_fire_frame"
+        self.torpedo_sawfish_fire_frame = "torpedo_top_fire_frame"
 
         self.bin_front_look_depth = -1.3
         self.bin_bottom_look_depth = -0.7

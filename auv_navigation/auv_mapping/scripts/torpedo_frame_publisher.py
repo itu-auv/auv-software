@@ -19,10 +19,10 @@ from auv_mapping.cfg import TorpedoTrajectoryConfig
 
 class TorpedoTransformServiceNode:
     HOLE_NAMES = (
-        "left_mid",
-        "bottom_right",
-        "bottom_mid",
-        "top_mid",
+        "left",
+        "right",
+        "bottom",
+        "top",
     )
 
     def __init__(self):
