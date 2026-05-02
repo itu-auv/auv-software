@@ -598,3 +598,182 @@ class ValvePose:
             heatmaps, center[None], (scale * PIXEL_STD)[None]
         )
         return preds[0], scores[0]
+
+
+# ---------------------------------------------------------------------------
+# TensorRT runtime path (.engine files, AUV/Orin)
+# ---------------------------------------------------------------------------
+#
+# Same predict() signature as ValvePose so consumers don't care which backend
+# loaded.  TRT/pycuda imports are deferred until the class is actually
+# instantiated — pure-PyTorch deployments (laptop, CI) never trigger them and
+# therefore don't need TensorRT installed.
+
+# pycuda's primary CUDA context can only be made once per process; subsequent
+# ValvePoseTRT instances reuse it.  Stored as module state so it survives
+# multiple imports / re-instantiations.
+_TRT_PRIMARY_CTX = None
+
+
+def _ensure_pycuda_context():
+    """Lazy one-time pycuda init.  Returns the (cuda, trt) module handles."""
+    global _TRT_PRIMARY_CTX
+    import tensorrt as trt
+    import pycuda.driver as cuda
+
+    if _TRT_PRIMARY_CTX is None:
+        # Manual init — pycuda.autoinit pulls in pycuda.tools / compyte.dtypes
+        # which is broken on Python 3.8 with newer pycuda wheels.
+        cuda.init()
+        _TRT_PRIMARY_CTX = cuda.Device(0).make_context()
+    return cuda, trt
+
+
+class ValvePoseTRT:
+    """TensorRT-backed ValvePose (drop-in for ValvePose).
+
+    Args:
+        engine_path: path to the built .engine file (device-specific).
+        num_kps:     number of keypoint channels in the engine's output.
+                     Must match the checkpoint used to export the ONNX.
+    """
+
+    def __init__(self, engine_path: str, num_kps: int = 10):
+        if not os.path.isfile(engine_path):
+            raise FileNotFoundError(f"TRT engine not found: {engine_path}")
+
+        cuda, trt = _ensure_pycuda_context()
+        self._cuda = cuda
+        self._trt = trt
+
+        with open(engine_path, "rb") as f:
+            engine_bytes = f.read()
+        runtime = trt.Runtime(trt.Logger(trt.Logger.WARNING))
+        self.engine = runtime.deserialize_cuda_engine(engine_bytes)
+        if self.engine is None:
+            raise RuntimeError(f"failed to deserialize engine: {engine_path}")
+        self.context = self.engine.create_execution_context()
+
+        self.num_kps = int(num_kps)
+        self.in_shape = (1, 3, IMG_H, IMG_W)  # 1×3×320×256
+        self.out_shape = (1, self.num_kps, IMG_H // 4, IMG_W // 4)  # 1×N×80×64
+
+        # Pinned host buffers + device buffers + stream.
+        self.h_in = cuda.pagelocked_empty(int(np.prod(self.in_shape)), dtype=np.float32)
+        self.h_out = cuda.pagelocked_empty(
+            int(np.prod(self.out_shape)), dtype=np.float32
+        )
+        self.d_in = cuda.mem_alloc(self.h_in.nbytes)
+        self.d_out = cuda.mem_alloc(self.h_out.nbytes)
+        self.stream = cuda.Stream()
+
+        # Bind IO. TRT 10.x uses named tensors + execute_async_v3;
+        # TRT 8.x uses a positional bindings list + execute_async_v2.
+        if hasattr(self.engine, "num_io_tensors"):
+            names = [
+                self.engine.get_tensor_name(i)
+                for i in range(self.engine.num_io_tensors)
+            ]
+            in_name = next(
+                n
+                for n in names
+                if self.engine.get_tensor_mode(n) == trt.TensorIOMode.INPUT
+            )
+            out_name = next(
+                n
+                for n in names
+                if self.engine.get_tensor_mode(n) == trt.TensorIOMode.OUTPUT
+            )
+            self.context.set_tensor_address(in_name, int(self.d_in))
+            self.context.set_tensor_address(out_name, int(self.d_out))
+            self._execute = lambda: self.context.execute_async_v3(self.stream.handle)
+        else:
+            self._bindings = [int(self.d_in), int(self.d_out)]
+            self._execute = lambda: self.context.execute_async_v2(
+                self._bindings, self.stream.handle
+            )
+
+        print(
+            f"ValvePoseTRT loaded: {engine_path}  ({self.num_kps} kps, "
+            f"in={self.in_shape}, out={self.out_shape})"
+        )
+
+    # ------------------------------------------------------------------ public
+
+    def predict(self, img_rgb: np.ndarray, bbox_xywh, flip: bool = True):
+        """Drop-in replacement for ValvePose.predict.
+
+        Args:
+            img_rgb:   H×W×3 uint8 RGB image
+            bbox_xywh: (x, y, w, h) bbox in pixel coords
+            flip:      enable horizontal-flip TTA (averages heatmaps).
+                       Auto-disabled unless num_kps == 8 (FLIP_INDEX is 8-long).
+
+        Returns:
+            preds  np.ndarray (N, 2)  pixel coords
+            scores np.ndarray (N, 1)  confidence
+        """
+        x, y, w, h = bbox_xywh
+        cx, cy = x + w * 0.5, y + h * 0.5
+        aspect = IMG_W / IMG_H
+        if w > aspect * h:
+            h = w / aspect
+        elif w < aspect * h:
+            w = h * aspect
+        scale = np.array([w / PIXEL_STD, h / PIXEL_STD], dtype=np.float32) * 1.25
+        center = np.array([cx, cy], dtype=np.float32)
+
+        trans = get_affine_transform(center, scale, PIXEL_STD, 0, (IMG_W, IMG_H))
+        crop = cv2.warpAffine(img_rgb, trans, (IMG_W, IMG_H), flags=cv2.INTER_LINEAR)
+        inp = ((crop.astype(np.float32) / 255.0 - MEAN) / STD).transpose(2, 0, 1)
+        inp = np.ascontiguousarray(inp[None])
+
+        heatmaps = self._infer(inp)
+
+        # Flip TTA only when FLIP_INDEX is valid (8-kp layout).
+        if flip and self.num_kps == 8:
+            crop_flip = crop[:, ::-1, :].copy()
+            inp_flip = ((crop_flip.astype(np.float32) / 255.0 - MEAN) / STD).transpose(
+                2, 0, 1
+            )
+            inp_flip = np.ascontiguousarray(inp_flip[None])
+            hm_flip = self._infer(inp_flip)
+            hm_flip = hm_flip[:, :, :, ::-1].copy()
+            hm_flip = hm_flip[:, FLIP_INDEX, :, :]
+            heatmaps = (heatmaps + hm_flip) * 0.5
+
+        preds, scores = keypoints_from_heatmaps(
+            heatmaps, center[None], (scale * PIXEL_STD)[None]
+        )
+        return preds[0], scores[0]
+
+    # ------------------------------------------------------------------ internal
+
+    def _infer(self, x_np: np.ndarray) -> np.ndarray:
+        cuda = self._cuda
+        np.copyto(self.h_in, x_np.ravel())
+        cuda.memcpy_htod_async(self.d_in, self.h_in, self.stream)
+        self._execute()
+        cuda.memcpy_dtoh_async(self.h_out, self.d_out, self.stream)
+        self.stream.synchronize()
+        return self.h_out.reshape(self.out_shape).copy()
+
+
+# ---------------------------------------------------------------------------
+# Backend-agnostic loader
+# ---------------------------------------------------------------------------
+
+
+def load_valve_pose(ckpt: str, device: str = "cuda", num_kps: int = 10):
+    """Return a ValvePose-compatible object based on the file extension.
+
+    `.engine`           → ValvePoseTRT  (TensorRT runtime, GPU only)
+    `.pth` / `.pt` /    → ValvePose     (PyTorch, CPU or CUDA)
+    directory of best.pth
+
+    Same predict() signature either way, so the rest of the pipeline doesn't
+    have to know which backend loaded.
+    """
+    if ckpt.endswith(".engine"):
+        return ValvePoseTRT(ckpt, num_kps=num_kps)
+    return ValvePose(ckpt, device=device)

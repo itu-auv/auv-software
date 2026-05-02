@@ -33,7 +33,19 @@
   <arg name="control_rate"        default="10" />
   <arg name="use_sim_time"        default="false" />
 
+  <!-- AUV camera bringup.  Defaults to false so laptop/bag testing is
+       unaffected (in those cases another producer publishes on
+       $(arg image_topic) — webcam_publisher.py, a bag, or sim).  Pass
+       start_cameras:=true on the AUV to bring up the GStreamer cam_front
+       (and cam_bottom) directly. -->
+  <arg name="start_cameras"       default="false" />
+
   <param name="/use_sim_time" value="$(arg use_sim_time)" />
+
+  <include if="$(arg start_cameras)"
+           file="$(find auv_bringup)/launch/inc/sensors/start_cameras_taluy.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
 
   <!-- Bbox producer: image → YoloResult (valve_yolo.pt).  Routed through the
        same `device` arg as the keypoint node so cpu/gpu propagates uniformly. -->

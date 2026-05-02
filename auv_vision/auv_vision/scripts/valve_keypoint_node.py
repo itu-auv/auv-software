@@ -68,7 +68,7 @@ _scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
-from vitpose_inference import SKELETON_10, ValvePose  # noqa: E402
+from vitpose_inference import SKELETON_10, load_valve_pose  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -231,8 +231,11 @@ class ValveKeypointNode:
         self._stamp_match_fallback = 0
 
         # ----- ViTPose load (slow — do it before subscribers go live) -----
+        # `load_valve_pose` sniffs the file extension: .pth/.pt → PyTorch,
+        # .engine → TensorRT.  The `device` arg is only used by the PyTorch
+        # path; the TRT path always runs on the GPU the engine was built for.
         rospy.loginfo(f"Loading ViTPose from {self.model_path} (device={self.device})…")
-        self.vp = ValvePose(self.model_path, device=self.device)
+        self.vp = load_valve_pose(self.model_path, device=self.device)
         rospy.loginfo(f"ViTPose ready ({self.vp.num_kps} keypoints).")
 
         # ----- runtime -----
