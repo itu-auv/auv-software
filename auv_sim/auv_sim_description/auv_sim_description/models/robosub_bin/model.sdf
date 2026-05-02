@@ -23,5 +23,34 @@
 			</visual>
 
 		</link>
+
+		<!-- Baskets -->
+		<link name="basket_1_link">
+			<pose>-0.7432 0.2978 -0.1486 0 0 0</pose>
+		</link>
+		<link name="basket_2_link">
+			<pose>-0.4462 1.5502 0.3349 0 0 0</pose>
+		</link>
+		<link name="basket_3_link">
+			<pose>-0.0937 0.6191 -0.0805 0 0 0</pose>
+		</link>
+		<link name="basket_4_link">
+			<pose>-1.0420 1.2816 0.0919 0 0 0</pose>
+		</link>
+
+		<!-- Images -->
+		<link name="bin_fire_1_link">
+			<pose>-0.7480 0.2883 -0.2803 0 0 0</pose>
+		</link>
+		<link name="bin_fire_2_link">
+			<pose>-0.4330 1.5468 0.2042 0 0 0</pose>
+		</link>
+		<link name="bin_blood_1_link">
+			<pose>-0.0880 0.6145 -0.2168 0 0 0</pose>
+		</link>
+		<link name="bin_blood_2_link">
+			<pose>-1.0381 1.2940 -0.0540 0 0 0</pose>
+		</link>
+
 	</model>
 </sdf>

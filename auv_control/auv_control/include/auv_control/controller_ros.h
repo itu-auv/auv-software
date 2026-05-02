@@ -238,6 +238,7 @@ class ControllerROS {
   void cmd_pose_callback(const geometry_msgs::PoseStamped::ConstPtr& msg) {
     const auto source_frame = get_source_frame(msg->header.frame_id);
     auto transformed_pose = msg->pose;
+    const auto lookup_time = msg->header.stamp;
 
     static tf2_ros::Buffer tf_buffer;
     static tf2_ros::TransformListener tf_listener(tf_buffer);
@@ -249,7 +250,7 @@ class ControllerROS {
                 depth_control_reference_frame_.c_str());
       try {
         transform_stamped = tf_buffer.lookupTransform(
-            depth_control_reference_frame_, source_frame.value(), ros::Time(0),
+            depth_control_reference_frame_, source_frame.value(), lookup_time,
             ros::Duration(transform_timeout_));
 
         tf2::doTransform(msg->pose, transformed_pose, transform_stamped);
@@ -266,7 +267,8 @@ class ControllerROS {
     desired_state_.head(6) = auv::common::conversions::convert<
         geometry_msgs::Pose, ControllerBase::Vector>(transformed_pose);
 
-    latest_cmd_pose_time_ = ros::Time::now();
+    latest_cmd_pose_time_ =
+        lookup_time.isZero() ? ros::Time::now() : lookup_time;
   }
 
   void accel_callback(

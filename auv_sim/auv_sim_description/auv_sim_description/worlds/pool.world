@@ -115,7 +115,7 @@
         <pose>9.8 -12.6 -2 1.57 0 1.57</pose>
         <scale>1 1 1</scale>
         <link name='robosub_bin'>
-          <pose>9.8 -12.6 -2 1.57 0 1.57</pose>
+          <pose>9.8 -12.6 -1.5 0 0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -301,45 +301,11 @@
         <kinematic>0</kinematic>
       </link>
     </model>
-    <model name='robosub_octagon'>
-      <static>1</static>
+    <include>
+      <uri>model://robosub_octagon</uri>
+      <name>robosub_octagon</name>
       <pose>13.0 -4.25 -2 0 -0 0</pose>
-      <link name='robosub_octagon'>
-        <pose>0 0 0 0 -0 0</pose>
-        <collision name='robosub_octagon_col'>
-          <pose>0 0 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>model://robosub_octagon/meshes/octagon.dae</uri>
-            </mesh>
-          </geometry>
-          <max_contacts>10</max_contacts>
-          <surface>
-            <contact>
-              <ode/>
-            </contact>
-            <bounce/>
-            <friction>
-              <torsional>
-                <ode/>
-              </torsional>
-              <ode/>
-            </friction>
-          </surface>
-        </collision>
-        <visual name='robosub_octagon_vis'>
-          <pose>0 0 0 0 -0 0</pose>
-          <geometry>
-            <mesh>
-              <uri>model://robosub_octagon/meshes/octagon.dae</uri>
-            </mesh>
-          </geometry>
-        </visual>
-        <self_collide>0</self_collide>
-        <enable_wind>0</enable_wind>
-        <kinematic>0</kinematic>
-      </link>
-    </model>
+    </include>
     <!-- Pool overhead camera model -->
     <model name="pool_camera">
       <static>true</static>
