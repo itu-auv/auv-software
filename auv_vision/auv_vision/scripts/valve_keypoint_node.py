@@ -57,6 +57,7 @@ from cv_bridge import CvBridge
 
 from auv_msgs.msg import Keypoint, KeypointResult
 from sensor_msgs.msg import CompressedImage, Image
+from std_srvs.srv import SetBool, SetBoolResponse
 from ultralytics_ros.msg import YoloResult
 
 # Add the source scripts directory to sys.path so `vitpose_inference` resolves
@@ -243,6 +244,19 @@ class ValveKeypointNode:
         self._debug_thread: Optional[threading.Thread] = None
         self._debug_lock = threading.Lock()
 
+        # Enable/disable gate — same pattern as the trajectory publishers
+        # (e.g. valve_trajectory_publisher's set_transform_valve_*_frame
+        # services).  Defaults to enabled so existing launch flows behave
+        # identically; the SMACH layer flips it off once the keypoint output
+        # is no longer needed (after the approach alignment) to free GPU/CPU
+        # for the rest of the mission.
+        self.enabled = bool(rospy.get_param("~enabled", True))
+        self.set_enabled_service = rospy.Service(
+            "set_valve_keypoint_enabled",
+            SetBool,
+            self._handle_set_enabled,
+        )
+
         self.result_pub = rospy.Publisher(
             self.result_topic, KeypointResult, queue_size=1
         )
@@ -331,9 +345,22 @@ class ValveKeypointNode:
             )
         return best
 
+    # ----- enable/disable service -----
+
+    def _handle_set_enabled(self, req):
+        self.enabled = bool(req.data)
+        message = f"valve_keypoint_node enabled set to: {self.enabled}"
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
     # ----- YOLO callback (drives the pipeline) -----
 
     def _yolo_cb(self, msg: YoloResult):
+        # Skip all ViTPose work when disabled — image buffer keeps filling
+        # so a re-enable picks up the latest frame immediately.
+        if not self.enabled:
+            return
+
         # Pair the YoloResult with its source image by stamp.
         match = self._lookup_image(msg.header.stamp)
         if match is None:

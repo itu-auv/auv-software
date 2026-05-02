@@ -31,6 +31,24 @@ class ValveContactFramePublisherServiceState(smach_ros.ServiceState):
         )
 
 
+class ValveKeypointNodeEnableServiceState(smach_ros.ServiceState):
+    """Toggle valve_keypoint_node's ViTPose pipeline via SetBool.
+
+    Disabling after the approach alignment frees the GPU/CPU the ViTPose
+    inference was consuming — the contact phase only needs the
+    valve_contact_frame, which is derived from the already-converged
+    `tac/valve` Kalman filter and doesn't require fresh keypoint updates.
+    """
+
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "set_valve_keypoint_enabled",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
 class ValveTaskState(smach.State):
     """Two-phase valve task: oriented approach → contact.
 
@@ -93,7 +111,7 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 4. Align to approach frame
+            # 4. Align to approach frame.
             smach.StateMachine.add(
                 "ALIGN_TO_APPROACH",
                 AlignFrame(
@@ -101,17 +119,27 @@ class ValveTaskState(smach.State):
                     target_frame=valve_approach_frame,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=3.0,
+                    confirm_duration=10.0,
                     timeout=30.0,
                     cancel_on_success=False,
                 ),
+                transitions={
+                    "succeeded": "DISABLE_VALVE_KEYPOINT_NODE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # 5. Disable the valve keypoint node
+            smach.StateMachine.add(
+                "DISABLE_VALVE_KEYPOINT_NODE",
+                ValveKeypointNodeEnableServiceState(req=False),
                 transitions={
                     "succeeded": "DISABLE_APPROACH_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # 5. Disable approach publisher
+            # 6. Disable approach publisher
             smach.StateMachine.add(
                 "DISABLE_APPROACH_PUBLISHER",
                 ValveApproachFramePublisherServiceState(req=False),
