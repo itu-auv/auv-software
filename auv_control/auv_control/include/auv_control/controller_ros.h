@@ -65,6 +65,8 @@ class ControllerROS {
     nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
     nh_private.param<double>("odometry_timeout", odometry_timeout_, 1.0);
+    nh_private.param<double>("dvl_invalid_velocity_timeout",
+                             dvl_invalid_velocity_timeout_, 1.0);
 
     ROS_INFO_STREAM("kp: \n" << kp_.transpose());
     ROS_INFO_STREAM("ki: \n" << ki_.transpose());
@@ -107,6 +109,9 @@ class ControllerROS {
     accel_sub_ =
         nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this,
                       transport_hints);
+    dvl_is_valid_sub_ =
+        nh_.subscribe("dvl/is_valid", 1, &ControllerROS::dvl_is_valid_callback,
+                      this, transport_hints);
 
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
@@ -147,8 +152,18 @@ class ControllerROS {
         desired_state_.tail(6) = ControllerBase::Vector::Zero();
       }
 
+      auto control_state = state_;
+      if (should_zero_velocity_state()) {
+        control_state.tail(6) = ControllerBase::Vector::Zero();
+        ROS_WARN_THROTTLE(
+            3.0,
+            "DVL has been invalid for longer than %.2f s, using zero velocity "
+            "state for PID velocity error",
+            dvl_invalid_velocity_timeout_);
+      }
+
       const auto control_output =
-          controller_->control(state_, desired_state_, d_state_, dt);
+          controller_->control(control_state, desired_state_, d_state_, dt);
 
       auto pid_controller =
           dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
@@ -194,6 +209,15 @@ class ControllerROS {
 
     return (ros::Time::now() - latest_odometry_time_).toSec() <=
            odometry_timeout_;
+  }
+
+  bool should_zero_velocity_state() const {
+    if (is_dvl_valid_ || latest_dvl_invalid_time_.isZero()) {
+      return false;
+    }
+
+    return (ros::Time::now() - latest_dvl_invalid_time_).toSec() >
+           dvl_invalid_velocity_timeout_;
   }
 
   void odometry_callback(const nav_msgs::Odometry::ConstPtr& msg) {
@@ -277,6 +301,19 @@ class ControllerROS {
     d_state_(7) = msg->accel.accel.linear.y;
     d_state_(8) = msg->accel.accel.linear.z;
     d_state_.tail(3) = Eigen::Vector3d::Zero();
+  }
+
+  void dvl_is_valid_callback(const std_msgs::Bool::ConstPtr& msg) {
+    if (msg->data) {
+      is_dvl_valid_ = true;
+      latest_dvl_invalid_time_ = ros::Time(0);
+      return;
+    }
+
+    if (is_dvl_valid_ || latest_dvl_invalid_time_.isZero()) {
+      latest_dvl_invalid_time_ = ros::Time::now();
+    }
+    is_dvl_valid_ = false;
   }
 
   void reconfigure_callback(auv_control::ControllerConfig& config,
@@ -492,6 +529,7 @@ class ControllerROS {
   ros::Subscriber cmd_vel_sub_;
   ros::Subscriber cmd_pose_sub_;
   ros::Subscriber accel_sub_;
+  ros::Subscriber dvl_is_valid_sub_;
   ros::Publisher wrench_pub_;
   ros::Publisher desired_velocity_pub_;
 
@@ -500,6 +538,9 @@ class ControllerROS {
   ros::Time latest_cmd_pose_time_{ros::Time(0)};
   ros::Time latest_cmd_vel_time_{ros::Time(0)};
   ros::Time latest_odometry_time_{ros::Time(0)};
+  ros::Time latest_dvl_invalid_time_{ros::Time(0)};
+  bool is_dvl_valid_{true};
+  double dvl_invalid_velocity_timeout_{1.0};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
   ControllerBase::StateVector desired_state_{

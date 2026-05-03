@@ -7,6 +7,7 @@
   <arg name="command_timeout" default="0.1" />
   <arg name="config_file" default="$(find auv_control)/config/$(arg namespace)/default.yaml" />
   <arg name="start_visual_servoing" default="true" />
+  <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch"
     if="$(arg start_state_publisher)">
@@ -24,6 +25,7 @@
       <remap from="cmd_vel" to="cmd_vel" />
       <remap from="cmd_pose" to="cmd_pose" />
       <remap from="acceleration" to="acceleration" />
+      <remap from="dvl/is_valid" to="$(arg dvl_is_valid_topic)" />
       <remap from="enable" to="enable" />
 
       <remap from="wrench" to="wrench" />
