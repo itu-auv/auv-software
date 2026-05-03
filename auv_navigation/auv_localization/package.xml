@@ -13,6 +13,7 @@
   <depend>nav_msgs</depend>
   <depend>rospy</depend>
   <depend>std_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>tf</depend>
   <exec_depend>auv_common_lib</exec_depend>
   <exec_depend>auv_controllers</exec_depend>
