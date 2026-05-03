@@ -131,7 +131,7 @@ class MainStateMachineNode:
             self.state_list = rospy.get_param("~full_mission_states")
 
         # Subscribe to propulsion status
-        rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
+        #rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
 
     def dynamic_reconfigure_callback(self, config):
         """

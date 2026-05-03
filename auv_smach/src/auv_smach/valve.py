@@ -119,7 +119,7 @@ class ValveTaskState(smach.State):
                     target_frame=valve_approach_frame,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    confirm_duration=10.0,
+                    confirm_duration=2.0,
                     timeout=30.0,
                     cancel_on_success=False,
                 ),
@@ -178,7 +178,7 @@ class ValveTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_CONTACT",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame="taluy/base_link/torpedo_upper_link",
                     target_frame=valve_contact_frame,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
