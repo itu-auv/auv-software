@@ -72,6 +72,49 @@ class NavigateThroughSlalomState(smach.State):
                 "SET_SLALOM_DEPTH",
                 SetDepthState(depth=self.slalom_depth),
                 transitions={
+                    "succeeded": "SET_DETECTION_FOCUS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS",
+                SetDetectionFocusState(focus_object="slalom"),
+                transitions={
+                    "succeeded": "ROTATE_TO_FIND_RED_PIPE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "ROTATE_TO_FIND_RED_PIPE",
+                SearchForPropState(
+                    look_at_frame="slalom_red_pipe_link",
+                    alignment_frame="sus",
+                    full_rotation=False,
+                    set_frame_duration=2.0,
+                    source_frame=self.base_link,
+                    rotation_speed=0.2,
+                ),
+                transitions={
+                    "succeeded": "ROTATE_TO_FIND_WHITE_PIPE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "ROTATE_TO_FIND_WHITE_PIPE",
+                SearchForPropState(
+                    look_at_frame="slalom_white_pipe_link",
+                    alignment_frame="sus",
+                    full_rotation=False,
+                    set_frame_duration=2.0,
+                    source_frame=self.base_link,
+                    rotation_speed=0.2,
+                ),
+                transitions={
                     "succeeded": "PUBLISH_SEARCH_POINTS",
                     "preempted": "preempted",
                     "aborted": "aborted",
