@@ -7,7 +7,7 @@
     <xacro:include filename="$(find auv_common_descriptions)/urdf/sensors.urdf.xacro"/>
     <xacro:include filename="$(find auv_common_descriptions)/urdf/materials.urdf.xacro"/>
     <xacro:include filename="$(find taluy_description)/urdf/parallel_gripper.xacro"/>
-    <xacro:arg name="angled_thruster_z_offset" default="0.05"/>
+    <xacro:arg name="thruster_z_offset" default="0.05"/>
     <xacro:arg name="use_models" default="${use_models}"/>
     <link name="${namespace}/base_link">
       <inertial>
@@ -31,35 +31,59 @@
     </link>
 
     <!-- Thrusters -->
-    <xacro:t200_thruster name="${namespace}/thruster_0" parent="${namespace}/base_link" position="0.16040 0.20070 -0.012879" orientation="${pi} 0 ${-pi/2}" use_models="$(arg use_models)"/>
-    <xacro:t200_thruster name="${namespace}/thruster_1" parent="${namespace}/base_link" position="0.16040 -0.20070 -0.012879" orientation="${pi} 0 ${pi/2}" use_models="$(arg use_models)"/>
-    <xacro:t200_thruster name="${namespace}/thruster_2" parent="${namespace}/base_link" position="-0.16040 0.20070 -0.012879" orientation="${pi} 0 ${-pi/2}" use_models="$(arg use_models)"/>
-    <xacro:t200_thruster name="${namespace}/thruster_3" parent="${namespace}/base_link" position="-0.16040 -0.20070 -0.012879" orientation="${pi} 0 ${pi/2}" use_models="$(arg use_models)"/>
+    <xacro:t200_thruster
+      name="${namespace}/thruster_0"
+      parent="${namespace}/base_link"
+      position="0.16040 0.20070 ${-0.012879 + $(arg thruster_z_offset)}"
+      orientation="${pi} 0 ${-pi/2}"
+      use_models="$(arg use_models)"
+    />
+    <xacro:t200_thruster
+      name="${namespace}/thruster_1"
+      parent="${namespace}/base_link"
+      position="0.16040 -0.20070 ${-0.012879 + $(arg thruster_z_offset)}"
+      orientation="${pi} 0 ${pi/2}"
+      use_models="$(arg use_models)"
+    />
+    <xacro:t200_thruster
+      name="${namespace}/thruster_2"
+      parent="${namespace}/base_link"
+      position="-0.16040 0.20070 ${-0.012879 + $(arg thruster_z_offset)}"
+      orientation="${pi} 0 ${-pi/2}"
+      use_models="$(arg use_models)"
+    />
+    <xacro:t200_thruster
+      name="${namespace}/thruster_3"
+      parent="${namespace}/base_link"
+      position="-0.16040 -0.20070 ${-0.012879 + $(arg thruster_z_offset)}"
+      orientation="${pi} 0 ${pi/2}"
+      use_models="$(arg use_models)"
+    />
     <xacro:t200_thruster
       name="${namespace}/thruster_4"
       parent="${namespace}/base_link"
-      position="0.346313 0.225406 $(arg angled_thruster_z_offset)"
+      position="0.346313 0.225406 $(arg thruster_z_offset)"
       orientation="${-pi/2} 0 ${-7*pi/4}"
       use_models="$(arg use_models)"
     />
     <xacro:t200_thruster
       name="${namespace}/thruster_5"
       parent="${namespace}/base_link"
-      position="0.346313 -0.225406 $(arg angled_thruster_z_offset)"
+      position="0.346313 -0.225406 $(arg thruster_z_offset)"
       orientation="${pi/2} 0 ${7*pi/4}"
       use_models="$(arg use_models)"
     />
     <xacro:t200_thruster
       name="${namespace}/thruster_6"
       parent="${namespace}/base_link"
-      position="-0.346313 0.225406 $(arg angled_thruster_z_offset)"
+      position="-0.346313 0.225406 $(arg thruster_z_offset)"
       orientation="${-pi/2} 0 ${-pi/4}"
       use_models="$(arg use_models)"
     />
     <xacro:t200_thruster
       name="${namespace}/thruster_7"
       parent="${namespace}/base_link"
-      position="-0.346313 -0.225406 $(arg angled_thruster_z_offset)"
+      position="-0.346313 -0.225406 $(arg thruster_z_offset)"
       orientation="${pi/2} 0 ${pi/4}"
       use_models="$(arg use_models)"
     />
