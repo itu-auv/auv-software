@@ -3,7 +3,7 @@
 import rospy
 from ultralytics_ros.msg import YoloResult
 from utils.detection_utils import (
-    check_inside_image,
+    check_inside_image_torpedo,
     calculate_angles_and_offsets,
     transform_to_odom_and_publish,
 )
@@ -31,8 +31,9 @@ class TorpedoCameraHandler:
     ):
         self.camera_ns = camera_config["ns"]
         self.camera_frame = camera_config["frame"]
-        self.image_width = camera_config.get("image_width", 640)
-        self.image_height = camera_config.get("image_height", 480)
+        self.image_width = camera_config.get("image_width", 800)
+        self.image_height = camera_config.get("image_height", 448)
+        self.forbidden_side_masks = camera_config.get("forbidden_side_masks")
         self.id_tf_map = id_tf_map
         self.props = props
         self.calibration = calibration
@@ -92,7 +93,13 @@ class TorpedoCameraHandler:
             if detection.results[0].id != target_detection_id:
                 continue
 
-            if not check_inside_image(detection, self.image_width, self.image_height):
+            if not check_inside_image_torpedo(
+                detection,
+                self.image_width,
+                self.image_height,
+                self.forbidden_side_masks,
+            ):
+                rospy.loginfo("Detected torpedo hole is outside the usable image area.")
                 continue
 
             detected_holes.append(detection)
