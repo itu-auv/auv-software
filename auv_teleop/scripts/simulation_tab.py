@@ -19,6 +19,8 @@ class SimulationTab(QWidget):
         super().__init__()
         self.detect_process = None
         self.smach_process = None
+        self.world = rospy.get_param("/simulation_world", "pool")
+        self.is_tac = self.world == "tac_pool"
         self.init_ui()
 
     def init_ui(self):
@@ -38,7 +40,8 @@ class SimulationTab(QWidget):
         detect_layout.addWidget(self.detect_stop)
         detect_group.setLayout(detect_layout)
 
-        smach_group = QGroupBox("State Machine")
+        smach_title = "State Machine (TAC)" if self.is_tac else "State Machine (RoboSub)"
+        smach_group = QGroupBox(smach_title)
         smach_layout = QVBoxLayout()
 
         control_row = QHBoxLayout()
@@ -50,7 +53,10 @@ class SimulationTab(QWidget):
         control_row.addWidget(self.smach_stop)
 
         state_row = QHBoxLayout()
-        self.states = ["init", "gate", "buoy", "torpedo", "bin", "octagon"]
+        if self.is_tac:
+            self.states = ["init", "docking"]
+        else:
+            self.states = ["init", "gate", "slalom", "torpedo", "bin", "octagon"]
         self.state_checks = {state: QCheckBox(state) for state in self.states}
         for cb in self.state_checks.values():
             state_row.addWidget(cb)
@@ -79,6 +85,9 @@ class SimulationTab(QWidget):
             if not enabled:
                 cb.setChecked(False)
 
+    def open_rqt(self):
+        subprocess.Popen(["rqt", "-s", "rqt_image_view"])
+
     def start_detection(self):
         cmd = ["roslaunch", "auv_detection", "tracker.launch", "device:=cpu"]
         print(f"Executing: {' '.join(cmd)}")
@@ -99,13 +108,26 @@ class SimulationTab(QWidget):
 
     def start_smach(self):
         cmd = ["roslaunch", "auv_smach", "start.launch"]
-        if self.test_check.isChecked():
-            states = ",".join(
-                [s for s, cb in self.state_checks.items() if cb.isChecked()]
-            )
-            cmd.append(f"test_mode:=true")
+
+        if self.is_tac:
+            if self.test_check.isChecked():
+                states = ",".join(
+                    [s for s, cb in self.state_checks.items() if cb.isChecked()]
+                )
+            else:
+                states = "init,docking"
+            cmd.append("test_mode:=true")
             cmd.append(f"test_states:={states}")
-            cmd.append(f"roll:=false")
+        else:  # RoboSub
+            if self.test_check.isChecked():
+                states = ",".join(
+                    [s for s, cb in self.state_checks.items() if cb.isChecked()]
+                )
+                cmd.append("test_mode:=true")
+                cmd.append(f"test_states:={states}")
+                cmd.append("roll:=false")
+            # If not test mode, runs full_mission_states by default
+
         print(f"Executing: {' '.join(cmd)}")
         self.smach_process = subprocess.Popen(cmd)
 
@@ -121,6 +143,3 @@ class SimulationTab(QWidget):
             self.smach_process = None
         else:
             print("No SMACH process to stop.")
-
-    def open_rqt(self):
-        subprocess.Popen(["rqt", "-s", "rqt_image_view"])

@@ -34,6 +34,13 @@ cameras:
     result_topic: "/yolo_result_realsense"
     image_out_topic: "/yolo_image_realsense"
 
+  docking:
+    image_topic: "/{ns}/cameras/cam_front/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_front/camera_info"
+    optical_frame: "{ns}/base_link/front_camera_optical_link_stabilized"
+    result_topic: "/yolo_result_docking"
+    image_out_topic: "/yolo_image_docking"
+
 objects:
   # Gate signs - 0.3048 m (1 ft) square, face in YZ plane
   - class_id: 0
@@ -341,6 +348,17 @@ objects:
     boundary:
       shape: rect
       args: [0.1715, 0.1175, 0]
+
+  # TAC docking station - European pallet (800 x 1200 x 144 mm)
+  # Board face at Y ~ 0.079 in model frame (ArUco markers at Y = 0.080)
+  - class_id: 0
+    name: docking_station
+    cameras: [docking]
+    gazebo_model: tac_docking_station
+    offset: [0.0, 0.008, 0.0]
+    boundary:
+      shape: box
+      args: [0.40, 0.072, 0.60]
 
   # Octagon segment objects (bottom camera)
   - class_id: 4
