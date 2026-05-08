@@ -6,7 +6,7 @@ from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, 
 from ultralytics_ros.msg import YoloResult
 from auv_msgs.msg import PropsYaw
 from utils.detection_utils import (
-    check_inside_image,
+    check_inside_image_torpedo,
     calculate_angles_and_offsets,
     transform_to_odom_and_publish,
 )
@@ -57,7 +57,9 @@ class TorpedoCameraHandler:
             detection_id = detection.results[0].id
 
             if detection_id == self.id_tf_map.id_of("torpedo_hole_link"):
-                if check_inside_image(detection, self.image_width, self.image_height):
+                if check_inside_image_torpedo(
+                    detection, self.image_width, self.image_height
+                ):
                     detected_holes.append(detection)
 
         self.reference_holes_ready = self._can_transform_all_reference_holes(stamp)
