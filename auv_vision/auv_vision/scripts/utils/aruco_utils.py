@@ -170,10 +170,9 @@ def solve_marker_pose(marker_obj_points, marker_corners, camera_matrix, dist_coe
 
 
 def rvec_tvec_to_quaternion(rvec, tvec, force_floor_orientation=False):
-    """Convert solvePnP rvec to a quaternion.
+    """Convert solvePnP rvec to a quaternion in the camera frame.
 
     Applies 180-degree X rotation (ArUco -> ROS convention).
-    If force_floor_orientation, keeps only yaw (for floor-mounted boards/markers).
     """
     rot_mat, _ = cv2.Rodrigues(rvec)
     transform_matrix = np.eye(4)
@@ -184,19 +183,23 @@ def rvec_tvec_to_quaternion(rvec, tvec, force_floor_orientation=False):
     transform_matrix = transform_matrix @ rot_x_180
 
     quat = tf.transformations.quaternion_from_matrix(transform_matrix)
-
-    if force_floor_orientation:
-        euler = tf.transformations.euler_from_quaternion(quat)
-        yaw = euler[2]
-        quat = tf.transformations.quaternion_from_euler(np.pi, 0.0, yaw)
-
     return quat
 
 
 def publish_pose_to_odom(
-    camera_frame, child_frame_id, tvec, quaternion, stamp, tf_buffer, publisher
+    camera_frame,
+    child_frame_id,
+    tvec,
+    quaternion,
+    stamp,
+    tf_buffer,
+    publisher,
+    force_floor_orientation=False,
 ):
     """Transform an ArUco pose from camera frame to odom and publish as TransformStamped.
+
+    If ``force_floor_orientation`` is True, the orientation is flattened to a
+    pure yaw rotation in odom (roll=0, pitch=0).
 
     Returns the transformed PoseStamped on success, None on failure.
     """
@@ -215,6 +218,17 @@ def publish_pose_to_odom(
 
     try:
         transformed = tf_buffer.transform(pose_stamped, "odom", rospy.Duration(0.1))
+
+        if force_floor_orientation:
+            q = transformed.pose.orientation
+            yaw = tf.transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])[2]
+            flat_quat = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
+            transformed.pose.orientation = Quaternion(
+                float(flat_quat[0]),
+                float(flat_quat[1]),
+                float(flat_quat[2]),
+                float(flat_quat[3]),
+            )
 
         odom_transform = TransformStamped()
         odom_transform.header = transformed.header

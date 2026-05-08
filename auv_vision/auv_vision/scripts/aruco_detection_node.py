@@ -134,9 +134,7 @@ class ArucoCamera:
                 if success:
                     any_detected = True
                     claimed_ids.update(matched_ids)
-                    quat = rvec_tvec_to_quaternion(
-                        rvec, tvec, board.force_floor_orientation
-                    )
+                    quat = rvec_tvec_to_quaternion(rvec, tvec)
 
                     if stamp != self.last_published_stamp:
                         result = publish_pose_to_odom(
@@ -147,6 +145,7 @@ class ArucoCamera:
                             stamp,
                             self.tf_buffer,
                             self.transform_pub,
+                            force_floor_orientation=board.force_floor_orientation,
                         )
                         if result:
                             pos = result.pose.position
@@ -180,9 +179,7 @@ class ArucoCamera:
 
                 if success:
                     any_detected = True
-                    quat = rvec_tvec_to_quaternion(
-                        rvec, tvec, marker.force_floor_orientation
-                    )
+                    quat = rvec_tvec_to_quaternion(rvec, tvec)
                     if stamp != self.last_published_stamp:
                         publish_pose_to_odom(
                             self.camera_frame,
@@ -192,6 +189,7 @@ class ArucoCamera:
                             stamp,
                             self.tf_buffer,
                             self.transform_pub,
+                            force_floor_orientation=marker.force_floor_orientation,
                         )
 
         if any_detected:

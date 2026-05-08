@@ -25,7 +25,7 @@ class ToggleDockingTrajectoryState(smach_ros.ServiceState):
 class DockingTaskState(smach.State):
     def __init__(
         self,
-        search_depth: float = -3.85,
+        search_depth: float = -1.5,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -166,9 +166,29 @@ class DockingTaskState(smach.State):
                 "RISE_AFTER_DOCK",
                 SetDepthState(depth=search_depth, timeout=3.0),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "RESTART_ESTIMATOR",
                     "preempted": "preempted",
                     "aborted": "aborted",
+                },
+            )
+
+            def enable_estimator_cb(userdata):
+                try:
+                    srv = rospy.ServiceProxy(
+                        "/aruco_detection_node/set_enabled", SetBool
+                    )
+                    srv.wait_for_service(timeout=5.0)
+                    srv(True)
+                    rospy.loginfo("Re-enabled ArUco detection node")
+                except rospy.ROSException as e:
+                    rospy.logwarn(f"Failed to re-enable estimator: {e}")
+                return "succeeded"
+
+            smach.StateMachine.add(
+                "RESTART_ESTIMATOR",
+                smach.CBState(enable_estimator_cb, outcomes=["succeeded"]),
+                transitions={
+                    "succeeded": "succeeded",
                 },
             )
 
