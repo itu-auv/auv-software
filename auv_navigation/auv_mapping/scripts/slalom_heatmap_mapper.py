@@ -17,7 +17,6 @@ from vision_msgs.msg import Detection2DArray
 from geometry_msgs.msg import (
     PoseStamped,
     TransformStamped,
-    Vector3,
     Quaternion,
 )
 from sensor_msgs.msg import Image
@@ -76,6 +75,15 @@ class SlalomHeatmapMapper:
         self.rate = rospy.Rate(self.frequency)
 
         self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
+        self.odom_frame = rospy.get_param("~odom_frame", "odom")
+        self.search_frame = rospy.get_param("~search_frame", "slalom_search_start")
+        self.red_pipe_frame = "slalom_red_pipe_link"
+        self.white_pipe_frame = "slalom_white_pipe_link"
+        self.search_start_distance = rospy.get_param("~search_start_distance", 2.0)
+        self.search_side_offset = rospy.get_param("~search_side_offset", 1.0)
+        self.search_side_yaw_offset_deg = rospy.get_param(
+            "~search_side_yaw_offset_deg", 30.0
+        )
 
         self.slalom_width = rospy.get_param("~slalom_width", 0.0254)
         self.slalom_height = rospy.get_param("~slalom_height", 0.9)
@@ -161,47 +169,87 @@ class SlalomHeatmapMapper:
 
     def publish_search_points_callback(self, req):
         try:
-            for c in ["start", "left", "right"]:
-                t = TransformStamped()
-                t.header.stamp = rospy.Time.now()
-                t.header.frame_id = self.base_link_frame
-                t.child_frame_id = f"slalom_search_{c}"
-                t.transform.rotation.w = 1.0
+            red_pipes = self.get_all_pipe_positions(self.red_pipe_frame)
+            white_pipes = self.get_all_pipe_positions(self.white_pipe_frame)
+            if len(red_pipes) == 0 or len(white_pipes) == 0:
+                return TriggerResponse(
+                    success=False,
+                    message=(
+                        "Could not find red/white pipe frames "
+                        f"(red={len(red_pipes)} white={len(white_pipes)})"
+                    ),
+                )
 
-                if c == "start":
-                    pass
-                elif c == "left":
-                    t.transform.translation.y = 1.0
-                    q = transformations.quaternion_from_euler(0, 0, math.radians(30))
-                    t.transform.rotation = Quaternion(*q)
-                elif c == "right":
-                    t.transform.translation.y = -1.0
-                    q = transformations.quaternion_from_euler(0, 0, math.radians(-30))
-                    t.transform.rotation = Quaternion(*q)
+            robot_trans = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                self.base_link_frame,
+                rospy.Time(0),
+                rospy.Duration(1.0),
+            )
+            robot_pos = np.array(
+                [
+                    robot_trans.transform.translation.x,
+                    robot_trans.transform.translation.y,
+                ]
+            )
 
-                pose_in_base = PoseStamped()
-                pose_in_base.header.frame_id = self.base_link_frame
-                pose_in_base.pose.position = t.transform.translation
-                pose_in_base.pose.orientation = t.transform.rotation
+            closest_red = min(red_pipes, key=lambda p: np.linalg.norm(robot_pos - p))
+            closest_white = min(
+                white_pipes, key=lambda p: np.linalg.norm(robot_pos - p)
+            )
 
-                pose_in_odom = self.tf_buffer.transform(pose_in_base, "odom")
+            pipe_line = closest_red - closest_white
+            pipe_line_norm = np.linalg.norm(pipe_line)
+            if pipe_line_norm <= 1e-6:
+                return TriggerResponse(
+                    success=False, message="Closest red/white pipe frames overlap"
+                )
+
+            pipe_line_unit = pipe_line / pipe_line_norm
+            search_forward = np.array([-pipe_line_unit[1], pipe_line_unit[0]])
+
+            q_robot = robot_trans.transform.rotation
+            robot_yaw = transformations.euler_from_quaternion(
+                [q_robot.x, q_robot.y, q_robot.z, q_robot.w]
+            )[2]
+            robot_forward = np.array([math.cos(robot_yaw), math.sin(robot_yaw)])
+            if np.dot(search_forward, robot_forward) < 0:
+                search_forward = -search_forward
+
+            target_pos = closest_red - search_forward * self.search_start_distance
+            target_yaw = math.atan2(search_forward[1], search_forward[0])
+            side_vector = np.array([-math.sin(target_yaw), math.cos(target_yaw)])
+            side_angle = math.radians(self.search_side_yaw_offset_deg)
+            stamp = rospy.Time.now()
+
+            for name, side_offset, yaw_offset in [
+                ("start", 0.0, 0.0),
+                ("left", self.search_side_offset, side_angle),
+                ("right", -self.search_side_offset, -side_angle),
+            ]:
+                pos = target_pos + side_vector * side_offset
+                q = transformations.quaternion_from_euler(0, 0, target_yaw + yaw_offset)
 
                 t_odom = TransformStamped()
-                t_odom.header.stamp = rospy.Time.now()
-                t_odom.header.frame_id = "odom"
-                t_odom.child_frame_id = t.child_frame_id
-                t_odom.transform.translation = Vector3(
-                    pose_in_odom.pose.position.x,
-                    pose_in_odom.pose.position.y,
-                    pose_in_odom.pose.position.z,
-                )
-                t_odom.transform.rotation = pose_in_odom.pose.orientation
+                t_odom.header.stamp = stamp
+                t_odom.header.frame_id = self.odom_frame
+                t_odom.child_frame_id = f"slalom_search_{name}"
+                t_odom.transform.translation.x = pos[0]
+                t_odom.transform.translation.y = pos[1]
+                t_odom.transform.translation.z = 0.0
+                t_odom.transform.rotation = Quaternion(*q)
 
                 req_obj = SetObjectTransformRequest()
                 req_obj.transform = t_odom
                 self.set_object_transform_service.call(req_obj)
 
-            return TriggerResponse(success=True, message="Published all search frames")
+            return TriggerResponse(
+                success=True,
+                message=(
+                    "Published search frames from closest red/white pipes "
+                    f"(distance={self.search_start_distance:.2f}m)"
+                ),
+            )
         except Exception as e:
             return TriggerResponse(success=False, message=str(e))
 
@@ -262,6 +310,49 @@ class SlalomHeatmapMapper:
             self.waypoint_tfs = self.build_waypoint_transforms(self.slalom_rows)
         rospy.loginfo(f"Slalom direction updated to: {self.slalom_direction}")
 
+    def get_all_pipe_positions(self, frame_prefix):
+        pipe_positions = []
+
+        if self.tf_buffer.can_transform(
+            self.odom_frame, frame_prefix, rospy.Time(0), rospy.Duration(0.05)
+        ):
+            transform = self.tf_buffer.lookup_transform(
+                self.odom_frame, frame_prefix, rospy.Time(0), rospy.Duration(1.0)
+            )
+            pipe_positions.append(
+                np.array(
+                    [
+                        transform.transform.translation.x,
+                        transform.transform.translation.y,
+                    ]
+                )
+            )
+
+        index = 0
+        while self.tf_buffer.can_transform(
+            self.odom_frame,
+            f"{frame_prefix}_{index}",
+            rospy.Time(0),
+            rospy.Duration(0.05),
+        ):
+            transform = self.tf_buffer.lookup_transform(
+                self.odom_frame,
+                f"{frame_prefix}_{index}",
+                rospy.Time(0),
+                rospy.Duration(1.0),
+            )
+            pipe_positions.append(
+                np.array(
+                    [
+                        transform.transform.translation.x,
+                        transform.transform.translation.y,
+                    ]
+                )
+            )
+            index += 1
+
+        return pipe_positions
+
     def yolo_callback(self, msg):
         if not self.collecting:
             return
@@ -307,28 +398,53 @@ class SlalomHeatmapMapper:
             if off_z > 10:
                 continue
 
-            transform_stamped_msg = TransformStamped()
-            transform_stamped_msg.header.stamp = detections.header.stamp
-            transform_stamped_msg.header.frame_id = (
-                self.base_link_frame + "/front_camera_optical_link_stabilized"
-            )
-            transform_stamped_msg.child_frame_id = f"pipe_{self.i}"
-            transform_stamped_msg.transform.translation = Vector3(off_x, off_y, off_z)
-            transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
-
             try:
                 pose_stamped = PoseStamped()
-                pose_stamped.header = transform_stamped_msg.header
-                pose_stamped.pose.position = transform_stamped_msg.transform.translation
-                pose_stamped.pose.orientation = transform_stamped_msg.transform.rotation
+                pose_stamped.header.stamp = detections.header.stamp
+                pose_stamped.header.frame_id = (
+                    self.base_link_frame + "/front_camera_optical_link_stabilized"
+                )
+                pose_stamped.pose.position.x = off_x
+                pose_stamped.pose.position.y = off_y
+                pose_stamped.pose.position.z = off_z
+                pose_stamped.pose.orientation = Quaternion(0, 0, 0, 1)
 
-                transformed_pose_stamped = self.tf_buffer.transform(
-                    pose_stamped, "odom", rospy.Duration(4.0)
+                stamp = pose_stamped.header.stamp
+                if stamp == rospy.Time(0):
+                    rospy.logwarn_throttle(
+                        5,
+                        "Detection timestamp is zero; using latest transform to %s",
+                        self.search_frame,
+                    )
+
+                if not self.tf_buffer.can_transform(
+                    self.search_frame,
+                    pose_stamped.header.frame_id,
+                    stamp,
+                    rospy.Duration(0.05),
+                ):
+                    rospy.logwarn_throttle(
+                        5,
+                        "No transform from %s to %s at detection stamp %.3f",
+                        pose_stamped.header.frame_id,
+                        self.search_frame,
+                        stamp.to_sec(),
+                    )
+                    continue
+
+                pose_in_search = self.tf_buffer.transform(
+                    pose_stamped, self.search_frame, rospy.Duration(1.0)
                 )
 
-                wx = transformed_pose_stamped.pose.position.x
-                wy = transformed_pose_stamped.pose.position.y
+                wx = pose_in_search.pose.position.x
+                wy = pose_in_search.pose.position.y
                 self.points.append([wx, wy, x.results[0].id])
+                rospy.loginfo_throttle(
+                    2.0,
+                    "Collected %d slalom points in %s",
+                    len(self.points),
+                    self.search_frame,
+                )
                 self.update_heatmap_vis()
 
             except Exception as e:
@@ -598,14 +714,17 @@ class SlalomHeatmapMapper:
             yaw = math.atan2(v_forward[1], v_forward[0])
             q = transformations.quaternion_from_euler(0, 0, yaw)
 
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = "odom"
-            t.child_frame_id = f"slalom_wp_{i}"
-            t.transform.translation.x = pos_wp[0]
-            t.transform.translation.y = pos_wp[1]
-            t.transform.rotation = Quaternion(*q)
-            transforms.append(t)
+            try:
+                transforms.append(
+                    self.make_transform_in_odom(
+                        f"slalom_wp_{i}",
+                        pos_wp[0],
+                        pos_wp[1],
+                        Quaternion(*q),
+                    )
+                )
+            except Exception as e:
+                rospy.logwarn("Failed to transform waypoint %d to odom: %s", i, e)
 
         return transforms
 
@@ -621,7 +740,10 @@ class SlalomHeatmapMapper:
 
     def align_forward_vector_with_base(self, v_forward):
         trans = self.tf_buffer.lookup_transform(
-            "odom", self.base_link_frame, rospy.Time(0), rospy.Duration(1.0)
+            self.search_frame,
+            self.base_link_frame,
+            rospy.Time(0),
+            rospy.Duration(1.0),
         )
         q_base = [
             trans.transform.rotation.x,
@@ -637,14 +759,34 @@ class SlalomHeatmapMapper:
         return v_forward
 
     def make_position_transform(self, child_frame_id: str, point: Point):
+        return self.make_transform_in_odom(
+            child_frame_id,
+            point.x,
+            point.y,
+            Quaternion(0, 0, 0, 1),
+        )
+
+    def make_transform_in_odom(self, child_frame_id, x, y, orientation):
+        pose_in_search = PoseStamped()
+        pose_in_search.header.stamp = rospy.Time(0)
+        pose_in_search.header.frame_id = self.search_frame
+        pose_in_search.pose.position.x = x
+        pose_in_search.pose.position.y = y
+        pose_in_search.pose.position.z = 0.0
+        pose_in_search.pose.orientation = orientation
+
+        pose_in_odom = self.tf_buffer.transform(
+            pose_in_search, self.odom_frame, rospy.Duration(1.0)
+        )
+
         t = TransformStamped()
         t.header.stamp = rospy.Time.now()
-        t.header.frame_id = "odom"
+        t.header.frame_id = self.odom_frame
         t.child_frame_id = child_frame_id
-        t.transform.translation.x = point.x
-        t.transform.translation.y = point.y
-        t.transform.translation.z = 0
-        t.transform.rotation.w = 1.0
+        t.transform.translation.x = pose_in_odom.pose.position.x
+        t.transform.translation.y = pose_in_odom.pose.position.y
+        t.transform.translation.z = pose_in_odom.pose.position.z
+        t.transform.rotation = pose_in_odom.pose.orientation
         return t
 
     def build_heatmap_visualization(self, heatmap, pixel_points):
