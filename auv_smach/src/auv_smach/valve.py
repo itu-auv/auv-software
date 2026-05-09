@@ -1,3 +1,4 @@
+import math
 from .initialize import *
 import smach
 import smach_ros
@@ -32,14 +33,6 @@ class ValveContactFramePublisherServiceState(smach_ros.ServiceState):
 
 
 class ValveKeypointNodeEnableServiceState(smach_ros.ServiceState):
-    """Toggle valve_keypoint_node's ViTPose pipeline via SetBool.
-
-    Disabling after the approach alignment frees the GPU/CPU the ViTPose
-    inference was consuming — the contact phase only needs the
-    valve_contact_frame, which is derived from the already-converged
-    `tac/valve` Kalman filter and doesn't require fresh keypoint updates.
-    """
-
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
@@ -49,34 +42,75 @@ class ValveKeypointNodeEnableServiceState(smach_ros.ServiceState):
         )
 
 
+def _build_approach_freeze_timer_sm(delay: float) -> smach.StateMachine:
+    sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
+    with sm:
+        smach.StateMachine.add(
+            "WAIT",
+            DelayState(delay_time=delay),
+            transitions={
+                "succeeded": "FREEZE",
+                "preempted": "preempted",
+                "aborted": "aborted",
+            },
+        )
+        smach.StateMachine.add(
+            "FREEZE",
+            ValveApproachFramePublisherServiceState(req=False),
+            transitions={
+                "succeeded": "succeeded",
+                "preempted": "preempted",
+                "aborted": "aborted",
+            },
+        )
+    return sm
+
+
 class ValveTaskState(smach.State):
-    """Two-phase valve task: oriented approach → contact.
-
-    The keypoint pipeline (sim_keypoint_node or valve_keypoint_node →
-    keypoint_pose_node → object_map_tf_server) publishes `tac/valve` as
-    soon as the robot is facing the valve, so no rotational search is
-    needed. The valve_trajectory_publisher derives `valve_approach_frame`
-    and `valve_contact_frame` from `tac/valve` once their respective
-    SetBool gates are enabled.
-    """
-
     def __init__(
         self,
         valve_depth,
         valve_approach_frame: str = "valve_approach_frame",
         valve_contact_frame: str = "valve_contact_frame",
-        valve_exit_angle: float = 0.0,
+        valve_frame: str = "tac/valve",
+        approach_freeze_delay: float = 4.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.valve_exit_angle = valve_exit_angle
+
+        gripper_frame = "taluy/base_link/valve_gripper_front_link"
+        base_link_frame = "taluy/base_link"
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
         self.state_machine.set_initial_state(["SET_VALVE_DEPTH"])
 
+        align_and_freeze_approach = smach.Concurrence(
+            outcomes=["succeeded", "preempted", "aborted"],
+            default_outcome="aborted",
+            child_termination_cb=lambda om: om.get("ALIGN") is not None,
+            outcome_cb=lambda om: om.get("ALIGN", "aborted"),
+        )
+        with align_and_freeze_approach:
+            smach.Concurrence.add(
+                "ALIGN",
+                AlignFrame(
+                    source_frame=base_link_frame,
+                    target_frame=valve_approach_frame,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=1.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                    use_frame_depth=True,
+                ),
+            )
+            smach.Concurrence.add(
+                "FREEZE_TIMER",
+                _build_approach_freeze_timer_sm(approach_freeze_delay),
+            )
+
         with self.state_machine:
-            # 1. Descend to valve depth
             smach.StateMachine.add(
                 "SET_VALVE_DEPTH",
                 SetDepthState(depth=valve_depth),
@@ -86,12 +120,6 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # =========================================================
-            #  PHASE 1: ORIENTED APPROACH (perpendicular to surface normal)
-            # =========================================================
-
-            # 2. Enable approach frame publisher
             smach.StateMachine.add(
                 "ENABLE_APPROACH_PUBLISHER",
                 ValveApproachFramePublisherServiceState(req=True),
@@ -101,35 +129,24 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 3. Wait for approach frame to be broadcast
             smach.StateMachine.add(
                 "WAIT_FOR_APPROACH_FRAME",
                 DelayState(delay_time=2.0),
                 transitions={
-                    "succeeded": "ALIGN_TO_APPROACH",
+                    "succeeded": "ALIGN_AND_FREEZE_APPROACH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # 4. Align to approach frame.
             smach.StateMachine.add(
-                "ALIGN_TO_APPROACH",
-                AlignFrame(
-                    source_frame="taluy/base_link",
-                    target_frame=valve_approach_frame,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=10.0,
-                    timeout=30.0,
-                    cancel_on_success=False,
-                ),
+                "ALIGN_AND_FREEZE_APPROACH",
+                align_and_freeze_approach,
                 transitions={
                     "succeeded": "DISABLE_VALVE_KEYPOINT_NODE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # 5. Disable the valve keypoint node
             smach.StateMachine.add(
                 "DISABLE_VALVE_KEYPOINT_NODE",
                 ValveKeypointNodeEnableServiceState(req=False),
@@ -139,7 +156,6 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 6. Disable approach publisher
             smach.StateMachine.add(
                 "DISABLE_APPROACH_PUBLISHER",
                 ValveApproachFramePublisherServiceState(req=False),
@@ -149,12 +165,6 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-            # =========================================================
-            #  PHASE 2: CONTACT (perpendicular to surface normal, contact)
-            # =========================================================
-
-            # 6. Enable contact publisher
             smach.StateMachine.add(
                 "ENABLE_CONTACT_PUBLISHER",
                 ValveContactFramePublisherServiceState(req=True),
@@ -164,7 +174,6 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 7. Wait for contact frame to be broadcast
             smach.StateMachine.add(
                 "WAIT_FOR_CONTACT_FRAME",
                 DelayState(delay_time=2.0),
@@ -174,11 +183,10 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 8. Precise alignment to contact frame
             smach.StateMachine.add(
                 "ALIGN_TO_CONTACT",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=gripper_frame,
                     target_frame=valve_contact_frame,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
@@ -195,17 +203,46 @@ class ValveTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            # 9. Disable contact publisher
             smach.StateMachine.add(
                 "DISABLE_CONTACT_PUBLISHER",
                 ValveContactFramePublisherServiceState(req=False),
+                transitions={
+                    "succeeded": "ALIGN_TO_VALVE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            # angle_offset=pi flips heading: tac/valve's X is the outward normal, we want to face into it.
+            smach.StateMachine.add(
+                "ALIGN_TO_VALVE",
+                AlignFrame(
+                    source_frame=gripper_frame,
+                    target_frame=valve_frame,
+                    angle_offset=math.pi,
+                    dist_threshold=0.03,
+                    yaw_threshold=0.05,
+                    confirm_duration=3.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
+                    use_frame_depth=True,
+                ),
+                transitions={
+                    "succeeded": "REENABLE_VALVE_KEYPOINT_NODE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "REENABLE_VALVE_KEYPOINT_NODE",
+                ValveKeypointNodeEnableServiceState(req=True),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # 10. Reset controller
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),

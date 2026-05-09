@@ -92,6 +92,13 @@
     <xacro:ping360 name="${namespace}/base_link/ping360" parent="${namespace}/base_link" position="0.2 0 0.134" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:bar30 name="${namespace}/base_link/external_pressure_sensor" parent="${namespace}/base_link" position="0 0 0.079" orientation="0 0 0" use_models="$(arg use_models)"/>
     <xacro:logitech_c920_camera name="${namespace}/base_link/front_camera" parent="${namespace}/base_link" position="0.40125 0 0" orientation="0 0 0" use_models="$(arg use_models)"/>
+
+    <link name="${namespace}/base_link/valve_gripper_front_link"/>
+    <joint name="${namespace}/base_link/valve_gripper_front_joint" type="fixed">
+      <parent link="${namespace}/base_link/front_camera_link"/>
+      <child link="${namespace}/base_link/valve_gripper_front_link"/>
+      <origin xyz="0.30 0 0" rpy="0 0 0"/>
+    </joint>
     <xacro:logitech_c920_camera
       name="${namespace}/base_link/bottom_camera"
       parent="${namespace}/base_link"
