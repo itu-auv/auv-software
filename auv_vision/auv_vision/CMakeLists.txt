@@ -39,7 +39,6 @@ catkin_install_python(
     scripts/valve_keypoint_node.py
     scripts/depth_anything_trt_node.py
     scripts/depth_anything_zmq_client.py
-    scripts/vitpose_inference.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
