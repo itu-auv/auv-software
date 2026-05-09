@@ -58,7 +58,7 @@
     <node pkg="auv_vision" type="keypoint_pose_node.py"
           name="keypoint_pose_node" output="screen">
       <param name="config_file"
-             value="$(find auv_vision)/config/keypoint_objects.yaml" />
+             value="$(find auv_vision)/config/valve_keypoints.yaml" />
       <remap from="object_transform_updates"
              to="map/object_transform_updates" />
     </node>

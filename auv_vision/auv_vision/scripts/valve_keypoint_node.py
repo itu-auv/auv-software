@@ -18,7 +18,6 @@ import cv2
 import numpy as np
 import rospkg
 import rospy
-import yaml
 
 from cv_bridge import CvBridge
 from ultralytics import YOLO
@@ -39,16 +38,6 @@ SKELETON_COLOR = (0, 255, 0)
 KP_COLOR = (0, 80, 255)
 LOW_CONF_COLOR = (100, 100, 100)
 BBOX_COLOR = (0, 200, 255)
-
-
-def _load_id_mapping(yaml_path: str, object_name: str) -> Tuple[int, str]:
-    """Return (id_start, kp_object_name) for object_name from keypoint_objects.yaml."""
-    with open(yaml_path, "r") as f:
-        cfg = yaml.safe_load(f)
-    for entry in cfg.get("objects", []):
-        if entry.get("name") == object_name:
-            return int(entry["id_start"]), entry["object_names"][0]
-    raise RuntimeError(f"object '{object_name}' not found in {yaml_path}")
 
 
 class ValveKeypointNode:
@@ -78,18 +67,9 @@ class ValveKeypointNode:
         self.yolo_iou_thres = float(rospy.get_param("~yolo_iou_thres", 0.45))
         self.yolo_max_det = int(rospy.get_param("~yolo_max_det", 300))
 
-        default_yaml = os.path.join(
-            rospkg.RosPack().get_path("auv_vision"),
-            "config",
-            "keypoint_objects.yaml",
-        )
-        self.keypoint_objects_yaml = rospy.get_param(
-            "~keypoint_objects_yaml", default_yaml
-        )
+        # Producer emits 1-indexed keypoint ids; the consumer YAML
+        # (valve_keypoints.yaml) maps those ids to model points.
         self.object_name = rospy.get_param("~object_name", "valve")
-        self.id_start, self.kp_object = _load_id_mapping(
-            self.keypoint_objects_yaml, self.object_name
-        )
 
         rospy.loginfo(f"Loading YOLO from {self.yolo_model_path}")
         self.yolo = YOLO(self.yolo_model_path)
@@ -195,11 +175,11 @@ class ValveKeypointNode:
             if conf < self.conf_threshold:
                 continue
             msg = Keypoint()
-            msg.id = i + self.id_start
+            msg.id = i + 1
             msg.x = float(kps[i, 0])
             msg.y = float(kps[i, 1])
             msg.confidence = conf
-            msg.object = self.kp_object
+            msg.object = self.object_name
             out.append(msg)
         return out
 

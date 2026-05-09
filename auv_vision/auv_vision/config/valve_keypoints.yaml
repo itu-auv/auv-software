@@ -1,0 +1,48 @@
+# Consumer config for keypoint_pose_node.
+#
+# valve_keypoint_node publishes KeypointResult messages with kp.object="valve"
+# and 1-indexed ids (1..N). keypoint_pose_node groups by `object_names`,
+# runs PnP on the points listed in `model`, and broadcasts a TransformStamped
+# per `outputs` entry. Optional `state_keypoint` overrides the rotation about
+# model X using a single in-plane keypoint (e.g. the valve handle tip).
+
+cameras:
+  front:
+    frame: "taluy/base_link/front_camera_optical_link"
+    camera_info_topic: "/taluy/cameras/cam_front/camera_info"
+    keypoint_topic: "/keypoint_result_front"
+
+objects:
+  - name: valve
+    object_names: [valve]
+    cameras: [front]
+    min_keypoints: 6
+    solver: sqpnp
+    refine_iterative: false
+    confidence_threshold: 0.5
+    reprojection_error_threshold: 5.0
+    max_distance: 8.0
+    model:
+      - shape: points
+        ids: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        args:
+          - [0.020, -0.072832, -0.072832] # kp1: bolt -135°
+          - [0.020, 0.000000, -0.103000] # kp2: bolt -90°
+          - [0.020, 0.072832, -0.072832] # kp3: bolt -45°
+          - [0.020, 0.103000, 0.000000] # kp4: bolt 0°
+          - [0.020, 0.072832, 0.072832] # kp5: bolt 45°
+          - [0.020, 0.000000, 0.103000] # kp6: bolt 90°
+          - [0.020, -0.072832, 0.072832] # kp7: bolt 135°
+          - [0.020, -0.103000, 0.000000] # kp8: bolt 180°
+          - [0.000, 0.000000, 0.000000] # kp9: face center
+    outputs:
+      - child_frame_id: tac/valve
+        offset: [0.0, 0.0, 0.0]
+    # kp10 is the handle tip — encodes the valve's open/closed state into
+    # the published frame's roll. Skip publish if missing/low-conf rather
+    # than emit a frame with a meaningless yaw.
+    state_keypoint:
+      keypoint_id: 10
+      output_axis: z
+      confidence_threshold: 0.5
+      parallel_eps_rad: 0.087 # ~5°: skip if valve seen edge-on
