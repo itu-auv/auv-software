@@ -73,10 +73,10 @@ props:
   octagon_table_link: {name: "octagon_table", real_height: null, real_width: null}
   basket_redcross_link: {name: "basket_redcross", real_height: 0.25, real_width: 0.25}
   basket_warning_link: {name: "basket_warning", real_height: 0.25, real_width: 0.25}
-  electric_link: {name: "electric", real_height: 0.0875, real_width: 0.0875}
-  bandaid_link: {name: "bandaid", real_height: 0.0875, real_width: 0.0875}
-  nutbolt_link: {name: "nutbolt", real_height: 0.0705, real_width: 0.0705}
-  pill_link: {name: "pill", real_height: 0.0705, real_width: 0.0705}
+  electric_link: {name: "electric", real_height: 0.087, real_width: 0.087}
+  bandaid_link: {name: "bandaid", real_height: 0.087, real_width: 0.087}
+  nutbolt_link: {name: "nutbolt", real_height: 0.07}
+  pill_link: {name: "pill", real_height: 0.07}
   basket_redcross_segment_link: {name: "basket_redcross_segment", real_height: 0.25, real_width: 0.25}
   basket_warning_segment_link: {name: "basket_warning_segment", real_height: 0.25, real_width: 0.25}
   octagon_table_segment_link: {name: "octagon_table_segment", real_height: 0.3048, real_width: 0.3048}
