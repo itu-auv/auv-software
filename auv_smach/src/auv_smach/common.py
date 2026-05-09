@@ -996,12 +996,14 @@ class CheckAlignmentState(smach.State):
         confirm_duration=0.0,
         keep_orientation=False,
         use_frame_depth=False,
+        pitch_threshold=0.1,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
         self.target_frame = target_frame
         self.dist_threshold = dist_threshold
         self.yaw_threshold = yaw_threshold
+        self.pitch_threshold = pitch_threshold
         self.timeout = timeout
         self.angle_offset = angle_offset
         self.confirm_duration = confirm_duration
@@ -1026,25 +1028,30 @@ class CheckAlignmentState(smach.State):
             if self.use_frame_depth:
                 dist_error = math.sqrt(dist_error**2 + trans.z**2)
 
-            _, _, yaw = transformations.euler_from_quaternion(
+            _, pitch, yaw = transformations.euler_from_quaternion(
                 (rot.x, rot.y, rot.z, rot.w)
             )
             yaw_error = abs(angles.normalize_angle(yaw + self.angle_offset))
+            pitch_error = abs(angles.normalize_angle(pitch))
 
-            return dist_error, yaw_error
+            return dist_error, yaw_error, pitch_error
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ) as e:
             rospy.logwarn_throttle(3.0, f"CheckAlignmentState: TF lookup failed: {e}")
-            return None, None
+            return None, None, None
 
     def is_aligned_distance_only(self, dist_error):
         return dist_error < self.dist_threshold
 
-    def is_aligned_distance_and_yaw(self, dist_error, yaw_error):
-        return dist_error < self.dist_threshold and yaw_error < self.yaw_threshold
+    def is_aligned_distance_and_orientation(self, dist_error, yaw_error, pitch_error):
+        return (
+            dist_error < self.dist_threshold
+            and yaw_error < self.yaw_threshold
+            and pitch_error < self.pitch_threshold
+        )
 
     def execute(self, userdata):
         start_time = rospy.Time.now()
@@ -1055,17 +1062,24 @@ class CheckAlignmentState(smach.State):
                 self.service_preempt()
                 return "preempted"
 
-            dist_error, yaw_error = self.get_error()
+            dist_error, yaw_error, pitch_error = self.get_error()
 
-            if dist_error is not None and yaw_error is not None:
+            if (
+                dist_error is not None
+                and yaw_error is not None
+                and pitch_error is not None
+            ):
                 rospy.loginfo_throttle(
                     1.0,
-                    f"Alignment check: dist_error={dist_error:.2f}m, yaw_error={yaw_error:.2f}rad",
+                    f"Alignment check: dist_error={dist_error:.2f}m, "
+                    f"yaw_error={yaw_error:.2f}rad, pitch_error={pitch_error:.2f}rad",
                 )
                 if self.keep_orientation:
                     aligned = self.is_aligned_distance_only(dist_error)
                 else:
-                    aligned = self.is_aligned_distance_and_yaw(dist_error, yaw_error)
+                    aligned = self.is_aligned_distance_and_orientation(
+                        dist_error, yaw_error, pitch_error
+                    )
 
                 if aligned:
                     if self.confirm_duration == 0.0:
@@ -1099,6 +1113,7 @@ class AlignFrame(smach.StateMachine):
         angle_offset=0.0,
         dist_threshold=0.1,
         yaw_threshold=0.1,
+        pitch_threshold=0.1,
         timeout=30.0,
         cancel_on_success=False,
         confirm_duration=0.0,
@@ -1144,6 +1159,7 @@ class AlignFrame(smach.StateMachine):
                     confirm_duration,
                     keep_orientation=keep_orientation,
                     use_frame_depth=use_frame_depth,
+                    pitch_threshold=pitch_threshold,
                 ),
                 transitions={
                     "succeeded": watch_succeeded_transition,

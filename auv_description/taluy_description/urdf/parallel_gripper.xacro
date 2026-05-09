@@ -59,12 +59,14 @@
           <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/BaseGripper.dae"/>
         </geometry>
       </visual>
-      <collision>
+      <!-- Collision disabled: physical gripper is too large to fit at the
+           valve task workspace. Visual is kept for debugging. -->
+      <!-- <collision>
         <origin rpy="0 0 0" xyz="0.024426 0.0 0.0"/>
         <geometry>
           <box size="0.074326 0.117427 0.114298"/>
         </geometry>
-      </collision>
+      </collision> -->
     </link>
 
     <!-- Joint connecting the virtual mount link to gripper base -->
@@ -88,12 +90,13 @@
           <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
         </geometry>
       </visual>
-      <collision>
+      <!-- Collision disabled (gripper too large for valve workspace). -->
+      <!-- <collision>
         <origin rpy="0 0 0" xyz="0.032 0 0"/>
         <geometry>
           <box size="0.064 0.078 0.025"/>
         </geometry>
-      </collision>
+      </collision> -->
     </link>
 
     <!-- Left Finger Joint -->
@@ -123,12 +126,13 @@
           <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
         </geometry>
       </visual>
-      <collision>
+      <!-- Collision disabled (gripper too large for valve workspace). -->
+      <!-- <collision>
         <origin rpy="0 0 0" xyz="0.042 0 0"/>
         <geometry>
           <box size="0.084 0.048 0.024"/>
         </geometry>
-      </collision>
+      </collision> -->
     </link>
 
     <!-- Left Finger Tip Joint (fixed for stability) -->
@@ -153,12 +157,13 @@
           <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/Finger.dae"/>
         </geometry>
       </visual>
-      <collision>
+      <!-- Collision disabled (gripper too large for valve workspace). -->
+      <!-- <collision>
         <origin rpy="3.14159265359 0 0" xyz="0.032 0 0"/>
         <geometry>
           <box size="0.064 0.078 0.025"/>
         </geometry>
-      </collision>
+      </collision> -->
     </link>
 
     <!-- Right Finger Joint -->
@@ -188,12 +193,13 @@
           <mesh filename="package://taluy_description/meshes/parallel_gripper/visual/FingerTip.dae"/>
         </geometry>
       </visual>
-      <collision>
+      <!-- Collision disabled (gripper too large for valve workspace). -->
+      <!-- <collision>
         <origin rpy="0 0 0" xyz="0.042 0 0"/>
         <geometry>
           <box size="0.084 0.048 0.024"/>
         </geometry>
-      </collision>
+      </collision> -->
     </link>
 
     <!-- Right Finger Tip Joint (fixed for stability) -->

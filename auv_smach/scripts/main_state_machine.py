@@ -15,6 +15,7 @@ from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
+from auv_smach.valve import ValveTaskState
 from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
@@ -91,6 +92,12 @@ class MainStateMachineNode:
         # GPS parameters
         self.gps_depth = -1.0
         self.gps_target_frame = "gps_target"
+
+        # Valve task parameters (TAC sea world). Approach/contact frame names
+        # match valve_trajectory_publisher's defaults.
+        self.valve_depth = -1.5
+        self.valve_approach_frame = "valve_approach_frame"
+        self.valve_contact_frame = "valve_contact_frame"
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
@@ -245,6 +252,14 @@ class MainStateMachineNode:
             "NAVIGATE_THROUGH_PIPELINE": (
                 NavigateThroughPipelineState,
                 {"pipeline_depth": self.pipeline_depth},
+            ),
+            "NAVIGATE_TO_VALVE_TASK": (
+                ValveTaskState,
+                {
+                    "valve_depth": self.valve_depth,
+                    "valve_approach_frame": self.valve_approach_frame,
+                    "valve_contact_frame": self.valve_contact_frame,
+                },
             ),
         }
 

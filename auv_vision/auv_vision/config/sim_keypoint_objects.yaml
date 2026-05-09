@@ -27,3 +27,31 @@ objects:
       shape: rect
       args: [0, 0.1524, 0.1524]
     id_start: 5
+
+  # TAC subsea valve — front panel valve on the tac_valve desk assembly.
+  # The valve_front link sits at (0.58, 0.555, 1.4205) in the tac_valve
+  # model frame with rpy=(0, pi, 0): pitch=pi negates the link's local x and z
+  # axes, so a link-frame point (x, y, z) maps to (-x, y, -z) + translation
+  # in model frame. The 9 model points below come from valve link-frame
+  # coordinates in keypoint_objects.yaml (8 bolts at link-x=0.020 forming a
+  # 0.103 m radius ring + face center at link-x=0.000), pre-transformed into
+  # the tac_valve model frame so /gazebo/model_states' tac_valve pose is the
+  # only runtime input. kp10 is the handle tip (orientation-refinement only).
+  - name: valve
+    cameras: [front]
+    gazebo_model: tac_valve
+    offset: [0.0, 0.0, 0.0]
+    keypoints:
+      shape: points
+      args:
+        - [0.560, 0.482168, 1.493332] # kp1: bolt -135°
+        - [0.560, 0.555000, 1.523500] # kp2: bolt -90°
+        - [0.560, 0.627832, 1.493332] # kp3: bolt -45°
+        - [0.560, 0.658000, 1.420500] # kp4: bolt 0°
+        - [0.560, 0.627832, 1.347668] # kp5: bolt 45°
+        - [0.560, 0.555000, 1.317500] # kp6: bolt 90°
+        - [0.560, 0.482168, 1.347668] # kp7: bolt 135°
+        - [0.560, 0.452000, 1.420500] # kp8: bolt 180°
+        - [0.580, 0.555000, 1.420500] # kp9: face center
+        - [0.580, 0.555235, 1.487756] # kp10: handle tip
+    id_start: 1
