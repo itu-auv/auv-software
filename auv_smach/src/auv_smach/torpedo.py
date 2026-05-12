@@ -2,6 +2,7 @@ from .initialize import *
 import smach
 import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest, Trigger, TriggerRequest
+from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusRequest
 import math
 
 from auv_smach.tf_utils import get_base_link
@@ -55,6 +56,19 @@ class TorpedoFireFramePublisherServiceState(smach_ros.ServiceState):
             "set_transform_torpedo_hole_target_frame",
             SetBool,
             request=SetBoolRequest(data=req),
+        )
+
+
+class SetTorpedoHoleFocusState(smach_ros.ServiceState):
+    def __init__(self, focus: str):
+        service_name = "set_torpedo_hole_focus"
+        request = SetDetectionFocusRequest(focus_object=focus)
+
+        super(SetTorpedoHoleFocusState, self).__init__(
+            service_name,
+            SetDetectionFocus,
+            request=request,
+            outcomes=["succeeded", "preempted", "aborted"],
         )
 
 
@@ -272,6 +286,15 @@ class TorpedoTaskState(smach.State):
                 "SET_TORPEDO_HOLES_DETECTION",
                 SetDetectionState(camera_name="torpedo", enable=True),
                 transitions={
+                    "succeeded": "SET_TORPEDO_HOLE_FOCUS_TOP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_TORPEDO_HOLE_FOCUS_TOP",
+                SetTorpedoHoleFocusState(focus="top"),
+                transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_HOLES_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -383,6 +406,15 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_TORPEDO_2_LAUNCH",
                 DelayState(delay_time=3.0),
+                transitions={
+                    "succeeded": "SET_TORPEDO_HOLE_FOCUS_NONE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_TORPEDO_HOLE_FOCUS_NONE",
+                SetTorpedoHoleFocusState(focus="none"),
                 transitions={
                     "succeeded": "DISABLE_TORPEDO_HOLES_DETECTION",
                     "preempted": "preempted",
