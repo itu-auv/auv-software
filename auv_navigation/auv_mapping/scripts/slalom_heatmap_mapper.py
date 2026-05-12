@@ -92,7 +92,7 @@ class SlalomHeatmapMapper:
 
         self.cam = CameraCalibrationFetcher("cameras/cam_front").get_camera_info()
         self.yolo_res = rospy.Subscriber(
-            "/yolo_result_front", YoloResult, self.yolo_callback
+            "/yolo_result_slalom", YoloResult, self.yolo_callback
         )
 
         self.tf_buffer = tf2_ros.Buffer()

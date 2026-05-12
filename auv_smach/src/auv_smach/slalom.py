@@ -7,6 +7,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
     SearchForPropState,
     SetDepthState,
+    SetDetectionState,
     AlignFrame,
 )
 from auv_smach.initialize import DelayState
@@ -72,14 +73,14 @@ class NavigateThroughSlalomState(smach.State):
                 "SET_SLALOM_DEPTH",
                 SetDepthState(depth=self.slalom_depth),
                 transitions={
-                    "succeeded": "SET_DETECTION_FOCUS",
+                    "succeeded": "ENABLE_SLALOM_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_DETECTION_FOCUS",
-                SetDetectionFocusState(focus_object="slalom"),
+                "ENABLE_SLALOM_DETECTION",
+                SetDetectionState(camera_name="slalom", enable=True),
                 transitions={
                     "succeeded": "ROTATE_TO_FIND_RED_PIPE",
                     "preempted": "preempted",

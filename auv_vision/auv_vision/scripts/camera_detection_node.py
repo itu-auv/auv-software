@@ -61,6 +61,7 @@ class CameraDetectionNode:
         # Camera enable flags
         self.camera_enabled = {
             "front": True,
+            "slalom": False,
             "bottom": False,
             "torpedo": False,
             "bottom_seg": False,
@@ -130,6 +131,11 @@ class CameraDetectionNode:
             self._handle_enable_bottom_camera,
         )
         rospy.Service(
+            "enable_slalom_camera_detections",
+            SetBool,
+            self._handle_enable_slalom_camera,
+        )
+        rospy.Service(
             "enable_torpedo_camera_detections",
             SetBool,
             self._handle_enable_torpedo_camera,
@@ -193,6 +199,12 @@ class CameraDetectionNode:
     def _handle_enable_bottom_camera(self, req):
         self.camera_enabled["bottom"] = req.data
         message = "Bottom camera detections " + ("enabled" if req.data else "disabled")
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
+    def _handle_enable_slalom_camera(self, req):
+        self.camera_enabled["slalom"] = req.data
+        message = "Slalom camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
