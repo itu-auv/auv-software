@@ -5,7 +5,7 @@ import tf2_ros
 from geometry_msgs.msg import Point, PoseStamped, Quaternion
 from ultralytics_ros.msg import YoloResult
 from utils.detection_utils import (
-    check_inside_image,
+    check_inside_image_torpedo,
     calculate_angles_and_offsets,
     transform_to_odom_and_publish,
 )
@@ -89,7 +89,9 @@ class TorpedoCameraHandler:
             if detection.results[0].id != target_detection_id:
                 continue
 
-            if check_inside_image(detection, self.image_width, self.image_height):
+            if check_inside_image_torpedo(
+                detection, self.image_width, self.image_height
+            ):
                 detected_holes.append(detection)
 
         return detected_holes
