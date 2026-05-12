@@ -37,7 +37,7 @@ cameras:
 objects:
   # Gate signs - 0.3048 m (1 ft) square, face in YZ plane
   - class_id: 0
-    name: sawfish
+    name: gate_search_rescue
     cameras: [front, realsense]
     gazebo_model: robosub_gate
     offset: [0.0, -0.762, 1.356]
@@ -47,7 +47,7 @@ objects:
     occlusion_mesh: models/robosub_gate/meshes/gate.dae
 
   - class_id: 1
-    name: shark
+    name: gate_survey_repair
     cameras: [front, realsense]
     gazebo_model: robosub_gate
     offset: [0.0, 0.762, 1.356]
@@ -190,7 +190,7 @@ objects:
 
   # Bin baskets (front camera)
   - class_id: 6
-    name: bin_basket_front
+    name: bin_basket
     cameras: [front, realsense]
     gazebo_model: robosub_bin
     offset: [-0.7432, 0.2978, -0.1486]
@@ -199,7 +199,7 @@ objects:
       args: [0.17, 0.17, 0.17]
 
   - class_id: 6
-    name: bin_basket_front
+    name: bin_basket
     cameras: [front, realsense]
     gazebo_model: robosub_bin
     offset: [-0.4462, 1.5502, 0.3349]
@@ -208,7 +208,7 @@ objects:
       args: [0.17, 0.17, 0.17]
 
   - class_id: 6
-    name: bin_basket_front
+    name: bin_basket
     cameras: [front, realsense]
     gazebo_model: robosub_bin
     offset: [-0.0937, 0.6191, -0.0805]
@@ -217,7 +217,7 @@ objects:
       args: [0.17, 0.17, 0.17]
 
   - class_id: 6
-    name: bin_basket_front
+    name: bin_basket
     cameras: [front, realsense]
     gazebo_model: robosub_bin
     offset: [-1.0420, 1.2816, 0.0919]
