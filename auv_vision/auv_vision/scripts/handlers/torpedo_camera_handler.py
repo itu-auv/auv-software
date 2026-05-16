@@ -36,10 +36,10 @@ class TorpedoCameraHandler:
         self.shared_state = shared_state
 
         self.reference_hole_frames = [
-            "torpedo_reference_hole_left_mid_link",
-            "torpedo_reference_hole_bottom_right_link",
-            "torpedo_reference_hole_bottom_mid_link",
-            "torpedo_reference_hole_top_mid_link",
+            "torpedo_close_hole_left_mid_link",
+            "torpedo_close_hole_bottom_right_link",
+            "torpedo_close_hole_bottom_mid_link",
+            "torpedo_close_hole_top_mid_link",
         ]
         self.reference_holes_ready = False
 
@@ -106,10 +106,10 @@ class TorpedoCameraHandler:
         bottom_mid_hole = max(remaining_holes, key=self._bbox_center_y)
 
         assignments = [
-            ("torpedo_reference_hole_left_mid_link", left_mid_hole),
-            ("torpedo_reference_hole_bottom_right_link", bottom_right_hole),
-            ("torpedo_reference_hole_bottom_mid_link", bottom_mid_hole),
-            ("torpedo_reference_hole_top_mid_link", top_mid_hole),
+            ("torpedo_close_hole_left_mid_link", left_mid_hole),
+            ("torpedo_close_hole_bottom_right_link", bottom_right_hole),
+            ("torpedo_close_hole_bottom_mid_link", bottom_mid_hole),
+            ("torpedo_close_hole_top_mid_link", top_mid_hole),
         ]
 
         for child_frame_id, detection in assignments:
@@ -252,7 +252,7 @@ class TorpedoCameraHandler:
 
     def _prop_for_hole_frame(self, frame_id):
         prop_name = frame_id
-        for prefix in ("torpedo_reference_", "torpedo_close_"):
+        for prefix in ("torpedo_close_", "torpedo_close_"):
             if prop_name.startswith(prefix):
                 prop_name = prop_name.replace(prefix, "torpedo_", 1)
                 break
@@ -260,7 +260,7 @@ class TorpedoCameraHandler:
 
     @staticmethod
     def _close_frame_for_reference(reference_frame):
-        return reference_frame.replace("torpedo_reference_", "torpedo_close_", 1)
+        return reference_frame.replace("torpedo_close_", "torpedo_close_", 1)
 
     @staticmethod
     def _bbox_center_x(detection):
@@ -273,8 +273,7 @@ class TorpedoCameraHandler:
     @staticmethod
     def _distance_squared(point_a, point_b):
         return (
-            (point_a.x - point_b.x) ** 2
-            + (point_a.y - point_b.y) ** 2
+            (point_a.y - point_b.y) ** 2
             + (point_a.z - point_b.z) ** 2
         )
 
