@@ -35,8 +35,7 @@ class GripperAngleOpenState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper/set_angle", UInt16, queue_size=1)
-        self.angle_value = 1930
-
+        self.angle_value = 2400
     def execute(self, userdata) -> str:
         try:
             msg = UInt16()
@@ -64,7 +63,7 @@ class GripperAngleCloseState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper/set_angle", UInt16, queue_size=1)
-        self.angle_value = 600
+        self.angle_value = 1300
 
     def execute(self, userdata) -> str:
         try:
