@@ -11,7 +11,7 @@ from ultralytics_ros.msg import YoloResult
 import tf2_ros
 from tf import transformations as tf_transformations
 
-from utils.detection_utils import calculate_angles_and_offsets
+from utils.detection_utils import calculate_angles_and_offsets, check_inside_image_bottom
 from utils.segment_utils import (
     findposes_circle,
     findposes_rect,
@@ -151,6 +151,10 @@ class SegmentCameraHandler:
         debug_items_by_id = {}
 
         for detection in detection_msg.detections.detections:
+            if not check_inside_image_bottom(detection):
+                rospy.loginfo(f" {detection.results[0].id} is not inside the image bottom area")
+                print(f" {detection.results[0].id} is not inside the image bottom area")
+                continue
             if len(detection.results) == 0:
                 continue
             detection_id = detection.results[0].id
