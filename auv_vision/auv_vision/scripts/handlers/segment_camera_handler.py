@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from actionlib import server_goal_handle
+from tf2_geometry_msgs import tf2_geometry_msgs
 from collections import defaultdict, deque
 import re
 
@@ -45,6 +47,7 @@ class SegmentCameraHandler:
         self.debug_image_topic = rospy.get_param(
             "~segment_pose_debug_topic", "segment_pose_debug"
         )
+        self.table_height = 0.74 # TODO: Read from yaml
         self.segment_pose_debug_pub = (
             rospy.Publisher(self.debug_image_topic, Image, queue_size=1)
             if self.debug_segment_pose
@@ -61,22 +64,39 @@ class SegmentCameraHandler:
 
     def _estimate_distance(self, prop, detection, geometry):
         if geometry is not None:
-            if geometry.get("diameter_px") is not None:
-                measured_diameter = geometry["diameter_px"]
-                return prop.estimate_distance(
-                    measured_diameter if prop.real_height is not None else None,
-                    measured_diameter if prop.real_width is not None else None,
-                    self.calibration,
-                )
-
-            longest_edge, shortest_edge = geometry.get("edges_px")
-            if longest_edge is None or shortest_edge is None:
-                return None
-
-            # longest  -> height
-            # shortest -> width
-            return prop.estimate_distance(longest_edge, shortest_edge, self.calibration)
-        # just in case geometry fails //No need actually
+            geom_type = geometry.get("type")
+            if geom_type == "object_circle":
+                if not check_inside_image_bottom(detection):
+                    return -1.0  # -1.0 in order to continue in for loop
+                measured_diameter = geometry.get("diameter_px")
+                if measured_diameter is not None:
+                    return prop.estimate_distance(
+                        measured_diameter if prop.real_height is not None else None,
+                        measured_diameter if prop.real_width is not None else None,
+                        self.calibration,
+                    )
+            elif geom_type == "object_rect":
+                if not check_inside_image_bottom(detection):
+                    return -1.0  # -1.0 in order to continue in for loop
+                edges = geometry.get("edges_px", (None, None))
+                longest_edge, shortest_edge = edges
+                if longest_edge is not None and shortest_edge is not None:
+                    return prop.estimate_distance(longest_edge, shortest_edge, self.calibration)
+            elif geom_type == "basket":
+                if not check_inside_image_bottom(detection):
+                    alt = self.shared_state.get("altitude")
+                    if alt is not None:
+                        hardcoded_distance = alt - self.table_height
+                        print("Hardcoded distance:", hardcoded_distance, prop.name)
+                        return hardcoded_distance
+                    return None
+                else:
+                    edges = geometry.get("edges_px", (None, None))
+                    longest_edge, shortest_edge = edges
+                    if longest_edge is not None and shortest_edge is not None:
+                        return prop.estimate_distance(longest_edge, shortest_edge, self.calibration)
+                        
+        # just in case geometry fails or type is unhandled
         return prop.estimate_distance(
             detection.bbox.size_y,
             detection.bbox.size_x,
@@ -151,10 +171,6 @@ class SegmentCameraHandler:
         debug_items_by_id = {}
 
         for detection in detection_msg.detections.detections:
-            if not check_inside_image_bottom(detection):
-                rospy.loginfo(f" {detection.results[0].id} is not inside the image bottom area")
-                print(f" {detection.results[0].id} is not inside the image bottom area")
-                continue
             if len(detection.results) == 0:
                 continue
             detection_id = detection.results[0].id
@@ -183,12 +199,27 @@ class SegmentCameraHandler:
                             geometry = findposes_rect(
                                 mask, last_yaw=last_yaw, debug=self.debug_segment_pose
                             )
+                            if geometry is not None:
+                                geometry["type"] = "object_rect"
                         elif prop_name == "nutbolt_link" or prop_name == "pill_link":
                             geometry = findposes_circle(
                                 mask, last_yaw=last_yaw, debug=self.debug_segment_pose
                             )
+                            if geometry is not None:
+                                geometry["type"] = "object_circle"
+                        elif prop_name in (
+                            "basket_redcross_segment_link",
+                            "basket_warning_segment_link",
+                            "octagon_table_segment_link",
+                        ):
+                            geometry = findposes_rect(
+                                mask, last_yaw=last_yaw, debug=self.debug_segment_pose
+                            )
+                            if geometry is not None:
+                                geometry["type"] = "basket"
 
-                        if geometry is not None and not geometry["valid"]:
+
+                        if geometry is not None and not geometry.get("valid", False):
                             geometry = None
 
                         if geometry is not None and geometry.get("yaw") is not None:
@@ -203,6 +234,10 @@ class SegmentCameraHandler:
                     }
 
                 distance = self._estimate_distance(prop, detection, geometry)
+                
+                if distance == -1.0:
+                    continue
+
                 if distance is None:
                     distance = self.shared_state.get("altitude")
                     if distance is None:
@@ -211,7 +246,6 @@ class SegmentCameraHandler:
                             "No distance data for segment detection (no geometry, no altitude)",
                         )
                         continue
-
                 if geometry is not None:
                     center_x, center_y = geometry["center"]
                     center = Point(x=center_x, y=center_y, z=0.0)
