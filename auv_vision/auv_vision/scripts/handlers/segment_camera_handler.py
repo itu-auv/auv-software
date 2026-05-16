@@ -87,7 +87,7 @@ class SegmentCameraHandler:
                     alt = self.shared_state.get("altitude")
                     if alt is not None:
                         hardcoded_distance = alt - self.table_height
-                        print("Hardcoded distance:", hardcoded_distance, prop.name)
+                        #print("Hardcoded distance:", hardcoded_distance, prop.name)
                         return hardcoded_distance
                     return None
                 else:
