@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rosfmt
   rospy
+  std_msgs
   tf2_ros
 )
 
@@ -39,6 +40,7 @@ catkin_package(
     sensor_msgs
     nav_msgs
     roscpp
+    std_msgs
 )
 
 include_directories(
