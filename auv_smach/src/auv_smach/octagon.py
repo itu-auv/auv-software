@@ -300,8 +300,9 @@ class PickAndDropSequence(smach.StateMachine):
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    closest_yaw=True,
+                    closest_yaw=False,
                     confirm_duration=5.0,
+                    keep_orientation=True,
                     timeout=30.0,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
@@ -547,7 +548,7 @@ class OctagonTaskState(smach.State):
                 DynamicPathWithTransformCheck(
                     plan_target_frame="octagon_further_link",
                     transform_source_frame="odom",
-                    transform_target_frame="bandaid_link",
+                    transform_target_frame="octagon_table_segment_link",
                     max_linear_velocity=0.2,
                 ),
                 transitions={
@@ -569,7 +570,7 @@ class OctagonTaskState(smach.State):
                 "ALIGN_TO_TABLE",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame="bandaid_link",
+                    target_frame="octagon_table_segment_link",
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
