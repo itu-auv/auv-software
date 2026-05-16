@@ -73,6 +73,7 @@ class ArucoCamera:
         tf_buffer,
         transform_pub,
         debug_pubs,
+        scan_mode=False,
     ):
         self.name = name
         self.camera_frame = camera_frame
@@ -83,6 +84,7 @@ class ArucoCamera:
         self.tf_buffer = tf_buffer
         self.transform_pub = transform_pub
         self.debug_pubs = debug_pubs
+        self.scan_mode = scan_mode
 
         self.enabled = True
         self.last_published_stamp = rospy.Time(0)
@@ -103,6 +105,10 @@ class ArucoCamera:
         )
 
         orig_corners, orig_ids, orig_rejected = detector.detectMarkers(gray)
+
+        if self.scan_mode:
+            # Detection-only: no pose estimation, no TF output.
+            return gray, orig_corners, orig_ids, []
 
         any_detected = False
         board_debug_info = []
@@ -203,18 +209,45 @@ class ArucoDetectionNode:
         rospy.init_node("aruco_detection", anonymous=True)
         rospy.loginfo("ArUco detection node started")
 
-        # Load config
-        config_file = rospy.get_param(
-            "~config_file",
-            os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "..",
-                "config",
-                "aruco_objects_tac.yaml",
-            ),
+        # Mode selection: full pose estimation (yaml-driven) vs scan-only (param-driven).
+        self.scan_mode = rospy.get_param("~scan_mode", False)
+
+        config_file = rospy.get_param("~config_file", "")
+        scan_dict_name = rospy.get_param("~aruco_dictionary", "")
+        scan_image_topic = rospy.get_param("~image_topic", "")
+        scan_camera_frame = rospy.get_param("~camera_frame", "")
+
+        scan_params = (
+            ("~aruco_dictionary", scan_dict_name),
+            ("~image_topic", scan_image_topic),
+            ("~camera_frame", scan_camera_frame),
         )
-        with open(config_file, "r") as f:
-            self.config = yaml.safe_load(f)
+
+        if self.scan_mode:
+            if config_file:
+                raise rospy.ROSInitException(
+                    "~config_file is not allowed when ~scan_mode is true"
+                )
+            missing = [name for name, value in scan_params if not value]
+            if missing:
+                raise rospy.ROSInitException(
+                    f"~scan_mode requires: {', '.join(missing)}"
+                )
+            self.config = {}
+            rospy.loginfo("ArUco scan mode: detection-only, no pose estimation.")
+        else:
+            set_scan_params = [name for name, value in scan_params if value]
+            if set_scan_params:
+                raise rospy.ROSInitException(
+                    f"These params are only allowed with ~scan_mode=true: "
+                    f"{', '.join(set_scan_params)}"
+                )
+            if not config_file:
+                raise rospy.ROSInitException(
+                    "~config_file parameter is required (path to ArUco objects YAML)"
+                )
+            with open(config_file, "r") as f:
+                self.config = yaml.safe_load(f)
 
         # Parameter persistence
         try:
@@ -229,7 +262,10 @@ class ArucoDetectionNode:
             self.param_save_file = ""
 
         # ArUco detector
-        dict_name = self.config.get("aruco_dictionary", "DICT_ARUCO_ORIGINAL")
+        if self.scan_mode:
+            dict_name = scan_dict_name
+        else:
+            dict_name = self.config.get("aruco_dictionary", "DICT_ARUCO_ORIGINAL")
         self.aruco_dict = get_aruco_dictionary(dict_name)
         self.detector_params = cv2.aruco.DetectorParameters()
         self.detector_params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
@@ -261,12 +297,16 @@ class ArucoDetectionNode:
 
         # Shared resources
         self.bridge = CvBridge()
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-
-        self.transform_pub = rospy.Publisher(
-            "object_transform_updates", TransformStamped, queue_size=10
-        )
+        if self.scan_mode:
+            self.tf_buffer = None
+            self.tf_listener = None
+            self.transform_pub = None
+        else:
+            self.tf_buffer = tf2_ros.Buffer()
+            self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+            self.transform_pub = rospy.Publisher(
+                "object_transform_updates", TransformStamped, queue_size=10
+            )
 
         # Build targets from config
         markers_config = self.config.get("markers", {})
@@ -317,6 +357,54 @@ class ArucoDetectionNode:
 
         # Create cameras
         self.cameras = {}
+
+        if self.scan_mode:
+            cam_key = "camera"
+            debug_pubs = {
+                "debug": rospy.Publisher(
+                    f"~{cam_key}/debug/compressed",
+                    CompressedImage,
+                    queue_size=1,
+                ),
+                "processed": rospy.Publisher(
+                    f"~{cam_key}/debug_processed/compressed",
+                    CompressedImage,
+                    queue_size=1,
+                ),
+                "threshold": rospy.Publisher(
+                    f"~{cam_key}/debug_threshold/compressed",
+                    CompressedImage,
+                    queue_size=1,
+                ),
+            }
+
+            camera = ArucoCamera(
+                name=cam_key,
+                camera_frame=scan_camera_frame,
+                camera_matrix=None,
+                dist_coeffs=None,
+                boards=[],
+                markers=[],
+                tf_buffer=None,
+                transform_pub=None,
+                debug_pubs=debug_pubs,
+                scan_mode=True,
+            )
+            self.cameras[cam_key] = camera
+
+            rospy.Subscriber(
+                scan_image_topic,
+                Image,
+                lambda msg, k=cam_key: self._image_callback(msg, k),
+                queue_size=1,
+                buff_size=2**24,
+            )
+
+            rospy.loginfo(
+                f"Scan mode camera '{cam_key}' on {scan_image_topic} "
+                f"(frame: {scan_camera_frame}, dict: {dict_name})"
+            )
+
         for cam_key, cam_cfg in self.config.get("cameras", {}).items():
             try:
                 calib = CameraCalibration(cam_cfg["ns"])
