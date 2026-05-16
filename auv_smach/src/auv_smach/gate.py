@@ -90,7 +90,7 @@ class PublishGateAngleState(smach_ros.ServiceState):
 class NavigateThroughGateState(smach.State):
     def __init__(
         self,
-        gate_depth: float,
+        gate_passage_depth: float,
         gate_search_depth: float,
         gate_exit_angle: float = 0.0,
         roll_depth: float = -0.8,
@@ -117,6 +117,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
                     depth=-0.5,
+                    confirm_duration=0.2,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -150,7 +151,9 @@ class NavigateThroughGateState(smach.State):
                 "SET_DETECTION_FOCUS_GATE",
                 SetDetectionFocusState(focus_object="gate"),
                 transitions={
-                    "succeeded": "SET_ROLL_DEPTH",
+                    "succeeded": (
+                        "SET_ROLL_DEPTH" if self.roll else "FIND_AND_AIM_GATE"
+                    ),
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -159,6 +162,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=self.roll_depth,
+                    confirm_duration=0.2,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -172,7 +176,7 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=5.0,
+                    alignment_timeout=5.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
@@ -181,7 +185,7 @@ class NavigateThroughGateState(smach.State):
                         "CALIFORNIA_ROLL"
                         if self.roll
                         else (
-                            "TWO_YAW_STATE" if self.yaw else "SET_GATE_TRAJECTORY_DEPTH"
+                            "TWO_YAW_STATE" if self.yaw else "SET_GATE_SEARCH_DEPTH"
                         )
                     ),
                     "preempted": "preempted",
@@ -194,7 +198,7 @@ class NavigateThroughGateState(smach.State):
                     roll_torque=50.0, gate_look_at_frame=self.gate_look_at_frame
                 ),
                 transitions={
-                    "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
+                    "succeeded": "SET_GATE_SEARCH_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -203,14 +207,17 @@ class NavigateThroughGateState(smach.State):
                 "TWO_YAW_STATE",
                 TwoYawState(yaw_frame=self.gate_search_frame),
                 transitions={
-                    "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
+                    "succeeded": "SET_GATE_SEARCH_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_GATE_TRAJECTORY_DEPTH",
-                SetDepthState(depth=gate_search_depth),
+                "SET_GATE_SEARCH_DEPTH",
+                SetDepthState(
+                    depth=gate_search_depth,
+                    confirm_duration=0.2,
+                ),
                 transitions={
                     "succeeded": "LOOK_AT_GATE_FOR_TRAJECTORY",
                     "preempted": "preempted",
@@ -223,7 +230,7 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=7.0,
+                    alignment_timeout=7.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
@@ -246,14 +253,17 @@ class NavigateThroughGateState(smach.State):
                 "SET_DETECTION_TO_NONE",
                 SetDetectionFocusState(focus_object="none"),
                 transitions={
-                    "succeeded": "SET_GATE_DEPTH",
+                    "succeeded": "SET_GATE_PASSAGE_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_GATE_DEPTH",
-                SetDepthState(depth=gate_depth),
+                "SET_GATE_PASSAGE_DEPTH",
+                SetDepthState(
+                    depth=gate_passage_depth,
+                    confirm_duration=0.2,
+                ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_ENTRANCE",
                     "preempted": "preempted",

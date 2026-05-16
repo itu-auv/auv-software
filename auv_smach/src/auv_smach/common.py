@@ -635,6 +635,7 @@ class SetFrameLookingAtState(smach.State):
     def execute(self, userdata):
         start_time = rospy.Time.now()
         end_time = start_time + rospy.Duration(self.duration_time)
+        successful_update = False
 
         while not rospy.is_shutdown() and rospy.Time.now() < end_time:
             if self.preempt_requested():
@@ -677,6 +678,8 @@ class SetFrameLookingAtState(smach.State):
 
                 if not res.success:
                     rospy.logwarn(f"SetObjectTransform failed: {res.message}")
+                else:
+                    successful_update = True
 
                 time_remaining = (end_time - rospy.Time.now()).to_sec()
                 rospy.loginfo_throttle(
@@ -696,6 +699,12 @@ class SetFrameLookingAtState(smach.State):
                 return "aborted"
 
             self.rate.sleep()
+
+        if not successful_update:
+            rospy.logwarn(
+                f"Failed to update {self.alignment_frame} while looking at {self.look_at_frame}"
+            )
+            return "aborted"
 
         rospy.loginfo(
             f"Successfully looked at {self.look_at_frame} for {self.duration_time} seconds"
@@ -844,9 +853,8 @@ class ExecutePathState(smach.State):
 class SearchForPropState(smach.StateMachine):
     """
     1. RotationState: Rotates to find a prop's frame.
-    2. SetAlignControllerTargetState: Sets the align controller target.
-    3. SetFrameLookingAtState: Sets a target frame's pose based on looking at another frame.
-    4. CancelAlignControllerState: Cancels the align controller target.
+    2. SetFrameLookingAtState: Creates an alignment frame looking at the prop.
+    3. AlignFrame: Aligns to that frame and exits early once alignment is confirmed.
     """
 
     def __init__(
@@ -854,10 +862,14 @@ class SearchForPropState(smach.StateMachine):
         look_at_frame: str,
         alignment_frame: str,
         full_rotation: bool,
-        set_frame_duration: float,
         source_frame: str = None,
         rotation_speed: float = 0.3,
         max_angular_velocity: float = 0.25,
+        frame_update_duration: float = 1.5,
+        alignment_timeout: float = 5.0,
+        alignment_confirm_duration: float = 0.1,
+        alignment_dist_threshold: float = 0.1,
+        alignment_yaw_threshold: float = 0.1,
     ):
         """
         Args:
@@ -866,10 +878,16 @@ class SearchForPropState(smach.StateMachine):
                                 and whose pose is set by SetFrameLookingAtState.
             full_rotation (bool): Whether to perform a full 360-degree rotation
                                   or stop when look_at_frame is found.
-            set_frame_duration (float): Duration for the SetFrameLookingAtState.
             source_frame (str): The base frame of the vehicle (default: "taluy/base_link").
             rotation_speed (float): The angular velocity for rotation (default: 0.3).
             max_angular_velocity (float): Max angular velocity for align controller (optional).
+            frame_update_duration (float): How long to keep updating alignment_frame
+                after look_at_frame is found before checking alignment.
+            alignment_timeout (float): Maximum time to wait for alignment.
+            alignment_confirm_duration (float): How long alignment must stay within
+                threshold before succeeding.
+            alignment_dist_threshold (float): Distance threshold for alignment.
+            alignment_yaw_threshold (float): Yaw threshold for alignment.
         """
         if source_frame is None:
             source_frame = get_base_link()
@@ -894,19 +912,6 @@ class SearchForPropState(smach.StateMachine):
                     full_rotation=full_rotation,
                 ),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame=source_frame,
-                    target_frame=alignment_frame,
-                    max_angular_velocity=max_angular_velocity,
-                ),
-                transitions={
                     "succeeded": "BROADCAST_ALIGNMENT_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -918,17 +923,27 @@ class SearchForPropState(smach.StateMachine):
                     source_frame=source_frame,
                     look_at_frame=look_at_frame,
                     alignment_frame=alignment_frame,
-                    duration_time=set_frame_duration,
+                    duration_time=frame_update_duration,
                 ),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER_TARGET",
+                    "succeeded": "ALIGN_TO_ALIGNMENT_FRAME",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_TARGET",
-                CancelAlignControllerState(),
+                "ALIGN_TO_ALIGNMENT_FRAME",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=alignment_frame,
+                    dist_threshold=alignment_dist_threshold,
+                    yaw_threshold=alignment_yaw_threshold,
+                    confirm_duration=alignment_confirm_duration,
+                    timeout=alignment_timeout,
+                    cancel_on_success=False,
+                    keep_orientation=False,
+                    max_angular_velocity=max_angular_velocity,
+                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
