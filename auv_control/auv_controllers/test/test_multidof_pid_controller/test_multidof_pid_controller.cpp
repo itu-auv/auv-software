@@ -43,3 +43,38 @@ TEST(MultiDOFPIDController, TestVelocityControlOnly) {
   EXPECT_NEAR(force_torque(4), expected_force, kEpsilon);
   EXPECT_NEAR(force_torque(5), expected_force, kEpsilon);
 }
+
+TEST(MultiDOFPIDController, UsesZeroVelocityStateForVelocityErrorWhenEnabled) {
+  auv::control::MultiDOFPIDController<6> controller;
+  auv::control::Model<6> model;
+
+  model.mass_inertia_matrix = Matrix6d::Identity();
+  model.linear_damping_matrix = Matrix6d::Zero();
+  model.quadratic_damping_matrix = Matrix6d::Zero();
+
+  controller.set_model(model);
+
+  Vector12d controller_gains = Vector12d::Zero();
+  controller_gains.tail(6) = Vector6d::Ones();
+
+  controller.set_kp(controller_gains);
+  controller.set_ki(Vector12d::Zero());
+  controller.set_kd(Vector12d::Zero());
+
+  Vector12d state = Vector12d::Zero();
+  state.tail(6) = Vector6d::Constant(2.0);
+
+  Vector12d desired_state = Vector12d::Zero();
+  desired_state.tail(6) = Vector6d::Constant(3.0);
+
+  const auto d_state = Vector12d::Zero();
+  const auto dt = 0.1;
+
+  controller.set_use_zero_velocity_state_for_velocity_error(true);
+  const auto force_torque =
+      controller.control(state, desired_state, d_state, dt);
+
+  for (int i = 0; i < 6; ++i) {
+    EXPECT_NEAR(force_torque(i), 3.0, kEpsilon);
+  }
+}
