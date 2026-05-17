@@ -854,7 +854,7 @@ class SearchForPropState(smach.StateMachine):
         alignment_frame: str,
         full_rotation: bool,
         timeout: float,
-        source_frame: str = "taluy/base_link",
+        source_frame: str = None,
         rotation_speed: float = 0.3,
         confirm_duration: float = 2.0,
     ):
@@ -866,10 +866,12 @@ class SearchForPropState(smach.StateMachine):
             full_rotation (bool): Whether to perform a full 360-degree rotation
                                   or stop when look_at_frame is found.
             timeout (float): Timeout for the AimToProp state.
-            source_frame (str): The base frame of the vehicle (default: "taluy/base_link").
+            source_frame (str): The base frame of the vehicle. Defaults to get_base_link().
             rotation_speed (float): The angular velocity for rotation (default: 0.3).
-            max_angular_velocity (float): Max angular velocity for align controller (optional).
         """
+        if source_frame is None:
+            source_frame = get_base_link()
+
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
 
         with self:
@@ -1686,7 +1688,7 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
         plan_target_frame: str,
         transform_source_frame: str,
         transform_target_frame: str,
-        align_source_frame: str = "taluy/base_link",
+        align_source_frame: str = None,
         align_target_frame: str = "dynamic_target",
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
