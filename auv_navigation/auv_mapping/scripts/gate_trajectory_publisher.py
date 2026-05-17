@@ -22,6 +22,7 @@ from auv_bringup.cfg import SmachParametersConfig
 class TransformServiceNode:
     def __init__(self):
         self.is_enabled = False
+        self.force_single_frame_mode = False
         self.gate_angle = None
         self.publish_gate_angle_enabled = False
         rospy.init_node("create_gate_frames_node")
@@ -77,6 +78,11 @@ class TransformServiceNode:
 
         self.set_enable_service = rospy.Service(
             "toggle_gate_trajectory", SetBool, self.handle_enable_service
+        )
+        self.set_enable_single_frame_service = rospy.Service(
+            "toggle_gate_single_frame_trajectory",
+            SetBool,
+            self.handle_enable_single_frame_service,
         )
 
         # --- Parameters for fallback (single-frame) mode
@@ -214,8 +220,21 @@ class TransformServiceNode:
             t_gate2 = None
 
         poses = None
+        middle_position = None
         # --- Decision logic: Check which mode to use
-        if t_gate1 and t_gate2:
+        if self.force_single_frame_mode:
+            rospy.loginfo_once("Using forced single-frame mode for gate trajectory.")
+            target_transform = self._select_single_frame_transform(t_gate1, t_gate2)
+            if target_transform is None:
+                rospy.logwarn(
+                    "Single-frame gate trajectory requested, but no gate frame is visible."
+                )
+                return
+
+            middle_position = target_transform.transform.translation
+            poses = self._compute_frames_fallback_mode(target_transform)
+
+        elif t_gate1 and t_gate2:
             # Both frames are visible
             p1 = t_gate1.transform.translation
             p2 = t_gate2.transform.translation
@@ -223,22 +242,10 @@ class TransformServiceNode:
                 (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2
             )
 
-            # --- Create gate_middle_part_link at the midpoint between gate_shark_link and gate_sawfish_link
             middle_x = (p1.x + p2.x) / 2.0
             middle_y = (p1.y + p2.y) / 2.0
             middle_z = (p1.z + p2.z) / 2.0
-            # Orientation: same as odom frame (no rotation)
-            identity_quat = tf_conversions.transformations.quaternion_from_euler(
-                0, 0, 0
-            )
-            middle_pose = Pose(
-                position=Point(middle_x, middle_y, middle_z),
-                orientation=Quaternion(*identity_quat),
-            )
-            middle_transform = self.build_transform_message(
-                self.middle_frame, middle_pose
-            )
-            self.send_transform(middle_transform)
+            middle_position = Point(middle_x, middle_y, middle_z)
 
             if self.MIN_GATE_SEPARATION < distance < self.MAX_GATE_SEPARATION:
                 # Distance is valid, use standard dual-frame method
@@ -260,17 +267,7 @@ class TransformServiceNode:
             # Only one frame is visible, use fallback method
             rospy.logwarn_once("Only one gate frame is visible. Using fallback mode.")
             visible_transform = t_gate1 if t_gate1 else t_gate2
-            # --- Place gate_middle_part at the visible frame's position
-            p = visible_transform.transform.translation
-            q = visible_transform.transform.rotation
-            middle_pose = Pose(
-                position=Point(p.x, p.y, p.z),
-                orientation=Quaternion(q.x, q.y, q.z, q.w),
-            )
-            middle_transform = self.build_transform_message(
-                self.middle_frame, middle_pose
-            )
-            self.send_transform(middle_transform)
+            middle_position = visible_transform.transform.translation
             poses = self._compute_frames_fallback_mode(visible_transform)
 
         else:
@@ -280,6 +277,8 @@ class TransformServiceNode:
 
         if poses:
             entrance_pose, exit_pose = poses
+            if middle_position is not None:
+                self._publish_middle_frame(middle_position, entrance_pose.orientation)
             # Create and send transforms
             entrance_transform = self.build_transform_message(
                 self.entrance_frame, entrance_pose
@@ -287,6 +286,42 @@ class TransformServiceNode:
             exit_transform = self.build_transform_message(self.exit_frame, exit_pose)
             self.send_transform(entrance_transform)
             self.send_transform(exit_transform)
+
+    def _select_single_frame_transform(
+        self,
+        t_gate1: Optional[TransformStamped],
+        t_gate2: Optional[TransformStamped],
+    ) -> Optional[TransformStamped]:
+        if self.target_gate_frame == self.gate_frame_1 and t_gate1 is not None:
+            return t_gate1
+
+        if self.target_gate_frame == self.gate_frame_2 and t_gate2 is not None:
+            return t_gate2
+
+        if t_gate1 is not None or t_gate2 is not None:
+            fallback_transform = t_gate1 if t_gate1 is not None else t_gate2
+            fallback_frame = (
+                self.gate_frame_1
+                if fallback_transform is t_gate1
+                else self.gate_frame_2
+            )
+            rospy.logwarn(
+                f"Target gate frame '{self.target_gate_frame}' is not visible. "
+                f"Using '{fallback_frame}' for single-frame trajectory."
+            )
+            return fallback_transform
+
+        return None
+
+    def _publish_middle_frame(self, position, orientation: Quaternion) -> None:
+        middle_pose = Pose(
+            position=Point(position.x, position.y, position.z),
+            orientation=Quaternion(
+                orientation.x, orientation.y, orientation.z, orientation.w
+            ),
+        )
+        middle_transform = self.build_transform_message(self.middle_frame, middle_pose)
+        self.send_transform(middle_transform)
 
     def _compute_frames_fallback_mode(
         self, gate_transform: TransformStamped
@@ -585,7 +620,18 @@ class TransformServiceNode:
 
     def handle_enable_service(self, request: SetBool):
         self.is_enabled = request.data
+        self.force_single_frame_mode = False
         message = f"Gate trajectory transform publishing is set to: {self.is_enabled}"
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
+    def handle_enable_single_frame_service(self, request: SetBool):
+        self.is_enabled = request.data
+        self.force_single_frame_mode = request.data
+        message = (
+            "Single-frame gate trajectory transform publishing is set to: "
+            f"{self.is_enabled}"
+        )
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
