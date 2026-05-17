@@ -66,7 +66,7 @@ class MainStateMachineNode:
             rospy.loginfo("Using default values")
 
         self.gate_search_depth = -0.7
-        self.gate_depth = -1.35
+        self.gate_passage_depth = -1.35
         self.roll_depth = -0.8
 
         self.slalom_depth = -1.1
@@ -180,7 +180,7 @@ class MainStateMachineNode:
             "NAVIGATE_THROUGH_GATE": (
                 NavigateThroughGateState,
                 {
-                    "gate_depth": self.gate_depth,
+                    "gate_passage_depth": self.gate_passage_depth,
                     "gate_search_depth": self.gate_search_depth,
                     "roll_depth": self.roll_depth,
                     "gate_exit_angle": gate_exit_angle_rad,
