@@ -1241,7 +1241,6 @@ class DynamicPathState(smach.StateMachine):
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
         angle_offset: float = 0.0,
-        keep_orientation: bool = False,
         dynamic: bool = True,
     ):
         if align_source_frame is None:
@@ -1268,7 +1267,6 @@ class DynamicPathState(smach.StateMachine):
                     target_frame=align_target_frame,
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
-                    keep_orientation=keep_orientation,
                 ),
                 transitions={
                     "succeeded": "EXECUTE_PATH",
@@ -1657,7 +1655,6 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
         angle_offset: float = 0.0,
-        keep_orientation: bool = False,
         transform_timeout: float = 60.0,
     ):
         super().__init__(
@@ -1681,7 +1678,6 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
                     angle_offset=angle_offset,
-                    keep_orientation=keep_orientation,
                 ),
             )
 
