@@ -81,7 +81,7 @@ class SlalomCameraHandler:
                 self.calibration,
             )
 
-            if distance is None or distance > 10:
+            if distance is None:
                 continue
 
             angles, offset_x, offset_y = calculate_angles_and_offsets(
