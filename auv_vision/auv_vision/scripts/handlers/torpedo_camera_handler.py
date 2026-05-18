@@ -120,7 +120,6 @@ class TorpedoCameraHandler:
             rospy.loginfo("All torpedo reference hole frames are available in TF.")
 
     def _publish_hole_transform(self, detection, child_frame_id, stamp):
-        """Estimate distance and publish transform for a single torpedo hole."""
         prop = self._prop_for_hole_frame(child_frame_id)
         if not prop:
             rospy.logerr(f"Prop for '{child_frame_id}' not found.")
@@ -148,7 +147,7 @@ class TorpedoCameraHandler:
         nearest_distance = None
 
         for reference_frame, reference_position in reference_positions.items():
-            projected_position = self._project_hole_to_odom(
+            projected_position = self._project_hole_to_realsense_target(
                 detection, stamp, reference_frame
             )
             if projected_position is None:
@@ -163,7 +162,7 @@ class TorpedoCameraHandler:
 
         return nearest_reference_frame
 
-    def _project_hole_to_odom(self, detection, stamp, reference_frame):
+    def _project_hole_to_realsense_target(self, detection, stamp, reference_frame):
         prop = self._prop_for_hole_frame(reference_frame)
         if not prop:
             rospy.logerr(f"Prop for '{reference_frame}' not found.")
@@ -180,7 +179,28 @@ class TorpedoCameraHandler:
         _, offset_x, offset_y = calculate_angles_and_offsets(
             self.calibration, detection.bbox.center, distance
         )
-        return self._transform_camera_point_to_odom(offset_x, offset_y, distance, stamp)
+        return self._transform_camera_point_to_realsense_target(
+            offset_x, offset_y, distance, stamp
+        )
+
+    def _lookup_realsense_target_quaternion(self, stamp):
+        try:
+            realsense_tf = self.tf_buffer.lookup_transform(
+                "odom",
+                "torpedo_target_realsense",
+                stamp,
+                rospy.Duration(1.0),
+            )
+            return realsense_tf.transform.rotation
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(
+                5.0, f"Cannot lookup torpedo_target_realsense quaternion: {e}"
+            )
+            return None
 
     def _publish_odom_transform(
         self, child_frame_id, offset_x, offset_y, distance, stamp
@@ -191,6 +211,10 @@ class TorpedoCameraHandler:
         if position is None:
             return None
 
+        realsense_quat = self._lookup_realsense_target_quaternion(stamp)
+        if realsense_quat is None:
+            return None
+
         transform_stamped_msg = TransformStamped()
         transform_stamped_msg.header.stamp = stamp
         transform_stamped_msg.header.frame_id = "odom"
@@ -198,7 +222,7 @@ class TorpedoCameraHandler:
         transform_stamped_msg.transform.translation = Vector3(
             position.x, position.y, position.z
         )
-        transform_stamped_msg.transform.rotation = Quaternion(0, 0, 0, 1)
+        transform_stamped_msg.transform.rotation = realsense_quat
         self.object_transform_pub.publish(transform_stamped_msg)
         return position
 
@@ -222,13 +246,37 @@ class TorpedoCameraHandler:
             rospy.logwarn_throttle(5.0, f"Transform error for torpedo hole: {e}")
             return None
 
+    def _transform_camera_point_to_realsense_target(
+        self, offset_x, offset_y, distance, stamp
+    ):
+        pose_stamped = PoseStamped()
+        pose_stamped.header.stamp = stamp
+        pose_stamped.header.frame_id = self.camera_frame
+        pose_stamped.pose.position = Point(offset_x, offset_y, distance)
+        pose_stamped.pose.orientation = Quaternion(0, 0, 0, 1)
+
+        try:
+            transformed_pose_stamped = self.tf_buffer.transform(
+                pose_stamped, "torpedo_target_realsense", rospy.Duration(4.0)
+            )
+            return transformed_pose_stamped.pose.position
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(
+                5.0, f"Transform error for torpedo hole (realsense target): {e}"
+            )
+            return None
+
     def _lookup_reference_hole_positions(self, stamp):
         reference_positions = {}
 
         for frame_id in self.reference_hole_frames:
             try:
                 transform = self.tf_buffer.lookup_transform(
-                    "odom",
+                    "torpedo_target_realsense",
                     frame_id,
                     stamp,
                     rospy.Duration(1.0),
@@ -272,11 +320,8 @@ class TorpedoCameraHandler:
 
     @staticmethod
     def _distance_squared(point_a, point_b):
-        return (
-            (point_a.x - point_b.x) ** 2
-            + (point_a.y - point_b.y) ** 2
-            + (point_a.z - point_b.z) ** 2
-        )
+        # model only causes sliding in x axis in torpedo_realsense_target's basis
+        return (point_a.y - point_b.y) ** 2 + (point_a.z - point_b.z) ** 2
 
 
 def create_handler(
