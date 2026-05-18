@@ -155,6 +155,12 @@ class SlalomHeatmapMapper:
         )
 
     def reconfigure_callback(self, config, level):
+        self.search_frame = config.search_frame
+        self.search_start_distance = config.search_start_distance
+        self.search_side_offset = config.search_side_offset
+        self.search_side_yaw_offset_deg = config.search_side_yaw_offset_deg
+        self.heatmap_build_interval = config.heatmap_build_interval
+        self.heatmap_color_sample_step = config.heatmap_color_sample_step
         self.heatmap_image_width_px = config.heatmap_image_width_px
         self.heatmap_image_height_px = config.heatmap_image_height_px
         self.heatmap_padding_px = config.heatmap_padding_px
