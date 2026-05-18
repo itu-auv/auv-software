@@ -6,6 +6,13 @@ cameras:
     result_topic: "/yolo_result_front"
     image_out_topic: "/yolo_image_front"
 
+  slalom:
+    image_topic: "/{ns}/cameras/cam_front/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_front/camera_info"
+    optical_frame: "{ns}/base_link/front_camera_optical_link_stabilized"
+    result_topic: "/yolo_result_slalom"
+    image_out_topic: "/yolo_image_slalom"
+
   bottom:
     image_topic: "/{ns}/cameras/cam_bottom/image_raw"
     camera_info_topic: "/{ns}/cameras/cam_bottom/camera_info"
@@ -107,7 +114,7 @@ objects:
   # Slalom 1 pipes - vertical cylinders, radius 0.0127 m, height 0.9 m
   - class_id: 3
     name: white_pipe
-    cameras: [front, realsense]
+    cameras: [slalom]
     gazebo_model: robosub_slalom_1
     offset: [-1.5, 0.0, 0.45]
     boundary:
@@ -116,7 +123,7 @@ objects:
 
   - class_id: 2
     name: red_pipe
-    cameras: [front, realsense]
+    cameras: [slalom]
     gazebo_model: robosub_slalom_1
     offset: [0.0, 0.0, 0.45]
     boundary:
@@ -125,7 +132,7 @@ objects:
 
   - class_id: 3
     name: white_pipe
-    cameras: [front, realsense]
+    cameras: [slalom]
     gazebo_model: robosub_slalom_1
     offset: [1.5, 0.0, 0.45]
     boundary:
@@ -135,7 +142,7 @@ objects:
   # Slalom 2
   - class_id: 3
     name: white_pipe
-    cameras: [front, realsense]
+    cameras: [slalom]
     gazebo_model: robosub_slalom_2
     offset: [-1.5, 0.0, 0.45]
     boundary:
@@ -144,7 +151,7 @@ objects:
 
   - class_id: 2
     name: red_pipe
-    cameras: [front, realsense]
+    cameras: [slalom]
     gazebo_model: robosub_slalom_2
     offset: [0.0, 0.0, 0.45]
     boundary:
@@ -153,7 +160,7 @@ objects:
 
   - class_id: 3
     name: white_pipe
-    cameras: [front, realsense]
+    cameras: [slalom]
     gazebo_model: robosub_slalom_2
     offset: [1.5, 0.0, 0.45]
     boundary:
@@ -163,7 +170,7 @@ objects:
   # Slalom 3
   - class_id: 3
     name: white_pipe
-    cameras: [front, realsense]
+    cameras: [slalom]
     gazebo_model: robosub_slalom_3
     offset: [-1.5, 0.0, 0.45]
     boundary:
@@ -172,7 +179,7 @@ objects:
 
   - class_id: 2
     name: red_pipe
-    cameras: [front, realsense]
+    cameras: [slalom]
     gazebo_model: robosub_slalom_3
     offset: [0.0, 0.0, 0.45]
     boundary:
@@ -181,7 +188,7 @@ objects:
 
   - class_id: 3
     name: white_pipe
-    cameras: [front, realsense]
+    cameras: [slalom]
     gazebo_model: robosub_slalom_3
     offset: [1.5, 0.0, 0.45]
     boundary:
@@ -353,7 +360,7 @@ objects:
       args: [0.1715, 0.1175, 0]
     render_mask: true
 
-  - class_id: 5
+  - class_id: 6
     name: basket_warning_segment_link
     cameras: [bottom_seg]
     gazebo_model: robosub_octagon
@@ -363,7 +370,7 @@ objects:
       args: [0.1715, 0.1175, 0]
     render_mask: true
 
-  - class_id: 6
+  - class_id: 5
     name: octagon_table_segment_link
     cameras: [bottom_seg]
     gazebo_model: robosub_octagon
@@ -393,7 +400,7 @@ objects:
       args: [0.12, 0.12, 0]
 
   # Segmentation objects (mesh-based)
-  - class_id: 0
+  - class_id: 1
     name: electric
     cameras: [bottom_seg]
     gazebo_model: electric
@@ -404,7 +411,7 @@ objects:
       shape: rect
       args: [0.04375, 0.04375, 0]
 
-  - class_id: 1
+  - class_id: 0
     name: bandaid
     cameras: [bottom_seg]
     gazebo_model: bandaid

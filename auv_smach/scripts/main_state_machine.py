@@ -48,6 +48,7 @@ class MainStateMachineNode:
         self.selected_role = DEFAULT_SELECTED_ROLE
         self.torpedo_map = DEFAULT_TORPEDO_MAP
         self.slalom_mode = "close"
+        self.slalom_direction = "left"
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
@@ -66,6 +67,7 @@ class MainStateMachineNode:
                     "torpedo_map", DEFAULT_TORPEDO_MAP
                 )
                 self.slalom_mode = current_config.get("slalom_mode", "close")
+                self.slalom_direction = current_config.get("slalom_direction", "left")
                 self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
                 self.slalom_exit_angle_deg = current_config.get(
                     "slalom_exit_angle", 0.0
@@ -149,10 +151,11 @@ class MainStateMachineNode:
 
         selected_role = config.selected_role
         rospy.loginfo(
-            "Received reconfigure request: selected_role=%s, torpedo_map=%s, slalom_mode=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            "Received reconfigure request: selected_role=%s, torpedo_map=%s, slalom_mode=%s, slalom_direction=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
             selected_role,
             config.torpedo_map,
             config.slalom_mode,
+            config.slalom_direction,
             config.gate_exit_angle,
             config.slalom_exit_angle,
             config.bin_exit_angle,
@@ -163,6 +166,7 @@ class MainStateMachineNode:
         self.selected_role = selected_role
         self.torpedo_map = config.torpedo_map
         self.slalom_mode = config.slalom_mode
+        self.slalom_direction = config.slalom_direction
         self.gate_exit_angle_deg = config.gate_exit_angle
         self.slalom_exit_angle_deg = config.slalom_exit_angle
         self.bin_exit_angle_deg = config.bin_exit_angle
@@ -232,7 +236,7 @@ class MainStateMachineNode:
                 {
                     "slalom_depth": self.slalom_depth,
                     "slalom_exit_angle": slalom_exit_angle_rad,
-                    "slalom_mode": self.slalom_mode,
+                    "slalom_direction": self.slalom_direction,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
