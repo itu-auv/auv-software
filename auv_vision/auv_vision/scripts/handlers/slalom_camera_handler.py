@@ -95,7 +95,7 @@ class SlalomCameraHandler:
             props_yaw_msg.angle = -angles[0]
             self.props_yaw_pub.publish(props_yaw_msg)
 
-            # Max distance check
+            # Max distance check drake bro
             if (offset_x**2 + offset_y**2 + distance**2) > 30**2:
                 rospy.logdebug(f"Detection for {prop_name} is too far away. Skipping.")
                 continue
