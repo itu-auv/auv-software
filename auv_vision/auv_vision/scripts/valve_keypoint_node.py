@@ -6,8 +6,6 @@ import os
 
 # Must run before torch/ultralytics import (PyTorch ApproximateClock workaround,
 # https://github.com/pytorch/pytorch/issues/91516).
-if os.environ.get("DEVICE", "cpu") == "cpu":
-    os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 os.environ.setdefault("KINETO_DISABLED", "1")
 
 import sys

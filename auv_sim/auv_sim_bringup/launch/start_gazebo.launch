@@ -165,9 +165,25 @@
       <!-- Trajectory publisher: tac/valve → valve_approach_frame, valve_contact_frame -->
       <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
             name="valve_trajectory_publisher" output="screen">
-        <rosparam command="load"
-                  file="$(find auv_mapping)/config/valve_trajectory_publisher_params.yaml" />
         <remap from="set_object_transform" to="map/set_object_transform" />
+      </node>
+
+      <!-- Inspect trajectory publisher: 8 frames around the valve plane +
+           inspect_start_top above mission_start_link + inspect_frame_0_top.
+           Toggled by smach via set_transform_inspect_frames. -->
+      <node pkg="auv_mapping" type="inspect_trajectory_publisher.py"
+            name="inspect_trajectory_publisher" output="screen">
+        <remap from="set_object_transform" to="map/set_object_transform" />
+      </node>
+
+      <!-- ArUco scan-only detector on the front camera (no pose estimation,
+           just marker detection + debug images). -->
+      <node pkg="auv_vision" type="aruco_detection_node.py"
+            name="aruco_detection" output="screen">
+        <param name="scan_mode" value="true" />
+        <param name="aruco_dictionary" value="DICT_ARUCO_ORIGINAL" />
+        <param name="image_topic" value="/$(arg namespace)/cameras/cam_front/image_raw" />
+        <param name="camera_frame" value="$(arg namespace)/base_link/front_camera_optical_link_stabilized" />
       </node>
     </group>
 </launch>

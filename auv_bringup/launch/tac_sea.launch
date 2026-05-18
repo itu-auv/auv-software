@@ -9,6 +9,7 @@
   <arg name="yolo_conf_thres" default="0.25" />
 
   <group ns="$(arg namespace)">
+    <!-- Producer: front camera image → KeypointResult (ViTPose + YOLO) -->
     <node pkg="auv_vision" type="valve_keypoint_node.py"
           name="valve_keypoint_node" output="screen">
       <param name="image_topic" value="$(arg image_topic)" />
@@ -21,15 +22,35 @@
       <param name="image_out_topic" value="/keypoint_image_front" />
     </node>
 
+    <!-- Consumer: KeypointResult → object_transform_updates (publishes tac/valve) -->
     <node pkg="auv_vision" type="keypoint_pose_node.py"
           name="keypoint_pose_node" output="screen">
       <param name="config_file" value="$(find auv_vision)/config/valve_keypoints.yaml" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
+    <!-- Trajectory publisher: tac/valve → valve_approach_frame, valve_contact_frame -->
     <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
           name="valve_trajectory_publisher" output="screen">
       <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
+    <!-- Inspect trajectory publisher: 8 frames around the valve plane +
+         inspect_start_top above mission_start_link + inspect_frame_0_top.
+         Toggled by smach via set_transform_inspect_frames. -->
+    <node pkg="auv_mapping" type="inspect_trajectory_publisher.py"
+          name="inspect_trajectory_publisher" output="screen">
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
+    <!-- ArUco scan-only detector on the front camera (no pose estimation,
+         just marker detection + debug images). -->
+    <node pkg="auv_vision" type="aruco_detection_node.py"
+          name="aruco_detection" output="screen">
+      <param name="scan_mode" value="true" />
+      <param name="aruco_dictionary" value="DICT_ARUCO_ORIGINAL" />
+      <param name="image_topic" value="$(arg image_topic)" />
+      <param name="camera_frame" value="$(arg namespace)/base_link/front_camera_optical_link_stabilized" />
     </node>
   </group>
 
