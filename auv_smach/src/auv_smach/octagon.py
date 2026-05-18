@@ -2,6 +2,7 @@ from .initialize import *
 import smach
 import smach_ros
 from auv_smach.tf_utils import get_base_link, get_tf_buffer
+from auv_common_lib.transform import lookup_fresh_transform
 from auv_smach.common import (
     NavigateToFrameState,
     SetAlignControllerTargetState,
@@ -112,13 +113,24 @@ class CheckBottleLinkState(smach.State):
             if self.preempt_requested():
                 return "preempted"
 
-            if self.tf_buffer.can_transform(
-                self.source_frame, self.target_frame, rospy.Time(0), rospy.Duration(0.5)
-            ):
+            try:
+                lookup_fresh_transform(
+                    self.tf_buffer,
+                    self.source_frame,
+                    self.target_frame,
+                    rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                )
                 rospy.loginfo(
                     f"[CheckBottleLinkState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
                 )
                 return "succeeded"
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ):
+                pass
 
             rate.sleep()
 

@@ -161,8 +161,8 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   }
 
   // Find the closest filter to update
-  std::vector<double> distances;
-  distances.reserve(it->second.size());
+  double min_distance_squared = 1e9;
+  ObjectPositionFilter *closest_filter_ptr = nullptr;
 
   // Calculate distance to each existing filter
   for (auto &filter_ptr : it->second) {
@@ -176,20 +176,19 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
                                   static_transform->transform.translation.z};
     const auto distance_squared = std::inner_product(
         d_position.begin(), d_position.end(), d_position.begin(), 0.0);
-    distances.push_back(distance_squared);
 
-    // If this filter is close enough, update it
-    if (distance_squared < current_distance_threshold_squared) {
-      filter_ptr->update(*static_transform, dt);
-      filter_updated = true;
-      ROS_DEBUG_STREAM("Updated filter for " << object_frame);
-
-      // For non-slalom objects, update only the first matching filter.
-      // For slalom gates, continue to update all filters within the threshold.
-      if (!is_slalom_gate) {
-        break;
-      }
+    // Update closest filter
+    if (distance_squared < min_distance_squared) {
+      min_distance_squared = distance_squared;
+      closest_filter_ptr = filter_ptr.get();
     }
+  }
+
+  if (closest_filter_ptr != nullptr &&
+      min_distance_squared < current_distance_threshold_squared) {
+    closest_filter_ptr->update(*static_transform, dt);
+    filter_updated = true;
+    ROS_DEBUG_STREAM("Updated closest filter for " << object_frame);
   }
 
   // If no filter was updated, create a new one
@@ -283,8 +282,8 @@ ObjectMapTFServerROS::transform_to_static_frame(
     const geometry_msgs::TransformStamped transform) {
   const auto parent_frame = transform.header.frame_id;
   const auto target_frame = transform.child_frame_id;
-  const auto static_to_parent_transform =
-      get_transform(static_frame_, parent_frame, ros::Duration(4.0));
+  const auto static_to_parent_transform = get_transform(
+      static_frame_, parent_frame, transform.header.stamp, ros::Duration(4.0));
 
   if (!static_to_parent_transform.has_value()) {
     ROS_ERROR("Error occurred while looking up transform");
@@ -340,10 +339,11 @@ ObjectMapTFServerROS::transform_to_static_frame(
 std::optional<geometry_msgs::TransformStamped>
 ObjectMapTFServerROS::get_transform(const std::string &target_frame,
                                     const std::string &source_frame,
+                                    const ros::Time &lookup_time,
                                     const ros::Duration timeout) {
   try {
     auto transform = tf_buffer_.lookupTransform(target_frame, source_frame,
-                                                ros::Time(0), timeout);
+                                                lookup_time, timeout);
     return transform;
   } catch (tf2::TransformException &ex) {
     ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
