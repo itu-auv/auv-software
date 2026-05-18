@@ -13,7 +13,10 @@ from ultralytics_ros.msg import YoloResult
 import tf2_ros
 from tf import transformations as tf_transformations
 
-from utils.detection_utils import calculate_angles_and_offsets, check_inside_image_bottom
+from utils.detection_utils import (
+    calculate_angles_and_offsets,
+    check_inside_image_bottom,
+)
 from utils.segment_utils import (
     findposes_circle,
     findposes_rect,
@@ -47,7 +50,7 @@ class SegmentCameraHandler:
         self.debug_image_topic = rospy.get_param(
             "~segment_pose_debug_topic", "segment_pose_debug"
         )
-        self.table_height = 0.74 # TODO: Read from yaml
+        self.table_height = 0.74  # TODO: Read from yaml
         self.segment_pose_debug_pub = (
             rospy.Publisher(self.debug_image_topic, Image, queue_size=1)
             if self.debug_segment_pose
@@ -81,21 +84,25 @@ class SegmentCameraHandler:
                 edges = geometry.get("edges_px", (None, None))
                 longest_edge, shortest_edge = edges
                 if longest_edge is not None and shortest_edge is not None:
-                    return prop.estimate_distance(longest_edge, shortest_edge, self.calibration)
+                    return prop.estimate_distance(
+                        longest_edge, shortest_edge, self.calibration
+                    )
             elif geom_type == "basket":
                 if not check_inside_image_bottom(detection):
                     alt = self.shared_state.get("altitude")
                     if alt is not None:
                         hardcoded_distance = alt - self.table_height
-                        #print("Hardcoded distance:", hardcoded_distance, prop.name)
+                        # print("Hardcoded distance:", hardcoded_distance, prop.name)
                         return hardcoded_distance
                     return None
                 else:
                     edges = geometry.get("edges_px", (None, None))
                     longest_edge, shortest_edge = edges
                     if longest_edge is not None and shortest_edge is not None:
-                        return prop.estimate_distance(longest_edge, shortest_edge, self.calibration)
-                        
+                        return prop.estimate_distance(
+                            longest_edge, shortest_edge, self.calibration
+                        )
+
         # just in case geometry fails or type is unhandled
         return prop.estimate_distance(
             detection.bbox.size_y,
@@ -218,7 +225,6 @@ class SegmentCameraHandler:
                             if geometry is not None:
                                 geometry["type"] = "basket"
 
-
                         if geometry is not None and not geometry.get("valid", False):
                             geometry = None
 
@@ -234,7 +240,7 @@ class SegmentCameraHandler:
                     }
 
                 distance = self._estimate_distance(prop, detection, geometry)
-                
+
                 if distance == -1.0:
                     continue
 

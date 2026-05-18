@@ -240,7 +240,9 @@ BOTTOM_FORBIDDEN_MASKS = (
 )
 
 
-def _scale_polygon(points, image_width: int, image_height: int, ref_w: float, ref_h: float):
+def _scale_polygon(
+    points, image_width: int, image_height: int, ref_w: float, ref_h: float
+):
     """Scale polygon points from reference resolution to actual image resolution."""
     scale_x = image_width / ref_w
     scale_y = image_height / ref_h
@@ -313,8 +315,11 @@ def check_inside_image_bottom(
     if forbidden_masks is None:
         forbidden_masks = tuple(
             _scale_polygon(
-                mask, image_width, image_height,
-                BOTTOM_MASK_REFERENCE_WIDTH, BOTTOM_MASK_REFERENCE_HEIGHT,
+                mask,
+                image_width,
+                image_height,
+                BOTTOM_MASK_REFERENCE_WIDTH,
+                BOTTOM_MASK_REFERENCE_HEIGHT,
             )
             for mask in BOTTOM_FORBIDDEN_MASKS
         )
