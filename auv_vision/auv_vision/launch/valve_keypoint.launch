@@ -2,11 +2,10 @@
 <launch>
   <arg name="namespace"           default="taluy" />
   <arg name="image_topic"         default="/taluy/cameras/cam_front/image_raw" />
-  <arg name="vitpose_model_path"  default="$(find auv_detection)/models/valve_vitpose.pth" />
-  <arg name="yolo_model_path"     default="$(find auv_detection)/models/valve_yolo.pt" />
-  <arg name="device"              default="cpu" />
-  <arg name="conf_threshold"      default="0.5" />
-  <arg name="yolo_conf_thres"     default="0.25" />
+  <arg name="vitpose_model_path"     default="$(find auv_detection)/models/valve_vitpose.pth" />
+  <arg name="vit_tracker_model_path" default="$(find auv_detection)/models/vitTracker.onnx" />
+  <arg name="device"                 default="cpu" />
+  <arg name="conf_threshold"         default="0.5" />
   <arg name="static_frame"        default="odom" />
   <arg name="control_rate"        default="10" />
   <arg name="use_sim_time"        default="false" />
@@ -45,14 +44,13 @@
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="valve_keypoint_node.py"
           name="valve_keypoint_node" output="screen">
-      <param name="image_topic"        value="$(arg image_topic)" />
-      <param name="vitpose_model_path" value="$(arg vitpose_model_path)" />
-      <param name="yolo_model_path"    value="$(arg yolo_model_path)" />
-      <param name="device"             value="$(arg device)" />
-      <param name="conf_threshold"     value="$(arg conf_threshold)" />
-      <param name="yolo_conf_thres"    value="$(arg yolo_conf_thres)" />
-      <param name="result_topic"       value="/keypoint_result_front" />
-      <param name="image_out_topic"    value="/keypoint_image_front" />
+      <param name="image_topic"            value="$(arg image_topic)" />
+      <param name="vitpose_model_path"     value="$(arg vitpose_model_path)" />
+      <param name="vit_tracker_model_path" value="$(arg vit_tracker_model_path)" />
+      <param name="device"                 value="$(arg device)" />
+      <param name="conf_threshold"         value="$(arg conf_threshold)" />
+      <param name="result_topic"           value="/keypoint_result_front" />
+      <param name="image_out_topic"        value="/keypoint_image_front" />
     </node>
 
     <node pkg="auv_vision" type="keypoint_pose_node.py"
