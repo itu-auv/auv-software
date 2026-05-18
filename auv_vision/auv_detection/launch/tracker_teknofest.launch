@@ -1,5 +1,11 @@
 <launch>
   <arg name="namespace" default="taluy" />
+  <arg name="pipe_camera_forward_direction" default="right" />
+  <arg name="pipe_legacy_linear_x" default="0.2" />
+  <arg name="pipe_legacy_target_width" default="320" />
+  <arg name="pipe_legacy_close_kernel_size" default="25" />
+  <arg name="pipe_legacy_open_kernel_size" default="5" />
+  <arg name="pipe_legacy_min_contour_area" default="250" />
 
   <include file="$(find auv_detection)/launch/inc/tracker_segment.launch">
     <arg name="namespace" value="$(arg namespace)" />
@@ -9,13 +15,19 @@
   </include>
 
   <group ns="$(arg namespace)">
-    <node pkg="auv_vision" type="yolo_to_mask_node.py" name="yolo_seg_to_pipe_mask" output="screen" />
-      <remap from="yolo_result_seg" to="/yolo_result_seg"/>
-      <remap from="pipe_mask" to="yolo_to_seg_node/pipe_mask" />
-
-    <node pkg="auv_vision" type="pipe_follower.py" name="pipe_follower_node" output="screen" />
+    <node pkg="auv_vision" type="pipe_follower_legacy.py" name="pipe_follower_legacy" output="screen">
+      <remap from="seg_mask" to="yolo_seg_to_mask/seg_mask" />
       <remap from="cmd_vel" to="cmd_vel" />
-      <remap from="debug_image" to="pipe_follower_node/debug_image" />
-      <remap from="pipe_mask" to="yolo_to_seg_node/pipe_mask" />
+      <remap from="debug_image/compressed" to="pipe_follower_legacy/debug_image/compressed" />
+      <remap from="align_frame/start" to="control/align_frame/start" />
+      <remap from="align_frame/cancel" to="control/align_frame/cancel" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+      <param name="camera_forward_direction" value="$(arg pipe_camera_forward_direction)" />
+      <param name="linear_x" value="$(arg pipe_legacy_linear_x)" />
+      <param name="target_width" value="$(arg pipe_legacy_target_width)" />
+      <param name="close_kernel_size" value="$(arg pipe_legacy_close_kernel_size)" />
+      <param name="open_kernel_size" value="$(arg pipe_legacy_open_kernel_size)" />
+      <param name="min_contour_area" value="$(arg pipe_legacy_min_contour_area)" />
+    </node>
   </group>
 </launch>

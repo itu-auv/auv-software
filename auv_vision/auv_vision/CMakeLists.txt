@@ -12,6 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   sensor_msgs
   tf
+  dynamic_reconfigure
+  auv_common_lib
 )
 
 catkin_package(
@@ -20,6 +22,8 @@ catkin_package(
     rospy
     sensor_msgs
     tf
+    dynamic_reconfigure
+    auv_common_lib
 )
 
 include_directories(
@@ -30,9 +34,8 @@ catkin_install_python(
   PROGRAMS
     scripts/dynamic_roll_compensation.py
     scripts/yolo_result_bridge.py
-    scripts/yolo_to_mask_node.py
-    scripts/opencv_pipe_detector.py
-    scripts/pipe_follower.py
+    scripts/yolo_seg_to_mask.py
+    scripts/pipe_follower_legacy.py
     scripts/sim_bbox_node.py
     scripts/sim_keypoint_node.py
     scripts/depth_anything_trt_node.py
