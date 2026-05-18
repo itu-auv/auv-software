@@ -360,7 +360,7 @@ objects:
       args: [0.1715, 0.1175, 0]
     render_mask: true
 
-  - class_id: 5
+  - class_id: 6
     name: basket_warning_segment_link
     cameras: [bottom_seg]
     gazebo_model: robosub_octagon
@@ -370,7 +370,7 @@ objects:
       args: [0.1715, 0.1175, 0]
     render_mask: true
 
-  - class_id: 6
+  - class_id: 5
     name: octagon_table_segment_link
     cameras: [bottom_seg]
     gazebo_model: robosub_octagon
@@ -400,7 +400,7 @@ objects:
       args: [0.12, 0.12, 0]
 
   # Segmentation objects (mesh-based)
-  - class_id: 0
+  - class_id: 1
     name: electric
     cameras: [bottom_seg]
     gazebo_model: electric
@@ -411,7 +411,7 @@ objects:
       shape: rect
       args: [0.04375, 0.04375, 0]
 
-  - class_id: 1
+  - class_id: 0
     name: bandaid
     cameras: [bottom_seg]
     gazebo_model: bandaid
