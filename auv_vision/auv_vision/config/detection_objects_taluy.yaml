@@ -7,10 +7,10 @@ cameras:
     image_width: 640
     image_height: 480
     id_tf_map:
-      0: gate_sawfish_link
-      1: gate_shark_link
+      0: gate_search_rescue_link
+      1: gate_survey_repair_link
       4: torpedo_map_link
-      6: bin_basket_front_link
+      6: bin_basket_link
       7: octagon_link
       8: octagon_repair_link
       9: octagon_rescue_link
@@ -66,8 +66,8 @@ cameras:
 
 # Prop dimensions for distance estimation (link_name -> dimensions)
 props:
-  gate_sawfish_link: {name: "sawfish", real_height: 0.3048, real_width: 0.3048}
-  gate_shark_link: {name: "shark", real_height: 0.3048, real_width: 0.3048}
+  gate_search_rescue_link: {name: "gate_search_rescue", real_height: 0.3048, real_width: 0.3048}
+  gate_survey_repair_link: {name: "gate_survey_repair", real_height: 0.3048, real_width: 0.3048}
   slalom_red_pipe_link: {name: "slalom_red_pipe", real_height: 0.9, real_width: 0.0254}
   slalom_white_pipe_link: {name: "slalom_white_pipe", real_height: 0.9, real_width: 0.0254}
   torpedo_map_link: {name: "torpedo_map", real_height: 0.6096, real_width: 0.6096}
