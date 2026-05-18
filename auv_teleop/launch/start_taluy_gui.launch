@@ -1,13 +1,14 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy" />
-  <arg name="imu_topic" default="$(eval '/vectornav/IMU' if arg('namespace') == 'taluy_mini' else 'sensors/imu/data')" />
+  <arg name="imu_topic" default="sensors/imu/data" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
+  <arg name="dvl_activate_service" default="$(eval 'dvl/activate' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/enable')" />
 
     <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen">
         <remap from="set_depth" to="$(arg namespace)/set_depth"/>
         <remap from="localization_enable" to="$(arg namespace)/auv_localization_node/enable"/>
-        <remap from="dvl/enable" to="$(arg namespace)/sensors/dvl/enable"/>
+        <remap from="dvl/enable" to="$(arg namespace)/$(arg dvl_activate_service)"/>
         <remap from="ball_dropper/drop" to="$(arg namespace)/actuators/ball_dropper/drop"/>
         <remap from="torpedo_1/launch" to="$(arg namespace)/actuators/torpedo_1/launch"/>
         <remap from="torpedo_2/launch" to="$(arg namespace)/actuators/torpedo_2/launch"/>
