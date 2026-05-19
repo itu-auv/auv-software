@@ -89,6 +89,13 @@ class WaypointGUI:
 
         self.simulate_var = tk.BooleanVar(value=False)
         self._rosparam_sync_counter = 0
+        # Last stamp we actually broadcast. Under use_sim_time the 20 Hz
+        # rospy.Rate can tick several times within one /clock step, so
+        # consecutive ticks would re-send the *same* timestamp and flood
+        # the console with TF_REPEATED_DATA (which also pollutes the TF
+        # buffer and degrades path-following / alignment). We skip a tick
+        # whose stamp didn't advance past the previous broadcast.
+        self._last_broadcast_stamp = None
 
         self.paths = []
         self.active_path_idx = None
@@ -695,6 +702,18 @@ class WaypointGUI:
 
     def _broadcast_tick(self):
         now = rospy.Time.now()
+
+        # Skip if the clock hasn't advanced since the last broadcast:
+        # re-sending the same (or an older) stamp triggers TF_REPEATED_DATA
+        # and corrupts the TF buffer. Common under use_sim_time when the
+        # 20 Hz rate loop runs faster than /clock updates.
+        if (
+            self._last_broadcast_stamp is not None
+            and now <= self._last_broadcast_stamp
+        ):
+            return
+        self._last_broadcast_stamp = now
+
         transforms = []
 
         with self._paths_lock:

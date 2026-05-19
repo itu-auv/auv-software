@@ -64,6 +64,22 @@
             <remap from="propulsion_board/status" to="propulsion_board/status" />
             <remap from="odometry" to="odometry" />
             <remap from="cmd_vel" to="cmd_vel" />
+
+            <!--
+              InitializeState ('init' token) disables bottom detection, sets
+              detection focus to 'none', clears the object map and sets the
+              start frame. Without these remaps those states block forever
+              (same fix as auv_smach/launch/test_pinger_mission.launch).
+            -->
+            <remap from="set_front_camera_focus" to="vision/set_front_camera_focus" />
+            <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus" />
+            <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections" />
+            <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections" />
+            <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections" />
+            <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections" />
+            <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable" />
+            <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+            <remap from="set_object_transform" to="map/set_object_transform" />
         </node>
     </group>
 </launch>

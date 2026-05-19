@@ -1,0 +1,101 @@
+# Config for test_pinger_mission.py
+#
+# Tokens run in order (test_states:=a,b,c — same as test_follow_waypoints):
+#   init                     -> InitializeState
+#   path<N>                  -> a GUI-drawn path (UNCONDITIONAL, normal flow)
+#   octagon|torpedo|bin|...  -> a task state (params from `tasks:` below)
+#   octagon_torpedo_pinger   -> the ONE conditional token; expands via the
+#                               pinger into  octagon,<a2b>,torpedo  OR
+#                               torpedo,<b2a>,octagon
+#
+# Usage:
+#   roslaunch auv_smach test_pinger_mission.launch \
+#       mission_yaml:=$(rospack find auv_smach)/config/pinger_mission_example.yaml \
+#       test_states:="init, gate, path3, bin, octagon_torpedo_pinger"
+#
+#   # check the resolved order without moving the robot:
+#   ... test_states:="init, gate, path3, bin, octagon_torpedo_pinger" dry_run:=true
+#
+# Here gate, path3, bin run normally; octagon_torpedo_pinger becomes either
+# "octagon, path1, torpedo" (pinger near octagon) or
+# "torpedo, path2, octagon" (pinger near torpedo).
+
+# ---- task states: params go straight to the task constructor (unchanged) ----
+tasks:
+  octagon:
+    params:
+      octagon_depth: -0.8
+      animal: sawfish
+  torpedo:
+    params:
+      torpedo_map_depth: -1.25
+      torpedo_target_frame: torpedo_target
+      torpedo_realsense_target_frame: torpedo_target_realsense
+      torpedo_fire_frames:
+        - torpedo_sawfish_fire_frame
+        - torpedo_shark_fire_frame
+      torpedo_exit_angle: 0.0
+  bin:
+    params:
+      bin_front_look_depth: -1.3
+      bin_bottom_look_depth: -0.7
+      target_selection: sawfish
+      bin_exit_angle: 0.0
+  gate:
+    params:
+      gate_depth: -1.35
+      gate_search_depth: -0.7
+      roll_depth: -0.8
+      gate_exit_angle: 0.0
+
+# ---- GUI-drawn paths ----
+# reference_frame defaults to "<path>_ref" (what the GUI publishes).
+# Set `waypoints: N` (=> path<N>_wp1..wpN) or an explicit waypoint_frames list.
+# path1/path2 are the octagon<->torpedo transitions used by the pinger token;
+# path3 (and any others) are normal unconditional tokens.
+paths:
+  path1:                # octagon -> torpedo
+    waypoints: 3
+    final_align: true
+  path2:                # torpedo -> octagon
+    waypoints: 3
+    final_align: true
+  path3:                # e.g. gate -> bin, used as a plain token
+    waypoints: 3
+    final_align: false
+
+# ---- the single conditional selector ----
+# The decision runs IN-GRAPH, when the sequence reaches the pinger token —
+# i.e. AFTER the earlier tasks (gate/bin/...) have already revealed the
+# object frames. So tf_frame works for BOTH sim and physical now.
+#
+# position_source per candidate:
+#   tf_frame     : look up a real TF frame (octagon_link / torpedo_target);
+#                  by now the earlier tasks have published it. Default.
+#   gazebo_model : read Gazebo model pose (sim only; detection-independent
+#                  fallback if you want the decision before any detection).
+#
+# decision_wait_timeout: how long the decision state waits for the positions
+# to become resolvable before aborting (the AUV may still be settling).
+pinger_select:
+  pinger_frame: pinger_link
+  reference_frame: odom
+  tf_timeout: 2.0              # per-poll TF lookup wait inside the retry loop
+  decision_wait_timeout: 30.0 # total time to keep retrying before abort
+  candidates:
+    octagon:
+      position_source: tf_frame
+      decision_frame: octagon_link
+      # The octagon task normally enables this; the decision runs before the
+      # task, so enable it here too (no-op if already on). The object must
+      # already be in the map (AUV has seen it) for the frame to appear.
+      enable_service: set_transform_octagon_frame
+      # sim-only alt: position_source: gazebo_model / gazebo_model: robosub_octagon
+    torpedo:
+      position_source: tf_frame
+      decision_frame: torpedo_target
+      enable_service: set_transform_torpedo_target_frame
+      # sim-only alt: position_source: gazebo_model / gazebo_model: robosub_torpedo
+  transitions:
+    octagon_to_torpedo: path1   # pinger near octagon -> octagon, path1, torpedo
+    torpedo_to_octagon: path2   # pinger near torpedo -> torpedo, path2, octagon

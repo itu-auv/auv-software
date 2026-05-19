@@ -1,0 +1,77 @@
+# SIM / dry_run config for test_pinger_mission.py
+#
+# Identical to pinger_mission_example.yaml EXCEPT the pinger decision reads
+# octagon/torpedo positions from the Gazebo model poses instead of TF frames.
+#
+# Why a separate file: in dry_run the task tokens are stubs, so the robot
+# never moves and octagon_link / torpedo_target are never published. Gazebo
+# model poses are ALWAYS available, so the decision can be exercised without
+# running real tasks. Use this for dry_run / ordering validation.
+#
+# For physical / real runs use pinger_mission_example.yaml (tf_frame mode).
+#
+# Usage:
+#   roslaunch auv_smach test_pinger_mission.launch \
+#       mission_yaml:=$(rospack find auv_smach)/config/pinger_mission_sim.yaml \
+#       test_states:="init, gate, path3, bin, octagon_torpedo_pinger" \
+#       dry_run:=true
+
+# ---- task states: params go straight to the task constructor (unchanged) ----
+tasks:
+  octagon:
+    params:
+      octagon_depth: -0.8
+      animal: sawfish
+  torpedo:
+    params:
+      torpedo_map_depth: -1.25
+      torpedo_target_frame: torpedo_target
+      torpedo_realsense_target_frame: torpedo_target_realsense
+      torpedo_fire_frames:
+        - torpedo_sawfish_fire_frame
+        - torpedo_shark_fire_frame
+      torpedo_exit_angle: 0.0
+  bin:
+    params:
+      bin_front_look_depth: -1.3
+      bin_bottom_look_depth: -0.7
+      target_selection: sawfish
+      bin_exit_angle: 0.0
+  gate:
+    params:
+      gate_depth: -1.35
+      gate_search_depth: -0.7
+      roll_depth: -0.8
+      gate_exit_angle: 0.0
+
+# ---- GUI-drawn paths ----
+paths:
+  path1:                # octagon -> torpedo
+    waypoints: 3
+    final_align: true
+  path2:                # torpedo -> octagon
+    waypoints: 3
+    final_align: true
+  path3:                # e.g. gate -> bin, used as a plain token
+    waypoints: 3
+    final_align: false
+
+# ---- the single conditional selector (SIM: Gazebo model poses) ----
+# Gazebo poses are always available, so the in-graph decision can run even
+# when tasks are stubbed (dry_run). Pinger is still read from TF (pinger_link),
+# published by pinger_sim_mock.py.
+pinger_select:
+  pinger_frame: pinger_link
+  reference_frame: odom
+  tf_timeout: 2.0
+  decision_wait_timeout: 30.0
+  candidates:
+    octagon:
+      position_source: gazebo_model
+      gazebo_model: robosub_octagon
+    torpedo:
+      position_source: gazebo_model
+      gazebo_model: robosub_torpedo
+  transitions:
+    octagon_to_torpedo: path1   # pinger near octagon -> octagon, path1, torpedo
+    torpedo_to_octagon: path2   # pinger near torpedo -> torpedo, path2, octagon
