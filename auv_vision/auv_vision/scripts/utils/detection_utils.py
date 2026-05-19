@@ -79,6 +79,21 @@ class Prop:
             rospy.logerr(f"Could not estimate distance for prop {self.name}")
             return None
 
+    # distance_from_height
+    def estimate_distance_diagonal(
+        self,
+        measured_height: float,
+        measured_width: float,
+        calibration: CameraCalibration,
+    ):
+        if self.real_height is not None and self.real_width is not None:
+            return calibration.distance_from_height(
+                self.real_height, math.sqrt(measured_height**2 + measured_width**2)
+            )
+        else:
+            rospy.logerr(f"Could not estimate distance for prop {self.name}")
+            return None
+
 
 def load_config(yaml_path: str) -> dict:
     """Load detection_objects.yaml and return parsed config dict."""
@@ -161,6 +176,173 @@ def check_inside_image(
         or center.y - half_size_y <= deadzone
     ):
         return False
+    return True
+
+
+BOTTOM_MASK_REFERENCE_WIDTH = 1920.0
+BOTTOM_MASK_REFERENCE_HEIGHT = 1080.0
+BOTTOM_FORBIDDEN_MASKS = (
+    # Polygon 1 — left side AUV body / arms
+    (
+        (438.0, 29.0),
+        (447.0, 98.0),
+        (458.0, 123.0),
+        (460.0, 175.0),
+        (454.0, 202.0),
+        (454.0, 226.0),
+        (450.0, 261.0),
+        (443.0, 277.0),
+        (433.0, 294.0),
+        (397.0, 333.0),
+        (393.0, 367.0),
+        (394.0, 408.0),
+        (405.0, 423.0),
+        (455.0, 442.0),
+        (458.0, 467.0),
+        (459.0, 517.0),
+        (457.0, 536.0),
+        (423.0, 536.0),
+        (411.0, 574.0),
+        (412.0, 592.0),
+        (412.0, 625.0),
+        (413.0, 653.0),
+        (413.0, 663.0),
+        (430.0, 690.0),
+        (445.0, 722.0),
+        (448.0, 750.0),
+        (447.0, 777.0),
+        (443.0, 807.0),
+        (440.0, 854.0),
+        (441.0, 877.0),
+        (441.0, 899.0),
+        (439.0, 920.0),
+        (438.0, 945.0),
+        (420.0, 975.0),
+        (439.0, 979.0),
+        (481.0, 979.0),
+        (492.0, 999.0),
+        (508.0, 1021.0),
+        (495.0, 1046.0),
+        (471.0, 1056.0),
+        (470.0, 1075.0),
+        (2.0, 1080.0),
+        (2.0, 32.0),
+        (439.0, 34.0),
+    ),
+    # Polygon 2 — right side DVL
+    (
+        (1875.0, 144.0),
+        (1788.0, 177.0),
+        (1732.0, 218.0),
+        (1685.0, 262.0),
+        (1645.0, 330.0),
+        (1629.0, 367.0),
+        (1607.0, 424.0),
+        (1603.0, 504.0),
+        (1594.0, 553.0),
+        (1603.0, 591.0),
+        (1614.0, 640.0),
+        (1649.0, 713.0),
+        (1700.0, 791.0),
+        (1755.0, 846.0),
+        (1848.0, 885.0),
+        (1892.0, 908.0),
+        (1920.0, 920.0),
+        (1918.0, 151.0),
+        (1920.0, 142.0),
+        (1876.0, 145.0),
+    ),
+)
+
+
+def _scale_polygon(
+    points, image_width: int, image_height: int, ref_w: float, ref_h: float
+):
+    """Scale polygon points from reference resolution to actual image resolution."""
+    scale_x = image_width / ref_w
+    scale_y = image_height / ref_h
+    return tuple((x * scale_x, y * scale_y) for x, y in points)
+
+
+def _point_in_polygon(point, polygon) -> bool:
+    """Return True when point is inside polygon, including polygon boundary."""
+    point_x, point_y = point
+    inside = False
+
+    for index, current in enumerate(polygon):
+        next_point = polygon[(index + 1) % len(polygon)]
+        x1, y1 = current
+        x2, y2 = next_point
+
+        cross_product = (point_y - y1) * (x2 - x1) - (point_x - x1) * (y2 - y1)
+        if (
+            abs(cross_product) < 1e-9
+            and min(x1, x2) <= point_x <= max(x1, x2)
+            and min(y1, y2) <= point_y <= max(y1, y2)
+        ):
+            return True
+
+        if (y1 > point_y) != (y2 > point_y):
+            intersection_x = (x2 - x1) * (point_y - y1) / (y2 - y1) + x1
+            if point_x <= intersection_x:
+                inside = not inside
+
+    return inside
+
+
+def check_inside_image_bottom(
+    detection,
+    image_width: int = 1920,
+    image_height: int = 1080,
+    forbidden_masks=None,
+) -> bool:
+    """Check if a bottom-camera detection bbox is inside the usable image area.
+
+    Returns False if:
+      - The bbox touches the image edges (within deadzone), OR
+      - Any corner of the bbox falls inside a forbidden mask polygon.
+    """
+    center = detection.bbox.center
+    half_size_x = detection.bbox.size_x * 0.5
+    half_size_y = detection.bbox.size_y * 0.5
+    deadzone = 5  # pixels
+
+    # Edge check
+    if (
+        center.x + half_size_x >= image_width - deadzone
+        or center.x - half_size_x <= deadzone
+    ):
+        return False
+    if (
+        center.y + half_size_y >= image_height - deadzone
+        or center.y - half_size_y <= deadzone
+    ):
+        return False
+
+    # Forbidden polygon check
+    bbox_corners = (
+        (center.x - half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y + half_size_y),
+        (center.x - half_size_x, center.y + half_size_y),
+    )
+
+    if forbidden_masks is None:
+        forbidden_masks = tuple(
+            _scale_polygon(
+                mask,
+                image_width,
+                image_height,
+                BOTTOM_MASK_REFERENCE_WIDTH,
+                BOTTOM_MASK_REFERENCE_HEIGHT,
+            )
+            for mask in BOTTOM_FORBIDDEN_MASKS
+        )
+
+    for forbidden_mask in forbidden_masks:
+        if any(_point_in_polygon(corner, forbidden_mask) for corner in bbox_corners):
+            return False
+
     return True
 
 
