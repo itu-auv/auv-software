@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
 import math
+import os
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
 
 import rospy
 import tf2_ros
+import yaml
 from geometry_msgs.msg import TransformStamped
 from tf.transformations import quaternion_from_euler
 
@@ -21,6 +23,9 @@ PATH_COLORS = [
     "#795548",
     "#607d8b",
 ]
+
+DEFAULT_STATE_FILE = "~/.ros/waypoint_gui_state.yaml"
+SAVE_DEBOUNCE_MS = 500
 
 
 class PathData:
@@ -45,6 +50,15 @@ class PathData:
         self.waypoints = []  # [{x, y, z, yaw}] in composite ref coords
         self.selected_index = None
 
+        # Last successful world-frame anchor for the composite ref.
+        # Refreshed every broadcast tick whenever both A and B resolve in
+        # TF. When lookups later fail (e.g. InitializeState wipes the
+        # object_map), we keep broadcasting from this snapshot so the
+        # path doesn't disappear mid-test. Cleared when A or B selection
+        # changes so a re-selection picks a fresh anchor.
+        # Shape: {"x": float, "y": float, "z": float, "yaw": float}
+        self.cached_composite = None
+
     def composite_frame_name(self):
         return f"{self.name}_ref"
 
@@ -58,6 +72,9 @@ class WaypointGUI:
         self.root.title("Waypoint GUI (multi-path, composite refs)")
         self.root.attributes("-zoomed", True)
 
+        # Suppress auto-save while constructing & loading the initial state.
+        self._loading = True
+
         self.world_frame = rospy.get_param("~world_frame", "odom")
         self.known_object_frames = list(rospy.get_param("~known_object_frames", []))
         default_options = ["coin_flip"] + self.known_object_frames
@@ -70,6 +87,10 @@ class WaypointGUI:
         self.waypoint_prefix = rospy.get_param("~waypoint_prefix", "path")
         self.default_z = float(rospy.get_param("~default_waypoint_z", -1.0))
         self.broadcast_rate_hz = float(rospy.get_param("~broadcast_rate_hz", 20.0))
+        self.state_file = os.path.expanduser(
+            rospy.get_param("~state_file", DEFAULT_STATE_FILE)
+        )
+        self._save_after_id = None
 
         self.x_min = float(rospy.get_param("~canvas_x_min", -8.0))
         self.x_max = float(rospy.get_param("~canvas_x_max", 8.0))
@@ -109,7 +130,10 @@ class WaypointGUI:
         self._shutdown_event = threading.Event()
 
         self.setup_ui()
-        self.add_path()
+        self._attach_global_traces()
+        if not self._load_state():
+            self.add_path()
+        self._loading = False
 
         self._broadcast_thread = threading.Thread(
             target=self._broadcast_loop, daemon=True
@@ -293,6 +317,17 @@ class WaypointGUI:
     # ------------------------------------------------------------------
     # Path management
     # ------------------------------------------------------------------
+    def _register_path(self, path, select=True):
+        tab = self._build_tab(path)
+        with self._paths_lock:
+            self.paths.append(path)
+        self.notebook.add(tab, text=path.name)
+        if select:
+            self.notebook.select(tab)
+            self.active_path_idx = len(self.paths) - 1
+        self._refresh_listbox(path)
+        self._attach_path_traces(path)
+
     def add_path(self):
         idx = len(self.paths) + 1
         color = PATH_COLORS[(idx - 1) % len(PATH_COLORS)]
@@ -307,14 +342,56 @@ class WaypointGUI:
             default_ref_a=default_a,
             default_ref_b=default_b,
         )
-        tab = self._build_tab(path)
-        with self._paths_lock:
-            self.paths.append(path)
-        self.notebook.add(tab, text=path.name)
-        self.notebook.select(tab)
-        self.active_path_idx = len(self.paths) - 1
-        self._refresh_listbox(path)
+        self._register_path(path, select=True)
         self.redraw_dynamic()
+        self._schedule_save()
+
+    def _add_path_from_dict(self, entry):
+        """Rebuild a path from the on-disk state YAML. No save side effects."""
+        if not isinstance(entry, dict):
+            return None
+        idx = len(self.paths) + 1
+        color = PATH_COLORS[(idx - 1) % len(PATH_COLORS)]
+        opts = self.reference_frame_options
+        default_a = opts[0] if opts else ""
+        default_b = opts[1] if len(opts) > 1 else default_a
+
+        path = PathData(
+            index=idx,
+            color=color,
+            waypoint_prefix=self.waypoint_prefix,
+            default_z=float(entry.get("z", self.default_z)),
+            default_ref_a=str(entry.get("ref_a", default_a)),
+            default_ref_b=str(entry.get("ref_b", default_b)),
+        )
+        try:
+            path.yaw_var.set(float(entry.get("yaw", 0.0)))
+        except (TypeError, ValueError):
+            pass
+        try:
+            path.publish_enabled.set(bool(entry.get("publish_enabled", True)))
+        except (TypeError, ValueError):
+            pass
+
+        for wp in entry.get("waypoints", []) or []:
+            if not isinstance(wp, dict):
+                continue
+            try:
+                path.waypoints.append(
+                    {
+                        "x": float(wp["x"]),
+                        "y": float(wp["y"]),
+                        "z": float(wp.get("z", path.z_var.get())),
+                        "yaw": float(wp.get("yaw", 0.0)),
+                    }
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+        if path.waypoints:
+            path.selected_index = len(path.waypoints) - 1
+
+        self._register_path(path, select=False)
+        return path
 
     def remove_active_path(self):
         if self.active_path_idx is None or not self.paths:
@@ -333,6 +410,7 @@ class WaypointGUI:
             self._refresh_listbox(p)
         self.active_path_idx = min(idx, len(self.paths) - 1)
         self.redraw_dynamic()
+        self._schedule_save()
 
     def _on_tab_change(self, _event):
         current = self.notebook.select()
@@ -499,6 +577,7 @@ class WaypointGUI:
         path.selected_index = len(path.waypoints) - 1
         self._refresh_listbox(path)
         self.redraw_dynamic()
+        self._schedule_save()
 
     def _on_list_select(self, path):
         lb = path._controls["listbox"]
@@ -519,6 +598,7 @@ class WaypointGUI:
             path.waypoints[path.selected_index]["yaw"] = float(value)
             self._refresh_listbox(path)
             self.redraw_dynamic()
+            self._schedule_save()
 
     def _undo(self, path):
         if not path.waypoints:
@@ -530,6 +610,7 @@ class WaypointGUI:
             path.selected_index = len(path.waypoints) - 1 if path.waypoints else None
         self._refresh_listbox(path)
         self.redraw_dynamic()
+        self._schedule_save()
 
     def _delete_selected(self, path):
         if path.selected_index is None:
@@ -542,12 +623,14 @@ class WaypointGUI:
                 path.selected_index = len(path.waypoints) - 1
             self._refresh_listbox(path)
             self.redraw_dynamic()
+            self._schedule_save()
 
     def _clear_all(self, path):
         path.waypoints.clear()
         path.selected_index = None
         self._refresh_listbox(path)
         self.redraw_dynamic()
+        self._schedule_save()
 
     def _refresh_listbox(self, path):
         lb = path._controls["listbox"]
@@ -848,48 +931,60 @@ class WaypointGUI:
             )
 
     def _build_composite_transform(self, path, now):
-        """Broadcast <path>_ref as child of A frame.
+        """Broadcast <path>_ref anchored in world_frame.
 
-        Transform from A → <path>_ref:
-            translation = 0 (coincident with A)
-            rotation    = yaw such that +x of <path>_ref points toward B
+        Resolves A and B in world_frame and publishes <path>_ref as child of
+        world_frame at A's translation, with yaw such that +x points toward B.
+        The world pose is cached on path.cached_composite and refreshed every
+        tick that both lookups succeed, so the ref tracks live updates while
+        A/B exist in TF.
 
-        A and B are both expressed in A's frame by looking them up; B's position
-        in A's frame directly gives the +x direction. If either lookup fails the
-        composite isn't broadcast this tick.
+        If A or B disappear later (e.g. InitializeState's CLEAR_OBJECT_MAP
+        wipes the object_map), the cache is used as a fallback so the path
+        keeps being broadcast. Without this snapshot the entire path chain
+        would die the moment init clears the object_map.
         """
         a = path.ref_a.get()
         b = path.ref_b.get()
         if not a or not b or a == b:
             return None
 
+        ax = ay = az = yaw = None
         try:
-            tf_a_b = self.tf_buffer.lookup_transform(
-                a,
-                b,
-                rospy.Time(0),
-                rospy.Duration(0.1),
+            tf_world_a = self.tf_buffer.lookup_transform(
+                self.world_frame, a, rospy.Time(0), rospy.Duration(0.1)
             )
+            tf_world_b = self.tf_buffer.lookup_transform(
+                self.world_frame, b, rospy.Time(0), rospy.Duration(0.1)
+            )
+            ax = tf_world_a.transform.translation.x
+            ay = tf_world_a.transform.translation.y
+            az = tf_world_a.transform.translation.z
+            dx = tf_world_b.transform.translation.x - ax
+            dy = tf_world_b.transform.translation.y - ay
+            if abs(dx) >= 1e-9 or abs(dy) >= 1e-9:
+                yaw = math.atan2(dy, dx)
+                path.cached_composite = {"x": ax, "y": ay, "z": az, "yaw": yaw}
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ):
-            return None
+            pass
 
-        bx = tf_a_b.transform.translation.x
-        by = tf_a_b.transform.translation.y
-        if abs(bx) < 1e-9 and abs(by) < 1e-9:
-            return None
-        yaw = math.atan2(by, bx)
+        if yaw is None:
+            cache = path.cached_composite
+            if cache is None:
+                return None
+            ax, ay, az, yaw = cache["x"], cache["y"], cache["z"], cache["yaw"]
 
         t = TransformStamped()
         t.header.stamp = now
-        t.header.frame_id = a
+        t.header.frame_id = self.world_frame
         t.child_frame_id = path.composite_frame_name()
-        t.transform.translation.x = 0.0
-        t.transform.translation.y = 0.0
-        t.transform.translation.z = 0.0
+        t.transform.translation.x = ax
+        t.transform.translation.y = ay
+        t.transform.translation.z = az
         q = quaternion_from_euler(0.0, 0.0, yaw)
         t.transform.rotation.x = q[0]
         t.transform.rotation.y = q[1]
@@ -914,12 +1009,148 @@ class WaypointGUI:
 
     def _on_close(self):
         self._shutdown_event.set()
+        if self._save_after_id is not None:
+            try:
+                self.root.after_cancel(self._save_after_id)
+            except (tk.TclError, ValueError):
+                pass
+            self._save_after_id = None
+        try:
+            self._write_state_to_disk(self._build_state_dict())
+        except Exception as exc:  # noqa: BLE001
+            rospy.logwarn(f"[WaypointGUI] Final state save failed: {exc}")
         try:
             if rospy.has_param(self.paths_rosparam):
                 rospy.delete_param(self.paths_rosparam)
         except Exception:  # noqa: BLE001
             pass
         self.root.destroy()
+
+    # ------------------------------------------------------------------
+    # State persistence (YAML)
+    # ------------------------------------------------------------------
+    def _attach_global_traces(self):
+        self.simulate_var.trace_add("write", lambda *_: self._schedule_save())
+
+    def _attach_path_traces(self, path):
+        cb = lambda *_: self._schedule_save()  # noqa: E731
+
+        def _on_ref_change(*_):
+            path.cached_composite = None
+            self._schedule_save()
+
+        path.ref_a.trace_add("write", _on_ref_change)
+        path.ref_b.trace_add("write", _on_ref_change)
+        path.yaw_var.trace_add("write", cb)
+        path.z_var.trace_add("write", cb)
+        path.publish_enabled.trace_add("write", cb)
+
+    def _schedule_save(self):
+        if self._loading:
+            return
+        if self._save_after_id is not None:
+            try:
+                self.root.after_cancel(self._save_after_id)
+            except (tk.TclError, ValueError):
+                pass
+        try:
+            self._save_after_id = self.root.after(
+                SAVE_DEBOUNCE_MS, self._flush_save
+            )
+        except tk.TclError:
+            self._save_after_id = None
+
+    def _flush_save(self):
+        self._save_after_id = None
+        self._write_state_to_disk(self._build_state_dict())
+
+    def _build_state_dict(self):
+        with self._paths_lock:
+            paths_snapshot = list(self.paths)
+        return {
+            "simulate": bool(self.simulate_var.get()),
+            "paths": [
+                {
+                    "name": p.name,
+                    "ref_a": p.ref_a.get(),
+                    "ref_b": p.ref_b.get(),
+                    "publish_enabled": bool(p.publish_enabled.get()),
+                    "yaw": float(p.yaw_var.get()),
+                    "z": float(p.z_var.get()),
+                    "waypoints": [
+                        {
+                            "x": float(wp["x"]),
+                            "y": float(wp["y"]),
+                            "z": float(wp["z"]),
+                            "yaw": float(wp["yaw"]),
+                        }
+                        for wp in p.waypoints
+                    ],
+                }
+                for p in paths_snapshot
+            ],
+        }
+
+    def _write_state_to_disk(self, data):
+        try:
+            directory = os.path.dirname(self.state_file)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
+            tmp_path = self.state_file + ".tmp"
+            with open(tmp_path, "w") as f:
+                yaml.safe_dump(
+                    data, f, sort_keys=False, default_flow_style=False
+                )
+            os.replace(tmp_path, self.state_file)
+        except OSError as exc:
+            rospy.logwarn_throttle(
+                5.0,
+                f"[WaypointGUI] Failed to save state to {self.state_file}: {exc}",
+            )
+
+    def _load_state(self):
+        """Restore paths + simulate flag from disk. Returns True if anything loaded."""
+        try:
+            with open(self.state_file, "r") as f:
+                data = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            return False
+        except (yaml.YAMLError, OSError) as exc:
+            rospy.logwarn(
+                f"[WaypointGUI] Failed to load state from {self.state_file}: {exc}"
+            )
+            return False
+
+        if not isinstance(data, dict):
+            return False
+
+        if "simulate" in data:
+            try:
+                self.simulate_var.set(bool(data["simulate"]))
+            except Exception:  # noqa: BLE001
+                pass
+
+        saved_paths = data.get("paths", []) or []
+        if not isinstance(saved_paths, list):
+            return False
+
+        loaded = 0
+        for entry in saved_paths:
+            if self._add_path_from_dict(entry) is not None:
+                loaded += 1
+
+        if loaded == 0:
+            return False
+
+        self.active_path_idx = 0
+        try:
+            self.notebook.select(self.paths[0]._tab)
+        except (tk.TclError, IndexError):
+            pass
+        rospy.loginfo(
+            f"[WaypointGUI] Loaded {loaded} path(s) from {self.state_file}"
+        )
+        return True
 
 
 def main():

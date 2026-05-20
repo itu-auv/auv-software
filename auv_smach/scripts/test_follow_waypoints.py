@@ -26,12 +26,18 @@ auto-discovers `path<N>_wp<M>` frames from TF — requires the GUI to be
 publishing them (i.e. the composite reference is live in TF).
 """
 
+import os
+
 import rospy
 import smach
 import tf2_ros
+import yaml
 
 from auv_smach.waypoints import DynamicPathExecutionState
 from auv_smach.initialize import InitializeState
+
+
+DEFAULT_GUI_STATE_FILE = "~/.ros/waypoint_gui_state.yaml"
 
 
 _PATH_KWARG_KEYS = (
@@ -95,7 +101,7 @@ def _build_path_state(path_name, cfg, max_waypoints, world_frame, defaults):
     if not waypoint_frames:
         raise RuntimeError(
             f"No waypoints for '{path_name}'. Sources tried: ~paths.{path_name}, "
-            f"/waypoint_gui/paths.{path_name}, TF scan. "
+            f"/waypoint_gui/paths.{path_name}, GUI state file, TF scan. "
             f"Fix: (1) draw '{path_name}' in the GUI — if A/B aren't in TF yet, "
             f"enable 'Simulate missing A/B frames' in the GUI; or "
             f"(2) pass paths_yaml:=... with 'waypoints:' count."
@@ -119,8 +125,44 @@ def _build_path_state(path_name, cfg, max_waypoints, world_frame, defaults):
     )
 
 
+def _load_gui_state_paths(state_file):
+    """Read GUI auto-save YAML and return {path_name: {'waypoints': N}}."""
+    if not state_file:
+        return {}
+    expanded = os.path.expanduser(state_file)
+    try:
+        with open(expanded, "r") as f:
+            data = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return {}
+    except (yaml.YAMLError, OSError) as exc:
+        rospy.logwarn(
+            f"[test_follow_waypoints] Failed to read GUI state file {expanded}: {exc}"
+        )
+        return {}
+
+    out = {}
+    for entry in (data.get("paths") or []):
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        if not name:
+            continue
+        wps = entry.get("waypoints") or []
+        if not isinstance(wps, list) or not wps:
+            continue
+        out[name] = {"waypoints": len(wps)}
+    return out
+
+
 def _resolve_state(
-    token, paths_config, gui_paths, max_waypoints, world_frame, defaults
+    token,
+    paths_config,
+    gui_paths,
+    gui_state_paths,
+    max_waypoints,
+    world_frame,
+    defaults,
 ):
     if token == "init":
         return InitializeState()
@@ -128,6 +170,8 @@ def _resolve_state(
         cfg = paths_config.get(token, {}) if paths_config else {}
         if not cfg and gui_paths:
             cfg = gui_paths.get(token, {}) or {}
+        if not cfg and gui_state_paths:
+            cfg = gui_state_paths.get(token, {}) or {}
         return _build_path_state(token, cfg, max_waypoints, world_frame, defaults)
     return None
 
@@ -155,6 +199,20 @@ def main() -> None:
             f"at {gui_paths_ns}: {list(gui_paths.keys())}"
         )
 
+    gui_state_file = rospy.get_param(
+        "~waypoint_gui_state_file", DEFAULT_GUI_STATE_FILE
+    )
+    gui_state_paths = {}
+    if not paths_config and not gui_paths:
+        gui_state_paths = _load_gui_state_paths(gui_state_file)
+        if gui_state_paths:
+            rospy.loginfo(
+                f"[test_follow_waypoints] Using path configs from GUI state file "
+                f"{os.path.expanduser(gui_state_file)}: "
+                f"{list(gui_state_paths.keys())} "
+                f"(GUI must be running for TF frames to be live)"
+            )
+
     world_frame = rospy.get_param("~world_frame", "odom")
     max_waypoints = int(rospy.get_param("~auto_max_waypoints", 20))
 
@@ -180,6 +238,7 @@ def main() -> None:
                     token,
                     paths_config,
                     gui_paths,
+                    gui_state_paths,
                     max_waypoints,
                     world_frame,
                     defaults,

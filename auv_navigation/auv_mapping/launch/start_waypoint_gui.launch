@@ -5,6 +5,8 @@
     <arg name="waypoint_prefix" default="path" />
     <arg name="default_waypoint_z" default="-1.0" />
     <arg name="broadcast_rate_hz" default="20.0" />
+    <!-- Auto-saved state file. Survives Ctrl+C / relaunches so paths are restored. -->
+    <arg name="state_file" default="~/.ros/waypoint_gui_state.yaml" />
 
     <!--
       Canvas bounds in the per-path local frame (A = 0,0; +x forward in ref coords).
@@ -24,6 +26,7 @@
             <param name="waypoint_prefix" value="$(arg waypoint_prefix)" />
             <param name="default_waypoint_z" value="$(arg default_waypoint_z)" />
             <param name="broadcast_rate_hz" value="$(arg broadcast_rate_hz)" />
+            <param name="state_file" value="$(arg state_file)" />
 
             <param name="canvas_x_min" value="$(arg canvas_x_min)" />
             <param name="canvas_x_max" value="$(arg canvas_x_max)" />
@@ -31,24 +34,39 @@
             <param name="canvas_y_max" value="$(arg canvas_y_max)" />
             <param name="b_arrow_length" value="$(arg b_arrow_length)" />
 
+            <!--
+              Vision-detected object frames that persist in the object_map
+              once seen (sources: process_tracker_with_cloud.cpp,
+              detection_objects_taluy.yaml). These are the real-world anchors
+              path A/B references should be picked from — task-derived frames
+              like gate_entrance / octagon_closer_link / torpedo_target /
+              slalom_entrance only exist while their task is running, so they
+              are unsuitable as standalone path references.
+
+              pinger_link is sim-only (pinger_sim_mock.py); keep it here so
+              the pinger path selector can be tested in simulation.
+            -->
             <rosparam param="known_object_frames">
                 - "gate_shark_link"
                 - "gate_sawfish_link"
-                - "gate_whole_link"
                 - "bin_whole_link"
-                - "torpedo_map_link"
                 - "octagon_link"
+                - "torpedo_map_link"
+                - "red_pipe_link"
+                - "white_pipe_link"
+                - "pinger_link"
             </rosparam>
 
             <rosparam param="reference_frame_options">
                 - "odom"
-                - "coin_flip"
-                - "gate_whole_link"
-                - "bin_whole_link"
-                - "torpedo_map_link"
-                - "octagon_link"
                 - "gate_shark_link"
                 - "gate_sawfish_link"
+                - "bin_whole_link"
+                - "octagon_link"
+                - "torpedo_map_link"
+                - "red_pipe_link"
+                - "white_pipe_link"
+                - "pinger_link"
             </rosparam>
         </node>
     </group>

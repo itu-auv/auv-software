@@ -29,6 +29,13 @@
     -->
     <arg name="paths_yaml" default="" />
 
+    <!--
+      GUI auto-save state file. Used as a last-resort fallback for path
+      configs (only the waypoint count is consumed; TF frames must still be
+      live, so the GUI needs to be running for the AUV to actually follow).
+    -->
+    <arg name="waypoint_gui_state_file" default="~/.ros/waypoint_gui_state.yaml" />
+
     <arg name="world_frame" default="odom" />
     <arg name="final_align" default="true" />
     <arg name="wait_timeout" default="120.0" />
@@ -49,6 +56,7 @@
             <param name="auto_max_waypoints" value="$(arg auto_max_waypoints)" />
             <param name="max_linear_velocity" value="$(arg max_linear_velocity)" />
             <param name="max_angular_velocity" value="$(arg max_angular_velocity)" />
+            <param name="waypoint_gui_state_file" value="$(arg waypoint_gui_state_file)" />
 
             <rosparam command="load" file="$(arg paths_yaml)" if="$(eval paths_yaml != '')" />
 
