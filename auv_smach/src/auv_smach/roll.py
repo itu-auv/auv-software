@@ -40,7 +40,6 @@ class PitchCorrection(smach.State):
         )
 
         self.odometry_topic = "odometry"
-        self.killswitch_topic = "propulsion_board/status"
         self.wrench_topic = "wrench"
         self.frame_id = get_base_link()
 
@@ -54,9 +53,6 @@ class PitchCorrection(smach.State):
         self.start_time = None
 
         self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
-        self.sub_kill = rospy.Subscriber(
-            self.killswitch_topic, Bool, self.killswitch_cb
-        )
         self.pub_wrench = rospy.Publisher(
             self.wrench_topic, WrenchStamped, queue_size=1
         )
@@ -71,11 +67,6 @@ class PitchCorrection(smach.State):
             self.odom_ready = True
         except:
             rospy.logwarn("PITCH_CORRECTION: Quaternion conversion failed!")
-
-    def killswitch_cb(self, msg: Bool):
-        if not msg.data:
-            self.active = False
-            rospy.logwarn("PITCH_CORRECTION: Propulsion board disabled → aborting")
 
     def execute(self, userdata):
         rospy.loginfo("PITCH_CORRECTION: Waiting for odometry data...")
@@ -160,7 +151,6 @@ class RollTwoTimes(smach.State):
         )
 
         self.odometry_topic = "odometry"
-        self.killswitch_topic = "propulsion_board/status"
         self.wrench_topic = "wrench"
         self.frame_id = get_base_link()
 
@@ -174,9 +164,6 @@ class RollTwoTimes(smach.State):
         self.last_time = None
 
         self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
-        self.sub_kill = rospy.Subscriber(
-            self.killswitch_topic, Bool, self.killswitch_cb
-        )
         self.pub_wrench = rospy.Publisher(
             self.wrench_topic, WrenchStamped, queue_size=1
         )
@@ -199,11 +186,6 @@ class RollTwoTimes(smach.State):
         omega_x = msg.twist.twist.angular.x
         delta_angle = omega_x * dt
         self.total_roll += abs(delta_angle)
-
-    def killswitch_cb(self, msg: Bool):
-        if not msg.data:
-            self.active = False
-            rospy.logwarn("ROLL_TWO_TIMES: propulsion board disabled → aborting")
 
     def execute(self, userdata):
         rospy.loginfo("ROLL_TWO_TIMES: waiting for odometry data…")
