@@ -88,12 +88,12 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.roll_depth = -0.8
 
-        self.gate_search_frame = "gate_sawfish_link_kde"
+        self.gate_search_frame = "gate_search_rescue_link_kde"
         self.torpedo_search_frame = "torpedo_map_link_kde"
-        self.bin_search_frame = "bin_whole_link_kde"
+        self.bin_search_frame = "bin_basket_link_kde"
         self.octagon_search_frame = "octagon_link_kde"
         self.red_buoy_search_frame = "red_buoy_link_kde"
-        self.slalom_search_frame = "red_pipe_link_kde"
+        self.slalom_search_frame = "slalom_red_pipe_link_kde"
 
         self.slalom_depth = -1.1
 

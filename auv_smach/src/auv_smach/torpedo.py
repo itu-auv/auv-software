@@ -9,7 +9,7 @@ from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
     SetDepthState,
-    SearchForPropState,
+    SearchForPropKdeState,
     DynamicPathState,
     SetDetectionFocusState,
     SetDetectionState,
@@ -129,7 +129,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "FIND_AND_AIM_TORPEDO_MAP",
-                SearchForPropState(
+                SearchForPropKdeState(
                     look_at_frame=self.torpedo_search_frame,
                     alignment_frame="torpedo_map_travel_start",
                     full_rotation=False,
