@@ -88,6 +88,13 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.roll_depth = -0.8
 
+        self.gate_search_frame = "gate_search_rescue_link_kde"
+        self.torpedo_search_frame = "torpedo_map_link_kde"
+        self.bin_search_frame = "bin_basket_link_kde"
+        self.octagon_search_frame = "octagon_link_kde"
+        self.red_buoy_search_frame = "red_buoy_link_kde"
+        self.slalom_search_frame = "slalom_red_pipe_link_kde"
+
         self.slalom_depth = -1.1
 
         self.red_buoy_radius = 2.2
@@ -230,6 +237,7 @@ class MainStateMachineNode:
                     "gate_search_depth": self.gate_search_depth,
                     "roll_depth": self.roll_depth,
                     "gate_exit_angle": gate_exit_angle_rad,
+                    "gate_search_frame": self.gate_search_frame,
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (
@@ -248,6 +256,7 @@ class MainStateMachineNode:
                     "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
                     "torpedo_exit_angle": torpedo_exit_angle_rad,
                     "torpedo_fire_frames": torpedo_fire_frames,
+                    "torpedo_search_frame": self.torpedo_search_frame,
                 },
             ),
             "NAVIGATE_TO_BIN_TASK": (
@@ -257,6 +266,7 @@ class MainStateMachineNode:
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
                     "target_selection": legacy_target_selection,
                     "bin_exit_angle": bin_exit_angle_rad,
+                    "bin_search_frame": self.bin_search_frame,
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
@@ -286,7 +296,7 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (
                 NavigateReturnThroughGateState,
-                {"station_frame": self.return_home_station},
+                {"station_frame": self.return_home_station, "gate_search_frame": self.gate_search_frame},
             ),
             "NAVIGATE_THROUGH_PIPELINE": (
                 NavigateThroughPipelineState,

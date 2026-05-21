@@ -9,7 +9,7 @@ from auv_navigation.path_planning.path_planners import PathPlanners
 from auv_smach.common import (
     CancelAlignControllerState,
     SetDepthState,
-    SearchForPropState,
+    SearchForPropKdeState,
     AlignFrame,
     DynamicPathState,
     SetDetectionFocusState,
@@ -94,6 +94,7 @@ class NavigateThroughGateState(smach.State):
         gate_search_depth: float,
         gate_exit_angle: float = 0.0,
         roll_depth: float = -0.8,
+        gate_search_frame: str = "gate_middle_part",
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -102,7 +103,7 @@ class NavigateThroughGateState(smach.State):
         self.roll = rospy.get_param("~roll", True)
         self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip = rospy.get_param("~coin_flip", False)
-        self.gate_look_at_frame = "gate_middle_part"
+        self.gate_look_at_frame = gate_search_frame
         self.gate_search_frame = "gate_search"
         self.gate_exit_angle = gate_exit_angle
         self.roll_depth = roll_depth
@@ -168,7 +169,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "FIND_AND_AIM_GATE",
-                SearchForPropState(
+                SearchForPropKdeState(
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
@@ -219,7 +220,7 @@ class NavigateThroughGateState(smach.State):
             )
             smach.StateMachine.add(
                 "LOOK_AT_GATE_FOR_TRAJECTORY",
-                SearchForPropState(
+                SearchForPropKdeState(
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,

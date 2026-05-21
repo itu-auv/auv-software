@@ -17,13 +17,13 @@ from auv_smach.acoustic import AcousticTransmitter
 
 
 class NavigateReturnThroughGateState(smach.State):
-    def __init__(self, station_frame: str = "bin_whole_link"):
+    def __init__(self, station_frame: str = "bin_whole_link", gate_search_frame: str = "gate_middle_part"):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = get_tf_buffer()
         self.base_link = get_base_link()
 
-        self.gate_look_at_frame = "gate_middle_part"
+        self.gate_look_at_frame = gate_search_frame
         self.station_frame = station_frame
 
         # Initialize the state machine container
