@@ -79,11 +79,11 @@ def _install_ros_stubs():
 def _load_module():
     _install_ros_stubs()
     script_path = (
-        Path(__file__).resolve().parents[1]
-        / "scripts"
-        / "dynamic_roll_compensation.py"
+        Path(__file__).resolve().parents[1] / "scripts" / "dynamic_roll_compensation.py"
     )
-    spec = importlib.util.spec_from_file_location("dynamic_roll_compensation", script_path)
+    spec = importlib.util.spec_from_file_location(
+        "dynamic_roll_compensation", script_path
+    )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

@@ -4,7 +4,6 @@
 import math
 import copy
 import threading
-import time
 
 import cv2
 import message_filters
@@ -32,9 +31,7 @@ class CameraRollStabilizer:
         self.fallback_odom_timeout = float(
             rospy.get_param("~fallback_odom_timeout", 0.5)
         )
-        self.crop_to_valid_region = bool(
-            rospy.get_param("~crop_to_valid_region", True)
-        )
+        self.crop_to_valid_region = bool(rospy.get_param("~crop_to_valid_region", True))
 
         self.border_mode = cv2.BORDER_CONSTANT
 
@@ -65,12 +62,6 @@ class CameraRollStabilizer:
         self.camera_info = None
         self.last_odom_time = None
 
-        self.perf_log_period = float(rospy.get_param("~perf_log_period", 5.0))
-        self.perf_frame_count = 0
-        self.perf_total_time = 0.0
-        self.perf_max_time = 0.0
-        self.perf_window_start = None
-
         img_sub = message_filters.Subscriber(
             "camera/image_rect_color", Image, queue_size=1
         )
@@ -96,42 +87,6 @@ class CameraRollStabilizer:
         self.sync.registerCallback(self.synced_callback)
 
     def synced_callback(self, img_msg: Image, odom_msg: Odometry):
-        t_start = time.perf_counter()
-        try:
-            self._synced_callback_impl(img_msg, odom_msg)
-        finally:
-            self._record_frame_time(time.perf_counter() - t_start)
-
-    def _record_frame_time(self, elapsed: float):
-        now = time.perf_counter()
-        if self.perf_window_start is None:
-            self.perf_window_start = now
-
-        self.perf_frame_count += 1
-        self.perf_total_time += elapsed
-        if elapsed > self.perf_max_time:
-            self.perf_max_time = elapsed
-
-        window = now - self.perf_window_start
-        if self.perf_log_period > 0.0 and window >= self.perf_log_period:
-            avg_ms = (self.perf_total_time / self.perf_frame_count) * 1000.0
-            max_ms = self.perf_max_time * 1000.0
-            hz = self.perf_frame_count / window if window > 0.0 else 0.0
-            rospy.loginfo(
-                "[camera_roll_stabilizer] frames=%d window=%.2fs rate=%.2f Hz "
-                "avg=%.2f ms max=%.2f ms",
-                self.perf_frame_count,
-                window,
-                hz,
-                avg_ms,
-                max_ms,
-            )
-            self.perf_frame_count = 0
-            self.perf_total_time = 0.0
-            self.perf_max_time = 0.0
-            self.perf_window_start = now
-
-    def _synced_callback_impl(self, img_msg: Image, odom_msg: Odometry):
         q = [
             odom_msg.pose.pose.orientation.x,
             odom_msg.pose.pose.orientation.y,
@@ -188,9 +143,7 @@ class CameraRollStabilizer:
             self.last_angle_deg = correction_deg
             self.last_dimensions = (w, h)
             self.last_center = center
-            self.crop_rect = self._compute_valid_crop_rect(
-                w, h, center, correction_rad
-            )
+            self.crop_rect = self._compute_valid_crop_rect(w, h, center, correction_rad)
 
         crop_rect = self.crop_rect or (0, 0, w, h)
         self._publish_stabilized_camera_info(img_msg, crop_rect)
@@ -379,12 +332,7 @@ class CameraRollStabilizer:
                 rw = d_y / (2.0 * s)
                 rh = d_y / (2.0 * c)
 
-        if (
-            not math.isfinite(rw)
-            or not math.isfinite(rh)
-            or rw <= 0.0
-            or rh <= 0.0
-        ):
+        if not math.isfinite(rw) or not math.isfinite(rh) or rw <= 0.0 or rh <= 0.0:
             return (0, 0, width, height)
 
         crop_w = max(1, min(width, int(math.floor(2.0 * rw)) - 2))
