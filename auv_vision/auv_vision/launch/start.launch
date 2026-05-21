@@ -19,11 +19,17 @@
       output="screen">
       <remap from="odometry" to="odometry" />
       <remap from="camera/image_rect_color" to="cameras/cam_front/image_rect_color" />
-      <remap from="camera/image_corrected" to="cameras/cam_front/image_corrected" />
+      <remap from="camera/camera_info" to="cameras/cam_front/camera_info" />
+      <remap from="camera/image_stabilized" to="cameras/cam_front/image_stabilized" />
+      <remap from="camera/camera_info_stabilized" to="cameras/cam_front/camera_info_stabilized" />
+      <remap from="camera/debug/image_stabilized_crop" to="cameras/cam_front/debug/image_stabilized_crop" />
 
       <param name="sync_queue_size" value="10"/>
       <param name="sync_slop" value="0.05"/>
       <param name="recalc_threshold_deg" value="0.1"/>
+      <param name="passthrough_threshold_deg" value="1.0"/>
+      <param name="crop_to_valid_region" value="true"/>
+      <param name="fallback_odom_timeout" value="0.5"/>
       <param name="camera_optical_frame" value="$(arg namespace)/base_link/front_camera_optical_link"/>
       <param name="camera_optical_frame_stabilized" value="$(arg namespace)/base_link/front_camera_optical_link_stabilized"/>
     </node>

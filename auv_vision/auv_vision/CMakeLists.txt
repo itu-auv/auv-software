@@ -40,3 +40,7 @@ catkin_install_python(
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test)
+endif()

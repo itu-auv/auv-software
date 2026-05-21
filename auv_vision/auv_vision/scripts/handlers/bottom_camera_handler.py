@@ -74,9 +74,10 @@ class BottomCameraHandler:
                     )
                     continue
             else:
-                if not check_inside_image(
-                    detection, self.image_width, self.image_height
-                ):
+                image_width, image_height = self.calibration.get_image_size(
+                    self.image_width, self.image_height
+                )
+                if not check_inside_image(detection, image_width, image_height):
                     continue
                 distance = prop.estimate_distance(
                     detection.bbox.size_y,
