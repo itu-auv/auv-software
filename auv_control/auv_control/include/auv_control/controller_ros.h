@@ -5,6 +5,9 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <tf2_ros/transform_listener.h>
 
+#include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <type_traits>
 
 #include "auv_common_lib/ros/conversions.h"
@@ -54,10 +57,10 @@ class ControllerROS {
     depth_control_reference_frame_ =
         nh_private.param<std::string>("depth_control_reference_frame", "odom");
 
-    auto model = ModelParser::parse("model", nh_private);
+    model_ = ModelParser::parse("model", nh_private);
     load_parameters();
 
-    ROS_INFO_STREAM("Model: \n" << model);
+    ROS_INFO_STREAM("Model: \n" << model_);
 
     const auto rate = nh_private.param("rate", 10.0);
     rate_ = ros::Rate{rate};
@@ -77,7 +80,7 @@ class ControllerROS {
     auto controller =
         dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
 
-    controller->set_model(model);
+    controller->set_model(model_);
     controller->set_kp(kp_);
     controller->set_ki(ki_);
     controller->set_kd(kd_);
@@ -306,6 +309,12 @@ class ControllerROS {
     controller->set_gravity_compensation_z(config.gravity_compensation_z);
     gravity_compensation_z_ = config.gravity_compensation_z;
 
+    model_.linear_damping_matrix(3, 3) = config.linear_damping_roll;
+    model_.linear_damping_matrix(4, 4) = config.linear_damping_pitch;
+    model_.quadratic_damping_matrix(3, 3) = config.quadratic_damping_roll;
+    model_.quadratic_damping_matrix(4, 4) = config.quadratic_damping_pitch;
+    controller->set_model(model_);
+
     max_velocity_ << config.max_velocity_0, config.max_velocity_1,
         config.max_velocity_2, config.max_velocity_3, config.max_velocity_4,
         config.max_velocity_5;
@@ -400,6 +409,10 @@ class ControllerROS {
     config.integral_clamp_11 = integral_clamp_limits_(11);
 
     config.gravity_compensation_z = gravity_compensation_z_;
+    config.linear_damping_roll = model_.linear_damping_matrix(3, 3);
+    config.linear_damping_pitch = model_.linear_damping_matrix(4, 4);
+    config.quadratic_damping_roll = model_.quadratic_damping_matrix(3, 3);
+    config.quadratic_damping_pitch = model_.quadratic_damping_matrix(4, 4);
 
     config.max_velocity_0 = max_velocity_(0);
     config.max_velocity_1 = max_velocity_(1);
@@ -474,6 +487,49 @@ class ControllerROS {
     replace_scalar_param(content, "gravity_compensation_z",
                          gravity_compensation_z_);
 
+    auto replace_matrix_row = [](std::string& content, const std::string& param,
+                                 int row,
+                                 const ControllerBase::Matrix& values) {
+      std::stringstream ss;
+      ss << std::fixed << std::setprecision(4);
+      ss << "    - [" << values(row, 0);
+      for (int col = 1; col < values.cols(); ++col) {
+        ss << ", " << values(row, col);
+      }
+      ss << "]";
+
+      const auto matrix_pos = content.find(param + ":");
+      if (matrix_pos == std::string::npos) {
+        return;
+      }
+
+      std::string::size_type row_start = matrix_pos;
+      for (int i = 0; i <= row; ++i) {
+        row_start = content.find("    - [", row_start);
+        if (row_start == std::string::npos) {
+          return;
+        }
+        if (i < row) {
+          ++row_start;
+        }
+      }
+
+      auto row_end = content.find("\n", row_start);
+      if (row_end == std::string::npos) {
+        row_end = content.length();
+      }
+      content.replace(row_start, row_end - row_start, ss.str());
+    };
+
+    replace_matrix_row(content, "linear_damping_matrix", 3,
+                       model_.linear_damping_matrix);
+    replace_matrix_row(content, "linear_damping_matrix", 4,
+                       model_.linear_damping_matrix);
+    replace_matrix_row(content, "quadratic_damping_matrix", 3,
+                       model_.quadratic_damping_matrix);
+    replace_matrix_row(content, "quadratic_damping_matrix", 4,
+                       model_.quadratic_damping_matrix);
+
     std::ofstream out_file(config_file_);
     if (!out_file.is_open()) {
       ROS_ERROR_STREAM(
@@ -514,6 +570,7 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;  // Parameters to be dynamically reconfigured
   Eigen::Matrix<double, 6, 1> max_velocity_;
+  Model model_;
   Eigen::Matrix<double, 12, 1>
       integral_clamp_limits_;           // Integral clamping limits
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
