@@ -8,7 +8,7 @@ import re
 import rospy
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, Vector3
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from ultralytics_ros.msg import YoloResult
 import tf2_ros
 from tf import transformations as tf_transformations
@@ -50,9 +50,11 @@ class SegmentCameraHandler:
         self.debug_image_topic = rospy.get_param(
             "~segment_pose_debug_topic", "segment_pose_debug"
         )
+        if not self.debug_image_topic.endswith("/compressed"):
+            self.debug_image_topic += "/compressed"
         self.table_height = 0.74  # TODO: Read from yaml
         self.segment_pose_debug_pub = (
-            rospy.Publisher(self.debug_image_topic, Image, queue_size=1)
+            rospy.Publisher(self.debug_image_topic, CompressedImage, queue_size=1)
             if self.debug_segment_pose
             else None
         )
