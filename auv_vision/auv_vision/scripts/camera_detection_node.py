@@ -6,7 +6,7 @@ import importlib
 import rospy
 from geometry_msgs.msg import TransformStamped
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw, SegmentMeasurement
+from auv_msgs.msg import PropsYaw
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
@@ -55,13 +55,13 @@ class CameraDetectionNode:
         self.shared_state = {
             "altitude": None,
             "pool_depth": rospy.get_param("/env/pool_depth"),
-            "last_segment_measurement": None,
         }
 
         # Camera enable flags
         self.camera_enabled = {
             "front": True,
             "front_kde": True,
+            "slalom": False,
             "bottom": False,
             "torpedo": False,
             "bottom_seg": False,
@@ -111,14 +111,6 @@ class CameraDetectionNode:
         # Odometry subscriber
         rospy.Subscriber("odometry", Odometry, self._odometry_callback)
 
-        # Segment measurement subscriber
-        rospy.Subscriber(
-            "segment_measurement",
-            SegmentMeasurement,
-            self._segment_measurement_callback,
-            queue_size=1,
-        )
-
         # Services
         rospy.Service(
             "enable_front_camera_detections",
@@ -129,6 +121,11 @@ class CameraDetectionNode:
             "enable_bottom_camera_detections",
             SetBool,
             self._handle_enable_bottom_camera,
+        )
+        rospy.Service(
+            "enable_slalom_camera_detections",
+            SetBool,
+            self._handle_enable_slalom_camera,
         )
         rospy.Service(
             "enable_torpedo_camera_detections",
@@ -181,10 +178,6 @@ class CameraDetectionNode:
             f"(pool_depth={self.shared_state['pool_depth']})"
         )
 
-    def _segment_measurement_callback(self, msg: SegmentMeasurement):
-        """Store segment measurement for use by segment handler."""
-        self.shared_state["last_segment_measurement"] = msg
-
     def _handle_enable_front_camera(self, req):
         self.camera_enabled["front"] = req.data
         message = "Front camera detections " + ("enabled" if req.data else "disabled")
@@ -194,6 +187,12 @@ class CameraDetectionNode:
     def _handle_enable_bottom_camera(self, req):
         self.camera_enabled["bottom"] = req.data
         message = "Bottom camera detections " + ("enabled" if req.data else "disabled")
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
+    def _handle_enable_slalom_camera(self, req):
+        self.camera_enabled["slalom"] = req.data
+        message = "Slalom camera detections " + ("enabled" if req.data else "disabled")
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 

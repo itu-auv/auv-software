@@ -7,7 +7,7 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 import angles
-from auv_smach.tf_utils import get_tf_buffer, get_base_link
+from auv_smach.tf_utils import get_tf_buffer, get_base_link, reset_tf_buffer
 from auv_common_lib.transform import lookup_fresh_transform
 import actionlib
 
@@ -164,8 +164,7 @@ class SetDepthState(smach.State):
         self._stop_publishing = threading.Event()
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
         self.base_frame = get_base_link()
 
@@ -318,6 +317,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
         use_depth: bool = False,
+        closest_yaw: bool = False,
     ):
         align_request = AlignFrameControllerRequest()
         align_request.source_frame = source_frame
@@ -325,6 +325,7 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         align_request.angle_offset = angle_offset
         align_request.keep_orientation = keep_orientation
         align_request.use_depth = use_depth
+        align_request.closest_yaw = closest_yaw
         if max_linear_velocity is not None:
             align_request.max_linear_velocity = max_linear_velocity
         if max_angular_velocity is not None:
@@ -335,7 +336,16 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
             "align_frame/start",
             AlignFrameController,
             request=align_request,
+            response_cb=self.response_cb,
         )
+
+    @staticmethod
+    def response_cb(userdata, response):
+        if not response.success:
+            rospy.logwarn("SetAlignControllerTargetState failed: %s", response.message)
+            return "aborted"
+
+        return "succeeded"
 
 
 class NavigateToFrameState(smach.State):
@@ -486,17 +496,6 @@ class RotationState(smach.State):
             queue_size=1,
         )
 
-        self.killswitch_sub = rospy.Subscriber(
-            "propulsion_board/status",
-            Bool,
-            self.killswitch_callback,
-        )
-
-    def killswitch_callback(self, msg):
-        if not msg.data:
-            self.active = False
-            rospy.logwarn("RotationState: Killswitch activated, stopping rotation")
-
     def odom_cb(self, msg):
         q = msg.pose.pose.orientation
         orientation_list = [q.x, q.y, q.z, q.w]
@@ -547,11 +546,7 @@ class RotationState(smach.State):
             )
             return "succeeded"
 
-        while (
-            not rospy.is_shutdown()
-            and self.total_yaw < self.rotation_radian
-            and self.active
-        ):
+        while not rospy.is_shutdown() and self.total_yaw < self.rotation_radian:
             if self.preempt_requested():
                 twist.angular.z = 0.0
                 self.pub.publish(twist)
@@ -591,10 +586,6 @@ class RotationState(smach.State):
 
         twist.angular.z = 0.0
         self.pub.publish(twist)
-
-        if not self.active:
-            rospy.loginfo("RotationState: rotation aborted by killswitch.")
-            return "aborted"
 
         rospy.loginfo(
             f"RotationState: completed full rotation. Total yaw: {self.total_yaw}"
@@ -702,7 +693,17 @@ class ClearObjectMapState(smach_ros.ServiceState):
             "clear_object_transforms",
             Trigger,
             request=TriggerRequest(),
+            response_cb=self.response_cb,
         )
+
+    @staticmethod
+    def response_cb(userdata, response):
+        if not response.success:
+            rospy.logwarn("ClearObjectMapState: clear_object_transforms failed")
+            return "aborted"
+
+        reset_tf_buffer()
+        return "succeeded"
 
 
 class SetDetectionState(smach_ros.ServiceState):
@@ -711,9 +712,9 @@ class SetDetectionState(smach_ros.ServiceState):
     """
 
     def __init__(self, camera_name: str, enable: bool):
-        if camera_name not in ["front", "bottom", "torpedo", "segment"]:
+        if camera_name not in ["front", "bottom", "slalom", "torpedo", "segment"]:
             raise ValueError(
-                "camera_name must be 'front', 'bottom', 'torpedo', or 'segment'"
+                "camera_name must be 'front', 'bottom', 'slalom', 'torpedo', or 'segment'"
             )
 
         service_name = f"enable_{camera_name}_camera_detections"
@@ -978,6 +979,7 @@ class CheckAlignmentState(smach.State):
         confirm_duration=0.0,
         keep_orientation=False,
         use_frame_depth=False,
+        closest_yaw=False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "aborted", "preempted"])
         self.source_frame = source_frame
@@ -989,6 +991,7 @@ class CheckAlignmentState(smach.State):
         self.confirm_duration = confirm_duration
         self.keep_orientation = keep_orientation
         self.use_frame_depth = use_frame_depth
+        self.closest_yaw = closest_yaw
         self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(10)
 
@@ -1011,7 +1014,20 @@ class CheckAlignmentState(smach.State):
             _, _, yaw = transformations.euler_from_quaternion(
                 (rot.x, rot.y, rot.z, rot.w)
             )
-            yaw_error = abs(angles.normalize_angle(yaw + self.angle_offset))
+            yaw_with_offset = abs(
+                angles.shortest_angular_distance(0, yaw + self.angle_offset)
+            )
+            if self.closest_yaw:
+                yaw_error = min(
+                    yaw_with_offset,
+                    abs(
+                        angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + math.pi
+                        )
+                    ),
+                )
+            else:
+                yaw_error = yaw_with_offset
 
             return dist_error, yaw_error
         except (
@@ -1088,6 +1104,7 @@ class AlignFrame(smach.StateMachine):
         max_linear_velocity=None,
         max_angular_velocity=None,
         use_frame_depth=False,
+        closest_yaw=False,
     ):
         super().__init__(outcomes=["succeeded", "aborted", "preempted"])
 
@@ -1106,6 +1123,7 @@ class AlignFrame(smach.StateMachine):
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
                     use_depth=use_frame_depth,
+                    closest_yaw=closest_yaw,
                 ),
                 transitions={
                     "succeeded": "WATCH_ALIGNMENT",
@@ -1126,6 +1144,7 @@ class AlignFrame(smach.StateMachine):
                     confirm_duration,
                     keep_orientation=keep_orientation,
                     use_frame_depth=use_frame_depth,
+                    closest_yaw=closest_yaw,
                 ),
                 transitions={
                     "succeeded": watch_succeeded_transition,
@@ -1575,8 +1594,7 @@ class CheckForTransformState(smach.State):
         self.source_frame = source_frame
         self.target_frame = target_frame
         self.timeout = timeout
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(check_rate_hz)
 
     def is_transform_available(self):

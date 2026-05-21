@@ -26,8 +26,10 @@ from tf.transformations import (
     quaternion_from_euler,
     euler_from_quaternion,
     quaternion_multiply,
+    quaternion_inverse,
     quaternion_matrix,
 )
+from angles import normalize_angle, shortest_angular_distance
 import numpy as np
 
 import dynamic_reconfigure.client
@@ -170,12 +172,7 @@ class ReferencePosePublisherNode:
         if not msg.data:
             with self.state_lock:
                 if self.align_frame_active:
-                    self.set_target_to_odometry()
-                    self.align_frame_active = False
-                    self.use_align_frame_depth = False
-                    self.align_frame_keep_orientation = False
-                    if self.reconfigure_client:
-                        self._restore_controller_cfg()
+                    self.cancel_align_controller()
                     rospy.loginfo_throttle(
                         1.0, "Killswitch inactive; alignment deactivated"
                     )
@@ -231,9 +228,7 @@ class ReferencePosePublisherNode:
     ) -> AlignFrameControllerResponse:
         with self.state_lock:
             if self.align_frame_active:
-                self.set_target_to_odometry()
-                self.use_align_frame_depth = False
-                self.align_frame_keep_orientation = False
+                self.cancel_align_controller()
 
             self.align_frame_active = True
 
@@ -245,6 +240,7 @@ class ReferencePosePublisherNode:
             )
 
             if t is None:
+                self.cancel_align_controller()
                 return AlignFrameControllerResponse(
                     success=False,
                     message="Failed to lookup transform",
@@ -266,6 +262,7 @@ class ReferencePosePublisherNode:
                     self.tf_lookup_timeout,
                 )
                 if source_in_target is None:
+                    self.cancel_align_controller()
                     return AlignFrameControllerResponse(
                         success=False,
                         message="Failed to lookup source frame in target frame",
@@ -311,6 +308,59 @@ class ReferencePosePublisherNode:
                     euler_from_quaternion(quaternion)
                 )
 
+                if req.closest_yaw:
+                    base_in_source_quaternion = [
+                        t.transform.rotation.x,
+                        t.transform.rotation.y,
+                        t.transform.rotation.z,
+                        t.transform.rotation.w,
+                    ]
+                    t_base = self.tf_lookup(
+                        req.target_frame,
+                        self.base_frame,
+                        rospy.Time(0),
+                        rospy.Duration(1.0),
+                    )
+                    if t_base is not None:
+                        _, _, base_yaw_in_target = euler_from_quaternion(
+                            [
+                                t_base.transform.rotation.x,
+                                t_base.transform.rotation.y,
+                                t_base.transform.rotation.z,
+                                t_base.transform.rotation.w,
+                            ]
+                        )
+                        flipped = normalize_angle(self.target_heading + np.pi)
+                        dist_normal = abs(
+                            shortest_angular_distance(
+                                self.target_heading, base_yaw_in_target
+                            )
+                        )
+                        dist_flipped = abs(
+                            shortest_angular_distance(flipped, base_yaw_in_target)
+                        )
+                        if dist_flipped < dist_normal:
+                            self.target_heading = flipped
+
+                    desired_base_in_target = quaternion_from_euler(
+                        self.target_roll, self.target_pitch, self.target_heading
+                    )
+                    desired_source_in_target = quaternion_multiply(
+                        desired_base_in_target,
+                        quaternion_inverse(base_in_source_quaternion),
+                    )
+                    rotation_matrix = quaternion_matrix(desired_source_in_target)[
+                        :3, :3
+                    ]
+                    offset_in_target = rotation_matrix.dot(
+                        [
+                            t.transform.translation.x,
+                            t.transform.translation.y,
+                            t.transform.translation.z,
+                        ]
+                    )
+                    self.target_x, self.target_y = offset_in_target[:2]
+
             self.target_frame_id = req.target_frame
 
             if self.reconfigure_client:
@@ -338,13 +388,7 @@ class ReferencePosePublisherNode:
                     success=False, message="Alignment is not active."
                 )
 
-            self.set_target_to_odometry()
-            self.align_frame_active = False
-            self.use_align_frame_depth = False
-            self.align_frame_keep_orientation = False
-
-            if self.reconfigure_client:
-                self._restore_controller_cfg()
+            self.cancel_align_controller()
 
         rospy.loginfo("Align frame control canceled")
         return TriggerResponse(success=True, message="Alignment deactivated")
@@ -369,6 +413,15 @@ class ReferencePosePublisherNode:
             self.set_target_to_odometry()
         rospy.loginfo("cmd_pose synced to current odometry")
         return TriggerResponse(success=True, message="cmd_pose synced to odometry")
+
+    def cancel_align_controller(self):
+        self.set_target_to_odometry()
+        self.align_frame_active = False
+        self.use_align_frame_depth = False
+        self.align_frame_keep_orientation = False
+
+        if self.reconfigure_client:
+            self._restore_controller_cfg()
 
     # --- Helper methods for dynamic reconfigure handling ---
     def _read_controller_cfg(self):
