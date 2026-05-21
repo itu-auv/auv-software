@@ -74,7 +74,10 @@ class CameraDetectionNode:
                 # cam_cfg["ns"] is like "taluy/cameras/cam_front"
                 # CameraCalibration expects "cameras/cam_front"
                 calib_ns = cam_cfg["ns"].split("/", 1)[1]  # remove "taluy/" prefix
-                calibration = CameraCalibration(calib_ns)
+                calibration = CameraCalibration(
+                    calib_ns,
+                    camera_info_topic=cam_cfg.get("camera_info_topic", "camera_info"),
+                )
 
                 # Build id_tf_map for this camera
                 id_tf_map = build_id_tf_map(cam_cfg)

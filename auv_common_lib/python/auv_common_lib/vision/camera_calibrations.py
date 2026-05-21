@@ -5,14 +5,24 @@ import copy
 
 
 class CameraCalibrationFetcher:
-    def __init__(self, camera_namespace: str, wait_for_camera_info: bool = True):
-        self.camera_info_topic = f"{camera_namespace}/camera_info"
+    def __init__(
+        self,
+        camera_namespace: str,
+        wait_for_camera_info: bool = True,
+        camera_info_topic: str = "camera_info",
+    ):
+        if camera_info_topic.startswith("/"):
+            self.camera_info_topic = camera_info_topic
+        else:
+            self.camera_info_topic = f"{camera_namespace}/{camera_info_topic}"
         self.camera_info = None
         self.camera_info_lock = threading.Lock()
         rospy.Subscriber(self.camera_info_topic, CameraInfo, self.camera_info_callback)
 
         if wait_for_camera_info:
-            rospy.wait_for_message(self.camera_info_topic, CameraInfo)
+            self.camera_info_callback(
+                rospy.wait_for_message(self.camera_info_topic, CameraInfo)
+            )
 
     def camera_info_callback(self, data):
         with self.camera_info_lock:
