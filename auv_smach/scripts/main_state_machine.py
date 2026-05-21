@@ -23,12 +23,18 @@ from auv_bringup.cfg import SmachParametersConfig
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
-ROLE_TO_TORPEDO_BIN_TARGET_SELECTION = {
+ROLE_TO_BIN_TARGET_SELECTION = {
     "survey_repair": "shark",
     "search_rescue": "sawfish",
 }
-LEFT_TOP_TORPEDO_FIRE_FRAMES = ["torpedo_left_fire", "torpedo_top_fire"]
-RIGHT_BOTTOM_TORPEDO_FIRE_FRAMES = ["torpedo_right_fire", "torpedo_bottom_fire"]
+LEFT_TOP_TORPEDO_FIRE_FRAMES = [
+    "torpedo_left_mid_fire_frame",
+    "torpedo_top_mid_fire_frame",
+]
+RIGHT_BOTTOM_TORPEDO_FIRE_FRAMES = [
+    "torpedo_bottom_right_fire_frame",
+    "torpedo_bottom_mid_fire_frame",
+]
 
 
 class MainStateMachineNode:
@@ -181,9 +187,9 @@ class MainStateMachineNode:
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
 
     def get_legacy_target_selection(self):
-        return ROLE_TO_TORPEDO_BIN_TARGET_SELECTION.get(
+        return ROLE_TO_BIN_TARGET_SELECTION.get(
             self.selected_role,
-            ROLE_TO_TORPEDO_BIN_TARGET_SELECTION[DEFAULT_SELECTED_ROLE],
+            ROLE_TO_BIN_TARGET_SELECTION[DEFAULT_SELECTED_ROLE],
         )
 
     def get_torpedo_fire_frames(self):

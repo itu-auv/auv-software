@@ -194,6 +194,36 @@ def check_inside_image(
     return True
 
 
+TORPEDO_MASK_REFERENCE_WIDTH = 800.0
+TORPEDO_MASK_REFERENCE_HEIGHT = 448.0
+TORPEDO_FORBIDDEN_SIDE_MASKS = (
+    (
+        (0.0, 0.0),
+        (185.0, 0.0),
+        (145.0, 45.0),
+        (118.0, 95.0),
+        (102.0, 155.0),
+        (96.0, 225.0),
+        (106.0, 290.0),
+        (130.0, 360.0),
+        (175.0, 447.0),
+        (0.0, 447.0),
+    ),
+    (
+        (799.0, 0.0),
+        (615.0, 0.0),
+        (655.0, 45.0),
+        (682.0, 95.0),
+        (698.0, 155.0),
+        (704.0, 225.0),
+        (694.0, 290.0),
+        (670.0, 360.0),
+        (625.0, 447.0),
+        (799.0, 447.0),
+    ),
+)
+
+
 BOTTOM_MASK_REFERENCE_WIDTH = 1920.0
 BOTTOM_MASK_REFERENCE_HEIGHT = 1080.0
 BOTTOM_FORBIDDEN_MASKS = (
@@ -303,6 +333,54 @@ def _point_in_polygon(point, polygon) -> bool:
                 inside = not inside
 
     return inside
+
+
+def check_inside_image_torpedo(
+    detection,
+    image_width: int = 640,
+    image_height: int = 480,
+    forbidden_side_masks=None,
+) -> bool:
+    """Check if a torpedo detection bbox is inside the usable image area."""
+    center = detection.bbox.center
+    half_size_x = detection.bbox.size_x * 0.5
+    half_size_y = detection.bbox.size_y * 0.5
+    deadzone = 5  # pixels
+    if (
+        center.x + half_size_x >= image_width - deadzone
+        or center.x - half_size_x <= deadzone
+    ):
+        return False
+    if (
+        center.y + half_size_y >= image_height - deadzone
+        or center.y - half_size_y <= deadzone
+    ):
+        return False
+
+    bbox_corners = (
+        (center.x - half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y + half_size_y),
+        (center.x - half_size_x, center.y + half_size_y),
+    )
+
+    if forbidden_side_masks is None:
+        forbidden_side_masks = tuple(
+            _scale_polygon(
+                mask,
+                image_width,
+                image_height,
+                TORPEDO_MASK_REFERENCE_WIDTH,
+                TORPEDO_MASK_REFERENCE_HEIGHT,
+            )
+            for mask in TORPEDO_FORBIDDEN_SIDE_MASKS
+        )
+
+    for forbidden_mask in forbidden_side_masks:
+        if any(_point_in_polygon(corner, forbidden_mask) for corner in bbox_corners):
+            return False
+
+    return True
 
 
 def check_inside_image_bottom(
