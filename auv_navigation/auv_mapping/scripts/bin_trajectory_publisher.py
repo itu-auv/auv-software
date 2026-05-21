@@ -25,7 +25,7 @@ class BinTransformServiceNode:
 
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
-        self.bin_frame = rospy.get_param("~bin_frame", "bin_whole_link")
+        self.bin_frame = rospy.get_param("~bin_frame", "bin_basket_front_link")
         self.bin_further_frame = rospy.get_param("~bin_further_frame", "bin_far_trial")
         self.bin_closer_frame = rospy.get_param(
             "~bin_closer_frame", "bin_close_approach"
