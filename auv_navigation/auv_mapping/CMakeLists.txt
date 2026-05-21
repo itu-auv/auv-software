@@ -92,6 +92,7 @@ catkin_install_python(PROGRAMS
   scripts/pipeline_trajectory_publisher.py
   scripts/premap_publisher.py
   scripts/competition_map_gui.py
+  scripts/kde_object_mapper.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

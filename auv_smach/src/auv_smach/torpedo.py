@@ -76,10 +76,12 @@ class TorpedoTaskState(smach.State):
         torpedo_realsense_target_frame,
         torpedo_fire_frames,
         torpedo_exit_angle: float = 0.0,
+        torpedo_search_frame: str = "torpedo_map_link",
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.torpedo_fire_frames = torpedo_fire_frames
         self.torpedo_exit_angle = torpedo_exit_angle
+        self.torpedo_search_frame = torpedo_search_frame
         self.base_link = get_base_link()
 
         # Initialize the state machine
@@ -128,7 +130,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_TORPEDO_MAP",
                 SearchForPropState(
-                    look_at_frame="torpedo_map_link",
+                    look_at_frame=self.torpedo_search_frame,
                     alignment_frame="torpedo_map_travel_start",
                     full_rotation=False,
                     set_frame_duration=7.0,
