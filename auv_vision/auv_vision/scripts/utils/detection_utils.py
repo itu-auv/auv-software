@@ -79,6 +79,45 @@ class Prop:
             rospy.logerr(f"Could not estimate distance for prop {self.name}")
             return None
 
+    def estimate_distance_yaw(
+        self,
+        measured_height: float,
+        measured_width: float,
+        calibration: CameraCalibration,
+        yaw: float,
+    ):
+        if yaw is None:
+            return self.estimate_distance(measured_height, measured_width, calibration)
+
+        distance_from_height = None
+        distance_from_width = None
+
+        fx = calibration.calibration.K[0]
+        fy = calibration.calibration.K[4]
+        # Calculate effective focal lengths for rotated rectangular edges.
+        # measured_height corresponds to the longest edge (yaw angle)
+        # measured_width corresponds to the shortest edge (yaw + pi/2 angle)
+        cos_yaw = math.cos(yaw)
+        sin_yaw = math.sin(yaw)
+        f_eff_height = math.sqrt(fx**2 * cos_yaw**2 + fy**2 * sin_yaw**2)
+        f_eff_width = math.sqrt(fx**2 * sin_yaw**2 + fy**2 * cos_yaw**2)
+
+        if self.real_height is not None and measured_height > 0:
+            distance_from_height = (self.real_height * f_eff_height) / measured_height
+
+        if self.real_width is not None and measured_width > 0:
+            distance_from_width = (self.real_width * f_eff_width) / measured_width
+
+        if distance_from_height is not None and distance_from_width is not None:
+            return (distance_from_height + distance_from_width) * 0.5
+        elif distance_from_height is not None:
+            return distance_from_height
+        elif distance_from_width is not None:
+            return distance_from_width
+        else:
+            rospy.logerr(f"Could not estimate distance for prop {self.name}")
+            return None
+
     # distance_from_height
     def estimate_distance_diagonal(
         self,

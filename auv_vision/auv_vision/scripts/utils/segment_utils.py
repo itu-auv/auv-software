@@ -119,6 +119,7 @@ def findposes_rect(mask: np.ndarray, last_yaw: float = None, debug: bool = False
         "valid": True,
         "center": (float(cx), float(cy)),
         "yaw": yaw,
+        "image_yaw": _normalize_line_angle(yaw_base),
         "edges_px": (float(longest_length), float(shortest_length)),
         "radius_px": None,
         "diameter_px": None,

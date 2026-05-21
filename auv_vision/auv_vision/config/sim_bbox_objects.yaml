@@ -431,7 +431,7 @@ objects:
     offset: [0, 0, 0.03]
     boundary:
       shape: circle
-      args: [0.03525, 0.03525, 0]
+      args: [0.04, 0.04, 0]
 
   - class_id: 3
     name: pill
@@ -442,4 +442,4 @@ objects:
     offset: [0, 0, 0.03]
     boundary:
       shape: circle
-      args: [0.03525, 0.03525, 0]
+      args: [0.04, 0.04, 0]

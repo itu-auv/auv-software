@@ -84,8 +84,11 @@ class SegmentCameraHandler:
                 edges = geometry.get("edges_px", (None, None))
                 longest_edge, shortest_edge = edges
                 if longest_edge is not None and shortest_edge is not None:
-                    return prop.estimate_distance(
-                        longest_edge, shortest_edge, self.calibration
+                    return prop.estimate_distance_yaw(
+                        longest_edge,
+                        shortest_edge,
+                        self.calibration,
+                        geometry.get("image_yaw"),
                     )
             elif geom_type == "basket":
                 if not check_inside_image_bottom(detection):
@@ -99,8 +102,11 @@ class SegmentCameraHandler:
                     edges = geometry.get("edges_px", (None, None))
                     longest_edge, shortest_edge = edges
                     if longest_edge is not None and shortest_edge is not None:
-                        return prop.estimate_distance(
-                            longest_edge, shortest_edge, self.calibration
+                        return prop.estimate_distance_yaw(
+                            longest_edge,
+                            shortest_edge,
+                            self.calibration,
+                            geometry.get("image_yaw"),
                         )
 
         # just in case geometry fails or type is unhandled
