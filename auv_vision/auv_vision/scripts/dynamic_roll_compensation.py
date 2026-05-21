@@ -161,6 +161,7 @@ class CameraRollStabilizer:
         if (
             self.img_pub.get_num_connections() == 0
             and self.info_pub.get_num_connections() == 0
+            and self.debug_img_pub.get_num_connections() == 0
         ):
             rospy.logdebug_throttle(
                 5.0,
@@ -194,7 +195,9 @@ class CameraRollStabilizer:
         crop_rect = self.crop_rect or (0, 0, w, h)
         self._publish_stabilized_camera_info(img_msg, crop_rect)
 
-        if self.img_pub.get_num_connections() == 0:
+        publish_image = self.img_pub.get_num_connections() > 0
+        publish_debug = self.debug_img_pub.get_num_connections() > 0
+        if not publish_image and not publish_debug:
             return
 
         try:
@@ -212,8 +215,12 @@ class CameraRollStabilizer:
             flags=cv2.INTER_LINEAR,
             borderMode=self.border_mode,
         )
-        x0, y0, x1, y1 = crop_rect
         self._publish_crop_debug_image(rotated, img_msg, crop_rect)
+
+        if not publish_image:
+            return
+
+        x0, y0, x1, y1 = crop_rect
         rotated = rotated[y0:y1, x0:x1]
 
         try:
