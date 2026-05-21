@@ -57,12 +57,10 @@ cameras:
     image_width: 640
     image_height: 480
     id_tf_map:
-      0: gate_sawfish_link
-      1: gate_shark_link
-      2: slalom_red_pipe_link
-      3: slalom_white_pipe_link
+      0: gate_search_rescue_link
+      1: gate_survey_repair_link
       4: torpedo_map_link
-      6: bin_whole_link
+      6: bin_basket_link
       7: octagon_link
   bottom_seg:
     ns: "taluy/cameras/cam_bottom"

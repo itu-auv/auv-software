@@ -31,8 +31,8 @@ class CompetitionMapGUI:
     }
 
     SERVICE_LABEL_MAP = {
-        "gate": ["gate_sawfish_link", "gate_shark_link"],
-        "bin": ["bin_whole_link"],
+        "gate": ["gate_search_rescue_link", "gate_survey_repair_link"],
+        "bin": ["bin_basket_link"],
         "torpedo": ["torpedo_map_link"],
         "octagon": ["octagon_link"],
     }

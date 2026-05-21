@@ -12,6 +12,7 @@ import threading
 import os
 import sys
 import rospy
+import yaml
 import numpy as np
 from collections import defaultdict
 from scipy.stats import gaussian_kde
@@ -52,15 +53,33 @@ class KdeObjectMapper:
         image_height = rospy.get_param("~image_height", 600)
         object_classes = rospy.get_param("~object_classes", [])
 
+        # Temporal decay parameter (default 0.5 seconds half-life)
+        self.temporal_decay = rospy.get_param("~temporal_decay", 25)
+
+        # Premap parameters
+        self.premap_path = rospy.get_param("~premap_path", "")
+        self.premap_max_distance = rospy.get_param("~premap_max_distance", 5.0)
+
         if not object_classes:
             rospy.logwarn(
                 "No object_classes configured — KDE mapper has nothing to do."
             )
 
-        self.point_buffers = defaultdict(list)  # class_name -> [[x, y], ...]
+        self.point_buffers = defaultdict(list)  # class_name -> [[x, y, timestamp], ...]
         self.current_results = {}  # class_name -> [(x, y, confidence), ...]
         self.lock = threading.Lock()
         self._kde_running = False  # re-entrancy guard
+
+        # Store file modification time to detect dynamic updates
+        self._premap_mtime = 0.0
+        if self.premap_path and os.path.exists(self.premap_path):
+            try:
+                self._premap_mtime = os.path.getmtime(self.premap_path)
+            except Exception:
+                pass
+
+        # Load premap
+        self.premap = self._load_premap(self.premap_path)
 
         # Assign a stable colour to each class
         self.class_colors = {}
@@ -104,10 +123,124 @@ class KdeObjectMapper:
             f"bw={self.bandwidth}m, rate={self.update_rate}Hz"
         )
 
+    def _load_premap(self, premap_path: str) -> dict:
+        """Loads a premap YAML file mapping object class names to their known [x, y] coordinates.
+
+        Supports the structured format where objects are nested under the 'objects' key,
+        and each object specifies a 'position' key with [x, y, z] coordinates.
+
+        Args:
+            premap_path: Path to the YAML premap file.
+
+        Returns:
+            A dictionary mapping class names to np.ndarray [x, y] positions.
+        """
+        premap = {}
+        if not premap_path:
+            rospy.logwarn("KDE: ~premap_path is empty. Premap is disabled.")
+            return premap
+
+        if not os.path.exists(premap_path):
+            rospy.logwarn(f"KDE: Premap file at {premap_path} is missing. Premap is disabled.")
+            return premap
+
+        try:
+            with open(premap_path, "r") as f:
+                data = yaml.safe_load(f)
+
+            if not isinstance(data, dict):
+                rospy.logwarn(f"KDE: Failed to parse premap YAML from {premap_path} — top-level is not a dict.")
+                return premap
+
+            objects_data = data.get("objects", {})
+            if not isinstance(objects_data, dict):
+                rospy.logwarn(f"KDE: 'objects' key in premap {premap_path} is not a dictionary.")
+                return premap
+
+            for k, v in objects_data.items():
+                if isinstance(v, dict) and "position" in v:
+                    pos = v["position"]
+                    if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+                        premap[k] = np.array([float(pos[0]), float(pos[1])])
+
+            rospy.loginfo(f"KDE: Loaded premap with {len(premap)} classes from {premap_path}: {list(premap.keys())}")
+        except Exception as e:
+            rospy.logwarn(f"KDE: Failed to load premap from {premap_path}: {e}")
+            premap = {}
+        return premap
+
+    def _check_and_reload_premap(self):
+        """Checks if the premap YAML file has been updated and reloads it dynamically."""
+        if not self.premap_path or not os.path.exists(self.premap_path):
+            return
+
+        try:
+            mtime = os.path.getmtime(self.premap_path)
+            if mtime != self._premap_mtime:
+                new_premap = self._load_premap(self.premap_path)
+                with self.lock:
+                    self.premap = new_premap
+                self._premap_mtime = mtime
+                rospy.loginfo(f"KDE: Dynamically reloaded premap due to file modification (mtime={mtime})")
+        except Exception as e:
+            rospy.logwarn_throttle(10.0, f"KDE: Failed to check/reload premap: {e}")
+
+    def _validate_and_filter_peaks(self, class_name: str, peaks: list) -> tuple:
+        """Validates detected peaks against the premap.
+
+        If a peak is too far from its known premap position, it is rejected
+        and the contributing points within suppression_radius are removed
+        from the point buffer.
+
+        Args:
+            class_name: The object class name.
+            peaks: A list of candidate peaks (x, y, confidence).
+
+        Returns:
+            A tuple of (accepted_peaks, rejected_peaks_data) where:
+            - accepted_peaks: list of (x, y, confidence)
+            - rejected_peaks_data: list of (x, y, distance)
+        """
+        accepted_peaks = []
+        rejected_peaks_data = []
+        rejected_peaks_xy = []
+
+        if class_name in self.premap:
+            premap_pos = self.premap[class_name]
+            for px, py, conf in peaks:
+                dist = float(np.sqrt((px - premap_pos[0])**2 + (py - premap_pos[1])**2))
+                if dist > self.premap_max_distance:
+                    rejected_peaks_data.append((px, py, dist))
+                    rejected_peaks_xy.append((px, py))
+                    rospy.logwarn_throttle(
+                        5.0,
+                        f"KDE: Rejected peak for {class_name} at ({px:.2f}, {py:.2f}) "
+                        f"due to distance {dist:.2f}m > limit {self.premap_max_distance:.2f}m"
+                    )
+                else:
+                    accepted_peaks.append((px, py, conf))
+        else:
+            accepted_peaks = peaks
+
+        if rejected_peaks_xy:
+            with self.lock:
+                original_len = len(self.point_buffers[class_name])
+                self.point_buffers[class_name] = [
+                    pt for pt in self.point_buffers[class_name]
+                    if not any(np.sqrt((pt[0] - rx)**2 + (pt[1] - ry)**2) < self.suppression_radius for rx, ry in rejected_peaks_xy)
+                ]
+                removed_count = original_len - len(self.point_buffers[class_name])
+                rospy.loginfo(
+                    f"KDE: Removed {removed_count} points contributing to "
+                    f"rejected peaks for {class_name}"
+                )
+
+        return accepted_peaks, rejected_peaks_data
+
     def _point_callback(self, msg, class_name):
         with self.lock:
             buf = self.point_buffers[class_name]
-            buf.append([msg.point.x, msg.point.y])
+            buf.append([msg.point.x, msg.point.y, rospy.Time.now().to_sec()])
             # Keep buffer bounded
             if len(buf) > self.max_points_per_class:
                 del buf[: len(buf) - self.max_points_per_class]
@@ -136,6 +269,9 @@ class KdeObjectMapper:
                 self._kde_running = False
 
     def _run_kde(self):
+        # Dynamically reload premap if the file has been modified on disk
+        self._check_and_reload_premap()
+
         # Snapshot the buffers under lock
         with self.lock:
             buffers_snapshot = {
@@ -149,6 +285,7 @@ class KdeObjectMapper:
 
         results = {}
         kde_data = {}
+        now = rospy.Time.now().to_sec()
 
         for cls_name, pts in buffers_snapshot.items():
             xy = pts[:, :2].T  # shape (2, N)
@@ -157,8 +294,29 @@ class KdeObjectMapper:
             xy_std = max(np.std(xy, axis=1).mean(), 1e-6)
             bw_factor = self.bandwidth / xy_std
 
+            # Temporal Weighting: compute weights for gaussian_kde
+            if pts.shape[1] < 3:
+                timestamps = np.full(pts.shape[0], now)
+            else:
+                timestamps = pts[:, 2]
+
+            age = now - timestamps
+            age = np.maximum(age, 0.0)
+
+            half_life = self.temporal_decay
+            if half_life > 0.0:
+                weights = np.exp(-np.log(2.0) * age / half_life)
+            else:
+                weights = np.ones_like(age)
+
+            weights_sum = np.sum(weights)
+            if weights_sum > 1e-9:
+                weights = weights / weights_sum
+            else:
+                weights = np.ones_like(weights) / len(weights)
+
             try:
-                kde = gaussian_kde(xy, bw_method=bw_factor)
+                kde = gaussian_kde(xy, bw_method=bw_factor, weights=weights)
             except np.linalg.LinAlgError:
                 rospy.logwarn_throttle(
                     5.0, f"KDE singular matrix for {cls_name}. Skipping."
@@ -178,18 +336,6 @@ class KdeObjectMapper:
 
             density = kde(grid_coords).reshape(xx.shape)
 
-            # Store for visualisation
-            kde_data[cls_name] = {
-                "xx": xx,
-                "yy": yy,
-                "density": density,
-                "points": pts,
-                "x_min": x_min,
-                "x_max": x_max,
-                "y_min": y_min,
-                "y_max": y_max,
-            }
-
             peaks = []
             density_work = density.copy()
 
@@ -208,7 +354,26 @@ class KdeObjectMapper:
                 dist_grid = np.sqrt((xx - peak_x) ** 2 + (yy - peak_y) ** 2)
                 density_work[dist_grid < self.suppression_radius] = 0.0
 
-            results[cls_name] = peaks
+            # Validate and filter peaks against the premap
+            accepted_peaks, rejected_peaks_data = self._validate_and_filter_peaks(cls_name, peaks)
+            results[cls_name] = accepted_peaks
+
+            # Store for visualisation
+            kde_data[cls_name] = {
+                "xx": xx,
+                "yy": yy,
+                "density": density,
+                "points": pts,
+                "x_min": x_min,
+                "x_max": x_max,
+                "y_min": y_min,
+                "y_max": y_max,
+                "timestamps": timestamps,
+                "rejected_peaks": rejected_peaks_data,
+            }
+            if cls_name in self.premap:
+                kde_data[cls_name]["premap_position"] = (float(self.premap[cls_name][0]), float(self.premap[cls_name][1]))
+                kde_data[cls_name]["premap_max_distance"] = float(self.premap_max_distance)
 
         # Take an immutable snapshot for publishing (prevents concurrent modification)
         results_snapshot = dict(results)

@@ -66,6 +66,11 @@ class KdeVisualizer:
 
         This method returns immediately. The data is deep-copied under
         a lock and the render thread is signalled.
+
+        Args:
+            kde_data: Dictionary mapping class name to KDE evaluation grid and points,
+                      including optional 'rejected_peaks' and 'premap_position' keys.
+            results: Dictionary mapping class name to list of accepted peaks.
         """
         with self._lock:
             self._kde_data = copy.deepcopy(kde_data)
@@ -224,6 +229,50 @@ class KdeVisualizer:
                         color,
                         1,
                     )
+
+            # Draw premap reference position (red circle) and validation circle
+            if "premap_position" in data and data["premap_position"] is not None:
+                pm_x, pm_y = data["premap_position"]
+                pm_u, pm_v = w2p(pm_x, pm_y)
+                if 0 <= pm_u < img_w and 0 <= pm_v < img_h:
+                    cv2.circle(canvas, (pm_u, pm_v), 6, (0, 0, 255), 2)
+                    cv2.circle(canvas, (pm_u, pm_v), 2, (0, 0, 255), -1)
+                    if "premap_max_distance" in data:
+                        val_r = int(data["premap_max_distance"] * scale)
+                        cv2.circle(canvas, (pm_u, pm_v), val_r, (0, 0, 255), 1, lineType=cv2.LINE_AA)
+                    
+                    # Draw label showing the premap object name (Red)
+                    short_name = cls_name.replace("_link", "")
+                    label = f"PREMAP: {short_name}"
+                    cv2.putText(
+                        canvas,
+                        label,
+                        (pm_u + 10, pm_v - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.35,
+                        (0, 0, 255),
+                        1,
+                        lineType=cv2.LINE_AA
+                    )
+
+            # Draw rejected peaks (red X and distance text)
+            if "rejected_peaks" in data and data["rejected_peaks"]:
+                for rx, ry, dist in data["rejected_peaks"]:
+                    ru, rv = w2p(rx, ry)
+                    if 0 <= ru < img_w and 0 <= rv < img_h:
+                        s = 6
+                        cv2.line(canvas, (ru - s, rv - s), (ru + s, rv + s), (0, 0, 255), 2)
+                        cv2.line(canvas, (ru + s, rv - s), (ru - s, rv + s), (0, 0, 255), 2)
+                        label = f"{dist:.1f} m"
+                        cv2.putText(
+                            canvas,
+                            label,
+                            (ru + 10, rv + 4),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.35,
+                            (0, 0, 255),
+                            1,
+                        )
 
             # Legend entry
             short_name = cls_name.replace("_link", "")
