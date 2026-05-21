@@ -24,11 +24,31 @@ class OctagonTransformServiceNode:
         self.odom_frame = "odom"
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
         self.octagon_frame = "octagon_link"
+        self.middle_basket_frame = rospy.get_param(
+            "~middle_basket_frame", "middle_basket"
+        )
+        self.redcross_basket_segment_frame = rospy.get_param(
+            "~basket_redcross_segment_frame", "basket_redcross_segment_link"
+        )
+        self.warning_basket_segment_frame = rospy.get_param(
+            "~basket_warning_segment_frame", "basket_warning_segment_link"
+        )
+        self.octagon_table_segment_frame = rospy.get_param(
+            "~octagon_table_segment_frame", "octagon_table_segment_link"
+        )
 
-        self.octagon_closer_frame = "octagon_closer_link"
+        self.octagon_closer_frame = rospy.get_param(
+            "~octagon_closer_frame", "octagon_closer_link"
+        )
+        self.octagon_further_frame = rospy.get_param(
+            "~octagon_further_frame", "octagon_further_link"
+        )
         self.closer_distance = rospy.get_param(
             "~closer_distance", 2.0
         )  # distance from octagon to closer frame
+        self.further_distance = rospy.get_param(
+            "~further_distance", 2.0
+        )  # distance from octagon to further frame
         self.search_distance = rospy.get_param(
             "~search_distance", 0.3
         )  # distance from octagon to search frames
@@ -68,6 +88,90 @@ class OctagonTransformServiceNode:
             rospy.logwarn(
                 f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
             )
+
+    def lookup_pose(self, frame_name: str):
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.odom_frame, frame_name, rospy.Time(0), rospy.Duration(0.5)
+            )
+            return self.get_pose(transform)
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ):
+            return None
+
+    def build_pose_from_position_and_yaw(
+        self, position: np.ndarray, yaw: float
+    ) -> Pose:
+        quat = tf.transformations.quaternion_from_euler(0, 0, yaw)
+        pose = Pose()
+        pose.position.x = position[0]
+        pose.position.y = position[1]
+        pose.position.z = position[2]
+        pose.orientation.x = quat[0]
+        pose.orientation.y = quat[1]
+        pose.orientation.z = quat[2]
+        pose.orientation.w = quat[3]
+        return pose
+
+    def create_middle_basket_frame(self):
+        redcross_pose = self.lookup_pose(self.redcross_basket_segment_frame)
+        warning_pose = self.lookup_pose(self.warning_basket_segment_frame)
+
+        if redcross_pose is not None and warning_pose is not None:
+            redcross_pos = np.array(
+                [
+                    redcross_pose.position.x,
+                    redcross_pose.position.y,
+                    redcross_pose.position.z,
+                ]
+            )
+            warning_pos = np.array(
+                [
+                    warning_pose.position.x,
+                    warning_pose.position.y,
+                    warning_pose.position.z,
+                ]
+            )
+            red_to_warning = warning_pos[:2] - redcross_pos[:2]
+            red_to_warning_norm = np.linalg.norm(red_to_warning)
+
+            if red_to_warning_norm > 1e-6:
+                midpoint = 0.5 * (redcross_pos + warning_pos)
+                left_direction = (
+                    np.array([-red_to_warning[1], red_to_warning[0]])
+                    / red_to_warning_norm
+                )
+                yaw = np.arctan2(left_direction[1], left_direction[0])
+                middle_basket_pose = self.build_pose_from_position_and_yaw(
+                    midpoint, yaw
+                )
+                middle_basket_transform = self.build_transform_message(
+                    self.middle_basket_frame, middle_basket_pose
+                )
+                self.send_transform(middle_basket_transform)
+                return
+
+            rospy.logwarn_throttle(
+                5.0,
+                "basket_redcross_segment_link and basket_warning_segment_link overlap; "
+                "falling back to octagon_table_segment_link for middle_basket.",
+            )
+
+        table_pose = self.lookup_pose(self.octagon_table_segment_frame)
+        if table_pose is None:
+            rospy.logwarn_throttle(
+                5.0,
+                "middle_basket could not be created: octagon_table_segment_link not available yet.",
+            )
+            return
+
+        middle_basket_transform = self.build_transform_message(
+            self.middle_basket_frame, table_pose
+        )
+        self.send_transform(middle_basket_transform)
 
     def create_octagon_frame(self):
         if not self.enable:
@@ -126,6 +230,8 @@ class OctagonTransformServiceNode:
         # Calculate position for closer frame
         closer_pos_2d = octagon_pos[:2] - (direction_unit_2d * self.closer_distance)
         closer_pos = np.append(closer_pos_2d, robot_pos[2])
+        further_pos_2d = octagon_pos[:2] + (direction_unit_2d * self.further_distance)
+        further_pos = np.append(further_pos_2d, robot_pos[2])
 
         # Create closer frame
         closer_pose = Pose()
@@ -133,12 +239,21 @@ class OctagonTransformServiceNode:
             closer_pos
         )
         closer_pose.orientation = orientation
+        further_pose = Pose()
+        further_pose.position.x, further_pose.position.y, further_pose.position.z = (
+            further_pos
+        )
+        further_pose.orientation = orientation
 
         # Send the transform
         closer_transform = self.build_transform_message(
             self.octagon_closer_frame, closer_pose
         )
         self.send_transform(closer_transform)
+        further_transform = self.build_transform_message(
+            self.octagon_further_frame, further_pose
+        )
+        self.send_transform(further_transform)
 
         self.create_search_frames(octagon_pos, direction_unit_2d, robot_pos[2])
 
@@ -194,6 +309,8 @@ class OctagonTransformServiceNode:
     def run(self):
         rate = rospy.Rate(10)  # 10 Hz
         while not rospy.is_shutdown():
+            if self.enable:
+                self.create_middle_basket_frame()
             self.create_octagon_frame()
             rate.sleep()
 
