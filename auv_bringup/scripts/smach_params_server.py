@@ -9,9 +9,10 @@ from auv_bringup.cfg import SmachParametersConfig
 
 def callback(config, level):
     rospy.loginfo(
-        """Reconfigure Request: {selected_animal}, {wall_reference_yaw}, {slalom_direction}""".format(
-            **config
-        )
+        "Reconfigure Request: %s, %s, %s",
+        config["selected_role"],
+        config["wall_reference_yaw"],
+        config["slalom_direction"],
     )
     return config
 
