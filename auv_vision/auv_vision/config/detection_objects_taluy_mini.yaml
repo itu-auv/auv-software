@@ -1,6 +1,7 @@
 cameras:
   front:
     ns: "taluy_mini/cameras/cam_front"
+    camera_info_topic: "/taluy_mini/cameras/cam_front/camera_info_stabilized"
     frame: "taluy_mini/base_link/front_camera_optical_link_stabilized"
     yolo_topic: "/yolo_result_front"
     handler: "front_camera_handler"

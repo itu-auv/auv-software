@@ -58,7 +58,10 @@ class TorpedoCameraHandler:
             if detection_id not in self.id_tf_map:
                 continue
 
-            if not check_inside_image(detection, self.image_width, self.image_height):
+            image_width, image_height = self.calibration.get_image_size(
+                self.image_width, self.image_height
+            )
+            if not check_inside_image(detection, image_width, image_height):
                 continue
 
             prop_name = self.id_tf_map[detection_id]
@@ -112,7 +115,10 @@ class TorpedoCameraHandler:
             detection_id = detection.results[0].id
 
             if detection_id == self.id_tf_map.id_of("torpedo_hole_link"):
-                if check_inside_image(detection, self.image_width, self.image_height):
+                image_width, image_height = self.calibration.get_image_size(
+                    self.image_width, self.image_height
+                )
+                if check_inside_image(detection, image_width, image_height):
                     detected_holes.append(detection)
 
         if len(detected_holes) != 2:

@@ -69,7 +69,10 @@ class FrontCameraHandler:
                 self._process_altitude_projection(detection, stamp)
                 continue
 
-            if not check_inside_image(detection, self.image_width, self.image_height):
+            image_width, image_height = self.calibration.get_image_size(
+                self.image_width, self.image_height
+            )
+            if not check_inside_image(detection, image_width, image_height):
                 continue
 
             prop_name = self.id_tf_map[detection_id]

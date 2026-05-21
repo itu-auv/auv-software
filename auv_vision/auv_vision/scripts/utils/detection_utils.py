@@ -16,12 +16,25 @@ import tf2_geometry_msgs
 
 
 class CameraCalibration:
-    def __init__(self, namespace: str):
-        self.calibration = camera_calibrations.CameraCalibrationFetcher(
-            namespace, True
-        ).get_camera_info()
+    def __init__(self, namespace: str, camera_info_topic: str = "camera_info"):
+        self.fetcher = camera_calibrations.CameraCalibrationFetcher(
+            namespace, True, camera_info_topic=camera_info_topic
+        )
+        self.calibration = self.fetcher.get_camera_info()
+
+    def refresh(self):
+        camera_info = self.fetcher.get_camera_info()
+        if camera_info is not None:
+            self.calibration = camera_info
+
+    def get_image_size(self, fallback_width: int = 640, fallback_height: int = 480):
+        self.refresh()
+        image_width = getattr(self.calibration, "width", None) or fallback_width
+        image_height = getattr(self.calibration, "height", None) or fallback_height
+        return image_width, image_height
 
     def calculate_angles(self, pixel_coordinates: tuple) -> tuple:
+        self.refresh()
         fx = self.calibration.K[0]
         fy = self.calibration.K[4]
         cx = self.calibration.K[2]
@@ -33,11 +46,13 @@ class CameraCalibration:
         return angle_x, angle_y
 
     def distance_from_height(self, real_height: float, measured_height: float) -> float:
+        self.refresh()
         focal_length = self.calibration.K[4]
         distance = (real_height * focal_length) / measured_height
         return distance
 
     def distance_from_width(self, real_width: float, measured_width: float) -> float:
+        self.refresh()
         focal_length = self.calibration.K[0]
         distance = (real_width * focal_length) / measured_width
         return distance
