@@ -13,6 +13,7 @@
 #include "auv_controllers/controller_base.h"
 #include "auv_controllers/multidof_pid_controller.h"
 #include "geometry_msgs/AccelWithCovarianceStamped.h"
+#include "geometry_msgs/Twist.h"
 #include "geometry_msgs/Wrench.h"
 #include "nav_msgs/Odometry.h"
 #include "pluginlib/class_loader.h"
@@ -83,6 +84,8 @@ class ControllerROS {
     controller->set_integral_clamp_limits(integral_clamp_limits_);
     controller->set_gravity_compensation_z(gravity_compensation_z_);
     controller->set_max_velocity_limits(max_velocity_);
+    controller->set_max_acceleration_limits(max_acceleration_);
+    controller->set_max_acceleration_rate_limits(max_acceleration_rate_);
 
     // Set up dynamic reconfigure server with initial values
     auv_control::ControllerConfig initial_config;
@@ -114,6 +117,15 @@ class ControllerROS {
     control_enable_sub_.set_default_message(std_msgs::Bool{});
 
     wrench_pub_ = nh_.advertise<geometry_msgs::WrenchStamped>("wrench", 1);
+    desired_velocity_pub_ =
+        nh_.advertise<geometry_msgs::Twist>("desired_velocity", 1);
+
+    // BEGIN DEBUG PID OUTPUT VISUALIZATION
+    raw_pid_output_pub_ =
+        nh_.advertise<geometry_msgs::Twist>("raw_pid_output", 1);
+    limited_pid_output_pub_ =
+        nh_.advertise<geometry_msgs::Twist>("limited_pid_output", 1);
+    // END DEBUG PID OUTPUT VISUALIZATION
   }
 
   bool load_controller(const std::string& controller_name) {
@@ -146,6 +158,28 @@ class ControllerROS {
 
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
+
+      auto pid_controller =
+          dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+      ROS_INFO_STREAM_THROTTLE(
+          0.1, "raw_pid_output_before_limit: "
+                   << pid_controller->get_raw_pid_output().transpose());
+
+      // BEGIN DEBUG PID OUTPUT VISUALIZATION
+      raw_pid_output_pub_.publish(
+          auv::common::conversions::convert<ControllerBase::Vector,
+                                            geometry_msgs::Twist>(
+              pid_controller->get_raw_pid_output()));
+      limited_pid_output_pub_.publish(
+          auv::common::conversions::convert<ControllerBase::Vector,
+                                            geometry_msgs::Twist>(
+              pid_controller->get_limited_pid_output()));
+      // END DEBUG PID OUTPUT VISUALIZATION
+
+      desired_velocity_pub_.publish(
+          auv::common::conversions::convert<ControllerBase::Vector,
+                                            geometry_msgs::Twist>(
+              pid_controller->get_desired_velocity()));
 
       geometry_msgs::WrenchStamped wrench_msg;
       if (is_control_enabled() && !is_timeouted() && has_fresh_odometry()) {
@@ -301,6 +335,17 @@ class ControllerROS {
         config.max_velocity_5;
     controller->set_max_velocity_limits(max_velocity_);
 
+    max_acceleration_ << config.max_acceleration_0, config.max_acceleration_1,
+        config.max_acceleration_2, config.max_acceleration_3,
+        config.max_acceleration_4, config.max_acceleration_5;
+    controller->set_max_acceleration_limits(max_acceleration_);
+
+    max_acceleration_rate_ << config.max_acceleration_rate_0,
+        config.max_acceleration_rate_1, config.max_acceleration_rate_2,
+        config.max_acceleration_rate_3, config.max_acceleration_rate_4,
+        config.max_acceleration_rate_5;
+    controller->set_max_acceleration_rate_limits(max_acceleration_rate_);
+
     save_parameters();
   }
 
@@ -333,6 +378,31 @@ class ControllerROS {
     } else {
       max_velocity_ = Eigen::Matrix<double, 6, 1>::Constant(1e6);
       ROS_WARN_STREAM("No max_velocity parameter found, limits disabled");
+    }
+
+    // Load max acceleration command limits
+    if (nh_private.hasParam("max_acceleration")) {
+      max_acceleration_ =
+          Vector6RosparamParser::parse("max_acceleration", nh_private);
+      ROS_INFO_STREAM(
+          "Loaded max_acceleration: " << max_acceleration_.transpose());
+    } else {
+      max_acceleration_ = Eigen::Matrix<double, 6, 1>::Zero();
+      ROS_INFO_STREAM(
+          "No max_acceleration parameter found, acceleration limits disabled");
+    }
+
+    // Load max acceleration command rate limits
+    if (nh_private.hasParam("max_acceleration_rate")) {
+      max_acceleration_rate_ =
+          Vector6RosparamParser::parse("max_acceleration_rate", nh_private);
+      ROS_INFO_STREAM("Loaded max_acceleration_rate: "
+                      << max_acceleration_rate_.transpose());
+    } else {
+      max_acceleration_rate_ = Eigen::Matrix<double, 6, 1>::Zero();
+      ROS_INFO_STREAM(
+          "No max_acceleration_rate parameter found, acceleration rate limits "
+          "disabled");
     }
   }
 
@@ -397,6 +467,20 @@ class ControllerROS {
     config.max_velocity_3 = max_velocity_(3);
     config.max_velocity_4 = max_velocity_(4);
     config.max_velocity_5 = max_velocity_(5);
+
+    config.max_acceleration_0 = max_acceleration_(0);
+    config.max_acceleration_1 = max_acceleration_(1);
+    config.max_acceleration_2 = max_acceleration_(2);
+    config.max_acceleration_3 = max_acceleration_(3);
+    config.max_acceleration_4 = max_acceleration_(4);
+    config.max_acceleration_5 = max_acceleration_(5);
+
+    config.max_acceleration_rate_0 = max_acceleration_rate_(0);
+    config.max_acceleration_rate_1 = max_acceleration_rate_(1);
+    config.max_acceleration_rate_2 = max_acceleration_rate_(2);
+    config.max_acceleration_rate_3 = max_acceleration_rate_(3);
+    config.max_acceleration_rate_4 = max_acceleration_rate_(4);
+    config.max_acceleration_rate_5 = max_acceleration_rate_(5);
   }
 
   void save_parameters() {
@@ -441,6 +525,29 @@ class ControllerROS {
     replace_param(content, "kd", kd_);
     replace_param(content, "integral_clamp_limits", integral_clamp_limits_);
 
+    auto replace_vector6_param = [](std::string& content,
+                                    const std::string& param,
+                                    const Eigen::Matrix<double, 6, 1>& values) {
+      std::stringstream ss;
+      ss << std::fixed << std::setprecision(3);
+      ss << param << ": [" << values(0);
+      for (int i = 1; i < 6; ++i) ss << ", " << values(i);
+      ss << "]";
+
+      std::string::size_type start_pos = content.find(param + ": [");
+      if (start_pos == std::string::npos) {
+        content += "\n" + ss.str();
+      } else {
+        std::string::size_type end_pos = content.find("]", start_pos);
+        content.replace(start_pos, end_pos - start_pos + 1, ss.str());
+      }
+    };
+
+    replace_vector6_param(content, "max_velocity", max_velocity_);
+    replace_vector6_param(content, "max_acceleration", max_acceleration_);
+    replace_vector6_param(content, "max_acceleration_rate",
+                          max_acceleration_rate_);
+
     // Save gravity compensation parameter
     auto replace_scalar_param = [](std::string& content,
                                    const std::string& param, double value) {
@@ -483,6 +590,12 @@ class ControllerROS {
   ros::Subscriber cmd_pose_sub_;
   ros::Subscriber accel_sub_;
   ros::Publisher wrench_pub_;
+  ros::Publisher desired_velocity_pub_;
+
+  // BEGIN DEBUG PID OUTPUT VISUALIZATION
+  ros::Publisher raw_pid_output_pub_;
+  ros::Publisher limited_pid_output_pub_;
+  // END DEBUG PID OUTPUT VISUALIZATION
 
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;
@@ -503,6 +616,8 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1> kp_, ki_,
       kd_;  // Parameters to be dynamically reconfigured
   Eigen::Matrix<double, 6, 1> max_velocity_;
+  Eigen::Matrix<double, 6, 1> max_acceleration_;
+  Eigen::Matrix<double, 6, 1> max_acceleration_rate_;
   Eigen::Matrix<double, 12, 1>
       integral_clamp_limits_;           // Integral clamping limits
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
