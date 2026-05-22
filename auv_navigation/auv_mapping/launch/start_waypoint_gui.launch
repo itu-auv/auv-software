@@ -35,9 +35,8 @@
             <param name="b_arrow_length" value="$(arg b_arrow_length)" />
 
             <rosparam param="known_object_frames">
-                - "gate_shark_link"
-                - "gate_sawfish_link"
-                - "gate_whole_link"
+                - "gate_search_rescue_link"
+                - "gate_survey_repair_link"
                 - "bin_whole_link"
                 - "torpedo_map_link"
                 - "octagon_link"
@@ -46,12 +45,11 @@
             <rosparam param="reference_frame_options">
                 - "odom"
                 - "coin_flip"
-                - "gate_whole_link"
                 - "bin_whole_link"
                 - "torpedo_map_link"
                 - "octagon_link"
-                - "gate_shark_link"
-                - "gate_sawfish_link"
+                - "gate_search_rescue_link"
+                - "gate_survey_repair_link"
             </rosparam>
         </node>
     </group>
