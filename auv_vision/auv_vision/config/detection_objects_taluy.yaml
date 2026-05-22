@@ -73,7 +73,7 @@ cameras:
         - [625, 447]
         - [799, 447]
     id_tf_map:
-      5: torpedo_hole_link
+      0: torpedo_hole_link
   bottom_seg:
     ns: "taluy/cameras/cam_bottom"
     frame: "taluy/base_link/bottom_camera_optical_link"
