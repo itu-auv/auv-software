@@ -982,10 +982,11 @@ class SearchForPropState(smach.StateMachine):
         look_at_frame: str,
         alignment_frame: str,
         full_rotation: bool,
-        timeout: float,
+        timeout: float = 30.0,
         source_frame: str = None,
         rotation_speed: float = 0.3,
         confirm_duration: float = 2.0,
+        set_frame_duration: float = None,
     ):
         """
         Args:
@@ -997,6 +998,7 @@ class SearchForPropState(smach.StateMachine):
             timeout (float): Timeout for the AimToProp state.
             source_frame (str): The base frame of the vehicle. Defaults to get_base_link().
             rotation_speed (float): The angular velocity for rotation (default: 0.3).
+            set_frame_duration (float): Duration for broadcasting the looking frame.
         """
         if source_frame is None:
             source_frame = get_base_link()
@@ -1035,6 +1037,7 @@ class SearchForPropState(smach.StateMachine):
                     alignment_frame=alignment_frame,
                     timeout=timeout,
                     confirm_duration=confirm_duration,
+                    set_frame_duration=set_frame_duration,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_TARGET",
@@ -1067,6 +1070,7 @@ class AimToProp(smach.Concurrence):
         timeout=30.0,
         cancel_on_success=False,
         confirm_duration=2.0,
+        set_frame_duration=None,
     ):
         super().__init__(
             outcomes=["succeeded", "preempted", "aborted"],
@@ -1076,7 +1080,7 @@ class AimToProp(smach.Concurrence):
                 "preempted": {"ALIGN_FRAME": "preempted"},
                 "aborted": {"ALIGN_FRAME": "aborted"},
             },
-            child_termination_cb=lambda outcome_map: True,  # Terminate if any child terminates
+            child_termination_cb=lambda outcome_map: outcome_map.get("ALIGN_FRAME") is not None,
         )
 
         with self:
@@ -1086,7 +1090,9 @@ class AimToProp(smach.Concurrence):
                     source_frame=source_frame,
                     look_at_frame=look_at_frame,
                     alignment_frame=alignment_frame,
-                    duration_time=60.0,
+                    duration_time=(
+                        timeout if set_frame_duration is None else set_frame_duration
+                    ),
                 ),
             )
 

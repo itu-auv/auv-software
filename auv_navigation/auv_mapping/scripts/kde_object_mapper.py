@@ -58,7 +58,7 @@ class KdeObjectMapper:
 
         # Premap parameters
         self.premap_path = rospy.get_param("~premap_path", "")
-        self.premap_max_distance = rospy.get_param("~premap_max_distance", 5.0)
+        self.premap_max_distance = rospy.get_param("~premap_max_distance", 2.0)
 
         if not object_classes:
             rospy.logwarn(

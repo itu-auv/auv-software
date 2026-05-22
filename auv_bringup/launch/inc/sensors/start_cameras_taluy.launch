@@ -25,7 +25,6 @@
     <arg name="pub_camera_info" value="$(arg pub_camera_info)"/>
   </include>
   <include file="$(find auv_cam)/launch/extra_cameras.launch">
-    <arg name="namespace" value="$(arg namespace)"/>
   </include>
 
 
