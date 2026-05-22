@@ -164,9 +164,7 @@ def _candidate_position(name, cfg, reference_frame, timeout):
 
 
 def _dist(a, b):
-    return math.sqrt(
-        (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
-    )
+    return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
 
 
 def select_nearest_task(

@@ -70,6 +70,7 @@ class SyncDepthToCurrentState(smach.State):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.frame_id = frame_id
         from auv_smach.tf_utils import get_tf_buffer
+
         self.tf_buffer = get_tf_buffer()
         self.base_frame = get_base_link()
 
@@ -330,7 +331,9 @@ class TorpedoAlignOnlyState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_TORPEDO_MAP_DEPTH",
-                SetDepthState(depth=torpedo_map_depth, depth_threshold=0.2, timeout=10.0),
+                SetDepthState(
+                    depth=torpedo_map_depth, depth_threshold=0.2, timeout=10.0
+                ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
                     "preempted": "preempted",
@@ -457,8 +460,9 @@ class OctagonSurveyState(smach.State):
     frame publisher — just enough for detection to map it.
     """
 
-    def __init__(self, octagon_depth: float = -1.2, animal: str = "sawfish",
-                 **_ignored):
+    def __init__(
+        self, octagon_depth: float = -1.2, animal: str = "sawfish", **_ignored
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.base_link = get_base_link()
         self.state_machine = smach.StateMachine(
@@ -711,9 +715,7 @@ def _build_path_state(path_name, paths_config, defaults, dry_run):
     waypoint_frames = cfg.get("waypoint_frames")
     if not waypoint_frames:
         max_wp = int(cfg.get("auto_max_waypoints", 20))
-        discovered = _autodiscover_waypoints(
-            path_name, reference_frame, max_wp
-        )
+        discovered = _autodiscover_waypoints(path_name, reference_frame, max_wp)
         if discovered:
             rospy.loginfo(
                 "[test_pinger_mission] %s: auto-discovered %d waypoint(s) "
@@ -784,9 +786,17 @@ def _build_task_state(task_name, tasks_config, dry_run, align_only=False):
     return state_cls(**params)
 
 
-def _add_simple_token(sm, token, label, next_label,
-                      paths_config, tasks_config, defaults, dry_run,
-                      align_only=False):
+def _add_simple_token(
+    sm,
+    token,
+    label,
+    next_label,
+    paths_config,
+    tasks_config,
+    defaults,
+    dry_run,
+    align_only=False,
+):
     """Add a non-conditional token (init / path<N> / task) to `sm`."""
     if token == "init":
         state = _StubState("INITIALIZE") if dry_run else InitializeState()
@@ -810,9 +820,17 @@ def _add_simple_token(sm, token, label, next_label,
     )
 
 
-def _add_pinger_block(sm, prefix, next_label, pinger_cfg,
-                      paths_config, tasks_config, defaults, dry_run,
-                      align_only=False):
+def _add_pinger_block(
+    sm,
+    prefix,
+    next_label,
+    pinger_cfg,
+    paths_config,
+    tasks_config,
+    defaults,
+    dry_run,
+    align_only=False,
+):
     """Add the conditional octagon<->torpedo block.
 
     DECIDE branches to one of two linear chains; both rejoin at `next_label`.
@@ -823,9 +841,7 @@ def _add_pinger_block(sm, prefix, next_label, pinger_cfg,
     candidates = pinger_cfg.get("candidates")
     transitions = pinger_cfg.get("transitions")
     if not candidates or not transitions:
-        raise KeyError(
-            "pinger_select must define both 'candidates' and 'transitions'."
-        )
+        raise KeyError("pinger_select must define both 'candidates' and 'transitions'.")
     for key in ("octagon_to_torpedo", "torpedo_to_octagon"):
         if key not in transitions:
             raise KeyError(f"pinger_select.transitions missing '{key}'.")
@@ -991,14 +1007,26 @@ def main() -> None:
             try:
                 if token == pinger_token:
                     _add_pinger_block(
-                        sm, label, next_label, pinger_cfg,
-                        paths_config, tasks_config, defaults, dry_run,
+                        sm,
+                        label,
+                        next_label,
+                        pinger_cfg,
+                        paths_config,
+                        tasks_config,
+                        defaults,
+                        dry_run,
                         align_only,
                     )
                 else:
                     _add_simple_token(
-                        sm, token, label, next_label,
-                        paths_config, tasks_config, defaults, dry_run,
+                        sm,
+                        token,
+                        label,
+                        next_label,
+                        paths_config,
+                        tasks_config,
+                        defaults,
+                        dry_run,
                         align_only,
                     )
             except (KeyError, ValueError) as exc:

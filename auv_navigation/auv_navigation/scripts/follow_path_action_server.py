@@ -70,7 +70,9 @@ class FollowPathActionServer:
                     return False
 
                 if self.current_path is None:
-                    rospy.logwarn_throttle(2.0, "[FollowPath] No path received yet. Waiting...")
+                    rospy.logwarn_throttle(
+                        2.0, "[FollowPath] No path received yet. Waiting..."
+                    )
                     self.loop_rate.sleep()
                     continue
 
@@ -121,17 +123,31 @@ class FollowPathActionServer:
                     return True
 
                 # --- Diagnostic: log progress ---
-                last_pose = self.current_path.poses[-1].pose if self.current_path.poses else None
+                last_pose = (
+                    self.current_path.poses[-1].pose
+                    if self.current_path.poses
+                    else None
+                )
                 if last_pose is not None:
                     dx = robot_pose.pose.position.x - last_pose.position.x
                     dy = robot_pose.pose.position.y - last_pose.position.y
-                    dist_to_end = (dx**2 + dy**2)**0.5
-                    _, _, robot_yaw = euler_from_quaternion([
-                        robot_pose.pose.orientation.x, robot_pose.pose.orientation.y,
-                        robot_pose.pose.orientation.z, robot_pose.pose.orientation.w])
-                    _, _, last_yaw = euler_from_quaternion([
-                        last_pose.orientation.x, last_pose.orientation.y,
-                        last_pose.orientation.z, last_pose.orientation.w])
+                    dist_to_end = (dx**2 + dy**2) ** 0.5
+                    _, _, robot_yaw = euler_from_quaternion(
+                        [
+                            robot_pose.pose.orientation.x,
+                            robot_pose.pose.orientation.y,
+                            robot_pose.pose.orientation.z,
+                            robot_pose.pose.orientation.w,
+                        ]
+                    )
+                    _, _, last_yaw = euler_from_quaternion(
+                        [
+                            last_pose.orientation.x,
+                            last_pose.orientation.y,
+                            last_pose.orientation.z,
+                            last_pose.orientation.w,
+                        ]
+                    )
                     yaw_diff = abs(robot_yaw - last_yaw)
                     if yaw_diff > math.pi:
                         yaw_diff = 2 * math.pi - yaw_diff

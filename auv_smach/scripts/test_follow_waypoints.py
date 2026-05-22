@@ -142,7 +142,7 @@ def _load_gui_state_paths(state_file):
         return {}
 
     out = {}
-    for entry in (data.get("paths") or []):
+    for entry in data.get("paths") or []:
         if not isinstance(entry, dict):
             continue
         name = entry.get("name")
@@ -199,9 +199,7 @@ def main() -> None:
             f"at {gui_paths_ns}: {list(gui_paths.keys())}"
         )
 
-    gui_state_file = rospy.get_param(
-        "~waypoint_gui_state_file", DEFAULT_GUI_STATE_FILE
-    )
+    gui_state_file = rospy.get_param("~waypoint_gui_state_file", DEFAULT_GUI_STATE_FILE)
     gui_state_paths = {}
     if not paths_config and not gui_paths:
         gui_state_paths = _load_gui_state_paths(gui_state_file)

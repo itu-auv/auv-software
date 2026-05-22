@@ -10,7 +10,12 @@ import rospy
 import tf2_ros
 from gazebo_msgs.msg import ModelStates
 from geometry_msgs.msg import Pose, Transform, TransformStamped
-from tf.transformations import quaternion_from_matrix, quaternion_matrix, translation_matrix
+from tf.transformations import (
+    quaternion_from_matrix,
+    quaternion_matrix,
+    translation_matrix,
+)
+
 
 def pose_to_matrix(pose: Pose) -> np.ndarray:
     p = pose.position
@@ -49,7 +54,11 @@ class GazeboModelBuffer:
     def _model_states_cb(self, msg: ModelStates):
         names = list(msg.name) if msg.name is not None else []
         pose_list = list(msg.pose) if msg.pose is not None else []
-        poses = {name: pose_list[idx] for idx, name in enumerate(names) if idx < len(pose_list)}
+        poses = {
+            name: pose_list[idx]
+            for idx, name in enumerate(names)
+            if idx < len(pose_list)
+        }
         matrices = {name: pose_to_matrix(pose) for name, pose in poses.items()}
         with self._state_lock:
             self._pose_buffer.append((rospy.Time.now(), poses, matrices))
@@ -116,7 +125,9 @@ class PingerSimMockNode:
             rospy.get_param("~prefer_closest_to_robot", True)
         )
         self.debug_pose_log = bool(rospy.get_param("~debug_pose_log", False))
-        self.model_instance_name = str(rospy.get_param("~model_instance_name", "")).strip()
+        self.model_instance_name = str(
+            rospy.get_param("~model_instance_name", "")
+        ).strip()
         self.lock_target_model = bool(rospy.get_param("~lock_target_model", True))
         self._selected_model_name: Optional[str] = None
 
@@ -187,7 +198,9 @@ class PingerSimMockNode:
             if model_root in model_poses:
                 selected = model_root
             else:
-                candidates = sorted([name for name in names if name.startswith(model_root + "_")])
+                candidates = sorted(
+                    [name for name in names if name.startswith(model_root + "_")]
+                )
                 rospy.logwarn_throttle(
                     5.0,
                     "Exact model '%s' not found. Prefix candidates=%s",
@@ -197,7 +210,11 @@ class PingerSimMockNode:
                 return None
         else:
             candidates = sorted(
-                [name for name in names if name == model_root or name.startswith(model_root + "_")]
+                [
+                    name
+                    for name in names
+                    if name == model_root or name.startswith(model_root + "_")
+                ]
             )
             if candidates:
                 if len(candidates) == 1 or not self.prefer_closest_to_robot:
@@ -323,7 +340,9 @@ class PingerSimMockNode:
                 continue
 
             odom_from_model = odom_from_world @ model_matrix
-            pinger_tf = self._build_pinger_transform(stamp, odom_from_model, local_point)
+            pinger_tf = self._build_pinger_transform(
+                stamp, odom_from_model, local_point
+            )
             self.tf_broadcaster.sendTransform(pinger_tf)
             if self.debug_pose_log:
                 rospy.loginfo_throttle(

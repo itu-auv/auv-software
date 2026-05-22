@@ -46,13 +46,13 @@ tasks:
 
 # ---- GUI-drawn paths ----
 paths:
-  path1:                # octagon -> torpedo
+  path1: # octagon -> torpedo
     waypoints: 3
     final_align: true
-  path2:                # torpedo -> octagon
+  path2: # torpedo -> octagon
     waypoints: 3
     final_align: true
-  path3:                # e.g. gate -> bin, used as a plain token
+  path3: # e.g. gate -> bin, used as a plain token
     waypoints: 3
     final_align: false
 
@@ -73,5 +73,5 @@ pinger_select:
       position_source: gazebo_model
       gazebo_model: robosub_torpedo
   transitions:
-    octagon_to_torpedo: path1   # pinger near octagon -> octagon, path1, torpedo
-    torpedo_to_octagon: path2   # pinger near torpedo -> torpedo, path2, octagon
+    octagon_to_torpedo: path1 # pinger near octagon -> octagon, path1, torpedo
+    torpedo_to_octagon: path2 # pinger near torpedo -> torpedo, path2, octagon

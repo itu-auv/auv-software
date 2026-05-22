@@ -125,8 +125,7 @@ class PingerDecisionState(smach.State):
                 )
                 userdata.pinger_order = (near, far)
                 rospy.loginfo(
-                    "[PingerDecisionState] Decision: %s first "
-                    "(distances: %s)",
+                    "[PingerDecisionState] Decision: %s first " "(distances: %s)",
                     near,
                     ", ".join(f"{n}={d:.2f}m" for n, d in distances.items()),
                 )

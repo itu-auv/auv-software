@@ -54,13 +54,13 @@ tasks:
 # path1/path2 are the octagon<->torpedo transitions used by the pinger token;
 # path3 (and any others) are normal unconditional tokens.
 paths:
-  path1:                # octagon -> torpedo
+  path1: # octagon -> torpedo
     waypoints: 3
     final_align: true
-  path2:                # torpedo -> octagon
+  path2: # torpedo -> octagon
     waypoints: 3
     final_align: true
-  path3:                # e.g. gate -> bin, used as a plain token
+  path3: # e.g. gate -> bin, used as a plain token
     waypoints: 3
     final_align: false
 
@@ -80,7 +80,7 @@ paths:
 pinger_select:
   pinger_frame: pinger_link
   reference_frame: odom
-  tf_timeout: 2.0              # per-poll TF lookup wait inside the retry loop
+  tf_timeout: 2.0 # per-poll TF lookup wait inside the retry loop
   decision_wait_timeout: 30.0 # total time to keep retrying before abort
   candidates:
     octagon:
@@ -97,5 +97,5 @@ pinger_select:
       enable_service: set_transform_torpedo_target_frame
       # sim-only alt: position_source: gazebo_model / gazebo_model: robosub_torpedo
   transitions:
-    octagon_to_torpedo: path1   # pinger near octagon -> octagon, path1, torpedo
-    torpedo_to_octagon: path2   # pinger near torpedo -> torpedo, path2, octagon
+    octagon_to_torpedo: path1 # pinger near octagon -> octagon, path1, torpedo
+    torpedo_to_octagon: path2 # pinger near torpedo -> torpedo, path2, octagon

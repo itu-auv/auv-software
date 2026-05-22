@@ -781,10 +781,7 @@ class WaypointGUI:
         # re-sending the same (or an older) stamp triggers TF_REPEATED_DATA
         # and corrupts the TF buffer. Common under use_sim_time when the
         # 20 Hz rate loop runs faster than /clock updates.
-        if (
-            self._last_broadcast_stamp is not None
-            and now <= self._last_broadcast_stamp
-        ):
+        if self._last_broadcast_stamp is not None and now <= self._last_broadcast_stamp:
             return
         self._last_broadcast_stamp = now
 
@@ -1029,9 +1026,7 @@ class WaypointGUI:
             except (tk.TclError, ValueError):
                 pass
         try:
-            self._save_after_id = self.root.after(
-                SAVE_DEBOUNCE_MS, self._flush_save
-            )
+            self._save_after_id = self.root.after(SAVE_DEBOUNCE_MS, self._flush_save)
         except tk.TclError:
             self._save_after_id = None
 
@@ -1073,9 +1068,7 @@ class WaypointGUI:
                 os.makedirs(directory, exist_ok=True)
             tmp_path = self.state_file + ".tmp"
             with open(tmp_path, "w") as f:
-                yaml.safe_dump(
-                    data, f, sort_keys=False, default_flow_style=False
-                )
+                yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
             os.replace(tmp_path, self.state_file)
         except OSError as exc:
             rospy.logwarn_throttle(
@@ -1122,9 +1115,7 @@ class WaypointGUI:
             self.notebook.select(self.paths[0]._tab)
         except (tk.TclError, IndexError):
             pass
-        rospy.loginfo(
-            f"[WaypointGUI] Loaded {loaded} path(s) from {self.state_file}"
-        )
+        rospy.loginfo(f"[WaypointGUI] Loaded {loaded} path(s) from {self.state_file}")
         return True
 
 
