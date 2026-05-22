@@ -13,7 +13,7 @@ from auv_smach.common import (
     DynamicPathState,
     DynamicPathWithTransformCheck,
     AlignFrame,
-    SearchForPropState,
+    SearchForPropKdeState,
     SetDetectionState,
     AlignAndCreateRotatingFrame,
 )
@@ -408,8 +408,8 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "FIND_AIM_OCTAGON",
-                SearchForPropState(
-                    look_at_frame="octagon_link",
+                SearchForPropKdeState(
+                    look_at_frame="octagon_link_kde",
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     set_frame_duration=4.0,
