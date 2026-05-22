@@ -161,9 +161,9 @@ class ControllerROS {
 
       auto pid_controller =
           dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
-      ROS_INFO_STREAM_THROTTLE(
-          0.1, "raw_pid_output_before_limit: "
-                   << pid_controller->get_raw_pid_output().transpose());
+      // ROS_INFO_STREAM_THROTTLE(
+      //     0.1, "raw_pid_output_before_limit: "
+      //              << pid_controller->get_raw_pid_output().transpose());
 
       // BEGIN DEBUG PID OUTPUT VISUALIZATION
       raw_pid_output_pub_.publish(
