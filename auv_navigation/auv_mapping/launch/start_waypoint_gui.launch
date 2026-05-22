@@ -5,6 +5,8 @@
     <arg name="waypoint_prefix" default="path" />
     <arg name="default_waypoint_z" default="-1.0" />
     <arg name="broadcast_rate_hz" default="20.0" />
+    <!-- Auto-saved state file. Survives Ctrl+C / relaunches so paths are restored. -->
+    <arg name="state_file" default="~/.ros/waypoint_gui_state.yaml" />
 
     <!--
       Canvas bounds in the per-path local frame (A = 0,0; +x forward in ref coords).
@@ -24,6 +26,7 @@
             <param name="waypoint_prefix" value="$(arg waypoint_prefix)" />
             <param name="default_waypoint_z" value="$(arg default_waypoint_z)" />
             <param name="broadcast_rate_hz" value="$(arg broadcast_rate_hz)" />
+            <param name="state_file" value="$(arg state_file)" />
 
             <param name="canvas_x_min" value="$(arg canvas_x_min)" />
             <param name="canvas_x_max" value="$(arg canvas_x_max)" />
