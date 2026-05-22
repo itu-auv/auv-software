@@ -101,6 +101,13 @@ class WaypointGUI:
 
         self.simulate_var = tk.BooleanVar(value=False)
         self._rosparam_sync_counter = 0
+        # Last stamp we actually broadcast. Under use_sim_time the 20 Hz
+        # rospy.Rate can tick several times within one /clock step, so
+        # consecutive ticks would re-send the *same* timestamp and flood
+        # the console with TF_REPEATED_DATA (which also pollutes the TF
+        # buffer and degrades path-following / alignment). We skip a tick
+        # whose stamp didn't advance past the previous broadcast.
+        self._last_broadcast_stamp = None
 
         self.paths = []
         self.active_path_idx = None
@@ -205,7 +212,10 @@ class WaypointGUI:
         )
         path._status_label.pack(fill=tk.X, padx=5, pady=(2, 2))
 
-        ref_box = tk.LabelFrame(tab, text="Reference frame (A → B composite)")
+        ref_box = tk.LabelFrame(
+            tab,
+            text="Reference frame (A → B composite, or A only if B is empty)",
+        )
         ref_box.pack(fill=tk.X, padx=5, pady=5)
 
         a_row = tk.Frame(ref_box)
@@ -769,6 +779,15 @@ class WaypointGUI:
 
     def _broadcast_tick(self):
         now = rospy.Time.now()
+
+        # Skip if the clock hasn't advanced since the last broadcast:
+        # re-sending the same (or an older) stamp triggers TF_REPEATED_DATA
+        # and corrupts the TF buffer. Common under use_sim_time when the
+        # 20 Hz rate loop runs faster than /clock updates.
+        if self._last_broadcast_stamp is not None and now <= self._last_broadcast_stamp:
+            return
+        self._last_broadcast_stamp = now
+
         transforms = []
 
         with self._paths_lock:
@@ -905,18 +924,27 @@ class WaypointGUI:
     def _build_composite_transform(self, path, now):
         """Broadcast <path>_ref as child of A frame.
 
-        Transform from A → <path>_ref:
-            translation = 0 (coincident with A)
-            rotation    = yaw such that +x of <path>_ref points toward B
+        Two modes:
+          - A + B: <path>_ref coincides with A; its +x axis points toward B
+            (yaw computed from B's position in A's frame).
+          - A only (B empty): <path>_ref is identity-attached to A, so it
+            inherits A's full orientation. Waypoint (+x, +y, yaw) on the canvas
+            are then expressed directly in A's frame.
 
-        A and B are both expressed in A's frame by looking them up; B's position
-        in A's frame directly gives the +x direction. If either lookup fails the
-        composite isn't broadcast this tick.
+        Returns None if A isn't set or the A->B lookup fails when B is given.
         """
         a = path.ref_a.get()
         b = path.ref_b.get()
-        if not a or not b or a == b:
+        if not a:
             return None
+
+        if not b or a == b:
+            t = TransformStamped()
+            t.header.stamp = now
+            t.header.frame_id = a
+            t.child_frame_id = path.composite_frame_name()
+            t.transform.rotation.w = 1.0
+            return t
 
         try:
             tf_a_b = self.tf_buffer.lookup_transform(

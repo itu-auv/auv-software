@@ -5,9 +5,6 @@ from auv_smach.common import (
     AlignFrame,
     CheckForTransformState,
     DynamicPathState,
-    SetDetectionFocusBottomState,
-    SetDetectionFocusState,
-    SetDetectionState,
 )
 from auv_smach.tf_utils import get_base_link
 
@@ -190,46 +187,6 @@ class DynamicPathExecutionState(smach.StateMachine):
         follow_state_name = f"FOLLOW_{tag}"
 
         with self:
-            # Mirrors main's task-state pattern (gate.py, octagon.py) where each
-            # task re-enables the camera focus it needs after init's clean slate.
-            # We don't know which specific group this path's ref frame belongs
-            # to, so re-enable all front/bottom detections.
-            smach.StateMachine.add(
-                f"{tag}_ENABLE_BOTTOM_DETECTION",
-                SetDetectionState(camera_name="bottom", enable=True),
-                transitions={
-                    "succeeded": f"{tag}_ENABLE_SLALOM_DETECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                f"{tag}_ENABLE_SLALOM_DETECTION",
-                SetDetectionState(camera_name="slalom", enable=True),
-                transitions={
-                    "succeeded": f"{tag}_SET_FRONT_FOCUS_ALL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                f"{tag}_SET_FRONT_FOCUS_ALL",
-                SetDetectionFocusState(focus_object="all"),
-                transitions={
-                    "succeeded": f"{tag}_SET_BOTTOM_FOCUS_ALL",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                f"{tag}_SET_BOTTOM_FOCUS_ALL",
-                SetDetectionFocusBottomState(focus_object="all"),
-                transitions={
-                    "succeeded": f"WAIT_FOR_{tag}_REF",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
             smach.StateMachine.add(
                 f"WAIT_FOR_{tag}_REF",
                 CheckForTransformState(
