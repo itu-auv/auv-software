@@ -133,7 +133,7 @@ class TorpedoTaskState(smach.State):
                     look_at_frame=self.torpedo_search_frame,
                     alignment_frame="torpedo_map_travel_start",
                     full_rotation=False,
-                    set_frame_duration=7.0,
+                    timeout=20.0,
                     source_frame=self.base_link,
                     rotation_speed=0.3,
                 ),

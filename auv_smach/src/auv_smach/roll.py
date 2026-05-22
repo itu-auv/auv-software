@@ -346,7 +346,7 @@ class TwoRollState(smach.StateMachine):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame="gate_search_after_roll",
                     full_rotation=True,
-                    set_frame_duration=7.0,
+                    timeout=20.0,
                     source_frame=self.base_link,
                     rotation_speed=0.25,
                 ),
