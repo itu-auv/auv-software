@@ -38,6 +38,15 @@
     <arg name="max_linear_velocity" default="0.3" />
     <arg name="max_angular_velocity" default="0.45" />
 
+    <!--
+      How old a TF lookup may be (seconds) before CheckForTransformState
+      treats it as stale. Default in lookup_fresh_transform is 0.2s. For
+      single-reference (or any GUI-published path frame) testing, sim_time
+      vs wall_clock skew can make fresh stamps look stale; bump this up
+      to debug whether freshness is the blocker.
+    -->
+    <arg name="tf_freshness_threshold" default="5.0" />
+
     <param name="/smach/max_linear_velocity" value="$(arg max_linear_velocity)" />
     <param name="/smach/max_angular_velocity" value="$(arg max_angular_velocity)" />
 
@@ -51,6 +60,7 @@
             <param name="auto_max_waypoints" value="$(arg auto_max_waypoints)" />
             <param name="max_linear_velocity" value="$(arg max_linear_velocity)" />
             <param name="max_angular_velocity" value="$(arg max_angular_velocity)" />
+            <param name="tf_freshness_threshold" value="$(arg tf_freshness_threshold)" />
 
             <rosparam command="load" file="$(arg paths_yaml)" if="$(eval paths_yaml != '')" />
 
