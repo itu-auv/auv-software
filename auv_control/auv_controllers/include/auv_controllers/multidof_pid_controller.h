@@ -1,6 +1,7 @@
 #pragma once
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <algorithm>
 #include <array>
 #include <vector>
 
@@ -34,6 +35,27 @@ class MultiDOFPIDController : public ControllerBase<N> {
    */
   void set_max_velocity_limits(const Vectornd& limits) {
     max_velocity_limits_ = limits;
+  }
+
+  /**
+   * @brief Set max acceleration command limits for the velocity controller
+   * output
+   *
+   * @param limits Vector of max acceleration commands (absolute values).
+   *               A value <= 0 disables the limit for that axis.
+   */
+  void set_max_acceleration_limits(const Vectornd& limits) {
+    max_acceleration_limits_ = limits;
+  }
+
+  /**
+   * @brief Set max acceleration command rate limits
+   *
+   * @param limits Vector of max acceleration command change rates.
+   *               A value <= 0 disables the rate limit for that axis.
+   */
+  void set_max_acceleration_rate_limits(const Vectornd& limits) {
+    max_acceleration_rate_limits_ = limits;
   }
 
   /**
@@ -126,7 +148,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto d_term = kd_.template block<N, N>(N, N) *
                         (Vectornd::Zero() - acceleration_state);
 
-    const auto pid_output = p_term + i_term + d_term;
+    const auto pid_output = limit_pid_output(p_term + i_term + d_term, dt);
     const auto mass_matrix = actual_mass_matrix(state);
 
     const auto pid_force = mass_matrix * pid_output;
@@ -189,6 +211,31 @@ class MultiDOFPIDController : public ControllerBase<N> {
     return rotation.matrix().transpose();
   }
 
+  Vectornd limit_pid_output(const Vectornd& raw_pid_output, const double dt) {
+    auto limited_pid_output = raw_pid_output;
+    const double rate_limit_dt = dt > 1.0 ? 1.0 / dt : dt;
+
+    for (size_t i = 0; i < N; ++i) {
+      const double acceleration_limit = max_acceleration_limits_(i);
+      if (acceleration_limit > 0) {
+        limited_pid_output(i) = std::clamp(
+            limited_pid_output(i), -acceleration_limit, acceleration_limit);
+      }
+
+      const double rate_limit = max_acceleration_rate_limits_(i);
+      if (rate_limit > 0 && rate_limit_dt > 0) {
+        const double max_delta = rate_limit * rate_limit_dt;
+        const double delta =
+            std::clamp(limited_pid_output(i) - previous_pid_output_(i),
+                       -max_delta, max_delta);
+        limited_pid_output(i) = previous_pid_output_(i) + delta;
+      }
+    }
+
+    previous_pid_output_ = limited_pid_output;
+    return limited_pid_output;
+  }
+
   // gains
   Vector2nd integral_{Vector2nd::Zero()};
   Vector2nd integral_clamp_limits_{
@@ -200,6 +247,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   // Default to effectively unlimited (1e6)
   Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
+  Vectornd max_acceleration_limits_{Vectornd::Zero()};
+  Vectornd max_acceleration_rate_limits_{Vectornd::Zero()};
+  Vectornd previous_pid_output_{Vectornd::Zero()};
 
   // Last computed desired velocity (for external access)
   Vectornd desired_velocity_{Vectornd::Zero()};
