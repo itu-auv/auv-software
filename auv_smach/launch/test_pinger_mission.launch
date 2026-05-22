@@ -20,15 +20,13 @@
     <!--
       align_only: octagon/torpedo run for real ONLY up to their close-approach
       AlignFrame, then succeed (no bottle grab / torpedo firing). The pinger
-      decision and path following still run for real. Use this to validate the
-      full octa/torpe selection + path1/path2 flow without performing the
-      tasks. Ignored when dry_run:=true (stubs already skip everything).
-      Example:
-        roslaunch auv_smach test_pinger_mission.launch \
-          test_states:="path3, octagon_torpedo_pinger" \
-          dry_run:=false align_only:=true
+      decision and path following still run for real. This is the default for
+      this test launch because the goal here is to validate the pinger-driven
+      path selection — real task execution lives in main_state_machine.
+      Override with align_only:=false if you actually need the full task.
+      Ignored when dry_run:=true (stubs already skip everything).
     -->
-    <arg name="align_only" default="false" />
+    <arg name="align_only" default="true" />
 
     <!--
       Mission config. Leave empty (default) and it is chosen automatically
