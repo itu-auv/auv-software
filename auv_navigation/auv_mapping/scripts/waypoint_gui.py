@@ -50,15 +50,6 @@ class PathData:
         self.waypoints = []  # [{x, y, z, yaw}] in composite ref coords
         self.selected_index = None
 
-        # Last successful world-frame anchor for the composite ref.
-        # Refreshed every broadcast tick whenever both A and B resolve in
-        # TF. When lookups later fail (e.g. InitializeState wipes the
-        # object_map), we keep broadcasting from this snapshot so the
-        # path doesn't disappear mid-test. Cleared when A or B selection
-        # changes so a re-selection picks a fresh anchor.
-        # Shape: {"x": float, "y": float, "z": float, "yaw": float}
-        self.cached_composite = None
-
     def composite_frame_name(self):
         return f"{self.name}_ref"
 
@@ -931,60 +922,49 @@ class WaypointGUI:
             )
 
     def _build_composite_transform(self, path, now):
-        """Broadcast <path>_ref anchored in world_frame.
+        """Broadcast <path>_ref as child of A frame.
 
-        Resolves A and B in world_frame and publishes <path>_ref as child of
-        world_frame at A's translation, with yaw such that +x points toward B.
-        The world pose is cached on path.cached_composite and refreshed every
-        tick that both lookups succeed, so the ref tracks live updates while
-        A/B exist in TF.
+        Transform from A → <path>_ref:
+            translation = 0 (coincident with A)
+            rotation    = yaw such that +x of <path>_ref points toward B
 
-        If A or B disappear later (e.g. InitializeState's CLEAR_OBJECT_MAP
-        wipes the object_map), the cache is used as a fallback so the path
-        keeps being broadcast. Without this snapshot the entire path chain
-        would die the moment init clears the object_map.
+        A and B are both expressed in A's frame by looking them up; B's position
+        in A's frame directly gives the +x direction. If either lookup fails the
+        composite isn't broadcast this tick — by design, so a stale snapshot
+        never leaks past a CLEAR_OBJECT_MAP / re-localisation.
         """
         a = path.ref_a.get()
         b = path.ref_b.get()
         if not a or not b or a == b:
             return None
 
-        ax = ay = az = yaw = None
         try:
-            tf_world_a = self.tf_buffer.lookup_transform(
-                self.world_frame, a, rospy.Time(0), rospy.Duration(0.1)
+            tf_a_b = self.tf_buffer.lookup_transform(
+                a,
+                b,
+                rospy.Time(0),
+                rospy.Duration(0.1),
             )
-            tf_world_b = self.tf_buffer.lookup_transform(
-                self.world_frame, b, rospy.Time(0), rospy.Duration(0.1)
-            )
-            ax = tf_world_a.transform.translation.x
-            ay = tf_world_a.transform.translation.y
-            az = tf_world_a.transform.translation.z
-            dx = tf_world_b.transform.translation.x - ax
-            dy = tf_world_b.transform.translation.y - ay
-            if abs(dx) >= 1e-9 or abs(dy) >= 1e-9:
-                yaw = math.atan2(dy, dx)
-                path.cached_composite = {"x": ax, "y": ay, "z": az, "yaw": yaw}
         except (
             tf2_ros.LookupException,
             tf2_ros.ConnectivityException,
             tf2_ros.ExtrapolationException,
         ):
-            pass
+            return None
 
-        if yaw is None:
-            cache = path.cached_composite
-            if cache is None:
-                return None
-            ax, ay, az, yaw = cache["x"], cache["y"], cache["z"], cache["yaw"]
+        bx = tf_a_b.transform.translation.x
+        by = tf_a_b.transform.translation.y
+        if abs(bx) < 1e-9 and abs(by) < 1e-9:
+            return None
+        yaw = math.atan2(by, bx)
 
         t = TransformStamped()
         t.header.stamp = now
-        t.header.frame_id = self.world_frame
+        t.header.frame_id = a
         t.child_frame_id = path.composite_frame_name()
-        t.transform.translation.x = ax
-        t.transform.translation.y = ay
-        t.transform.translation.z = az
+        t.transform.translation.x = 0.0
+        t.transform.translation.y = 0.0
+        t.transform.translation.z = 0.0
         q = quaternion_from_euler(0.0, 0.0, yaw)
         t.transform.rotation.x = q[0]
         t.transform.rotation.y = q[1]
@@ -1034,13 +1014,8 @@ class WaypointGUI:
 
     def _attach_path_traces(self, path):
         cb = lambda *_: self._schedule_save()  # noqa: E731
-
-        def _on_ref_change(*_):
-            path.cached_composite = None
-            self._schedule_save()
-
-        path.ref_a.trace_add("write", _on_ref_change)
-        path.ref_b.trace_add("write", _on_ref_change)
+        path.ref_a.trace_add("write", cb)
+        path.ref_b.trace_add("write", cb)
         path.yaw_var.trace_add("write", cb)
         path.z_var.trace_add("write", cb)
         path.publish_enabled.trace_add("write", cb)
