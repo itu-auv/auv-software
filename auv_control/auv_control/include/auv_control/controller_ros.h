@@ -119,13 +119,6 @@ class ControllerROS {
     wrench_pub_ = nh_.advertise<geometry_msgs::WrenchStamped>("wrench", 1);
     desired_velocity_pub_ =
         nh_.advertise<geometry_msgs::Twist>("desired_velocity", 1);
-
-    // BEGIN DEBUG PID OUTPUT VISUALIZATION
-    raw_pid_output_pub_ =
-        nh_.advertise<geometry_msgs::Twist>("raw_pid_output", 1);
-    limited_pid_output_pub_ =
-        nh_.advertise<geometry_msgs::Twist>("limited_pid_output", 1);
-    // END DEBUG PID OUTPUT VISUALIZATION
   }
 
   bool load_controller(const std::string& controller_name) {
@@ -161,21 +154,6 @@ class ControllerROS {
 
       auto pid_controller =
           dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
-      ROS_INFO_STREAM_THROTTLE(
-          0.1, "raw_pid_output_before_limit: "
-                   << pid_controller->get_raw_pid_output().transpose());
-
-      // BEGIN DEBUG PID OUTPUT VISUALIZATION
-      raw_pid_output_pub_.publish(
-          auv::common::conversions::convert<ControllerBase::Vector,
-                                            geometry_msgs::Twist>(
-              pid_controller->get_raw_pid_output()));
-      limited_pid_output_pub_.publish(
-          auv::common::conversions::convert<ControllerBase::Vector,
-                                            geometry_msgs::Twist>(
-              pid_controller->get_limited_pid_output()));
-      // END DEBUG PID OUTPUT VISUALIZATION
-
       desired_velocity_pub_.publish(
           auv::common::conversions::convert<ControllerBase::Vector,
                                             geometry_msgs::Twist>(
@@ -591,11 +569,6 @@ class ControllerROS {
   ros::Subscriber accel_sub_;
   ros::Publisher wrench_pub_;
   ros::Publisher desired_velocity_pub_;
-
-  // BEGIN DEBUG PID OUTPUT VISUALIZATION
-  ros::Publisher raw_pid_output_pub_;
-  ros::Publisher limited_pid_output_pub_;
-  // END DEBUG PID OUTPUT VISUALIZATION
 
   ControlEnableSub control_enable_sub_;
   ControllerBasePtr controller_;

@@ -80,13 +80,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   const Vectornd& get_desired_velocity() const { return desired_velocity_; }
 
-  // BEGIN DEBUG PID OUTPUT VISUALIZATION
-  const Vectornd& get_raw_pid_output() const { return raw_pid_output_; }
-  const Vectornd& get_limited_pid_output() const {
-    return previous_pid_output_;
-  }
-  // END DEBUG PID OUTPUT VISUALIZATION
-
   /**
    * @brief Calculate the control output, in the form of a wrench
    *
@@ -155,8 +148,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto d_term = kd_.template block<N, N>(N, N) *
                         (Vectornd::Zero() - acceleration_state);
 
-    raw_pid_output_ = p_term + i_term + d_term;
-    const auto pid_output = limit_pid_output(raw_pid_output_, dt);
+    const auto pid_output = limit_pid_output(p_term + i_term + d_term, dt);
     const auto mass_matrix = actual_mass_matrix(state);
 
     const auto pid_force = mass_matrix * pid_output;
@@ -258,7 +250,6 @@ class MultiDOFPIDController : public ControllerBase<N> {
   Vectornd max_acceleration_limits_{Vectornd::Zero()};
   Vectornd max_acceleration_rate_limits_{Vectornd::Zero()};
   Vectornd previous_pid_output_{Vectornd::Zero()};
-  Vectornd raw_pid_output_{Vectornd::Zero()};
 
   // Last computed desired velocity (for external access)
   Vectornd desired_velocity_{Vectornd::Zero()};
