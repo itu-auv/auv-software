@@ -13,7 +13,7 @@ from auv_smach.common import (
     DynamicPathState,
     DynamicPathWithTransformCheck,
     AlignFrame,
-    SearchForPropKdeState,
+    SearchForPropState,
     SetDetectionState,
     AlignAndCreateRotatingFrame,
 )
@@ -119,7 +119,7 @@ class CheckBottleLinkState(smach.State):
                     self.source_frame,
                     self.target_frame,
                     rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
                 )
                 rospy.loginfo(
                     f"[CheckBottleLinkState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
@@ -408,11 +408,27 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "FIND_AIM_OCTAGON",
-                SearchForPropKdeState(
-                    look_at_frame="octagon_link_kde",
+                SearchForPropState(
+                    look_at_frame="p_octagon_link",
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     set_frame_duration=4.0,
+                    source_frame=self.base_link,
+                    rotation_speed=0.2,
+                ),
+                transitions={
+                    "succeeded": "reenkarnasyon",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            ) 
+            smach.StateMachine.add(
+                "reenkarnasyon",
+                SearchForPropState(
+                    look_at_frame="octagon_link",
+                    alignment_frame="octagon_search_frame",
+                    full_rotation=False,
+                    set_frame_duration=2.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),

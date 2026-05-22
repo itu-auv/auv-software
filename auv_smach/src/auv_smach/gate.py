@@ -265,6 +265,7 @@ class NavigateThroughGateState(smach.State):
                 "DYNAMIC_PATH_TO_ENTRANCE",
                 DynamicPathState(
                     plan_target_frame="gate_entrance",
+                    max_linear_velocity=0.3,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_EXIT",
