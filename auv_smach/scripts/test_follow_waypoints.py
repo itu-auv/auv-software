@@ -8,7 +8,10 @@ Mirrors the `test_states:=a,b,c` convention of start.launch:
 
 Tokens recognised:
     init          -> InitializeState()
-    path<N>       -> DynamicPathExecutionState for that path
+    path<N>       -> DynamicPathExecutionState for that path (which re-enables
+                     camera detections internally, mirroring how each task
+                     state in main_state_machine.py re-enables its own focus
+                     after INITIALIZE's clean-slate cleanup).
 
 For each `path<N>` token, the runner looks up its config in rosparam
 `~paths.path<N>` (from a YAML passed via `paths_yaml:=...`). The config may
