@@ -47,8 +47,8 @@
               the pinger path selector can be tested in simulation.
             -->
             <rosparam param="known_object_frames">
-                - "gate_shark_link"
-                - "gate_sawfish_link"
+                - "gate_search_rescue_link"
+                - "gate_survey_repair_link"
                 - "bin_whole_link"
                 - "octagon_link"
                 - "torpedo_map_link"
@@ -59,8 +59,8 @@
 
             <rosparam param="reference_frame_options">
                 - "odom"
-                - "gate_shark_link"
-                - "gate_sawfish_link"
+                - "gate_search_rescue_link"
+                - "gate_survey_repair_link"
                 - "bin_whole_link"
                 - "octagon_link"
                 - "torpedo_map_link"
