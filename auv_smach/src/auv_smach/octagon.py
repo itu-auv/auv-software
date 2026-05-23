@@ -445,15 +445,6 @@ class OctagonTaskState(smach.State):
                 "WAIT_FOR_OCTAGON_FRAME",
                 DelayState(delay_time=5.0),
                 transitions={
-                    "succeeded": "CLOSE_DETECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CLOSE_DETECTION",
-                SetDetectionFocusState(focus_object="none"),
-                transitions={
                     "succeeded": "SET_OCTAGON_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -492,22 +483,22 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "anana",
+                    "succeeded": "DISABLE_OCTAGON_FRAME_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "anana",
+                "DISABLE_OCTAGON_FRAME_PUBLISHER",
                 OctagonFramePublisherServiceState(req=False),
                 transitions={
-                    "succeeded": "SET_batuhan_DEPTH",
+                    "succeeded": "SET_BATUHAN_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_batuhan_DEPTH",
+                "SET_BATUHAN_DEPTH",
                 SetDepthState(depth=-0.6),
                 transitions={
                     "succeeded": "ENABLE_BOTTOM_DETECTION",
@@ -581,13 +572,13 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "baba",
+                    "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER_ON_TABLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "baba",
+                "ENABLE_OCTAGON_FRAME_PUBLISHER_ON_TABLE",
                 OctagonFramePublisherServiceState(req=True),
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_1",
