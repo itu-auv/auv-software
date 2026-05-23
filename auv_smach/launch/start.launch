@@ -18,7 +18,9 @@
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
         pipeline:NAVIGATE_THROUGH_PIPELINE,
-        valve:NAVIGATE_TO_VALVE_TASK
+        valve_front:NAVIGATE_TO_VALVE_FRONT_TASK,
+        valve_bottom:NAVIGATE_TO_VALVE_BOTTOM_TASK,
+        inspect:INSPECT
     "/>
 
     <!-- Test Mode Configuration -->

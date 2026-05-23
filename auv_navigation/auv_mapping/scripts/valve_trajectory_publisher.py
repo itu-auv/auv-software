@@ -31,13 +31,10 @@ class ValveTrajectoryPublisherNode:
         self.odom_frame = "odom"
         self.valve_frame = rospy.get_param("~valve_frame", "tac/valve")
         self.approach_frame = rospy.get_param("~approach_frame", "valve_approach_frame")
-        self.contact_frame = rospy.get_param("~contact_frame", "valve_contact_frame")
 
         self.enable_approach = False
-        self.enable_contact = False
 
         self.approach_offset = 2.00
-        self.contact_offset = 0.625
 
         self.reconfigure_server = Server(
             ValveTrajectoryConfig, self.reconfigure_callback
@@ -47,11 +44,6 @@ class ValveTrajectoryPublisherNode:
             "set_transform_valve_approach_frame",
             SetBool,
             self.handle_enable_approach_service,
-        )
-        self.set_enable_contact_service = rospy.Service(
-            "set_transform_valve_contact_frame",
-            SetBool,
-            self.handle_enable_contact_service,
         )
 
     def get_pose(self, transform: TransformStamped) -> Pose:
@@ -161,24 +153,14 @@ class ValveTrajectoryPublisherNode:
     def create_approach_frame(self):
         self._create_offset_frame(self.approach_frame, self.approach_offset)
 
-    def create_contact_frame(self):
-        self._create_offset_frame(self.contact_frame, self.contact_offset)
-
     def handle_enable_approach_service(self, req):
         self.enable_approach = req.data
         message = f"Valve approach frame publish is set to: {self.enable_approach}"
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
-    def handle_enable_contact_service(self, req):
-        self.enable_contact = req.data
-        message = f"Valve contact frame publish is set to: {self.enable_contact}"
-        rospy.loginfo(message)
-        return SetBoolResponse(success=True, message=message)
-
     def reconfigure_callback(self, config, level):
         self.approach_offset = config.approach_offset
-        self.contact_offset = config.contact_offset
         return config
 
     def spin(self):
@@ -186,8 +168,6 @@ class ValveTrajectoryPublisherNode:
         while not rospy.is_shutdown():
             if self.enable_approach:
                 self.create_approach_frame()
-            if self.enable_contact:
-                self.create_contact_frame()
             rate.sleep()
 
 

@@ -37,7 +37,7 @@ import rospy
 from cv_bridge import CvBridge
 
 from auv_msgs.msg import Keypoint, KeypointResult
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from std_srvs.srv import SetBool, SetBoolResponse, Empty, EmptyResponse
 
 # vitpose_inference sits next to this file but isn't an installable module yet.
@@ -145,19 +145,22 @@ class ValveKeypointNode:
         self._last_image_bgr: Optional[np.ndarray] = None
 
         self.enabled = bool(rospy.get_param("~enabled", True))
+        # Private (~) so multiple instances (front + bottom camera) can coexist
+        # under the same namespace without colliding on service names — callers
+        # use `<node_name>/set_enabled` and `<node_name>/reseed`.
         self.set_enabled_service = rospy.Service(
-            "set_valve_keypoint_enabled", SetBool, self._handle_set_enabled
+            "~set_enabled", SetBool, self._handle_set_enabled
         )
         # Optional explicit re-seed trigger (mirrors the integration sketch in
         # VITTRACK_VALVE.md).
-        self.reseed_service = rospy.Service(
-            "valve_keypoint_reseed", Empty, self._handle_reseed
-        )
+        self.reseed_service = rospy.Service("~reseed", Empty, self._handle_reseed)
 
         self.result_pub = rospy.Publisher(
             self.result_topic, KeypointResult, queue_size=1
         )
-        self.image_pub = rospy.Publisher(self.image_out_topic, Image, queue_size=1)
+        self.image_pub = rospy.Publisher(
+            self.image_out_topic + "/compressed", CompressedImage, queue_size=1
+        )
 
         rospy.Subscriber(
             self.image_topic, Image, self._image_cb, queue_size=1, buff_size=2**24
@@ -518,8 +521,11 @@ class ValveKeypointNode:
                             1,
                         )
 
-            out = self.bridge.cv2_to_imgmsg(vis, "bgr8")
+            out = CompressedImage()
             out.header = header
+            out.format = "jpeg"
+            _, encoded = cv2.imencode(".jpg", vis, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            out.data = encoded.tobytes()
             self.image_pub.publish(out)
         except Exception as e:
             rospy.logwarn_throttle(5.0, f"debug image publish failed: {e}")

@@ -36,6 +36,7 @@ from auv_msgs.msg import Keypoint, KeypointResult
 from geometry_msgs.msg import Pose, Transform
 from sensor_msgs.msg import Image, CameraInfo
 from gazebo_msgs.msg import ModelStates
+from std_srvs.srv import SetBool, SetBoolResponse
 
 import rospkg
 import tf2_ros
@@ -220,6 +221,7 @@ class SimKeypointCamera:
         self._base_to_camera: Optional[np.ndarray] = None
         self._debug_thread: Optional[threading.Thread] = None
         self._debug_lock = threading.Lock()
+        self._enabled_fn = lambda: True
 
         self.result_pub = rospy.Publisher(result_topic, KeypointResult, queue_size=1)
         self.image_pub = rospy.Publisher(image_out_topic, Image, queue_size=1)
@@ -229,12 +231,17 @@ class SimKeypointCamera:
             image_topic, Image, self._image_cb, queue_size=1, buff_size=2**24
         )
 
+    def set_enabled_ref(self, fn):
+        self._enabled_fn = fn
+
     def _info_cb(self, msg: CameraInfo):
         self.intrinsics = (msg.K[0], msg.K[4], msg.K[2], msg.K[5])
         self.image_w = msg.width
         self.image_h = msg.height
 
     def _image_cb(self, msg: Image):
+        if not self._enabled_fn():
+            return
         if self.intrinsics is None:
             return
 
@@ -450,10 +457,35 @@ class SimKeypointNode:
                 objects=objects_by_camera[cam_name],
             )
 
+        self.enabled = bool(rospy.get_param("~enabled", True))
+        # Mirror whatever per-instance enable services the YAML lists (one per
+        # camera), so smach states that toggle valve_keypoint_node_<cam>/set_enabled
+        # in real mode find a matching service in sim. All registered services
+        # share the global flag — sim props don't move, so per-camera enable
+        # granularity isn't worth the extra plumbing.
+        self._enable_services = []
+        for cam_name, cam_cfg in camera_configs.items():
+            svc_name = cam_cfg.get("enable_service")
+            if svc_name:
+                self._enable_services.append(
+                    rospy.Service(svc_name, SetBool, self._handle_set_enabled)
+                )
+                rospy.loginfo(
+                    f"sim_keypoint_node: {cam_name} enable service at '{svc_name}'"
+                )
+        for cam in self.cameras.values():
+            cam.set_enabled_ref(lambda: self.enabled)
+
         rospy.loginfo(
             f"SimKeypointNode started — {sum(len(o.keypoints) for o in all_objects)} "
             f"keypoints across {len(all_objects)} objects, {len(self.cameras)} cameras"
         )
+
+    def _handle_set_enabled(self, req):
+        self.enabled = bool(req.data)
+        message = f"sim_keypoint_node enabled set to: {self.enabled}"
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
 
     def run(self):
         rospy.spin()

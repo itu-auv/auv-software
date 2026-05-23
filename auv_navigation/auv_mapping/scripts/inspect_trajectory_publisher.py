@@ -6,14 +6,18 @@ above inspect_frame_0, sharing one vertical offset param. A SetBool
 service toggles publishing of all frames.
 """
 
+import threading
+
 import numpy as np
 import rospy
 import tf2_ros
+from dynamic_reconfigure.server import Server
 from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
 from tf.transformations import quaternion_from_euler, quaternion_matrix
 
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from auv_mapping.cfg import InspectTrajectoryConfig
 
 
 # Geometry from tac_valve/model.sdf. Desk mesh AABB is X: -0.640..+0.825,
@@ -21,27 +25,10 @@ from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 # valve_front is at (0.580, 0.555, 1.4205) in desk with RPY (0, pi, 0); the
 # Ry(pi) rotation maps valve X = desk -X, valve Y = desk +Y, valve Z = desk -Z.
 RECT_CENTER_IN_DESK = np.array([0.0925, 0.0, 1.4205])
-VALVE_IN_DESK = np.array([0.580, 0.555, 1.4205])
+VALVE_IN_DESK = np.array([0.580, -0.555, 1.4205])
 
-# Rectangle grown by +1 m on the long side, scaled proportionally on the short.
-LONG_SIDE = 2.485 + 1.0
-SCALE = LONG_SIDE / 2.485
-SHORT_SIDE = 1.464 * SCALE
-LONG_HALF = LONG_SIDE / 2.0
-SHORT_HALF = SHORT_SIDE / 2.0
-
-# Offsets from rectangle centre in desk frame (short=X, long=Y).
-# Order: mid -X, BL, mid -Y, BR, mid +X, TR, mid +Y, TL.
-_FRAME_OFFSETS_FROM_CENTER_DESK = [
-    (-SHORT_HALF, 0.0, 0.0),
-    (-SHORT_HALF, -LONG_HALF, 0.0),
-    (0.0, -LONG_HALF, 0.0),
-    (+SHORT_HALF, -LONG_HALF, 0.0),
-    (+SHORT_HALF, 0.0, 0.0),
-    (+SHORT_HALF, +LONG_HALF, 0.0),
-    (0.0, +LONG_HALF, 0.0),
-    (-SHORT_HALF, +LONG_HALF, 0.0),
-]
+BASE_LONG_SIDE = 2.485
+BASE_SHORT_SIDE = 1.464
 
 IDENTITY_QUAT = (0.0, 0.0, 0.0, 1.0)
 
@@ -51,12 +38,31 @@ def _desk_offset_to_valve_local(desk_vec):
     return np.array([-desk_vec[0], desk_vec[1], -desk_vec[2]])
 
 
-def _build_valve_local_offsets():
+def _build_valve_local_offsets(long_side_extension: float):
+    """Long side grows by `long_side_extension` m; short scales proportionally."""
+    long_side = BASE_LONG_SIDE + long_side_extension
+    scale = long_side / BASE_LONG_SIDE
+    short_side = BASE_SHORT_SIDE * scale
+    long_half = long_side / 2.0
+    short_half = short_side / 2.0
+
+    # Offsets from rectangle centre in desk frame (short=X, long=Y).
+    # Order: mid -X, BL, mid -Y, BR, mid +X, TR, mid +Y, TL.
+    offsets_in_desk = [
+        (-short_half, 0.0, 0.0),
+        (-short_half, -long_half, 0.0),
+        (0.0, -long_half, 0.0),
+        (+short_half, -long_half, 0.0),
+        (+short_half, 0.0, 0.0),
+        (+short_half, +long_half, 0.0),
+        (0.0, +long_half, 0.0),
+        (-short_half, +long_half, 0.0),
+    ]
     return [
         _desk_offset_to_valve_local(
             (RECT_CENTER_IN_DESK + np.array(delta)) - VALVE_IN_DESK
         )
-        for delta in _FRAME_OFFSETS_FROM_CENTER_DESK
+        for delta in offsets_in_desk
     ]
 
 
@@ -73,7 +79,10 @@ class InspectTrajectoryPublisherNode:
         self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = "odom"
-        self.valve_frame = rospy.get_param("~valve_frame", "tac/valve")
+        # Inspect mission is front-only: the rectangle geometry below
+        # (RECT_CENTER_IN_DESK, VALVE_IN_DESK) is hard-coded to the front
+        # panel's layout. valve_bottom would need a different rectangle.
+        self.valve_frame = rospy.get_param("~valve_frame", "tac/valve_front")
 
         self.mission_start_frame = rospy.get_param(
             "~mission_start_frame", "mission_start_link"
@@ -88,10 +97,8 @@ class InspectTrajectoryPublisherNode:
             "~mission_start_top_offset", 1.0
         )
 
-        self.frame_offsets = [
-            (f"inspect_frame_{i}", off)
-            for i, off in enumerate(_build_valve_local_offsets())
-        ]
+        self._offsets_lock = threading.Lock()
+        self.frame_offsets = []
         self.center_offset_valve_local = _desk_offset_to_valve_local(
             RECT_CENTER_IN_DESK - VALVE_IN_DESK
         )
@@ -102,6 +109,18 @@ class InspectTrajectoryPublisherNode:
             SetBool,
             self.handle_enable_service,
         )
+
+        self.reconfigure_server = Server(
+            InspectTrajectoryConfig, self.reconfigure_callback
+        )
+
+    def reconfigure_callback(self, config, level):
+        offsets = _build_valve_local_offsets(config.long_side_extension)
+        with self._offsets_lock:
+            self.frame_offsets = [
+                (f"inspect_frame_{i}", off) for i, off in enumerate(offsets)
+            ]
+        return config
 
     def _lookup_in_odom(self, frame_id, label):
         try:
@@ -158,7 +177,13 @@ class InspectTrajectoryPublisherNode:
         valve_pos = self._translation(valve_tf)
         center_pos = valve_pos + R @ self.center_offset_valve_local
 
-        for child_frame_id, offset_valve_local in self.frame_offsets:
+        with self._offsets_lock:
+            frame_offsets = list(self.frame_offsets)
+
+        if not frame_offsets:
+            return
+
+        for child_frame_id, offset_valve_local in frame_offsets:
             target_pos = valve_pos + R @ np.asarray(offset_valve_local)
             yaw = float(
                 np.arctan2(
@@ -172,7 +197,7 @@ class InspectTrajectoryPublisherNode:
                 quaternion_from_euler(0.0, 0.0, yaw),
             )
 
-        frame_0_pos = valve_pos + R @ np.asarray(self.frame_offsets[0][1])
+        frame_0_pos = valve_pos + R @ np.asarray(frame_offsets[0][1])
         self._broadcast(
             self.frame_0_top_frame,
             frame_0_pos + np.array([0.0, 0.0, self.mission_start_top_offset]),

@@ -1,45 +1,83 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy" />
-  <arg name="image_topic" default="/$(arg namespace)/cameras/cam_front/image_raw" />
-  <arg name="vitpose_model_path" default="$(find auv_detection)/models/valve_vitpose_l_fp16.engine" />
+  <arg name="sim" default="false" />
+  <arg name="front_image_topic" default="/$(arg namespace)/cameras/cam_front/image_raw" />
+  <arg name="bottom_image_topic" default="/$(arg namespace)/cameras/cam_bottom/image_raw" />
+  <arg name="vitpose_model_path" default="$(find auv_detection)/models/valve2.engine" />
   <arg name="yolo_model_path" default="$(find auv_detection)/models/valve_yolo.pt" />
   <arg name="device" default="cuda:0" />
   <arg name="conf_threshold" default="0.5" />
   <arg name="yolo_conf_thres" default="0.25" />
 
   <group ns="$(arg namespace)">
-    <!-- Producer: front camera image → KeypointResult (ViTPose + YOLO) -->
+    <!-- Front camera producer: image → KeypointResult tagged "valve_front" -->
     <node pkg="auv_vision" type="valve_keypoint_node.py"
-          name="valve_keypoint_node" output="screen">
-      <param name="image_topic" value="$(arg image_topic)" />
+          name="valve_keypoint_node_front" output="screen"
+          unless="$(arg sim)">
+      <param name="image_topic" value="$(arg front_image_topic)" />
       <param name="vitpose_model_path" value="$(arg vitpose_model_path)" />
       <param name="yolo_model_path" value="$(arg yolo_model_path)" />
       <param name="device" value="$(arg device)" />
       <param name="conf_threshold" value="$(arg conf_threshold)" />
       <param name="yolo_conf_thres" value="$(arg yolo_conf_thres)" />
+      <param name="object_name" value="valve_front" />
       <param name="result_topic" value="/keypoint_result_front" />
       <param name="image_out_topic" value="/keypoint_image_front" />
     </node>
 
-    <!-- Consumer: KeypointResult → object_transform_updates (publishes tac/valve) -->
+    <!-- Bottom camera producer: image → KeypointResult tagged "valve_bottom" -->
+    <node pkg="auv_vision" type="valve_keypoint_node.py"
+          name="valve_keypoint_node_bottom" output="screen"
+          unless="$(arg sim)">
+      <param name="image_topic" value="$(arg bottom_image_topic)" />
+      <param name="vitpose_model_path" value="$(arg vitpose_model_path)" />
+      <param name="yolo_model_path" value="$(arg yolo_model_path)" />
+      <param name="device" value="$(arg device)" />
+      <param name="conf_threshold" value="$(arg conf_threshold)" />
+      <param name="yolo_conf_thres" value="$(arg yolo_conf_thres)" />
+      <param name="object_name" value="valve_bottom" />
+      <param name="result_topic" value="/keypoint_result_bottom" />
+      <param name="image_out_topic" value="/keypoint_image_bottom" />
+    </node>
+
+    <!-- Single consumer handles both cameras + both valves
+         (publishes tac/valve_front and tac/valve_bottom). -->
     <node pkg="auv_vision" type="keypoint_pose_node.py"
           name="keypoint_pose_node" output="screen">
       <param name="config_file" value="$(find auv_vision)/config/valve_keypoints.yaml" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
-    <!-- Trajectory publisher: tac/valve → valve_approach_frame, valve_contact_frame -->
+    <!-- Per-valve trajectory publishers: each one watches its valve TF and
+         emits an approach frame along the valve's flange normal (+X in link
+         frame). approach_offset is dyn-reconfigurable per node. -->
     <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
-          name="valve_trajectory_publisher" output="screen">
+          name="valve_front_trajectory_publisher" output="screen">
+      <param name="valve_frame" value="tac/valve_front" />
+      <param name="approach_frame" value="valve_front_approach_frame" />
       <remap from="set_object_transform" to="map/set_object_transform" />
+      <remap from="set_transform_valve_approach_frame"
+             to="set_transform_valve_front_approach_frame" />
     </node>
 
-    <!-- Inspect trajectory publisher: 8 frames around the valve plane +
-         inspect_start_top above mission_start_link + inspect_frame_0_top.
-         Toggled by smach via set_transform_inspect_frames. -->
+    <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
+          name="valve_bottom_trajectory_publisher" output="screen">
+      <param name="valve_frame" value="tac/valve_bottom" />
+      <param name="approach_frame" value="valve_bottom_approach_frame" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+      <remap from="set_transform_valve_approach_frame"
+             to="set_transform_valve_bottom_approach_frame" />
+    </node>
+
+    <!-- Inspect trajectory publisher: 8 frames around the FRONT valve
+         rectangle + inspect_start_top above mission_start_link +
+         inspect_frame_0_top. Front-only by design (the rectangle geometry
+         is hard-coded to the front panel). Toggled by smach via
+         set_transform_inspect_frames. -->
     <node pkg="auv_mapping" type="inspect_trajectory_publisher.py"
           name="inspect_trajectory_publisher" output="screen">
+      <param name="valve_frame" value="tac/valve_front" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
@@ -49,7 +87,7 @@
           name="aruco_detection" output="screen">
       <param name="scan_mode" value="true" />
       <param name="aruco_dictionary" value="DICT_ARUCO_ORIGINAL" />
-      <param name="image_topic" value="$(arg image_topic)" />
+      <param name="image_topic" value="$(arg front_image_topic)" />
       <param name="camera_frame" value="$(arg namespace)/base_link/front_camera_optical_link_stabilized" />
     </node>
   </group>

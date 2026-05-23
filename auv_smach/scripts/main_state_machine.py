@@ -16,6 +16,7 @@ from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
 from auv_smach.valve import ValveTaskState
+from auv_smach.inspect import InspectTaskState
 from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
@@ -93,11 +94,38 @@ class MainStateMachineNode:
         self.gps_depth = -1.0
         self.gps_target_frame = "gps_target"
 
-        # Valve task parameters (TAC sea world). Approach/contact frame names
-        # match valve_trajectory_publisher's defaults.
-        self.valve_depth = -1.5
-        self.valve_approach_frame = "valve_approach_frame"
-        self.valve_contact_frame = "valve_contact_frame"
+        # Valve task parameters (TAC sea world). One concurrent pipeline per
+        # camera publishes tac/valve_{front,bottom}; ValveTaskState binds the
+        # right set of frames + per-instance service names.
+        self.valve_front_depth = -1.5
+        self.valve_front_frame = "tac/valve_front"
+        self.valve_front_approach_frame = "valve_front_approach_frame"
+        self.valve_front_gripper_frame = "taluy/base_link/valve_gripper_front_link"
+        self.valve_front_keypoint_enable_service = (
+            "valve_keypoint_node_front/set_enabled"
+        )
+        self.valve_front_approach_publisher_service = (
+            "set_transform_valve_front_approach_frame"
+        )
+        # Front-panel approach: TF's +X is the outward normal, so flip 180°
+        # to face into it.
+        self.valve_front_align_angle_offset = math.pi
+
+        # Bottom valve geometry is vertical (flange points up). Depth and
+        # angle_offset are placeholders — the bottom approach kinematics
+        # need a tuning pass.
+        self.valve_bottom_depth = -1.0
+        self.valve_bottom_frame = "tac/valve_bottom"
+        self.valve_bottom_approach_frame = "valve_bottom_approach_frame"
+        self.valve_bottom_gripper_frame = "taluy/base_link/valve_gripper_bottom_link"
+        self.valve_bottom_keypoint_enable_service = (
+            "valve_keypoint_node_bottom/set_enabled"
+        )
+        self.valve_bottom_approach_publisher_service = (
+            "set_transform_valve_bottom_approach_frame"
+        )
+        self.valve_bottom_align_angle_offset = math.pi
+        self.valve_bottom_align_pitch_offset = math.pi / 2.0
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
@@ -253,14 +281,32 @@ class MainStateMachineNode:
                 NavigateThroughPipelineState,
                 {"pipeline_depth": self.pipeline_depth},
             ),
-            "NAVIGATE_TO_VALVE_TASK": (
+            "NAVIGATE_TO_VALVE_FRONT_TASK": (
                 ValveTaskState,
                 {
-                    "valve_depth": self.valve_depth,
-                    "valve_approach_frame": self.valve_approach_frame,
-                    "valve_contact_frame": self.valve_contact_frame,
+                    "valve_depth": self.valve_front_depth,
+                    "valve_frame": self.valve_front_frame,
+                    "valve_approach_frame": self.valve_front_approach_frame,
+                    "gripper_frame": self.valve_front_gripper_frame,
+                    "keypoint_enable_service": self.valve_front_keypoint_enable_service,
+                    "approach_publisher_service": self.valve_front_approach_publisher_service,
+                    "align_angle_offset": self.valve_front_align_angle_offset,
                 },
             ),
+            "NAVIGATE_TO_VALVE_BOTTOM_TASK": (
+                ValveTaskState,
+                {
+                    "valve_depth": self.valve_bottom_depth,
+                    "valve_frame": self.valve_bottom_frame,
+                    "valve_approach_frame": self.valve_bottom_approach_frame,
+                    "gripper_frame": self.valve_bottom_gripper_frame,
+                    "keypoint_enable_service": self.valve_bottom_keypoint_enable_service,
+                    "approach_publisher_service": self.valve_bottom_approach_publisher_service,
+                    "align_angle_offset": self.valve_bottom_align_angle_offset,
+                    "align_pitch_offset": self.valve_bottom_align_pitch_offset,
+                },
+            ),
+            "INSPECT": (InspectTaskState, {}),
         }
 
         # Validate and execute state machine

@@ -57,6 +57,7 @@ generate_dynamic_reconfigure_options(
   cfg/TorpedoTrajectory.cfg
   cfg/GpsTargetFrame.cfg
   cfg/ValveTrajectory.cfg
+  cfg/InspectTrajectory.cfg
 )
 
 catkin_package(

@@ -1,20 +1,56 @@
 # Consumer config for keypoint_pose_node.
 #
-# valve_keypoint_node publishes KeypointResult messages with kp.object="valve"
-# and 1-indexed ids (1..N). keypoint_pose_node groups by `object_names`,
+# Two valve_keypoint_node instances (one per camera) publish KeypointResult
+# messages tagged with kp.object="valve_front" or kp.object="valve_bottom" and
+# 1-indexed keypoint ids (1..N). keypoint_pose_node groups by `object_names`,
 # runs PnP on the points listed in `model`, and broadcasts a TransformStamped
 # per `outputs` entry. Optional `state_keypoint` overrides the rotation about
-# model X using a single in-plane keypoint (e.g. the valve handle tip).
+# model X using a single in-plane keypoint (the valve handle tip).
+#
+# The two valves use the same physical mesh, so the model points (in each
+# valve link's local frame) are identical and shared via a YAML anchor below.
+# Per-valve geometry differences live in the URDF/SDF <pose> of the valve
+# link; PnP recovers whichever link is currently visible to whichever camera.
 
 cameras:
   front:
     frame: "taluy/base_link/front_camera_optical_link"
     camera_info_topic: "/taluy/cameras/cam_front/camera_info"
     keypoint_topic: "/keypoint_result_front"
+  bottom:
+    frame: "taluy/base_link/bottom_camera_optical_link"
+    camera_info_topic: "/taluy/cameras/cam_bottom/camera_info"
+    keypoint_topic: "/keypoint_result_bottom"
+
+# Shared 9-point pose model: 8 bolts on the flange face (0.103 m radius ring,
+# 45° spacing) plus the face centre. Both valves are the same mesh, so the
+# coordinates in the link's local frame are identical.
+_valve_pose_model: &valve_pose_model
+  - shape: points
+    ids: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    args:
+      - [0.020, -0.072832, -0.072832] # kp1: bolt -135°
+      - [0.020, 0.000000, -0.103000] # kp2: bolt -90°
+      - [0.020, 0.072832, -0.072832] # kp3: bolt -45°
+      - [0.020, 0.103000, 0.000000] # kp4: bolt 0°
+      - [0.020, 0.072832, 0.072832] # kp5: bolt 45°
+      - [0.020, 0.000000, 0.103000] # kp6: bolt 90°
+      - [0.020, -0.072832, 0.072832] # kp7: bolt 135°
+      - [0.020, -0.103000, 0.000000] # kp8: bolt 180°
+      - [0.000, 0.000000, 0.000000] # kp9: face center
+
+# kp10 is the handle tip — encodes the valve's open/closed state into the
+# published frame's roll about the flange normal. Skip publishing rather than
+# emit a frame with a meaningless yaw if the handle is missing/low-conf.
+_valve_state_keypoint: &valve_state_keypoint
+  keypoint_id: 10
+  output_axis: z
+  confidence_threshold: 0.5
+  parallel_eps_rad: 0.087 # ~5°: skip if valve seen edge-on
 
 objects:
-  - name: valve
-    object_names: [valve]
+  - name: valve_front
+    object_names: [valve_front]
     cameras: [front]
     min_keypoints: 6
     solver: sqpnp
@@ -22,27 +58,23 @@ objects:
     confidence_threshold: 0.5
     reprojection_error_threshold: 5.0
     max_distance: 8.0
-    model:
-      - shape: points
-        ids: [1, 2, 3, 4, 5, 6, 7, 8, 9]
-        args:
-          - [0.020, -0.072832, -0.072832] # kp1: bolt -135°
-          - [0.020, 0.000000, -0.103000] # kp2: bolt -90°
-          - [0.020, 0.072832, -0.072832] # kp3: bolt -45°
-          - [0.020, 0.103000, 0.000000] # kp4: bolt 0°
-          - [0.020, 0.072832, 0.072832] # kp5: bolt 45°
-          - [0.020, 0.000000, 0.103000] # kp6: bolt 90°
-          - [0.020, -0.072832, 0.072832] # kp7: bolt 135°
-          - [0.020, -0.103000, 0.000000] # kp8: bolt 180°
-          - [0.000, 0.000000, 0.000000] # kp9: face center
+    model: *valve_pose_model
     outputs:
-      - child_frame_id: tac/valve
+      - child_frame_id: tac/valve_front
         offset: [0.0, 0.0, 0.0]
-    # kp10 is the handle tip — encodes the valve's open/closed state into
-    # the published frame's roll. Skip publish if missing/low-conf rather
-    # than emit a frame with a meaningless yaw.
-    state_keypoint:
-      keypoint_id: 10
-      output_axis: z
-      confidence_threshold: 0.5
-      parallel_eps_rad: 0.087 # ~5°: skip if valve seen edge-on
+    state_keypoint: *valve_state_keypoint
+
+  - name: valve_bottom
+    object_names: [valve_bottom]
+    cameras: [bottom]
+    min_keypoints: 6
+    solver: sqpnp
+    refine_iterative: false
+    confidence_threshold: 0.5
+    reprojection_error_threshold: 5.0
+    max_distance: 8.0
+    model: *valve_pose_model
+    outputs:
+      - child_frame_id: tac/valve_bottom
+        offset: [0.0, 0.0, 0.0]
+    state_keypoint: *valve_state_keypoint
