@@ -838,7 +838,7 @@ class SearchForPropState(smach.StateMachine):
         alignment_frame: str,
         full_rotation: bool = False,
         source_frame: str = None,
-        rotation_speed: float = 0.3,
+        rotation_speed: float = 0.4,
         confirm_duration: float = 2.0,
     ):
         """
