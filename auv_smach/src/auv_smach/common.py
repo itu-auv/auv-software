@@ -514,7 +514,7 @@ class RotationState(smach.State):
                 self.source_frame,
                 self.look_at_frame,
                 rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
             )
             return True
         except (
@@ -1002,7 +1002,7 @@ class CheckAlignmentState(smach.State):
                 self.source_frame,
                 self.target_frame,
                 rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
             )
             trans = transform.transform.translation
             rot = transform.transform.rotation
@@ -1604,7 +1604,7 @@ class CheckForTransformState(smach.State):
                 self.source_frame,
                 self.target_frame,
                 rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
             )
             return True
         except (
