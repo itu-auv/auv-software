@@ -73,6 +73,21 @@ cameras:
         - [625, 447]
         - [799, 447]
     id_tf_map:
+      5: torpedo_hole_link
+  front_kde:
+    ns: "taluy/cameras/cam_front"
+    frame: "taluy/base_link/front_camera_optical_link_stabilized"
+    yolo_topic: "/yolo_result_front"
+    handler: "kde_camera_handler"
+    default_enabled: true
+    image_width: 640
+    image_height: 480
+    id_tf_map:
+      0: gate_search_rescue_link
+      1: gate_survey_repair_link
+      4: torpedo_map_link
+      6: bin_basket_link
+      7: octagon_link
       0: torpedo_hole_link
   bottom_seg:
     ns: "taluy/cameras/cam_bottom"
