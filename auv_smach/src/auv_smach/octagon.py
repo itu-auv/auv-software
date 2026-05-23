@@ -183,6 +183,7 @@ class PickAndDropSequence(smach.StateMachine):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         base_link = get_base_link()
+        keep_object_orientation = target_object in {"pill_link", "nutbolt_link"}
 
         with self:
             smach.StateMachine.add(
@@ -203,7 +204,8 @@ class PickAndDropSequence(smach.StateMachine):
                     target_frame=target_object,
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
-                    closest_yaw=True,
+                    keep_orientation=keep_object_orientation,
+                    closest_yaw=not keep_object_orientation,
                     confirm_duration=4.0,
                     timeout=30.0,
                     max_linear_velocity=0.1,
