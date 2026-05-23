@@ -372,11 +372,19 @@ class PickAndDropSequence(smach.StateMachine):
 
 
 class OctagonTaskState(smach.State):
-    def __init__(self, octagon_depth: float, animal: str):
+    def __init__(
+        self,
+        octagon_depth: float,
+        animal: str,
+        start_from_table: bool = False,
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.griper_mode = True
         self.base_link = get_base_link()
         self.animal_frame = f"gate_{animal}_link"
+        after_bottom_focus = (
+            "MOVE_GRIPPER" if start_from_table else "DYNAMIC_PATH_WITH_BOTTLE_CHECK"
+        )
         pick_and_drop_targets = [
             ("pill_link", "basket_redcross_segment_link"),
             ("nutbolt_link", "basket_warning_segment_link"),
@@ -529,7 +537,7 @@ class OctagonTaskState(smach.State):
                 "SET_BOTTOM_FOCUS_OCTAGON",
                 SetDetectionFocusBottomState(focus_object="octagon"),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
+                    "succeeded": after_bottom_focus,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -623,6 +631,9 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
+
+        if start_from_table:
+            self.state_machine.set_initial_state(["ENABLE_BOTTOM_DETECTION"])
 
     ##############################################################
 
