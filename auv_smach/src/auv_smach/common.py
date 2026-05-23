@@ -1534,11 +1534,21 @@ class CreateRotatingFrameState(smach.State):
                 rospy.Duration(4.0),
             )
             initial_translation = initial_transform.transform.translation
+            initial_rotation = initial_transform.transform.rotation
+            initial_yaw = euler_from_quaternion(
+                [
+                    initial_rotation.x,
+                    initial_rotation.y,
+                    initial_rotation.z,
+                    initial_rotation.w,
+                ]
+            )[2]
             rospy.loginfo(
-                "Initial position locked at: x=%.2f, y=%.2f, z=%.2f",
+                "Initial pose locked at: x=%.2f, y=%.2f, z=%.2f, yaw=%.2f",
                 initial_translation.x,
                 initial_translation.y,
                 initial_translation.z,
+                initial_yaw,
             )
         except (
             tf2_ros.LookupException,
@@ -1576,7 +1586,7 @@ class CreateRotatingFrameState(smach.State):
 
             try:
                 elapsed_time = (rospy.Time.now() - start_time).to_sec()
-                current_yaw = angular_velocity * elapsed_time
+                current_yaw = initial_yaw + angular_velocity * elapsed_time
                 qx, qy, qz, qw = quaternion_from_euler(0.0, 0.0, current_yaw)
                 t = TransformStamped()
                 t.header.stamp = rospy.Time.now()
