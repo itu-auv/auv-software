@@ -245,7 +245,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
   Matrix2nd kd_;
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
 
-  // Default to effectively unlimited (1e6)
+  // MAD MAX
   Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
   Vectornd max_acceleration_limits_{Vectornd::Zero()};
   Vectornd max_acceleration_rate_limits_{Vectornd::Zero()};
