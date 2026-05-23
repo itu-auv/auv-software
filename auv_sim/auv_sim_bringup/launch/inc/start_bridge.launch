@@ -4,8 +4,10 @@
   <arg name="control_rate" default="20" />
   <arg name="sim" default="true" />
   <arg name="use_gui" default="true" />
+  <arg name="objects" default="gate,torpedo,bin,slalom,octagon" />
   <arg name="dvl_velocity_topic" default="$(eval 'dvl/velocity' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/velocity_raw')" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
+  <arg name="spawn_octagon_objects" value="$(eval 'octagon' in [object.strip() for object in arg('objects').split(',')])" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
 
@@ -38,7 +40,7 @@
       <remap from="actuators/ball_dropper/set_angle" to="actuators/ball_dropper/set_angle" />
     </node>
     <!-- Model Spawner Service Node (generic) -->
-    <node name="spawn_model_server" pkg="auv_sim_bridge" type="sim_bottle_mock.py" output="screen">
+    <node name="spawn_model_server" pkg="auv_sim_bridge" type="sim_bottle_mock.py" output="screen" if="$(arg spawn_octagon_objects)">
       <!-- service name remapped to ladle by default; the spawner script is configurable via params -->
       <remap from="actuators/ladle/spawn" to="actuators/ladle/spawn" />
     </node>

@@ -7,6 +7,7 @@
     <arg name="debug" default="false" />
     <arg name="namespace" default="taluy" />
     <arg name="use_gui" default="true" />
+    <arg name="objects" default="gate,torpedo,bin,slalom,octagon" />
     <arg name="world_name" value="$(find auv_sim_description)/worlds/pool.world" />
 
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
@@ -17,4 +18,49 @@
         <arg name="debug" value="$(arg debug)" />
         <arg name="verbose" value="true" />
     </include>
+
+    <arg name="spawn_gate" value="$(eval 'gate' in [object.strip() for object in arg('objects').split(',')])" />
+    <arg name="spawn_torpedo" value="$(eval 'torpedo' in [object.strip() for object in arg('objects').split(',')])" />
+    <arg name="spawn_bin" value="$(eval 'bin' in [object.strip() for object in arg('objects').split(',')])" />
+    <arg name="spawn_slalom" value="$(eval 'slalom' in [object.strip() for object in arg('objects').split(',')])" />
+    <arg name="spawn_octagon" value="$(eval 'octagon' in [object.strip() for object in arg('objects').split(',')])" />
+
+    <group if="$(arg spawn_gate)">
+        <node name="spawn_robosub_gate" pkg="gazebo_ros" type="spawn_model"
+              args="-sdf -file $(find auv_sim_description)/models/robosub_gate/model.sdf -model robosub_gate -x -2.0 -y -13.7 -z -1.50 -R 0 -P 0 -Y 3.42"
+              output="screen" />
+    </group>
+
+    <group if="$(arg spawn_torpedo)">
+        <node name="spawn_robosub_torpedo" pkg="gazebo_ros" type="spawn_model"
+              args="-sdf -file $(find auv_sim_description)/models/robosub_torpedo/model.sdf -model robosub_torpedo -x 5.25 -y -1.4 -z -2 -R 1.57 -P 0 -Y -2.5"
+              output="screen" />
+    </group>
+
+    <group if="$(arg spawn_bin)">
+        <node name="spawn_robosub_bin" pkg="gazebo_ros" type="spawn_model"
+              args="-sdf -file $(find auv_sim_description)/models/robosub_bin/model.sdf -model robosub_bin -x 9.8 -y -12.6 -z -1.5 -R 0 -P 0 -Y 0"
+              output="screen" />
+    </group>
+
+    <group if="$(arg spawn_slalom)">
+        <node name="spawn_robosub_slalom_1" pkg="gazebo_ros" type="spawn_model"
+              args="-sdf -file $(find auv_sim_description)/models/robosub_slalom/model.sdf -model robosub_slalom_1 -x 6.5 -y -13.7 -z -1.35 -R 0 -P 0 -Y 1.57"
+              output="screen" />
+        <node name="spawn_robosub_slalom_2" pkg="gazebo_ros" type="spawn_model"
+              args="-sdf -file $(find auv_sim_description)/models/robosub_slalom/model.sdf -model robosub_slalom_2 -x 4.7 -y -12.18 -z -1.35 -R 0 -P 0 -Y 1.57"
+              output="screen" />
+        <node name="spawn_robosub_slalom_3" pkg="gazebo_ros" type="spawn_model"
+              args="-sdf -file $(find auv_sim_description)/models/robosub_slalom/model.sdf -model robosub_slalom_3 -x 2.9 -y -13.3 -z -1.35 -R 0 -P 0 -Y 1.57"
+              output="screen" />
+    </group>
+
+    <group if="$(arg spawn_octagon)">
+        <node name="spawn_robosub_octagon" pkg="gazebo_ros" type="spawn_model"
+              args="-sdf -file $(find auv_sim_description)/models/robosub_octagon/model.sdf -model robosub_octagon -x 13.0 -y -4.25 -z -2 -R 0 -P 0 -Y 0"
+              output="screen" />
+        <node name="spawn_robosub_octagon_animals" pkg="gazebo_ros" type="spawn_model"
+              args="-sdf -file $(find auv_sim_description)/models/robosub_octagon_animals/model.sdf -model robosub_octagon_animals -x 11.65 -y -4.25 -z -0.65 -R 0 -P 0 -Y 0"
+              output="screen" />
+    </group>
 </launch>
