@@ -837,7 +837,6 @@ class SearchForPropState(smach.StateMachine):
         look_at_frame: str,
         alignment_frame: str,
         full_rotation: bool = False,
-        timeout: float = 30.0,
         source_frame: str = None,
         rotation_speed: float = 0.3,
         confirm_duration: float = 2.0,
@@ -883,7 +882,6 @@ class SearchForPropState(smach.StateMachine):
                     source_frame=source_frame,
                     look_at_frame=look_at_frame,
                     alignment_frame=alignment_frame,
-                    timeout=timeout,
                     confirm_duration=confirm_duration,
                 ),
                 transitions={
@@ -914,7 +912,7 @@ class AimToProp(smach.Concurrence):
         source_frame,
         look_at_frame,
         alignment_frame,
-        timeout=30.0,
+        timeout=60.0,
         cancel_on_success=False,
         confirm_duration=2.0,
     ):
