@@ -173,11 +173,11 @@ class KdeVisualizer:
         legend_y = 25
         for cls_name, data in kde_data.items():
             color = self.class_colors.get(cls_name, (255, 255, 255))
-            pts = data["points"]
-            density = data["density"]
+            pts = data.get("points", np.empty((0, 3)))
+            density = data.get("density", None)
 
             # Draw density heatmap on a temporary layer
-            if density.max() > 0:
+            if data.get("kde_active", True) and density is not None and density.max() > 0:
                 dn = (density / density.max() * 200).astype(np.uint8)
                 # Map KDE grid corners to pixel space
                 u_min, v_max_p = w2p(data["x_min"], data["y_min"])

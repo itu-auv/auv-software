@@ -255,96 +255,112 @@ class KdeObjectMapper:
                 if len(pts) >= self.min_points_for_kde
             }
 
-        if not buffers_snapshot:
-            return
-
         results = {}
         kde_data = {}
         now = rospy.Time.now().to_sec()
 
-        for cls_name, pts in buffers_snapshot.items():
-            xy = pts[:, :2].T  # shape (2, N)
+        for cls_name in list(self.class_colors.keys()):
+            if cls_name in buffers_snapshot:
+                pts = buffers_snapshot[cls_name]
+                xy = pts[:, :2].T  # shape (2, N)
 
-            # Compute bandwidth factor relative to data std
-            xy_std = max(np.std(xy, axis=1).mean(), 1e-6)
-            bw_factor = self.bandwidth / xy_std
+                # Compute bandwidth factor relative to data std
+                xy_std = max(np.std(xy, axis=1).mean(), 1e-6)
+                bw_factor = self.bandwidth / xy_std
 
-            # Temporal Weighting: compute weights for gaussian_kde
-            if pts.shape[1] < 3:
-                timestamps = np.full(pts.shape[0], now)
-            else:
-                timestamps = pts[:, 2]
+                # Temporal Weighting: compute weights for gaussian_kde
+                if pts.shape[1] < 3:
+                    timestamps = np.full(pts.shape[0], now)
+                else:
+                    timestamps = pts[:, 2]
 
-            age = now - timestamps
-            age = np.maximum(age, 0.0)
+                age = now - timestamps
+                age = np.maximum(age, 0.0)
 
-            half_life = self.temporal_decay
-            if half_life > 0.0:
-                weights = np.exp(-np.log(2.0) * age / half_life)
-            else:
-                weights = np.ones_like(age)
+                half_life = self.temporal_decay
+                if half_life > 0.0:
+                    weights = np.exp(-np.log(2.0) * age / half_life)
+                else:
+                    weights = np.ones_like(age)
 
-            weights_sum = np.sum(weights)
-            if weights_sum > 1e-9:
-                weights = weights / weights_sum
-            else:
-                weights = np.ones_like(weights) / len(weights)
+                weights_sum = np.sum(weights)
+                if weights_sum > 1e-9:
+                    weights = weights / weights_sum
+                else:
+                    weights = np.ones_like(weights) / len(weights)
 
-            try:
-                kde = gaussian_kde(xy, bw_method=bw_factor, weights=weights)
-            except np.linalg.LinAlgError:
-                rospy.logwarn_throttle(
-                    5.0, f"KDE singular matrix for {cls_name}. Skipping."
-                )
-                continue
+                try:
+                    kde = gaussian_kde(xy, bw_method=bw_factor, weights=weights)
+                except np.linalg.LinAlgError:
+                    rospy.logwarn_throttle(
+                        5.0, f"KDE singular matrix for {cls_name}. Skipping."
+                    )
+                    continue
 
-            # Evaluation grid
-            x_min, x_max = xy[0].min() - 1.0, xy[0].max() + 1.0
-            y_min, y_max = xy[1].min() - 1.0, xy[1].max() + 1.0
-            nx = max(int((x_max - x_min) / self.grid_resolution), 10)
-            ny = max(int((y_max - y_min) / self.grid_resolution), 10)
+                # Evaluation grid
+                x_min, x_max = xy[0].min() - 1.0, xy[0].max() + 1.0
+                y_min, y_max = xy[1].min() - 1.0, xy[1].max() + 1.0
+                nx = max(int((x_max - x_min) / self.grid_resolution), 10)
+                ny = max(int((y_max - y_min) / self.grid_resolution), 10)
 
-            xi = np.linspace(x_min, x_max, nx)
-            yi = np.linspace(y_min, y_max, ny)
-            xx, yy = np.meshgrid(xi, yi)
-            grid_coords = np.vstack([xx.ravel(), yy.ravel()])
+                xi = np.linspace(x_min, x_max, nx)
+                yi = np.linspace(y_min, y_max, ny)
+                xx, yy = np.meshgrid(xi, yi)
+                grid_coords = np.vstack([xx.ravel(), yy.ravel()])
 
-            density = kde(grid_coords).reshape(xx.shape)
+                density = kde(grid_coords).reshape(xx.shape)
 
-            peaks = []
-            density_work = density.copy()
+                peaks = []
+                density_work = density.copy()
 
-            for _ in range(self.max_peaks_per_class):
-                max_idx = np.unravel_index(np.argmax(density_work), density_work.shape)
-                max_val = density_work[max_idx]
-                if max_val < self.min_peak_density:
-                    break
+                for _ in range(self.max_peaks_per_class):
+                    max_idx = np.unravel_index(np.argmax(density_work), density_work.shape)
+                    max_val = density_work[max_idx]
+                    if max_val < self.min_peak_density:
+                        break
 
-                peak_x = float(xx[max_idx])
-                peak_y = float(yy[max_idx])
+                    peak_x = float(xx[max_idx])
+                    peak_y = float(yy[max_idx])
 
-                peaks.append((peak_x, peak_y, float(max_val)))
+                    peaks.append((peak_x, peak_y, float(max_val)))
 
-                # Suppress around this peak
-                dist_grid = np.sqrt((xx - peak_x) ** 2 + (yy - peak_y) ** 2)
-                density_work[dist_grid < self.suppression_radius] = 0.0
+                    # Suppress around this peak
+                    dist_grid = np.sqrt((xx - peak_x) ** 2 + (yy - peak_y) ** 2)
+                    density_work[dist_grid < self.suppression_radius] = 0.0
 
-            results[cls_name] = peaks
+                results[cls_name] = peaks
 
-            # Store for visualisation
-            kde_data[cls_name] = {
-                "xx": xx,
-                "yy": yy,
-                "density": density,
-                "points": pts,
-                "x_min": x_min,
-                "x_max": x_max,
-                "y_min": y_min,
-                "y_max": y_max,
-                "timestamps": timestamps,
-                "rejected_peaks": [],
-            }
-            if cls_name in self.premap:
+                # Store for visualisation
+                kde_data[cls_name] = {
+                    "xx": xx,
+                    "yy": yy,
+                    "density": density,
+                    "points": pts,
+                    "x_min": x_min,
+                    "x_max": x_max,
+                    "y_min": y_min,
+                    "y_max": y_max,
+                    "timestamps": timestamps,
+                    "rejected_peaks": [],
+                    "kde_active": True,
+                }
+            elif cls_name in self.premap:
+                pm_x, pm_y = self.premap[cls_name]
+                results[cls_name] = [(float(pm_x), float(pm_y), 1.0)]
+
+                # Store fallback metadata for visualisation
+                kde_data[cls_name] = {
+                    "points": np.empty((0, 3)),
+                    "x_min": float(pm_x) - 1.0,
+                    "x_max": float(pm_x) + 1.0,
+                    "y_min": float(pm_y) - 1.0,
+                    "y_max": float(pm_y) + 1.0,
+                    "timestamps": np.array([]),
+                    "rejected_peaks": [],
+                    "kde_active": False,
+                }
+
+            if cls_name in kde_data and cls_name in self.premap:
                 kde_data[cls_name]["premap_position"] = (
                     float(self.premap[cls_name][0]),
                     float(self.premap[cls_name][1]),
@@ -352,6 +368,9 @@ class KdeObjectMapper:
                 kde_data[cls_name]["premap_max_distance"] = float(
                     self.premap_max_distance
                 )
+
+        if not results:
+            return
 
         # Take an immutable snapshot for publishing (prevents concurrent modification)
         results_snapshot = dict(results)
