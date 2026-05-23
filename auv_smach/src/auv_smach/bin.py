@@ -101,7 +101,7 @@ class CheckForDropAreaState(smach.State):
                         self.source_frame,
                         frame,
                         rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                        rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                        rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
                     )
                     rospy.loginfo(
                         f"[CheckForDropAreaState] Target selection '{self.target_selection}': Transform from '{self.source_frame}' to '{frame}' found."
