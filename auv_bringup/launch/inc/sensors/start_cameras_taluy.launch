@@ -24,6 +24,10 @@
     <arg name="name" value="cam_bottom"/>
     <arg name="pub_camera_info" value="$(arg pub_camera_info)"/>
   </include>
+  <include file="$(find auv_cam)/launch/extra_cameras.launch">
+  </include>
+
+
   <!-- launch ov2710 camera -->
   <!-- <include file="$(find auv_cam)/launch/start_gst_camera.launch">
     <arg name="namespace" value="$(arg namespace)"/>
