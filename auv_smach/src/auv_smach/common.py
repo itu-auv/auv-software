@@ -1586,9 +1586,10 @@ class CheckForTransformState(smach.State):
     def __init__(
         self,
         source_frame: str,
-        target_frame: str,
+        target_frame,
         timeout: float = 60.0,
         check_rate_hz: int = 10,
+        allow_mutli_check_goal: bool = False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.source_frame = source_frame
@@ -1596,24 +1597,33 @@ class CheckForTransformState(smach.State):
         self.timeout = timeout
         self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(check_rate_hz)
+        self.allow_mutli_check_goal = allow_mutli_check_goal
 
     def is_transform_available(self):
-        try:
-            lookup_fresh_transform(
-                self.tf_buffer,
-                self.source_frame,
-                self.target_frame,
-                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
-            )
-            return True
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ) as e:
-            rospy.logdebug(f"CheckForTransformState: Transform check failed: {e}")
-            return False
+        if self.allow_mutli_check_goal and isinstance(self.target_frame, list):
+            frames = self.target_frame
+        else:
+            frames = [self.target_frame]
+
+        for frame in frames:
+            if not frame:
+                continue
+            try:
+                lookup_fresh_transform(
+                    self.tf_buffer,
+                    self.source_frame,
+                    frame,
+                    rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                )
+                return True
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ):
+                pass
+        return False
 
     def execute(self, userdata):
         start_time = rospy.Time.now()
@@ -1652,7 +1662,7 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
         self,
         plan_target_frame: str,
         transform_source_frame: str,
-        transform_target_frame: str,
+        transform_target_frame,
         align_source_frame: str = "taluy/base_link",
         align_target_frame: str = "dynamic_target",
         max_linear_velocity: float = None,
@@ -1660,6 +1670,7 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
         angle_offset: float = 0.0,
         keep_orientation: bool = False,
         transform_timeout: float = 60.0,
+        allow_mutli_check_goal: bool = False,
     ):
         super().__init__(
             outcomes=["succeeded", "preempted", "aborted"],
@@ -1692,5 +1703,6 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
                     source_frame=transform_source_frame,
                     target_frame=transform_target_frame,
                     timeout=transform_timeout,
+                    allow_mutli_check_goal=allow_mutli_check_goal,
                 ),
             )

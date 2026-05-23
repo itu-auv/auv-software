@@ -23,10 +23,8 @@ from auv_bringup.cfg import SmachParametersConfig
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
-ROLE_TO_TORPEDO_BIN_TARGET_SELECTION = {
-    "survey_repair": "shark",
-    "search_rescue": "sawfish",
-}
+BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_link", "bin_blood_link"]
+BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_link", "bin_fire_link"]
 LEFT_TOP_TORPEDO_FIRE_FRAMES = ["torpedo_left_fire", "torpedo_top_fire"]
 RIGHT_BOTTOM_TORPEDO_FIRE_FRAMES = ["torpedo_right_fire", "torpedo_bottom_fire"]
 
@@ -173,10 +171,12 @@ class MainStateMachineNode:
         self.bin_exit_angle_deg = config.bin_exit_angle
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
 
-    def get_legacy_target_selection(self):
-        return ROLE_TO_TORPEDO_BIN_TARGET_SELECTION.get(
-            self.selected_role,
-            ROLE_TO_TORPEDO_BIN_TARGET_SELECTION[DEFAULT_SELECTED_ROLE],
+    def get_bin_target_frames(self):
+        is_survey_repair = self.selected_role == DEFAULT_SELECTED_ROLE
+        return (
+            BIN_FIRE_FIRST_LIST_FRAMES
+            if is_survey_repair
+            else BIN_BLOOD_FIRST_LIST_FRAMES
         )
 
     def get_torpedo_fire_frames(self):
@@ -212,7 +212,8 @@ class MainStateMachineNode:
             f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
         )
 
-        legacy_target_selection = self.get_legacy_target_selection()
+        bin_target_frames = self.get_bin_target_frames()
+        rospy.loginfo(f"Bin target frames order: {bin_target_frames}")
 
         torpedo_fire_frames = self.get_torpedo_fire_frames()
         rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
@@ -255,7 +256,7 @@ class MainStateMachineNode:
                 {
                     "bin_front_look_depth": self.bin_front_look_depth,
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
-                    "target_selection": legacy_target_selection,
+                    "target_frames": bin_target_frames,
                     "bin_exit_angle": bin_exit_angle_rad,
                 },
             ),
