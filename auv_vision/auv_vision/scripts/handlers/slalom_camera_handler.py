@@ -13,7 +13,7 @@ from auv_msgs.msg import PropsYaw
 import tf2_ros
 import tf2_geometry_msgs
 from utils.detection_utils import (
-    check_inside_image,
+    check_inside_image_torpedo,
     calculate_angles_and_offsets,
     transform_to_odom_and_publish,
     calculate_intersection_with_plane,
@@ -66,7 +66,9 @@ class SlalomCameraHandler:
             if detection_id not in self.id_tf_map:
                 continue
 
-            if not check_inside_image(detection, self.image_width, self.image_height):
+            if not check_inside_image_torpedo(
+                detection, self.image_width, self.image_height
+            ):
                 continue
 
             prop_name = self.id_tf_map[detection_id]

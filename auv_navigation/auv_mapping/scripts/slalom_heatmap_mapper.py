@@ -75,6 +75,9 @@ class SlalomHeatmapMapper:
         self.rate = rospy.Rate(self.frequency)
 
         self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
+        self.camera_frame = rospy.get_param(
+            "~camera_frame", "torpedo_camera_optical_link"
+        )
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.search_frame = rospy.get_param("~search_frame", "slalom_search_start")
         self.red_pipe_frame = "slalom_red_pipe_link"
@@ -88,7 +91,7 @@ class SlalomHeatmapMapper:
         self.slalom_width = rospy.get_param("~slalom_width", 0.0254)
         self.slalom_height = rospy.get_param("~slalom_height", 0.9)
 
-        self.cam = CameraCalibrationFetcher("cameras/cam_front").get_camera_info()
+        self.cam = CameraCalibrationFetcher("cameras/cam_torpedo").get_camera_info()
         self.yolo_res = rospy.Subscriber(
             "/yolo_result_slalom", YoloResult, self.yolo_callback
         )
@@ -186,7 +189,7 @@ class SlalomHeatmapMapper:
 
             robot_trans = self.tf_buffer.lookup_transform(
                 self.odom_frame,
-                self.base_link_frame,
+                f"taluy/base_link_180",
                 rospy.Time(0),
                 rospy.Duration(1.0),
             )
@@ -402,7 +405,7 @@ class SlalomHeatmapMapper:
                 pose_stamped = PoseStamped()
                 pose_stamped.header.stamp = detections.header.stamp
                 pose_stamped.header.frame_id = (
-                    self.base_link_frame + "/front_camera_optical_link_stabilized"
+                    f"{self.base_link_frame}/{self.camera_frame}"
                 )
                 pose_stamped.pose.position.x = off_x
                 pose_stamped.pose.position.y = off_y
