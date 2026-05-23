@@ -826,9 +826,9 @@ class ExecutePathState(smach.State):
 
 class SearchForPropState(smach.StateMachine):
     """
-    1. RotationState: Rotates to find a prop's frame.
-    2. SetAlignControllerTargetState: Sets the align controller target.
-    3. SetFrameLookingAtState: Sets a target frame's pose based on looking at another frame.
+    1. SetAlignTarget: Sets alignment to rotating frame.
+    2. RotationState: Rotates to find a prop's frame using CreateRotatingFrameState.
+    3. AimToProp: Aligns to the prop while looking at it.
     4. CancelAlignControllerState: Cancels the align controller target.
     """
 
@@ -836,11 +836,10 @@ class SearchForPropState(smach.StateMachine):
         self,
         look_at_frame: str,
         alignment_frame: str,
-        full_rotation: bool,
-        set_frame_duration: float,
+        full_rotation: bool = False,
         source_frame: str = None,
-        rotation_speed: float = 0.3,
-        max_angular_velocity: float = 0.25,
+        rotation_speed: float = 0.4,
+        confirm_duration: float = 2.0,
     ):
         """
         Args:
@@ -849,59 +848,41 @@ class SearchForPropState(smach.StateMachine):
                                 and whose pose is set by SetFrameLookingAtState.
             full_rotation (bool): Whether to perform a full 360-degree rotation
                                   or stop when look_at_frame is found.
-            set_frame_duration (float): Duration for the SetFrameLookingAtState.
-            source_frame (str): The base frame of the vehicle (default: "taluy/base_link").
+            timeout (float): Timeout for the AimToProp state.
+            source_frame (str): The base frame of the vehicle. Defaults to get_base_link().
             rotation_speed (float): The angular velocity for rotation (default: 0.3).
-            max_angular_velocity (float): Max angular velocity for align controller (optional).
         """
         if source_frame is None:
             source_frame = get_base_link()
+
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
+
+        rotating_frame_name = f"{look_at_frame}_search_rotating"
+        rotation_period = 2.0 * math.pi / rotation_speed if rotation_speed > 0 else 15.0
 
         with self:
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_TARGET_FIRST",
-                CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "ROTATE_TO_FIND_PROP",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ROTATE_TO_FIND_PROP",
-                RotationState(
+                "ALIGN_AND_ROTATE",
+                AlignAndCreateRotatingFrame(
                     source_frame=source_frame,
+                    rotating_frame_name=rotating_frame_name,
+                    rotation_period=rotation_period,
                     look_at_frame=look_at_frame,
-                    rotation_speed=rotation_speed,
                     full_rotation=full_rotation,
                 ),
                 transitions={
-                    "succeeded": "SET_ALIGN_CONTROLLER_TARGET",
+                    "succeeded": "AIM_TO_PROP",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_ALIGN_CONTROLLER_TARGET",
-                SetAlignControllerTargetState(
-                    source_frame=source_frame,
-                    target_frame=alignment_frame,
-                    max_angular_velocity=max_angular_velocity,
-                ),
-                transitions={
-                    "succeeded": "BROADCAST_ALIGNMENT_FRAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "BROADCAST_ALIGNMENT_FRAME",
-                SetFrameLookingAtState(
+                "AIM_TO_PROP",
+                AimToProp(
                     source_frame=source_frame,
                     look_at_frame=look_at_frame,
                     alignment_frame=alignment_frame,
-                    duration_time=set_frame_duration,
+                    confirm_duration=confirm_duration,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER_TARGET",
@@ -917,6 +898,55 @@ class SearchForPropState(smach.StateMachine):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
+            )
+
+
+class AimToProp(smach.Concurrence):
+    """
+    Runs SetFrameLookingAtState and AlignFrame concurrently.
+    Terminates when AlignFrame finishes.
+    """
+
+    def __init__(
+        self,
+        source_frame,
+        look_at_frame,
+        alignment_frame,
+        timeout=60.0,
+        cancel_on_success=False,
+        confirm_duration=2.0,
+    ):
+        super().__init__(
+            outcomes=["succeeded", "preempted", "aborted"],
+            default_outcome="aborted",
+            outcome_map={
+                "succeeded": {"ALIGN_FRAME": "succeeded"},
+                "preempted": {"ALIGN_FRAME": "preempted"},
+                "aborted": {"ALIGN_FRAME": "aborted"},
+            },
+            child_termination_cb=lambda outcome_map: True,  # Terminate if any child terminates
+        )
+
+        with self:
+            smach.Concurrence.add(
+                "LOOK_AT",
+                SetFrameLookingAtState(
+                    source_frame=source_frame,
+                    look_at_frame=look_at_frame,
+                    alignment_frame=alignment_frame,
+                    duration_time=60.0,
+                ),
+            )
+
+            smach.Concurrence.add(
+                "ALIGN_FRAME",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=alignment_frame,
+                    timeout=timeout,
+                    cancel_on_success=cancel_on_success,
+                    confirm_duration=confirm_duration,
+                ),
             )
 
 
@@ -1455,17 +1485,40 @@ class CreateRotatingFrameState(smach.State):
         reference_frame: str = "odom",
         rotation_period: float = 15.0,
         rate_hz: int = 20,
+        look_at_frame: str = None,
+        full_rotation: bool = True,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.target_frame = target_frame
         self.source_frame = source_frame
         self.reference_frame = reference_frame
         self.rotation_period = rotation_period
+        self.look_at_frame = look_at_frame
+        self.full_rotation = full_rotation
         self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(rate_hz)
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
+
+    def is_transform_available(self):
+        if not self.look_at_frame:
+            return False
+        try:
+            lookup_fresh_transform(
+                self.tf_buffer,
+                self.source_frame,
+                self.look_at_frame,
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
+            )
+            return True
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            return False
 
     def execute(self, userdata):
         rospy.loginfo(
@@ -1481,11 +1534,21 @@ class CreateRotatingFrameState(smach.State):
                 rospy.Duration(4.0),
             )
             initial_translation = initial_transform.transform.translation
+            initial_rotation = initial_transform.transform.rotation
+            initial_yaw = euler_from_quaternion(
+                [
+                    initial_rotation.x,
+                    initial_rotation.y,
+                    initial_rotation.z,
+                    initial_rotation.w,
+                ]
+            )[2]
             rospy.loginfo(
-                "Initial position locked at: x=%.2f, y=%.2f, z=%.2f",
+                "Initial pose locked at: x=%.2f, y=%.2f, z=%.2f, yaw=%.2f",
                 initial_translation.x,
                 initial_translation.y,
                 initial_translation.z,
+                initial_yaw,
             )
         except (
             tf2_ros.LookupException,
@@ -1501,6 +1564,12 @@ class CreateRotatingFrameState(smach.State):
         end_time = start_time + rospy.Duration(self.rotation_period)
         angular_velocity = 2.0 * math.pi / self.rotation_period
 
+        if not self.full_rotation and self.is_transform_available():
+            rospy.loginfo(
+                "CreateRotatingFrameState: transform found before starting, returning"
+            )
+            return "succeeded"
+
         while not rospy.is_shutdown() and rospy.Time.now() < end_time:
             if self.preempt_requested():
                 rospy.logwarn(
@@ -1508,9 +1577,16 @@ class CreateRotatingFrameState(smach.State):
                     self.target_frame,
                 )
                 return "preempted"
+
+            if not self.full_rotation and self.is_transform_available():
+                rospy.loginfo(
+                    "CreateRotatingFrameState: transform found during rotation, stopping."
+                )
+                return "succeeded"
+
             try:
                 elapsed_time = (rospy.Time.now() - start_time).to_sec()
-                current_yaw = angular_velocity * elapsed_time
+                current_yaw = initial_yaw + angular_velocity * elapsed_time
                 qx, qy, qz, qw = quaternion_from_euler(0.0, 0.0, current_yaw)
                 t = TransformStamped()
                 t.header.stamp = rospy.Time.now()
@@ -1543,11 +1619,12 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
     def __init__(
         self,
         source_frame: str,
-        target_frame: str,
         rotating_frame_name: str,
         rotation_period: float = 15.0,
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
+        look_at_frame: str = None,
+        full_rotation: bool = False,
     ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
         with self:
@@ -1555,7 +1632,7 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                 "SET_ALIGN_TARGET",
                 SetAlignControllerTargetState(
                     source_frame=source_frame,
-                    target_frame=target_frame,
+                    target_frame=rotating_frame_name,
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
                 ),
@@ -1572,7 +1649,8 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                     source_frame=source_frame,
                     reference_frame="odom",
                     rotation_period=rotation_period,
-                    rate_hz=20,
+                    look_at_frame=look_at_frame,
+                    full_rotation=full_rotation,
                 ),
                 transitions={
                     "succeeded": "succeeded",
@@ -1653,7 +1731,7 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
         plan_target_frame: str,
         transform_source_frame: str,
         transform_target_frame: str,
-        align_source_frame: str = "taluy/base_link",
+        align_source_frame: str = None,
         align_target_frame: str = "dynamic_target",
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
