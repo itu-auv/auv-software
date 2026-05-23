@@ -196,67 +196,24 @@ class KdeObjectMapper:
         except Exception as e:
             rospy.logwarn_throttle(10.0, f"KDE: Failed to check/reload premap: {e}")
 
-    def _validate_and_filter_peaks(self, class_name: str, peaks: list) -> tuple:
-        """Validates detected peaks against the premap.
-
-        If a peak is too far from its known premap position, it is rejected
-        and the contributing points within suppression_radius are removed
-        from the point buffer.
-
-        Args:
-            class_name: The object class name.
-            peaks: A list of candidate peaks (x, y, confidence).
-
-        Returns:
-            A tuple of (accepted_peaks, rejected_peaks_data) where:
-            - accepted_peaks: list of (x, y, confidence)
-            - rejected_peaks_data: list of (x, y, distance)
-        """
-        accepted_peaks = []
-        rejected_peaks_data = []
-        rejected_peaks_xy = []
-
-        if class_name in self.premap:
-            premap_pos = self.premap[class_name]
-            for px, py, conf in peaks:
-                dist = float(
-                    np.sqrt((px - premap_pos[0]) ** 2 + (py - premap_pos[1]) ** 2)
-                )
-                if dist > self.premap_max_distance:
-                    rejected_peaks_data.append((px, py, dist))
-                    rejected_peaks_xy.append((px, py))
-                    rospy.logwarn_throttle(
-                        5.0,
-                        f"KDE: Rejected peak for {class_name} at ({px:.2f}, {py:.2f}) "
-                        f"due to distance {dist:.2f}m > limit {self.premap_max_distance:.2f}m",
-                    )
-                else:
-                    accepted_peaks.append((px, py, conf))
-        else:
-            accepted_peaks = peaks
-
-        if rejected_peaks_xy:
-            with self.lock:
-                original_len = len(self.point_buffers[class_name])
-                self.point_buffers[class_name] = [
-                    pt
-                    for pt in self.point_buffers[class_name]
-                    if not any(
-                        np.sqrt((pt[0] - rx) ** 2 + (pt[1] - ry) ** 2)
-                        < self.suppression_radius
-                        for rx, ry in rejected_peaks_xy
-                    )
-                ]
-                removed_count = original_len - len(self.point_buffers[class_name])
-                rospy.loginfo(
-                    f"KDE: Removed {removed_count} points contributing to "
-                    f"rejected peaks for {class_name}"
-                )
-
-        return accepted_peaks, rejected_peaks_data
-
     def _point_callback(self, msg, class_name):
         with self.lock:
+            if class_name in self.premap:
+                premap_pos = self.premap[class_name]
+                dist = float(
+                    np.sqrt(
+                        (msg.point.x - premap_pos[0]) ** 2
+                        + (msg.point.y - premap_pos[1]) ** 2
+                    )
+                )
+                if dist > self.premap_max_distance:
+                    # rospy.logwarn_throttle(
+                    #     5.0,
+                    #     f"KDE: Rejected incoming point for {class_name} at ({msg.point.x:.2f}, {msg.point.y:.2f}) "
+                    #     f"due to distance {dist:.2f}m > limit {self.premap_max_distance:.2f}m",
+                    # )
+                    return
+
             buf = self.point_buffers[class_name]
             buf.append([msg.point.x, msg.point.y, rospy.Time.now().to_sec()])
             # Keep buffer bounded
@@ -372,11 +329,7 @@ class KdeObjectMapper:
                 dist_grid = np.sqrt((xx - peak_x) ** 2 + (yy - peak_y) ** 2)
                 density_work[dist_grid < self.suppression_radius] = 0.0
 
-            # Validate and filter peaks against the premap
-            accepted_peaks, rejected_peaks_data = self._validate_and_filter_peaks(
-                cls_name, peaks
-            )
-            results[cls_name] = accepted_peaks
+            results[cls_name] = peaks
 
             # Store for visualisation
             kde_data[cls_name] = {
@@ -389,7 +342,7 @@ class KdeObjectMapper:
                 "y_min": y_min,
                 "y_max": y_max,
                 "timestamps": timestamps,
-                "rejected_peaks": rejected_peaks_data,
+                "rejected_peaks": [],
             }
             if cls_name in self.premap:
                 kde_data[cls_name]["premap_position"] = (
