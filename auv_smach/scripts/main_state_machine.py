@@ -56,6 +56,7 @@ class MainStateMachineNode:
         self.torpedo_map = DEFAULT_TORPEDO_MAP
         self.slalom_mode = "close"
         self.slalom_direction = "left"
+        self.octagon_start_from_table = False
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
@@ -270,6 +271,7 @@ class MainStateMachineNode:
                 {
                     "octagon_depth": self.octagon_depth,
                     "animal": self.selected_role,
+                    "start_from_table": self.octagon_start_from_table,
                 },
             ),
             "NAVIGATE_TO_GPS_TARGET": (
