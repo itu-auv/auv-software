@@ -109,6 +109,17 @@ class ValveKeypointNode:
         # When running ViTPose inside the tracked bbox, expand the bbox by this
         # fraction so the keypoint head sees a little context around the valve.
         self.track_bbox_pad = float(rospy.get_param("~track_bbox_pad", 0.10))
+        # How often (in successful LOCKED frames) to re-init VITTrack from the
+        # crop's keypoint extent. 0 disables. Keeps the tracker anchored
+        # without leaning on the slow whole-image ViTPose seed, which yields
+        # an over-large bbox.
+        self.lock_reseed_interval = int(rospy.get_param("~lock_reseed_interval", 30))
+        # Frame stride between whole-image ViTPose seed attempts while in
+        # UNINIT/RECOVERING. Default 5 — the whole-image pass is expensive,
+        # no need to retry on every single frame.
+        self.recover_seed_interval = max(
+            1, int(rospy.get_param("~recover_seed_interval", 5))
+        )
 
         # Producer emits 1-indexed keypoint ids; the consumer YAML
         # (valve_keypoints.yaml) maps those ids to model points.
@@ -143,6 +154,10 @@ class ValveKeypointNode:
         self._tracked_bbox: Optional[Tuple[float, float, float, float]] = None
         self._seed_thread: Optional[threading.Thread] = None
         self._last_image_bgr: Optional[np.ndarray] = None
+        # Successful-LOCKED-frame counter for periodic VITTrack reseeding.
+        self._lock_frame_count = 0
+        # Frame counter while in UNINIT/RECOVERING, used to stride seed attempts.
+        self._recover_frame_count = 0
 
         self.enabled = bool(rospy.get_param("~enabled", True))
         # Private (~) so multiple instances (front + bottom camera) can coexist
@@ -185,6 +200,8 @@ class ValveKeypointNode:
             self._state = STATE_RECOVERING
             self._tracker = None
             self._tracked_bbox = None
+            self._lock_frame_count = 0
+            self._recover_frame_count = 0
         rospy.loginfo("valve_keypoint_node: re-seed requested, dropping tracker.")
         return EmptyResponse()
 
@@ -210,8 +227,13 @@ class ValveKeypointNode:
         kps, scores = None, None
 
         if state in (STATE_UNINIT, STATE_RECOVERING):
-            # Kick off (or keep waiting for) a whole-image ViTPose seed.
-            self._maybe_start_seed_worker()
+            # Whole-image ViTPose is expensive; only attempt a seed every
+            # recover_seed_interval frames. The worker also self-guards
+            # against pile-up, but the stride lets the camera breathe between
+            # back-to-back failed seeds.
+            self._recover_frame_count += 1
+            if self._recover_frame_count % self.recover_seed_interval == 0:
+                self._maybe_start_seed_worker()
             # No tracked bbox yet → publish an empty result so downstream nodes
             # see we're alive but not locked.
             self._publish_result(msg.header, [])
@@ -247,6 +269,13 @@ class ValveKeypointNode:
                 else:
                     with self._lock:
                         self._tracked_bbox = bbox_xywh
+                        self._lock_frame_count += 1
+                        do_reseed = (
+                            self.lock_reseed_interval > 0
+                            and self._lock_frame_count >= self.lock_reseed_interval
+                        )
+                    if do_reseed:
+                        self._reseed_from_crop_kps(img_bgr, kps, scores)
 
                 keypoints = self._build_keypoints(kps, scores)
                 self._publish_result(msg.header, keypoints)
@@ -317,6 +346,43 @@ class ValveKeypointNode:
         except Exception as e:
             rospy.logerr_throttle(5.0, f"seed worker failed: {e}")
 
+    def _reseed_from_crop_kps(self, frame_bgr, kps, scores):
+        """Re-init VITTrack from the bbox extent of the current crop's keypoints.
+
+        Runs no extra inference — uses the kps/scores already produced by
+        ViTPose-on-bbox for this frame. Keeps the tracker anchored without
+        falling back to the slow whole-image seed (which also yields a much
+        looser bbox).
+        """
+        try:
+            seed_bbox = self._compute_seed_bbox(kps, scores, frame_bgr.shape)
+            if seed_bbox is None:
+                # Low-conf frame: don't poison a working tracker with a bad seed.
+                return
+
+            params = cv2.TrackerVit_Params()
+            params.net = self.vit_tracker_model_path
+            new_tracker = cv2.TrackerVit_create(params)
+            x, y, bw, bh = seed_bbox
+            new_tracker.init(frame_bgr, (int(x), int(y), int(bw), int(bh)))
+        except Exception as e:
+            rospy.logwarn_throttle(5.0, f"VITTrack periodic reseed failed: {e}")
+            return
+
+        with self._lock:
+            # Only swap in if we're still LOCKED — avoid clobbering a
+            # concurrent recovery transition or service-triggered reseed.
+            if self._state != STATE_LOCKED:
+                return
+            self._tracker = new_tracker
+            self._tracked_bbox = seed_bbox
+            self._lock_frame_count = 0
+        rospy.loginfo_throttle(
+            10.0,
+            "VITTrack reseeded from crop keypoints: bbox=(%.0f, %.0f, %.0f, %.0f)"
+            % seed_bbox,
+        )
+
     def _compute_seed_bbox(
         self, kps: np.ndarray, scores: np.ndarray, img_shape
     ) -> Optional[Tuple[float, float, float, float]]:
@@ -370,6 +436,8 @@ class ValveKeypointNode:
             self._state = STATE_RECOVERING
             self._tracker = None
             self._tracked_bbox = None
+            self._lock_frame_count = 0
+            self._recover_frame_count = 0
 
     def _bbox_is_sane(self, bbox, img_shape) -> bool:
         if bbox is None:
