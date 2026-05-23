@@ -119,7 +119,7 @@ class CheckBottleLinkState(smach.State):
                     self.source_frame,
                     self.target_frame,
                     rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
                 )
                 rospy.loginfo(
                     f"[CheckBottleLinkState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
