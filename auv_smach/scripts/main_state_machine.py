@@ -274,6 +274,7 @@ class MainStateMachineNode:
                 {
                     "octagon_depth": self.octagon_depth,
                     "animal": self.selected_role,
+                    "octagon_search_frame": self.octagon_search_frame,
                 },
             ),
             "NAVIGATE_TO_GPS_TARGET": (

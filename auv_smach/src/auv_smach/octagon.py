@@ -13,7 +13,7 @@ from auv_smach.common import (
     DynamicPathState,
     DynamicPathWithTransformCheck,
     AlignFrame,
-    SearchForPropKdeState,
+    SearchForPropState,
     SetDetectionState,
     AlignAndCreateRotatingFrame,
 )
@@ -370,10 +370,11 @@ class PickAndDropSequence(smach.StateMachine):
 
 
 class OctagonTaskState(smach.State):
-    def __init__(self, octagon_depth: float, animal: str):
+    def __init__(self, octagon_depth: float, animal: str, octagon_search_frame: str):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.griper_mode = True
         self.base_link = get_base_link()
+        self.octagon_search_frame = octagon_search_frame
         self.animal_frame = f"gate_{animal}_link"
         pick_and_drop_targets = [
             ("pill_link", "basket_redcross_segment_link"),
@@ -408,8 +409,8 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "FIND_AIM_OCTAGON",
-                SearchForPropKdeState(
-                    look_at_frame="octagon_link_kde",
+                SearchForPropState(
+                    look_at_frame=self.octagon_search_frame,
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     set_frame_duration=4.0,

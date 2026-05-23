@@ -757,7 +757,6 @@ class BinTaskState(smach.State):
                     bin_front_look_depth,
                     bin_bottom_look_depth,
                     target_selection,
-                    bin_search_frame=self.bin_search_frame,
                 ),
                 transitions={
                     "succeeded": "SET_ALIGN_TO_FOUND_DROP_AREA",
