@@ -48,6 +48,123 @@ def check_inside_image(
     return True
 
 
+# TORPEDO-specific masks and helpers (copied from detection_objects_taluy.yaml / detection_utils)
+TORPEDO_MASK_REFERENCE_WIDTH = 800.0
+TORPEDO_MASK_REFERENCE_HEIGHT = 448.0
+TORPEDO_FORBIDDEN_SIDE_MASKS = (
+    (
+        (0.0, 0.0),
+        (185.0, 0.0),
+        (145.0, 45.0),
+        (118.0, 95.0),
+        (102.0, 155.0),
+        (96.0, 225.0),
+        (106.0, 290.0),
+        (130.0, 360.0),
+        (175.0, 447.0),
+        (0.0, 447.0),
+    ),
+    (
+        (799.0, 0.0),
+        (615.0, 0.0),
+        (655.0, 45.0),
+        (682.0, 95.0),
+        (698.0, 155.0),
+        (704.0, 225.0),
+        (694.0, 290.0),
+        (670.0, 360.0),
+        (625.0, 447.0),
+        (799.0, 447.0),
+    ),
+)
+
+
+def _scale_polygon(
+    points, image_width: int, image_height: int, ref_w: float, ref_h: float
+):
+    """Scale polygon points from reference resolution to actual image resolution."""
+    scale_x = image_width / ref_w
+    scale_y = image_height / ref_h
+    return tuple((x * scale_x, y * scale_y) for x, y in points)
+
+
+def _point_in_polygon(point, polygon) -> bool:
+    """Return True when point is inside polygon, including polygon boundary."""
+    point_x, point_y = point
+    inside = False
+
+    for index, current in enumerate(polygon):
+        next_point = polygon[(index + 1) % len(polygon)]
+        x1, y1 = current
+        x2, y2 = next_point
+
+        cross_product = (point_y - y1) * (x2 - x1) - (point_x - x1) * (y2 - y1)
+        if (
+            abs(cross_product) < 1e-9
+            and min(x1, x2) <= point_x <= max(x1, x2)
+            and min(y1, y2) <= point_y <= max(y1, y2)
+        ):
+            return True
+
+        if (y1 > point_y) != (y2 > point_y):
+            intersection_x = (x2 - x1) * (point_y - y1) / (y2 - y1) + x1
+            if point_x <= intersection_x:
+                inside = not inside
+
+    return inside
+
+
+def check_inside_image_torpedo(
+    detection,
+    image_width: int = 800,
+    image_height: int = 448,
+    forbidden_side_masks=None,
+) -> bool:
+    """Check if a torpedo detection bbox is inside the usable image area.
+
+    Defaults and forbidden-side masks copied from detection_objects_taluy.yaml
+    """
+    center = detection.bbox.center
+    half_size_x = detection.bbox.size_x * 0.5
+    half_size_y = detection.bbox.size_y * 0.5
+    deadzone = 5  # pixels
+    if (
+        center.x + half_size_x >= image_width - deadzone
+        or center.x - half_size_x <= deadzone
+    ):
+        return False
+    if (
+        center.y + half_size_y >= image_height - deadzone
+        or center.y - half_size_y <= deadzone
+    ):
+        return False
+
+    bbox_corners = (
+        (center.x - half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y + half_size_y),
+        (center.x - half_size_x, center.y + half_size_y),
+    )
+
+    if forbidden_side_masks is None:
+        forbidden_side_masks = tuple(
+            _scale_polygon(
+                mask,
+                image_width,
+                image_height,
+                TORPEDO_MASK_REFERENCE_WIDTH,
+                TORPEDO_MASK_REFERENCE_HEIGHT,
+            )
+            for mask in TORPEDO_FORBIDDEN_SIDE_MASKS
+        )
+
+    for forbidden_mask in forbidden_side_masks:
+        if any(_point_in_polygon(corner, forbidden_mask) for corner in bbox_corners):
+            return False
+
+    return True
+
+
 @dataclass
 class Point:
     x: float
@@ -369,7 +486,7 @@ class SlalomHeatmapMapper:
             return
 
         for x in detections.detections:
-            if not check_inside_image(
+            if not check_inside_image_torpedo(
                 x,
                 self.cam.width,
                 self.cam.height,
