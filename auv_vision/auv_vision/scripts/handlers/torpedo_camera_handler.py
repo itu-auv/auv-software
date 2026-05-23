@@ -116,8 +116,6 @@ class TorpedoCameraHandler:
             self._publish_hole_transform(detection, child_frame_id, stamp)
 
         self.reference_holes_ready = self._can_transform_all_reference_holes(stamp)
-        if self.reference_holes_ready:
-            rospy.loginfo("All torpedo reference hole frames are available in TF.")
 
     def _publish_hole_transform(self, detection, child_frame_id, stamp):
         prop = self._prop_for_hole_frame(child_frame_id)
