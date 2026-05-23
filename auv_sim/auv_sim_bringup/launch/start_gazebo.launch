@@ -24,6 +24,7 @@
     <arg name="use_gui" default="true" />
     <arg name="debug" default="false" />
     <arg name="world" default="pool" />
+    <arg name="objects" default="gate,torpedo,bin,slalom,octagon" />
     <arg name="use_ned_frame" default="false" />
     <arg name="imu_update_rate" default="20" />
     <arg name="dvl_update_rate" default="20" />
@@ -80,6 +81,7 @@
         <arg name="use_gui" value="$(arg use_gui)" />
         <arg name="debug" value="$(arg debug)" />
         <arg name="namespace" value="$(arg namespace)" />
+        <arg name="objects" value="$(arg objects)" />
     </include>
 
     <!-- Spawn robot -->
@@ -109,6 +111,7 @@
             <arg name="control_rate" value="$(arg control_rate)" />
             <arg name="sim" value="$(arg sim)" />
             <arg name="use_gui" value="$(arg use_gui)" />
+            <arg name="objects" value="$(arg objects)" />
         </include>
     </group>
 
