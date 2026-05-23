@@ -38,7 +38,9 @@ class KdeVisualizer:
         viz.update(kde_data, results)
     """
 
-    def __init__(self, image_width, image_height, class_colors, bandwidth, grid_resolution):
+    def __init__(
+        self, image_width, image_height, class_colors, bandwidth, grid_resolution
+    ):
         self.image_width = image_width
         self.image_height = image_height
         self.class_colors = class_colors
@@ -167,7 +169,7 @@ class KdeVisualizer:
                 1,
             )
 
-        # ── Per-class density + points 
+        # ── Per-class density + points
         legend_y = 25
         for cls_name, data in kde_data.items():
             color = self.class_colors.get(cls_name, (255, 255, 255))
@@ -184,7 +186,9 @@ class KdeVisualizer:
                 th = max(abs(v_max_p - v_min_p), 1)
 
                 dn_flipped = cv2.flip(dn, 0)
-                dn_resized = cv2.resize(dn_flipped, (tw, th), interpolation=cv2.INTER_LINEAR)
+                dn_resized = cv2.resize(
+                    dn_flipped, (tw, th), interpolation=cv2.INTER_LINEAR
+                )
                 layer = np.zeros((th, tw, 3), dtype=np.uint8)
                 for ch in range(3):
                     layer[:, :, ch] = (dn_resized * (color[ch] / 255.0)).astype(
@@ -239,8 +243,15 @@ class KdeVisualizer:
                     cv2.circle(canvas, (pm_u, pm_v), 2, (0, 0, 255), -1)
                     if "premap_max_distance" in data:
                         val_r = int(data["premap_max_distance"] * scale)
-                        cv2.circle(canvas, (pm_u, pm_v), val_r, (0, 0, 255), 1, lineType=cv2.LINE_AA)
-                    
+                        cv2.circle(
+                            canvas,
+                            (pm_u, pm_v),
+                            val_r,
+                            (0, 0, 255),
+                            1,
+                            lineType=cv2.LINE_AA,
+                        )
+
                     # Draw label showing the premap object name (Red)
                     short_name = cls_name.replace("_link", "")
                     label = f"PREMAP: {short_name}"
@@ -252,7 +263,7 @@ class KdeVisualizer:
                         0.35,
                         (0, 0, 255),
                         1,
-                        lineType=cv2.LINE_AA
+                        lineType=cv2.LINE_AA,
                     )
 
             # Draw rejected peaks (red X and distance text)
@@ -261,8 +272,12 @@ class KdeVisualizer:
                     ru, rv = w2p(rx, ry)
                     if 0 <= ru < img_w and 0 <= rv < img_h:
                         s = 6
-                        cv2.line(canvas, (ru - s, rv - s), (ru + s, rv + s), (0, 0, 255), 2)
-                        cv2.line(canvas, (ru + s, rv - s), (ru - s, rv + s), (0, 0, 255), 2)
+                        cv2.line(
+                            canvas, (ru - s, rv - s), (ru + s, rv + s), (0, 0, 255), 2
+                        )
+                        cv2.line(
+                            canvas, (ru + s, rv - s), (ru - s, rv + s), (0, 0, 255), 2
+                        )
                         label = f"{dist:.1f} m"
                         cv2.putText(
                             canvas,

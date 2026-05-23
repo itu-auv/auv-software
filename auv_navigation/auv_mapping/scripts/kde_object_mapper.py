@@ -32,8 +32,6 @@ from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from kde_visualizer import KdeVisualizer, CLASS_COLORS_BGR
 
 
-
-
 class KdeObjectMapper:
     def __init__(self):
         rospy.init_node("kde_object_mapper")
@@ -99,8 +97,11 @@ class KdeObjectMapper:
 
         # ── Visualizer (runs on its own thread) ──────────────────────────
         self.visualizer = KdeVisualizer(
-            image_width, image_height, self.class_colors,
-            self.bandwidth, self.grid_resolution,
+            image_width,
+            image_height,
+            self.class_colors,
+            self.bandwidth,
+            self.grid_resolution,
         )
         self.visualizer.start()
 
@@ -141,7 +142,9 @@ class KdeObjectMapper:
             return premap
 
         if not os.path.exists(premap_path):
-            rospy.logwarn(f"KDE: Premap file at {premap_path} is missing. Premap is disabled.")
+            rospy.logwarn(
+                f"KDE: Premap file at {premap_path} is missing. Premap is disabled."
+            )
             return premap
 
         try:
@@ -149,12 +152,16 @@ class KdeObjectMapper:
                 data = yaml.safe_load(f)
 
             if not isinstance(data, dict):
-                rospy.logwarn(f"KDE: Failed to parse premap YAML from {premap_path} — top-level is not a dict.")
+                rospy.logwarn(
+                    f"KDE: Failed to parse premap YAML from {premap_path} — top-level is not a dict."
+                )
                 return premap
 
             objects_data = data.get("objects", {})
             if not isinstance(objects_data, dict):
-                rospy.logwarn(f"KDE: 'objects' key in premap {premap_path} is not a dictionary.")
+                rospy.logwarn(
+                    f"KDE: 'objects' key in premap {premap_path} is not a dictionary."
+                )
                 return premap
 
             for k, v in objects_data.items():
@@ -163,7 +170,9 @@ class KdeObjectMapper:
                     if isinstance(pos, (list, tuple)) and len(pos) >= 2:
                         premap[k] = np.array([float(pos[0]), float(pos[1])])
 
-            rospy.loginfo(f"KDE: Loaded premap with {len(premap)} classes from {premap_path}: {list(premap.keys())}")
+            rospy.loginfo(
+                f"KDE: Loaded premap with {len(premap)} classes from {premap_path}: {list(premap.keys())}"
+            )
         except Exception as e:
             rospy.logwarn(f"KDE: Failed to load premap from {premap_path}: {e}")
             premap = {}
@@ -181,7 +190,9 @@ class KdeObjectMapper:
                 with self.lock:
                     self.premap = new_premap
                 self._premap_mtime = mtime
-                rospy.loginfo(f"KDE: Dynamically reloaded premap due to file modification (mtime={mtime})")
+                rospy.loginfo(
+                    f"KDE: Dynamically reloaded premap due to file modification (mtime={mtime})"
+                )
         except Exception as e:
             rospy.logwarn_throttle(10.0, f"KDE: Failed to check/reload premap: {e}")
 
@@ -208,14 +219,16 @@ class KdeObjectMapper:
         if class_name in self.premap:
             premap_pos = self.premap[class_name]
             for px, py, conf in peaks:
-                dist = float(np.sqrt((px - premap_pos[0])**2 + (py - premap_pos[1])**2))
+                dist = float(
+                    np.sqrt((px - premap_pos[0]) ** 2 + (py - premap_pos[1]) ** 2)
+                )
                 if dist > self.premap_max_distance:
                     rejected_peaks_data.append((px, py, dist))
                     rejected_peaks_xy.append((px, py))
                     rospy.logwarn_throttle(
                         5.0,
                         f"KDE: Rejected peak for {class_name} at ({px:.2f}, {py:.2f}) "
-                        f"due to distance {dist:.2f}m > limit {self.premap_max_distance:.2f}m"
+                        f"due to distance {dist:.2f}m > limit {self.premap_max_distance:.2f}m",
                     )
                 else:
                     accepted_peaks.append((px, py, conf))
@@ -226,8 +239,13 @@ class KdeObjectMapper:
             with self.lock:
                 original_len = len(self.point_buffers[class_name])
                 self.point_buffers[class_name] = [
-                    pt for pt in self.point_buffers[class_name]
-                    if not any(np.sqrt((pt[0] - rx)**2 + (pt[1] - ry)**2) < self.suppression_radius for rx, ry in rejected_peaks_xy)
+                    pt
+                    for pt in self.point_buffers[class_name]
+                    if not any(
+                        np.sqrt((pt[0] - rx) ** 2 + (pt[1] - ry) ** 2)
+                        < self.suppression_radius
+                        for rx, ry in rejected_peaks_xy
+                    )
                 ]
                 removed_count = original_len - len(self.point_buffers[class_name])
                 rospy.loginfo(
@@ -355,7 +373,9 @@ class KdeObjectMapper:
                 density_work[dist_grid < self.suppression_radius] = 0.0
 
             # Validate and filter peaks against the premap
-            accepted_peaks, rejected_peaks_data = self._validate_and_filter_peaks(cls_name, peaks)
+            accepted_peaks, rejected_peaks_data = self._validate_and_filter_peaks(
+                cls_name, peaks
+            )
             results[cls_name] = accepted_peaks
 
             # Store for visualisation
@@ -372,8 +392,13 @@ class KdeObjectMapper:
                 "rejected_peaks": rejected_peaks_data,
             }
             if cls_name in self.premap:
-                kde_data[cls_name]["premap_position"] = (float(self.premap[cls_name][0]), float(self.premap[cls_name][1]))
-                kde_data[cls_name]["premap_max_distance"] = float(self.premap_max_distance)
+                kde_data[cls_name]["premap_position"] = (
+                    float(self.premap[cls_name][0]),
+                    float(self.premap[cls_name][1]),
+                )
+                kde_data[cls_name]["premap_max_distance"] = float(
+                    self.premap_max_distance
+                )
 
         # Take an immutable snapshot for publishing (prevents concurrent modification)
         results_snapshot = dict(results)
@@ -416,8 +441,6 @@ class KdeObjectMapper:
                     rospy.logwarn_throttle(
                         10.0, f"set_object_transform failed for {frame_id}: {e}"
                     )
-
-
 
     def spin(self):
         rospy.spin()

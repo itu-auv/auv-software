@@ -634,7 +634,9 @@ class RotationKdeState(RotationState):
                 rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.1)),
                 rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.5)),
             )
-            rospy.loginfo(f"RotationKdeState: Primary frame '{self.look_at_frame}' found.")
+            rospy.loginfo(
+                f"RotationKdeState: Primary frame '{self.look_at_frame}' found."
+            )
             return True
         except Exception:
             pass
@@ -647,7 +649,9 @@ class RotationKdeState(RotationState):
                 rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.1)),
                 rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.5)),
             )
-            rospy.loginfo(f"RotationKdeState: Primary '{self.look_at_frame}' absent, but fallback '{self.fallback_frame}' is available.")
+            rospy.loginfo(
+                f"RotationKdeState: Primary '{self.look_at_frame}' absent, but fallback '{self.fallback_frame}' is available."
+            )
             return True
         except Exception:
             pass
@@ -740,7 +744,14 @@ class SetFrameLookingAtState(smach.State):
 
 
 class SetFrameLookingAtKdeState(SetFrameLookingAtState):
-    def __init__(self, source_frame, look_at_frame, fallback_frame, alignment_frame, duration_time=3.0):
+    def __init__(
+        self,
+        source_frame,
+        look_at_frame,
+        fallback_frame,
+        alignment_frame,
+        duration_time=3.0,
+    ):
         super().__init__(
             source_frame=source_frame,
             look_at_frame=look_at_frame,
@@ -818,7 +829,9 @@ class SetFrameLookingAtKdeState(SetFrameLookingAtState):
                 tf2_ros.ConnectivityException,
                 tf2_ros.ExtrapolationException,
             ) as e:
-                rospy.logwarn_throttle(2.0, f"TF lookup exception for frame {active_frame}: {e}")
+                rospy.logwarn_throttle(
+                    2.0, f"TF lookup exception for frame {active_frame}: {e}"
+                )
 
             except rospy.ServiceException as e:
                 rospy.logwarn(f"Service call failed: {e}")
@@ -1093,7 +1106,9 @@ class SearchForPropKdeState(smach.StateMachine):
             base_name = look_at_frame[:-4]
             fallback_frame = f"p_{base_name}"
 
-        rospy.loginfo(f"SearchForPropKdeState: Initiated with look_at_frame='{look_at_frame}', fallback_frame='{fallback_frame}'")
+        rospy.loginfo(
+            f"SearchForPropKdeState: Initiated with look_at_frame='{look_at_frame}', fallback_frame='{fallback_frame}'"
+        )
 
         with self:
             smach.StateMachine.add(

@@ -296,7 +296,10 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (
                 NavigateReturnThroughGateState,
-                {"station_frame": self.return_home_station, "gate_search_frame": self.gate_search_frame},
+                {
+                    "station_frame": self.return_home_station,
+                    "gate_search_frame": self.gate_search_frame,
+                },
             ),
             "NAVIGATE_THROUGH_PIPELINE": (
                 NavigateThroughPipelineState,
