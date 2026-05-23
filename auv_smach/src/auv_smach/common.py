@@ -826,17 +826,18 @@ class ExecutePathState(smach.State):
 
 class SearchForPropState(smach.StateMachine):
     """
-    1. RotationState: Rotates to find a prop's frame.
-    2. AimToProp: Aligns to the prop while looking at it.
-    3. CancelAlignControllerState: Cancels the align controller target.
+    1. SetAlignTarget: Sets alignment to rotating frame.
+    2. RotationState: Rotates to find a prop's frame using CreateRotatingFrameState.
+    3. AimToProp: Aligns to the prop while looking at it.
+    4. CancelAlignControllerState: Cancels the align controller target.
     """
 
     def __init__(
         self,
         look_at_frame: str,
         alignment_frame: str,
-        full_rotation: bool,
-        timeout: float,
+        full_rotation: bool = False,
+        timeout: float = 30.0,
         source_frame: str = None,
         rotation_speed: float = 0.3,
         confirm_duration: float = 2.0,
@@ -857,22 +858,17 @@ class SearchForPropState(smach.StateMachine):
 
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
 
+        rotating_frame_name = f"{look_at_frame}_search_rotating"
+        rotation_period = 2.0 * math.pi / rotation_speed if rotation_speed > 0 else 15.0
+
         with self:
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER_TARGET_FIRST",
-                CancelAlignControllerState(),
-                transitions={
-                    "succeeded": "ROTATE_TO_FIND_PROP",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ROTATE_TO_FIND_PROP",
-                RotationState(
+                "ALIGN_AND_ROTATE",
+                AlignAndCreateRotatingFrame(
                     source_frame=source_frame,
+                    rotating_frame_name=rotating_frame_name,
+                    rotation_period=rotation_period,
                     look_at_frame=look_at_frame,
-                    rotation_speed=rotation_speed,
                     full_rotation=full_rotation,
                 ),
                 transitions={
@@ -1491,17 +1487,40 @@ class CreateRotatingFrameState(smach.State):
         reference_frame: str = "odom",
         rotation_period: float = 15.0,
         rate_hz: int = 20,
+        look_at_frame: str = None,
+        full_rotation: bool = True,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.target_frame = target_frame
         self.source_frame = source_frame
         self.reference_frame = reference_frame
         self.rotation_period = rotation_period
+        self.look_at_frame = look_at_frame
+        self.full_rotation = full_rotation
         self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(rate_hz)
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
+
+    def is_transform_available(self):
+        if not self.look_at_frame:
+            return False
+        try:
+            lookup_fresh_transform(
+                self.tf_buffer,
+                self.source_frame,
+                self.look_at_frame,
+                rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
+            )
+            return True
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            return False
 
     def execute(self, userdata):
         rospy.loginfo(
@@ -1537,6 +1556,12 @@ class CreateRotatingFrameState(smach.State):
         end_time = start_time + rospy.Duration(self.rotation_period)
         angular_velocity = 2.0 * math.pi / self.rotation_period
 
+        if not self.full_rotation and self.is_transform_available():
+            rospy.loginfo(
+                "CreateRotatingFrameState: transform found before starting, returning"
+            )
+            return "succeeded"
+
         while not rospy.is_shutdown() and rospy.Time.now() < end_time:
             if self.preempt_requested():
                 rospy.logwarn(
@@ -1544,6 +1569,13 @@ class CreateRotatingFrameState(smach.State):
                     self.target_frame,
                 )
                 return "preempted"
+
+            if not self.full_rotation and self.is_transform_available():
+                rospy.loginfo(
+                    "CreateRotatingFrameState: transform found during rotation, stopping."
+                )
+                return "succeeded"
+
             try:
                 elapsed_time = (rospy.Time.now() - start_time).to_sec()
                 current_yaw = angular_velocity * elapsed_time
@@ -1579,11 +1611,12 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
     def __init__(
         self,
         source_frame: str,
-        target_frame: str,
         rotating_frame_name: str,
         rotation_period: float = 15.0,
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
+        look_at_frame: str = None,
+        full_rotation: bool = False,
     ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
         with self:
@@ -1591,7 +1624,7 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                 "SET_ALIGN_TARGET",
                 SetAlignControllerTargetState(
                     source_frame=source_frame,
-                    target_frame=target_frame,
+                    target_frame=rotating_frame_name,
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
                 ),
@@ -1608,7 +1641,8 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                     source_frame=source_frame,
                     reference_frame="odom",
                     rotation_period=rotation_period,
-                    rate_hz=20,
+                    look_at_frame=look_at_frame,
+                    full_rotation=full_rotation,
                 ),
                 transitions={
                     "succeeded": "succeeded",
