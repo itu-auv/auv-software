@@ -302,10 +302,6 @@ class ReferencePosePublisherNode:
                     self.target_x = rotated_pos.point.x
                     self.target_y = rotated_pos.point.y
 
-                if req.pitch_offset != 0.0:
-                    q_pitch = quaternion_from_euler(0, req.pitch_offset, 0)
-                    quaternion = quaternion_multiply(quaternion, q_pitch)
-
                 self.target_roll, self.target_pitch, self.target_heading = (
                     euler_from_quaternion(quaternion)
                 )
@@ -327,7 +323,7 @@ class ReferencePosePublisherNode:
 
         rospy.loginfo(
             f"Aligning {req.source_frame} to {req.target_frame} "
-            f"with angle_offset={req.angle_offset} pitch_offset={req.pitch_offset}"
+            f"with angle_offset={req.angle_offset}"
         )
         return AlignFrameControllerResponse(success=True, message="Alignment started")
 

@@ -314,7 +314,6 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         target_frame: str,
         keep_orientation: bool = False,
         angle_offset: float = 0.0,
-        pitch_offset: float = 0.0,
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
         use_depth: bool = False,
@@ -323,7 +322,6 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         align_request.source_frame = source_frame
         align_request.target_frame = target_frame
         align_request.angle_offset = angle_offset
-        align_request.pitch_offset = pitch_offset
         align_request.keep_orientation = keep_orientation
         align_request.use_depth = use_depth
         if max_linear_velocity is not None:
@@ -995,7 +993,6 @@ class CheckAlignmentState(smach.State):
         yaw_threshold,
         timeout,
         angle_offset=0.0,
-        pitch_offset=0.0,
         confirm_duration=0.0,
         keep_orientation=False,
         use_frame_depth=False,
@@ -1009,7 +1006,6 @@ class CheckAlignmentState(smach.State):
         self.pitch_threshold = pitch_threshold
         self.timeout = timeout
         self.angle_offset = angle_offset
-        self.pitch_offset = pitch_offset
         self.confirm_duration = confirm_duration
         self.keep_orientation = keep_orientation
         self.use_frame_depth = use_frame_depth
@@ -1036,7 +1032,7 @@ class CheckAlignmentState(smach.State):
                 (rot.x, rot.y, rot.z, rot.w)
             )
             yaw_error = abs(angles.normalize_angle(yaw + self.angle_offset))
-            pitch_error = abs(angles.normalize_angle(pitch + self.pitch_offset))
+            pitch_error = abs(angles.normalize_angle(pitch))
 
             return dist_error, yaw_error, pitch_error
         except (
@@ -1115,7 +1111,6 @@ class AlignFrame(smach.StateMachine):
         source_frame,
         target_frame,
         angle_offset=0.0,
-        pitch_offset=0.0,
         dist_threshold=0.1,
         yaw_threshold=0.1,
         pitch_threshold=0.1,
@@ -1140,7 +1135,6 @@ class AlignFrame(smach.StateMachine):
                     source_frame=source_frame,
                     target_frame=target_frame,
                     angle_offset=angle_offset,
-                    pitch_offset=pitch_offset,
                     keep_orientation=keep_orientation,
                     max_linear_velocity=max_linear_velocity,
                     max_angular_velocity=max_angular_velocity,
@@ -1162,7 +1156,6 @@ class AlignFrame(smach.StateMachine):
                     yaw_threshold,
                     timeout,
                     angle_offset=angle_offset,
-                    pitch_offset=pitch_offset,
                     confirm_duration=confirm_duration,
                     keep_orientation=keep_orientation,
                     use_frame_depth=use_frame_depth,

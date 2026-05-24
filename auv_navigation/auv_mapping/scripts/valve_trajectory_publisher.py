@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
+"""Publishes a target TF frame for valve alignment.
+
+Simple geometry: position is offset along the valve's normal (+X of the
+valve frame), orientation faces the valve with roll=0 and pitch=0 in
+odom — i.e. the AUV is perfectly level, yaw points at the valve.
+
+Since all three Euler angles are fully determined (roll=0, pitch=0,
+yaw=atan2 of the valve normal), there is no leftover degree of freedom
+and no need for shortest-arc rotations or snapshot tricks.
+"""
 import numpy as np
 import rospy
-import tf.transformations
 import tf2_ros
 from dynamic_reconfigure.server import Server
 from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
-from tf.transformations import quaternion_matrix
+from tf.transformations import quaternion_from_euler, quaternion_matrix
 
-from auv_msgs.srv import (
-    SetObjectTransform,
-    SetObjectTransformRequest,
-)
-
+from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from auv_mapping.cfg import ValveTrajectoryConfig
 
 
@@ -30,27 +35,23 @@ class ValveTrajectoryPublisherNode:
 
         self.odom_frame = "odom"
         self.valve_frame = rospy.get_param("~valve_frame", "tac/valve")
-        self.approach_frame = rospy.get_param("~approach_frame", "valve_approach_frame")
+        self.target_frame = rospy.get_param("~target_frame", "valve_target")
 
-        self.enable_approach = False
+        self.enable_publishing = False
 
-        self.approach_offset = 2.00
+        # Distance from the valve along its flange-normal (+X of the valve
+        # TF). Tuned per-phase via dynamic reconfigure.
+        self.approach_offset = rospy.get_param("~approach_offset", 2.0)
 
         self.reconfigure_server = Server(
             ValveTrajectoryConfig, self.reconfigure_callback
         )
 
-        self.set_enable_approach_service = rospy.Service(
-            "set_transform_valve_approach_frame",
+        self.set_enable_publishing_service = rospy.Service(
+            "set_publishing",
             SetBool,
-            self.handle_enable_approach_service,
+            self.handle_enable_publishing_service,
         )
-
-    def get_pose(self, transform: TransformStamped) -> Pose:
-        pose = Pose()
-        pose.position = transform.transform.translation
-        pose.orientation = transform.transform.rotation
-        return pose
 
     def build_transform_message(
         self, child_frame_id: str, pose: Pose
@@ -63,58 +64,61 @@ class ValveTrajectoryPublisherNode:
         t.transform.rotation = pose.orientation
         return t
 
-    def get_valve_surface_normal_3d(self, valve_tf):
-        q = [
-            valve_tf.transform.rotation.x,
-            valve_tf.transform.rotation.y,
-            valve_tf.transform.rotation.z,
-            valve_tf.transform.rotation.w,
-        ]
-
-        rot_matrix = quaternion_matrix(q)
-        normal_3d = rot_matrix[:3, 0].copy()
-
-        norm = np.linalg.norm(normal_3d)
-        if norm < 1e-6:
-            rospy.logwarn_throttle(5.0, "Valve surface normal is degenerate!")
-            return None
-
-        normal_3d = normal_3d / norm
-        facing_dir = -normal_3d
-
-        up_hint = np.array([0.0, 0.0, 1.0])
-        if abs(np.dot(facing_dir, up_hint)) > 0.99:
-            up_hint = np.array([0.0, 1.0, 0.0])
-
-        y_axis = np.cross(up_hint, facing_dir)
-        y_axis = y_axis / np.linalg.norm(y_axis)
-        z_axis = np.cross(facing_dir, y_axis)
-        z_axis = z_axis / np.linalg.norm(z_axis)
-
-        rot = np.eye(4)
-        rot[:3, 0] = facing_dir
-        rot[:3, 1] = y_axis
-        rot[:3, 2] = z_axis
-
-        orientation_quat = tf.transformations.quaternion_from_matrix(rot)
-
-        return normal_3d, orientation_quat
-
     def send_transform(self, transform):
         req = SetObjectTransformRequest()
         req.transform = transform
         resp = self.set_object_transform_service.call(req)
         if not resp.success:
             rospy.logerr(
-                f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
+                f"Failed to set transform for {transform.child_frame_id}: "
+                f"{resp.message}"
             )
 
-    def _create_offset_frame(self, child_frame_id: str, offset_distance: float):
+    def _compute_target(self, valve_tf):
+        """Position offset along valve normal, orientation = level + facing valve."""
+        # Valve position and normal (+X of valve frame) in odom.
+        valve_pos = np.array(
+            [
+                valve_tf.transform.translation.x,
+                valve_tf.transform.translation.y,
+                valve_tf.transform.translation.z,
+            ]
+        )
+        q_valve = [
+            valve_tf.transform.rotation.x,
+            valve_tf.transform.rotation.y,
+            valve_tf.transform.rotation.z,
+            valve_tf.transform.rotation.w,
+        ]
+        R_valve = quaternion_matrix(q_valve)[:3, :3]
+        valve_normal = R_valve[:, 0]  # +X axis of valve frame
+
+        # Target position: offset along the valve's outward normal.
+        target_pos = valve_pos + valve_normal * self.approach_offset
+
+        # Yaw: face the valve. The direction from target to valve is
+        # -valve_normal (projected onto XY). So yaw = atan2(-ny, -nx).
+        yaw = np.arctan2(-valve_normal[1], -valve_normal[0])
+
+        # Perfectly level: roll=0, pitch=0.
+        q_target = quaternion_from_euler(0.0, 0.0, yaw)
+
+        pose = Pose()
+        pose.position.x = float(target_pos[0])
+        pose.position.y = float(target_pos[1])
+        pose.position.z = float(target_pos[2])
+        pose.orientation.x = float(q_target[0])
+        pose.orientation.y = float(q_target[1])
+        pose.orientation.z = float(q_target[2])
+        pose.orientation.w = float(q_target[3])
+        return pose
+
+    def publish_target_frame(self):
         try:
             valve_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.valve_frame,
-                rospy.Time.now(),
+                rospy.Time(0),
                 rospy.Duration(4.0),
             )
         except (
@@ -125,37 +129,16 @@ class ValveTrajectoryPublisherNode:
             rospy.logwarn_throttle(5.0, f"Valve TF lookup failed: {e}")
             return
 
-        valve_pose = self.get_pose(valve_tf)
-        valve_pos = np.array(
-            [valve_pose.position.x, valve_pose.position.y, valve_pose.position.z]
-        )
-
-        result = self.get_valve_surface_normal_3d(valve_tf)
-        if result is None:
-            return
-        normal_3d, orientation_quat = result
-
-        target_pos = valve_pos + (normal_3d * offset_distance)
-
-        pose = Pose()
-        pose.position.x = target_pos[0]
-        pose.position.y = target_pos[1]
-        pose.position.z = target_pos[2]
-
-        pose.orientation.x = orientation_quat[0]
-        pose.orientation.y = orientation_quat[1]
-        pose.orientation.z = orientation_quat[2]
-        pose.orientation.w = orientation_quat[3]
-
-        transform = self.build_transform_message(child_frame_id, pose)
+        pose = self._compute_target(valve_tf)
+        transform = self.build_transform_message(self.target_frame, pose)
         self.send_transform(transform)
 
-    def create_approach_frame(self):
-        self._create_offset_frame(self.approach_frame, self.approach_offset)
-
-    def handle_enable_approach_service(self, req):
-        self.enable_approach = req.data
-        message = f"Valve approach frame publish is set to: {self.enable_approach}"
+    def handle_enable_publishing_service(self, req):
+        self.enable_publishing = req.data
+        message = (
+            f"Valve frame publishing ({self.target_frame}) set to: "
+            f"{self.enable_publishing}"
+        )
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
@@ -166,8 +149,8 @@ class ValveTrajectoryPublisherNode:
     def spin(self):
         rate = rospy.Rate(20)
         while not rospy.is_shutdown():
-            if self.enable_approach:
-                self.create_approach_frame()
+            if self.enable_publishing:
+                self.publish_target_frame()
             rate.sleep()
 
 

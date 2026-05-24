@@ -94,38 +94,34 @@ class MainStateMachineNode:
         self.gps_depth = -1.0
         self.gps_target_frame = "gps_target"
 
-        # Valve task parameters (TAC sea world). One concurrent pipeline per
-        # camera publishes tac/valve_{front,bottom}; ValveTaskState binds the
-        # right set of frames + per-instance service names.
+        # Valve task parameters (TAC sea world). Three trajectory
+        # publishers per valve (look / approach / engage) — see
+        # tac_sea.launch. Each publishes a target frame that is level
+        # (roll=0, pitch=0) and yaw-facing the valve. The smach side is
+        # just "align base_link to target_frame_X".
         self.valve_front_depth = -1.5
-        self.valve_front_frame = "tac/valve_front"
-        self.valve_front_approach_frame = "valve_front_approach_frame"
-        self.valve_front_gripper_frame = "taluy/base_link/valve_gripper_front_link"
-        self.valve_front_keypoint_enable_service = (
-            "valve_keypoint_node_front/set_enabled"
-        )
+        self.valve_front_look_target_frame = "valve_front_look_target"
+        self.valve_front_approach_target_frame = "valve_front_approach_target"
+        self.valve_front_engage_target_frame = "valve_front_engage_target"
+        self.valve_front_look_publisher_service = "set_publishing_valve_front_look"
         self.valve_front_approach_publisher_service = (
-            "set_transform_valve_front_approach_frame"
+            "set_publishing_valve_front_approach"
         )
-        # Front-panel approach: TF's +X is the outward normal, so flip 180°
-        # to face into it.
-        self.valve_front_align_angle_offset = math.pi
+        self.valve_front_engage_publisher_service = "set_publishing_valve_front_engage"
 
-        # Bottom valve geometry is vertical (flange points up). Depth and
-        # angle_offset are placeholders — the bottom approach kinematics
-        # need a tuning pass.
+        # Bottom valve: flange points up. AUV stays level, target
+        # frame depth matches valve Z. No special-casing needed.
         self.valve_bottom_depth = -1.0
-        self.valve_bottom_frame = "tac/valve_bottom"
-        self.valve_bottom_approach_frame = "valve_bottom_approach_frame"
-        self.valve_bottom_gripper_frame = "taluy/base_link/valve_gripper_bottom_link"
-        self.valve_bottom_keypoint_enable_service = (
-            "valve_keypoint_node_bottom/set_enabled"
-        )
+        self.valve_bottom_look_target_frame = "valve_bottom_look_target"
+        self.valve_bottom_approach_target_frame = "valve_bottom_approach_target"
+        self.valve_bottom_engage_target_frame = "valve_bottom_engage_target"
+        self.valve_bottom_look_publisher_service = "set_publishing_valve_bottom_look"
         self.valve_bottom_approach_publisher_service = (
-            "set_transform_valve_bottom_approach_frame"
+            "set_publishing_valve_bottom_approach"
         )
-        self.valve_bottom_align_angle_offset = math.pi
-        self.valve_bottom_align_pitch_offset = math.pi / 2.0
+        self.valve_bottom_engage_publisher_service = (
+            "set_publishing_valve_bottom_engage"
+        )
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
@@ -285,25 +281,24 @@ class MainStateMachineNode:
                 ValveTaskState,
                 {
                     "valve_depth": self.valve_front_depth,
-                    "valve_frame": self.valve_front_frame,
-                    "valve_approach_frame": self.valve_front_approach_frame,
-                    "gripper_frame": self.valve_front_gripper_frame,
-                    "keypoint_enable_service": self.valve_front_keypoint_enable_service,
+                    "look_target_frame": self.valve_front_look_target_frame,
+                    "approach_target_frame": self.valve_front_approach_target_frame,
+                    "engage_target_frame": self.valve_front_engage_target_frame,
+                    "look_publisher_service": self.valve_front_look_publisher_service,
                     "approach_publisher_service": self.valve_front_approach_publisher_service,
-                    "align_angle_offset": self.valve_front_align_angle_offset,
+                    "engage_publisher_service": self.valve_front_engage_publisher_service,
                 },
             ),
             "NAVIGATE_TO_VALVE_BOTTOM_TASK": (
                 ValveTaskState,
                 {
                     "valve_depth": self.valve_bottom_depth,
-                    "valve_frame": self.valve_bottom_frame,
-                    "valve_approach_frame": self.valve_bottom_approach_frame,
-                    "gripper_frame": self.valve_bottom_gripper_frame,
-                    "keypoint_enable_service": self.valve_bottom_keypoint_enable_service,
+                    "look_target_frame": self.valve_bottom_look_target_frame,
+                    "approach_target_frame": self.valve_bottom_approach_target_frame,
+                    "engage_target_frame": self.valve_bottom_engage_target_frame,
+                    "look_publisher_service": self.valve_bottom_look_publisher_service,
                     "approach_publisher_service": self.valve_bottom_approach_publisher_service,
-                    "align_angle_offset": self.valve_bottom_align_angle_offset,
-                    "align_pitch_offset": self.valve_bottom_align_pitch_offset,
+                    "engage_publisher_service": self.valve_bottom_engage_publisher_service,
                 },
             ),
             "INSPECT": (InspectTaskState, {}),

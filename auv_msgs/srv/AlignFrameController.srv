@@ -1,7 +1,6 @@
 string source_frame
 string target_frame
 float32 angle_offset
-float32 pitch_offset
 bool keep_orientation
 bool use_depth
 float32 max_linear_velocity
