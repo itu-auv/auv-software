@@ -412,9 +412,8 @@ class OctagonTaskState(smach.State):
                     look_at_frame="octagon_link",
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
-                    timeout=20.0,
                     source_frame=self.base_link,
-                    rotation_speed=0.2,
+                    rotation_speed=0.4,
                 ),
                 transitions={
                     "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER",
