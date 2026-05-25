@@ -107,15 +107,14 @@
       use_models="$(arg use_models)"
     />
 
-    <!-- Bottom valve gripper: PLACEHOLDER position — 30cm below the bottom
-         camera. Mounted via base_link so the rpy is unambiguous: pitch
-         -π/2 rotates +X to point along -Z_base (straight down when
-         the AUV is level). -->
+    <!-- Bottom valve gripper: PLACEHOLDER position — 37cm below base_link.
+         Identity orientation (same as base_link) — the trajectory publisher
+         handles the full 3D look-at orientation for the target frames. -->
     <link name="${namespace}/base_link/valve_gripper_bottom_link"/>
     <joint name="${namespace}/base_link/valve_gripper_bottom_joint" type="fixed">
       <parent link="${namespace}/base_link"/>
       <child link="${namespace}/base_link/valve_gripper_bottom_link"/>
-      <origin xyz="0 0 -0.37" rpy="0 ${-math.pi/2} 0"/>
+      <origin xyz="0 0 -0.37" rpy="0 0 0"/>
     </joint>
     <xacro:torpedo_camera
       name="${namespace}/base_link/torpedo_camera"

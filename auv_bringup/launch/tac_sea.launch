@@ -49,66 +49,22 @@
       <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
-    <!-- Per-valve trajectory publishers. Each publishes one target TF
-         frame: position offset along the valve's normal, orientation
-         faces the valve with roll=0 pitch=0 (perfectly level).
-
-         Three phases per valve (differ only in approach_offset):
-           - look:     large offset — AUV sits back so keypoints settle
-           - approach: medium offset — standoff in front of valve
-           - engage:   zero offset — docks onto the valve -->
+    <!-- Single valve trajectory publisher for both front and bottom valves.
+         Approach/engage frames use a look-at algorithm with mission_start_link
+         as the roll/yaw reference — gimbal-lock-free for any table tilt. -->
     <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
-          name="valve_front_look_publisher" output="screen">
-      <param name="valve_frame" value="tac/valve_front" />
-      <param name="target_frame" value="valve_front_look_target" />
-      <param name="approach_offset" value="2.0" />
+          name="valve_trajectory_publisher" output="screen">
+      <param name="front_valve_frame" value="tac/valve_front" />
+      <param name="front_approach_frame" value="valve_front_approach_target" />
+      <param name="front_engage_frame" value="valve_front_engage_target" />
+      <param name="front_approach_offset" value="1.0" />
+      <param name="front_engage_offset" value="0.0" />
+      <param name="bottom_valve_frame" value="tac/valve_bottom" />
+      <param name="bottom_approach_frame" value="valve_bottom_approach_target" />
+      <param name="bottom_engage_frame" value="valve_bottom_engage_target" />
+      <param name="bottom_approach_offset" value="1.0" />
+      <param name="bottom_engage_offset" value="0.0" />
       <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="set_publishing" to="set_publishing_valve_front_look" />
-    </node>
-
-    <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
-          name="valve_front_approach_publisher" output="screen">
-      <param name="valve_frame" value="tac/valve_front" />
-      <param name="target_frame" value="valve_front_approach_target" />
-      <param name="approach_offset" value="1.0" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="set_publishing" to="set_publishing_valve_front_approach" />
-    </node>
-
-    <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
-          name="valve_front_engage_publisher" output="screen">
-      <param name="valve_frame" value="tac/valve_front" />
-      <param name="target_frame" value="valve_front_engage_target" />
-      <param name="approach_offset" value="0.0" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="set_publishing" to="set_publishing_valve_front_engage" />
-    </node>
-
-    <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
-          name="valve_bottom_look_publisher" output="screen">
-      <param name="valve_frame" value="tac/valve_bottom" />
-      <param name="target_frame" value="valve_bottom_look_target" />
-      <param name="approach_offset" value="2.0" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="set_publishing" to="set_publishing_valve_bottom_look" />
-    </node>
-
-    <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
-          name="valve_bottom_approach_publisher" output="screen">
-      <param name="valve_frame" value="tac/valve_bottom" />
-      <param name="target_frame" value="valve_bottom_approach_target" />
-      <param name="approach_offset" value="1.0" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="set_publishing" to="set_publishing_valve_bottom_approach" />
-    </node>
-
-    <node pkg="auv_mapping" type="valve_trajectory_publisher.py"
-          name="valve_bottom_engage_publisher" output="screen">
-      <param name="valve_frame" value="tac/valve_bottom" />
-      <param name="target_frame" value="valve_bottom_engage_target" />
-      <param name="approach_offset" value="0.0" />
-      <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="set_publishing" to="set_publishing_valve_bottom_engage" />
     </node>
 
     <!-- Inspect trajectory publisher: 8 frames around the FRONT valve

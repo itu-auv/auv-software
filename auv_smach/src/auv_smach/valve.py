@@ -25,35 +25,35 @@ class _SetBoolServiceState(smach_ros.ServiceState):
 
 
 class ValveTaskState(smach.State):
-    """Aligns to a valve in three phases: look → approach → engage.
+    """Aligns to a valve in two phases: approach → engage.
 
-    Each trajectory publisher emits a target frame that is:
-      - Positioned along the valve's outward normal at a configured offset
-      - Oriented level (roll=0, pitch=0) and yaw facing the valve
+    A single trajectory publisher node (one per valve) emits both target
+    frames simultaneously (approach + engage).  All frames are enabled
+    once at the start via a single service call.
 
-    The smach side is just: enable phase publisher, align base_link to
-    its target frame, repeat for next phase.
+    Approach phase uses a Concurrence to stabilise the valve TF:
+      1. AlignFrame drives toward the approach target.
+      2. After a settle delay the publisher is disabled ("frozen") — the
+         object map keeps broadcasting the last-computed TF, giving the
+         alignment a rock-solid static target to converge on.
+      When AlignFrame succeeds the Concurrence exits, regardless of
+      whether the freeze has fired yet.
 
-    Phases:
-      - look:     large offset — AUV sits back while keypoints settle
-                  and tac/valve_* stabilises.
-      - approach: medium offset — AUV moves to a standoff in front of
-                  the valve.
-      - engage:   zero offset — AUV docks the gripper onto the valve.
+    After approach, the publisher is re-enabled (unfrozen) and the
+    engage phase aligns the valve gripper link to the engage target.
 
     Parameterised so a single class covers both front and bottom valves —
-    they differ only in the frame names and per-phase service names.
+    they differ only in the frame names and gripper link.
     """
 
     def __init__(
         self,
         valve_depth,
-        look_target_frame: str = "valve_front_look_target",
+        gripper_frame: str = "taluy/base_link/valve_gripper_front_link",
         approach_target_frame: str = "valve_front_approach_target",
         engage_target_frame: str = "valve_front_engage_target",
-        look_publisher_service: str = "set_publishing_valve_front_look",
-        approach_publisher_service: str = "set_publishing_valve_front_approach",
-        engage_publisher_service: str = "set_publishing_valve_front_engage",
+        publisher_service: str = "set_publishing_valve_front",
+        freeze_delay: float = 5.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -64,89 +64,22 @@ class ValveTaskState(smach.State):
         )
         self.state_machine.set_initial_state(["SET_VALVE_DEPTH"])
 
-        with self.state_machine:
-            smach.StateMachine.add(
-                "SET_VALVE_DEPTH",
-                SetDepthState(depth=valve_depth),
-                transitions={
-                    "succeeded": "ENABLE_LOOK_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            # -------- Look phase --------
-            # Sit back, point the camera at the valve, let keypoints settle.
-            # Loose thresholds and a short confirm — we just need the
-            # keypoint pipeline to lock on, not a precise pose.
-            smach.StateMachine.add(
-                "ENABLE_LOOK_PUBLISHER",
-                _SetBoolServiceState(look_publisher_service, req=True),
-                transitions={
-                    "succeeded": "WAIT_FOR_LOOK_FRAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_LOOK_FRAME",
-                DelayState(delay_time=2.0),
-                transitions={
-                    "succeeded": "ALIGN_TO_LOOK",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_LOOK",
-                AlignFrame(
-                    source_frame=base_link_frame,
-                    target_frame=look_target_frame,
-                    dist_threshold=0.3,
-                    yaw_threshold=0.15,
-                    confirm_duration=2.0,
-                    timeout=30.0,
-                    cancel_on_success=False,
-                    use_frame_depth=True,
-                ),
-                transitions={
-                    "succeeded": "DISABLE_LOOK_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_LOOK_PUBLISHER",
-                _SetBoolServiceState(look_publisher_service, req=False),
-                transitions={
-                    "succeeded": "ENABLE_APPROACH_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            # -------- Approach phase --------
-            # Standoff in front of the valve, gripper axis pointed at the
-            # valve. Tighter than look, looser than engage.
-            smach.StateMachine.add(
-                "ENABLE_APPROACH_PUBLISHER",
-                _SetBoolServiceState(approach_publisher_service, req=True),
-                transitions={
-                    "succeeded": "WAIT_FOR_APPROACH_FRAME",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_APPROACH_FRAME",
-                DelayState(delay_time=1.0),
-                transitions={
-                    "succeeded": "ALIGN_TO_APPROACH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
+        # -- Build the approach Concurrence --
+        # Child 1: align to approach target (loose thresholds, long timeout)
+        # Child 2: delay → freeze publisher (disable it so TF stops updating)
+        # When AlignFrame succeeds, the whole Concurrence exits.
+        approach_concurrence = smach.Concurrence(
+            outcomes=["succeeded", "preempted", "aborted"],
+            default_outcome="aborted",
+            outcome_map={
+                "succeeded": {"ALIGN_TO_APPROACH": "succeeded"},
+                "preempted": {"ALIGN_TO_APPROACH": "preempted"},
+                "aborted": {"ALIGN_TO_APPROACH": "aborted"},
+            },
+            child_termination_cb=lambda outcome_map: True,
+        )
+        with approach_concurrence:
+            smach.Concurrence.add(
                 "ALIGN_TO_APPROACH",
                 AlignFrame(
                     source_frame=base_link_frame,
@@ -158,48 +91,104 @@ class ValveTaskState(smach.State):
                     cancel_on_success=False,
                     use_frame_depth=True,
                 ),
-                transitions={
-                    "succeeded": "DISABLE_APPROACH_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
             )
+
+            freeze_sequence = smach.StateMachine(
+                outcomes=["succeeded", "preempted", "aborted"]
+            )
+            with freeze_sequence:
+                smach.StateMachine.add(
+                    "WAIT_FOR_SETTLE",
+                    DelayState(delay_time=freeze_delay),
+                    transitions={
+                        "succeeded": "FREEZE_PUBLISHER",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                smach.StateMachine.add(
+                    "FREEZE_PUBLISHER",
+                    _SetBoolServiceState(publisher_service, req=False),
+                    transitions={
+                        "succeeded": "WAIT_FOREVER",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                # Sit here until the Concurrence kills us.
+                smach.StateMachine.add(
+                    "WAIT_FOREVER",
+                    DelayState(delay_time=999.0),
+                    transitions={
+                        "succeeded": "succeeded",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
+            smach.Concurrence.add("FREEZE_SEQUENCE", freeze_sequence)
+
+        # -- Wire the top-level state machine --
+        with self.state_machine:
             smach.StateMachine.add(
-                "DISABLE_APPROACH_PUBLISHER",
-                _SetBoolServiceState(approach_publisher_service, req=False),
+                "SET_VALVE_DEPTH",
+                SetDepthState(depth=valve_depth),
                 transitions={
-                    "succeeded": "ENABLE_ENGAGE_PUBLISHER",
+                    "succeeded": "ENABLE_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
-            # -------- Engage phase --------
-            # Zero offset along the flange normal — co-located with the
-            # valve, oriented so the gripper engages it. Tight thresholds
-            # and low velocity for a clean dock.
+            # Enable all trajectory frames at once.
             smach.StateMachine.add(
-                "ENABLE_ENGAGE_PUBLISHER",
-                _SetBoolServiceState(engage_publisher_service, req=True),
+                "ENABLE_PUBLISHER",
+                _SetBoolServiceState(publisher_service, req=True),
                 transitions={
-                    "succeeded": "WAIT_FOR_ENGAGE_FRAME",
+                    "succeeded": "WAIT_FOR_FRAMES",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "WAIT_FOR_ENGAGE_FRAME",
-                DelayState(delay_time=1.0),
+                "WAIT_FOR_FRAMES",
+                DelayState(delay_time=2.0),
+                transitions={
+                    "succeeded": "APPROACH_WITH_FREEZE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            # -------- Approach phase (with concurrent freeze) --------
+            smach.StateMachine.add(
+                "APPROACH_WITH_FREEZE",
+                approach_concurrence,
+                transitions={
+                    "succeeded": "UNFREEZE_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            # Re-enable publisher so engage sees live TF.
+            smach.StateMachine.add(
+                "UNFREEZE_PUBLISHER",
+                _SetBoolServiceState(publisher_service, req=True),
                 transitions={
                     "succeeded": "ALIGN_TO_ENGAGE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
+            # -------- Engage phase --------
+            # Gripper frame aligns to the engage target so the gripper
+            # tip (not base_link centre) lands on the valve.
             smach.StateMachine.add(
                 "ALIGN_TO_ENGAGE",
                 AlignFrame(
-                    source_frame=base_link_frame,
+                    source_frame=gripper_frame,
                     target_frame=engage_target_frame,
                     dist_threshold=0.03,
                     yaw_threshold=0.05,
@@ -211,14 +200,15 @@ class ValveTaskState(smach.State):
                     use_frame_depth=True,
                 ),
                 transitions={
-                    "succeeded": "DISABLE_ENGAGE_PUBLISHER",
+                    "succeeded": "DISABLE_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
             smach.StateMachine.add(
-                "DISABLE_ENGAGE_PUBLISHER",
-                _SetBoolServiceState(engage_publisher_service, req=False),
+                "DISABLE_PUBLISHER",
+                _SetBoolServiceState(publisher_service, req=False),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
