@@ -63,7 +63,13 @@ class DelayState(smach.State):
         self.delay_time = delay_time
 
     def execute(self, userdata):
-        rospy.sleep(self.delay_time)
+        end_time = rospy.Time.now() + rospy.Duration(self.delay_time)
+        rate = rospy.Rate(10)
+        while rospy.Time.now() < end_time and not rospy.is_shutdown():
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+            rate.sleep()
         return "succeeded"
 
 

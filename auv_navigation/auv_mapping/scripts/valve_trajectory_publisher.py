@@ -48,32 +48,35 @@ _BOTTOM_CORRECTION_QUAT = quaternion_from_euler(0.0, -np.pi / 2, 0.0)
 _IDENTITY_QUAT = np.array([0.0, 0.0, 0.0, 1.0])
 
 
-def _look_at_quaternion(forward, ref_rotation_matrix, label=""):
+def _look_at_quaternion(forward, ref_rotation_matrix, hint_axis=None, label=""):
     """Quaternion whose X axis is *forward*, free rotation resolved by
     ``ref_rotation_matrix``.
 
     Algorithm (gimbal-lock-free — no Euler angles):
-      1. Try mission-start axes in priority order Z -> X -> Y as the Z-hint.
-         Z first gives level roll for horizontal valves; X fallback gives
-         consistent yaw for downward-pointing valves.  Priority avoids the
-         instability of "pick max cross-magnitude" when two axes tie.
+      1. Pick a Z-hint from ``ref_rotation_matrix``.  If ``hint_axis`` is
+         given (0=X, 1=Y, 2=Z) use that axis directly — the caller knows
+         which mission-start axis carries the information it cares about.
+         Otherwise fall back to priority order Z -> X -> Y.
       2. Y = normalise(Z_hint x forward)   — perpendicular to both.
       3. Z = forward x Y                   — completes right-handed frame.
       4. Build the 3x3 rotation matrix [X Y Z] and convert to quaternion.
     """
     forward = forward / np.linalg.norm(forward)
 
-    # Priority order: Z (level roll), X (heading yaw), Y (last resort).
-    priority = [2, 0, 1]
     cross_mags = [
         np.linalg.norm(np.cross(forward, ref_rotation_matrix[:, i])) for i in range(3)
     ]
 
-    chosen = priority[0]
-    for axis_idx in priority:
-        if cross_mags[axis_idx] > _PARALLEL_THRESHOLD:
-            chosen = axis_idx
-            break
+    if hint_axis is not None:
+        chosen = hint_axis
+    else:
+        # Priority order: Z (level roll), X (heading yaw), Y (last resort).
+        priority = [2, 0, 1]
+        chosen = priority[0]
+        for axis_idx in priority:
+            if cross_mags[axis_idx] > _PARALLEL_THRESHOLD:
+                chosen = axis_idx
+                break
 
     z_hint = ref_rotation_matrix[:, chosen]
 
@@ -117,6 +120,7 @@ class _ValveConfig:
         engage_offset,
         service_name,
         correction_quat=_IDENTITY_QUAT,
+        hint_axis=None,
     ):
         self.valve_frame = valve_frame
         self.approach_frame = approach_frame
@@ -125,6 +129,7 @@ class _ValveConfig:
         self.engage_offset = engage_offset
         self.correction_quat = np.asarray(correction_quat)
         self.has_correction = not np.allclose(self.correction_quat, _IDENTITY_QUAT)
+        self.hint_axis = hint_axis
         self.enabled = False
 
         self._service = rospy.Service(service_name, SetBool, self._handle_enable)
@@ -170,6 +175,9 @@ class ValveTrajectoryPublisherNode:
         )
 
         # ---- Bottom valve ----
+        # hint_axis=0 (mission-start X) so the target frame inherits the
+        # mission heading regardless of valve pitch.  The default Z-hint
+        # becomes degenerate when the valve normal is nearly vertical.
         self.bottom = _ValveConfig(
             valve_frame=rospy.get_param("~bottom_valve_frame", "tac/valve_bottom"),
             approach_frame=rospy.get_param(
@@ -184,6 +192,7 @@ class ValveTrajectoryPublisherNode:
                 "~bottom_service", "set_publishing_valve_bottom"
             ),
             correction_quat=_BOTTOM_CORRECTION_QUAT,
+            hint_axis=0,
         )
 
         self.reconfigure_server = Server(
@@ -277,7 +286,12 @@ class ValveTrajectoryPublisherNode:
             target_pos = valve_pos + valve_normal * offset
             forward = -valve_normal  # point from offset position toward valve
 
-            q_target = _look_at_quaternion(forward, mission_start_R, label=target_frame)
+            q_target = _look_at_quaternion(
+                forward,
+                mission_start_R,
+                hint_axis=valve_cfg.hint_axis,
+                label=target_frame,
+            )
 
             # Apply body-frame correction so the target frame matches the
             # gripper / base_link axis convention for this valve type.
