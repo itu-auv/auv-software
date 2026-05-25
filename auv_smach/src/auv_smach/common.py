@@ -1454,13 +1454,17 @@ class CreateRotatingFrameState(smach.State):
         source_frame: str,
         reference_frame: str = "odom",
         rotation_period: float = 15.0,
+        rotation_count: int = 1,
         rate_hz: int = 20,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        if rotation_count < 1:
+            raise ValueError("rotation_count must be at least 1")
         self.target_frame = target_frame
         self.source_frame = source_frame
         self.reference_frame = reference_frame
         self.rotation_period = rotation_period
+        self.rotation_count = rotation_count
         self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(rate_hz)
         self.set_object_transform_service = rospy.ServiceProxy(
@@ -1469,8 +1473,9 @@ class CreateRotatingFrameState(smach.State):
 
     def execute(self, userdata):
         rospy.loginfo(
-            "Creating rotating frame '%s' for one rotation (%.2fs).",
+            "Creating rotating frame '%s' for %d rotation(s) (%.2fs each).",
             self.target_frame,
+            self.rotation_count,
             self.rotation_period,
         )
         try:
@@ -1498,7 +1503,9 @@ class CreateRotatingFrameState(smach.State):
             return "aborted"
 
         start_time = rospy.Time.now()
-        end_time = start_time + rospy.Duration(self.rotation_period)
+        end_time = start_time + rospy.Duration(
+            self.rotation_period * self.rotation_count
+        )
         angular_velocity = 2.0 * math.pi / self.rotation_period
 
         while not rospy.is_shutdown() and rospy.Time.now() < end_time:
@@ -1546,6 +1553,7 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
         target_frame: str,
         rotating_frame_name: str,
         rotation_period: float = 15.0,
+        rotation_count: int = 1,
         max_linear_velocity: float = None,
         max_angular_velocity: float = None,
     ):
@@ -1572,6 +1580,7 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                     source_frame=source_frame,
                     reference_frame="odom",
                     rotation_period=rotation_period,
+                    rotation_count=rotation_count,
                     rate_hz=20,
                 ),
                 transitions={
