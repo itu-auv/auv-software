@@ -254,6 +254,8 @@ class PipeFramePublisher:
                     target_point_index = idx
                     target_point = pt
                     break
+            if target_point is None and possible_targets:
+                target_point_index, target_point = possible_targets[0]
 
         if target_point is not None and width:
             distance = self._distance_from_cam(self.pipe_width, width)
