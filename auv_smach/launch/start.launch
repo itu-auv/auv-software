@@ -5,7 +5,9 @@
     <param name="/smach/max_linear_velocity" value="0.3" />
     <param name="/smach/max_angular_velocity" value="0.45" />
 
-    <!-- State Mapping Definitions -->
+    <!-- State Mapping Definitions
+         Path tokens (path1, path2, ...) resolve dynamically against
+         /waypoint_gui/paths and don't need their own state class. -->
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
@@ -17,7 +19,11 @@
         acoustic_tx:ACOUSTIC_TRANSMITTER,
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
-        pipeline:NAVIGATE_THROUGH_PIPELINE
+        pipeline:NAVIGATE_THROUGH_PIPELINE,
+        path1:path1,
+        path2:path2,
+        path3:path3,
+        path4:path4
     "/>
 
     <!-- Test Mode Configuration -->
