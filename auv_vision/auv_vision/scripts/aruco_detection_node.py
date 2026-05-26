@@ -2,8 +2,11 @@
 
 import os
 import sys
+import time
 import yaml
 import threading
+from collections import deque
+from datetime import datetime
 
 import cv2
 import numpy as np
@@ -59,6 +62,152 @@ class MarkerTarget:
         self.aruco_id = aruco_id
         self.obj_points = obj_points
         self.force_floor_orientation = force_floor_orientation
+
+
+class ScanLogger:
+    """Logs confirmed ArUco marker discoveries to YAML and saves cropped images."""
+
+    def __init__(
+        self, log_dir, confirm_count, confirm_window, image_throttle, dictionary_name
+    ):
+        self.log_dir = log_dir
+        self.confirm_count = confirm_count
+        self.confirm_window = confirm_window
+        self.image_throttle = image_throttle
+        self.dictionary_name = dictionary_name
+        self.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        self.confirmed_ids = set()
+        self.detection_history = {}  # {marker_id: deque of monotonic timestamps}
+        self.discovery_order = 0
+        self.markers_data = []
+        self.last_image_time = {}  # {marker_id: monotonic time of last save}
+        self.image_counters = {}  # {marker_id: int}
+
+        os.makedirs(log_dir, exist_ok=True)
+        self.yaml_path = os.path.join(log_dir, "scan_log.yaml")
+        self._write_yaml()
+        rospy.loginfo(f"[Scan] Logging to {log_dir}")
+
+    def process_detections(self, ids, corners, cv_image):
+        """Process detected markers: confirm new ones, save throttled images."""
+        if ids is None or len(ids) == 0:
+            return
+
+        now = time.monotonic()
+
+        for i, marker_id in enumerate(ids.flatten()):
+            marker_id = int(marker_id)
+            marker_corners = corners[i]
+
+            if marker_id not in self.detection_history:
+                self.detection_history[marker_id] = deque()
+
+            history = self.detection_history[marker_id]
+            history.append(now)
+
+            # Trim entries outside the confirmation window
+            while history and (now - history[0]) > self.confirm_window:
+                history.popleft()
+
+            if marker_id not in self.confirmed_ids:
+                if len(history) >= self.confirm_count:
+                    self._confirm_marker(marker_id, marker_corners, cv_image, now)
+            else:
+                self._save_throttled_image(marker_id, marker_corners, cv_image, now)
+
+    def _confirm_marker(self, marker_id, corners, cv_image, now):
+        self.confirmed_ids.add(marker_id)
+        self.discovery_order += 1
+        ordinal = self._ordinal(self.discovery_order)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+        corners_list = corners.reshape(-1, 2).tolist()
+        corners_rounded = [[round(x, 1), round(y, 1)] for x, y in corners_list]
+
+        self.markers_data.append(
+            {
+                "id": marker_id,
+                "discovered": ordinal,
+                "confirmed_at": timestamp,
+                "corners_px": corners_rounded,
+            }
+        )
+
+        self._write_yaml()
+        self._save_marker_image(marker_id, corners, cv_image)
+        self.last_image_time[marker_id] = now
+
+        rospy.loginfo(f"[Scan] Confirmed marker ID {marker_id} ({ordinal})")
+
+    def _save_throttled_image(self, marker_id, corners, cv_image, now):
+        last = self.last_image_time.get(marker_id, 0)
+        if (now - last) >= self.image_throttle:
+            self._save_marker_image(marker_id, corners, cv_image)
+            self.last_image_time[marker_id] = now
+
+    def _save_marker_image(self, marker_id, corners, cv_image):
+        id_dir = os.path.join(self.log_dir, f"id_{marker_id}")
+        os.makedirs(id_dir, exist_ok=True)
+
+        if marker_id not in self.image_counters:
+            self.image_counters[marker_id] = 0
+        self.image_counters[marker_id] += 1
+
+        filename = f"{self.image_counters[marker_id]:04d}.jpg"
+        filepath = os.path.join(id_dir, filename)
+
+        # Crop to marker bounding box with 30% padding
+        pts = corners.reshape(-1, 2)
+        x_min, y_min = pts.min(axis=0).astype(int)
+        x_max, y_max = pts.max(axis=0).astype(int)
+
+        h, w = cv_image.shape[:2]
+        pad = int(max(x_max - x_min, y_max - y_min) * 0.3)
+        x_min = max(0, x_min - pad)
+        y_min = max(0, y_min - pad)
+        x_max = min(w, x_max + pad)
+        y_max = min(h, y_max + pad)
+
+        crop = cv_image[y_min:y_max, x_min:x_max].copy()
+
+        # Draw marker outline on the crop
+        shifted_pts = (pts - np.array([x_min, y_min])).astype(np.int32)
+        cv2.polylines(
+            crop, [shifted_pts], isClosed=True, color=(0, 255, 0), thickness=2
+        )
+
+        cv2.imwrite(filepath, crop)
+
+    def _write_yaml(self):
+        with open(self.yaml_path, "w") as f:
+            f.write("# ArUco Scan Log\n")
+            f.write(f"# Started: {self.start_time}\n")
+            f.write(f"# Dictionary: {self.dictionary_name}\n")
+            f.write(
+                f"# Confirm threshold: {self.confirm_count} detections"
+                f" in {self.confirm_window}s\n"
+            )
+            f.write("\n")
+            if not self.markers_data:
+                f.write("markers: []\n")
+            else:
+                f.write("markers:\n")
+                for m in self.markers_data:
+                    f.write(f"  - id: {m['id']}\n")
+                    f.write(f"    discovered: {m['discovered']}\n")
+                    f.write(f"    confirmed_at: \"{m['confirmed_at']}\"\n")
+                    corners_str = ", ".join(f"[{x}, {y}]" for x, y in m["corners_px"])
+                    f.write(f"    corners_px: [{corners_str}]\n")
+                    f.write("\n")
+
+    @staticmethod
+    def _ordinal(n):
+        if 11 <= (n % 100) <= 13:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+        return f"{n}{suffix}"
 
 
 class ArucoCamera:
@@ -355,6 +504,23 @@ class ArucoDetectionNode:
                 f"'{marker_cfg['tf_frame']}'"
             )
 
+        # Scan logger (must exist before camera subscribers are created)
+        if self.scan_mode:
+            base_dir = os.path.expanduser(
+                rospy.get_param("~scan_log_dir", "~/aruco_scans")
+            )
+            run_stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            log_dir = os.path.join(base_dir, run_stamp)
+            self.scan_logger = ScanLogger(
+                log_dir=log_dir,
+                confirm_count=rospy.get_param("~scan_confirm_count", 3),
+                confirm_window=rospy.get_param("~scan_confirm_window", 2.0),
+                image_throttle=rospy.get_param("~scan_image_throttle", 2.0),
+                dictionary_name=dict_name,
+            )
+        else:
+            self.scan_logger = None
+
         # Create cameras
         self.cameras = {}
 
@@ -597,6 +763,10 @@ class ArucoDetectionNode:
         result = camera.process(
             cv_image, msg.header.stamp, self.aruco_detector, self.params
         )
+
+        if self.scan_logger is not None and result is not None:
+            _, corners, ids, _ = result
+            self.scan_logger.process_detections(ids, corners, cv_image)
 
         if result is not None and self._has_debug_subscribers(cam_key):
             gray, corners, ids, board_debug_info = result
