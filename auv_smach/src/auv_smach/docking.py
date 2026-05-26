@@ -57,45 +57,45 @@ class DockingTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SET_SEARCH_DEPTH",
-                SetDepthState(depth=search_depth, timeout=3.0),
-                transitions={
-                    "succeeded": "SEARCH_FOR_STATION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "SEARCH_FOR_STATION",
-                SearchForPropState(
-                    look_at_frame="docking_station_yolo",
-                    alignment_frame="docking_approach_align",
-                    full_rotation=False,
-                    set_frame_duration=3.0,
-                    rotation_speed=0.3,
-                ),
-                transitions={
-                    "succeeded": "APPROACH_UNTIL_ARUCO_DETECTED",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "APPROACH_UNTIL_ARUCO_DETECTED",
-                DynamicPathWithTransformCheck(
-                    plan_target_frame="docking_station_yolo",
-                    transform_source_frame="odom",
-                    transform_target_frame="docking_station",
-                    max_linear_velocity=0.3,
-                    transform_timeout=90.0,
-                ),
+                SetDepthState(depth=search_depth, timeout=10.0),
                 transitions={
                     "succeeded": "ENABLE_DOCKING_TRAJECTORY",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
+            # smach.StateMachine.add(
+            #     "SEARCH_FOR_STATION",
+            #     SearchForPropState(
+            #         look_at_frame="docking_station_yolo",
+            #         alignment_frame="docking_approach_align",
+            #         full_rotation=False,
+            #         set_frame_duration=3.0,
+            #         rotation_speed=0.3,
+            #     ),
+            #     transitions={
+            #         "succeeded": "APPROACH_UNTIL_ARUCO_DETECTED",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
+
+            # smach.StateMachine.add(
+            #     "APPROACH_UNTIL_ARUCO_DETECTED",
+            #     DynamicPathWithTransformCheck(
+            #         plan_target_frame="docking_station_yolo",
+            #         transform_source_frame="odom",
+            #         transform_target_frame="docking_station",
+            #         max_linear_velocity=0.3,
+            #         transform_timeout=90.0,
+            #     ),
+            #     transitions={
+            #         "succeeded": "ENABLE_DOCKING_TRAJECTORY",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
 
             smach.StateMachine.add(
                 "ENABLE_DOCKING_TRAJECTORY",
