@@ -232,11 +232,67 @@ class ArucoCamera:
         self.markers = markers
         self.tf_buffer = tf_buffer
         self.transform_pub = transform_pub
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.debug_pubs = debug_pubs
         self.scan_mode = scan_mode
 
         self.enabled = True
         self.last_published_stamp = rospy.Time(0)
+        self.frame_stability_samples = {
+            "docking_nokalman": deque(maxlen=30),
+            "docking_station": deque(maxlen=30),
+        }
+        self.frame_stability_last_log = {}
+
+    def _log_frame_stability(self, frame_id, xyz):
+        samples = self.frame_stability_samples[frame_id]
+        samples.append(np.array(xyz, dtype=float))
+        if len(samples) < 2:
+            return
+
+        arr = np.vstack(samples)
+        deltas = np.diff(arr, axis=0)
+        step = np.linalg.norm(deltas[-1])
+        mean_step = np.mean(np.linalg.norm(deltas, axis=1))
+        jitter_rms = np.sqrt(np.mean(np.sum((arr - arr.mean(axis=0)) ** 2, axis=1)))
+
+        now = rospy.Time.now().to_sec()
+        if now - self.frame_stability_last_log.get(frame_id, 0.0) < 0.5:
+            return
+        self.frame_stability_last_log[frame_id] = now
+
+        rospy.loginfo(
+            f"{frame_id} stability: n={len(samples)}, "
+            f"jitter_rms={jitter_rms:.3f} m, "
+            f"step={step:.3f} m, mean_step={mean_step:.3f} m"
+        )
+
+    def _log_docking_frame_stability(self, nokalman_pose):
+        self._log_frame_stability(
+            "docking_nokalman",
+            [
+                nokalman_pose.position.x,
+                nokalman_pose.position.y,
+                nokalman_pose.position.z,
+            ],
+        )
+
+        try:
+            station_tf = self.tf_buffer.lookup_transform(
+                "odom", "docking_station", rospy.Time(0), rospy.Duration(0.01)
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ):
+            return
+
+        station = station_tf.transform.translation
+        self._log_frame_stability(
+            "docking_station",
+            [station.x, station.y, station.z],
+        )
 
     def process(self, cv_image, stamp, detector, params):
         """Detect ArUco markers and estimate poses for boards and standalone markers.
@@ -301,9 +357,17 @@ class ArucoCamera:
                             self.tf_buffer,
                             self.transform_pub,
                             force_floor_orientation=board.force_floor_orientation,
+                            tf_broadcaster=self.tf_broadcaster,
+                            tf_child_frame_id=(
+                                "docking_nokalman"
+                                if board.tf_frame == "docking_station"
+                                else None
+                            ),
                         )
                         if result:
                             pos = result.pose.position
+                            if board.tf_frame == "docking_station":
+                                self._log_docking_frame_stability(result.pose)
                             rospy.loginfo_throttle(
                                 0.5,
                                 f"{board.name} in odom - "

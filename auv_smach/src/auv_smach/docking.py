@@ -25,7 +25,7 @@ class ToggleDockingTrajectoryState(smach_ros.ServiceState):
 class DockingTaskState(smach.State):
     def __init__(
         self,
-        search_depth: float = -1.5,
+        search_depth: float = -1.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -57,9 +57,9 @@ class DockingTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SET_SEARCH_DEPTH",
-                SetDepthState(depth=search_depth, timeout=3.0),
+                SetDepthState(depth=search_depth, timeout=10.0),
                 transitions={
-                    "succeeded": "SEARCH_FOR_STATION",
+                    "succeeded": "ALIGN_ABOVE_STATION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -86,7 +86,7 @@ class DockingTaskState(smach.State):
                 DynamicPathWithTransformCheck(
                     plan_target_frame="docking_station_yolo",
                     transform_source_frame="odom",
-                    transform_target_frame="docking_station",
+                    transform_target_frame="docking_nokalman",
                     max_linear_velocity=0.3,
                     transform_timeout=90.0,
                 ),
@@ -111,14 +111,14 @@ class DockingTaskState(smach.State):
                 "ALIGN_ABOVE_STATION",
                 AlignFrame(
                     source_frame="taluy/base_link/docking_puck_link",
-                    target_frame="docking_station",
+                    target_frame="docking_nokalman",
                     angle_offset=math.pi / 2,
-                    dist_threshold=0.03,
+                    dist_threshold=0.05,
                     yaw_threshold=0.04,
                     confirm_duration=1.0,
-                    timeout=90.0,
+                    timeout=50.0,
                     cancel_on_success=True,
-                    keep_orientation=False,
+                    keep_orientation=True,
                     max_linear_velocity=0.2,
                     max_angular_velocity=0.2,
                     use_frame_depth=False,

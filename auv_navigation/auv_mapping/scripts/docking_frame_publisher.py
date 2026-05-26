@@ -5,7 +5,7 @@ Docking Frame Publisher
 Publishes target frames for the docking mission.
 
 Frames published (ArUco based, toggle: toggle_docking_trajectory):
-- docking_puck_target: Final docking position (0.5m above docking_station by default)
+- docking_puck_target: Final docking position (0.5m above docking_nokalman by default)
 """
 
 import numpy as np
@@ -30,7 +30,7 @@ class DockingFramePublisher:
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
 
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
-        self.parent_frame = rospy.get_param("~parent_frame", "docking_station")
+        self.parent_frame = rospy.get_param("~parent_frame", "docking_nokalman")
         self.puck_target_frame = rospy.get_param(
             "~puck_target_frame", "docking_puck_target"
         )

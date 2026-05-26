@@ -195,6 +195,8 @@ def publish_pose_to_odom(
     tf_buffer,
     publisher,
     force_floor_orientation=False,
+    tf_broadcaster=None,
+    tf_child_frame_id=None,
 ):
     """Transform an ArUco pose from camera frame to odom and publish as TransformStamped.
 
@@ -236,6 +238,13 @@ def publish_pose_to_odom(
         odom_transform.child_frame_id = child_frame_id
         odom_transform.transform.translation = transformed.pose.position
         odom_transform.transform.rotation = transformed.pose.orientation
+
+        if tf_broadcaster is not None and tf_child_frame_id is not None:
+            tf_transform = TransformStamped()
+            tf_transform.header = odom_transform.header
+            tf_transform.child_frame_id = tf_child_frame_id
+            tf_transform.transform = odom_transform.transform
+            tf_broadcaster.sendTransform(tf_transform)
 
         publisher.publish(odom_transform)
         return transformed
