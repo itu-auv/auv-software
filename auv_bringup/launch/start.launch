@@ -11,7 +11,7 @@
   <arg name="use_gui" default="false" />
   <arg name="enable_logging" default="false" />
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
-  <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_$(arg namespace).yaml" />
+  <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_tac.yaml" />
   <arg name="log_filename" default="" />
   <arg name="pool_depth" default="2.134" />
 
