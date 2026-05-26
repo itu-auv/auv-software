@@ -211,11 +211,7 @@ class MainStateMachineNode:
 
     @staticmethod
     def _is_path_token(name):
-        return (
-            isinstance(name, str)
-            and name.startswith("path")
-            and name[4:].isdigit()
-        )
+        return isinstance(name, str) and name.startswith("path") and name[4:].isdigit()
 
     def _build_path_state(self, token, gui_paths):
         cfg = (gui_paths or {}).get(token)
@@ -348,9 +344,7 @@ class MainStateMachineNode:
         rospy.loginfo("Executing state machine with states: %s", self.state_list)
         self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
 
-        gui_paths_ns = rospy.get_param(
-            "~gui_paths_rosparam", "/waypoint_gui/paths"
-        )
+        gui_paths_ns = rospy.get_param("~gui_paths_rosparam", "/waypoint_gui/paths")
         gui_paths = rospy.get_param(gui_paths_ns, None) or {}
         if gui_paths:
             rospy.loginfo(
