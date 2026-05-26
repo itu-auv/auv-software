@@ -23,8 +23,25 @@ from dynamic_reconfigure.client import Client
 from auv_bringup.cfg import SmachParametersConfig
 
 
+DEFAULT_SELECTED_ROLE = "survey_repair"
+DEFAULT_TORPEDO_MAP = "fire"
+ROLE_TO_BIN_TARGET_SELECTION = {
+    "survey_repair": "shark",
+    "search_rescue": "sawfish",
+}
+LEFT_TOP_TORPEDO_FIRE_FRAMES = [
+    "torpedo_left_mid_fire_frame",
+    "torpedo_top_mid_fire_frame",
+]
+RIGHT_BOTTOM_TORPEDO_FIRE_FRAMES = [
+    "torpedo_bottom_right_fire_frame",
+    "torpedo_bottom_mid_fire_frame",
+]
+
+
 class MainStateMachineNode:
     def __init__(self):
+        self.sm = None
         self.previous_enabled = False
 
         # Initialize dynamic reconfigure client
@@ -37,8 +54,11 @@ class MainStateMachineNode:
         self.return_home_station = "bin_exit"
 
         # Get initial values from dynamic reconfigure
-        self.selected_animal = "sawfish"
+        self.selected_role = DEFAULT_SELECTED_ROLE
+        self.torpedo_map = DEFAULT_TORPEDO_MAP
         self.slalom_mode = "close"
+        self.slalom_direction = "left"
+        self.octagon_start_from_table = False
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
@@ -50,8 +70,14 @@ class MainStateMachineNode:
         try:
             current_config = self.dynamic_reconfigure_client.get_configuration()
             if current_config:
-                self.selected_animal = current_config.get("selected_animal", "sawfish")
+                self.selected_role = current_config.get(
+                    "selected_role", DEFAULT_SELECTED_ROLE
+                )
+                self.torpedo_map = current_config.get(
+                    "torpedo_map", DEFAULT_TORPEDO_MAP
+                )
                 self.slalom_mode = current_config.get("slalom_mode", "close")
+                self.slalom_direction = current_config.get("slalom_direction", "left")
                 self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
                 self.slalom_exit_angle_deg = current_config.get(
                     "slalom_exit_angle", 0.0
@@ -61,7 +87,7 @@ class MainStateMachineNode:
                     "torpedo_exit_angle", 0.0
                 )
                 rospy.loginfo(
-                    f"Loaded current config: selected_animal={self.selected_animal}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
+                    f"Loaded current config: selected_role={self.selected_role}, torpedo_map={self.torpedo_map}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
                 )
         except Exception as e:
             rospy.logwarn(f"Could not get current configuration: {e}")
@@ -79,9 +105,6 @@ class MainStateMachineNode:
         self.torpedo_map_depth = -1.25
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
-        self.torpedo_fire_frame = "torpedo_fire_frame"
-        self.torpedo_shark_fire_frame = "torpedo_shark_fire_frame"
-        self.torpedo_sawfish_fire_frame = "torpedo_sawfish_fire_frame"
 
         self.bin_front_look_depth = -1.3
         self.bin_bottom_look_depth = -0.7
@@ -154,10 +177,13 @@ class MainStateMachineNode:
             rospy.logwarn("Could not get parameters from server")
             return
 
+        selected_role = config.selected_role
         rospy.loginfo(
-            "Received reconfigure request: selected_animal=%s, slalom_mode=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
-            config.selected_animal,
+            "Received reconfigure request: selected_role=%s, torpedo_map=%s, slalom_mode=%s, slalom_direction=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            selected_role,
+            config.torpedo_map,
             config.slalom_mode,
+            config.slalom_direction,
             config.gate_exit_angle,
             config.slalom_exit_angle,
             config.bin_exit_angle,
@@ -165,12 +191,42 @@ class MainStateMachineNode:
         )
 
         # Update parameters
-        self.selected_animal = config.selected_animal
+        self.selected_role = selected_role
+        self.torpedo_map = config.torpedo_map
         self.slalom_mode = config.slalom_mode
+        self.slalom_direction = config.slalom_direction
         self.gate_exit_angle_deg = config.gate_exit_angle
         self.slalom_exit_angle_deg = config.slalom_exit_angle
         self.bin_exit_angle_deg = config.bin_exit_angle
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
+
+    def get_legacy_target_selection(self):
+        return ROLE_TO_BIN_TARGET_SELECTION.get(
+            self.selected_role,
+            ROLE_TO_BIN_TARGET_SELECTION[DEFAULT_SELECTED_ROLE],
+        )
+
+    def get_torpedo_fire_frames(self):
+        is_survey_repair = self.selected_role == DEFAULT_SELECTED_ROLE
+
+        if self.torpedo_map == "fire":
+            return (
+                LEFT_TOP_TORPEDO_FIRE_FRAMES
+                if is_survey_repair
+                else RIGHT_BOTTOM_TORPEDO_FIRE_FRAMES
+            )
+        if self.torpedo_map == "blood":
+            return (
+                RIGHT_BOTTOM_TORPEDO_FIRE_FRAMES
+                if is_survey_repair
+                else LEFT_TOP_TORPEDO_FIRE_FRAMES
+            )
+
+        rospy.logwarn(
+            "Unknown torpedo_map '%s'. Using default fire-frame order.",
+            self.torpedo_map,
+        )
+        return LEFT_TOP_TORPEDO_FIRE_FRAMES
 
     def execute_state_machine(self):
         # Convert degrees to radians
@@ -183,12 +239,9 @@ class MainStateMachineNode:
             f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
         )
 
-        # Create torpedo fire frames based on selected animal
-        torpedo_fire_frames = (
-            [self.torpedo_shark_fire_frame, self.torpedo_sawfish_fire_frame]
-            if self.selected_animal == "shark"
-            else [self.torpedo_sawfish_fire_frame, self.torpedo_shark_fire_frame]
-        )
+        legacy_target_selection = self.get_legacy_target_selection()
+
+        torpedo_fire_frames = self.get_torpedo_fire_frames()
         rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
         rospy.loginfo(
             f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
@@ -211,7 +264,7 @@ class MainStateMachineNode:
                 {
                     "slalom_depth": self.slalom_depth,
                     "slalom_exit_angle": slalom_exit_angle_rad,
-                    "slalom_mode": self.slalom_mode,
+                    "slalom_direction": self.slalom_direction,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
@@ -229,7 +282,7 @@ class MainStateMachineNode:
                 {
                     "bin_front_look_depth": self.bin_front_look_depth,
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
-                    "target_selection": self.selected_animal,
+                    "target_selection": legacy_target_selection,
                     "bin_exit_angle": bin_exit_angle_rad,
                 },
             ),
@@ -237,7 +290,8 @@ class MainStateMachineNode:
                 OctagonTaskState,
                 {
                     "octagon_depth": self.octagon_depth,
-                    "animal": self.selected_animal,
+                    "animal": self.selected_role,
+                    "start_from_table": self.octagon_start_from_table,
                 },
             ),
             "NAVIGATE_TO_GPS_TARGET": (
@@ -295,9 +349,9 @@ class MainStateMachineNode:
             return
 
         rospy.loginfo("Executing state machine with states: %s", self.state_list)
-        sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
+        self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
 
-        with sm:
+        with self.sm:
             for i, state_name in enumerate(self.state_list):
                 next_state = (
                     self.state_list[i + 1]
@@ -322,7 +376,7 @@ class MainStateMachineNode:
 
         # Execute the state machine
         try:
-            outcome = sm.execute()
+            outcome = self.sm.execute()
             rospy.loginfo(f"State machine exited with outcome: {outcome}")
         except Exception as e:
             rospy.logerr(f"Error executing state machine: {e}")
@@ -333,9 +387,9 @@ class MainStateMachineNode:
         self.previous_enabled = msg.data
 
         if falling_edge:
-            self.sm.request_preempt()
-            # restart
-            rospy.Timer(rospy.Duration(0.1), self.start)
+            # TODO: maybe add restart logic
+            rospy.logerr("KILLSWITCH!")
+            rospy.signal_shutdown("Force stopping state machine")
 
 
 if __name__ == "__main__":
@@ -343,7 +397,7 @@ if __name__ == "__main__":
     try:
         node = MainStateMachineNode()
         rospy.sleep(1.0)
-        rospy.loginfo(f"Final selected animal before execution: {node.selected_animal}")
+        rospy.loginfo(f"Final selected role before execution: {node.selected_role}")
         node.execute_state_machine()
     except KeyboardInterrupt:
         rospy.loginfo("State machine node interrupted")
