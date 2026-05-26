@@ -1,0 +1,33 @@
+reference_frame: odom
+created_at: '2026-05-24T01:15:32.718975'
+objects:
+  gate_search_rescue_link:
+    position:
+    - 5.193905817174516
+    - -0.10387811634349088
+    - -0.5
+    orientation:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+  gate_survey_repair_link:
+    position:
+    - 5.193905817174516
+    - -0.10387811634349088
+    - -0.5
+    orientation:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+  torpedo_map_link:
+    position:
+    - 9.314404432132964
+    - 4.293628808864264
+    - -1.5
+    orientation:
+    - 0.0
+    - 0.0
+    - -0.9563047559630354
+    - 0.29237170472273677
