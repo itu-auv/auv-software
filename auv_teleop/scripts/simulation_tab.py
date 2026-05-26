@@ -40,7 +40,9 @@ class SimulationTab(QWidget):
         detect_layout.addWidget(self.detect_stop)
         detect_group.setLayout(detect_layout)
 
-        smach_title = "State Machine (TAC)" if self.is_tac else "State Machine (RoboSub)"
+        smach_title = (
+            "State Machine (TAC)" if self.is_tac else "State Machine (RoboSub)"
+        )
         smach_group = QGroupBox(smach_title)
         smach_layout = QVBoxLayout()
 
