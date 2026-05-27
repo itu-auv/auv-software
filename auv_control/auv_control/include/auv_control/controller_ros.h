@@ -66,6 +66,8 @@ class ControllerROS {
     nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
     nh_private.param<double>("odometry_timeout", odometry_timeout_, 1.0);
+    nh_private.param<bool>("use_dvl_invalid_velocity_zero",
+                           use_dvl_invalid_velocity_zero_, true);
     nh_private.param<double>("dvl_invalid_velocity_zero_timeout",
                              dvl_invalid_velocity_zero_timeout_, 1.0);
 
@@ -334,8 +336,8 @@ class ControllerROS {
   }
 
   bool should_use_zero_velocity_state_for_velocity_error() const {
-    if (!has_dvl_is_valid_message_ || dvl_is_valid_ ||
-        dvl_invalid_since_.isZero()) {
+    if (!use_dvl_invalid_velocity_zero_ || !has_dvl_is_valid_message_ ||
+        dvl_is_valid_ || dvl_invalid_since_.isZero()) {
       return false;
     }
 
@@ -758,6 +760,7 @@ class ControllerROS {
   ros::Time dvl_invalid_since_{ros::Time(0)};
   bool has_dvl_is_valid_message_{false};
   bool dvl_is_valid_{true};
+  bool use_dvl_invalid_velocity_zero_{true};
   double dvl_invalid_velocity_zero_timeout_{1.0};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
