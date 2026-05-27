@@ -58,8 +58,8 @@ class DvlToOdom:
         self.is_valid_subscriber = message_filters.Subscriber(
             "dvl/is_valid", Bool, tcp_nodelay=True
         )
-        self.cmd_vel_subscriber = rospy.Subscriber(
-            "cmd_vel", Twist, self.cmd_vel_callback, tcp_nodelay=True
+        self.desired_velocity_subscriber = rospy.Subscriber(
+            "desired_velocity", Twist, self.desired_velocity_callback, tcp_nodelay=True
         )
 
         self.odom_sub = rospy.Subscriber(
@@ -109,8 +109,8 @@ class DvlToOdom:
         )
 
         # Fallback variables
-        self.cmd_vel_twist = Twist()
-        self.filtered_cmd_vel = Twist()
+        self.desired_velocity_twist = Twist()
+        self.filtered_desired_velocity = Twist()
         self.last_update_time = rospy.Time.now()
         self.is_dvl_enabled = False
 
@@ -142,7 +142,7 @@ class DvlToOdom:
         if dt <= 0.001 or dt >= 1.0:
             return
 
-        self.filter_cmd_vel()
+        self.filter_desired_velocity()
 
         if self.dynamic_model_available:
             rospy.loginfo_throttle(
@@ -159,9 +159,10 @@ class DvlToOdom:
             self.update_twist_covariance(use_model_based=True)
         else:
             rospy.logwarn_throttle(
-                1.0, "DVL timeout and model unavailable: Using cmd_vel fallback (timer)"
+                1.0,
+                "DVL timeout and model unavailable: Using desired_velocity fallback (timer)",
             )
-            velocity_msg = self.filtered_cmd_vel
+            velocity_msg = self.filtered_desired_velocity
             self.update_twist_covariance(use_model_based=True)
 
         self.odom_msg.header.stamp = rospy.Time.now()
@@ -253,8 +254,8 @@ class DvlToOdom:
         )
         return np.dot(rotation_matrix, np.array(vector))
 
-    def cmd_vel_callback(self, cmd_vel_msg):
-        self.cmd_vel_twist = cmd_vel_msg
+    def desired_velocity_callback(self, desired_velocity_msg):
+        self.desired_velocity_twist = desired_velocity_msg
 
     def odom_callback(self, odom_msg):
         self.odom_velocity[0] = odom_msg.twist.twist.linear.x
@@ -274,34 +275,34 @@ class DvlToOdom:
         self.current_wrench[4] = wrench_msg.wrench.torque.y
         self.current_wrench[5] = wrench_msg.wrench.torque.z
 
-    def filter_cmd_vel(self):
+    def filter_desired_velocity(self):
         current_time = rospy.Time.now()
         dt = (current_time - self.last_update_time).to_sec()
         self.alpha = dt / (self.cmdvel_tau + dt)
 
-        self.filtered_cmd_vel.linear.x = (
-            self.filtered_cmd_vel.linear.x * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.linear.x
+        self.filtered_desired_velocity.linear.x = (
+            self.filtered_desired_velocity.linear.x * (1.0 - self.alpha)
+            + self.alpha * self.desired_velocity_twist.linear.x
         )
-        self.filtered_cmd_vel.linear.y = (
-            self.filtered_cmd_vel.linear.y * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.linear.y
+        self.filtered_desired_velocity.linear.y = (
+            self.filtered_desired_velocity.linear.y * (1.0 - self.alpha)
+            + self.alpha * self.desired_velocity_twist.linear.y
         )
-        self.filtered_cmd_vel.linear.z = (
-            self.filtered_cmd_vel.linear.z * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.linear.z
+        self.filtered_desired_velocity.linear.z = (
+            self.filtered_desired_velocity.linear.z * (1.0 - self.alpha)
+            + self.alpha * self.desired_velocity_twist.linear.z
         )
-        self.filtered_cmd_vel.angular.x = (
-            self.filtered_cmd_vel.angular.x * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.angular.x
+        self.filtered_desired_velocity.angular.x = (
+            self.filtered_desired_velocity.angular.x * (1.0 - self.alpha)
+            + self.alpha * self.desired_velocity_twist.angular.x
         )
-        self.filtered_cmd_vel.angular.y = (
-            self.filtered_cmd_vel.angular.y * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.angular.y
+        self.filtered_desired_velocity.angular.y = (
+            self.filtered_desired_velocity.angular.y * (1.0 - self.alpha)
+            + self.alpha * self.desired_velocity_twist.angular.y
         )
-        self.filtered_cmd_vel.angular.z = (
-            self.filtered_cmd_vel.angular.z * (1.0 - self.alpha)
-            + self.alpha * self.cmd_vel_twist.angular.z
+        self.filtered_desired_velocity.angular.z = (
+            self.filtered_desired_velocity.angular.z * (1.0 - self.alpha)
+            + self.alpha * self.desired_velocity_twist.angular.z
         )
 
         self.last_update_time = current_time
@@ -395,8 +396,8 @@ class DvlToOdom:
             self.update_twist_covariance(use_model_based=False)
 
         else:
-            # DVL invalid - use model-based estimation or cmd_vel fallback
-            self.filter_cmd_vel()
+            # DVL invalid - use model-based estimation or desired_velocity fallback
+            self.filter_desired_velocity()
 
             if self.dynamic_model_available and dt > 0.001 and dt < 1.0:
                 rospy.loginfo_throttle(
@@ -416,14 +417,14 @@ class DvlToOdom:
             else:
                 rospy.logwarn_throttle(
                     1.0,
-                    "DVL invalid and model unavailable/timeout: Using cmd_vel fallback",
+                    "DVL invalid and model unavailable/timeout: Using desired_velocity fallback",
                 )
-                velocity_msg.linear.x = self.filtered_cmd_vel.linear.x
-                velocity_msg.linear.y = self.filtered_cmd_vel.linear.y
-                velocity_msg.linear.z = self.filtered_cmd_vel.linear.z
-                velocity_msg.angular.x = self.filtered_cmd_vel.angular.x
-                velocity_msg.angular.y = self.filtered_cmd_vel.angular.y
-                velocity_msg.angular.z = self.filtered_cmd_vel.angular.z
+                velocity_msg.linear.x = self.filtered_desired_velocity.linear.x
+                velocity_msg.linear.y = self.filtered_desired_velocity.linear.y
+                velocity_msg.linear.z = self.filtered_desired_velocity.linear.z
+                velocity_msg.angular.x = self.filtered_desired_velocity.angular.x
+                velocity_msg.angular.y = self.filtered_desired_velocity.angular.y
+                velocity_msg.angular.z = self.filtered_desired_velocity.angular.z
 
                 self.update_twist_covariance(use_model_based=True)
 

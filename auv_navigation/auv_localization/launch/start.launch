@@ -31,7 +31,7 @@
       <remap from="odom_dvl" to="localization/odom_dvl" />
       <remap from="dvl/velocity_raw" to="$(arg dvl_velocity_topic)" />
       <remap from="dvl/is_valid" to="$(arg dvl_is_valid_topic)" />
-      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="desired_velocity" to="desired_velocity" />
       <remap from="wrench" to="wrench" />
       <remap from="odometry" to="odometry" />
       <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable" />
