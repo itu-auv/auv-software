@@ -65,6 +65,8 @@ class ControllerROS {
     nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
     nh_private.param<double>("odometry_timeout", odometry_timeout_, 1.0);
+    nh_private.param<double>("dvl_invalid_velocity_zero_timeout",
+                             dvl_invalid_velocity_zero_timeout_, 1.0);
 
     ROS_INFO_STREAM("kp: \n" << kp_.transpose());
     ROS_INFO_STREAM("ki: \n" << ki_.transpose());
@@ -109,6 +111,9 @@ class ControllerROS {
     accel_sub_ =
         nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this,
                       transport_hints);
+    dvl_is_valid_sub_ =
+        nh_.subscribe("dvl/is_valid", 1, &ControllerROS::dvl_is_valid_callback,
+                      this, transport_hints);
 
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
@@ -149,15 +154,32 @@ class ControllerROS {
         desired_state_.tail(6) = ControllerBase::Vector::Zero();
       }
 
+      auto* pid_controller =
+          dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+      if (pid_controller) {
+        const auto use_zero_velocity_state =
+            should_use_zero_velocity_state_for_velocity_error();
+        pid_controller->set_use_zero_velocity_state_for_velocity_error(
+            use_zero_velocity_state);
+
+        if (use_zero_velocity_state) {
+          ROS_WARN_THROTTLE(
+              1.0,
+              "DVL has been invalid for at least %.2f seconds; using zero "
+              "velocity state for velocity error",
+              dvl_invalid_velocity_zero_timeout_);
+        }
+      }
+
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
-      auto pid_controller =
-          dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
-      desired_velocity_pub_.publish(
-          auv::common::conversions::convert<ControllerBase::Vector,
-                                            geometry_msgs::Twist>(
-              pid_controller->get_desired_velocity()));
+      if (pid_controller) {
+        desired_velocity_pub_.publish(
+            auv::common::conversions::convert<ControllerBase::Vector,
+                                              geometry_msgs::Twist>(
+                pid_controller->get_desired_velocity()));
+      }
 
       geometry_msgs::WrenchStamped wrench_msg;
       if (is_control_enabled() && !is_timeouted() && has_fresh_odometry()) {
@@ -279,6 +301,31 @@ class ControllerROS {
     d_state_(7) = msg->accel.accel.linear.y;
     d_state_(8) = msg->accel.accel.linear.z;
     d_state_.tail(3) = Eigen::Vector3d::Zero();
+  }
+
+  void dvl_is_valid_callback(const std_msgs::Bool::ConstPtr& msg) {
+    has_dvl_is_valid_message_ = true;
+
+    if (msg->data) {
+      dvl_is_valid_ = true;
+      dvl_invalid_since_ = ros::Time(0);
+      return;
+    }
+
+    if (dvl_is_valid_ || dvl_invalid_since_.isZero()) {
+      dvl_invalid_since_ = ros::Time::now();
+    }
+    dvl_is_valid_ = false;
+  }
+
+  bool should_use_zero_velocity_state_for_velocity_error() const {
+    if (!has_dvl_is_valid_message_ || dvl_is_valid_ ||
+        dvl_invalid_since_.isZero()) {
+      return false;
+    }
+
+    return (ros::Time::now() - dvl_invalid_since_).toSec() >=
+           dvl_invalid_velocity_zero_timeout_;
   }
 
   void reconfigure_callback(auv_control::ControllerConfig& config,
@@ -567,6 +614,7 @@ class ControllerROS {
   ros::Subscriber cmd_vel_sub_;
   ros::Subscriber cmd_pose_sub_;
   ros::Subscriber accel_sub_;
+  ros::Subscriber dvl_is_valid_sub_;
   ros::Publisher wrench_pub_;
   ros::Publisher desired_velocity_pub_;
 
@@ -575,6 +623,10 @@ class ControllerROS {
   ros::Time latest_cmd_pose_time_{ros::Time(0)};
   ros::Time latest_cmd_vel_time_{ros::Time(0)};
   ros::Time latest_odometry_time_{ros::Time(0)};
+  ros::Time dvl_invalid_since_{ros::Time(0)};
+  bool has_dvl_is_valid_message_{false};
+  bool dvl_is_valid_{true};
+  double dvl_invalid_velocity_zero_timeout_{1.0};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
   ControllerBase::StateVector desired_state_{
