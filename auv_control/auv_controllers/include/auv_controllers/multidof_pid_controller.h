@@ -163,6 +163,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
     StateVector feedforward_state = desired_state;
     feedforward_state.tail(N) = desired_velocity_;
+    if (use_zero_velocity_state_for_velocity_error_) {
+      feedforward_state(N) = 0.0;
+      feedforward_state(N + 1) = 0.0;
+    }
     const auto damping_force = damping_control(feedforward_state);
     const auto coriolis_force = coriolis_control(feedforward_state);
 

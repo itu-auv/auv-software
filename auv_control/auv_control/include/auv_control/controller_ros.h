@@ -6,6 +6,7 @@
 #include <tf2_ros/transform_listener.h>
 
 #include <type_traits>
+#include <vector>
 
 #include "auv_common_lib/ros/conversions.h"
 #include "auv_common_lib/ros/rosparam.h"
@@ -71,6 +72,18 @@ class ControllerROS {
     ROS_INFO_STREAM("kp: \n" << kp_.transpose());
     ROS_INFO_STREAM("ki: \n" << ki_.transpose());
     ROS_INFO_STREAM("kd: \n" << kd_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_position_kp_xy: \n"
+                    << dvl_invalid_position_kp_xy_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_position_ki_xy: \n"
+                    << dvl_invalid_position_ki_xy_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_position_kd_xy: \n"
+                    << dvl_invalid_position_kd_xy_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_velocity_kp_xy: \n"
+                    << dvl_invalid_velocity_kp_xy_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_velocity_ki_xy: \n"
+                    << dvl_invalid_velocity_ki_xy_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_velocity_kd_xy: \n"
+                    << dvl_invalid_velocity_kd_xy_.transpose());
     ROS_INFO_STREAM("integral_clamp_limits: \n"
                     << integral_clamp_limits_.transpose());
     ROS_INFO_STREAM("gravity_compensation_z: " << gravity_compensation_z_);
@@ -161,6 +174,8 @@ class ControllerROS {
             should_use_zero_velocity_state_for_velocity_error();
         pid_controller->set_use_zero_velocity_state_for_velocity_error(
             use_zero_velocity_state);
+        apply_dvl_invalid_gain_schedule(pid_controller,
+                                        use_zero_velocity_state);
 
         if (use_zero_velocity_state) {
           ROS_WARN_THROTTLE(
@@ -328,6 +343,34 @@ class ControllerROS {
            dvl_invalid_velocity_zero_timeout_;
   }
 
+  void apply_dvl_invalid_gain_schedule(
+      auv::control::SixDOFPIDController* controller,
+      const bool use_dvl_invalid_gains) const {
+    auto active_kp = kp_;
+    auto active_ki = ki_;
+    auto active_kd = kd_;
+
+    if (use_dvl_invalid_gains) {
+      active_kp(0) = dvl_invalid_position_kp_xy_(0);
+      active_kp(1) = dvl_invalid_position_kp_xy_(1);
+      active_ki(0) = dvl_invalid_position_ki_xy_(0);
+      active_ki(1) = dvl_invalid_position_ki_xy_(1);
+      active_kd(0) = dvl_invalid_position_kd_xy_(0);
+      active_kd(1) = dvl_invalid_position_kd_xy_(1);
+
+      active_kp(6) = dvl_invalid_velocity_kp_xy_(0);
+      active_kp(7) = dvl_invalid_velocity_kp_xy_(1);
+      active_ki(6) = dvl_invalid_velocity_ki_xy_(0);
+      active_ki(7) = dvl_invalid_velocity_ki_xy_(1);
+      active_kd(6) = dvl_invalid_velocity_kd_xy_(0);
+      active_kd(7) = dvl_invalid_velocity_kd_xy_(1);
+    }
+
+    controller->set_kp(active_kp);
+    controller->set_ki(active_ki);
+    controller->set_kd(active_kd);
+  }
+
   void reconfigure_callback(auv_control::ControllerConfig& config,
                             uint32_t level) {
     auto controller =
@@ -348,9 +391,20 @@ class ControllerROS {
         config.integral_clamp_6, config.integral_clamp_7,
         config.integral_clamp_8, config.integral_clamp_9,
         config.integral_clamp_10, config.integral_clamp_11;
-    controller->set_kp(kp_);
-    controller->set_ki(ki_);
-    controller->set_kd(kd_);
+    dvl_invalid_position_kp_xy_ << config.dvl_invalid_position_kp_x,
+        config.dvl_invalid_position_kp_y;
+    dvl_invalid_position_ki_xy_ << config.dvl_invalid_position_ki_x,
+        config.dvl_invalid_position_ki_y;
+    dvl_invalid_position_kd_xy_ << config.dvl_invalid_position_kd_x,
+        config.dvl_invalid_position_kd_y;
+    dvl_invalid_velocity_kp_xy_ << config.dvl_invalid_velocity_kp_x,
+        config.dvl_invalid_velocity_kp_y;
+    dvl_invalid_velocity_ki_xy_ << config.dvl_invalid_velocity_ki_x,
+        config.dvl_invalid_velocity_ki_y;
+    dvl_invalid_velocity_kd_xy_ << config.dvl_invalid_velocity_kd_x,
+        config.dvl_invalid_velocity_kd_y;
+    apply_dvl_invalid_gain_schedule(
+        controller, should_use_zero_velocity_state_for_velocity_error());
     controller->set_integral_clamp_limits(integral_clamp_limits_);
     controller->set_gravity_compensation_z(config.gravity_compensation_z);
     gravity_compensation_z_ = config.gravity_compensation_z;
@@ -381,6 +435,25 @@ class ControllerROS {
 
     // Load integral clamp limits with default values of 0 (0 means no clamping)
     ros::NodeHandle nh_private("~");
+    dvl_invalid_position_kp_xy_ << kp_(0), kp_(1);
+    dvl_invalid_position_ki_xy_ << ki_(0), ki_(1);
+    dvl_invalid_position_kd_xy_ << kd_(0), kd_(1);
+    dvl_invalid_velocity_kp_xy_ << kp_(6), kp_(7);
+    dvl_invalid_velocity_ki_xy_ << ki_(6), ki_(7);
+    dvl_invalid_velocity_kd_xy_ << kd_(6), kd_(7);
+    load_optional_xy_gains("dvl_invalid_position_kp_xy",
+                           dvl_invalid_position_kp_xy_, nh_private);
+    load_optional_xy_gains("dvl_invalid_position_ki_xy",
+                           dvl_invalid_position_ki_xy_, nh_private);
+    load_optional_xy_gains("dvl_invalid_position_kd_xy",
+                           dvl_invalid_position_kd_xy_, nh_private);
+    load_optional_xy_gains("dvl_invalid_velocity_kp_xy",
+                           dvl_invalid_velocity_kp_xy_, nh_private);
+    load_optional_xy_gains("dvl_invalid_velocity_ki_xy",
+                           dvl_invalid_velocity_ki_xy_, nh_private);
+    load_optional_xy_gains("dvl_invalid_velocity_kd_xy",
+                           dvl_invalid_velocity_kd_xy_, nh_private);
+
     if (nh_private.hasParam("integral_clamp_limits")) {
       integral_clamp_limits_ = VectorRosparamParser::parse(
           "integral_clamp_limits", ros::NodeHandle("~"));
@@ -431,6 +504,23 @@ class ControllerROS {
     }
   }
 
+  void load_optional_xy_gains(const std::string& param_name,
+                              Eigen::Vector2d& gains,
+                              const ros::NodeHandle& nh_private) {
+    std::vector<double> values;
+    if (!nh_private.getParam(param_name, values)) {
+      return;
+    }
+
+    if (values.size() != 2) {
+      ROS_WARN_STREAM("Ignoring " << param_name
+                                  << ": expected exactly 2 values for x/y");
+      return;
+    }
+
+    gains << values[0], values[1];
+  }
+
   void set_initial_config(auv_control::ControllerConfig& config) {
     config.kp_0 = kp_(0);
     config.kp_1 = kp_(1);
@@ -470,6 +560,19 @@ class ControllerROS {
     config.kd_9 = kd_(9);
     config.kd_10 = kd_(10);
     config.kd_11 = kd_(11);
+
+    config.dvl_invalid_position_kp_x = dvl_invalid_position_kp_xy_(0);
+    config.dvl_invalid_position_kp_y = dvl_invalid_position_kp_xy_(1);
+    config.dvl_invalid_position_ki_x = dvl_invalid_position_ki_xy_(0);
+    config.dvl_invalid_position_ki_y = dvl_invalid_position_ki_xy_(1);
+    config.dvl_invalid_position_kd_x = dvl_invalid_position_kd_xy_(0);
+    config.dvl_invalid_position_kd_y = dvl_invalid_position_kd_xy_(1);
+    config.dvl_invalid_velocity_kp_x = dvl_invalid_velocity_kp_xy_(0);
+    config.dvl_invalid_velocity_kp_y = dvl_invalid_velocity_kp_xy_(1);
+    config.dvl_invalid_velocity_ki_x = dvl_invalid_velocity_ki_xy_(0);
+    config.dvl_invalid_velocity_ki_y = dvl_invalid_velocity_ki_xy_(1);
+    config.dvl_invalid_velocity_kd_x = dvl_invalid_velocity_kd_xy_(0);
+    config.dvl_invalid_velocity_kd_y = dvl_invalid_velocity_kd_xy_(1);
 
     config.integral_clamp_0 = integral_clamp_limits_(0);
     config.integral_clamp_1 = integral_clamp_limits_(1);
@@ -549,6 +652,35 @@ class ControllerROS {
     replace_param(content, "ki", ki_);
     replace_param(content, "kd", kd_);
     replace_param(content, "integral_clamp_limits", integral_clamp_limits_);
+
+    auto replace_vector2_param = [](std::string& content,
+                                    const std::string& param,
+                                    const Eigen::Vector2d& values) {
+      std::stringstream ss;
+      ss << std::fixed << std::setprecision(3);
+      ss << param << ": [" << values(0) << ", " << values(1) << "]";
+
+      std::string::size_type start_pos = content.find(param + ": [");
+      if (start_pos == std::string::npos) {
+        content += "\n" + ss.str();
+      } else {
+        std::string::size_type end_pos = content.find("]", start_pos);
+        content.replace(start_pos, end_pos - start_pos + 1, ss.str());
+      }
+    };
+
+    replace_vector2_param(content, "dvl_invalid_position_kp_xy",
+                          dvl_invalid_position_kp_xy_);
+    replace_vector2_param(content, "dvl_invalid_position_ki_xy",
+                          dvl_invalid_position_ki_xy_);
+    replace_vector2_param(content, "dvl_invalid_position_kd_xy",
+                          dvl_invalid_position_kd_xy_);
+    replace_vector2_param(content, "dvl_invalid_velocity_kp_xy",
+                          dvl_invalid_velocity_kp_xy_);
+    replace_vector2_param(content, "dvl_invalid_velocity_ki_xy",
+                          dvl_invalid_velocity_ki_xy_);
+    replace_vector2_param(content, "dvl_invalid_velocity_kd_xy",
+                          dvl_invalid_velocity_kd_xy_);
 
     auto replace_vector6_param = [](std::string& content,
                                     const std::string& param,
@@ -643,6 +775,12 @@ class ControllerROS {
   Eigen::Matrix<double, 6, 1> max_velocity_;
   Eigen::Matrix<double, 6, 1> max_acceleration_;
   Eigen::Matrix<double, 6, 1> max_acceleration_rate_;
+  Eigen::Vector2d dvl_invalid_position_kp_xy_;
+  Eigen::Vector2d dvl_invalid_position_ki_xy_;
+  Eigen::Vector2d dvl_invalid_position_kd_xy_;
+  Eigen::Vector2d dvl_invalid_velocity_kp_xy_;
+  Eigen::Vector2d dvl_invalid_velocity_ki_xy_;
+  Eigen::Vector2d dvl_invalid_velocity_kd_xy_;
   Eigen::Matrix<double, 12, 1>
       integral_clamp_limits_;           // Integral clamping limits
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
