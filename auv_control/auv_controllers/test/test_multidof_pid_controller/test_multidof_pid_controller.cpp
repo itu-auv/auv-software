@@ -43,3 +43,69 @@ TEST(MultiDOFPIDController, TestVelocityControlOnly) {
   EXPECT_NEAR(force_torque(4), expected_force, kEpsilon);
   EXPECT_NEAR(force_torque(5), expected_force, kEpsilon);
 }
+
+TEST(MultiDOFPIDController, LimitsAccelerationCommand) {
+  auv::control::MultiDOFPIDController<6> controller;
+  auv::control::Model<6> model;
+
+  model.mass_inertia_matrix = Matrix6d::Identity();
+  model.linear_damping_matrix = Matrix6d::Zero();
+  model.quadratic_damping_matrix = Matrix6d::Zero();
+
+  controller.set_model(model);
+
+  Vector12d controller_gains = Vector12d::Zero();
+  controller_gains.tail(6) = Vector6d::Ones();
+  controller.set_kp(controller_gains);
+  controller.set_ki(Vector12d::Zero());
+  controller.set_kd(Vector12d::Zero());
+  controller.set_max_acceleration_limits(Vector6d::Constant(2.0));
+
+  const auto state = Vector12d::Zero();
+  Vector12d desired_state = Vector12d::Zero();
+  desired_state.tail(6) = Vector6d::Constant(10.0);
+  const auto d_state = Vector12d::Zero();
+
+  const auto force_torque =
+      controller.control(state, desired_state, d_state, 0.1);
+
+  EXPECT_NEAR(force_torque(0), 2.0, kEpsilon);
+  EXPECT_NEAR(force_torque(1), 2.0, kEpsilon);
+  EXPECT_NEAR(force_torque(2), 2.0, kEpsilon);
+  EXPECT_NEAR(force_torque(3), 2.0, kEpsilon);
+  EXPECT_NEAR(force_torque(4), 2.0, kEpsilon);
+  EXPECT_NEAR(force_torque(5), 2.0, kEpsilon);
+}
+
+TEST(MultiDOFPIDController, LimitsAccelerationCommandRate) {
+  auv::control::MultiDOFPIDController<6> controller;
+  auv::control::Model<6> model;
+
+  model.mass_inertia_matrix = Matrix6d::Identity();
+  model.linear_damping_matrix = Matrix6d::Zero();
+  model.quadratic_damping_matrix = Matrix6d::Zero();
+
+  controller.set_model(model);
+
+  Vector12d controller_gains = Vector12d::Zero();
+  controller_gains.tail(6) = Vector6d::Ones();
+  controller.set_kp(controller_gains);
+  controller.set_ki(Vector12d::Zero());
+  controller.set_kd(Vector12d::Zero());
+  controller.set_max_acceleration_rate_limits(Vector6d::Constant(1.0));
+
+  const auto state = Vector12d::Zero();
+  Vector12d desired_state = Vector12d::Zero();
+  desired_state.tail(6) = Vector6d::Constant(10.0);
+  const auto d_state = Vector12d::Zero();
+
+  const auto first_force_torque =
+      controller.control(state, desired_state, d_state, 0.5);
+  const auto second_force_torque =
+      controller.control(state, desired_state, d_state, 0.5);
+
+  EXPECT_NEAR(first_force_torque(0), 0.5, kEpsilon);
+  EXPECT_NEAR(first_force_torque(5), 0.5, kEpsilon);
+  EXPECT_NEAR(second_force_torque(0), 1.0, kEpsilon);
+  EXPECT_NEAR(second_force_torque(5), 1.0, kEpsilon);
+}
