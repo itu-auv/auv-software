@@ -144,7 +144,8 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
     Vectornd velocity_state_for_error = velocity_state;
     if (use_zero_velocity_state_for_velocity_error_) {
-      velocity_state_for_error.setZero();
+      velocity_state_for_error(0) = 0.0;
+      velocity_state_for_error(1) = 0.0;
     }
     const auto error = desired_velocity_ - velocity_state_for_error;
     const auto p_term = kp_.template block<N, N>(N, N) * error;
