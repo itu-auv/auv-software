@@ -5,7 +5,9 @@ Docking Frame Publisher
 Publishes target frames for the docking mission.
 
 Frames published (ArUco based, toggle: toggle_docking_trajectory):
-- docking_puck_target: Final docking position (0.5m above docking_station by default)
+- docking_puck_target: Final docking position (on docking_station by default)
+- docking_pre_touch_target: Position a few cm above docking_puck_target (5cm by default),
+  used to align right before contact while still free of friction.
 """
 
 import numpy as np
@@ -34,10 +36,14 @@ class DockingFramePublisher:
         self.puck_target_frame = rospy.get_param(
             "~puck_target_frame", "docking_puck_target"
         )
+        self.pre_touch_target_frame = rospy.get_param(
+            "~pre_touch_target_frame", "docking_pre_touch_target"
+        )
 
         self.puck_offset_x = 0.0
         self.puck_offset_y = 0.0
-        self.puck_offset_z = 0.5
+        self.puck_offset_z = 0.0
+        self.pre_touch_offset_z = 0.05
 
         self.reconfigure_server = Server(
             DockingTrajectoryConfig, self.reconfigure_callback
@@ -53,6 +59,7 @@ class DockingFramePublisher:
         self.puck_offset_x = config.puck_offset_x
         self.puck_offset_y = config.puck_offset_y
         self.puck_offset_z = config.puck_offset_z
+        self.pre_touch_offset_z = config.pre_touch_offset_z
         rospy.loginfo("Docking trajectory parameters updated via dynamic reconfigure")
         return config
 
@@ -133,7 +140,18 @@ class DockingFramePublisher:
             self.puck_target_frame, puck_pose, current_time
         )
 
+        pre_touch_pose = self.apply_offset_to_pose(
+            base_pose,
+            self.puck_offset_x,
+            self.puck_offset_y,
+            self.puck_offset_z + self.pre_touch_offset_z,
+        )
+        pre_touch_transform = self.build_transform_message(
+            self.pre_touch_target_frame, pre_touch_pose, current_time
+        )
+
         self.tf_broadcaster.sendTransform(puck_transform)
+        self.tf_broadcaster.sendTransform(pre_touch_transform)
 
     def spin(self):
         rate = rospy.Rate(10.0)
