@@ -132,7 +132,7 @@ class SimulationMockROS {
     altitude_msg.data = msg.altitude;
 
     altitude_pub_.publish(altitude_msg);
-    //is_valid_pub_.publish(is_valid_msg);
+    // is_valid_pub_.publish(is_valid_msg);
   }
 
   void initializeParameters() {
