@@ -47,6 +47,9 @@ class DvlToOdom:
         self.model_covariance_multiplier = rospy.get_param(
             "~model_covariance_multiplier", 10.0
         )
+        self.publish_zero_velocity_when_dvl_invalid = rospy.get_param(
+            "~publish_zero_velocity_when_dvl_invalid", False
+        )
 
         self.load_dynamic_model()
 
@@ -105,6 +108,9 @@ class DvlToOdom:
         )
         rospy.loginfo(
             f"{DVL_odometry_colored} : model covariance multiplier: {self.model_covariance_multiplier}"
+        )
+        rospy.loginfo(
+            f"{DVL_odometry_colored} : publish zero velocity when DVL invalid: {self.publish_zero_velocity_when_dvl_invalid}"
         )
 
         # Fallback variables
@@ -345,36 +351,43 @@ class DvlToOdom:
 
         else:
             # DVL invalid - use model-based estimation or desired_velocity fallback
-            self.filter_desired_velocity()
-
-            if self.dynamic_model_available and dt > 0.001 and dt < 1.0:
-                rospy.loginfo_throttle(
-                    1.0, "DVL invalid: Using dynamic model for velocity estimation"
-                )
-                model_vel = self.compute_model_based_velocity(dt)
-
-                velocity_msg.linear.x = model_vel[0]
-                velocity_msg.linear.y = model_vel[1]
-                velocity_msg.linear.z = model_vel[2]
-                velocity_msg.angular.x = model_vel[3]
-                velocity_msg.angular.y = model_vel[4]
-                velocity_msg.angular.z = model_vel[5]
-
+            if self.publish_zero_velocity_when_dvl_invalid:
+                rospy.logwarn_throttle(1.0, "DVL invalid: Publishing zero velocity")
+                velocity_msg = Twist()
+                self.estimated_velocity = np.zeros(6)
                 self.update_twist_covariance(use_model_based=True)
 
             else:
-                rospy.logwarn_throttle(
-                    1.0,
-                    "DVL invalid and model unavailable/timeout: Using desired_velocity fallback",
-                )
-                velocity_msg.linear.x = self.filtered_desired_velocity.linear.x
-                velocity_msg.linear.y = self.filtered_desired_velocity.linear.y
-                velocity_msg.linear.z = self.filtered_desired_velocity.linear.z
-                velocity_msg.angular.x = self.filtered_desired_velocity.angular.x
-                velocity_msg.angular.y = self.filtered_desired_velocity.angular.y
-                velocity_msg.angular.z = self.filtered_desired_velocity.angular.z
+                self.filter_desired_velocity()
 
-                self.update_twist_covariance(use_model_based=True)
+                if self.dynamic_model_available and dt > 0.001 and dt < 1.0:
+                    rospy.loginfo_throttle(
+                        1.0, "DVL invalid: Using dynamic model for velocity estimation"
+                    )
+                    model_vel = self.compute_model_based_velocity(dt)
+
+                    velocity_msg.linear.x = model_vel[0]
+                    velocity_msg.linear.y = model_vel[1]
+                    velocity_msg.linear.z = model_vel[2]
+                    velocity_msg.angular.x = model_vel[3]
+                    velocity_msg.angular.y = model_vel[4]
+                    velocity_msg.angular.z = model_vel[5]
+
+                    self.update_twist_covariance(use_model_based=True)
+
+                else:
+                    rospy.logwarn_throttle(
+                        1.0,
+                        "DVL invalid and model unavailable/timeout: Using desired_velocity fallback",
+                    )
+                    velocity_msg.linear.x = self.filtered_desired_velocity.linear.x
+                    velocity_msg.linear.y = self.filtered_desired_velocity.linear.y
+                    velocity_msg.linear.z = self.filtered_desired_velocity.linear.z
+                    velocity_msg.angular.x = self.filtered_desired_velocity.angular.x
+                    velocity_msg.angular.y = self.filtered_desired_velocity.angular.y
+                    velocity_msg.angular.z = self.filtered_desired_velocity.angular.z
+
+                    self.update_twist_covariance(use_model_based=True)
 
         self.odom_msg.header.stamp = current_time
         self.odom_msg.twist.twist = velocity_msg
