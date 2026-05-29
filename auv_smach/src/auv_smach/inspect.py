@@ -21,6 +21,18 @@ class InspectFramesPublisherServiceState(smach_ros.ServiceState):
         )
 
 
+class SetKeypointNodeEnabledState(smach_ros.ServiceState):
+    """Toggle a valve_keypoint_node instance via its ~set_enabled service."""
+
+    def __init__(self, service_name: str, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            service_name,
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
 class InspectTaskState(smach.State):
     def __init__(
         self,
@@ -35,6 +47,10 @@ class InspectTaskState(smach.State):
         scan_confirm_duration: float = 0.2,
         scan_max_linear_velocity: float = 0.1,
         scan_max_angular_velocity: float = 0.25,
+        keypoint_node_services=(
+            "valve_keypoint_node_front/set_enabled",
+            "valve_keypoint_node_bottom/set_enabled",
+        ),
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -70,7 +86,28 @@ class InspectTaskState(smach.State):
                 current_pose_frame=f"inspect_scan_anchor_{index}",
             )
 
+        keypoint_node_services = list(keypoint_node_services)
+
         with self.state_machine:
+            # Turn the valve keypoint producers off for the duration of the
+            # inspection, then back on again at the end (see re-enable chain
+            # after DISABLE_INSPECT_PUBLISHER).
+            for i, service_name in enumerate(keypoint_node_services):
+                next_state = (
+                    f"DISABLE_KEYPOINT_{i + 1}"
+                    if i + 1 < len(keypoint_node_services)
+                    else "ENABLE_INSPECT_PUBLISHER"
+                )
+                smach.StateMachine.add(
+                    f"DISABLE_KEYPOINT_{i}",
+                    SetKeypointNodeEnabledState(service_name, req=False),
+                    transitions={
+                        "succeeded": next_state,
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
             smach.StateMachine.add(
                 "ENABLE_INSPECT_PUBLISHER",
                 InspectFramesPublisherServiceState(req=True),
@@ -140,11 +177,29 @@ class InspectTaskState(smach.State):
                 "DISABLE_INSPECT_PUBLISHER",
                 InspectFramesPublisherServiceState(req=False),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "ENABLE_KEYPOINT_0",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
+            # Re-enable the valve keypoint producers now that inspection is done.
+            for i, service_name in enumerate(keypoint_node_services):
+                next_state = (
+                    f"ENABLE_KEYPOINT_{i + 1}"
+                    if i + 1 < len(keypoint_node_services)
+                    else "CANCEL_ALIGN_CONTROLLER"
+                )
+                smach.StateMachine.add(
+                    f"ENABLE_KEYPOINT_{i}",
+                    SetKeypointNodeEnabledState(service_name, req=True),
+                    transitions={
+                        "succeeded": next_state,
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
