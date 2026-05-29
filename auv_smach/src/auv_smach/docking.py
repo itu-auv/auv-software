@@ -25,7 +25,7 @@ class ToggleDockingTrajectoryState(smach_ros.ServiceState):
 class DockingTaskState(smach.State):
     def __init__(
         self,
-        search_depth: float = -1.5,
+        search_depth: float = -1.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -113,10 +113,10 @@ class DockingTaskState(smach.State):
                     source_frame="taluy/base_link/docking_puck_link",
                     target_frame="docking_station",
                     angle_offset=math.pi / 2,
-                    dist_threshold=0.03,
+                    dist_threshold=0.05,
                     yaw_threshold=0.04,
                     confirm_duration=1.0,
-                    timeout=90.0,
+                    timeout=50.0,
                     cancel_on_success=True,
                     keep_orientation=False,
                     max_linear_velocity=0.2,
@@ -151,7 +151,30 @@ class DockingTaskState(smach.State):
                 "STOP_ESTIMATOR",
                 smach.CBState(switch_to_torpedo_cam_cb, outcomes=["succeeded"]),
                 transitions={
+                    "succeeded": "ALIGN_PRE_TOUCH",
+                },
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_PRE_TOUCH",
+                AlignFrame(
+                    source_frame="taluy/base_link/docking_puck_link",
+                    target_frame="docking_pre_touch_target",
+                    angle_offset=math.pi / 2,
+                    dist_threshold=0.03,
+                    yaw_threshold=0.04,
+                    confirm_duration=3.0,
+                    timeout=90.0,
+                    cancel_on_success=True,
+                    keep_orientation=True,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.2,
+                    use_frame_depth=True,
+                ),
+                transitions={
                     "succeeded": "DOCK",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
 
@@ -166,7 +189,7 @@ class DockingTaskState(smach.State):
                     confirm_duration=20.0,
                     timeout=40.0,
                     cancel_on_success=True,
-                    keep_orientation=False,
+                    keep_orientation=True,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.2,
                     use_frame_depth=True,
