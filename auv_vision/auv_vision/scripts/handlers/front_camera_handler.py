@@ -64,8 +64,10 @@ class FrontCameraHandler:
             if detection_id not in self.id_tf_map:
                 continue
 
-            # bin_whole uses altitude projection — special path
-            if detection_id == self.id_tf_map.id_of("bin_whole_link"):
+            # bin and docking station use altitude projection — special path
+            if detection_id == self.id_tf_map.id_of(
+                "bin_whole_link"
+            ) or detection_id == self.id_tf_map.id_of("docking_station_yolo"):
                 self._process_altitude_projection(detection, stamp)
                 continue
 
@@ -114,7 +116,7 @@ class FrontCameraHandler:
             )
 
     def _process_altitude_projection(self, detection, stamp):
-        """Project bin_whole (ID=6) onto the pool floor using ray-plane intersection."""
+        """Project bin and docking station onto the pool floor using ray-plane intersection."""
         altitude = self.shared_state.get("altitude")
         pool_depth = self.shared_state.get("pool_depth")
         if altitude is None:
