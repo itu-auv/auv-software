@@ -57,8 +57,6 @@ class ValveTaskState(smach.State):
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
-        base_link_frame = "taluy/base_link"
-
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
@@ -82,7 +80,7 @@ class ValveTaskState(smach.State):
             smach.Concurrence.add(
                 "ALIGN_TO_APPROACH",
                 AlignFrame(
-                    source_frame=base_link_frame,
+                    source_frame=gripper_frame,
                     target_frame=approach_target_frame,
                     dist_threshold=0.15,
                     yaw_threshold=0.1,

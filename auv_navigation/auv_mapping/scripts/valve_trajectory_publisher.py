@@ -167,7 +167,7 @@ class ValveTrajectoryPublisherNode:
             engage_frame=rospy.get_param(
                 "~front_engage_frame", "valve_front_engage_target"
             ),
-            approach_offset=rospy.get_param("~front_approach_offset", 1.0),
+            approach_offset=rospy.get_param("~front_approach_offset", 0.3),
             engage_offset=rospy.get_param("~front_engage_offset", 0.0),
             service_name=rospy.get_param(
                 "~front_service", "set_publishing_valve_front"
@@ -186,7 +186,7 @@ class ValveTrajectoryPublisherNode:
             engage_frame=rospy.get_param(
                 "~bottom_engage_frame", "valve_bottom_engage_target"
             ),
-            approach_offset=rospy.get_param("~bottom_approach_offset", 1.0),
+            approach_offset=rospy.get_param("~bottom_approach_offset", 0.3),
             engage_offset=rospy.get_param("~bottom_engage_offset", 0.0),
             service_name=rospy.get_param(
                 "~bottom_service", "set_publishing_valve_bottom"

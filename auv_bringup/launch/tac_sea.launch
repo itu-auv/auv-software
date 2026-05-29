@@ -57,12 +57,12 @@
       <param name="front_valve_frame" value="tac/valve_front" />
       <param name="front_approach_frame" value="valve_front_approach_target" />
       <param name="front_engage_frame" value="valve_front_engage_target" />
-      <param name="front_approach_offset" value="1.0" />
+      <param name="front_approach_offset" value="0.3" />
       <param name="front_engage_offset" value="0.0" />
       <param name="bottom_valve_frame" value="tac/valve_bottom" />
       <param name="bottom_approach_frame" value="valve_bottom_approach_target" />
       <param name="bottom_engage_frame" value="valve_bottom_engage_target" />
-      <param name="bottom_approach_offset" value="1.0" />
+      <param name="bottom_approach_offset" value="0.3" />
       <param name="bottom_engage_offset" value="0.0" />
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
