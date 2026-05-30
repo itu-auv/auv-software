@@ -13,6 +13,9 @@ import time
 import tf
 import tf.transformations
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
+import dynamic_reconfigure.server
+from auv_localization.cfg import DvlOdometryConfig
+from auv_localization.controller_gain_scheduler import ControllerGainScheduler
 
 
 class DvlToOdom:
@@ -22,6 +25,49 @@ class DvlToOdom:
         self.enabled = rospy.get_param("~enabled", True)
         self.enable_service = rospy.Service(
             "dvl_to_odom_node/enable", SetBool, self.enable_cb
+        )
+
+        self.docking_mode = rospy.get_param("~docking_mode", False)
+
+        _pos_kp = rospy.get_param("dvl_invalid_position_kp_xy", [1.0, 1.0])
+        _pos_ki = rospy.get_param("dvl_invalid_position_ki_xy", [0.0, 0.0])
+        _pos_kd = rospy.get_param("dvl_invalid_position_kd_xy", [0.0, 0.0])
+        _vel_kp = rospy.get_param("dvl_invalid_velocity_kp_xy", [1.0, 1.0])
+        _vel_ki = rospy.get_param("dvl_invalid_velocity_ki_xy", [0.0, 0.0])
+        _vel_kd = rospy.get_param("dvl_invalid_velocity_kd_xy", [1.0, 1.0])
+
+        self.gain_scheduler = ControllerGainScheduler(
+            server_name=rospy.get_param(
+                "~controller_reconfigure_server", "auv_control_node"
+            ),
+            position_kp_xy=_pos_kp,
+            position_ki_xy=_pos_ki,
+            position_kd_xy=_pos_kd,
+            velocity_kp_xy=_vel_kp,
+            velocity_ki_xy=_vel_ki,
+            velocity_kd_xy=_vel_kd,
+            log_prefix="DVL->Odom gain scheduler",
+        )
+        rospy.on_shutdown(self.gain_scheduler.shutdown)
+
+        self._gain_reconfigure_server = dynamic_reconfigure.server.Server(
+            DvlOdometryConfig, self._gain_reconfigure_cb
+        )
+        self._gain_reconfigure_server.update_configuration(
+            {
+                "dvl_invalid_position_kp_x": _pos_kp[0],
+                "dvl_invalid_position_kp_y": _pos_kp[1],
+                "dvl_invalid_position_ki_x": _pos_ki[0],
+                "dvl_invalid_position_ki_y": _pos_ki[1],
+                "dvl_invalid_position_kd_x": _pos_kd[0],
+                "dvl_invalid_position_kd_y": _pos_kd[1],
+                "dvl_invalid_velocity_kp_x": _vel_kp[0],
+                "dvl_invalid_velocity_kp_y": _vel_kp[1],
+                "dvl_invalid_velocity_ki_x": _vel_ki[0],
+                "dvl_invalid_velocity_ki_y": _vel_ki[1],
+                "dvl_invalid_velocity_kd_x": _vel_kd[0],
+                "dvl_invalid_velocity_kd_y": _vel_kd[1],
+            }
         )
 
         self.namespace = rospy.get_param("~namespace", "taluy")
@@ -172,6 +218,35 @@ class DvlToOdom:
         state = "enabled" if self.enabled else "disabled"
         rospy.loginfo(f"DVL->Odom node {state} via service call.")
         return SetBoolResponse(success=True, message=f"DVL->Odom {state}")
+
+    def _gain_reconfigure_cb(self, config, level):
+        self.gain_scheduler.update_overrides(
+            position_kp_xy=[
+                config.dvl_invalid_position_kp_x,
+                config.dvl_invalid_position_kp_y,
+            ],
+            position_ki_xy=[
+                config.dvl_invalid_position_ki_x,
+                config.dvl_invalid_position_ki_y,
+            ],
+            position_kd_xy=[
+                config.dvl_invalid_position_kd_x,
+                config.dvl_invalid_position_kd_y,
+            ],
+            velocity_kp_xy=[
+                config.dvl_invalid_velocity_kp_x,
+                config.dvl_invalid_velocity_kp_y,
+            ],
+            velocity_ki_xy=[
+                config.dvl_invalid_velocity_ki_x,
+                config.dvl_invalid_velocity_ki_y,
+            ],
+            velocity_kd_xy=[
+                config.dvl_invalid_velocity_kd_x,
+                config.dvl_invalid_velocity_kd_y,
+            ],
+        )
+        return config
 
     def get_dvl_yaw(self):
         rospy.loginfo(f"Waiting for TF: {self.base_frame} <- {self.dvl_frame}")
@@ -344,10 +419,22 @@ class DvlToOdom:
             self.update_twist_covariance(use_model_based=False)
 
         else:
+            if self.docking_mode == True:
+                velocity_msg.linear.x = 0.0
+                velocity_msg.linear.y = 0.0
+                velocity_msg.linear.z = 0.0
+                velocity_msg.angular.x = 0.0
+                velocity_msg.angular.y = 0.0
+                velocity_msg.angular.z = 0.0
             # DVL invalid - use model-based estimation or desired_velocity fallback
             self.filter_desired_velocity()
 
-            if self.dynamic_model_available and dt > 0.001 and dt < 1.0:
+            if (
+                self.dynamic_model_available
+                and dt > 0.001
+                and dt < 1.0
+                and not self.docking_mode
+            ):
                 rospy.loginfo_throttle(
                     1.0, "DVL invalid: Using dynamic model for velocity estimation"
                 )
@@ -363,16 +450,24 @@ class DvlToOdom:
                 self.update_twist_covariance(use_model_based=True)
 
             else:
-                rospy.logwarn_throttle(
-                    1.0,
-                    "DVL invalid and model unavailable/timeout: Using desired_velocity fallback",
-                )
-                velocity_msg.linear.x = self.filtered_desired_velocity.linear.x
-                velocity_msg.linear.y = self.filtered_desired_velocity.linear.y
-                velocity_msg.linear.z = self.filtered_desired_velocity.linear.z
-                velocity_msg.angular.x = self.filtered_desired_velocity.angular.x
-                velocity_msg.angular.y = self.filtered_desired_velocity.angular.y
-                velocity_msg.angular.z = self.filtered_desired_velocity.angular.z
+                if self.docking_mode:
+                    velocity_msg.linear.x = 0.0
+                    velocity_msg.linear.y = 0.0
+                    velocity_msg.linear.z = 0.0
+                    velocity_msg.angular.x = 0.0
+                    velocity_msg.angular.y = 0.0
+                    velocity_msg.angular.z = 0.0
+                else:
+                    rospy.logwarn_throttle(
+                        1.0,
+                        "DVL invalid and model unavailable/timeout: Using desired_velocity fallback",
+                    )
+                    velocity_msg.linear.x = self.filtered_desired_velocity.linear.x
+                    velocity_msg.linear.y = self.filtered_desired_velocity.linear.y
+                    velocity_msg.linear.z = self.filtered_desired_velocity.linear.z
+                    velocity_msg.angular.x = self.filtered_desired_velocity.angular.x
+                    velocity_msg.angular.y = self.filtered_desired_velocity.angular.y
+                    velocity_msg.angular.z = self.filtered_desired_velocity.angular.z
 
                 self.update_twist_covariance(use_model_based=True)
 
@@ -386,6 +481,13 @@ class DvlToOdom:
 
         # Publish the odometry message
         self.odom_publisher.publish(self.odom_msg)
+
+        # Push / restore controller gain overrides on DVL state change while
+        # docking_mode is active.
+        use_scheduled = self.docking_mode and not is_valid_msg.data
+        self.gain_scheduler.apply(use_scheduled)
+        if use_scheduled:
+            rospy.logwarn_throttle(1.0, "DVL invalid, using gain scheduled PID")
 
     def run(self):
         rate = rospy.Rate(20)
