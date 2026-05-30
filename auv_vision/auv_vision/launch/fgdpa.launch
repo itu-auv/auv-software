@@ -6,7 +6,7 @@
 
     <arg name="camera" default="cam_front" />
     <arg name="camera_namespace" default="cameras/$(arg camera)" />
-    <arg name="input_topic" default="$(arg camera_namespace)/image_rect_color" />
+    <arg name="input_topic" default="$(arg camera_namespace)/image_raw" />
     <arg name="output_topic" default="$(arg camera_namespace)/fgdpa/enhanced_image" />
 
     <group ns="$(arg namespace)">

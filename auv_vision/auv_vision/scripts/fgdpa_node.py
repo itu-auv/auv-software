@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
-import cv2
-import rospy
-import torch
+import os
+import sys
 import numpy as np
-from cv_bridge import CvBridge, CvBridgeError
-from sensor_msgs.msg import Image, CompressedImage
+import cv2
+import torch
 import torch.nn as nn
 import torch.nn.functional as Fnn
+import rospy
+from cv_bridge import CvBridge, CvBridgeError
+from sensor_msgs.msg import Image, CompressedImage
 
 
 def downsample_to_target_avgpool(F: torch.Tensor, target: int = 32) -> torch.Tensor:
@@ -32,6 +34,9 @@ def downsample_to_target_avgpool(F: torch.Tensor, target: int = 32) -> torch.Ten
         kw = W // target
 
     return Fnn.avg_pool2d(F, kernel_size=(kh, kw), stride=(kh, kw))
+
+
+# mostly copy paste from https://github.com/LethyZhang/FGDPA
 
 
 class FSTS(nn.Module):
@@ -66,11 +71,9 @@ class FGDPAUIENetS(nn.Module):
 
         self.body = FSTS(nn.Conv2d(channels, channels, 3, 1, 1), channels)
 
-        # fgdpa convs (slim target)
         self.fgdpa_fca = nn.Conv2d(2 * channels, channels, 1, 1)
         self.fgdpa_fgsa = nn.Conv2d(2, channels, 1, 1)
 
-        # gate params (loaded from slim)
         self.alpha = nn.Parameter(torch.ones(1))
         self.beta = nn.Parameter(torch.ones(1))
         self.lam = nn.Parameter(torch.tensor(0.5))
@@ -126,8 +129,15 @@ class FGDPANode:
     def __init__(self):
         rospy.init_node("fgdpa_enhancement_node", anonymous=False)
 
-        # Parameters
-        self.model_path = rospy.get_param("~model_path", None)
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        default_weights = os.path.join(
+            current_dir, "experiments/pretrain/models/model_best_slim.pkl"
+        )
+
+        self.model_path = rospy.get_param("~model_path", default_weights)
+        if not os.path.isabs(self.model_path):
+            self.model_path = os.path.join(current_dir, self.model_path)
+
         self.channels = rospy.get_param("~channels", 12)
         self.input_topic = rospy.get_param("~input_topic", "/camera/image_raw")
         self.output_topic = rospy.get_param("~output_topic", "/fgdpa/enhanced_image")
@@ -135,49 +145,63 @@ class FGDPANode:
             "~device", "cuda" if torch.cuda.is_available() else "cpu"
         )
 
-        # Device setup
         self.device = torch.device(self.device_str)
         rospy.loginfo(f"[FGDPA] Using device: {self.device}")
 
-        # Model setup
         self.model = None
         self.is_loaded = False
         self.bridge = CvBridge()
         self.output_compressed_topic = self.output_topic + "/compressed"
 
-        if self.model_path and self._load_model():
-            rospy.loginfo(f"[FGDPA] Model loaded from: {self.model_path}")
+        if self._load_model():
+            rospy.loginfo(f"[FGDPA] Model successfully loaded from: {self.model_path}")
         else:
-            rospy.logwarn("[FGDPA] No valid model path provided or loading failed")
-            rospy.logwarn("[FGDPA] Set _model_path parameter in launch file")
+            rospy.logerr(f"[FGDPA] Model loading failed from path: {self.model_path}")
+
+        self.pub_image = rospy.Publisher(self.output_topic, Image, queue_size=1)
+        self.pub_compressed = rospy.Publisher(
+            self.output_compressed_topic, CompressedImage, queue_size=1
+        )
 
         self.sub_image = rospy.Subscriber(
             self.input_topic, Image, self.image_callback, queue_size=1
         )
 
-        self.pub_image = rospy.Publisher(self.output_topic, Image, queue_size=1)
-
-        self.pub_compressed = rospy.Publisher(
-            self.output_compressed_topic, CompressedImage, queue_size=1
-        )
-
-        rospy.loginfo(f"[FGDPA] Node initialized")
+        rospy.loginfo("[FGDPA] Node initialized successfully")
         rospy.loginfo(f"[FGDPA] Subscribing to: {self.input_topic}")
         rospy.loginfo(f"[FGDPA] Publishing to: {self.output_topic}")
+        rospy.loginfo(
+            f"[FGDPA] Publishing Compressed to: {self.output_compressed_topic}"
+        )
 
     def _load_model(self):
-        if not self.model_path:
+        if not os.path.exists(self.model_path):
+            rospy.logerr(f"[FGDPA] Weights file not found at: {self.model_path}")
             return False
 
         try:
             self.model = FGDPAUIENetS(channels=self.channels).to(self.device)
+
             checkpoint = torch.load(self.model_path, map_location=self.device)
-            self.model.load_state_dict(checkpoint)
+
+            mapped_checkpoint = {}
+            for k, v in checkpoint.items():
+                mapped_key = k
+                if "fgdra_fca" in k:
+                    mapped_key = k.replace("fgdra_fca", "fgdpa_fca")
+                elif "fgdra_fgsa" in k:
+                    mapped_key = k.replace("fgdra_fgsa", "fgdpa_fgsa")
+                mapped_checkpoint[mapped_key] = v
+
+            self.model.load_state_dict(mapped_checkpoint)
             self.model.eval()
             self.is_loaded = True
             return True
         except Exception as e:
-            rospy.logerr(f"[FGDPA] Failed to load model: {e}")
+            rospy.logerr(f"[FGDPA] Failed to load model state_dict: {e}")
+            import traceback
+
+            rospy.logerr(traceback.format_exc())
             return False
 
     def image_callback(self, msg):
@@ -201,29 +225,33 @@ class FGDPANode:
                 np.uint8
             )
 
-            output = self.bridge.cv2_to_imgmsg(output_np, encoding="rgb8")
-            output.header = msg.header
-            self.pub_image.publish(output)
+            output_msg = self.bridge.cv2_to_imgmsg(output_np, encoding="rgb8")
+            output_msg.header = msg.header
+            self.pub_image.publish(output_msg)
 
             compressed_msg = CompressedImage()
             compressed_msg.header = msg.header
             compressed_msg.format = "jpeg"
 
             output_bgr = cv2.cvtColor(output_np, cv2.COLOR_RGB2BGR)
+            success, encoded_img = cv2.imencode(
+                ".jpg", output_bgr, [cv2.IMWRITE_JPEG_QUALITY, 80]
+            )
+            if success:
+                compressed_msg.data = np.array(encoded_img).tobytes()
+                self.pub_compressed.publish(compressed_msg)
 
-            compressed_msg.data = np.array(
-                cv2.imencode(".jpg", output_bgr, [cv2.IMWRITE_JPEG_QUALITY, 80])[1]
-            ).tobytes()
-            self.pub_compressed.publish(compressed_msg)
-
-            rospy.logdebug("[FGDPA] Frame processed")
+            rospy.logdebug("[FGDPA] Frame successfully processed and published")
 
         except CvBridgeError as e:
             rospy.logerr(f"[FGDPA] CV Bridge error: {e}")
         except Exception as e:
-            rospy.logerr(f"[FGDPA] Processing error: {e}")
+            rospy.logerr(f"[FGDPA] Error during processing: {e}")
 
 
 if __name__ == "__main__":
-    node = FGDPANode()
-    rospy.spin()
+    try:
+        node = FGDPANode()
+        rospy.spin()
+    except rospy.ROSInterruptException:
+        pass
