@@ -94,9 +94,9 @@
 
     <link name="${namespace}/base_link/valve_gripper_front_link"/>
     <joint name="${namespace}/base_link/valve_gripper_front_joint" type="fixed">
-      <parent link="${namespace}/base_link/front_camera_link"/>
+      <parent link="${namespace}/base_link"/>
       <child link="${namespace}/base_link/valve_gripper_front_link"/>
-      <origin xyz="0.30 0 0" rpy="0 0 0"/>
+      <origin xyz="0.626109 -0.06965 -0.075051" rpy="0 0 0"/>
     </joint>
     <xacro:logitech_c920_camera
       name="${namespace}/base_link/bottom_camera"
