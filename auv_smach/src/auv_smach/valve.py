@@ -189,8 +189,8 @@ class ValveTaskState(smach.State):
                     confirm_duration=3.0,
                     timeout=30.0,
                     cancel_on_success=False,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.1,
+                    max_linear_velocity=0.05,
+                    max_angular_velocity=0.05,
                     use_frame_depth=True,
                 ),
                 transitions={
