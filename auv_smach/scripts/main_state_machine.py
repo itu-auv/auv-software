@@ -96,7 +96,7 @@ class MainStateMachineNode:
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
 
         self.bin_front_look_depth = -1.3
-        self.bin_bottom_look_depth = -0.7
+        self.bin_bottom_look_depth = -0.4
 
         self.octagon_depth = -0.8
 
