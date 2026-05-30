@@ -121,24 +121,6 @@ class InspectTaskState(smach.State):
                 "WAIT_FOR_FRAMES",
                 DelayState(delay_time=publisher_warmup_delay),
                 transitions={
-                    "succeeded": "ALIGN_TO_START_TOP",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_START_TOP",
-                align_to("inspect_start_top"),
-                transitions={
-                    "succeeded": "ALIGN_TO_FRAME_0_TOP",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ALIGN_TO_FRAME_0_TOP",
-                align_to("inspect_frame_0_top"),
-                transitions={
                     "succeeded": "ALIGN_TO_FRAME_0",
                     "preempted": "preempted",
                     "aborted": "aborted",

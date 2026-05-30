@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Publishes 8 inspection frames around the valve, each yawed toward the
-rectangle centre so the robot faces inward when aligned. Two companion
-frames (identity orientation) are published above mission_start_link and
-above inspect_frame_0, sharing one vertical offset param. A SetBool
-service toggles publishing of all frames.
+rectangle centre so the robot faces inward when aligned. The rectangle
+centre and the frames' XY positions use the valve's full orientation, but
+every frame is flattened to a single Z that sits a configurable distance
+above the valve's Z. A SetBool service toggles publishing of all frames.
 """
 
 import threading
@@ -84,21 +84,9 @@ class InspectTrajectoryPublisherNode:
         # panel's layout. valve_bottom would need a different rectangle.
         self.valve_frame = rospy.get_param("~valve_frame", "tac/valve_front")
 
-        self.mission_start_frame = rospy.get_param(
-            "~mission_start_frame", "mission_start_link"
-        )
-        self.mission_start_top_frame = rospy.get_param(
-            "~mission_start_top_frame", "inspect_start_top"
-        )
-        self.frame_0_top_frame = rospy.get_param(
-            "~frame_0_top_frame", "inspect_frame_0_top"
-        )
-        self.mission_start_top_offset = rospy.get_param(
-            "~mission_start_top_offset", 1.0
-        )
-
         self._offsets_lock = threading.Lock()
         self.frame_offsets = []
+        self.height_above_valve = 1.0
         self.center_offset_valve_local = _desk_offset_to_valve_local(
             RECT_CENTER_IN_DESK - VALVE_IN_DESK
         )
@@ -120,6 +108,7 @@ class InspectTrajectoryPublisherNode:
             self.frame_offsets = [
                 (f"inspect_frame_{i}", off) for i, off in enumerate(offsets)
             ]
+            self.height_above_valve = config.height_above_valve
         return config
 
     def _lookup_in_odom(self, frame_id, label):
@@ -179,12 +168,19 @@ class InspectTrajectoryPublisherNode:
 
         with self._offsets_lock:
             frame_offsets = list(self.frame_offsets)
+            height_above_valve = self.height_above_valve
 
         if not frame_offsets:
             return
 
+        # All frames share one Z, a configurable distance above the valve's Z.
+        # Only the XY of each frame (and the centre for the inward yaw) uses
+        # the valve's full orientation.
+        frame_z = valve_pos[2] + height_above_valve
+
         for child_frame_id, offset_valve_local in frame_offsets:
             target_pos = valve_pos + R @ np.asarray(offset_valve_local)
+            target_pos[2] = frame_z
             yaw = float(
                 np.arctan2(
                     center_pos[1] - target_pos[1],
@@ -197,21 +193,6 @@ class InspectTrajectoryPublisherNode:
                 quaternion_from_euler(0.0, 0.0, yaw),
             )
 
-        frame_0_pos = valve_pos + R @ np.asarray(frame_offsets[0][1])
-        self._broadcast(
-            self.frame_0_top_frame,
-            frame_0_pos + np.array([0.0, 0.0, self.mission_start_top_offset]),
-        )
-
-    def publish_mission_start_top_frame(self):
-        ms_tf = self._lookup_in_odom(self.mission_start_frame, "Mission start")
-        if ms_tf is None:
-            return
-        pos = self._translation(ms_tf) + np.array(
-            [0.0, 0.0, self.mission_start_top_offset]
-        )
-        self._broadcast(self.mission_start_top_frame, pos)
-
     def handle_enable_service(self, req):
         self.enable_publishing = req.data
         message = f"Inspect frames publishing is set to: {self.enable_publishing}"
@@ -223,7 +204,6 @@ class InspectTrajectoryPublisherNode:
         while not rospy.is_shutdown():
             if self.enable_publishing:
                 self.publish_inspect_frames()
-                self.publish_mission_start_top_frame()
             rate.sleep()
 
 

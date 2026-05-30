@@ -68,10 +68,9 @@
     </node>
 
     <!-- Inspect trajectory publisher: 8 frames around the FRONT valve
-         rectangle + inspect_start_top above mission_start_link +
-         inspect_frame_0_top. Front-only by design (the rectangle geometry
-         is hard-coded to the front panel). Toggled by smach via
-         set_transform_inspect_frames. -->
+         rectangle, all flattened to a configurable height above the valve's
+         Z. Front-only by design (the rectangle geometry is hard-coded to the
+         front panel). Toggled by smach via set_transform_inspect_frames. -->
     <node pkg="auv_mapping" type="inspect_trajectory_publisher.py"
           name="inspect_trajectory_publisher" output="screen">
       <param name="valve_frame" value="tac/valve_front" />
