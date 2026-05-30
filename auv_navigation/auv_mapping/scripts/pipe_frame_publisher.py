@@ -57,6 +57,7 @@ class PipeFramePublisher:
         )
         # radius*2
         self.pipe_width = rospy.get_param("~pipe_width", 0.2)
+        self.follow_height = rospy.get_param("~follow_height", 1.50)
 
         self.is_enabled = False
 
@@ -71,7 +72,18 @@ class PipeFramePublisher:
         self.sub_mask = rospy.Subscriber(
             "/seg_mask", Image, self.cb_mask, queue_size=1, buff_size=2**24
         )
+        self.sub_bottom_cam = rospy.Subscriber(
+            "cam_bottom/image_raw",
+            Image,
+            self.cb_bottom_cam,
+            queue_size=1,
+            buff_size=2**24,
+        )
+        self.latest_bottom_img = None
+        self.latest_fancy_data = None
+
         self.pub_debug = None
+        self.pub_debug_fancy = None
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -93,6 +105,7 @@ class PipeFramePublisher:
         self.ang_error_eps = config.ang_error_eps
         self.ang_error_close_point_eps = config.ang_error_close_point_eps
         self.pipe_width = config.pipe_width
+        self.follow_height = config.follow_height
         return config
 
     def cb_start(self, req):
@@ -101,6 +114,10 @@ class PipeFramePublisher:
             self.pub_debug = rospy.Publisher(
                 "/pipe_result_debug/compressed", CompressedImage, queue_size=1
             )
+        if self.pub_debug_fancy is None:
+            self.pub_debug_fancy = rospy.Publisher(
+                "/pipe_result_debug_fancy/compressed", CompressedImage, queue_size=1
+            )
         return TriggerResponse(success=True, message="Pipe frame publisher enabled")
 
     def cb_stop(self, req):
@@ -108,7 +125,48 @@ class PipeFramePublisher:
         if self.pub_debug is not None:
             self.pub_debug.unregister()
             self.pub_debug = None
+        if self.pub_debug_fancy is not None:
+            self.pub_debug_fancy.unregister()
+            self.pub_debug_fancy = None
         return TriggerResponse(success=True, message="Pipe frame publisher disabled")
+
+    def cb_bottom_cam(self, msg):
+        if not self.is_enabled:
+            return
+        try:
+            img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            self.latest_bottom_img = img
+        except Exception as e:
+            rospy.logwarn("cv_bridge err in cb_bottom_cam: %s", e)
+            return
+
+        if self.pub_debug_fancy is not None:
+            z_depth = None
+            try:
+                trans = self.tf_buffer.lookup_transform(
+                    "odom", self.taluy_base_frame, rospy.Time(0), rospy.Duration(0.1)
+                )
+                z_depth = trans.transform.translation.z
+            except Exception as e:
+                pass
+
+            fd = self.latest_fancy_data
+            if fd is not None:
+                self._publish_debug_fancy_img(
+                    msg,
+                    img,
+                    fd["segments"],
+                    fd["target_segment_index"],
+                    fd["target_point"],
+                    fd["width"],
+                    z_depth,
+                    fd["ang_err"],
+                    mask_width=fd["mask_width"],
+                )
+            else:
+                self._publish_debug_fancy_img(
+                    msg, img, [], 0, None, None, z_depth, None, mask_width=msg.width
+                )
 
     def cb_mask(self, msg):
         if not self.is_enabled:
@@ -257,6 +315,7 @@ class PipeFramePublisher:
             if target_point is None and possible_targets:
                 target_point_index, target_point = possible_targets[0]
 
+        ang_err = None
         if target_point is not None and width:
             distance = self._distance_from_cam(self.pipe_width, width)
 
@@ -276,12 +335,28 @@ class PipeFramePublisher:
             }[self.camera_forward_direction]
             ang_err = self._normalize_angle(ang - forward_reference_angle)
 
-            self._relocate_carrot(rx, ry, rz - 1.50, rot_offset=ang_err)
+            self._relocate_carrot(rx, ry, rz - self.follow_height, rot_offset=ang_err)
 
-        debug_img = img_og.copy()
+        debug_scale = (self.target_width * 2) / float(w_og)
+        debug_img = cv2.resize(
+            img_og,
+            (0, 0),
+            fx=debug_scale,
+            fy=debug_scale,
+            interpolation=cv2.INTER_NEAREST,
+        )
         self._publish_debug_img(
             msg, debug_img, segments, target_segment_index, target_point, width
         )
+
+        self.latest_fancy_data = {
+            "segments": segments,
+            "target_segment_index": target_segment_index,
+            "target_point": target_point,
+            "width": width,
+            "ang_err": ang_err,
+            "mask_width": msg.width,
+        }
 
     def _find_turns(self, seg):
         # if angle changed more than self.ang_error_eps between two continous points(that are not so close), it is a turning point
@@ -358,6 +433,8 @@ class PipeFramePublisher:
             return
 
         h, w = debug_img.shape[:2]
+        scale = w / float(msg.width)
+
         arrow_margin = 18
         arrow_len = 54
         arrow_x = max(arrow_margin, w - 45)
@@ -385,30 +462,33 @@ class PipeFramePublisher:
         )
 
         if self.image_center:
-            cv2.circle(debug_img, tuple(self.image_center), 4, (0, 255, 0), -1)
+            center_x = int(self.image_center[0] * scale)
+            center_y = int(self.image_center[1] * scale)
+            cv2.circle(debug_img, (center_x, center_y), 4, (0, 255, 0), -1)
 
         if width is not None:
             cv2.putText(
                 debug_img,
-                f"width: {width}px",
-                (10, 30),
+                f"width: {width:.1f}px",
+                (10, 20),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                1,
+                0.5,
                 (0, 255, 255),
                 1,
+                cv2.LINE_AA,
             )
         for j, seg in enumerate(segments):
-            points = seg.astype(int)
+            points = (seg * scale).astype(int)
             for i in range(1, len(points)):
                 color = (0, 0, 255)
                 if j == target_segment_index:
                     color = (255, 0, 0)
                 cv2.line(debug_img, tuple(points[i - 1]), tuple(points[i]), color, 2)
         for seg in segments:
-            points = seg.astype(int)
+            points = (seg * scale).astype(int)
             for i, pt in enumerate(points):
                 color = (0, 0, 255)
-                if target_point is not None and np.all(pt == target_point.astype(int)):
+                if target_point is not None and np.allclose(seg[i], target_point):
                     color = (0, 255, 0)
                 cv2.circle(debug_img, tuple(pt), 4, color, -1)
         ok, encoded = cv2.imencode(".jpg", debug_img, [cv2.IMWRITE_JPEG_QUALITY, 80])
@@ -420,6 +500,224 @@ class PipeFramePublisher:
         img_msg.format = "jpeg"
         img_msg.data = np.array(encoded).tobytes()
         self.pub_debug.publish(img_msg)
+
+    def _publish_debug_fancy_img(
+        self,
+        msg,
+        raw_img,
+        segments,
+        target_segment_index,
+        target_point,
+        width,
+        z_depth,
+        ang_err=None,
+        mask_width=None,
+    ):
+        if self.pub_debug_fancy is None or raw_img is None:
+            return
+
+        if mask_width is None:
+            mask_width = msg.width
+
+        # Scale down raw image to target_width * 2
+        h_raw, w_raw = raw_img.shape[:2]
+        debug_w = self.target_width * 2
+        scale_raw = debug_w / float(w_raw)
+
+        fancy_img = cv2.resize(
+            raw_img, (0, 0), fx=scale_raw, fy=scale_raw, interpolation=cv2.INTER_LINEAR
+        )
+
+        h, w = fancy_img.shape[:2]
+        # Segments and target_point are relative to mask_width. We want to draw them on fancy_img.
+        draw_scale = w / float(mask_width)
+
+        # Semi-transparent overlay for text
+        overlay = fancy_img.copy()
+        cv2.rectangle(overlay, (0, 0), (w, 55), (0, 0, 0), -1)
+        fancy_img = cv2.addWeighted(overlay, 0.4, fancy_img, 0.6, 0)
+
+        y_offset = 20
+        if z_depth is not None:
+            cv2.putText(
+                fancy_img,
+                f"Depth (Z): {z_depth:.2f}m",
+                (10, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 0),
+                1,
+                cv2.LINE_AA,
+            )
+            y_offset += 20
+
+        if width is not None:
+            cv2.putText(
+                fancy_img,
+                f"Width: {width:.1f}px",
+                (10, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
+            y_offset += 20
+
+        cv2.putText(
+            fancy_img,
+            f"Follow H: {self.follow_height:.2f}m",
+            (10, y_offset),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 100, 255),
+            1,
+            cv2.LINE_AA,
+        )
+
+        # Draw camera direction indicator
+        cv2.putText(
+            fancy_img,
+            f"Fwd: {self.camera_forward_direction.upper()}",
+            (w - 90, 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 200, 0),
+            1,
+            cv2.LINE_AA,
+        )
+
+        # Draw image center
+        if self.image_center:
+            center_x = int(self.image_center[0] * draw_scale)
+            center_y = int(self.image_center[1] * draw_scale)
+            cv2.drawMarker(
+                fancy_img,
+                (center_x, center_y),
+                (0, 255, 0),
+                markerType=cv2.MARKER_CROSS,
+                markerSize=12,
+                thickness=1,
+                line_type=cv2.LINE_AA,
+            )
+
+        # Draw segments with a glowing effect
+        for j, seg in enumerate(segments):
+            points = (seg * draw_scale).astype(int)
+            color = (0, 255, 0) if j == target_segment_index else (0, 100, 255)
+            # glow
+            for i in range(1, len(points)):
+                cv2.line(
+                    fancy_img,
+                    tuple(points[i - 1]),
+                    tuple(points[i]),
+                    color,
+                    3,
+                    cv2.LINE_AA,
+                )
+            # core
+            for i in range(1, len(points)):
+                cv2.line(
+                    fancy_img,
+                    tuple(points[i - 1]),
+                    tuple(points[i]),
+                    (255, 255, 255),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+        # Draw target point and carrot gizmo
+        if target_point is not None:
+            tp_scaled = (target_point * draw_scale).astype(int)
+
+            # draw line from center to target point
+            if self.image_center:
+                cv2.line(
+                    fancy_img,
+                    (center_x, center_y),
+                    tuple(tp_scaled),
+                    (255, 0, 255),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+            if ang_err is not None:
+                # Draw Gizmo (Coordinate Frame of pipe_carrot before height subtraction)
+                gizmo_len = 35
+                # Carrot X-axis (Red)
+                gx = int(tp_scaled[0] + gizmo_len * math.cos(ang_err))
+                gy = int(tp_scaled[1] + gizmo_len * math.sin(ang_err))
+                cv2.arrowedLine(
+                    fancy_img,
+                    tuple(tp_scaled),
+                    (gx, gy),
+                    (0, 0, 255),
+                    2,
+                    cv2.LINE_AA,
+                    tipLength=0.3,
+                )
+                cv2.putText(
+                    fancy_img,
+                    "X",
+                    (gx + 3, gy + 3),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (0, 0, 255),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+                # Carrot Y-axis (Green)
+                gyx = int(tp_scaled[0] + gizmo_len * math.sin(ang_err))
+                gyy = int(tp_scaled[1] - gizmo_len * math.cos(ang_err))
+                cv2.arrowedLine(
+                    fancy_img,
+                    tuple(tp_scaled),
+                    (gyx, gyy),
+                    (0, 255, 0),
+                    2,
+                    cv2.LINE_AA,
+                    tipLength=0.3,
+                )
+                cv2.putText(
+                    fancy_img,
+                    "Y",
+                    (gyx + 3, gyy + 3),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (0, 255, 0),
+                    1,
+                    cv2.LINE_AA,
+                )
+
+                # Carrot Z-axis (Blue) - points out of image towards camera
+                cv2.circle(fancy_img, tuple(tp_scaled), 6, (255, 0, 0), -1, cv2.LINE_AA)
+                cv2.circle(
+                    fancy_img, tuple(tp_scaled), 2, (255, 255, 255), -1, cv2.LINE_AA
+                )
+                cv2.putText(
+                    fancy_img,
+                    "Z",
+                    (tp_scaled[0] - 12, tp_scaled[1] - 8),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.4,
+                    (255, 0, 0),
+                    1,
+                    cv2.LINE_AA,
+                )
+            else:
+                cv2.circle(fancy_img, tuple(tp_scaled), 5, (0, 0, 255), -1, cv2.LINE_AA)
+                cv2.circle(
+                    fancy_img, tuple(tp_scaled), 7, (255, 255, 255), 1, cv2.LINE_AA
+                )
+
+        ok, encoded = cv2.imencode(".jpg", fancy_img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if ok:
+            img_msg = CompressedImage()
+            img_msg.header = msg.header
+            img_msg.format = "jpeg"
+            img_msg.data = np.array(encoded).tobytes()
+            self.pub_debug_fancy.publish(img_msg)
 
     def _remove_close_points_global(self, lines):
         # copy paste, idk how it works but it works as intended, kinda expensive

@@ -108,6 +108,7 @@
       <rosparam command="load" file="$(find auv_mapping)/config/pipe_frame_publisher_params.yaml" />
       <param name="camera_forward_direction" value="$(arg pipe_camera_forward_direction)" />
       <remap from="seg_mask" to="seg_mask"/>
+      <remap from="cam_bottom/image_raw" to="cameras/cam_bottom/image_raw"/>
       <remap from="set_object_transform" to="map/set_object_transform"/>
       <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
