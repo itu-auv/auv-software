@@ -32,7 +32,9 @@ from utils.aruco_utils import (
     build_marker_object_points,
     solve_board_pose,
     solve_marker_pose,
+    solve_single_board_marker_candidates,
     rvec_tvec_to_quaternion,
+    transform_pose_to_odom,
     publish_pose_to_odom,
 )
 
@@ -46,6 +48,8 @@ class BoardTarget:
         aruco_ids,
         force_floor_orientation,
         cv_board,
+        disambiguate_single_marker=False,
+        snapshot_window=5.0,
     ):
         self.name = name
         self.tf_frame = tf_frame
@@ -53,6 +57,31 @@ class BoardTarget:
         self.aruco_ids = set(aruco_ids)
         self.force_floor_orientation = force_floor_orientation
         self.cv_board = cv_board
+
+        # Single-marker planar-ambiguity disambiguation. When only one board
+        # marker is visible the PnP solution is two-fold ambiguous; we pick the
+        # candidate whose odom-Z is nearest a rolling snapshot built from trusted
+        # (>=2 marker) solves. The snapshot freezes automatically once trusted
+        # solves stop arriving (e.g. when the multi-marker camera goes dark).
+        self.disambiguate_single_marker = disambiguate_single_marker
+        self.snapshot_window = snapshot_window
+        self._z_history = deque()  # (stamp_sec, odom_z) within snapshot_window
+        self._snapshot_z = None
+
+    def record_trusted_z(self, z, stamp):
+        """Feed a trusted (>=2 marker) odom-Z into the rolling snapshot buffer."""
+        t = stamp.to_sec()
+        self._z_history.append((t, z))
+        while self._z_history and (t - self._z_history[0][0]) > self.snapshot_window:
+            self._z_history.popleft()
+        self._snapshot_z = float(np.median([v for _, v in self._z_history]))
+
+    def snapshot_z(self):
+        """Last good rolling-median Z, frozen when trusted solves stop.
+
+        None until the first trusted solve has been recorded.
+        """
+        return self._snapshot_z
 
 
 class MarkerTarget:
@@ -286,32 +315,62 @@ class ArucoCamera:
                     params["ransac_reproj_error"],
                 )
 
-                if success:
-                    any_detected = True
-                    claimed_ids.update(matched_ids)
-                    quat = rvec_tvec_to_quaternion(rvec, tvec)
+                pub_rvec, pub_tvec = rvec, tvec
 
-                    if stamp != self.last_published_stamp:
-                        result = publish_pose_to_odom(
-                            self.camera_frame,
-                            board.tf_frame,
-                            tvec.flatten(),
-                            quat,
-                            stamp,
-                            self.tf_buffer,
-                            self.transform_pub,
-                            force_floor_orientation=board.force_floor_orientation,
+                if success:
+                    skip_publish = False
+
+                    # Single visible board marker -> resolve the two-fold planar
+                    # ambiguity against the rolling snapshot. With no snapshot yet
+                    # (or a failed solve) hold the last good pose: don't publish a
+                    # possibly-mirrored single-marker estimate.
+                    if board.disambiguate_single_marker and len(matched_ids) == 1:
+                        chosen = self._disambiguate_single_marker(
+                            board, matched_ids[0], ref_ids, ref_corners, stamp
                         )
-                        if result:
-                            pos = result.pose.position
-                            rospy.loginfo_throttle(
-                                0.5,
-                                f"{board.name} in odom - "
-                                f"x={pos.x:.3f}, y={pos.y:.3f}, z={pos.z:.3f}",
+                        if chosen is None:
+                            skip_publish = True
+                        else:
+                            pub_rvec, pub_tvec = chosen
+
+                    if not skip_publish:
+                        any_detected = True
+                        claimed_ids.update(matched_ids)
+                        quat = rvec_tvec_to_quaternion(pub_rvec, pub_tvec)
+
+                        if stamp != self.last_published_stamp:
+                            result = publish_pose_to_odom(
+                                self.camera_frame,
+                                board.tf_frame,
+                                pub_tvec.flatten(),
+                                quat,
+                                stamp,
+                                self.tf_buffer,
+                                self.transform_pub,
+                                force_floor_orientation=board.force_floor_orientation,
                             )
+                            if result:
+                                pos = result.pose.position
+                                rospy.loginfo_throttle(
+                                    0.5,
+                                    f"{board.name} in odom - "
+                                    f"x={pos.x:.3f}, y={pos.y:.3f}, z={pos.z:.3f}",
+                                )
+                                # Feed the snapshot only from trusted (>=2 marker)
+                                # solves, never from single-marker ones.
+                                if len(matched_ids) >= 2:
+                                    board.record_trusted_z(pos.z, stamp)
 
                 board_debug_info.append(
-                    (board, rvec, tvec, matched_ids, inliers, ref_corners, ref_ids)
+                    (
+                        board,
+                        pub_rvec,
+                        pub_tvec,
+                        matched_ids,
+                        inliers,
+                        ref_corners,
+                        ref_ids,
+                    )
                 )
 
             # Process standalone markers (using original detections)
@@ -351,6 +410,47 @@ class ArucoCamera:
             self.last_published_stamp = stamp
 
         return gray, orig_corners, orig_ids, board_debug_info
+
+    def _disambiguate_single_marker(
+        self, board, marker_id, ref_ids, ref_corners, stamp
+    ):
+        """Pick the single-marker PnP candidate nearest the board's snapshot Z.
+
+        A lone planar marker yields two candidate poses; we transform each into
+        odom and keep the one whose Z is closest to the board's rolling snapshot
+        (anchored by the pressure sensor, so a static board's true odom-Z is
+        constant). Returns the chosen (rvec, tvec), or None if there is no
+        snapshot yet or the solve/transform fails (caller should then hold).
+        """
+        snapshot = board.snapshot_z()
+        if snapshot is None:
+            return None
+
+        idx = np.where(ref_ids.flatten() == marker_id)[0]
+        if len(idx) == 0:
+            return None
+        corners = ref_corners[idx[0]].reshape(4, 2).astype(np.float32)
+        obj_points = board.obj_points_by_id[marker_id]
+
+        candidates = solve_single_board_marker_candidates(
+            obj_points, corners, self.camera_matrix, self.dist_coeffs
+        )
+
+        best = None
+        best_dz = None
+        for rvec, tvec in candidates:
+            quat = rvec_tvec_to_quaternion(rvec, tvec)
+            transformed = transform_pose_to_odom(
+                self.camera_frame, tvec.flatten(), quat, stamp, self.tf_buffer
+            )
+            if transformed is None:
+                continue
+            dz = abs(transformed.pose.position.z - snapshot)
+            if best_dz is None or dz < best_dz:
+                best_dz = dz
+                best = (rvec, tvec)
+
+        return best
 
 
 class ArucoDetectionNode:
@@ -478,6 +578,10 @@ class ArucoDetectionNode:
                 aruco_ids=aruco_ids,
                 force_floor_orientation=board_cfg.get("force_floor_orientation", False),
                 cv_board=cv_board,
+                disambiguate_single_marker=board_cfg.get(
+                    "disambiguate_single_marker", False
+                ),
+                snapshot_window=board_cfg.get("snapshot_window", 5.0),
             )
             rospy.loginfo(
                 f"Board '{board_name}' -> '{board_cfg['tf_frame']}' "

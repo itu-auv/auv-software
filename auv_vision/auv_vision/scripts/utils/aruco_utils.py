@@ -169,6 +169,37 @@ def solve_marker_pose(marker_obj_points, marker_corners, camera_matrix, dist_coe
     return success, rvec, tvec
 
 
+def solve_single_board_marker_candidates(
+    obj_points, marker_corners, camera_matrix, dist_coeffs
+):
+    """Both planar PnP candidates for a single board marker.
+
+    A lone planar square is ambiguous (the classic two-fold mirror): two poses
+    reproject almost identically and a single-solution solver picks one
+    arbitrarily, which is what makes the board's Z jump when only one marker is
+    visible. ``SOLVEPNP_IPPE`` via ``solvePnPGeneric`` returns *both* candidates
+    so the caller can pick the correct branch (e.g. nearest odom-Z to a known
+    snapshot).
+
+    Uses the marker's board-offset object points (its layout position) -- the
+    same representation ``solve_board_pose`` uses for the >=2-marker case;
+    centered ``IPPE_SQUARE`` points were tried and did not work.
+
+    Returns a list of (rvec, tvec) candidates (length 1 or 2), [] on failure.
+    """
+    obj = np.asarray(obj_points, dtype=np.float32).reshape(-1, 1, 3)
+    img = np.asarray(marker_corners, dtype=np.float32).reshape(-1, 1, 2)
+    try:
+        n_solutions, rvecs, tvecs, _ = cv2.solvePnPGeneric(
+            obj, img, camera_matrix, dist_coeffs, flags=cv2.SOLVEPNP_IPPE
+        )
+    except cv2.error as e:
+        rospy.logwarn_throttle(5, f"solvePnPGeneric (IPPE) failed: {e}")
+        return []
+
+    return [(rvecs[i], tvecs[i]) for i in range(n_solutions)]
+
+
 def rvec_tvec_to_quaternion(rvec, tvec, force_floor_orientation=False):
     """Convert solvePnP rvec to a quaternion in the camera frame.
 
@@ -186,20 +217,18 @@ def rvec_tvec_to_quaternion(rvec, tvec, force_floor_orientation=False):
     return quat
 
 
-def publish_pose_to_odom(
+def transform_pose_to_odom(
     camera_frame,
-    child_frame_id,
     tvec,
     quaternion,
     stamp,
     tf_buffer,
-    publisher,
     force_floor_orientation=False,
 ):
-    """Transform an ArUco pose from camera frame to odom and publish as TransformStamped.
+    """Transform an ArUco pose from the camera frame into odom.
 
     If ``force_floor_orientation`` is True, the orientation is flattened to a
-    pure yaw rotation in odom (roll=0, pitch=0).
+    pure yaw rotation in odom (roll=0, pitch=0); position is left untouched.
 
     Returns the transformed PoseStamped on success, None on failure.
     """
@@ -218,31 +247,54 @@ def publish_pose_to_odom(
 
     try:
         transformed = tf_buffer.transform(pose_stamped, "odom", rospy.Duration(0.1))
-
-        if force_floor_orientation:
-            q = transformed.pose.orientation
-            yaw = tf.transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])[2]
-            flat_quat = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
-            transformed.pose.orientation = Quaternion(
-                float(flat_quat[0]),
-                float(flat_quat[1]),
-                float(flat_quat[2]),
-                float(flat_quat[3]),
-            )
-
-        odom_transform = TransformStamped()
-        odom_transform.header = transformed.header
-        odom_transform.header.stamp = stamp
-        odom_transform.child_frame_id = child_frame_id
-        odom_transform.transform.translation = transformed.pose.position
-        odom_transform.transform.rotation = transformed.pose.orientation
-
-        publisher.publish(odom_transform)
-        return transformed
     except (
         tf2_ros.LookupException,
         tf2_ros.ConnectivityException,
         tf2_ros.ExtrapolationException,
     ) as e:
-        rospy.logwarn_throttle(5, f"Transform to odom failed for {child_frame_id}: {e}")
+        rospy.logwarn_throttle(5, f"Transform to odom failed: {e}")
         return None
+
+    if force_floor_orientation:
+        q = transformed.pose.orientation
+        yaw = tf.transformations.euler_from_quaternion([q.x, q.y, q.z, q.w])[2]
+        flat_quat = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
+        transformed.pose.orientation = Quaternion(
+            float(flat_quat[0]),
+            float(flat_quat[1]),
+            float(flat_quat[2]),
+            float(flat_quat[3]),
+        )
+
+    return transformed
+
+
+def publish_pose_to_odom(
+    camera_frame,
+    child_frame_id,
+    tvec,
+    quaternion,
+    stamp,
+    tf_buffer,
+    publisher,
+    force_floor_orientation=False,
+):
+    """Transform an ArUco pose to odom and publish it as a TransformStamped.
+
+    Returns the transformed PoseStamped on success, None on failure.
+    """
+    transformed = transform_pose_to_odom(
+        camera_frame, tvec, quaternion, stamp, tf_buffer, force_floor_orientation
+    )
+    if transformed is None:
+        return None
+
+    odom_transform = TransformStamped()
+    odom_transform.header = transformed.header
+    odom_transform.header.stamp = stamp
+    odom_transform.child_frame_id = child_frame_id
+    odom_transform.transform.translation = transformed.pose.position
+    odom_transform.transform.rotation = transformed.pose.orientation
+
+    publisher.publish(odom_transform)
+    return transformed

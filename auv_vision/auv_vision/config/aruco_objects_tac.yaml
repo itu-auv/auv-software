@@ -10,6 +10,12 @@ boards:
   docking_board:
     tf_frame: "docking_station"
     force_floor_orientation: true
+    # Resolve the single-marker planar PnP ambiguity (board lies on the pool
+    # floor): when only one marker is visible, pick the candidate whose odom-Z
+    # is nearest a rolling snapshot of trusted (>=2 marker) solves. The snapshot
+    # freezes automatically once the multi-marker camera goes dark.
+    disambiguate_single_marker: true
+    snapshot_window: 5.0
     marker_layout:
       dock_tl: {x: -0.352, y: -0.552}
       dock_tr: {x: 0.207, y: -0.552}
