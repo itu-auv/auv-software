@@ -65,7 +65,9 @@ class ValveTaskState(smach.State):
         # -- Build the approach Concurrence --
         # Child 1: align to approach target (loose thresholds, long timeout)
         # Child 2: delay → freeze publisher (disable it so TF stops updating)
-        # When AlignFrame succeeds, the whole Concurrence exits.
+        # The Concurrence exits only when ALIGN_TO_APPROACH finishes; the
+        # freeze branch runs to completion (or is preempted if alignment
+        # finishes before the settle delay) without ending the Concurrence.
         approach_concurrence = smach.Concurrence(
             outcomes=["succeeded", "preempted", "aborted"],
             default_outcome="aborted",
@@ -74,7 +76,8 @@ class ValveTaskState(smach.State):
                 "preempted": {"ALIGN_TO_APPROACH": "preempted"},
                 "aborted": {"ALIGN_TO_APPROACH": "aborted"},
             },
-            child_termination_cb=lambda outcome_map: True,
+            child_termination_cb=lambda outcomes: outcomes["ALIGN_TO_APPROACH"]
+            is not None,
         )
         with approach_concurrence:
             smach.Concurrence.add(
@@ -82,8 +85,8 @@ class ValveTaskState(smach.State):
                 AlignFrame(
                     source_frame=gripper_frame,
                     target_frame=approach_target_frame,
-                    dist_threshold=0.15,
-                    yaw_threshold=0.1,
+                    dist_threshold=0.05,
+                    yaw_threshold=0.01,
                     confirm_duration=1.0,
                     timeout=30.0,
                     cancel_on_success=False,
@@ -104,19 +107,12 @@ class ValveTaskState(smach.State):
                         "aborted": "aborted",
                     },
                 )
+                # Once frozen, this branch is done — it just returns
+                # "succeeded" and idles while ALIGN_TO_APPROACH keeps running;
+                # the Concurrence's child_termination_cb ignores this outcome.
                 smach.StateMachine.add(
                     "FREEZE_PUBLISHER",
                     _SetBoolServiceState(publisher_service, req=False),
-                    transitions={
-                        "succeeded": "WAIT_FOREVER",
-                        "preempted": "preempted",
-                        "aborted": "aborted",
-                    },
-                )
-                # Sit here until the Concurrence kills us.
-                smach.StateMachine.add(
-                    "WAIT_FOREVER",
-                    DelayState(delay_time=999.0),
                     transitions={
                         "succeeded": "succeeded",
                         "preempted": "preempted",
