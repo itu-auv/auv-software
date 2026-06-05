@@ -30,6 +30,10 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test)
+endif()
+
 catkin_install_python(PROGRAMS
   scripts/euler_orientation_publisher.py
   scripts/imu_odometry_node.py

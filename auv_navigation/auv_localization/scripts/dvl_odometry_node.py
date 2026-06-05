@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from collections import deque
+
 import rospy
 from geometry_msgs.msg import Twist, WrenchStamped
 from std_msgs.msg import Bool
@@ -13,6 +15,36 @@ import time
 import tf
 import tf.transformations
 from auv_common_lib.logging.terminal_color_utils import TerminalColors
+
+
+class DvlValidityRollingStats:
+    def __init__(self, window_duration_sec):
+        self.window_duration_sec = float(window_duration_sec)
+        self.samples = deque()
+        self.invalid_count = 0
+
+    def record(self, stamp_sec, is_valid):
+        is_invalid = not bool(is_valid)
+        self.samples.append((stamp_sec, is_invalid))
+        if is_invalid:
+            self.invalid_count += 1
+        self.prune(stamp_sec)
+
+    def prune(self, now_sec):
+        oldest_allowed_sec = now_sec - self.window_duration_sec
+        while self.samples and self.samples[0][0] < oldest_allowed_sec:
+            _, was_invalid = self.samples.popleft()
+            if was_invalid:
+                self.invalid_count -= 1
+
+    def summary(self, now_sec):
+        self.prune(now_sec)
+        total_count = len(self.samples)
+        if total_count == 0:
+            return None
+
+        invalid_per_100 = (self.invalid_count / float(total_count)) * 100.0
+        return total_count, self.invalid_count, invalid_per_100
 
 
 class DvlToOdom:
@@ -47,6 +79,13 @@ class DvlToOdom:
         self.model_covariance_multiplier = rospy.get_param(
             "~model_covariance_multiplier", 10.0
         )
+        self.dvl_validity_window_sec = rospy.get_param(
+            "~dvl_validity_window_sec", 60.0
+        )
+        self.dvl_validity_log_interval_sec = rospy.get_param(
+            "~dvl_validity_log_interval_sec", 5.0
+        )
+        self.dvl_depth_warn_z = rospy.get_param("~dvl_depth_warn_z", -1.5)
 
         self.load_dynamic_model()
 
@@ -106,6 +145,9 @@ class DvlToOdom:
         rospy.loginfo(
             f"{DVL_odometry_colored} : model covariance multiplier: {self.model_covariance_multiplier}"
         )
+        rospy.loginfo(
+            f"{DVL_odometry_colored} : DVL validity eval window: {self.dvl_validity_window_sec}s, log interval: {self.dvl_validity_log_interval_sec}s"
+        )
 
         # Fallback variables
         self.desired_velocity_twist = Twist()
@@ -120,6 +162,11 @@ class DvlToOdom:
         self.odom_velocity = np.zeros(6)
         self.last_model_update = rospy.Time.now()
         self.odom_received = False
+        self.odom_z = None
+        self.dvl_validity_stats = DvlValidityRollingStats(
+            self.dvl_validity_window_sec
+        )
+        self.last_dvl_validity_log_time = rospy.Time(0)
 
     def load_dynamic_model(self):
         try:
@@ -207,6 +254,7 @@ class DvlToOdom:
         self.desired_velocity_twist = desired_velocity_msg
 
     def odom_callback(self, odom_msg):
+        self.odom_z = odom_msg.pose.pose.position.z
         self.odom_velocity[0] = odom_msg.twist.twist.linear.x
         self.odom_velocity[1] = odom_msg.twist.twist.linear.y
         self.odom_velocity[2] = odom_msg.twist.twist.linear.z
@@ -314,6 +362,38 @@ class DvlToOdom:
 
         return self.estimated_velocity
 
+    def maybe_log_dvl_validity_stats(self, current_time, is_valid):
+        self.dvl_validity_stats.record(current_time.to_sec(), is_valid)
+
+        if (
+            current_time - self.last_dvl_validity_log_time
+        ).to_sec() < self.dvl_validity_log_interval_sec:
+            return
+
+        self.last_dvl_validity_log_time = current_time
+        summary = self.dvl_validity_stats.summary(current_time.to_sec())
+        if summary is None:
+            return
+
+        total_count, invalid_count, invalid_per_100 = summary
+        odom_z_text = "unknown" if self.odom_z is None else f"{self.odom_z:.2f}"
+        rospy.loginfo(
+            "DVL validity eval: last %.0fs -> %d/%d invalid (%.1f invalid per 100 messages), odom_z=%s"
+            % (
+                self.dvl_validity_window_sec,
+                invalid_count,
+                total_count,
+                invalid_per_100,
+                odom_z_text,
+            )
+        )
+
+        if self.odom_z is not None and self.odom_z < self.dvl_depth_warn_z:
+            rospy.logwarn(
+                "DVL validity eval: odometry z %.2f is below %.2f; still computing invalid ratio"
+                % (self.odom_z, self.dvl_depth_warn_z)
+            )
+
     def dvl_callback(self, velocity_msg, is_valid_msg):
         self.is_dvl_enabled = True
 
@@ -321,6 +401,8 @@ class DvlToOdom:
             return
 
         current_time = rospy.Time.now()
+        self.maybe_log_dvl_validity_stats(current_time, is_valid_msg.data)
+
         dt = (current_time - self.last_model_update).to_sec()
         self.last_model_update = current_time
 
