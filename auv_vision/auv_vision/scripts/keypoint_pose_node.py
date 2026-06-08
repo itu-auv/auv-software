@@ -38,14 +38,25 @@ class OutputFrame:
 
 
 @dataclass
-class StateKeypoint:
-    """A keypoint outside the PnP set whose direction in the model's YZ plane
-    overrides the rotation about model X (e.g. valve handle angle)."""
+class HandleLine:
+    """Keypoints outside the PnP set that lie on the valve handle line.
 
-    keypoint_id: int
+    Collinearity is checked directly in the image: the keypoint pixels are fit
+    with a 2D line and the max perpendicular residual must stay below
+    `max_line_error_px` (pixels). This gate is independent of the PnP attitude —
+    a straight handle projects to a straight line regardless of how the pose
+    wobbles. The 3D handle direction (which overrides rotation about model X)
+    is then taken from the same keypoints back-projected onto the valve plane.
+    `arrow_id` fixes the line's sign — the axis points from the face centre
+    toward the arrow keypoint. All listed keypoints must be present and
+    high-confidence or the frame is skipped."""
+
+    keypoint_ids: List[int]
+    arrow_id: int
     output_axis: str = "z"
     confidence_threshold: float = 0.5
     parallel_eps_rad: float = 0.087
+    max_line_error_px: float = 5.0
 
 
 @dataclass
@@ -61,7 +72,7 @@ class KeypointObjectConfig:
     reprojection_error_threshold: float
     confidence_threshold: float
     refine_iterative: bool
-    state_keypoint: Optional[StateKeypoint] = None
+    handle_line: Optional[HandleLine] = None
 
 
 @dataclass
@@ -105,8 +116,8 @@ class PnPEstimator:
         return self.config.name
 
     @property
-    def has_state_keypoint(self) -> bool:
-        return self.config.state_keypoint is not None
+    def has_handle_line(self) -> bool:
+        return self.config.handle_line is not None
 
     def estimate_pose(
         self, batch: KeypointBatch, K: np.ndarray, D: np.ndarray
@@ -185,46 +196,100 @@ class PnPEstimator:
 
         return (rvec, tvec) if ok else (None, None)
 
-    def apply_state_keypoint(
-        self, pose: Pose, batch: KeypointBatch, K: np.ndarray, D: np.ndarray
-    ) -> Optional[Pose]:
-        """Replace rotation about model X with the in-plane direction toward
-        the state keypoint. Returns None when missing/low-conf/degenerate."""
-        sk = self.config.state_keypoint
-        matches = np.where(batch.ids == sk.keypoint_id)[0]
-        if len(matches) == 0:
-            return None
-        i = matches[0]
-        if batch.confidences[i] < sk.confidence_threshold:
-            return None
+    @staticmethod
+    def _ray_plane_intersection(pixel, K, D, normal, plane_point, parallel_eps_rad):
+        """Back-project a pixel onto the valve plane (camera frame).
 
-        pixel = batch.pixels[i].reshape(1, 1, 2).astype(np.float64)
-        undist = cv2.undistortPoints(pixel, K, D)
+        Returns the 3D intersection of the pixel ray with the plane through
+        `plane_point` with normal `normal`, or None when the ray is nearly
+        in-plane (valve seen edge-on) or the hit is behind the camera.
+        """
+        undist = cv2.undistortPoints(pixel.reshape(1, 1, 2).astype(np.float64), K, D)
         ray = np.array([undist[0, 0, 0], undist[0, 0, 1], 1.0])
-
-        normal = pose.R[:, 0]
-        center = pose.t.flatten()
 
         # |normal · ray| / |ray| = sin(angle between ray and plane); skip
         # when the valve is seen edge-on (denom ≈ 0 → ray nearly in-plane).
         denom = float(normal @ ray)
         ray_norm = float(np.linalg.norm(ray))
-        if abs(denom) < np.sin(sk.parallel_eps_rad) * ray_norm:
+        if abs(denom) < np.sin(parallel_eps_rad) * ray_norm:
             return None
 
-        t_param = float(normal @ center) / denom
+        t_param = float(normal @ plane_point) / denom
         if t_param <= 0.0:
             return None
+        return t_param * ray
 
-        kp_camera = t_param * ray
-        raw = kp_camera - center
-        in_plane = raw - (normal @ raw) * normal
-        norm = float(np.linalg.norm(in_plane))
+    def apply_handle_line(
+        self, pose: Pose, batch: KeypointBatch, K: np.ndarray, D: np.ndarray
+    ) -> Optional[Pose]:
+        """Replace rotation about model X with the direction of the line fit
+        through the handle keypoints. Returns None when too few keypoints are
+        available, the fit residual exceeds the threshold, or the geometry is
+        degenerate."""
+        hl = self.config.handle_line
+        normal = pose.R[:, 0]
+        center = pose.t.flatten()
+
+        # Gather present, high-confidence handle keypoint pixels, in the order
+        # of hl.keypoint_ids so the arrow stays identifiable downstream.
+        pixels: List[np.ndarray] = []
+        for kid in hl.keypoint_ids:
+            matches = np.where(batch.ids == kid)[0]
+            if len(matches) == 0:
+                break
+            i = matches[0]
+            if batch.confidences[i] < hl.confidence_threshold:
+                break
+            pixels.append(batch.pixels[i].astype(np.float64))
+
+        # Require every listed handle keypoint (over-determined + meaningful gate).
+        if len(pixels) < len(hl.keypoint_ids):
+            return None
+        pixels = np.stack(pixels)  # (N, 2)
+
+        # ── Collinearity gate, in image pixels (independent of PnP attitude).
+        # Undistort to pixel coords (P=K) so the residual is a true pixel error.
+        und = cv2.undistortPoints(pixels.reshape(-1, 1, 2), K, D, P=K).reshape(-1, 2)
+        c2 = und - und.mean(axis=0)
+        _, _, vt2 = np.linalg.svd(c2)
+        dir2 = vt2[0]
+        perp2 = c2 - np.outer(c2 @ dir2, dir2)
+        max_err = float(np.linalg.norm(perp2, axis=1).max())
+        if max_err > hl.max_line_error_px:
+            rospy.logwarn_throttle(
+                2.0,
+                f"'{self.config.name}': handle line fit residual "
+                f"{max_err:.1f}px > {hl.max_line_error_px:.1f}px, skipping",
+            )
+            return None
+
+        # ── Handle direction in 3D: back-project onto the valve plane and fit a
+        # line through the in-plane points (only the direction is used, not the
+        # residual — that was already gated above in clean pixel space).
+        plane_pts: List[np.ndarray] = []
+        for px in pixels:
+            pt = self._ray_plane_intersection(
+                px, K, D, normal, center, hl.parallel_eps_rad
+            )
+            if pt is None:  # valve seen edge-on → direction undefined
+                return None
+            plane_pts.append(pt)
+        pts = np.stack(plane_pts)
+        centered = pts - pts.mean(axis=0)
+        _, _, vt = np.linalg.svd(centered)
+        direction = vt[0]
+
+        # Force exactly in-plane, then orient: point from face centre to arrow.
+        direction = direction - (normal @ direction) * normal
+        norm = float(np.linalg.norm(direction))
         if norm < 1e-6:
             return None
-        direction = in_plane / norm
+        direction = direction / norm
+        arrow_pt = plane_pts[hl.keypoint_ids.index(hl.arrow_id)]
+        if float(direction @ (arrow_pt - center)) < 0.0:
+            direction = -direction
 
-        if sk.output_axis == "z":
+        if hl.output_axis == "z":
             x_axis, z_axis = normal, direction
             y_axis = np.cross(z_axis, x_axis)
         else:  # "y", validated at config load
@@ -289,12 +354,12 @@ class CameraHandler:
                 )
                 continue
 
-            if est.has_state_keypoint:
-                pose = est.apply_state_keypoint(pose, batch, K, D)
+            if est.has_handle_line:
+                pose = est.apply_handle_line(pose, batch, K, D)
                 if pose is None:
                     rospy.loginfo_throttle(
                         2.0,
-                        f"[{self.name}] '{est.name}': state keypoint missing "
+                        f"[{self.name}] '{est.name}': handle line missing "
                         f"or degenerate, skipping publish",
                     )
                     continue
@@ -399,26 +464,41 @@ def load_config(config_path: str) -> Tuple[List[KeypointObjectConfig], Dict]:
             for out in obj_cfg["outputs"]
         ]
 
-        state_kp = None
-        if "state_keypoint" in obj_cfg:
-            sk_cfg = obj_cfg["state_keypoint"]
-            output_axis = sk_cfg.get("output_axis", "z")
+        handle_line = None
+        if "handle_line" in obj_cfg:
+            hl_cfg = obj_cfg["handle_line"]
+            output_axis = hl_cfg.get("output_axis", "z")
             if output_axis not in ("y", "z"):
                 raise ValueError(
-                    f"state_keypoint.output_axis for '{obj_cfg['name']}' "
+                    f"handle_line.output_axis for '{obj_cfg['name']}' "
                     f"must be 'y' or 'z', got '{output_axis}'"
                 )
-            sk_id = int(sk_cfg["keypoint_id"])
-            if sk_id in pose_keypoints:
+            keypoint_ids = [int(k) for k in hl_cfg["keypoint_ids"]]
+            if len(keypoint_ids) < 3:
                 raise ValueError(
-                    f"state_keypoint.keypoint_id {sk_id} for "
-                    f"'{obj_cfg['name']}' clashes with a pose model id"
+                    f"handle_line.keypoint_ids for '{obj_cfg['name']}' must list "
+                    f"at least 3 keypoints, got {keypoint_ids}"
                 )
-            state_kp = StateKeypoint(
-                keypoint_id=sk_id,
+            clash = [k for k in keypoint_ids if k in pose_keypoints]
+            if clash:
+                raise ValueError(
+                    f"handle_line.keypoint_ids {clash} for '{obj_cfg['name']}' "
+                    f"clash with pose model ids — handle points must not be "
+                    f"used by PnP"
+                )
+            arrow_id = int(hl_cfg["arrow_id"])
+            if arrow_id not in keypoint_ids:
+                raise ValueError(
+                    f"handle_line.arrow_id {arrow_id} for '{obj_cfg['name']}' "
+                    f"must be one of keypoint_ids {keypoint_ids}"
+                )
+            handle_line = HandleLine(
+                keypoint_ids=keypoint_ids,
+                arrow_id=arrow_id,
                 output_axis=output_axis,
-                confidence_threshold=float(sk_cfg.get("confidence_threshold", 0.5)),
-                parallel_eps_rad=float(sk_cfg.get("parallel_eps_rad", 0.087)),
+                confidence_threshold=float(hl_cfg.get("confidence_threshold", 0.5)),
+                parallel_eps_rad=float(hl_cfg.get("parallel_eps_rad", 0.087)),
+                max_line_error_px=float(hl_cfg.get("max_line_error_px", 5.0)),
             )
 
         configs.append(
@@ -436,7 +516,7 @@ def load_config(config_path: str) -> Tuple[List[KeypointObjectConfig], Dict]:
                 ),
                 confidence_threshold=obj_cfg.get("confidence_threshold", 0.3),
                 refine_iterative=bool(obj_cfg.get("refine_iterative", False)),
-                state_keypoint=state_kp,
+                handle_line=handle_line,
             )
         )
 

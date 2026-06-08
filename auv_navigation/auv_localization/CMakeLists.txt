@@ -30,7 +30,7 @@ generate_messages(
 )
 
 catkin_package(
-  CATKIN_DEPENDS angles auv_msgs geometry_msgs message_runtime nav_msgs std_msgs tf
+  CATKIN_DEPENDS angles auv_msgs dynamic_reconfigure geometry_msgs message_runtime nav_msgs std_msgs tf
 )
 
 include_directories(

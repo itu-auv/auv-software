@@ -22,12 +22,13 @@ cameras:
     camera_info_topic: "/taluy/cameras/cam_bottom/camera_info"
     keypoint_topic: "/keypoint_result_bottom"
 
-# Shared 9-point pose model: 8 bolts on the flange face (0.103 m radius ring,
-# 45° spacing) plus the face centre. Both valves are the same mesh, so the
-# coordinates in the link's local frame are identical.
+# Shared 8-point pose model: 8 bolts on the flange face (0.103 m radius ring,
+# 45° spacing). Both valves are the same mesh, so the coordinates in the link's
+# local frame are identical. The face centre (kp9) is NOT a PnP point — it now
+# feeds the handle line fit below instead.
 _valve_pose_model: &valve_pose_model
   - shape: points
-    ids: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    ids: [1, 2, 3, 4, 5, 6, 7, 8]
     args:
       - [0.020, -0.072832, -0.072832] # kp1: bolt -135°
       - [0.020, 0.000000, -0.103000] # kp2: bolt -90°
@@ -37,16 +38,20 @@ _valve_pose_model: &valve_pose_model
       - [0.020, 0.000000, 0.103000] # kp6: bolt 90°
       - [0.020, -0.072832, 0.072832] # kp7: bolt 135°
       - [0.020, -0.103000, 0.000000] # kp8: bolt 180°
-      - [0.000, 0.000000, 0.000000] # kp9: face center
 
-# kp10 is the handle tip — encodes the valve's open/closed state into the
-# published frame's roll about the flange normal. Skip publishing rather than
-# emit a frame with a meaningless yaw if the handle is missing/low-conf.
-_valve_state_keypoint: &valve_state_keypoint
-  keypoint_id: 10
+# Handle line: kp9 (face centre), kp10 (arrow tip) and kp11 (the new handle-end
+# point) are collinear along the valve handle. None of them are used by PnP.
+# Collinearity is gated in image pixels (attitude-independent); the direction
+# that sets the published frame's roll about the flange normal comes from the
+# same points back-projected onto the valve plane, signed by `arrow_id` (axis
+# points from the face centre toward the arrow tip). All 3 must be present.
+_valve_handle_line: &valve_handle_line
+  keypoint_ids: [9, 10, 11]
+  arrow_id: 10
   output_axis: z
   confidence_threshold: 0.5
   parallel_eps_rad: 0.087 # ~5°: skip if valve seen edge-on
+  max_line_error_px: 5.0 # px: max perpendicular residual of the 2D line fit
 
 objects:
   - name: valve_front
@@ -62,7 +67,7 @@ objects:
     outputs:
       - child_frame_id: tac/valve_front
         offset: [0.0, 0.0, 0.0]
-    state_keypoint: *valve_state_keypoint
+    handle_line: *valve_handle_line
 
   - name: valve_bottom
     object_names: [valve_bottom]
@@ -77,4 +82,4 @@ objects:
     outputs:
       - child_frame_id: tac/valve_bottom
         offset: [0.0, 0.0, 0.0]
-    state_keypoint: *valve_state_keypoint
+    handle_line: *valve_handle_line

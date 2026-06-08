@@ -45,7 +45,11 @@ _scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
-from utils.vitpose_inference import SKELETON_10, load_valve_pose  # noqa: E402
+from utils.vitpose_inference import (  # noqa: E402
+    SKELETON_10,
+    SKELETON_11,
+    load_valve_pose,
+)
 
 
 SKELETON_COLOR = (0, 255, 0)
@@ -84,6 +88,10 @@ class ValveKeypointNode:
             os.path.join(det_pkg, "models", "vitTracker.onnx"),
         )
         self.device = rospy.get_param("~device", "cpu")
+        # Keypoint count for the TensorRT (.engine) backend, where the output
+        # channel count can't be auto-detected. Ignored by the PyTorch (.pth)
+        # backend, which reads it straight from the checkpoint.
+        self.vitpose_num_kps = int(rospy.get_param("~vitpose_num_kps", 11))
 
         # Confidence gate for publishing individual keypoints downstream.
         self.conf_threshold = float(rospy.get_param("~conf_threshold", 0.5))
@@ -128,7 +136,11 @@ class ValveKeypointNode:
         rospy.loginfo(
             f"Loading ViTPose from {self.vitpose_model_path} (device={self.device})"
         )
-        self.vp = load_valve_pose(self.vitpose_model_path, device=self.device)
+        self.vp = load_valve_pose(
+            self.vitpose_model_path,
+            device=self.device,
+            num_kps=self.vitpose_num_kps,
+        )
         rospy.loginfo(f"ViTPose ready ({self.vp.num_kps} keypoints).")
 
         if not os.path.isfile(self.vit_tracker_model_path):
@@ -537,11 +549,12 @@ class ValveKeypointNode:
 
             if kps is not None and scores is not None:
                 n_kps = len(kps)
-                skeleton = (
-                    SKELETON_10
-                    if n_kps >= 10
-                    else [(i, (i + 1) % 8) for i in range(min(n_kps, 8))]
-                )
+                if n_kps >= 11:
+                    skeleton = SKELETON_11
+                elif n_kps >= 10:
+                    skeleton = SKELETON_10
+                else:
+                    skeleton = [(i, (i + 1) % 8) for i in range(min(n_kps, 8))]
                 for a, b in skeleton:
                     if (
                         a < n_kps
@@ -561,9 +574,11 @@ class ValveKeypointNode:
                     pt = (int(kps[i, 0]), int(kps[i, 1]))
                     conf = float(scores[i, 0])
                     if i == 8:
-                        label = f"O ({conf:.2f})"
+                        label = f"C ({conf:.2f})"  # face centre
                     elif i == 9:
-                        label = f"H ({conf:.2f})"
+                        label = f"A ({conf:.2f})"  # arrow tip
+                    elif i == 10:
+                        label = f"E ({conf:.2f})"  # handle end
                     else:
                         label = f"{i+1} ({conf:.2f})"
                     if conf > self.conf_threshold:

@@ -490,9 +490,11 @@ def keypoints_from_heatmaps(heatmaps, center, scale, kernel=11):
 
 # Adjacent pairs connecting the 8 bolt-hole keypoints in a circular ring.
 # Indices 0–7 are arranged at 45° increments around the valve face.
-# Index 8 = valve face origin, index 9 = valve stem tip (if present).
+# Index 8 = face centre, index 9 = arrow tip, index 10 = handle-end point.
+# Indices 8/9/10 are collinear along the valve handle.
 SKELETON_8 = [(i, (i + 1) % 8) for i in range(8)]
-SKELETON_10 = SKELETON_8 + [(8, 9)]  # origin → stem tip
+SKELETON_10 = SKELETON_8 + [(8, 9)]  # centre → arrow tip
+SKELETON_11 = SKELETON_8 + [(9, 8), (8, 10)]  # arrow tip ── centre ── handle end
 SKELETON = SKELETON_8  # default for backward compat
 
 # Horizontal-flip keypoint swap map for TTA.
@@ -648,7 +650,7 @@ class ValvePoseTRT:
                      Must match the checkpoint used to export the ONNX.
     """
 
-    def __init__(self, engine_path: str, num_kps: int = 10):
+    def __init__(self, engine_path: str, num_kps: int = 11):
         if not os.path.isfile(engine_path):
             raise FileNotFoundError(f"TRT engine not found: {engine_path}")
 
@@ -791,7 +793,7 @@ class ValvePoseTRT:
 # ---------------------------------------------------------------------------
 
 
-def load_valve_pose(ckpt: str, device: str = "cuda", num_kps: int = 10):
+def load_valve_pose(ckpt: str, device: str = "cuda", num_kps: int = 11):
     """Return a ValvePose-compatible object based on the file extension.
 
     `.engine`           → ValvePoseTRT  (TensorRT runtime, GPU only)
