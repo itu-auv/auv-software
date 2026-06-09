@@ -66,7 +66,7 @@ class DockingTaskState(smach.State):
                 "SET_SEARCH_DEPTH",
                 SetDepthState(depth=search_depth, timeout=10.0),
                 transitions={
-                    "succeeded": "ENABLE_DOCKING_TRAJECTORY",
+                    "succeeded": "SEARCH_FOR_STATION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },

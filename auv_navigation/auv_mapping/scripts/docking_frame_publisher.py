@@ -18,6 +18,10 @@ from geometry_msgs.msg import Pose, TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
 from dynamic_reconfigure.server import Server
 
+from auv_msgs.srv import (
+    SetObjectTransform,
+    SetObjectTransformRequest,
+)
 from auv_mapping.cfg import DockingTrajectoryConfig
 
 
@@ -29,7 +33,11 @@ class DockingFramePublisher:
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+
+        self.set_object_transform_service = rospy.ServiceProxy(
+            "set_object_transform", SetObjectTransform
+        )
+        self.set_object_transform_service.wait_for_service()
 
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.parent_frame = rospy.get_param("~parent_frame", "docking_station")
@@ -88,6 +96,15 @@ class DockingFramePublisher:
         t.transform.rotation = pose.orientation
         return t
 
+    def send_transform(self, transform):
+        req = SetObjectTransformRequest()
+        req.transform = transform
+        resp = self.set_object_transform_service.call(req)
+        if not resp.success:
+            rospy.logerr(
+                f"Failed to set transform for {transform.child_frame_id}: {resp.message}"
+            )
+
     def apply_offset_to_pose(
         self, base_pose: Pose, offset_x: float, offset_y: float, offset_z: float
     ) -> Pose:
@@ -113,7 +130,7 @@ class DockingFramePublisher:
             docking_station_tf = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.parent_frame,
-                rospy.Time(0),
+                rospy.Time.now(),
                 rospy.Duration(0.1),
             )
         except (
@@ -122,7 +139,7 @@ class DockingFramePublisher:
             tf2_ros.ExtrapolationException,
         ) as e:
             rospy.logwarn_throttle(
-                5.0, f"TF lookup for {self.parent_frame} failed: {e}"
+                5.0, f" FARUK MİMARLAR :TF lookup for {self.parent_frame} failed: {e}"
             )
             return
 
@@ -150,8 +167,8 @@ class DockingFramePublisher:
             self.pre_touch_target_frame, pre_touch_pose, current_time
         )
 
-        self.tf_broadcaster.sendTransform(puck_transform)
-        self.tf_broadcaster.sendTransform(pre_touch_transform)
+        self.send_transform(puck_transform)
+        self.send_transform(pre_touch_transform)
 
     def spin(self):
         rate = rospy.Rate(10.0)
