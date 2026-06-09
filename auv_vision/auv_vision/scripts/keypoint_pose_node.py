@@ -32,8 +32,8 @@ from utils.detection_utils import SHAPE_FACTORIES, transform_to_odom_and_publish
 # ─────────────────────────────────────────────── debug viz constants
 
 # Keypoint skeleton, 0-based indices into the per-frame keypoint array (id-1).
-# 0..7 = bolt ring, 8 = face centre, 9 = arrow tip, 10 = handle end. The handle
-# triplet (9-8-10) draws the arrow tip ── centre ── handle end line.
+# 0..7 = bolt ring, 8 = face centre, 9 & 10 = the two (symmetric) handle ends.
+# The triplet (9-8-10) draws the handle line through the face centre.
 _SKELETON = [(i, (i + 1) % 8) for i in range(8)] + [(9, 8), (8, 10)]
 
 COLOR_INLIER = (0, 220, 0)  # green — PnP inlier
@@ -48,8 +48,9 @@ COLOR_ACCEPT = (0, 220, 0)
 COLOR_REJECT = (0, 0, 255)
 COLOR_DIST = (255, 255, 0)
 
-# Special single-letter labels for the handle keypoints.
-_KP_LABELS = {9: "C", 10: "A", 11: "E"}
+# Special labels for the handle keypoints (C = face centre; the two handle ends
+# are symmetric, so they just show their numeric ids).
+_KP_LABELS = {9: "C"}
 
 
 @dataclass
@@ -74,12 +75,12 @@ class HandleLine:
     a straight handle projects to a straight line regardless of how the pose
     wobbles. The 3D handle direction (which overrides rotation about model X)
     is then taken from the same keypoints back-projected onto the valve plane.
-    `arrow_id` fixes the line's sign — the axis points from the face centre
-    toward the arrow keypoint. All listed keypoints must be present and
+    The handle is symmetric along its line, so the direction's sign carries no
+    meaning — it's pinned only for temporal continuity (see resolve_orientation),
+    not to any particular keypoint. All listed keypoints must be present and
     high-confidence or the frame is skipped."""
 
     keypoint_ids: List[int]
-    arrow_id: int
     output_axis: str = "z"
     confidence_threshold: float = 0.5
     parallel_eps_rad: float = 0.087
@@ -324,17 +325,20 @@ class PnPEstimator:
 
     def apply_handle_line(
         self, pose: Pose, batch: KeypointBatch, K: np.ndarray, D: np.ndarray
-    ) -> Optional[Pose]:
-        """Replace rotation about model X with the direction of the line fit
-        through the handle keypoints. Returns None when too few keypoints are
+    ) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+        """Fit the handle line and return (flange normal, in-plane handle
+        direction) in the camera frame. Returns None when too few keypoints are
         available, the fit residual exceeds the threshold, or the geometry is
-        degenerate."""
+        degenerate.
+
+        The handle is symmetric, so the returned direction's sign is arbitrary
+        (whatever the SVD hands back). resolve_orientation pins it for temporal
+        continuity — nothing here depends on which keypoint id is on which end."""
         hl = self.config.handle_line
         normal = pose.R[:, 0]
         center = pose.t.flatten()
 
-        # Gather present, high-confidence handle keypoint pixels, in the order
-        # of hl.keypoint_ids so the arrow stays identifiable downstream.
+        # Gather present, high-confidence handle keypoint pixels.
         pixels: List[np.ndarray] = []
         for kid in hl.keypoint_ids:
             matches = np.where(batch.ids == kid)[0]
@@ -382,17 +386,13 @@ class PnPEstimator:
         _, _, vt = np.linalg.svd(centered)
         direction = vt[0]
 
-        # Force exactly in-plane, then orient: point from face centre to arrow.
+        # Force exactly in-plane, then normalize. Sign is left arbitrary —
+        # resolve_orientation pins it for continuity.
         direction = direction - (normal @ direction) * normal
         norm = float(np.linalg.norm(direction))
         if norm < 1e-6:
             return None
-        direction = direction / norm
-        arrow_pt = plane_pts[hl.keypoint_ids.index(hl.arrow_id)]
-        if float(direction @ (arrow_pt - center)) < 0.0:
-            direction = -direction
-
-        return Pose(R=self._assemble_frame(normal, direction, hl.output_axis), t=pose.t)
+        return normal, direction / norm
 
     @staticmethod
     def _assemble_frame(
@@ -441,15 +441,29 @@ class PnPEstimator:
         to the 8-fold bolt relabeling, and nothing here touches localization),
         so this survives both bolt label swaps and DVL/odom drift."""
         hl = self.config.handle_line
-        axis_col = 2 if hl.output_axis == "z" else 1
 
         live = self.apply_handle_line(pnp_pose, batch, K, D)
         if live is not None:
+            normal, direction = live
+            # The handle is symmetric, so direction's sign is free. Pin it to
+            # the last good direction (transported onto the current normal) so
+            # the published frame doesn't flip 180° when the model swaps the
+            # handle keypoint labels or the SVD sign wobbles between frames.
+            if self._handle_dir is not None and self._handle_normal is not None:
+                ref = (
+                    self._min_arc_rotation(self._handle_normal, normal)
+                    @ self._handle_dir
+                )
+                if float(direction @ ref) < 0.0:
+                    direction = -direction
             # Anchor: cache the flange normal + handle direction from this frame.
-            self._handle_normal = live.R[:, 0].copy()
-            self._handle_dir = live.R[:, axis_col].copy()
+            self._handle_normal = normal.copy()
+            self._handle_dir = direction.copy()
             self._handle_time = stamp
-            return live, "live"
+            pose = Pose(
+                R=self._assemble_frame(normal, direction, hl.output_axis), t=pnp_pose.t
+            )
+            return pose, "live"
 
         # Handle occluded → transport the cached direction onto the live normal.
         if self._handle_normal is None or self._handle_time is None:
@@ -936,15 +950,8 @@ def load_config(config_path: str) -> Tuple[List[KeypointObjectConfig], Dict]:
                     f"clash with pose model ids — handle points must not be "
                     f"used by PnP"
                 )
-            arrow_id = int(hl_cfg["arrow_id"])
-            if arrow_id not in keypoint_ids:
-                raise ValueError(
-                    f"handle_line.arrow_id {arrow_id} for '{obj_cfg['name']}' "
-                    f"must be one of keypoint_ids {keypoint_ids}"
-                )
             handle_line = HandleLine(
                 keypoint_ids=keypoint_ids,
-                arrow_id=arrow_id,
                 output_axis=output_axis,
                 confidence_threshold=float(hl_cfg.get("confidence_threshold", 0.5)),
                 parallel_eps_rad=float(hl_cfg.get("parallel_eps_rad", 0.087)),
