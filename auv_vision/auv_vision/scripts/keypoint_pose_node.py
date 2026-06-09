@@ -162,6 +162,12 @@ class PnPEstimator:
         self._solver_flag = self._SOLVER_FLAGS.get(
             config.solver, cv2.SOLVEPNP_ITERATIVE
         )
+        # Last good handle observation (camera frame): the flange normal and the
+        # in-plane handle direction, cached so we can transport the roll onto the
+        # current frame while the handle keypoints are occluded.
+        self._handle_normal: Optional[np.ndarray] = None
+        self._handle_dir: Optional[np.ndarray] = None
+        self._handle_time: Optional[rospy.Time] = None
 
     @property
     def name(self) -> str:
@@ -386,14 +392,86 @@ class PnPEstimator:
         if float(direction @ (arrow_pt - center)) < 0.0:
             direction = -direction
 
-        if hl.output_axis == "z":
+        return Pose(R=self._assemble_frame(normal, direction, hl.output_axis), t=pose.t)
+
+    @staticmethod
+    def _assemble_frame(
+        normal: np.ndarray, direction: np.ndarray, output_axis: str
+    ) -> np.ndarray:
+        """Build a rotation matrix with X = flange normal and the handle
+        `direction` placed on the configured in-plane axis."""
+        if output_axis == "z":
             x_axis, z_axis = normal, direction
             y_axis = np.cross(z_axis, x_axis)
         else:  # "y", validated at config load
             x_axis, y_axis = normal, direction
             z_axis = np.cross(x_axis, y_axis)
+        return np.column_stack([x_axis, y_axis, z_axis])
 
-        return Pose(R=np.column_stack([x_axis, y_axis, z_axis]), t=pose.t)
+    @staticmethod
+    def _min_arc_rotation(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        """Minimal (shortest-arc) rotation matrix taking unit vector a to b.
+
+        Rodrigues' formula about the axis a×b. Used to transport a cached
+        handle direction as the flange normal tilts, with no twist about the
+        normal — the "good enough" assumption when the camera doesn't roll
+        about the valve axis between the anchor frame and now."""
+        v = np.cross(a, b)
+        c = float(a @ b)
+        s = float(np.linalg.norm(v))
+        if s < 1e-9:  # already (anti)parallel
+            return np.eye(3) if c > 0 else -np.eye(3)
+        vx = np.array([[0.0, -v[2], v[1]], [v[2], 0.0, -v[0]], [-v[1], v[0], 0.0]])
+        return np.eye(3) + vx + vx @ vx * ((1.0 - c) / (s * s))
+
+    def resolve_orientation(
+        self, pnp_pose: Pose, batch: KeypointBatch, K, D, stamp
+    ) -> Tuple[Optional[Pose], str]:
+        """Apply the handle-line roll, with an occlusion fallback that transports
+        the last good handle direction onto the current frame's flange normal.
+
+        Returns (pose, source) where source is:
+          - "live"           : handle keypoints present this frame (re-anchored)
+          - "transported Xs"  : handle occluded; cached direction carried onto the
+                                current normal (X s since the last live handle)
+          - "none"           : handle occluded and no anchor yet → pose is None
+
+        Both the cached direction and the current normal live in the camera
+        frame and come from label-free geometry (the flange normal is invariant
+        to the 8-fold bolt relabeling, and nothing here touches localization),
+        so this survives both bolt label swaps and DVL/odom drift."""
+        hl = self.config.handle_line
+        axis_col = 2 if hl.output_axis == "z" else 1
+
+        live = self.apply_handle_line(pnp_pose, batch, K, D)
+        if live is not None:
+            # Anchor: cache the flange normal + handle direction from this frame.
+            self._handle_normal = live.R[:, 0].copy()
+            self._handle_dir = live.R[:, axis_col].copy()
+            self._handle_time = stamp
+            return live, "live"
+
+        # Handle occluded → transport the cached direction onto the live normal.
+        if self._handle_normal is None or self._handle_time is None:
+            return None, "none"
+
+        age = (stamp - self._handle_time).to_sec()
+
+        # PnP's normal + translation are invariant to the bolt relabeling, so
+        # they're trustworthy even though PnP's in-plane (roll) axes are not.
+        n_curr = pnp_pose.R[:, 0]
+        n_curr = n_curr / np.linalg.norm(n_curr)
+        Rm = self._min_arc_rotation(self._handle_normal, n_curr)
+        direction = Rm @ self._handle_dir
+        # Re-seat exactly in-plane against the current normal, then normalize.
+        direction = direction - (n_curr @ direction) * n_curr
+        norm = float(np.linalg.norm(direction))
+        if norm < 1e-6:
+            return None, "none"
+        direction = direction / norm
+
+        R = self._assemble_frame(n_curr, direction, hl.output_axis)
+        return Pose(R=R, t=pnp_pose.t), f"transported {age:.1f}s"
 
 
 class CameraHandler:
@@ -485,6 +563,7 @@ class CameraHandler:
             final_pose: Optional[Pose] = outcome.pose
             accepted = False
             reason = outcome.reason
+            handle_source = ""
             outputs_dbg: List[OutputDebug] = []
 
             if not outcome.success:
@@ -496,10 +575,12 @@ class CameraHandler:
             else:
                 publish_pose = outcome.pose
                 if est.has_handle_line:
-                    publish_pose = est.apply_handle_line(outcome.pose, batch, K, D)
+                    publish_pose, handle_source = est.resolve_orientation(
+                        outcome.pose, batch, K, D, msg.header.stamp
+                    )
 
                 if publish_pose is None:
-                    reason = "handle line missing/degenerate"
+                    reason = "handle line missing (no handle anchor)"
                     rospy.loginfo_throttle(
                         2.0,
                         f"[{self.name}] '{est.name}': {reason}, skipping publish",
@@ -519,6 +600,7 @@ class CameraHandler:
                 "final_pose": final_pose if accepted else outcome.pose,
                 "accepted": accepted,
                 "reason": reason,
+                "handle_source": handle_source,
                 "outputs": outputs_dbg,
             }
 
@@ -760,7 +842,13 @@ class CameraHandler:
 
         status = "ACCEPTED" if d["accepted"] else "REJECTED"
         status_color = COLOR_ACCEPT if d["accepted"] else COLOR_REJECT
-        status_txt = status if d["accepted"] else f"{status}: {d['reason']}"
+        handle_src = d.get("handle_source", "")
+        if d["accepted"]:
+            status_txt = (
+                status if not handle_src else f"{status} (handle: {handle_src})"
+            )
+        else:
+            status_txt = f"{status}: {d['reason']}"
         cv2.putText(
             vis,
             status_txt,
