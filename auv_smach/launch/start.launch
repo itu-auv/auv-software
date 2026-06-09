@@ -14,6 +14,8 @@
         bin:NAVIGATE_TO_BIN_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
         gps:NAVIGATE_TO_GPS_TARGET,
+        tac_pinger:NAVIGATE_TO_TAC_PINGER,
+        pinger:NAVIGATE_TO_TAC_PINGER,
         acoustic_tx:ACOUSTIC_TRANSMITTER,
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
@@ -35,6 +37,7 @@
         'NAVIGATE_TO_BIN_TASK',
         'NAVIGATE_TO_OCTAGON_TASK',
         'NAVIGATE_TO_GPS_TARGET',
+        'NAVIGATE_TO_TAC_PINGER',
         'ACOUSTIC_TRANSMITTER',
         'ACOUSTIC_RECEIVER',
         'NAVIGATE_RETURN_THROUGH_GATE',
@@ -104,6 +107,12 @@
 
             <!--acoustic.py-->
             <remap from="modem/data/rx" to="modem/data/rx"/>
+
+            <!--tac_pinger.py-->
+            <param name="tac_pinger_marker_topic" value="/taluy/acoustic/hydrophone/marker"/>
+            <param name="tac_pinger_odom_frame" value="odom"/>
+            <param name="tac_pinger_output_frame" value="tac_pinger_link"/>
+            <param name="tac_pinger_capture_timeout" value="5.0"/>
 
             <!-- octagon.py Gripper Service -->
             <remap from="actuators/gripper/close" to="actuators/gripper/close"/>

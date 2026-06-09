@@ -15,6 +15,7 @@ from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
+from auv_smach.tac_pinger import TacPingerState
 from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
@@ -114,6 +115,18 @@ class MainStateMachineNode:
         # GPS parameters
         self.gps_depth = -1.0
         self.gps_target_frame = "gps_target"
+
+        # TAC pinger parameters
+        self.tac_pinger_marker_topic = rospy.get_param(
+            "~tac_pinger_marker_topic", "/taluy/acoustic/hydrophone/marker"
+        )
+        self.tac_pinger_odom_frame = rospy.get_param("~tac_pinger_odom_frame", "odom")
+        self.tac_pinger_output_frame = rospy.get_param(
+            "~tac_pinger_output_frame", "tac_pinger_link"
+        )
+        self.tac_pinger_capture_timeout = rospy.get_param(
+            "~tac_pinger_capture_timeout", 5.0
+        )
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
@@ -279,6 +292,15 @@ class MainStateMachineNode:
                 {
                     "gps_depth": self.gps_depth,
                     "gps_target_frame": self.gps_target_frame,
+                },
+            ),
+            "NAVIGATE_TO_TAC_PINGER": (
+                TacPingerState,
+                {
+                    "marker_topic": self.tac_pinger_marker_topic,
+                    "odom_frame": self.tac_pinger_odom_frame,
+                    "output_frame": self.tac_pinger_output_frame,
+                    "capture_timeout": self.tac_pinger_capture_timeout,
                 },
             ),
             "ACOUSTIC_TRANSMITTER": (
