@@ -12,8 +12,9 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from auv_msgs.msg import KeypointResult
-from geometry_msgs.msg import TransformStamped
+from geometry_msgs.msg import TransformStamped, PoseArray, Pose as GeomPose
 from sensor_msgs.msg import CameraInfo
+from std_msgs.msg import Float64MultiArray
 
 import tf2_ros
 import tf.transformations as tft
@@ -70,9 +71,23 @@ class KeypointObjectConfig:
     solver: str
     max_distance: float
     reprojection_error_threshold: float
+    # Looser inlier gate used only at the 4-keypoint floor, where the valve is
+    # right up against the camera and a small model error spans many pixels.
+    reprojection_error_threshold_4kp: float
     confidence_threshold: float
     refine_iterative: bool
     handle_line: Optional[HandleLine] = None
+
+
+@dataclass
+class EstimationResult:
+    """Best pose plus every candidate the solver returned (for debug logging).
+
+    `candidates` is sorted ascending by mean reprojection error, so index 0 is
+    the published solution. Each entry is (mean_reproj_err_px, R(3x3), t(3x1))."""
+
+    pose: Pose
+    candidates: List[Tuple[float, np.ndarray, np.ndarray]]
 
 
 @dataclass
@@ -121,12 +136,13 @@ class PnPEstimator:
 
     def estimate_pose(
         self, batch: KeypointBatch, K: np.ndarray, D: np.ndarray
-    ) -> Optional[Pose]:
+    ) -> Optional[EstimationResult]:
         cfg = self.config
         in_model = np.isin(batch.ids, self._pose_ids)
         high_conf = batch.confidences >= cfg.confidence_threshold
         mask = in_model & high_conf
-        if int(mask.sum()) < cfg.min_keypoints:
+        n_used = int(mask.sum())
+        if n_used < cfg.min_keypoints:
             return None
 
         ids_used = batch.ids[mask]
@@ -134,24 +150,54 @@ class PnPEstimator:
         image_pts = batch.pixels[mask].reshape(-1, 1, 2).astype(np.float64)
         model_pts = self._model_points[indices].reshape(-1, 1, 3).astype(np.float64)
 
-        # solvePnPRansac always uses EPnP internally regardless of the
-        # `flags` argument, and EPnP fails on coplanar subsets — so we do
-        # manual reprojection-based outlier rejection instead.
-        ok, rvec, tvec = cv2.solvePnP(
-            model_pts, image_pts, K, D, flags=self._solver_flag
+        # At the 4-keypoint floor the valve is right up against the camera, so a
+        # pixel of model error spans a much larger reprojection residual — use a
+        # looser inlier gate there.
+        reproj_thresh = (
+            cfg.reprojection_error_threshold_4kp
+            if n_used <= 4
+            else cfg.reprojection_error_threshold
         )
-        if not ok:
+
+        # solvePnPGeneric exposes BOTH coplanar IPPE candidates; plain solvePnP
+        # only ever hands back one. We keep both for offline analysis, then work
+        # with the lowest-reprojection-error candidate. No disambiguation beyond
+        # that ordering. (solvePnPRansac is unusable here: it forces EPnP
+        # internally, which fails on coplanar subsets — hence manual rejection.)
+        try:
+            n_sols, rvecs, tvecs, _ = cv2.solvePnPGeneric(
+                model_pts, image_pts, K, D, flags=self._solver_flag
+            )
+        except cv2.error as e:
+            rospy.logwarn_throttle(
+                2.0, f"PnP '{cfg.name}': solvePnPGeneric failed: {e}"
+            )
+            return None
+        if not n_sols:
             return None
 
+        # Mean reprojection error per candidate over the points used in the solve.
+        candidates: List[Tuple[float, np.ndarray, np.ndarray]] = []
+        for rvec, tvec in zip(rvecs, tvecs):
+            proj, _ = cv2.projectPoints(model_pts, rvec, tvec, K, D)
+            errs = np.linalg.norm(
+                proj.reshape(-1, 2) - image_pts.reshape(-1, 2), axis=1
+            )
+            candidates.append((float(errs.mean()), rvec, tvec))
+        candidates.sort(key=lambda c: c[0])
+
+        # Best candidate drives the published pose + per-point outlier rejection.
+        _, rvec, tvec = candidates[0]
         proj, _ = cv2.projectPoints(model_pts, rvec, tvec, K, D)
         errors = np.linalg.norm(proj.reshape(-1, 2) - image_pts.reshape(-1, 2), axis=1)
-        inliers = errors <= cfg.reprojection_error_threshold
+        inliers = errors <= reproj_thresh
         n_inliers = int(inliers.sum())
 
         rospy.loginfo_throttle(
             2.0,
-            f"PnP '{cfg.name}': {n_inliers}/{len(model_pts)} inliers, "
-            f"max reproj err: {errors.max():.2f}px",
+            f"PnP '{cfg.name}': {n_sols} cand, {n_inliers}/{len(model_pts)} "
+            f"inliers, max reproj err: {errors.max():.2f}px "
+            f"(thresh {reproj_thresh:.1f}px, n_used={n_used})",
         )
 
         if n_inliers < cfg.min_keypoints:
@@ -162,7 +208,9 @@ class PnPEstimator:
             return None
 
         R, _ = cv2.Rodrigues(rvec)
-        return Pose(R=R, t=tvec)
+        # Convert candidates to R/t for debug publishing (order preserved).
+        cand_poses = [(err, cv2.Rodrigues(rv)[0], tv) for err, rv, tv in candidates]
+        return EstimationResult(pose=Pose(R=R, t=tvec), candidates=cand_poses)
 
     def _polish(self, rvec, tvec, model_pts, image_pts, inliers, K, D):
         cfg = self.config
@@ -328,6 +376,21 @@ class CameraHandler:
                     )
                 self._estimator_by_object_name[alias] = est
 
+        # Per-object debug topics carrying every PnP candidate (both IPPE
+        # solutions), for offline bag analysis of the planar two-fold ambiguity.
+        # Poses are in the camera optical frame; reproj errors are index-aligned
+        # with the PoseArray and sorted ascending (index 0 = published pose).
+        self._debug_pub_poses: Dict[str, rospy.Publisher] = {}
+        self._debug_pub_errors: Dict[str, rospy.Publisher] = {}
+        for est in estimators:
+            base = f"keypoint_pose_debug/{est.name}"
+            self._debug_pub_poses[est.name] = rospy.Publisher(
+                base + "/candidate_poses", PoseArray, queue_size=1
+            )
+            self._debug_pub_errors[est.name] = rospy.Publisher(
+                base + "/candidate_reproj_errors", Float64MultiArray, queue_size=1
+            )
+
         rospy.Subscriber(camera_info_topic, CameraInfo, self._info_cb, queue_size=1)
         rospy.Subscriber(
             keypoint_topic, KeypointResult, self._keypoint_cb, queue_size=1
@@ -345,14 +408,17 @@ class CameraHandler:
 
         for batch in self._group(msg):
             est = batch.estimator
-            pose = est.estimate_pose(batch, K, D)
-            if pose is None:
+            result = est.estimate_pose(batch, K, D)
+            if result is None:
                 rospy.logwarn_throttle(
                     5.0,
                     f"[{self.name}] PnP failed for '{est.name}' "
                     f"({len(batch.ids)} keypoints)",
                 )
                 continue
+
+            self._publish_candidates_debug(est, result.candidates, msg.header.stamp)
+            pose = result.pose
 
             if est.has_handle_line:
                 pose = est.apply_handle_line(pose, batch, K, D)
@@ -391,6 +457,31 @@ class CameraHandler:
             )
             for est, ids, pts, confs in by_estimator.values()
         ]
+
+    def _publish_candidates_debug(self, est: PnPEstimator, candidates, stamp):
+        """Publish all PnP candidates (camera frame) + their reproj errors."""
+        pose_array = PoseArray()
+        pose_array.header.stamp = stamp
+        pose_array.header.frame_id = self.camera_frame
+        errors = Float64MultiArray()
+
+        for err, R, t in candidates:
+            M = np.eye(4)
+            M[:3, :3] = R
+            quat = tft.quaternion_from_matrix(M)
+            p = GeomPose()
+            p.position.x = float(t[0, 0])
+            p.position.y = float(t[1, 0])
+            p.position.z = float(t[2, 0])
+            p.orientation.x = float(quat[0])
+            p.orientation.y = float(quat[1])
+            p.orientation.z = float(quat[2])
+            p.orientation.w = float(quat[3])
+            pose_array.poses.append(p)
+            errors.data.append(err)
+
+        self._debug_pub_poses[est.name].publish(pose_array)
+        self._debug_pub_errors[est.name].publish(errors)
 
     def _publish_outputs(self, est: PnPEstimator, pose: Pose, stamp):
         M = np.eye(4)
@@ -513,6 +604,10 @@ def load_config(config_path: str) -> Tuple[List[KeypointObjectConfig], Dict]:
                 max_distance=obj_cfg.get("max_distance", 30.0),
                 reprojection_error_threshold=obj_cfg.get(
                     "reprojection_error_threshold", 5.0
+                ),
+                reprojection_error_threshold_4kp=obj_cfg.get(
+                    "reprojection_error_threshold_4kp",
+                    obj_cfg.get("reprojection_error_threshold", 5.0),
                 ),
                 confidence_threshold=obj_cfg.get("confidence_threshold", 0.3),
                 refine_iterative=bool(obj_cfg.get("refine_iterative", False)),

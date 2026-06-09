@@ -111,12 +111,19 @@ class ValveKeypointNode:
 
         # Recovery gates while LOCKED.
         # Min bbox side in px; below this we declare collapse.
-        self.min_bbox_side = float(rospy.get_param("~min_bbox_side", 50.0))
+        self.min_bbox_side = float(rospy.get_param("~min_bbox_side", 30.0))
         # Mean keypoint conf inside the tracked bbox required to stay locked.
         self.lock_mean_conf_min = float(rospy.get_param("~lock_mean_conf_min", 0.40))
         # When running ViTPose inside the tracked bbox, expand the bbox by this
         # fraction so the keypoint head sees a little context around the valve.
         self.track_bbox_pad = float(rospy.get_param("~track_bbox_pad", 0.10))
+        # Once the tracked bbox covers at least this fraction of the frame area,
+        # the valve is close enough that a tight crop clips keypoints — feed
+        # ViTPose the whole image instead. Tracking keeps running; only a
+        # confidence collapse (lock_mean_conf_min) drops us to RECOVERING.
+        self.full_image_bbox_area_frac = float(
+            rospy.get_param("~full_image_bbox_area_frac", 0.5)
+        )
         # How often (in successful LOCKED frames) to re-init VITTrack from the
         # crop's keypoint extent. 0 disables. Keeps the tracker anchored
         # without leaning on the slow whole-image ViTPose seed, which yields
@@ -260,9 +267,31 @@ class ValveKeypointNode:
                 self._enter_recovering()
                 self._publish_result(msg.header, [])
             else:
-                bbox_xywh = self._pad_bbox(raw_bbox, img_bgr.shape, self.track_bbox_pad)
+                # When the tracked valve fills a large fraction of the frame, a
+                # tight crop buys nothing and risks clipping keypoints right when
+                # the valve is closest — feed ViTPose the whole image instead.
+                # The tracker still ran above, so tracking continuity is intact;
+                # only a confidence collapse below drops us to RECOVERING.
+                # Trigger off the RAW tracker extent (not the in-frame clamped
+                # box) so a valve bigger than the frame reliably trips it — the
+                # ratio can exceed 1.0.
+                img_h, img_w = img_bgr.shape[:2]
+                raw_area_frac = (raw_bbox[2] * raw_bbox[3]) / float(img_w * img_h)
+                if raw_area_frac >= self.full_image_bbox_area_frac:
+                    infer_bbox = (0.0, 0.0, float(img_w), float(img_h))
+                else:
+                    infer_bbox = self._pad_bbox(
+                        raw_bbox, img_bgr.shape, self.track_bbox_pad
+                    )
+                # Clamped tracker box for bookkeeping; infer_bbox is what we fed.
+                tracked_bbox = self._pad_bbox(
+                    raw_bbox, img_bgr.shape, self.track_bbox_pad
+                )
+                # Draw what we actually fed to ViTPose in the debug viz.
+                bbox_xywh = infer_bbox
+
                 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-                kps, scores = self.vp.predict(img_rgb, bbox_xywh)
+                kps, scores = self.vp.predict(img_rgb, infer_bbox)
 
                 mean_conf = (
                     float(np.mean(scores))
@@ -277,10 +306,10 @@ class ValveKeypointNode:
                     )
                     self._enter_recovering()
                     # Still publish best-effort keypoints for this frame.
-                    self._tracked_bbox = bbox_xywh
+                    self._tracked_bbox = tracked_bbox
                 else:
                     with self._lock:
-                        self._tracked_bbox = bbox_xywh
+                        self._tracked_bbox = tracked_bbox
                         self._lock_frame_count += 1
                         do_reseed = (
                             self.lock_reseed_interval > 0
@@ -452,16 +481,21 @@ class ValveKeypointNode:
             self._recover_frame_count = 0
 
     def _bbox_is_sane(self, bbox, img_shape) -> bool:
+        # A close valve legitimately overruns the frame, so a partially
+        # off-screen bbox is NOT a failure — we clamp it for cropping instead
+        # (see _pad_bbox). The only real "tracker lost it" signals are: no box,
+        # a non-finite/degenerate box, or a box that has collapsed below
+        # min_bbox_side (the tracker shrinking to nothing). Position is
+        # deliberately not checked.
         if bbox is None:
             return False
         x, y, bw, bh = bbox
+        if not all(np.isfinite(v) for v in (x, y, bw, bh)):
+            return False
         if bw <= 0 or bh <= 0:
             return False
-        if x < 0 or y < 0:
-            return False
-        h_img, w_img = img_shape[:2]
-        if x + bw > w_img + 1 or y + bh > h_img + 1:
-            return False
+        # Collapse check uses the raw tracker extent, so a large but
+        # off-screen valve never trips it.
         if min(bw, bh) < self.min_bbox_side:
             return False
         return True
@@ -472,15 +506,21 @@ class ValveKeypointNode:
         img_shape,
         pad_frac: float,
     ) -> Tuple[float, float, float, float]:
+        """Pad the bbox then intersect it with the image, so an origin or
+        extent that lies outside the frame (normal for a close valve) still
+        yields a valid in-frame crop."""
         x, y, bw, bh = bbox
         h_img, w_img = img_shape[:2]
         pad_x = bw * pad_frac
         pad_y = bh * pad_frac
-        x_p = max(0.0, x - pad_x)
-        y_p = max(0.0, y - pad_y)
-        bw_p = min(w_img - x_p, bw + 2 * pad_x)
-        bh_p = min(h_img - y_p, bh + 2 * pad_y)
-        return (float(x_p), float(y_p), float(bw_p), float(bh_p))
+        # Padded corners in image coords, then clamp into [0, w] x [0, h].
+        x0 = max(0.0, x - pad_x)
+        y0 = max(0.0, y - pad_y)
+        x1 = min(float(w_img), x + bw + pad_x)
+        y1 = min(float(h_img), y + bh + pad_y)
+        bw_p = max(1.0, x1 - x0)
+        bh_p = max(1.0, y1 - y0)
+        return (float(x0), float(y0), float(bw_p), float(bh_p))
 
     def _build_keypoints(self, kps: np.ndarray, scores: np.ndarray) -> List[Keypoint]:
         out: List[Keypoint] = []

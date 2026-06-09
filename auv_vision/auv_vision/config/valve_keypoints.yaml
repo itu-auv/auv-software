@@ -57,11 +57,13 @@ objects:
   - name: valve_front
     object_names: [valve_front]
     cameras: [front]
-    min_keypoints: 6
-    solver: sqpnp
+    min_keypoints: 4
+    solver: ippe
     refine_iterative: false
     confidence_threshold: 0.5
     reprojection_error_threshold: 5.0
+    # Looser gate at the 4-keypoint floor (valve right up against the camera).
+    reprojection_error_threshold_4kp: 15.0
     max_distance: 8.0
     model: *valve_pose_model
     outputs:
@@ -72,11 +74,13 @@ objects:
   - name: valve_bottom
     object_names: [valve_bottom]
     cameras: [bottom]
-    min_keypoints: 6
-    solver: sqpnp
+    min_keypoints: 4
+    solver: ippe
     refine_iterative: false
     confidence_threshold: 0.5
     reprojection_error_threshold: 5.0
+    # Looser gate at the 4-keypoint floor (valve right up against the camera).
+    reprojection_error_threshold_4kp: 15.0
     max_distance: 8.0
     model: *valve_pose_model
     outputs:
