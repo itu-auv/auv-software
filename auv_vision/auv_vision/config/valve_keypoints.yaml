@@ -17,10 +17,14 @@ cameras:
     frame: "taluy/base_link/front_camera_optical_link"
     camera_info_topic: "/taluy/cameras/cam_front/camera_info"
     keypoint_topic: "/keypoint_result_front"
+    # Raw image the pose node draws its debug overlay on (keypoints, bbox,
+    # PnP inliers/outliers, pose axis). Matched to keypoints by header stamp.
+    image_topic: "/taluy/cameras/cam_front/image_raw"
   bottom:
     frame: "taluy/base_link/bottom_camera_optical_link"
     camera_info_topic: "/taluy/cameras/cam_bottom/camera_info"
     keypoint_topic: "/keypoint_result_bottom"
+    image_topic: "/taluy/cameras/cam_bottom/image_raw"
 
 # Shared 8-point pose model: 8 bolts on the flange face (0.103 m radius ring,
 # 45° spacing). Both valves are the same mesh, so the coordinates in the link's

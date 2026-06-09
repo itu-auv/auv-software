@@ -2,21 +2,24 @@
 
 import os
 import sys
+import threading
+from collections import deque
 
 import cv2
 import numpy as np
 import rospy
 import yaml
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
+from typing import Deque, Dict, List, Optional, Tuple
 
 from auv_msgs.msg import KeypointResult
-from geometry_msgs.msg import TransformStamped, PoseArray, Pose as GeomPose
-from sensor_msgs.msg import CameraInfo
-from std_msgs.msg import Float64MultiArray
+from cv_bridge import CvBridge
+from geometry_msgs.msg import TransformStamped, PointStamped
+from sensor_msgs.msg import CameraInfo, Image, CompressedImage
 
 import tf2_ros
+import tf2_geometry_msgs  # noqa: F401  (registers PointStamped transform)
 import tf.transformations as tft
 
 scripts_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,6 +27,29 @@ if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
 from utils.detection_utils import SHAPE_FACTORIES, transform_to_odom_and_publish
+
+
+# ─────────────────────────────────────────────── debug viz constants
+
+# Keypoint skeleton, 0-based indices into the per-frame keypoint array (id-1).
+# 0..7 = bolt ring, 8 = face centre, 9 = arrow tip, 10 = handle end. The handle
+# triplet (9-8-10) draws the arrow tip ── centre ── handle end line.
+_SKELETON = [(i, (i + 1) % 8) for i in range(8)] + [(9, 8), (8, 10)]
+
+COLOR_INLIER = (0, 220, 0)  # green — PnP inlier
+COLOR_OUTLIER = (0, 0, 255)  # red — PnP outlier (reproj err > thresh)
+COLOR_LOWCONF = (140, 140, 140)  # gray — below confidence gate
+COLOR_HANDLE = (255, 180, 0)  # cyan/blue — handle-line keypoints (not in PnP)
+COLOR_UNCLASS = (0, 200, 255)  # orange — high-conf, no PnP classification
+COLOR_SKELETON = (0, 160, 0)
+COLOR_BBOX = (0, 200, 255)
+COLOR_STATE = (255, 255, 255)
+COLOR_ACCEPT = (0, 220, 0)
+COLOR_REJECT = (0, 0, 255)
+COLOR_DIST = (255, 255, 0)
+
+# Special single-letter labels for the handle keypoints.
+_KP_LABELS = {9: "C", 10: "A", 11: "E"}
 
 
 @dataclass
@@ -77,14 +103,28 @@ class KeypointObjectConfig:
 
 
 @dataclass
-class EstimationResult:
-    """Best pose plus every candidate the solver returned (for debug logging).
+class PnPOutcome:
+    """Result of a single PnP attempt, plus the debug data needed to draw it.
 
-    `candidates` is sorted ascending by mean reprojection error, so index 0 is
-    the published solution. Each entry is (mean_reproj_err_px, R(3x3), t(3x1))."""
+    `success` means a usable pose was produced; on failure `reason` says why and
+    the inlier arrays may still be populated (e.g. a solve that landed but had
+    too few inliers) so the debug overlay can show what happened."""
 
-    pose: Pose
-    candidates: List[Tuple[float, np.ndarray, np.ndarray]]
+    success: bool
+    reason: str = ""
+    pose: Optional[Pose] = None
+    ids_used: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=np.int32))
+    inlier_mask: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=bool))
+    rvec: Optional[np.ndarray] = None
+    tvec: Optional[np.ndarray] = None
+
+
+@dataclass
+class OutputDebug:
+    child_frame_id: str
+    published: bool
+    reason: str
+    base_link_xyz: Optional[Tuple[float, float, float]] = None
 
 
 @dataclass
@@ -133,14 +173,17 @@ class PnPEstimator:
 
     def estimate_pose(
         self, batch: KeypointBatch, K: np.ndarray, D: np.ndarray
-    ) -> Optional[EstimationResult]:
+    ) -> PnPOutcome:
         cfg = self.config
         in_model = np.isin(batch.ids, self._pose_ids)
         high_conf = batch.confidences >= cfg.confidence_threshold
         mask = in_model & high_conf
         n_used = int(mask.sum())
         if n_used < cfg.min_keypoints:
-            return None
+            return PnPOutcome(
+                success=False,
+                reason=f"too few kps ({n_used}/{cfg.min_keypoints})",
+            )
 
         ids_used = batch.ids[mask]
         indices = np.array([self._index_by_id[int(k)] for k in ids_used])
@@ -150,10 +193,10 @@ class PnPEstimator:
         reproj_thresh = cfg.reprojection_error_threshold
 
         # solvePnPGeneric exposes BOTH coplanar IPPE candidates; plain solvePnP
-        # only ever hands back one. We keep both for offline analysis, then work
-        # with the lowest-reprojection-error candidate. No disambiguation beyond
-        # that ordering. (solvePnPRansac is unusable here: it forces EPnP
-        # internally, which fails on coplanar subsets — hence manual rejection.)
+        # only ever hands back one. We work with the lowest-reprojection-error
+        # candidate — no disambiguation beyond that ordering. (solvePnPRansac is
+        # unusable here: it forces EPnP internally, which fails on coplanar
+        # subsets — hence manual rejection.)
         try:
             n_sols, rvecs, tvecs, _ = cv2.solvePnPGeneric(
                 model_pts, image_pts, K, D, flags=self._solver_flag
@@ -162,22 +205,21 @@ class PnPEstimator:
             rospy.logwarn_throttle(
                 2.0, f"PnP '{cfg.name}': solvePnPGeneric failed: {e}"
             )
-            return None
+            return PnPOutcome(success=False, reason="solvePnPGeneric error")
         if not n_sols:
-            return None
+            return PnPOutcome(success=False, reason="no PnP solution")
 
-        # Mean reprojection error per candidate over the points used in the solve.
-        candidates: List[Tuple[float, np.ndarray, np.ndarray]] = []
+        # Pick the candidate with the lowest mean reprojection error.
+        best = None
         for rvec, tvec in zip(rvecs, tvecs):
             proj, _ = cv2.projectPoints(model_pts, rvec, tvec, K, D)
             errs = np.linalg.norm(
                 proj.reshape(-1, 2) - image_pts.reshape(-1, 2), axis=1
             )
-            candidates.append((float(errs.mean()), rvec, tvec))
-        candidates.sort(key=lambda c: c[0])
+            if best is None or errs.mean() < best[0]:
+                best = (float(errs.mean()), rvec, tvec)
 
-        # Best candidate drives the published pose + per-point outlier rejection.
-        _, rvec, tvec = candidates[0]
+        _, rvec, tvec = best
         proj, _ = cv2.projectPoints(model_pts, rvec, tvec, K, D)
         errors = np.linalg.norm(proj.reshape(-1, 2) - image_pts.reshape(-1, 2), axis=1)
         inliers = errors <= reproj_thresh
@@ -191,16 +233,33 @@ class PnPEstimator:
         )
 
         if n_inliers < cfg.min_keypoints:
-            return None
+            return PnPOutcome(
+                success=False,
+                reason=f"{n_inliers}/{len(model_pts)} inliers < {cfg.min_keypoints}",
+                ids_used=ids_used,
+                inlier_mask=inliers,
+                rvec=rvec,
+                tvec=tvec,
+            )
 
         rvec, tvec = self._polish(rvec, tvec, model_pts, image_pts, inliers, K, D)
         if rvec is None:
-            return None
+            return PnPOutcome(
+                success=False,
+                reason="polish failed",
+                ids_used=ids_used,
+                inlier_mask=inliers,
+            )
 
         R, _ = cv2.Rodrigues(rvec)
-        # Convert candidates to R/t for debug publishing (order preserved).
-        cand_poses = [(err, cv2.Rodrigues(rv)[0], tv) for err, rv, tv in candidates]
-        return EstimationResult(pose=Pose(R=R, t=tvec), candidates=cand_poses)
+        return PnPOutcome(
+            success=True,
+            pose=Pose(R=R, t=tvec),
+            ids_used=ids_used,
+            inlier_mask=inliers,
+            rvec=rvec,
+            tvec=tvec,
+        )
 
     def _polish(self, rvec, tvec, model_pts, image_pts, inliers, K, D):
         cfg = self.config
@@ -344,16 +403,27 @@ class CameraHandler:
         camera_frame: str,
         camera_info_topic: str,
         keypoint_topic: str,
+        image_topic: str,
         estimators: List[PnPEstimator],
         tf_buffer: tf2_ros.Buffer,
         publisher: rospy.Publisher,
+        base_link_frame: str,
+        axis_length: float,
     ):
         self.name = name
         self.camera_frame = camera_frame
         self.estimators = estimators
         self.tf_buffer = tf_buffer
         self.publisher = publisher
+        self.base_link_frame = base_link_frame
+        self.axis_length = axis_length
         self._calibration: Optional[Tuple[np.ndarray, np.ndarray]] = None
+
+        self._bridge = CvBridge()
+        # Small ring of recent frames so the debug overlay can be drawn on the
+        # exact frame the keypoints came from (matched by header stamp).
+        self._image_lock = threading.Lock()
+        self._image_buf: Deque[Tuple[float, np.ndarray]] = deque(maxlen=60)
 
         self._estimator_by_object_name: Dict[str, PnPEstimator] = {}
         for est in estimators:
@@ -366,22 +436,14 @@ class CameraHandler:
                     )
                 self._estimator_by_object_name[alias] = est
 
-        # Per-object debug topics carrying every PnP candidate (both IPPE
-        # solutions), for offline bag analysis of the planar two-fold ambiguity.
-        # Poses are in the camera optical frame; reproj errors are index-aligned
-        # with the PoseArray and sorted ascending (index 0 = published pose).
-        self._debug_pub_poses: Dict[str, rospy.Publisher] = {}
-        self._debug_pub_errors: Dict[str, rospy.Publisher] = {}
-        for est in estimators:
-            base = f"keypoint_pose_debug/{est.name}"
-            self._debug_pub_poses[est.name] = rospy.Publisher(
-                base + "/candidate_poses", PoseArray, queue_size=1
-            )
-            self._debug_pub_errors[est.name] = rospy.Publisher(
-                base + "/candidate_reproj_errors", Float64MultiArray, queue_size=1
-            )
+        self._debug_image_pub = rospy.Publisher(
+            f"keypoint_pose_image_{name}/compressed", CompressedImage, queue_size=1
+        )
 
         rospy.Subscriber(camera_info_topic, CameraInfo, self._info_cb, queue_size=1)
+        rospy.Subscriber(
+            image_topic, Image, self._image_cb, queue_size=1, buff_size=2**24
+        )
         rospy.Subscriber(
             keypoint_topic, KeypointResult, self._keypoint_cb, queue_size=1
         )
@@ -391,36 +453,76 @@ class CameraHandler:
         D = np.array(msg.D, dtype=np.float64)
         self._calibration = (K, D)
 
+    def _image_cb(self, msg: Image):
+        try:
+            img = self._bridge.imgmsg_to_cv2(msg, "bgr8")
+        except Exception as e:
+            rospy.logwarn_throttle(5.0, f"[{self.name}] image decode failed: {e}")
+            return
+        with self._image_lock:
+            self._image_buf.append((msg.header.stamp.to_sec(), img))
+
+    def _nearest_image(self, stamp) -> Optional[np.ndarray]:
+        target = stamp.to_sec()
+        with self._image_lock:
+            if not self._image_buf:
+                return None
+            t, img = min(self._image_buf, key=lambda e: abs(e[0] - target))
+        return img
+
     def _keypoint_cb(self, msg: KeypointResult):
         if self._calibration is None:
             return
         K, D = self._calibration
 
+        # Per-estimator debug accumulator for the overlay.
+        debug: Dict[str, Dict] = {}
+
         for batch in self._group(msg):
             est = batch.estimator
-            result = est.estimate_pose(batch, K, D)
-            if result is None:
+            outcome = est.estimate_pose(batch, K, D)
+
+            final_pose: Optional[Pose] = outcome.pose
+            accepted = False
+            reason = outcome.reason
+            outputs_dbg: List[OutputDebug] = []
+
+            if not outcome.success:
                 rospy.logwarn_throttle(
                     5.0,
                     f"[{self.name}] PnP failed for '{est.name}' "
-                    f"({len(batch.ids)} keypoints)",
+                    f"({len(batch.ids)} keypoints): {reason}",
                 )
-                continue
+            else:
+                publish_pose = outcome.pose
+                if est.has_handle_line:
+                    publish_pose = est.apply_handle_line(outcome.pose, batch, K, D)
 
-            self._publish_candidates_debug(est, result.candidates, msg.header.stamp)
-            pose = result.pose
-
-            if est.has_handle_line:
-                pose = est.apply_handle_line(pose, batch, K, D)
-                if pose is None:
+                if publish_pose is None:
+                    reason = "handle line missing/degenerate"
                     rospy.loginfo_throttle(
                         2.0,
-                        f"[{self.name}] '{est.name}': handle line missing "
-                        f"or degenerate, skipping publish",
+                        f"[{self.name}] '{est.name}': {reason}, skipping publish",
                     )
-                    continue
+                else:
+                    final_pose = publish_pose
+                    outputs_dbg = self._publish_outputs(
+                        est, publish_pose, msg.header.stamp
+                    )
+                    accepted = any(o.published for o in outputs_dbg)
+                    if not accepted and outputs_dbg:
+                        reason = outputs_dbg[0].reason
 
-            self._publish_outputs(est, pose, msg.header.stamp)
+            debug[est.name] = {
+                "batch": batch,
+                "outcome": outcome,
+                "final_pose": final_pose if accepted else outcome.pose,
+                "accepted": accepted,
+                "reason": reason,
+                "outputs": outputs_dbg,
+            }
+
+        self._publish_debug_image(msg, debug, K, D)
 
     def _group(self, msg: KeypointResult) -> List[KeypointBatch]:
         by_estimator: Dict[
@@ -448,36 +550,33 @@ class CameraHandler:
             for est, ids, pts, confs in by_estimator.values()
         ]
 
-    def _publish_candidates_debug(self, est: PnPEstimator, candidates, stamp):
-        """Publish all PnP candidates (camera frame) + their reproj errors."""
-        pose_array = PoseArray()
-        pose_array.header.stamp = stamp
-        pose_array.header.frame_id = self.camera_frame
-        errors = Float64MultiArray()
+    def _to_base_link(self, x, y, z, stamp) -> Optional[Tuple[float, float, float]]:
+        """Express a camera-frame point in base_link, for the distance readout."""
+        ps = PointStamped()
+        ps.header.frame_id = self.camera_frame
+        ps.header.stamp = stamp
+        ps.point.x, ps.point.y, ps.point.z = x, y, z
+        try:
+            out = self.tf_buffer.transform(
+                ps, self.base_link_frame, rospy.Duration(0.2)
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(5.0, f"[{self.name}] base_link transform: {e}")
+            return None
+        return (out.point.x, out.point.y, out.point.z)
 
-        for err, R, t in candidates:
-            M = np.eye(4)
-            M[:3, :3] = R
-            quat = tft.quaternion_from_matrix(M)
-            p = GeomPose()
-            p.position.x = float(t[0, 0])
-            p.position.y = float(t[1, 0])
-            p.position.z = float(t[2, 0])
-            p.orientation.x = float(quat[0])
-            p.orientation.y = float(quat[1])
-            p.orientation.z = float(quat[2])
-            p.orientation.w = float(quat[3])
-            pose_array.poses.append(p)
-            errors.data.append(err)
-
-        self._debug_pub_poses[est.name].publish(pose_array)
-        self._debug_pub_errors[est.name].publish(errors)
-
-    def _publish_outputs(self, est: PnPEstimator, pose: Pose, stamp):
+    def _publish_outputs(
+        self, est: PnPEstimator, pose: Pose, stamp
+    ) -> List[OutputDebug]:
         M = np.eye(4)
         M[:3, :3] = pose.R
         quat = tft.quaternion_from_matrix(M)
 
+        results: List[OutputDebug] = []
         for output in est.config.outputs:
             child_pos = pose.R @ output.offset.reshape(3, 1) + pose.t
             x, y, z = (
@@ -485,9 +584,13 @@ class CameraHandler:
                 float(child_pos[1, 0]),
                 float(child_pos[2, 0]),
             )
+            base_xyz = self._to_base_link(x, y, z, stamp)
 
             if z <= 0.0:
                 rospy.logdebug(f"Behind-camera: {output.child_frame_id} z={z:.2f}")
+                results.append(
+                    OutputDebug(output.child_frame_id, False, "behind camera", base_xyz)
+                )
                 continue
 
             distance = float(np.linalg.norm(child_pos))
@@ -495,6 +598,14 @@ class CameraHandler:
                 rospy.logdebug(
                     f"Too far: {output.child_frame_id} "
                     f"d={distance:.2f} > {est.config.max_distance}"
+                )
+                results.append(
+                    OutputDebug(
+                        output.child_frame_id,
+                        False,
+                        f"too far ({distance:.1f}m)",
+                        base_xyz,
+                    )
                 )
                 continue
 
@@ -509,6 +620,176 @@ class CameraHandler:
                 self.publisher,
                 rotation_quat=quat,
             )
+            results.append(OutputDebug(output.child_frame_id, True, "", base_xyz))
+        return results
+
+    # ─────────────────────────────────────────────── debug overlay
+
+    def _publish_debug_image(self, msg: KeypointResult, debug: Dict, K, D):
+        if self._debug_image_pub.get_num_connections() == 0:
+            return
+        vis = self._nearest_image(msg.header.stamp)
+        if vis is None:
+            return
+        vis = vis.copy()
+
+        # Producer state + tracker bbox (carried through the message).
+        cv2.putText(
+            vis,
+            f"state: {msg.state}",
+            (10, 26),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            COLOR_STATE,
+            2,
+        )
+        if len(msg.bbox) == 4:
+            bx, by, bw, bh = msg.bbox
+            cv2.rectangle(
+                vis,
+                (int(bx), int(by)),
+                (int(bx + bw), int(by + bh)),
+                COLOR_BBOX,
+                2,
+            )
+            cv2.putText(
+                vis,
+                "VITTrack",
+                (int(bx), int(by) - 6),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                COLOR_BBOX,
+                1,
+            )
+
+        y_text = 52
+        for est in self.estimators:
+            d = debug.get(est.name)
+            if d is None:
+                continue
+            y_text = self._draw_estimator(vis, est, d, K, D, y_text)
+
+        out = CompressedImage()
+        out.header = msg.header
+        out.format = "jpeg"
+        ok, encoded = cv2.imencode(".jpg", vis, [cv2.IMWRITE_JPEG_QUALITY, 80])
+        if not ok:
+            return
+        out.data = encoded.tobytes()
+        self._debug_image_pub.publish(out)
+
+    def _draw_estimator(self, vis, est, d, K, D, y_text):
+        batch: KeypointBatch = d["batch"]
+        outcome: PnPOutcome = d["outcome"]
+        conf_thresh = est.config.confidence_threshold
+
+        # id -> inlier? for the model points that went through PnP.
+        inlier_by_id: Dict[int, bool] = {}
+        if outcome.ids_used.size and outcome.inlier_mask.size:
+            for kid, inl in zip(outcome.ids_used, outcome.inlier_mask):
+                inlier_by_id[int(kid)] = bool(inl)
+
+        handle_ids = set()
+        if est.has_handle_line:
+            handle_ids = set(est.config.handle_line.keypoint_ids)
+
+        # id -> (x, y, conf) for skeleton + point drawing.
+        pt_by_id: Dict[int, Tuple[float, float, float]] = {}
+        for kid, (px, py), conf in zip(batch.ids, batch.pixels, batch.confidences):
+            pt_by_id[int(kid)] = (float(px), float(py), float(conf))
+
+        # Skeleton (only between present, high-conf keypoints).
+        for a, b in _SKELETON:
+            ia, ib = a + 1, b + 1
+            if ia in pt_by_id and ib in pt_by_id:
+                if pt_by_id[ia][2] >= conf_thresh and pt_by_id[ib][2] >= conf_thresh:
+                    cv2.line(
+                        vis,
+                        (int(pt_by_id[ia][0]), int(pt_by_id[ia][1])),
+                        (int(pt_by_id[ib][0]), int(pt_by_id[ib][1])),
+                        COLOR_SKELETON,
+                        2,
+                    )
+
+        # Keypoints, coloured by role.
+        for kid, (px, py, conf) in pt_by_id.items():
+            pt = (int(px), int(py))
+            if conf < conf_thresh:
+                color, filled = COLOR_LOWCONF, False
+            elif kid in inlier_by_id:
+                color = COLOR_INLIER if inlier_by_id[kid] else COLOR_OUTLIER
+                filled = True
+            elif kid in handle_ids:
+                color, filled = COLOR_HANDLE, True
+            else:
+                color, filled = COLOR_UNCLASS, True
+            cv2.circle(vis, pt, 5 if filled else 4, color, -1 if filled else 1)
+            label = _KP_LABELS.get(kid, str(kid))
+            cv2.putText(
+                vis,
+                f"{label} ({conf:.2f})",
+                (pt[0] + 6, pt[1] - 4),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.35,
+                color,
+                1,
+            )
+
+        # Pose axis (drawn from whatever pose we have, even if later rejected).
+        final_pose: Optional[Pose] = d["final_pose"]
+        if final_pose is not None:
+            rvec, _ = cv2.Rodrigues(final_pose.R)
+            try:
+                cv2.drawFrameAxes(vis, K, D, rvec, final_pose.t, self.axis_length, 2)
+            except cv2.error as e:
+                rospy.logwarn_throttle(5.0, f"[{self.name}] drawFrameAxes: {e}")
+
+        # Text block: inliers, accept/reject, per-output base_link distance.
+        n_in = int(outcome.inlier_mask.sum()) if outcome.inlier_mask.size else 0
+        n_tot = int(outcome.ids_used.size)
+        cv2.putText(
+            vis,
+            f"{est.name}  inliers: {n_in}/{n_tot}",
+            (10, y_text),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            COLOR_STATE,
+            1,
+        )
+        y_text += 20
+
+        status = "ACCEPTED" if d["accepted"] else "REJECTED"
+        status_color = COLOR_ACCEPT if d["accepted"] else COLOR_REJECT
+        status_txt = status if d["accepted"] else f"{status}: {d['reason']}"
+        cv2.putText(
+            vis,
+            status_txt,
+            (10, y_text),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            status_color,
+            2,
+        )
+        y_text += 22
+
+        for od in d["outputs"]:
+            if od.base_link_xyz is None:
+                continue
+            dx, dy, dz = od.base_link_xyz
+            dist = (dx * dx + dy * dy + dz * dz) ** 0.5
+            cv2.putText(
+                vis,
+                f"{od.child_frame_id}  base_link x={dx:.2f} y={dy:.2f} "
+                f"z={dz:.2f} (d={dist:.2f}m)",
+                (10, y_text),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                COLOR_DIST,
+                1,
+            )
+            y_text += 18
+
+        return y_text + 6
 
 
 def _build_pose_keypoints(model_spec) -> Dict[int, np.ndarray]:
@@ -617,6 +898,8 @@ class KeypointPoseNode:
             )
         )
         config_path = rospy.get_param("~config_file", default_config)
+        self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
+        self.axis_length = float(rospy.get_param("~axis_length", 0.15))
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -646,9 +929,12 @@ class KeypointPoseNode:
                 camera_frame=cam_cfg["frame"],
                 camera_info_topic=cam_cfg["camera_info_topic"],
                 keypoint_topic=cam_cfg["keypoint_topic"],
+                image_topic=cam_cfg["image_topic"],
                 estimators=cam_estimators,
                 tf_buffer=self.tf_buffer,
                 publisher=self.publisher,
+                base_link_frame=self.base_link_frame,
+                axis_length=self.axis_length,
             )
 
         total_pts = sum(len(e.config.pose_keypoints) for e in estimators)

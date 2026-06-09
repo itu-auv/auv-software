@@ -37,7 +37,7 @@ import rospy
 from cv_bridge import CvBridge
 
 from auv_msgs.msg import Keypoint, KeypointResult
-from sensor_msgs.msg import Image, CompressedImage
+from sensor_msgs.msg import Image
 from std_srvs.srv import SetBool, SetBoolResponse, Empty, EmptyResponse
 
 # vitpose_inference sits next to this file but isn't an installable module yet.
@@ -45,18 +45,8 @@ _scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
-from utils.vitpose_inference import (  # noqa: E402
-    SKELETON_10,
-    SKELETON_11,
-    load_valve_pose,
-)
+from utils.vitpose_inference import load_valve_pose  # noqa: E402
 
-
-SKELETON_COLOR = (0, 255, 0)
-KP_COLOR = (0, 80, 255)
-LOW_CONF_COLOR = (100, 100, 100)
-BBOX_COLOR = (0, 200, 255)
-STATE_COLOR = (255, 255, 255)
 
 # State machine
 STATE_UNINIT = "UNINIT"
@@ -72,9 +62,6 @@ class ValveKeypointNode:
             "~image_topic", "/taluy/cameras/cam_front/image_raw"
         )
         self.result_topic = rospy.get_param("~result_topic", "/keypoint_result_front")
-        self.image_out_topic = rospy.get_param(
-            "~image_out_topic", "/keypoint_image_front"
-        )
 
         det_pkg = rospkg.RosPack().get_path("auv_detection")
         self.vitpose_model_path = rospy.get_param(
@@ -163,8 +150,6 @@ class ValveKeypointNode:
         rospy.loginfo(f"VITTrack ONNX: {self.vit_tracker_model_path}")
 
         self.bridge = CvBridge()
-        self._debug_thread: Optional[threading.Thread] = None
-        self._debug_lock = threading.Lock()
 
         # Tracker / state machine.
         self._lock = threading.Lock()
@@ -192,9 +177,6 @@ class ValveKeypointNode:
         self.result_pub = rospy.Publisher(
             self.result_topic, KeypointResult, queue_size=1
         )
-        self.image_pub = rospy.Publisher(
-            self.image_out_topic + "/compressed", CompressedImage, queue_size=1
-        )
 
         rospy.Subscriber(
             self.image_topic, Image, self._image_cb, queue_size=1, buff_size=2**24
@@ -202,7 +184,7 @@ class ValveKeypointNode:
 
         rospy.loginfo(
             f"valve_keypoint_node ready (image={self.image_topic}, "
-            f"result={self.result_topic}, image_out={self.image_out_topic})"
+            f"result={self.result_topic})"
         )
 
     # ─────────────────────────────────────────────── services
@@ -242,9 +224,6 @@ class ValveKeypointNode:
             tracker = self._tracker
             self._last_image_bgr = img_bgr  # for seed worker
 
-        bbox_xywh: Optional[Tuple[float, float, float, float]] = None
-        kps, scores = None, None
-
         if state in (STATE_UNINIT, STATE_RECOVERING):
             # Whole-image ViTPose is expensive; only attempt a seed every
             # recover_seed_interval frames. The worker also self-guards
@@ -255,7 +234,7 @@ class ValveKeypointNode:
                 self._maybe_start_seed_worker()
             # No tracked bbox yet → publish an empty result so downstream nodes
             # see we're alive but not locked.
-            self._publish_result(msg.header, [])
+            self._publish_result(msg.header, [], bbox=None, state=state)
         elif state == STATE_LOCKED and tracker is not None:
             ok, raw_bbox = tracker.update(img_bgr)
             if not ok or not self._bbox_is_sane(raw_bbox, img_bgr.shape):
@@ -265,7 +244,7 @@ class ValveKeypointNode:
                     % (ok, raw_bbox),
                 )
                 self._enter_recovering()
-                self._publish_result(msg.header, [])
+                self._publish_result(msg.header, [], bbox=None, state=STATE_RECOVERING)
             else:
                 # When the tracked valve fills a large fraction of the frame, a
                 # tight crop buys nothing and risks clipping keypoints right when
@@ -283,12 +262,11 @@ class ValveKeypointNode:
                     infer_bbox = self._pad_bbox(
                         raw_bbox, img_bgr.shape, self.track_bbox_pad
                     )
-                # Clamped tracker box for bookkeeping; infer_bbox is what we fed.
+                # Clamped tracker box — this is the VITTrack extent we hand to
+                # the pose node to draw. infer_bbox is only what we fed ViTPose.
                 tracked_bbox = self._pad_bbox(
                     raw_bbox, img_bgr.shape, self.track_bbox_pad
                 )
-                # Draw what we actually fed to ViTPose in the debug viz.
-                bbox_xywh = infer_bbox
 
                 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
                 kps, scores = self.vp.predict(img_rgb, infer_bbox)
@@ -307,6 +285,7 @@ class ValveKeypointNode:
                     self._enter_recovering()
                     # Still publish best-effort keypoints for this frame.
                     self._tracked_bbox = tracked_bbox
+                    publish_state = STATE_RECOVERING
                 else:
                     with self._lock:
                         self._tracked_bbox = tracked_bbox
@@ -317,14 +296,12 @@ class ValveKeypointNode:
                         )
                     if do_reseed:
                         self._reseed_from_crop_kps(img_bgr, kps, scores)
+                    publish_state = STATE_LOCKED
 
                 keypoints = self._build_keypoints(kps, scores)
-                self._publish_result(msg.header, keypoints)
-
-        if self.image_pub.get_num_connections() > 0:
-            self._start_debug_publish(
-                img_bgr, state, bbox_xywh, kps, scores, msg.header
-            )
+                self._publish_result(
+                    msg.header, keypoints, bbox=tracked_bbox, state=publish_state
+                )
 
     # ─────────────────────────────────────────────── seed worker
 
@@ -523,135 +500,34 @@ class ValveKeypointNode:
         return (float(x0), float(y0), float(bw_p), float(bh_p))
 
     def _build_keypoints(self, kps: np.ndarray, scores: np.ndarray) -> List[Keypoint]:
+        # Publish every keypoint with its raw confidence — the pose node applies
+        # its own confidence gate (and colours low-conf points in the debug
+        # image). Keeping the producer unfiltered means the consumer's debug
+        # overlay can show the full set, not just the high-conf survivors.
         out: List[Keypoint] = []
         for i in range(len(kps)):
-            conf = float(scores[i, 0])
-            if conf < self.conf_threshold:
-                continue
             msg = Keypoint()
             msg.id = i + 1
             msg.x = float(kps[i, 0])
             msg.y = float(kps[i, 1])
-            msg.confidence = conf
+            msg.confidence = float(scores[i, 0])
             msg.object = self.object_name
             out.append(msg)
         return out
 
-    def _publish_result(self, header, keypoints: List[Keypoint]):
+    def _publish_result(
+        self,
+        header,
+        keypoints: List[Keypoint],
+        bbox: Optional[Tuple[float, float, float, float]] = None,
+        state: str = "",
+    ):
         result = KeypointResult()
         result.header = header
         result.keypoints = keypoints
+        result.bbox = [float(v) for v in bbox] if bbox is not None else []
+        result.state = state
         self.result_pub.publish(result)
-
-    # ─────────────────────────────────────────────── debug viz
-
-    def _start_debug_publish(self, img_bgr, state, bbox_xywh, kps, scores, header):
-        with self._debug_lock:
-            if self._debug_thread is not None and self._debug_thread.is_alive():
-                return
-            self._debug_thread = threading.Thread(
-                target=self._publish_debug,
-                args=(img_bgr.copy(), state, bbox_xywh, kps, scores, header),
-                daemon=True,
-            )
-            self._debug_thread.start()
-
-    def _publish_debug(self, vis, state, bbox_xywh, kps, scores, header):
-        try:
-            cv2.putText(
-                vis,
-                f"state: {state}",
-                (10, 24),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                STATE_COLOR,
-                2,
-            )
-
-            if bbox_xywh is not None:
-                x, y, bw, bh = bbox_xywh
-                cv2.rectangle(
-                    vis,
-                    (int(x), int(y)),
-                    (int(x + bw), int(y + bh)),
-                    BBOX_COLOR,
-                    2,
-                )
-                cv2.putText(
-                    vis,
-                    "VITTrack",
-                    (int(x), int(y) - 6),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.45,
-                    BBOX_COLOR,
-                    1,
-                )
-
-            if kps is not None and scores is not None:
-                n_kps = len(kps)
-                if n_kps >= 11:
-                    skeleton = SKELETON_11
-                elif n_kps >= 10:
-                    skeleton = SKELETON_10
-                else:
-                    skeleton = [(i, (i + 1) % 8) for i in range(min(n_kps, 8))]
-                for a, b in skeleton:
-                    if (
-                        a < n_kps
-                        and b < n_kps
-                        and scores[a, 0] > self.conf_threshold
-                        and scores[b, 0] > self.conf_threshold
-                    ):
-                        cv2.line(
-                            vis,
-                            (int(kps[a, 0]), int(kps[a, 1])),
-                            (int(kps[b, 0]), int(kps[b, 1])),
-                            SKELETON_COLOR,
-                            2,
-                        )
-
-                for i in range(n_kps):
-                    pt = (int(kps[i, 0]), int(kps[i, 1]))
-                    conf = float(scores[i, 0])
-                    if i == 8:
-                        label = f"C ({conf:.2f})"  # face centre
-                    elif i == 9:
-                        label = f"A ({conf:.2f})"  # arrow tip
-                    elif i == 10:
-                        label = f"E ({conf:.2f})"  # handle end
-                    else:
-                        label = f"{i+1} ({conf:.2f})"
-                    if conf > self.conf_threshold:
-                        cv2.circle(vis, pt, 5, KP_COLOR, -1)
-                        cv2.putText(
-                            vis,
-                            label,
-                            (pt[0] + 6, pt[1] - 4),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.35,
-                            KP_COLOR,
-                            1,
-                        )
-                    else:
-                        cv2.circle(vis, pt, 4, LOW_CONF_COLOR, 1)
-                        cv2.putText(
-                            vis,
-                            label,
-                            (pt[0] + 6, pt[1] - 4),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.35,
-                            LOW_CONF_COLOR,
-                            1,
-                        )
-
-            out = CompressedImage()
-            out.header = header
-            out.format = "jpeg"
-            _, encoded = cv2.imencode(".jpg", vis, [cv2.IMWRITE_JPEG_QUALITY, 80])
-            out.data = encoded.tobytes()
-            self.image_pub.publish(out)
-        except Exception as e:
-            rospy.logwarn_throttle(5.0, f"debug image publish failed: {e}")
 
     def run(self):
         rospy.spin()
