@@ -35,21 +35,28 @@ class DockingTaskState(smach.State):
 
         with self.state_machine:
 
-            def disable_torpedo_aruco_cb(userdata):
+            def init_docking_cameras_cb(userdata):
                 try:
-                    srv = rospy.ServiceProxy(
+                    torpedo_srv = rospy.ServiceProxy(
                         "/aruco_detection_node/torpedo/set_enabled", SetBool
                     )
-                    srv.wait_for_service(timeout=5.0)
-                    srv(False)
-                    rospy.loginfo("Disabled torpedo ArUco camera at docking start")
+                    bottom_srv = rospy.ServiceProxy(
+                        "/aruco_detection_node/bottom/set_enabled", SetBool
+                    )
+                    torpedo_srv.wait_for_service(timeout=5.0)
+                    bottom_srv.wait_for_service(timeout=5.0)
+                    torpedo_srv(False)
+                    bottom_srv(True)
+                    rospy.loginfo(
+                        "Initialized ArUco detection at docking start: torpedo OFF, bottom ON"
+                    )
                 except rospy.ROSException as e:
-                    rospy.logwarn(f"Failed to disable torpedo ArUco camera: {e}")
+                    rospy.logwarn(f"Failed to initialize docking ArUco cameras: {e}")
                 return "succeeded"
 
             smach.StateMachine.add(
                 "DISABLE_TORPEDO_ARUCO",
-                smach.CBState(disable_torpedo_aruco_cb, outcomes=["succeeded"]),
+                smach.CBState(init_docking_cameras_cb, outcomes=["succeeded"]),
                 transitions={
                     "succeeded": "SET_SEARCH_DEPTH",
                 },
