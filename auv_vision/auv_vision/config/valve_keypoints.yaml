@@ -62,8 +62,6 @@ objects:
     refine_iterative: false
     confidence_threshold: 0.5
     reprojection_error_threshold: 5.0
-    # Looser gate at the 4-keypoint floor (valve right up against the camera).
-    reprojection_error_threshold_4kp: 15.0
     max_distance: 8.0
     model: *valve_pose_model
     outputs:
@@ -79,8 +77,6 @@ objects:
     refine_iterative: false
     confidence_threshold: 0.5
     reprojection_error_threshold: 5.0
-    # Looser gate at the 4-keypoint floor (valve right up against the camera).
-    reprojection_error_threshold_4kp: 15.0
     max_distance: 8.0
     model: *valve_pose_model
     outputs:

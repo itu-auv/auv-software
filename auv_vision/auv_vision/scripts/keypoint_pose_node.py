@@ -71,9 +71,6 @@ class KeypointObjectConfig:
     solver: str
     max_distance: float
     reprojection_error_threshold: float
-    # Looser inlier gate used only at the 4-keypoint floor, where the valve is
-    # right up against the camera and a small model error spans many pixels.
-    reprojection_error_threshold_4kp: float
     confidence_threshold: float
     refine_iterative: bool
     handle_line: Optional[HandleLine] = None
@@ -150,14 +147,7 @@ class PnPEstimator:
         image_pts = batch.pixels[mask].reshape(-1, 1, 2).astype(np.float64)
         model_pts = self._model_points[indices].reshape(-1, 1, 3).astype(np.float64)
 
-        # At the 4-keypoint floor the valve is right up against the camera, so a
-        # pixel of model error spans a much larger reprojection residual — use a
-        # looser inlier gate there.
-        reproj_thresh = (
-            cfg.reprojection_error_threshold_4kp
-            if n_used <= 4
-            else cfg.reprojection_error_threshold
-        )
+        reproj_thresh = cfg.reprojection_error_threshold
 
         # solvePnPGeneric exposes BOTH coplanar IPPE candidates; plain solvePnP
         # only ever hands back one. We keep both for offline analysis, then work
@@ -604,10 +594,6 @@ def load_config(config_path: str) -> Tuple[List[KeypointObjectConfig], Dict]:
                 max_distance=obj_cfg.get("max_distance", 30.0),
                 reprojection_error_threshold=obj_cfg.get(
                     "reprojection_error_threshold", 5.0
-                ),
-                reprojection_error_threshold_4kp=obj_cfg.get(
-                    "reprojection_error_threshold_4kp",
-                    obj_cfg.get("reprojection_error_threshold", 5.0),
                 ),
                 confidence_threshold=obj_cfg.get("confidence_threshold", 0.3),
                 refine_iterative=bool(obj_cfg.get("refine_iterative", False)),
