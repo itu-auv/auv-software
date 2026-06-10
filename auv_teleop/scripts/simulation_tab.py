@@ -7,16 +7,19 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QCheckBox,
     QHBoxLayout,
+    QMessageBox,
 )
 from PyQt5.QtCore import Qt
 import subprocess
 import rospy
 from std_msgs.msg import Bool
+from services_tab import ROSServiceCaller, ServiceCallThread
 
 
 class SimulationTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.ros_service_caller = ROSServiceCaller()
         self.detect_process = None
         self.smach_process = None
         self.init_ui()
@@ -27,7 +30,10 @@ class SimulationTab(QWidget):
         rqt_layout = QHBoxLayout()
         self.rqt_btn = QPushButton("Open rqt_image_view")
         self.rqt_btn.setStyleSheet("background-color: lightblue; color: black;")
+        self.draw_mask_btn = QPushButton("Draw Mask")
+        self.draw_mask_btn.setStyleSheet("background-color: lightgreen; color: black;")
         rqt_layout.addWidget(self.rqt_btn)
+        rqt_layout.addWidget(self.draw_mask_btn)
         layout.addLayout(rqt_layout)
 
         detect_group = QGroupBox("Object Detection")
@@ -64,6 +70,7 @@ class SimulationTab(QWidget):
         self.setLayout(layout)
 
         self.rqt_btn.clicked.connect(self.open_rqt)
+        self.draw_mask_btn.clicked.connect(self.trigger_draw_mask)
         self.detect_start.clicked.connect(self.start_detection)
         self.detect_stop.clicked.connect(self.stop_detection)
         self.smach_start.clicked.connect(self.start_smach)
@@ -124,3 +131,16 @@ class SimulationTab(QWidget):
 
     def open_rqt(self):
         subprocess.Popen(["rqt", "-s", "rqt_image_view"])
+
+    def trigger_draw_mask(self):
+        self.draw_mask_btn.setEnabled(False)
+        self.draw_thread = ServiceCallThread(self.ros_service_caller.draw_mask)
+        self.draw_thread.finished_signal.connect(self.on_draw_mask_finished)
+        self.draw_thread.start()
+
+    def on_draw_mask_finished(self, success, message):
+        self.draw_mask_btn.setEnabled(True)
+        if success:
+            QMessageBox.information(self, "Success", message)
+        else:
+            QMessageBox.warning(self, "Error", f"Failed to draw mask: {message}")
