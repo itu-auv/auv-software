@@ -9,11 +9,22 @@ from cv_bridge import CvBridge
 from std_srvs.srv import Trigger, TriggerResponse
 
 
+def saturate(x, lo, hi):
+    return max(lo, min(hi, x))
+
+
 class PipeFollowerLegacy:
     def __init__(self):
         self.k_p = rospy.get_param("~k_p", 1.5)
         self.max_angular_z = rospy.get_param("~max_angular_z", 0.8)
         self.linear_x = rospy.get_param("~linear_x", 0.2)
+        self.k_ang = rospy.get_param("~k_ang", self.k_p)
+        self.k_y = rospy.get_param("~k_y", 0.0)
+        self.ang_limit = rospy.get_param("~ang_limit", self.max_angular_z)
+        self.slowdown_angle = rospy.get_param("~slowdown_angle", 1)
+        self.v_fwd = rospy.get_param("~v_fwd", self.linear_x)
+        self.v_min = rospy.get_param("~v_min", 0.02)
+        self.lin_limit = rospy.get_param("~lin_limit", self.linear_x)
         self.target_width = rospy.get_param("~target_width", 320)
         self.close_kernel_size = rospy.get_param("~close_kernel_size", 25)
         self.open_kernel_size = rospy.get_param("~open_kernel_size", 5)
@@ -124,11 +135,28 @@ class PipeFollowerLegacy:
             yaw_err = line_angle - forward_angle
             yaw_err = math.atan2(math.sin(yaw_err), math.cos(yaw_err))
 
-            tw.angular.z = self.k_p * yaw_err
+            ang_err = yaw_err
+            cx = w / 2.0
+            cy = h / 2.0
+            dx = x0 - cx
+            dy = y0 - cy
+            rx = -fy
+            ry = fx
+            scale = abs(rx) * (w / 2.0) + abs(ry) * (h / 2.0)
+            if scale == 0.0:
+                y_err = 0.0
+            else:
+                y_err = (dx * rx + dy * ry) / scale
 
-            tw.angular.z = max(
-                -self.max_angular_z, min(self.max_angular_z, tw.angular.z)
-            )
+            w_z = self.k_ang * ang_err - self.k_y * y_err
+            w_z = saturate(w_z, -self.ang_limit, self.ang_limit)
+
+            speed_scale = 1.0 / (1.0 + self.slowdown_angle * abs(ang_err))
+            v_x = saturate(self.v_fwd * speed_scale, self.v_min, self.lin_limit)
+
+            tw.angular.z = w_z
+            tw.linear.x = v_x
+            self.pub_cmd.publish(tw)
 
             t1 = -max(h, w)
             t2 = max(h, w)
@@ -156,10 +184,6 @@ class PipeFollowerLegacy:
                 (0, 0, 255),
                 2,
             )
-
-        tw.linear.x = self.linear_x
-
-        self.pub_cmd.publish(tw)
 
         if self.pub_debug is not None:
             arrow_margin = 18
