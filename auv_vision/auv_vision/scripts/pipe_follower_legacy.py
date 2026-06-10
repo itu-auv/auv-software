@@ -7,6 +7,8 @@ from sensor_msgs.msg import CompressedImage, Image
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge
 from std_srvs.srv import Trigger, TriggerResponse
+from dynamic_reconfigure.server import Server
+from auv_vision.cfg import PipeFollowerLegacyConfig
 
 
 def saturate(x, lo, hi):
@@ -21,7 +23,7 @@ class PipeFollowerLegacy:
         self.k_ang = rospy.get_param("~k_ang", self.k_p)
         self.k_y = rospy.get_param("~k_y", 0.0)
         self.ang_limit = rospy.get_param("~ang_limit", self.max_angular_z)
-        self.slowdown_angle = rospy.get_param("~slowdown_angle", 1)
+        self.slowdown_angle = float(rospy.get_param("~slowdown_angle", 1.0))
         self.v_fwd = rospy.get_param("~v_fwd", self.linear_x)
         self.v_min = rospy.get_param("~v_min", 0.02)
         self.lin_limit = rospy.get_param("~lin_limit", self.linear_x)
@@ -39,6 +41,21 @@ class PipeFollowerLegacy:
             self.camera_forward_direction = "right"
         self.is_enabled = False
 
+        # Set resolved parameters on the parameter server so that dynamic_reconfigure is initialized correctly
+        rospy.set_param("~k_p", self.k_p)
+        rospy.set_param("~max_angular_z", self.max_angular_z)
+        rospy.set_param("~linear_x", self.linear_x)
+        rospy.set_param("~k_ang", self.k_ang)
+        rospy.set_param("~k_y", self.k_y)
+        rospy.set_param("~ang_limit", self.ang_limit)
+        rospy.set_param("~slowdown_angle", self.slowdown_angle)
+        rospy.set_param("~v_fwd", self.v_fwd)
+        rospy.set_param("~v_min", self.v_min)
+        rospy.set_param("~lin_limit", self.lin_limit)
+        rospy.set_param("~close_kernel_size", self.close_kernel_size)
+        rospy.set_param("~open_kernel_size", self.open_kernel_size)
+        rospy.set_param("~min_contour_area", self.min_contour_area)
+
         self.bridge = CvBridge()
         self.pub_cmd = rospy.Publisher("cmd_vel", Twist, queue_size=1)
         self.pub_debug = None
@@ -46,6 +63,25 @@ class PipeFollowerLegacy:
         self.sub_mask = rospy.Subscriber("seg_mask", Image, self.cb_mask, queue_size=1)
         self.start_service = rospy.Service("~enable", Trigger, self.cb_start)
         self.stop_service = rospy.Service("~disable", Trigger, self.cb_stop)
+
+        self.reconfigure_server = Server(PipeFollowerLegacyConfig, self.cb_reconfigure)
+
+    def cb_reconfigure(self, config, level):
+        rospy.loginfo("PipeFollowerLegacy reconfigure request")
+        self.k_p = config.k_p
+        self.max_angular_z = config.max_angular_z
+        self.linear_x = config.linear_x
+        self.k_ang = config.k_ang
+        self.k_y = config.k_y
+        self.ang_limit = config.ang_limit
+        self.slowdown_angle = config.slowdown_angle
+        self.v_fwd = config.v_fwd
+        self.v_min = config.v_min
+        self.lin_limit = config.lin_limit
+        self.close_kernel_size = config.close_kernel_size
+        self.open_kernel_size = config.open_kernel_size
+        self.min_contour_area = config.min_contour_area
+        return config
 
     def cb_start(self, req):
         self.is_enabled = True
