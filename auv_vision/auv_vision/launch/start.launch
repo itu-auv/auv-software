@@ -16,7 +16,7 @@
       type="yolo_seg_to_mask.py"
       name="yolo_seg_to_mask_node"
       output="screen">
-      <remap from="yolo_result_seg" to="/yolo_result_seg" />
+      <remap from="yolo_result_seg" to="/yolo_seg_result" />
       <param name="output_mask_topic" value="/seg_mask" />
     </node>
 

@@ -10,25 +10,67 @@ from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
+    DynamicPathState,
 )
 from auv_smach.initialize import DelayState
+
+
+class WaitForPingerSamples(smach.State):
+    def __init__(self, service_name="has_enough_pinger_samples", poll_rate=2.0):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.service_name = service_name
+        self.poll_rate = poll_rate
+        self.sample_check_srv = rospy.ServiceProxy(self.service_name, Trigger)
+
+    def execute(self, userdata):
+        rospy.loginfo("Waiting for enough raw pinger samples.")
+
+        try:
+            rospy.wait_for_service(self.service_name, timeout=5.0)
+        except rospy.ROSException as e:
+            rospy.logerr(f"Service '{self.service_name}' is not available: {e}")
+            return "aborted"
+
+        rate = rospy.Rate(self.poll_rate)
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            try:
+                resp = self.sample_check_srv(TriggerRequest())
+            except rospy.ServiceException as e:
+                rospy.logwarn_throttle(
+                    2.0, f"Failed to check pinger sample count: {e}"
+                )
+                rate.sleep()
+                continue
+
+            if resp.success:
+                rospy.loginfo(f"Enough raw pinger samples received: {resp.message}")
+                return "succeeded"
+
+            rospy.loginfo_throttle(2.0, resp.message)
+            rate.sleep()
+
+        return "aborted"
 
 
 def make_pinger_leg(collect_duration=20.0, waypoint_frame="pinger_waypoint"):
     """
     Creates a StateMachine for one leg of the pinger task:
-    1. Call the service to project and publish the waypoint frame.
+    1. Call the service to publish the next waypoint frame.
     2. Align to the waypoint.
     3. Cancel active control (stop).
     4. Wait for vehicle stabilization.
     5. Start pinger collection.
-    6. Delay for 20 seconds.
+    6. Wait until enough raw samples are collected.
     7. Stop pinger collection.
     """
     sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
 
     with sm:
-        # Publish 2m forward waypoint frame
+        # Publish the next waypoint frame.
         smach.StateMachine.add(
             "PUBLISH_WAYPOINT",
             smach_ros.ServiceState(
@@ -50,7 +92,7 @@ def make_pinger_leg(collect_duration=20.0, waypoint_frame="pinger_waypoint"):
                 dist_threshold=0.15,
                 yaw_threshold=0.2,
                 timeout=30.0,
-                confirm_duration=1.0,
+                confirm_duration=5.0,
                 cancel_on_success=True,
             ),
             transitions={
@@ -89,16 +131,16 @@ def make_pinger_leg(collect_duration=20.0, waypoint_frame="pinger_waypoint"):
                 "toggle_pinger_collection", SetBool, request=SetBoolRequest(data=True)
             ),
             transitions={
-                "succeeded": "COLLECTING_DELAY",
+                "succeeded": "WAIT_RAW_SAMPLES",
                 "preempted": "preempted",
                 "aborted": "aborted",
             },
         )
 
-        # Wait 20 seconds
+        # Wait until enough raw samples are collected.
         smach.StateMachine.add(
-            "COLLECTING_DELAY",
-            DelayState(delay_time=collect_duration),
+            "WAIT_RAW_SAMPLES",
+            WaitForPingerSamples(),
             transitions={
                 "succeeded": "STOP_COLLECTION",
                 "preempted": "preempted",
@@ -126,7 +168,7 @@ class PingerTaskState(smach.State):
     """
     Main Pinger Task State:
     1. Resets/clears pinger data.
-    2. Runs 3 pinger legs sequentially.
+    2. Runs 3 pinger legs sequentially: forward, left, right.
     3. Triggers calculation of the pinger position.
     4. Aligns to the calculated pinger frame.
     5. Cancels final alignment.
@@ -186,30 +228,41 @@ class PingerTaskState(smach.State):
                     "compute_pinger_position", Trigger, request=TriggerRequest()
                 ),
                 transitions={
-                    "succeeded": "ALIGN_TO_PINGER",
+                    "succeeded": "DYNAMIC_TO_PINGER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
-            # Align to the calculated pinger_frame
             smach.StateMachine.add(
-                "ALIGN_TO_PINGER",
-                AlignFrame(
-                    source_frame=get_base_link(),
-                    target_frame=self.pinger_frame,
-                    dist_threshold=0.3,
-                    yaw_threshold=0.2,
-                    timeout=30.0,
-                    confirm_duration=2.0,
-                    cancel_on_success=True,
-                ),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+                    "DYNAMIC_TO_PINGER",
+                    DynamicPathState(
+                        plan_target_frame=self.pinger_frame,
+                    ),
+                    transitions={
+                        "succeeded": "ALIGN_TO_PINGER",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
+                # Align to the calculated pinger_frame
+            smach.StateMachine.add(
+                    "ALIGN_TO_PINGER",
+                    AlignFrame(
+                        source_frame=get_base_link(),
+                        target_frame=self.pinger_frame,
+                        dist_threshold=0.3,
+                        yaw_threshold=0.2,
+                        timeout=30.0,
+                        confirm_duration=2.0,
+                        cancel_on_success=True,
+                    ),
+                    transitions={
+                        "succeeded": "succeeded",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
 
     def execute(self, userdata):
         rospy.loginfo("Starting Pinger Localisation SMACH Task")

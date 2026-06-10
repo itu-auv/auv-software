@@ -30,9 +30,16 @@ class PingerFramePublisher:
             "~topic_name", "/taluy/acoustic/hydrophone/base_angle"
         )
         self.leg_distance = rospy.get_param("~leg_distance", 2.0)
+        self.waypoint_sequence = [
+            ("forward", 1.0, 0.0),
+            ("left", 0.0, 1.0),
+            ("right", 0.0, -1.0),
+        ]
+        self.waypoint_sequence_idx = 0
         self.outlier_threshold = rospy.get_param(
             "~outlier_threshold", 0.26
         )  # ~15 degrees in radians
+        self.min_raw_samples = rospy.get_param("~min_raw_samples", 15)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -59,6 +66,9 @@ class PingerFramePublisher:
         self.publish_waypoint_srv = rospy.Service(
             "publish_pinger_waypoint", Trigger, self.handle_publish_waypoint
         )
+        self.has_enough_samples_srv = rospy.Service(
+            "has_enough_pinger_samples", Trigger, self.handle_has_enough_samples
+        )
 
         # Hydrophone subscriber
         self.sub = rospy.Subscriber(self.topic_name, Float32, self.angle_callback)
@@ -74,32 +84,13 @@ class PingerFramePublisher:
         else:
             self.is_collecting = False
             if self.current_leg_samples:
-                angles = [s["angle_world"] for s in self.current_leg_samples]
-                angles_np = np.array(angles)
-                diffs = np.arctan2(
-                    np.sin(angles_np[:, None] - angles_np[None, :]),
-                    np.cos(angles_np[:, None] - angles_np[None, :]),
-                )
-                sum_abs_diffs = np.sum(np.abs(diffs), axis=1)
-                median_idx = np.argmin(sum_abs_diffs)
-                median_angle = angles_np[median_idx]
-
-                filtered_samples = []
-                for sample in self.current_leg_samples:
-                    diff = abs(
-                        np.arctan2(
-                            np.sin(sample["angle_world"] - median_angle),
-                            np.cos(sample["angle_world"] - median_angle),
-                        )
-                    )
-                    if diff <= self.outlier_threshold:
-                        filtered_samples.append(sample)
-
+                filtered_samples, median_angle = self.get_filtered_current_leg_samples()
                 num_removed = len(self.current_leg_samples) - len(filtered_samples)
                 self.samples.extend(filtered_samples)
                 self.current_leg_samples = []
                 msg = (
-                    f"Stopped pinger data collection. Collected {len(angles)} samples, "
+                    "Stopped pinger data collection. "
+                    f"Collected {len(filtered_samples) + num_removed} samples, "
                     f"kept {len(filtered_samples)} (removed {num_removed} outliers, "
                     f"median angle: {math.degrees(median_angle):.1f}°)."
                 )
@@ -109,11 +100,52 @@ class PingerFramePublisher:
                 rospy.loginfo(msg)
         return SetBoolResponse(success=True, message=msg)
 
+    def get_filtered_current_leg_samples(self):
+        if not self.current_leg_samples:
+            return [], 0.0
+
+        angles = [s["angle_world"] for s in self.current_leg_samples]
+        angles_np = np.array(angles)
+        diffs = np.arctan2(
+            np.sin(angles_np[:, None] - angles_np[None, :]),
+            np.cos(angles_np[:, None] - angles_np[None, :]),
+        )
+        sum_abs_diffs = np.sum(np.abs(diffs), axis=1)
+        median_idx = np.argmin(sum_abs_diffs)
+        median_angle = angles_np[median_idx]
+
+        filtered_samples = []
+        for sample in self.current_leg_samples:
+            diff = abs(
+                np.arctan2(
+                    np.sin(sample["angle_world"] - median_angle),
+                    np.cos(sample["angle_world"] - median_angle),
+                )
+            )
+            if diff <= self.outlier_threshold:
+                filtered_samples.append(sample)
+
+        return filtered_samples, median_angle
+
+    def handle_has_enough_samples(self, req):
+        raw_count = len(self.current_leg_samples)
+        enough_samples = raw_count >= self.min_raw_samples
+        msg = f"Raw pinger samples: {raw_count}/{self.min_raw_samples}"
+        if enough_samples:
+            rospy.loginfo(msg)
+        else:
+            rospy.loginfo_throttle(2.0, msg)
+        return TriggerResponse(success=enough_samples, message=msg)
+
     def handle_clear_data(self, req):
         self.samples = []
         self.current_leg_samples = []
         self.pinger_pose = None
-        msg = "Cleared all collected pinger samples and reset pinger position."
+        self.waypoint_sequence_idx = 0
+        msg = (
+            "Cleared all collected pinger samples, reset pinger position, "
+            "and reset waypoint sequence."
+        )
         rospy.loginfo(msg)
         return TriggerResponse(success=True, message=msg)
 
@@ -135,9 +167,18 @@ class PingerFramePublisher:
 
             _, _, yaw = tf.transformations.euler_from_quaternion([rx, ry, rz, rw])
 
-            # Waypoint target: leg_distance meters forward in current direction
-            target_x = tx + self.leg_distance * math.cos(yaw)
-            target_y = ty + self.leg_distance * math.sin(yaw)
+            waypoint_name, forward_sign, lateral_sign = self.waypoint_sequence[
+                self.waypoint_sequence_idx % len(self.waypoint_sequence)
+            ]
+
+            # Waypoint target in robot-local coordinates:
+            # +X forward, +Y left, -Y right.
+            target_x = tx + self.leg_distance * (
+                forward_sign * math.cos(yaw) + lateral_sign * -math.sin(yaw)
+            )
+            target_y = ty + self.leg_distance * (
+                forward_sign * math.sin(yaw) + lateral_sign * math.cos(yaw)
+            )
 
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
@@ -156,7 +197,11 @@ class PingerFramePublisher:
             resp = self.set_object_transform_service.call(req_trans)
 
             if resp.success:
-                msg = f"Published waypoint '{self.waypoint_frame}' at x={target_x:.2f}, y={target_y:.2f}"
+                self.waypoint_sequence_idx += 1
+                msg = (
+                    f"Published {waypoint_name} waypoint '{self.waypoint_frame}' "
+                    f"at x={target_x:.2f}, y={target_y:.2f}"
+                )
                 rospy.loginfo(msg)
                 return TriggerResponse(success=True, message=msg)
             else:
