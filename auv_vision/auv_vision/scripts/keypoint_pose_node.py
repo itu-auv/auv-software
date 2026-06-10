@@ -26,7 +26,7 @@ scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
-from utils.detection_utils import SHAPE_FACTORIES, transform_to_odom_and_publish
+from utils.detection_utils import build_pose_keypoints, transform_to_odom_and_publish
 
 
 # ─────────────────────────────────────────────── debug viz constants
@@ -152,6 +152,13 @@ class PnPEstimator:
         "upnp": cv2.SOLVEPNP_UPNP,
     }
 
+    # The two coplanar IPPE candidates are mirror poses ("normal flip"); when
+    # their mean reprojection errors are this close (ratio plus a small
+    # absolute slack for the sub-pixel regime), the error ordering is noise —
+    # the last accepted flange normal breaks the tie instead.
+    FLIP_AMBIGUITY_RATIO = 2.0
+    FLIP_AMBIGUITY_SLACK_PX = 0.5
+
     def __init__(self, config: KeypointObjectConfig):
         self.config = config
         sorted_ids = sorted(config.pose_keypoints)
@@ -169,6 +176,11 @@ class PnPEstimator:
         self._handle_normal: Optional[np.ndarray] = None
         self._handle_dir: Optional[np.ndarray] = None
         self._handle_time: Optional[rospy.Time] = None
+        # Flange normal (camera frame) of the last accepted PnP solve, used to
+        # disambiguate the two coplanar IPPE candidates when their reprojection
+        # errors are too close to trust the error ordering (normal-flip guard,
+        # same spirit as the handle-direction pinning in resolve_orientation).
+        self._last_normal: Optional[np.ndarray] = None
 
     @property
     def name(self) -> str:
@@ -199,34 +211,13 @@ class PnPEstimator:
 
         reproj_thresh = cfg.reprojection_error_threshold
 
-        # solvePnPGeneric exposes BOTH coplanar IPPE candidates; plain solvePnP
-        # only ever hands back one. We work with the lowest-reprojection-error
-        # candidate — no disambiguation beyond that ordering. (solvePnPRansac is
-        # unusable here: it forces EPnP internally, which fails on coplanar
-        # subsets — hence manual rejection.)
-        try:
-            n_sols, rvecs, tvecs, _ = cv2.solvePnPGeneric(
-                model_pts, image_pts, K, D, flags=self._solver_flag
+        rvec, tvec, n_sols = self._solve_and_pick(model_pts, image_pts, K, D)
+        if rvec is None:
+            return PnPOutcome(
+                success=False,
+                reason="no PnP solution" if n_sols == 0 else "solvePnPGeneric error",
             )
-        except cv2.error as e:
-            rospy.logwarn_throttle(
-                2.0, f"PnP '{cfg.name}': solvePnPGeneric failed: {e}"
-            )
-            return PnPOutcome(success=False, reason="solvePnPGeneric error")
-        if not n_sols:
-            return PnPOutcome(success=False, reason="no PnP solution")
 
-        # Pick the candidate with the lowest mean reprojection error.
-        best = None
-        for rvec, tvec in zip(rvecs, tvecs):
-            proj, _ = cv2.projectPoints(model_pts, rvec, tvec, K, D)
-            errs = np.linalg.norm(
-                proj.reshape(-1, 2) - image_pts.reshape(-1, 2), axis=1
-            )
-            if best is None or errs.mean() < best[0]:
-                best = (float(errs.mean()), rvec, tvec)
-
-        _, rvec, tvec = best
         proj, _ = cv2.projectPoints(model_pts, rvec, tvec, K, D)
         errors = np.linalg.norm(proj.reshape(-1, 2) - image_pts.reshape(-1, 2), axis=1)
         inliers = errors <= reproj_thresh
@@ -259,6 +250,8 @@ class PnPEstimator:
             )
 
         R, _ = cv2.Rodrigues(rvec)
+        # Anchor for the next frame's IPPE flip disambiguation.
+        self._last_normal = R[:, 0].copy()
         return PnPOutcome(
             success=True,
             pose=Pose(R=R, t=tvec),
@@ -288,17 +281,79 @@ class PnPEstimator:
                 flags=cv2.SOLVEPNP_ITERATIVE,
             )
         elif n_inliers < n_total:
-            ok, rvec, tvec = cv2.solvePnP(
-                model_pts[inliers],
-                image_pts[inliers],
-                K,
-                D,
-                flags=self._solver_flag,
+            # Re-solving on the inlier subset goes through the same flip-aware
+            # picker — plain solvePnP hands back a single IPPE candidate and
+            # could flip the normal right back after estimate_pose chose the
+            # continuity-consistent one.
+            rvec, tvec, _ = self._solve_and_pick(
+                model_pts[inliers], image_pts[inliers], K, D
             )
+            ok = rvec is not None
         else:
             ok = True
 
         return (rvec, tvec) if ok else (None, None)
+
+    def _solve_and_pick(self, model_pts, image_pts, K, D):
+        """solvePnPGeneric + flip-aware candidate selection.
+
+        solvePnPGeneric exposes BOTH coplanar IPPE candidates; plain solvePnP
+        only ever hands back one. (solvePnPRansac is unusable here: it forces
+        EPnP internally, which fails on coplanar subsets — hence the manual
+        outlier rejection in estimate_pose.)
+
+        The lowest-mean-reprojection-error candidate wins, UNLESS another
+        candidate's error is within the ambiguity band AND a previously
+        accepted flange normal exists — then the candidate whose normal agrees
+        best with the last accepted one wins. With near-equal errors the
+        ordering is pure noise, which is exactly when IPPE flips frame to
+        frame.
+
+        Returns (rvec, tvec, n_sols); rvec is None on failure (n_sols is -1
+        for a solver exception, 0 for no solutions).
+        """
+        try:
+            n_sols, rvecs, tvecs, _ = cv2.solvePnPGeneric(
+                model_pts, image_pts, K, D, flags=self._solver_flag
+            )
+        except cv2.error as e:
+            rospy.logwarn_throttle(
+                2.0, f"PnP '{self.config.name}': solvePnPGeneric failed: {e}"
+            )
+            return None, None, -1
+        if not n_sols:
+            return None, None, 0
+
+        cands = []
+        for rvec, tvec in zip(rvecs, tvecs):
+            proj, _ = cv2.projectPoints(model_pts, rvec, tvec, K, D)
+            errs = np.linalg.norm(
+                proj.reshape(-1, 2) - image_pts.reshape(-1, 2), axis=1
+            )
+            cands.append((float(errs.mean()), rvec, tvec))
+        cands.sort(key=lambda c: c[0])
+
+        chosen = cands[0]
+        if self._last_normal is not None and len(cands) > 1:
+            limit = (
+                cands[0][0] * self.FLIP_AMBIGUITY_RATIO + self.FLIP_AMBIGUITY_SLACK_PX
+            )
+            ambiguous = [c for c in cands if c[0] <= limit]
+            if len(ambiguous) > 1:
+                chosen = max(ambiguous, key=self._normal_agreement)
+                if chosen is not cands[0]:
+                    rospy.loginfo_throttle(
+                        2.0,
+                        f"PnP '{self.config.name}': flip guard overrode the "
+                        f"lowest-error candidate "
+                        f"({chosen[0]:.2f}px vs {cands[0][0]:.2f}px)",
+                    )
+        return chosen[1], chosen[2], n_sols
+
+    def _normal_agreement(self, cand) -> float:
+        """Dot product between a candidate's flange normal and the cached one."""
+        R, _ = cv2.Rodrigues(cand[1])
+        return float(R[:, 0] @ self._last_normal)
 
     @staticmethod
     def _ray_plane_intersection(pixel, K, D, normal, plane_point, parallel_eps_rad):
@@ -546,6 +601,11 @@ class CameraHandler:
         self._calibration = (K, D)
 
     def _image_cb(self, msg: Image):
+        # The image ring buffer exists solely to feed the debug overlay
+        # (_publish_debug_image already early-returns without subscribers) —
+        # skip the decode + copy entirely while nobody is watching.
+        if self._debug_image_pub.get_num_connections() == 0:
+            return
         try:
             img = self._bridge.imgmsg_to_cv2(msg, "bgr8")
         except Exception as e:
@@ -894,32 +954,13 @@ class CameraHandler:
         return y_text + 6
 
 
-def _build_pose_keypoints(model_spec) -> Dict[int, np.ndarray]:
-    result: Dict[int, np.ndarray] = {}
-    for part in model_spec:
-        sub_points = SHAPE_FACTORIES[part["shape"]](part["args"])
-        sub_offset = np.array(part.get("offset", [0, 0, 0]), dtype=np.float64)
-        ids = part["ids"]
-        if len(ids) != len(sub_points):
-            raise ValueError(
-                f"shape '{part['shape']}' produced {len(sub_points)} points "
-                f"but `ids` lists {len(ids)} entries"
-            )
-        for kid, pt in zip(ids, sub_points):
-            kid = int(kid)
-            if kid in result:
-                raise ValueError(f"duplicate keypoint id {kid} in pose model")
-            result[kid] = np.asarray(pt, dtype=np.float64) + sub_offset
-    return result
-
-
 def load_config(config_path: str) -> Tuple[List[KeypointObjectConfig], Dict]:
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
 
     configs: List[KeypointObjectConfig] = []
     for obj_cfg in config["objects"]:
-        pose_keypoints = _build_pose_keypoints(obj_cfg["model"])
+        pose_keypoints = build_pose_keypoints(obj_cfg["model"])
         outputs = [
             OutputFrame(
                 child_frame_id=out["child_frame_id"],

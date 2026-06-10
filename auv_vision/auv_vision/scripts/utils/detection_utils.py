@@ -587,3 +587,26 @@ SHAPE_FACTORIES = {
     # parametric shape (e.g. valve: 8 bolts in a ring + face center).
     "points": lambda args: [np.array(p, dtype=np.float64) for p in args],
 }
+
+
+def build_pose_keypoints(model_spec) -> dict:
+    """Expand a YAML model spec (list of shape parts) into {keypoint id: (3,)
+    model point}. Shared by keypoint_pose_node (PnP model) and
+    valve_keypoint_node (RANSAC consensus gate) so both read the same geometry
+    from the same YAML."""
+    result = {}
+    for part in model_spec:
+        sub_points = SHAPE_FACTORIES[part["shape"]](part["args"])
+        sub_offset = np.array(part.get("offset", [0, 0, 0]), dtype=np.float64)
+        ids = part["ids"]
+        if len(ids) != len(sub_points):
+            raise ValueError(
+                f"shape '{part['shape']}' produced {len(sub_points)} points "
+                f"but `ids` lists {len(ids)} entries"
+            )
+        for kid, pt in zip(ids, sub_points):
+            kid = int(kid)
+            if kid in result:
+                raise ValueError(f"duplicate keypoint id {kid} in pose model")
+            result[kid] = np.asarray(pt, dtype=np.float64) + sub_offset
+    return result

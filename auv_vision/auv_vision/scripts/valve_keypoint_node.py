@@ -27,17 +27,19 @@ os.environ.setdefault("KINETO_DISABLED", "1")
 
 import sys
 import threading
-from typing import List, Optional, Tuple
+from itertools import combinations
+from typing import Dict, List, Optional, Tuple
 
 import cv2
 import numpy as np
 import rospkg
 import rospy
+import yaml
 
 from cv_bridge import CvBridge
 
 from auv_msgs.msg import Keypoint, KeypointResult
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CameraInfo, Image
 from std_srvs.srv import SetBool, SetBoolResponse, Empty, EmptyResponse
 
 # vitpose_inference sits next to this file but isn't an installable module yet.
@@ -46,6 +48,7 @@ if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
 from utils.vitpose_inference import load_valve_pose  # noqa: E402
+from utils.detection_utils import build_pose_keypoints  # noqa: E402
 
 
 # State machine
@@ -127,6 +130,66 @@ class ValveKeypointNode:
         # (valve_keypoints.yaml) maps those ids to model points.
         self.object_name = rospy.get_param("~object_name", "valve")
 
+        # Model-consensus gate ("could this possibly be the valve?") + outlier
+        # suppression. The fine-tuned ViTPose can wake up like a sleeper agent
+        # and confidently label humans, and even on genuine valve views it
+        # occasionally drops a nonsense keypoint or two. Both are handled by
+        # the same mechanism: cheap IPPE PnP of the coplanar bolt-ring model
+        # (from valve_keypoints.yaml — single source of truth with the pose
+        # node) finds the largest consensus set of keypoints explainable by a
+        # rigid valve pose. Outliers get their confidence zeroed before
+        # publishing and before the tracker-seed bbox is computed, so the pose
+        # node only ever solves on good points and the tracker stays anchored
+        # to the actual valve. If fewer than plausibility_min_kps points reach
+        # consensus, the frame is implausible (the human case).
+        self.plausibility_enabled = bool(rospy.get_param("~plausibility_enabled", True))
+        # Confidence gate for a keypoint to participate in the check.
+        self.plausibility_kp_conf = float(rospy.get_param("~plausibility_kp_conf", 0.3))
+        # Below this many confident model keypoints the check abstains (passes)
+        # — 4 is the IPPE minimum, also the smallest meaningful consensus.
+        self.plausibility_min_kps = max(
+            4, int(rospy.get_param("~plausibility_min_kps", 4))
+        )
+        # Per-point reprojection error for a keypoint to count as a consensus
+        # inlier. Looser than the pose node's 5 px gate on purpose: this
+        # classifies points, the pose node judges pose quality.
+        self.ransac_inlier_threshold_px = float(
+            rospy.get_param("~ransac_inlier_threshold_px", 10.0)
+        )
+        # Required consensus as a fraction of the confident model keypoints
+        # (floored at plausibility_min_kps). A flat "any 4 points fit" verdict
+        # is too weak when many points are confident — on a human, RANSAC can
+        # usually find SOME 4 scattered points consistent with SOME pose. The
+        # actual failure mode being filtered is a minority of outlier kps, so
+        # demand a majority consensus.
+        self.min_consensus_fraction = float(
+            rospy.get_param("~min_consensus_fraction", 0.6)
+        )
+        # Consecutive implausible LOCKED frames before dropping to RECOVERING,
+        # so a single occluded/garbled frame doesn't kill a good lock.
+        self.plausibility_max_fails = int(rospy.get_param("~plausibility_max_fails", 3))
+        # PnP needs intrinsics; default to the camera_info sibling of the
+        # image topic (.../image_raw → .../camera_info).
+        self.camera_info_topic = rospy.get_param("~camera_info_topic", "")
+        if not self.camera_info_topic:
+            self.camera_info_topic = self.image_topic.rsplit("/", 1)[0] + "/camera_info"
+        # Same YAML the pose node consumes; the gate uses `model` +
+        # `check_model` of the object whose object_names contains ~object_name.
+        self.keypoints_config = rospy.get_param(
+            "~keypoints_config",
+            os.path.normpath(
+                os.path.join(_scripts_dir, "..", "config", "valve_keypoints.yaml")
+            ),
+        )
+        self._model_pts = self._load_check_model(
+            self.keypoints_config, self.object_name
+        )
+        if self._model_pts is not None:
+            rospy.loginfo(
+                f"Consensus gate model for '{self.object_name}': "
+                f"{len(self._model_pts)} points (ids {sorted(self._model_pts)})"
+            )
+
         rospy.loginfo(
             f"Loading ViTPose from {self.vitpose_model_path} (device={self.device})"
         )
@@ -155,13 +218,17 @@ class ValveKeypointNode:
         self._lock = threading.Lock()
         self._state = STATE_UNINIT
         self._tracker = None
-        self._tracked_bbox: Optional[Tuple[float, float, float, float]] = None
         self._seed_thread: Optional[threading.Thread] = None
         self._last_image_bgr: Optional[np.ndarray] = None
         # Successful-LOCKED-frame counter for periodic VITTrack reseeding.
         self._lock_frame_count = 0
         # Frame counter while in UNINIT/RECOVERING, used to stride seed attempts.
         self._recover_frame_count = 0
+        # Consecutive implausible-as-valve LOCKED frames (callback thread only).
+        self._implausible_count = 0
+        # (K, D) from camera_info; single tuple so reads are atomic. None until
+        # the first message — the plausibility check abstains meanwhile.
+        self._calibration: Optional[Tuple[np.ndarray, np.ndarray]] = None
 
         self.enabled = bool(rospy.get_param("~enabled", True))
         # Private (~) so multiple instances (front + bottom camera) can coexist
@@ -180,6 +247,9 @@ class ValveKeypointNode:
 
         rospy.Subscriber(
             self.image_topic, Image, self._image_cb, queue_size=1, buff_size=2**24
+        )
+        rospy.Subscriber(
+            self.camera_info_topic, CameraInfo, self._camera_info_cb, queue_size=1
         )
 
         rospy.loginfo(
@@ -200,13 +270,18 @@ class ValveKeypointNode:
         with self._lock:
             self._state = STATE_RECOVERING
             self._tracker = None
-            self._tracked_bbox = None
             self._lock_frame_count = 0
             self._recover_frame_count = 0
+        self._implausible_count = 0
         rospy.loginfo("valve_keypoint_node: re-seed requested, dropping tracker.")
         return EmptyResponse()
 
     # ─────────────────────────────────────────────── image callback
+
+    def _camera_info_cb(self, msg: CameraInfo):
+        K = np.array(msg.K, dtype=np.float64).reshape(3, 3)
+        D = np.array(msg.D, dtype=np.float64)
+        self._calibration = (K, D)
 
     def _image_cb(self, msg: Image):
         if not self.enabled:
@@ -276,6 +351,7 @@ class ValveKeypointNode:
                     if scores is not None and len(scores)
                     else 0.0
                 )
+                suppress_kps = False
                 if mean_conf < self.lock_mean_conf_min:
                     rospy.logwarn_throttle(
                         2.0,
@@ -284,21 +360,52 @@ class ValveKeypointNode:
                     )
                     self._enter_recovering()
                     # Still publish best-effort keypoints for this frame.
-                    self._tracked_bbox = tracked_bbox
                     publish_state = STATE_RECOVERING
                 else:
-                    with self._lock:
-                        self._tracked_bbox = tracked_bbox
-                        self._lock_frame_count += 1
-                        do_reseed = (
-                            self.lock_reseed_interval > 0
-                            and self._lock_frame_count >= self.lock_reseed_interval
-                        )
-                    if do_reseed:
-                        self._reseed_from_crop_kps(img_bgr, kps, scores)
-                    publish_state = STATE_LOCKED
+                    # Consensus filter: zeroes outlier-kp confidences (so the
+                    # pose node and the reseed bbox only see good points) and
+                    # vetoes frames where no valve pose explains enough points.
+                    scores, plausible, why = self._model_consensus_filter(kps, scores)
+                    if not plausible:
+                        # Suspect target (e.g. ViTPose firing on a human).
+                        # Suppress the keypoints so downstream PnP never sees
+                        # them, and bail to RECOVERING after a few consecutive
+                        # fails. No reseed either — don't anchor the tracker
+                        # onto whatever this is.
+                        suppress_kps = True
+                        self._implausible_count += 1
+                        if self._implausible_count >= self.plausibility_max_fails:
+                            rospy.logwarn(
+                                "Tracked target implausible as valve for %d "
+                                "frames (%s); switching to RECOVERING"
+                                % (self._implausible_count, why)
+                            )
+                            self._enter_recovering()
+                            publish_state = STATE_RECOVERING
+                        else:
+                            rospy.logwarn_throttle(
+                                2.0,
+                                "Plausibility check failed (%s), %d/%d"
+                                % (
+                                    why,
+                                    self._implausible_count,
+                                    self.plausibility_max_fails,
+                                ),
+                            )
+                            publish_state = STATE_LOCKED
+                    else:
+                        self._implausible_count = 0
+                        with self._lock:
+                            self._lock_frame_count += 1
+                            do_reseed = (
+                                self.lock_reseed_interval > 0
+                                and self._lock_frame_count >= self.lock_reseed_interval
+                            )
+                        if do_reseed:
+                            self._reseed_from_crop_kps(img_bgr, kps, scores)
+                        publish_state = STATE_LOCKED
 
-                keypoints = self._build_keypoints(kps, scores)
+                keypoints = [] if suppress_kps else self._build_keypoints(kps, scores)
                 self._publish_result(
                     msg.header, keypoints, bbox=tracked_bbox, state=publish_state
                 )
@@ -327,6 +434,18 @@ class ValveKeypointNode:
             whole = (0.0, 0.0, float(w), float(h))
             kps, scores = self.vp.predict(img_rgb, whole)
 
+            # A seed is a commitment — never lock onto something that can't
+            # possibly be the valve (ViTPose can fire confidently on humans).
+            # The filter also zeroes consensus outliers, so the seed bbox is
+            # computed from coherent points only and the tracker starts
+            # tightly anchored to the actual valve.
+            scores, plausible, why = self._model_consensus_filter(kps, scores)
+            if not plausible:
+                rospy.logwarn_throttle(
+                    2.0, f"Seed attempt rejected: implausible as valve ({why})"
+                )
+                return
+
             seed_bbox = self._compute_seed_bbox(kps, scores, frame_bgr.shape)
             if seed_bbox is None:
                 rospy.logwarn_throttle(
@@ -349,7 +468,6 @@ class ValveKeypointNode:
 
             with self._lock:
                 self._tracker = tracker
-                self._tracked_bbox = seed_bbox
                 self._state = STATE_LOCKED
             rospy.loginfo(
                 "VITTrack seeded: bbox=(%.0f, %.0f, %.0f, %.0f) mean_conf=%.2f"
@@ -393,7 +511,6 @@ class ValveKeypointNode:
             if self._state != STATE_LOCKED:
                 return
             self._tracker = new_tracker
-            self._tracked_bbox = seed_bbox
             self._lock_frame_count = 0
         rospy.loginfo_throttle(
             10.0,
@@ -449,13 +566,175 @@ class ValveKeypointNode:
 
     # ─────────────────────────────────────────────── helpers
 
+    @staticmethod
+    def _load_check_model(
+        config_path: str, object_name: str
+    ) -> Optional[Dict[int, np.ndarray]]:
+        """Consensus-gate model points from the shared YAML: the object's
+        `model` (downstream PnP points) plus `check_model` (extra coplanar
+        check-only points, e.g. the face centre). Returns None — gate disabled
+        — when the YAML is unreadable or no object claims ~object_name."""
+        try:
+            with open(config_path, "r") as f:
+                cfg = yaml.safe_load(f)
+        except Exception as e:
+            rospy.logwarn(
+                f"keypoints config '{config_path}' unreadable ({e}); "
+                f"consensus gate disabled"
+            )
+            return None
+        for obj in cfg.get("objects", []):
+            names = obj.get("object_names", [obj.get("name")])
+            if object_name in names:
+                spec = list(obj["model"]) + list(obj.get("check_model", []))
+                return build_pose_keypoints(spec)
+        rospy.logwarn(
+            f"object_name '{object_name}' not found in {config_path}; "
+            f"consensus gate disabled"
+        )
+        return None
+
+    @staticmethod
+    def _ippe_poses(obj_pts: np.ndarray, img_pts: np.ndarray, K, D) -> List:
+        """All IPPE candidates for a point set; [] on solver failure."""
+        try:
+            n_sols, rvecs, tvecs, _ = cv2.solvePnPGeneric(
+                obj_pts.reshape(-1, 1, 3),
+                img_pts.reshape(-1, 1, 2),
+                K,
+                D,
+                flags=cv2.SOLVEPNP_IPPE,
+            )
+        except cv2.error:
+            return []
+        return list(zip(rvecs, tvecs)) if n_sols else []
+
+    @staticmethod
+    def _reproj_residuals(obj_pts, img_pts, rvec, tvec, K, D) -> np.ndarray:
+        proj, _ = cv2.projectPoints(obj_pts.reshape(-1, 1, 3), rvec, tvec, K, D)
+        return np.linalg.norm(proj.reshape(-1, 2) - img_pts, axis=1)
+
+    def _model_consensus_filter(
+        self, kps: np.ndarray, scores: np.ndarray
+    ) -> Tuple[np.ndarray, bool, str]:
+        """RANSAC consensus gate + outlier suppression on the model keypoints.
+
+        Finds the largest subset of confident model keypoints explainable by a
+        single rigid valve pose (per-point reprojection error ≤
+        ransac_inlier_threshold_px). Fast path: one full-set IPPE solve — on a
+        clean frame every point is an inlier and we're done in ~70 µs. Only
+        when that fails do we enumerate ALL 4-point minimal subsets
+        (deterministic exhaustive RANSAC, C(9,4)=126 solves worst case;
+        cv2.solvePnPRansac is unusable — it forces EPnP, which breaks on
+        coplanar points).
+
+        Returns (scores_out, verdict, reason):
+          - scores_out: copy of scores with consensus outliers zeroed, so the
+            pose node's PnP/handle gates and our own seed-bbox computation
+            never see them. Non-model keypoints (handle ends) are untouched.
+          - verdict False ⇔ consensus < plausibility_min_kps — i.e. no valve
+            pose explains enough points (the "this is a human" case).
+        Abstains (passes, scores untouched) without calibration, with too few
+        confident model points to judge, or when every solve is degenerate.
+        """
+        if not self.plausibility_enabled or self._model_pts is None:
+            return scores, True, ""
+        calib = self._calibration
+        if calib is None:
+            rospy.logwarn_throttle(
+                10.0,
+                f"consensus gate: no camera_info on "
+                f"{self.camera_info_topic} yet, abstaining",
+            )
+            return scores, True, "no camera_info"
+        K, D = calib
+
+        flat_scores = scores.reshape(-1)
+        cand_ids = [
+            kid
+            for kid in sorted(self._model_pts)
+            if kid - 1 < len(kps) and flat_scores[kid - 1] >= self.plausibility_kp_conf
+        ]
+        n = len(cand_ids)
+        if n < self.plausibility_min_kps:
+            return scores, True, "too few confident kps to judge"
+
+        obj = np.stack([self._model_pts[k] for k in cand_ids])
+        img = np.array([kps[k - 1] for k in cand_ids], dtype=np.float64)
+
+        def evaluate(poses):
+            """Best (inlier_mask, mean_inlier_residual) over pose candidates."""
+            best = None
+            for rvec, tvec in poses:
+                res = self._reproj_residuals(obj, img, rvec, tvec, K, D)
+                mask = res <= self.ransac_inlier_threshold_px
+                if not mask.any():
+                    continue
+                key = (int(mask.sum()), -float(res[mask].mean()))
+                if best is None or key > best[0]:
+                    best = (key, mask)
+            return best
+
+        # Fast path: full-set solve. All inliers → clean frame, done.
+        best = evaluate(self._ippe_poses(obj, img, K, D))
+        if best is not None and best[1].all():
+            return scores, True, ""
+
+        # Exhaustive minimal-subset RANSAC. Subsets are tiny (n ≤ 9) so we
+        # enumerate them all — deterministic, no sampling lottery.
+        for subset in combinations(range(n), 4):
+            sub = list(subset)
+            cand = evaluate(self._ippe_poses(obj[sub], img[sub], K, D))
+            if cand is not None and (best is None or cand[0] > best[0]):
+                best = cand
+                if best[1].all():
+                    break  # full consensus found, stop early
+
+        if best is None:
+            # Every solve degenerate (e.g. near-collinear points) — abstain
+            # rather than veto on solver hiccups.
+            rospy.logwarn_throttle(5.0, "consensus gate: all PnP solves failed")
+            return scores, True, "PnP degenerate"
+
+        # Refit on the consensus set and reclassify once — the minimal-subset
+        # pose is noisy, the refit pose judges borderline points more fairly.
+        mask = best[1]
+        if mask.sum() >= 4 and not mask.all():
+            refit = evaluate(self._ippe_poses(obj[mask], img[mask], K, D))
+            if refit is not None and refit[0] > best[0]:
+                mask = refit[1]
+
+        n_consensus = int(mask.sum())
+        required = max(
+            self.plausibility_min_kps,
+            int(np.ceil(self.min_consensus_fraction * n)),
+        )
+        if n_consensus < required:
+            return (
+                scores,
+                False,
+                f"only {n_consensus}/{n} kps consistent with a valve pose "
+                f"(need {required})",
+            )
+
+        outlier_ids = [kid for kid, ok in zip(cand_ids, mask) if not ok]
+        scores_out = scores.copy()
+        for kid in outlier_ids:
+            scores_out[kid - 1] = 0.0
+        rospy.loginfo_throttle(
+            2.0,
+            f"consensus gate: suppressed outlier kps {outlier_ids} "
+            f"({n_consensus}/{n} inliers)",
+        )
+        return scores_out, True, ""
+
     def _enter_recovering(self):
         with self._lock:
             self._state = STATE_RECOVERING
             self._tracker = None
-            self._tracked_bbox = None
             self._lock_frame_count = 0
             self._recover_frame_count = 0
+        self._implausible_count = 0
 
     def _bbox_is_sane(self, bbox, img_shape) -> bool:
         # A close valve legitimately overruns the frame, so a partially

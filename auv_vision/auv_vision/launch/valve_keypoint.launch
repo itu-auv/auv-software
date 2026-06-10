@@ -50,6 +50,13 @@
       <param name="device"                 value="$(arg device)" />
       <param name="conf_threshold"         value="$(arg conf_threshold)" />
       <param name="result_topic"           value="/keypoint_result_front" />
+      <!-- Must match an `object_names` entry in valve_keypoints.yaml, both
+           for the pose node to claim these keypoints and for the producer's
+           consensus gate to find its model. The default ("valve") matches
+           NOTHING in that yaml and silently disables the whole pipeline. -->
+      <param name="object_name"            value="valve_front" />
+      <param name="keypoints_config"
+             value="$(find auv_vision)/config/valve_keypoints.yaml" />
     </node>
 
     <node pkg="auv_vision" type="keypoint_pose_node.py"

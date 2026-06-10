@@ -43,6 +43,17 @@ _valve_pose_model: &valve_pose_model
       - [0.020, -0.072832, 0.072832] # kp7: bolt 135°
       - [0.020, -0.103000, 0.000000] # kp8: bolt 180°
 
+# Producer-side check points: extra coplanar points used ONLY by
+# valve_keypoint_node's RANSAC consensus gate (`model` + `check_model` is the
+# gate's full point set; the pose node ignores this key). kp9 (face centre)
+# lies on the same flange plane as the bolts, so it's valid for the gate even
+# though it's deliberately excluded from the pose node's PnP.
+_valve_check_model: &valve_check_model
+  - shape: points
+    ids: [9]
+    args:
+      - [0.020, 0.000000, 0.000000] # kp9: face centre
+
 # Handle line: kp9 (face centre), kp10 and kp11 (the two handle ends) are
 # collinear along the valve handle. None of them are used by PnP. Collinearity
 # is gated in image pixels (attitude-independent); the direction that sets the
@@ -65,9 +76,10 @@ objects:
     solver: ippe
     refine_iterative: false
     confidence_threshold: 0.5
-    reprojection_error_threshold: 5.0
+    reprojection_error_threshold: 10.0
     max_distance: 8.0
     model: *valve_pose_model
+    check_model: *valve_check_model
     outputs:
       - child_frame_id: tac/valve_front
         offset: [0.0, 0.0, 0.0]
@@ -80,9 +92,10 @@ objects:
     solver: ippe
     refine_iterative: false
     confidence_threshold: 0.5
-    reprojection_error_threshold: 5.0
+    reprojection_error_threshold: 10.0
     max_distance: 8.0
     model: *valve_pose_model
+    check_model: *valve_check_model
     outputs:
       - child_frame_id: tac/valve_bottom
         offset: [0.0, 0.0, 0.0]

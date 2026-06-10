@@ -114,7 +114,7 @@ class InspectTrajectoryPublisherNode:
     def _lookup_in_odom(self, frame_id, label):
         try:
             return self.tf_buffer.lookup_transform(
-                self.odom_frame, frame_id, rospy.Time.now(), rospy.Duration(4.0)
+                self.odom_frame, frame_id, rospy.Time(0), rospy.Duration(4.0)
             )
         except (
             tf2_ros.LookupException,
