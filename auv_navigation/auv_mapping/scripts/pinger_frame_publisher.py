@@ -18,6 +18,7 @@ class PingerFramePublisher:
 
         self.is_collecting = False
         self.samples = []
+        self.current_leg_samples = []
         self.pinger_pose = None
 
         # Parameters
@@ -29,6 +30,9 @@ class PingerFramePublisher:
             "~topic_name", "/taluy/acoustic/hydrophone/base_angle"
         )
         self.leg_distance = rospy.get_param("~leg_distance", 2.0)
+        self.outlier_threshold = rospy.get_param(
+            "~outlier_threshold", 0.26
+        )  # ~15 degrees in radians
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -62,13 +66,52 @@ class PingerFramePublisher:
         rospy.loginfo("PingerFramePublisher initialized successfully.")
 
     def handle_toggle_collection(self, req):
-        self.is_collecting = req.data
-        msg = f"Pinger data collection is set to: {self.is_collecting}"
-        rospy.loginfo(msg)
+        if req.data:
+            self.current_leg_samples = []
+            self.is_collecting = True
+            msg = "Started pinger data collection."
+            rospy.loginfo(msg)
+        else:
+            self.is_collecting = False
+            if self.current_leg_samples:
+                angles = [s["angle_world"] for s in self.current_leg_samples]
+                angles_np = np.array(angles)
+                diffs = np.arctan2(
+                    np.sin(angles_np[:, None] - angles_np[None, :]),
+                    np.cos(angles_np[:, None] - angles_np[None, :]),
+                )
+                sum_abs_diffs = np.sum(np.abs(diffs), axis=1)
+                median_idx = np.argmin(sum_abs_diffs)
+                median_angle = angles_np[median_idx]
+
+                filtered_samples = []
+                for sample in self.current_leg_samples:
+                    diff = abs(
+                        np.arctan2(
+                            np.sin(sample["angle_world"] - median_angle),
+                            np.cos(sample["angle_world"] - median_angle),
+                        )
+                    )
+                    if diff <= self.outlier_threshold:
+                        filtered_samples.append(sample)
+
+                num_removed = len(self.current_leg_samples) - len(filtered_samples)
+                self.samples.extend(filtered_samples)
+                self.current_leg_samples = []
+                msg = (
+                    f"Stopped pinger data collection. Collected {len(angles)} samples, "
+                    f"kept {len(filtered_samples)} (removed {num_removed} outliers, "
+                    f"median angle: {math.degrees(median_angle):.1f}°)."
+                )
+                rospy.loginfo(msg)
+            else:
+                msg = "Stopped pinger data collection. No samples collected."
+                rospy.loginfo(msg)
         return SetBoolResponse(success=True, message=msg)
 
     def handle_clear_data(self, req):
         self.samples = []
+        self.current_leg_samples = []
         self.pinger_pose = None
         msg = "Cleared all collected pinger samples and reset pinger position."
         rospy.loginfo(msg)
@@ -156,11 +199,13 @@ class PingerFramePublisher:
             angle_world = yaw + angle_body
 
             # Store the robot position and the calculated absolute bearing direction
-            self.samples.append({"pos": (tx, ty), "angle_world": angle_world})
+            self.current_leg_samples.append(
+                {"pos": (tx, ty), "angle_world": angle_world}
+            )
 
             rospy.loginfo_throttle(
                 2.0,
-                f"Collected sample #{len(self.samples)}: pos=({tx:.2f}, {ty:.2f}), "
+                f"Collected sample #{len(self.current_leg_samples)}: pos=({tx:.2f}, {ty:.2f}), "
                 f"angle_body={math.degrees(angle_body):.1f}°, "
                 f"angle_world={math.degrees(angle_world):.1f}°",
             )
