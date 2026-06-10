@@ -15,6 +15,9 @@ find_package(catkin REQUIRED COMPONENTS
   dynamic_reconfigure
   auv_common_lib
 )
+generate_dynamic_reconfigure_options(
+  cfg/PipeFollowerLegacy.cfg
+)
 
 catkin_package(
   CATKIN_DEPENDS
