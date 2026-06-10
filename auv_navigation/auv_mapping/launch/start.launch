@@ -119,5 +119,10 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <node pkg="auv_mapping" type="pinger_frame_publisher.py" name="pinger_frame_publisher" output="screen">
+      <param name="robot_base_frame" value="$(arg namespace)/base_link" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
   </group>
 </launch>

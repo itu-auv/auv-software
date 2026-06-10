@@ -13,6 +13,7 @@ from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
+from auv_smach.pinger import PingerTaskState
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.pipe_follower import PipeTaskState
 from auv_smach.gps import NavigateToGpsTargetState
@@ -129,6 +130,12 @@ class MainStateMachineNode:
         # Acoustic receiver parameters
         self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
         self.acoustic_rx_timeout = 30.0  # seconds
+
+        # Pinger parameters
+        self.pinger_n_legs = rospy.get_param("~pinger_n_legs", 3)
+        self.pinger_leg_distance = rospy.get_param("~pinger_leg_distance", 2.0)
+        self.pinger_collect_duration = rospy.get_param("~pinger_collect_duration", 20.0)
+        self.pinger_frame = rospy.get_param("~pinger_frame", "pinger_frame")
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -312,6 +319,15 @@ class MainStateMachineNode:
                     "pipe_map_depth": self.pipe_map_depth,
                     "pipe_target_frame": self.pipe_target_frame,
                     "pipe_method": self.pipe_method,
+                },
+            ),
+            "PINGER_TASK": (
+                PingerTaskState,
+                {
+                    "n_legs": self.pinger_n_legs,
+                    "leg_distance": self.pinger_leg_distance,
+                    "collect_duration": self.pinger_collect_duration,
+                    "pinger_frame": self.pinger_frame,
                 },
             ),
         }

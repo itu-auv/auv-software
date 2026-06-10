@@ -20,7 +20,8 @@
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
         pipeline:NAVIGATE_THROUGH_PIPELINE,
-        pipe:FOLLOW_PIPE
+        pipe:FOLLOW_PIPE,
+        pinger:PINGER_TASK
     "/>
 
     <!-- Test Mode Configuration -->
@@ -42,7 +43,8 @@
         'ACOUSTIC_RECEIVER',
         'NAVIGATE_RETURN_THROUGH_GATE',
         'NAVIGATE_THROUGH_PIPELINE',
-        'FOLLOW_PIPE'
+        'FOLLOW_PIPE',
+        'PINGER_TASK'
     ]" doc="Full sequence of mission states"/>
 
     <!-- Test Mission States -->
