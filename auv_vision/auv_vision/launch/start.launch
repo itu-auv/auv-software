@@ -29,11 +29,6 @@
     </node>
 
     <!-- Interactive Mask Drawing Node -->
-    <node
-      pkg="auv_vision"
-      type="draw_mask_node.py"
-      name="draw_mask_node"
-      output="screen">
-    </node>
+
   </group>
 </launch>

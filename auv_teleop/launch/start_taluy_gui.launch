@@ -27,4 +27,10 @@
         <param name="topic_camera_bottom" value="$(arg namespace)/cameras/cam_bottom/image_raw" />
         <param name="topic_camera_front" value="$(arg namespace)/cameras/cam_front/image_raw" />
     </node>
+  <node
+      pkg="auv_vision"
+      type="draw_mask_node.py"
+      name="draw_mask_node"
+      output="screen">
+  </node>
 </launch>
