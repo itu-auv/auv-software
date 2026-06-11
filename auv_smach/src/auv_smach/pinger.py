@@ -208,7 +208,7 @@ class PingerTaskState(smach.State):
                     look_at_frame=self.pinger_frame,
                     alignment_frame="look_at_pinger",
                     full_rotation=False,
-                    set_frame_duration=7.0,
+                    set_frame_duration=15.0,
                     source_frame=get_base_link(),
                     rotation_speed=0.2,
                 ),
@@ -234,8 +234,8 @@ class PingerTaskState(smach.State):
                 AlignFrame(
                     source_frame=get_base_link(),
                     target_frame=self.pinger_frame,
+                    keep_orientation=True,
                     dist_threshold=0.3,
-                    yaw_threshold=0.2,
                     timeout=30.0,
                     confirm_duration=2.0,
                     cancel_on_success=True,
