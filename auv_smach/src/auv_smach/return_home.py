@@ -47,12 +47,12 @@ class NavigateReturnThroughGateState(smach.State):
             smach.StateMachine.add(
                 "LOOK_AT_GATE",
                 SearchForPropState(
-                    look_at_frame=self.gate_look_at_frame,
-                    alignment_frame="look_at_gate",
+                    look_at_frame="odom",
+                    alignment_frame="look_at_odom",
                     full_rotation=False,
-                    set_frame_duration=7.0,
+                    set_frame_duration=10.0,
                     source_frame=self.base_link,
-                    rotation_speed=0.2,
+                    rotation_speed=0.4,
                 ),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_TO_GATE_RETURN",
@@ -63,8 +63,7 @@ class NavigateReturnThroughGateState(smach.State):
             smach.StateMachine.add(
                 "DYNAMIC_PATH_TO_GATE_RETURN",
                 DynamicPathState(
-                    plan_target_frame=self.gate_look_at_frame,
-                    angle_offset=3.14,
+                    plan_target_frame="odom",
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_ENTRANCE",
@@ -76,8 +75,7 @@ class NavigateReturnThroughGateState(smach.State):
                 "ALIGN_TO_ENTRANCE",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame="gate_entrance",
-                    angle_offset=3.14,
+                    target_frame="odom",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=2.0,
@@ -85,24 +83,6 @@ class NavigateReturnThroughGateState(smach.State):
                     cancel_on_success=False,
                     keep_orientation=False,
                 ),
-                transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_7",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_7",
-                AcousticTransmitter(acoustic_data=7),
-                transitions={
-                    "succeeded": "FINISHED_ROBOSUB",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "FINISHED_ROBOSUB",
-                CancelAlignControllerState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
