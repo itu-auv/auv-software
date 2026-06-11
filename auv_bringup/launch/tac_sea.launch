@@ -83,6 +83,16 @@
          private namespace): set_turn_direction (headroom pre-positioning),
          rotate (latched ramped turn), resume_tracking.
          ccw_sign / invert / offset_deg are bench-calibration knobs. -->
+    <!-- Calibration (verified live on Taluy, front gripper, 2026-06-11):
+         * invert=true — the camera sees the valve FACE, so the measured
+           roll axis (flange normal) points back at the vehicle, anti-
+           parallel to the gripper spin axis: mirrored handedness. Holds
+           for both grippers (front: normal -X vs gripper +X; bottom:
+           normal +Z vs gripper -Z).
+         * offset_deg=90 — the servo's 550us zero actually holds the jaws
+           in the cross-grip pose, 90 deg from the assumed zero direction.
+           Same hardware/mount on both grippers; re-trim on the bottom if
+           its mount differs. -->
     <node pkg="auv_control" type="gripper_roll_tracker.py"
           name="gripper_roll_tracker_front" output="screen">
       <param name="target_frame" value="tac/valve_front" />
@@ -90,6 +100,8 @@
       <rosparam param="axis">[1.0, 0.0, 0.0]</rosparam>
       <rosparam param="feature_vector">[0.0, 0.0, 1.0]</rosparam>
       <rosparam param="reference_vector">[0.0, 0.0, 1.0]</rosparam>
+      <param name="invert" value="true" />
+      <param name="offset_deg" value="90.0" />
     </node>
 
     <node pkg="auv_control" type="gripper_roll_tracker.py"
@@ -101,6 +113,8 @@
       <!-- Bottom gripper points down: its zero direction is horizontal
            (body +X assumed; trim with offset_deg on the real mount). -->
       <rosparam param="reference_vector">[1.0, 0.0, 0.0]</rosparam>
+      <param name="invert" value="true" />
+      <param name="offset_deg" value="90.0" />
     </node>
 
     <!-- ArUco scan-only detector on the front camera (no pose estimation,
