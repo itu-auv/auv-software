@@ -183,8 +183,8 @@ class ROSServiceCaller:
 
     def draw_mask(self):
         try:
-            rospy.wait_for_service("draw_mask", timeout=1)
-            draw_mask_service = rospy.ServiceProxy("draw_mask", Trigger)
+            rospy.wait_for_service("/draw_mask", timeout=1)
+            draw_mask_service = rospy.ServiceProxy("/draw_mask", Trigger)
             response = draw_mask_service(TriggerRequest())
             if response.success:
                 print("Draw mask completed successfully")

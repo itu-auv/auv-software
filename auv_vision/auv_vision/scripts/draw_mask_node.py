@@ -49,12 +49,12 @@ class DrawMaskNode:
         )
         
         # Service Server
-        self.srv = rospy.Service("draw_mask", Trigger, self.handle_draw_mask_service)
+        self.srv = rospy.Service("/draw_mask", Trigger, self.handle_draw_mask_service)
         
         rospy.loginfo(f"[DrawMaskNode] Subscribed to input: {self.input_image_topic}")
         rospy.loginfo(f"[DrawMaskNode] Output image topic: {self.output_image_topic}")
         rospy.loginfo(f"[DrawMaskNode] Output mask topic: {self.output_mask_topic}")
-        rospy.loginfo("[DrawMaskNode] Service 'draw_mask' is ready.")
+        rospy.loginfo("[DrawMaskNode] Service '/draw_mask' is ready.")
 
     def image_callback(self, msg):
         with self.image_lock:

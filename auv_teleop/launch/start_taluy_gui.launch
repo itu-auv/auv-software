@@ -11,7 +11,6 @@
         <remap from="ball_dropper/drop" to="$(arg namespace)/actuators/ball_dropper/drop"/>
         <remap from="torpedo_1/launch" to="$(arg namespace)/actuators/torpedo_1/launch"/>
         <remap from="torpedo_2/launch" to="$(arg namespace)/actuators/torpedo_2/launch"/>
-        <remap from="draw_mask" to="$(arg namespace)/draw_mask"/>
         <remap from="cmd_vel" to="$(arg namespace)/cmd_vel"/>
         <remap from="enable" to="$(arg namespace)/enable"/>
         <remap from="drive_pulse" to="$(arg namespace)/board/drive_pulse"/>

@@ -133,13 +133,7 @@ class SimulationTab(QWidget):
         subprocess.Popen(["rqt", "-s", "rqt_image_view"])
 
     def trigger_draw_mask(self):
-        self.draw_mask_btn.setEnabled(False)
-        self.draw_thread = ServiceCallThread(self.ros_service_caller.draw_mask)
-        self.draw_thread.finished_signal.connect(self.on_draw_mask_finished)
-        self.draw_thread.start()
-
-    def on_draw_mask_finished(self, success, message):
-        self.draw_mask_btn.setEnabled(True)
+        success, message = self.ros_service_caller.draw_mask()
         if success:
             QMessageBox.information(self, "Success", message)
         else:
