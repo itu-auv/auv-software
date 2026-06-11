@@ -14,6 +14,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
 )
 from PyQt5.QtCore import QThread, pyqtSignal, QTimer, Qt
+from services_tab import ROSServiceCaller, ServiceCallThread
 from PyQt5.QtGui import QFont
 import subprocess
 import rospy
@@ -71,6 +72,7 @@ class CommandThread(QThread):
 class DryTestTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.ros_service_caller = ROSServiceCaller()
 
         self.topic_imu = rospy.get_param("~topic_imu", "imu/data")
         self.topic_dvl_validity = rospy.get_param(
@@ -149,13 +151,20 @@ class DryTestTab(QWidget):
 
         self.rqt_btn = QPushButton("Open rqt_image_view")
         self.rqt_btn.setStyleSheet("background-color: lightblue; color: black;")
+        self.draw_mask_btn = QPushButton("Draw Mask")
+        self.draw_mask_btn.setStyleSheet("background-color: lightgreen; color: black;")
 
         self.thruster_test_btn = QPushButton("Test Thrusters")
         self.thruster_test_btn.setStyleSheet("background-color: orange; color: black;")
 
         button_layout.addWidget(self.dry_test_btn)
         button_layout.addSpacing(10)
-        button_layout.addWidget(self.rqt_btn)
+        
+        rqt_row = QHBoxLayout()
+        rqt_row.addWidget(self.rqt_btn)
+        rqt_row.addWidget(self.draw_mask_btn)
+        button_layout.addLayout(rqt_row)
+        
         button_layout.addWidget(self.thruster_test_btn)
 
         layout.addWidget(sensor_group, 0, 0)
@@ -197,6 +206,7 @@ class DryTestTab(QWidget):
         self.dvl_validity_start_btn.clicked.connect(self.start_dvl_validity)
         self.dvl_validity_stop_btn.clicked.connect(self.stop_dvl_validity)
         self.rqt_btn.clicked.connect(self.open_rqt)
+        self.draw_mask_btn.clicked.connect(self.trigger_draw_mask)
         self.dry_test_btn.clicked.connect(self.run_dry_test)
         self.clear_btn.clicked.connect(self.clear_output)
 
@@ -390,3 +400,10 @@ class DryTestTab(QWidget):
             self.voltage_label.setText("Voltage: N/A")
             self.voltage_status_label.setText("")
             self.voltage_status_label.setStyleSheet("color: gray;")
+
+    def trigger_draw_mask(self):
+        success, message = self.ros_service_caller.draw_mask()
+        if success:
+            QMessageBox.information(self, "Success", message)
+        else:
+            QMessageBox.warning(self, "Error", f"Failed to draw mask: {message}")
