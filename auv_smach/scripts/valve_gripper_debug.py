@@ -175,8 +175,8 @@ def main():
     # 90 = the valve's physical travel; the excess (default 20) is overdrive,
     # relaxed back by the tracker after the stop is hit.
     degrees = float(rospy.get_param("~degrees", 110.0))
-    perpendicular_threshold = float(rospy.get_param("~perpendicular_threshold", 0.02))
-    in_plane_threshold = float(rospy.get_param("~in_plane_threshold", 0.05))
+    perpendicular_threshold = float(rospy.get_param("~perpendicular_threshold", 0.03))
+    in_plane_threshold = float(rospy.get_param("~in_plane_threshold", 0.04))
     confirm_duration = float(rospy.get_param("~confirm_duration", 0.3))
     resume = bool(rospy.get_param("~resume", True))
     disengage_distance = float(rospy.get_param("~disengage_distance", 0.15))

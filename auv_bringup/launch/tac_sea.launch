@@ -118,9 +118,9 @@
       <rosparam param="reference_vector">[1.0, 0.0, 0.0]</rosparam>
       <param name="invert" value="true" />
       <param name="offset_deg" value="90.0" />
-      <!-- NOT yet bench-verified for the bottom gripper — calibrate its
-           handle-vs-servo sense before trusting a bottom-valve turn. -->
-      <param name="ccw_sign" value="1.0" />
+      <!-- Bench-calibrated 2026-06-11: commanded turn ran opposite to the
+           handle sense, same as the front mount — servo flipped here too. -->
+      <param name="ccw_sign" value="-1.0" />
     </node>
 
     <!-- ArUco scan-only detector on the front camera (no pose estimation,

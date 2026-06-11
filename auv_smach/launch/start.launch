@@ -26,7 +26,7 @@
     <!-- Valve handle turn (TAC): direction as seen facing the valve.
          Empty direction disables the turn phase entirely. -->
     <arg name="valve_turn_direction" default="" doc="Valve handle turn direction: 'cw', 'ccw', or empty to disable"/>
-    <arg name="valve_turn_degrees" default="90.0" doc="Valve handle turn magnitude in degrees"/>
+    <arg name="valve_turn_degrees" default="110.0" doc="Valve handle turn magnitude in degrees (90 physical travel + 20 overdrive)"/>
 
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
