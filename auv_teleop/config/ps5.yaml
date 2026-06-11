@@ -17,13 +17,13 @@ buttons:
 
 axes:
   x_axis:
-    index: 1
+    index: [1, 7]
     gain: 0.4
   y_axis:
-    index: 0
+    index: [0, 6]
     gain: 0.4
   yaw_axis:
-    index: 3
+    index: [3]
     gain: 0.5
   # ROV mode gains
   rov_pitch_gain: 0.5
