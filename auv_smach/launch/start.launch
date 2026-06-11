@@ -23,6 +23,11 @@
         inspect:INSPECT
     "/>
 
+    <!-- Valve handle turn (TAC): direction as seen facing the valve.
+         Empty direction disables the turn phase entirely. -->
+    <arg name="valve_turn_direction" default="" doc="Valve handle turn direction: 'cw', 'ccw', or empty to disable"/>
+    <arg name="valve_turn_degrees" default="90.0" doc="Valve handle turn magnitude in degrees"/>
+
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
     <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
@@ -110,6 +115,9 @@
 
             <!-- octagon.py Gripper Service -->
             <remap from="actuators/gripper/close" to="actuators/gripper/close"/>
+
+            <param name="valve_turn_direction" value="$(arg valve_turn_direction)"/>
+            <param name="valve_turn_degrees" value="$(arg valve_turn_degrees)"/>
 
             <param name="test_mode" value="$(arg test_mode)"/>
             <rosparam param="state_map" subst_value="true">$(arg state_map)</rosparam>

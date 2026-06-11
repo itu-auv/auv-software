@@ -1,0 +1,19 @@
+# Valve gripper turn command/configuration (see gripper_roll_tracker.py).
+#
+# direction: "cw" or "ccw" — the sense the valve HANDLE turns, as seen by an
+#            observer facing the valve face (for the bottom valve: looking
+#            down at it). The per-gripper mapping from this convention to the
+#            servo sign is the tracker's ~ccw_sign parameter.
+#
+# Used by two services:
+#   rotate             — degrees: how far to turn (> 0). Latches the current
+#                        tracked roll, ramps to (latched ± degrees), holds.
+#                        Blocks until the ramp completes.
+#   set_turn_direction — degrees: required headroom (0 → keep current, default
+#                        90). Tracking then always parks the servo on a branch
+#                        with at least this much travel in `direction`.
+string direction
+float64 degrees
+---
+bool success
+string message

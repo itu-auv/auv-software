@@ -1,8 +1,10 @@
 from .initialize import *
+import rospy
 import smach
 import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest
 
+from auv_msgs.srv import RotateGripper, RotateGripperRequest
 from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
@@ -24,6 +26,51 @@ class _SetBoolServiceState(smach_ros.ServiceState):
         )
 
 
+def _rotate_gripper_response_cb(userdata, response):
+    """Map the service-level success flag onto the smach outcome (a refusal —
+    e.g. not enough headroom — must abort the task, not 'succeed')."""
+    if response.success:
+        return "succeeded"
+    rospy.logerr(f"RotateGripper service refused: {response.message}")
+    return "aborted"
+
+
+class SetGripperTurnDirectionState(smach_ros.ServiceState):
+    """Tell a gripper roll tracker which way the valve handle will be turned
+    ("cw"/"ccw" as seen facing the valve). From then on the tracker only parks
+    the servo on branches with enough headroom to make that turn without a
+    mid-grip finger flip. Call once, early — turn-readiness is a standing
+    property of tracking, not a pre-engage ritual."""
+
+    def __init__(
+        self, tracker_namespace: str, direction: str, headroom_deg: float = 0.0
+    ):
+        smach_ros.ServiceState.__init__(
+            self,
+            f"{tracker_namespace}/set_turn_direction",
+            RotateGripper,
+            request=RotateGripperRequest(direction=direction, degrees=headroom_deg),
+            response_cb=_rotate_gripper_response_cb,
+        )
+
+
+class RotateGripperState(smach_ros.ServiceState):
+    """Turn the gripped valve handle: latches the tracked roll and ramps the
+    servo by `degrees` in `direction` (handle sense, facing the valve). The
+    service blocks until the ramp completes, so this state returns when the
+    turn is physically done. Refusals (insufficient headroom, nothing tracked
+    yet, turn already in flight) come back as 'aborted'."""
+
+    def __init__(self, tracker_namespace: str, direction: str, degrees: float):
+        smach_ros.ServiceState.__init__(
+            self,
+            f"{tracker_namespace}/rotate",
+            RotateGripper,
+            request=RotateGripperRequest(direction=direction, degrees=degrees),
+            response_cb=_rotate_gripper_response_cb,
+        )
+
+
 class ValveTaskState(smach.State):
     """Aligns to a valve in two phases: approach → engage.
 
@@ -42,8 +89,14 @@ class ValveTaskState(smach.State):
     After approach, the publisher is re-enabled (unfrozen) and the
     engage phase aligns the valve gripper link to the engage target.
 
+    If `turn_direction` is set ("cw"/"ccw", handle sense facing the valve),
+    the gripper roll tracker is told the direction up front (so tracking
+    stays turn-ready with enough servo headroom) and, after engaging, the
+    handle is turned `turn_degrees` while the align controller holds the
+    engage pose.
+
     Parameterised so a single class covers both front and bottom valves —
-    they differ only in the frame names and gripper link.
+    they differ only in the frame names, gripper link, and tracker namespace.
     """
 
     def __init__(
@@ -54,13 +107,18 @@ class ValveTaskState(smach.State):
         engage_target_frame: str = "valve_front_engage_target",
         publisher_service: str = "set_publishing_valve_front",
         freeze_delay: float = 5.0,
+        tracker_namespace: str = "gripper_roll_tracker_front",
+        turn_direction: str = "",
+        turn_degrees: float = 90.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
-        self.state_machine.set_initial_state(["SET_VALVE_DEPTH"])
+        self.state_machine.set_initial_state(
+            ["SET_TURN_DIRECTION" if turn_direction else "SET_VALVE_DEPTH"]
+        )
 
         # -- Build the approach Concurrence --
         # Child 1: align to approach target (loose thresholds, long timeout)
@@ -124,6 +182,23 @@ class ValveTaskState(smach.State):
 
         # -- Wire the top-level state machine --
         with self.state_machine:
+            # Tell the roll tracker the turn direction first: from here on,
+            # tracking permanently keeps enough headroom for the turn.
+            if turn_direction:
+                smach.StateMachine.add(
+                    "SET_TURN_DIRECTION",
+                    SetGripperTurnDirectionState(
+                        tracker_namespace=tracker_namespace,
+                        direction=turn_direction,
+                        headroom_deg=turn_degrees,
+                    ),
+                    transitions={
+                        "succeeded": "SET_VALVE_DEPTH",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
             smach.StateMachine.add(
                 "SET_VALVE_DEPTH",
                 SetDepthState(depth=valve_depth),
@@ -204,11 +279,33 @@ class ValveTaskState(smach.State):
                 "DISABLE_PUBLISHER",
                 _SetBoolServiceState(publisher_service, req=False),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": (
+                        "ROTATE_VALVE" if turn_direction else "CANCEL_ALIGN_CONTROLLER"
+                    ),
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
+            # -------- Turn phase --------
+            # The align controller is still holding the engage pose; the
+            # rotate service latches the tracked roll and ramps the servo.
+            # It blocks until the turn is physically complete.
+            if turn_direction:
+                smach.StateMachine.add(
+                    "ROTATE_VALVE",
+                    RotateGripperState(
+                        tracker_namespace=tracker_namespace,
+                        direction=turn_direction,
+                        degrees=turn_degrees,
+                    ),
+                    transitions={
+                        "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
