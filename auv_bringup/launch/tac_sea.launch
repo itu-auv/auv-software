@@ -77,6 +77,32 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <!-- Gripper roll trackers: passively spin each valve gripper so the jaws
+         match the tracked handle roll, starting the moment the valve TF frame
+         appears (no SMACH involvement). Per-node services (under the node's
+         private namespace): set_turn_direction (headroom pre-positioning),
+         rotate (latched ramped turn), resume_tracking.
+         ccw_sign / invert / offset_deg are bench-calibration knobs. -->
+    <node pkg="auv_control" type="gripper_roll_tracker.py"
+          name="gripper_roll_tracker_front" output="screen">
+      <param name="target_frame" value="tac/valve_front" />
+      <param name="gripper_topic" value="/$(arg namespace)/actuators/gripper/set_angle" />
+      <rosparam param="axis">[1.0, 0.0, 0.0]</rosparam>
+      <rosparam param="feature_vector">[0.0, 0.0, 1.0]</rosparam>
+      <rosparam param="reference_vector">[0.0, 0.0, 1.0]</rosparam>
+    </node>
+
+    <node pkg="auv_control" type="gripper_roll_tracker.py"
+          name="gripper_roll_tracker_bottom" output="screen">
+      <param name="target_frame" value="tac/valve_bottom" />
+      <param name="gripper_topic" value="/$(arg namespace)/actuators/gripper1/set_angle" />
+      <rosparam param="axis">[1.0, 0.0, 0.0]</rosparam>
+      <rosparam param="feature_vector">[0.0, 0.0, 1.0]</rosparam>
+      <!-- Bottom gripper points down: its zero direction is horizontal
+           (body +X assumed; trim with offset_deg on the real mount). -->
+      <rosparam param="reference_vector">[1.0, 0.0, 0.0]</rosparam>
+    </node>
+
     <!-- ArUco scan-only detector on the front camera (no pose estimation,
          just marker detection + debug images). -->
     <node pkg="auv_vision" type="aruco_detection_node.py"

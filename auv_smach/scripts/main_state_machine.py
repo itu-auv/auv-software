@@ -126,6 +126,7 @@ class MainStateMachineNode:
         self.valve_front_approach_target_frame = "valve_front_approach_target"
         self.valve_front_engage_target_frame = "valve_front_engage_target"
         self.valve_front_publisher_service = "set_publishing_valve_front"
+        self.valve_front_tracker_namespace = "gripper_roll_tracker_front"
 
         # Bottom valve: flange points up. AUV stays level, target
         # frame depth matches valve Z. No special-casing needed.
@@ -134,6 +135,13 @@ class MainStateMachineNode:
         self.valve_bottom_approach_target_frame = "valve_bottom_approach_target"
         self.valve_bottom_engage_target_frame = "valve_bottom_engage_target"
         self.valve_bottom_publisher_service = "set_publishing_valve_bottom"
+        self.valve_bottom_tracker_namespace = "gripper_roll_tracker_bottom"
+
+        # Valve handle turn: direction ("cw"/"ccw" as seen facing the valve)
+        # is operator-set at launch; empty disables the turn phase (and the
+        # tracker direction call, so this stays safe outside TAC missions).
+        self.valve_turn_direction = rospy.get_param("~valve_turn_direction", "")
+        self.valve_turn_degrees = rospy.get_param("~valve_turn_degrees", 90.0)
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
@@ -328,6 +336,9 @@ class MainStateMachineNode:
                     "approach_target_frame": self.valve_front_approach_target_frame,
                     "engage_target_frame": self.valve_front_engage_target_frame,
                     "publisher_service": self.valve_front_publisher_service,
+                    "tracker_namespace": self.valve_front_tracker_namespace,
+                    "turn_direction": self.valve_turn_direction,
+                    "turn_degrees": self.valve_turn_degrees,
                 },
             ),
             "NAVIGATE_TO_VALVE_BOTTOM_TASK": (
@@ -338,6 +349,9 @@ class MainStateMachineNode:
                     "approach_target_frame": self.valve_bottom_approach_target_frame,
                     "engage_target_frame": self.valve_bottom_engage_target_frame,
                     "publisher_service": self.valve_bottom_publisher_service,
+                    "tracker_namespace": self.valve_bottom_tracker_namespace,
+                    "turn_direction": self.valve_turn_direction,
+                    "turn_degrees": self.valve_turn_degrees,
                 },
             ),
             "INSPECT": (InspectTaskState, {}),
