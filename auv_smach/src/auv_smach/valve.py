@@ -5,7 +5,7 @@ import rospy
 import smach
 import smach_ros
 import tf2_ros
-from std_srvs.srv import SetBool, SetBoolRequest
+from std_srvs.srv import SetBool, SetBoolRequest, Trigger
 
 from auv_msgs.srv import RotateGripper, RotateGripperRequest
 from auv_smach.common import (
@@ -74,6 +74,30 @@ class RotateGripperState(smach_ros.ServiceState):
             request=RotateGripperRequest(direction=direction, degrees=degrees),
             response_cb=_rotate_gripper_response_cb,
         )
+
+
+class ResumeTrackingState(smach.State):
+    """Call the tracker's resume_tracking Trigger service (back to live
+    tracking after a latched turn). Safe whenever the jaws are NOT on the
+    handle — e.g. at the very start of a valve task, where it clears a
+    latched tracker left over from a previous mission run. Never call it
+    while still gripped: the completed turn consumed the servo headroom on
+    the current branch, so live tracking would flip the jaws 180 deg and
+    crank the valve back."""
+
+    def __init__(self, tracker_namespace: str):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.service_name = f"{tracker_namespace}/resume_tracking"
+
+    def execute(self, userdata):
+        try:
+            rospy.wait_for_service(self.service_name, timeout=5.0)
+            resp = rospy.ServiceProxy(self.service_name, Trigger)()
+        except (rospy.ROSException, rospy.ServiceException) as e:
+            rospy.logerr("[RESUME_TRACKING] %s failed: %s", self.service_name, e)
+            return "aborted"
+        rospy.loginfo("[RESUME_TRACKING] %s", resp.message)
+        return "succeeded" if resp.success else "aborted"
 
 
 class CheckValveEngagementState(smach.State):
@@ -264,7 +288,7 @@ class ValveTaskState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"]
         )
         self.state_machine.set_initial_state(
-            ["SET_TURN_DIRECTION" if turn_direction else "SET_VALVE_DEPTH"]
+            ["RESUME_TRACKING" if turn_direction else "SET_VALVE_DEPTH"]
         )
 
         # -- Build the approach Concurrence --
@@ -329,9 +353,22 @@ class ValveTaskState(smach.State):
 
         # -- Wire the top-level state machine --
         with self.state_machine:
-            # Tell the roll tracker the turn direction first: from here on,
-            # tracking permanently keeps enough headroom for the turn.
             if turn_direction:
+                # Un-latch the tracker first (no-op on a fresh run): a
+                # previous run's turn leaves it LATCHED holding the turned
+                # handle angle, which would otherwise persist into this run.
+                # Safe here — the vehicle is far from the valve, jaws empty.
+                smach.StateMachine.add(
+                    "RESUME_TRACKING",
+                    ResumeTrackingState(tracker_namespace=tracker_namespace),
+                    transitions={
+                        "succeeded": "SET_TURN_DIRECTION",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+                # Tell the roll tracker the turn direction: from here on,
+                # tracking permanently keeps enough headroom for the turn.
                 smach.StateMachine.add(
                     "SET_TURN_DIRECTION",
                     SetGripperTurnDirectionState(

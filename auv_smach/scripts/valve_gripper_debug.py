@@ -19,8 +19,18 @@ trackers), then take the valve in your hands and move it toward the gripper:
      until the ramp completes), exactly as in valve.py. The valve physically
      travels only 90 deg: anything beyond is overdrive — the tracker pushes
      past the stop, then relaxes back to 90 and holds there (no stall).
-  4. RESUME_TRACKING (optional, default on) — after ~resume_delay seconds the
-     tracker goes back to live tracking so the script can be re-run.
+  4. WAIT_FOR_DISENGAGEMENT + RESUME_TRACKING (optional, default on) — resume
+     is gated on you PULLING THE VALVE OUT of the jaws: only once the
+     gripper<->valve TF separation exceeds ~disengage_distance for
+     ~disengage_confirm seconds is live tracking re-enabled. Resuming while
+     still gripped would let the tracker's headroom logic flip the jaws 180
+     deg and crank the valve right back (the turn consumed the headroom on
+     the current servo branch). If you Ctrl-C before pulling the valve out,
+     the tracker just stays safely latched — resume manually with
+         rosservice call /taluy/gripper_roll_tracker_<valve>/resume_tracking
+     (Note: the gate needs the camera to SEE the valve move away; the object
+     map rebroadcasts the last pose, so with the valve out of view the
+     separation never grows — use the manual service in that case.)
 
 The turn direction has NO default — it must be given explicitly:
 
@@ -36,36 +46,112 @@ Direction convention: "cw"/"ccw" is the sense the valve HANDLE turns, as seen
 facing the valve face (looking down at it, for the bottom valve).
 """
 
+import math
 import sys
 
 import rospy
 import smach
-from std_srvs.srv import Trigger
+import tf2_ros
 
-from auv_smach.initialize import DelayState
+from auv_smach.tf_utils import get_tf_buffer
 from auv_smach.valve import (
     CheckValveEngagementState,
+    ResumeTrackingState,
     RotateGripperState,
     SetGripperTurnDirectionState,
 )
 
 
-class ResumeTrackingState(smach.State):
-    """Call the tracker's resume_tracking Trigger service."""
+class WaitForDisengagementState(smach.State):
+    """Block until the gripper<->valve TF separation exceeds `distance` for
+    `confirm_duration` seconds — i.e. the operator has pulled the valve out of
+    the jaws. Gating resume_tracking on this (instead of a timer) is what
+    prevents the tracker from flipping the jaws 180 deg while still gripped:
+    the completed turn consumed the headroom on the current servo branch, so
+    live tracking would immediately jump to the other branch. No timeout —
+    Ctrl-C leaves the tracker safely latched."""
 
-    def __init__(self, tracker_namespace: str):
+    def __init__(
+        self,
+        gripper_frame: str,
+        valve_frame: str,
+        distance: float,
+        confirm_duration: float,
+        rate_hz: float = 10.0,
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
-        self.service_name = f"{tracker_namespace}/resume_tracking"
+        self.gripper_frame = gripper_frame
+        self.valve_frame = valve_frame
+        self.distance = distance
+        self.confirm_duration = confirm_duration
+        self.rate_hz = rate_hz
+        self.tf_buffer = get_tf_buffer()
 
     def execute(self, userdata):
-        try:
-            rospy.wait_for_service(self.service_name, timeout=5.0)
-            resp = rospy.ServiceProxy(self.service_name, Trigger)()
-        except (rospy.ROSException, rospy.ServiceException) as e:
-            rospy.logerr("[RESUME_TRACKING] %s failed: %s", self.service_name, e)
-            return "aborted"
-        rospy.loginfo("[RESUME_TRACKING] %s", resp.message)
-        return "succeeded" if resp.success else "aborted"
+        rospy.loginfo(
+            "[WAIT_FOR_DISENGAGEMENT] pull the valve out of the jaws: waiting "
+            "for |%s <-> %s| > %.2f m for %.1f s before resuming tracking "
+            "(Ctrl-C keeps the tracker latched; resume manually if the camera "
+            "can't see the valve move away)",
+            self.gripper_frame,
+            self.valve_frame,
+            self.distance,
+            self.confirm_duration,
+        )
+        rate = rospy.Rate(self.rate_hz)
+        clear_since = None
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            separation = None
+            try:
+                tf = self.tf_buffer.lookup_transform(
+                    self.valve_frame,
+                    self.gripper_frame,
+                    rospy.Time(0),
+                    rospy.Duration(0.1),
+                )
+                t = tf.transform.translation
+                separation = math.sqrt(t.x**2 + t.y**2 + t.z**2)
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ) as e:
+                rospy.logwarn_throttle(
+                    5.0, "[WAIT_FOR_DISENGAGEMENT] TF not available: %s", e
+                )
+
+            if separation is None or separation <= self.distance:
+                clear_since = None
+                if separation is not None:
+                    rospy.loginfo_throttle(
+                        1.0,
+                        "[WAIT_FOR_DISENGAGEMENT] d=%.3f m (still close)",
+                        separation,
+                    )
+            else:
+                if clear_since is None:
+                    clear_since = rospy.Time.now()
+                held = (rospy.Time.now() - clear_since).to_sec()
+                rospy.loginfo_throttle(
+                    0.5,
+                    "[WAIT_FOR_DISENGAGEMENT] d=%.3f m (clear, %.1f/%.1f s)",
+                    separation,
+                    held,
+                    self.confirm_duration,
+                )
+                if held >= self.confirm_duration:
+                    rospy.loginfo(
+                        "[WAIT_FOR_DISENGAGEMENT] disengaged at d=%.3f m",
+                        separation,
+                    )
+                    return "succeeded"
+
+            rate.sleep()
+        return "preempted"
 
 
 def main():
@@ -93,7 +179,8 @@ def main():
     in_plane_threshold = float(rospy.get_param("~in_plane_threshold", 0.05))
     confirm_duration = float(rospy.get_param("~confirm_duration", 0.3))
     resume = bool(rospy.get_param("~resume", True))
-    resume_delay = float(rospy.get_param("~resume_delay", 3.0))
+    disengage_distance = float(rospy.get_param("~disengage_distance", 0.15))
+    disengage_confirm = float(rospy.get_param("~disengage_confirm", 1.0))
 
     # Same frames/namespaces as main_state_machine.py / tac_sea.launch.
     valve_frame = f"tac/valve_{valve}"
@@ -153,15 +240,20 @@ def main():
                 degrees=degrees,
             ),
             transitions={
-                "succeeded": "WAIT_BEFORE_RESUME" if resume else "succeeded",
+                "succeeded": "WAIT_FOR_DISENGAGEMENT" if resume else "succeeded",
                 "preempted": "preempted",
                 "aborted": "aborted",
             },
         )
         if resume:
             smach.StateMachine.add(
-                "WAIT_BEFORE_RESUME",
-                DelayState(delay_time=resume_delay),
+                "WAIT_FOR_DISENGAGEMENT",
+                WaitForDisengagementState(
+                    gripper_frame=gripper_frame,
+                    valve_frame=valve_frame,
+                    distance=disengage_distance,
+                    confirm_duration=disengage_confirm,
+                ),
                 transitions={
                     "succeeded": "RESUME_TRACKING",
                     "preempted": "preempted",
