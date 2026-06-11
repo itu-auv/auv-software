@@ -9,6 +9,22 @@ from std_srvs.srv import Trigger, TriggerRequest
 import dynamic_reconfigure.client
 
 
+def get_bool_param(name, default=False):
+    value = rospy.get_param(name, default)
+    if isinstance(value, str):
+        return value.lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
+def get_int_param(name, default=0):
+    value = rospy.get_param(name, default)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        rospy.logwarn(f"Invalid int param {name}={value}, using {default}")
+        return default
+
+
 class JoystickEvent:
     def __init__(self, change_threshold, callback):
         self.previous_value = 0.0
@@ -36,7 +52,7 @@ class JoystickNode:
 
         self.buttons = rospy.get_param("~buttons")
         self.axes = rospy.get_param("~axes")
-        self.rov_mode = rospy.get_param("~rov_mode", 0)
+        self.rov_mode = get_int_param("~rov_mode", 0)
 
         if self.rov_mode == 1:
             rospy.loginfo("ROV mode enabled - using buttons for pitch/roll control")
@@ -60,8 +76,8 @@ class JoystickNode:
         self.joy_sub = rospy.Subscriber("joy", Joy, self.joy_callback)
         rospy.loginfo("Joystick node initialized")
 
-        # use_vel mode: zero position PID gains for X and Y
-        self.use_vel = rospy.get_param("~use_vel", False)
+        # use_vel/ROV mode: zero position PID gains for X and Y
+        self.use_vel = get_bool_param("~use_vel", False) or self.rov_mode == 1
         self.original_pid_gains = None
         self.reconfigure_client = None
 

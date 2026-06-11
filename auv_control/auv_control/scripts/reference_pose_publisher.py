@@ -651,11 +651,17 @@ class ReferencePosePublisherNode:
 
             self.target_depth = np.clip(self.target_depth, self.min_z, self.max_z)
 
-            angle = np.linalg.norm([msg.angular.x, msg.angular.y, msg.angular.z]) * dt
+            angular_velocity_body = np.array(
+                [
+                    msg.angular.x + rotation_matrix[2, 0] * msg.angular.z,
+                    msg.angular.y + rotation_matrix[2, 1] * msg.angular.z,
+                    rotation_matrix[2, 2] * msg.angular.z,
+                ]
+            )
+
+            angle = np.linalg.norm(angular_velocity_body) * dt
             if angle > 1e-6:  # Avoid division by zero
-                axis = np.array([msg.angular.x, msg.angular.y, msg.angular.z]) / (
-                    angle / dt
-                )
+                axis = angular_velocity_body / (angle / dt)
                 axis = axis / np.linalg.norm(axis)
                 q_delta = quaternion_from_euler(
                     axis[0] * angle, axis[1] * angle, axis[2] * angle
