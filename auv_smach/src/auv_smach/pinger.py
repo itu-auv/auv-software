@@ -52,7 +52,9 @@ class ComputePingerPosition(smach_ros.ServiceState):
 
 
 class PingerSearchState(smach.StateMachine):
-    def __init__(self, direction="forward", waypoint_frame="pinger_waypoint"):
+    def __init__(
+        self, direction="forward", waypoint_frame="pinger_waypoint", wait_for=20.0
+    ):
         super().__init__(outcomes=["succeeded", "preempted", "aborted"])
 
         with self:
@@ -116,7 +118,7 @@ class PingerSearchState(smach.StateMachine):
 
             smach.StateMachine.add(
                 "COLLECTING_DELAY",
-                DelayState(delay_time=20),
+                DelayState(delay_time=wait_for),
                 transitions={
                     "succeeded": "STOP_COLLECTION",
                     "preempted": "preempted",
@@ -161,7 +163,9 @@ class PingerTaskState(smach.State):
             smach.StateMachine.add(
                 "SEARCH_FOR_PINGER_1",
                 PingerSearchState(
-                    direction="forward", waypoint_frame=self.waypoint_frame
+                    direction="forward",
+                    waypoint_frame=self.waypoint_frame,
+                    wait_for=20,
                 ),
                 transitions={
                     "succeeded": "SEARCH_FOR_PINGER_2",
@@ -173,7 +177,9 @@ class PingerTaskState(smach.State):
             smach.StateMachine.add(
                 "SEARCH_FOR_PINGER_2",
                 PingerSearchState(
-                    direction="right", waypoint_frame=self.waypoint_frame
+                    direction="right",
+                    waypoint_frame=self.waypoint_frame,
+                    wait_for=20,
                 ),
                 transitions={
                     "succeeded": "SEARCH_FOR_PINGER_3",
@@ -184,7 +190,11 @@ class PingerTaskState(smach.State):
 
             smach.StateMachine.add(
                 "SEARCH_FOR_PINGER_3",
-                PingerSearchState(direction="left", waypoint_frame=self.waypoint_frame),
+                PingerSearchState(
+                    direction="backward",
+                    waypoint_frame=self.waypoint_frame,
+                    wait_for=20,
+                ),
                 transitions={
                     "succeeded": "COMPUTE_POSITION",
                     "preempted": "preempted",
