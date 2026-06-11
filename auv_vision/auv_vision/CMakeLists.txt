@@ -44,6 +44,9 @@ catkin_install_python(
     scripts/sim_keypoint_node.py
     scripts/depth_anything_trt_node.py
     scripts/depth_anything_zmq_client.py
+    scripts/draw_mask_node.py
+    scripts/reference_vector_generator_node.py
+    scripts/dino_tracker_node.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

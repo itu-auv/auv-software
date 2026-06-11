@@ -12,7 +12,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QMessageBox,
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from std_msgs.msg import Bool
 from std_srvs.srv import (
     Empty,
@@ -180,6 +180,35 @@ class ROSServiceCaller:
         except rospy.ROSException as e:
             print(f"Service not available: {e}")
             return False
+
+    def draw_mask(self):
+        try:
+            rospy.wait_for_service("/draw_mask", timeout=1)
+            draw_mask_service = rospy.ServiceProxy("/draw_mask", Trigger)
+            response = draw_mask_service(TriggerRequest())
+            if response.success:
+                print("Draw mask completed successfully")
+            else:
+                print(f"Failed or cancelled draw mask: {response.message}")
+            return response.success, response.message
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False, str(e)
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False, str(e)
+
+
+class ServiceCallThread(QThread):
+    finished_signal = pyqtSignal(bool, str)
+
+    def __init__(self, service_caller_fn):
+        super().__init__()
+        self.service_caller_fn = service_caller_fn
+
+    def run(self):
+        result, message = self.service_caller_fn()
+        self.finished_signal.emit(result, message)
 
 
 class ServicesTab(QWidget):
