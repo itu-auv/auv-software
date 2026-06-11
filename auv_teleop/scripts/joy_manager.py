@@ -76,8 +76,8 @@ class JoystickNode:
         self.joy_sub = rospy.Subscriber("joy", Joy, self.joy_callback)
         rospy.loginfo("Joystick node initialized")
 
-        # use_vel/ROV mode: zero position PID gains for X and Y
-        self.use_vel = get_bool_param("~use_vel", False) or self.rov_mode == 1
+        # use_vel mode: zero position PID gains for X and Y only when requested
+        self.use_vel = get_bool_param("~use_vel", False)
         self.original_pid_gains = None
         self.reconfigure_client = None
 
