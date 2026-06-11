@@ -3,7 +3,7 @@
   <arg name="namespace" default="taluy"/>
   <arg name="sim" default="0"/>
   <arg name="use_gui" default="false"/>
-  <arg name="yolo_model" default="pipe-seg.pt"/>
+  <arg name="yolo_model" default="feb8-pipe-seg.pt"/>
   <arg name="model_source_path" default="$(find auv_detection)/models/$(arg yolo_model)"/>
   <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
   <arg name="input_topic" default="/$(arg namespace)/cameras/cam_bottom/image_rect_color"/>
@@ -14,7 +14,7 @@
   <arg name="max_det" default="300"/>
   <arg name="classes" default=""/>
   <arg name="tracker" default="bytetrack.yaml"/>
-  <arg name="device" default="cuda:cpu"/>
+  <arg name="device" default="cuda:0"/>
   <arg name="result_conf" default="true"/>
   <arg name="result_line_width" default="1"/>
   <arg name="result_font_size" default="1"/>
