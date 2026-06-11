@@ -324,9 +324,6 @@ class MainStateMachineNode:
             "PINGER_TASK": (
                 PingerTaskState,
                 {
-                    "n_legs": self.pinger_n_legs,
-                    "leg_distance": self.pinger_leg_distance,
-                    "collect_duration": self.pinger_collect_duration,
                     "pinger_frame": self.pinger_frame,
                 },
             ),

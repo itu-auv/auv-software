@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import math
 import numpy as np
 import rospy
 import tf2_ros
 import tf.transformations
-from geometry_msgs.msg import Pose, TransformStamped, Point, Quaternion
-from std_msgs.msg import Float32
+from geometry_msgs.msg import Pose, TransformStamped
+from std_msgs.msg import Float32, String
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 
@@ -21,7 +20,6 @@ class PingerFramePublisher:
         self.current_leg_samples = []
         self.pinger_pose = None
 
-        # Parameters
         self.pinger_frame = rospy.get_param("~pinger_frame", "pinger_frame")
         self.waypoint_frame = rospy.get_param("~waypoint_frame", "pinger_waypoint")
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
@@ -30,14 +28,11 @@ class PingerFramePublisher:
             "~topic_name", "/taluy/acoustic/hydrophone/base_angle"
         )
         self.leg_distance = rospy.get_param("~leg_distance", 2.0)
-        self.outlier_threshold = rospy.get_param(
-            "~outlier_threshold", 0.26
-        )  # ~15 degrees in radians
+        self.outlier_threshold = rospy.get_param("~outlier_threshold", 0.26)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
-        # Service to broadcast transforms to the object map tf server
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
@@ -46,7 +41,6 @@ class PingerFramePublisher:
         )
         self.set_object_transform_service.wait_for_service()
 
-        # Services for SMACH
         self.toggle_collection_srv = rospy.Service(
             "toggle_pinger_collection", SetBool, self.handle_toggle_collection
         )
@@ -56,14 +50,52 @@ class PingerFramePublisher:
         self.clear_data_srv = rospy.Service(
             "clear_pinger_data", Trigger, self.handle_clear_data
         )
-        self.publish_waypoint_srv = rospy.Service(
-            "publish_pinger_waypoint", Trigger, self.handle_publish_waypoint
-        )
 
-        # Hydrophone subscriber
         self.sub = rospy.Subscriber(self.topic_name, Float32, self.angle_callback)
+        rospy.Subscriber("pinger_waypoint_direction", String, self.direction_callback)
 
         rospy.loginfo("PingerFramePublisher initialized successfully.")
+
+    def direction_callback(self, msg):
+        direction = msg.data.strip().lower()
+
+        offsets = {
+            "forward": (self.leg_distance, 0.0),
+            "backward": (-self.leg_distance, 0.0),
+            "left": (0.0, self.leg_distance),
+            "right": (0.0, -self.leg_distance),
+        }
+
+        if direction not in offsets:
+            rospy.logerr(
+                f"Invalid pinger direction '{direction}'. Use: forward, backward, left, right."
+            )
+            return
+
+        dx, dy = offsets[direction]
+
+        try:
+            t = TransformStamped()
+            t.header.stamp = rospy.Time.now()
+            t.header.frame_id = self.robot_base_frame
+            t.child_frame_id = self.waypoint_frame
+            t.transform.translation.x = dx
+            t.transform.translation.y = dy
+            t.transform.translation.z = 0.0
+            t.transform.rotation.w = 1.0
+
+            req_trans = SetObjectTransformRequest()
+            req_trans.transform = t
+            resp = self.set_object_transform_service.call(req_trans)
+
+            if resp.success:
+                rospy.loginfo(
+                    f"Published waypoint '{self.waypoint_frame}' direction={direction} (dx={dx:.2f}, dy={dy:.2f})"
+                )
+            else:
+                rospy.logwarn(f"set_object_transform failed: {resp.message}")
+        except Exception as e:
+            rospy.logerr(f"Failed to publish waypoint frame: {e}")
 
     def handle_toggle_collection(self, req):
         if req.data:
@@ -117,65 +149,11 @@ class PingerFramePublisher:
         rospy.loginfo(msg)
         return TriggerResponse(success=True, message=msg)
 
-    def handle_publish_waypoint(self, req):
-        try:
-            transform = self.tf_buffer.lookup_transform(
-                self.odom_frame,
-                self.robot_base_frame,
-                rospy.Time(0),
-                rospy.Duration(2.0),
-            )
-            tx = transform.transform.translation.x
-            ty = transform.transform.translation.y
-            tz = transform.transform.translation.z
-            rx = transform.transform.rotation.x
-            ry = transform.transform.rotation.y
-            rz = transform.transform.rotation.z
-            rw = transform.transform.rotation.w
-
-            _, _, yaw = tf.transformations.euler_from_quaternion([rx, ry, rz, rw])
-
-            # Waypoint target: leg_distance meters forward in current direction
-            target_x = tx + self.leg_distance * math.cos(yaw)
-            target_y = ty + self.leg_distance * math.sin(yaw)
-
-            t = TransformStamped()
-            t.header.stamp = rospy.Time.now()
-            t.header.frame_id = self.odom_frame
-            t.child_frame_id = self.waypoint_frame
-            t.transform.translation.x = target_x
-            t.transform.translation.y = target_y
-            t.transform.translation.z = tz
-            t.transform.rotation.x = rx
-            t.transform.rotation.y = ry
-            t.transform.rotation.z = rz
-            t.transform.rotation.w = rw
-
-            req_trans = SetObjectTransformRequest()
-            req_trans.transform = t
-            resp = self.set_object_transform_service.call(req_trans)
-
-            if resp.success:
-                msg = f"Published waypoint '{self.waypoint_frame}' at x={target_x:.2f}, y={target_y:.2f}"
-                rospy.loginfo(msg)
-                return TriggerResponse(success=True, message=msg)
-            else:
-                return TriggerResponse(
-                    success=False,
-                    message=f"set_object_transform failed: {resp.message}",
-                )
-
-        except Exception as e:
-            msg = f"Failed to publish waypoint frame: {e}"
-            rospy.logerr(msg)
-            return TriggerResponse(success=False, message=msg)
-
     def angle_callback(self, msg):
         if not self.is_collecting:
             return
 
         try:
-            # Look up current base_link in odom frame
             transform = self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 self.robot_base_frame,
@@ -185,20 +163,16 @@ class PingerFramePublisher:
 
             tx = transform.transform.translation.x
             ty = transform.transform.translation.y
-
             rx = transform.transform.rotation.x
             ry = transform.transform.rotation.y
             rz = transform.transform.rotation.z
             rw = transform.transform.rotation.w
 
-            # Convert quaternion to yaw
             _, _, yaw = tf.transformations.euler_from_quaternion([rx, ry, rz, rw])
 
-            # msg.data is the angle in body frame
             angle_body = msg.data
             angle_world = yaw + angle_body
 
-            # Store the robot position and the calculated absolute bearing direction
             self.current_leg_samples.append(
                 {"pos": (tx, ty), "angle_world": angle_world}
             )
@@ -224,7 +198,6 @@ class PingerFramePublisher:
                 message=f"Not enough samples to compute position. Count: {len(self.samples)}",
             )
 
-        # Build linear system to find the intersection of bearing lines
         A = np.zeros((2, 2))
         b = np.zeros(2)
 
@@ -243,13 +216,12 @@ class PingerFramePublisher:
             self.pinger_pose = Pose()
             self.pinger_pose.position.x = p[0]
             self.pinger_pose.position.y = p[1]
-            self.pinger_pose.position.z = 0.0  # assume same depth level or 0
+            self.pinger_pose.position.z = 0.0
             self.pinger_pose.orientation.w = 1.0
 
             msg = f"Computed pinger position: x={p[0]:.3f}, y={p[1]:.3f}"
             rospy.loginfo(msg)
 
-            # Publish the initial transform immediately
             self.send_pinger_transform()
 
             return TriggerResponse(success=True, message=msg)
