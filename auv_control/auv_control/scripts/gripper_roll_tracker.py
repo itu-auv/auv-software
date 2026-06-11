@@ -40,9 +40,13 @@ Valve-turn support (the reason this node exists):
     so 90-deg turns are always satisfiable.
   * ~rotate (auv_msgs/RotateGripper): latch the current servo target, ramp to
     (latched +/- degrees) at ~turn_rate_dps, then HOLD (mod-180 folding and
-    live tracking disabled — never flip while gripping the handle). Refuses if
-    the target would leave the reachable window or no roll was ever tracked.
-    Blocks until the ramp completes; returns failure if interrupted.
+    live tracking disabled — never flip while gripping the handle). The valve
+    physically travels only NOMINAL_TURN_DEG (90); any request beyond that is
+    treated as OVERDRIVE — the ramp pushes past the hard stop to guarantee the
+    turn completes, then relaxes back to the nominal target so the servo does
+    not stall against the stop while holding. Refuses if the overdriven target
+    would leave the reachable window or no roll was ever tracked. Blocks until
+    the ramp (out and back) completes; returns failure if interrupted.
   * ~resume_tracking (std_srvs/Trigger): back to live tracking (after the
     jaws have released the handle).
 
@@ -111,6 +115,11 @@ def _parse_direction(direction):
 class GripperRollTracker:
     MODE_TRACKING = "tracking"
     MODE_LATCHED = "latched"
+
+    # Physical travel of the valve handle (deg). A rotate request beyond this
+    # is overdrive: ramp past the hard stop, then relax back to this nominal
+    # so the servo doesn't keep straining against the stop while holding.
+    NOMINAL_TURN_DEG = 90.0
 
     def __init__(self):
         # Frames
@@ -358,12 +367,33 @@ class GripperRollTracker:
         rospy.loginfo("gripper_roll_tracker: %s", msg)
         return RotateGripperResponse(success=True, message=msg)
 
+    def _ramp_to(self, target, step, rate):
+        """Ramp the servo to `target` at the configured rate. Returns
+        (ok, reason); reason is set when the ramp was interrupted."""
+        while not rospy.is_shutdown():
+            with self._lock:
+                if self._mode != self.MODE_LATCHED:
+                    return False, "turn interrupted by resume_tracking"
+                remaining = target - self.last_servo
+                if abs(remaining) <= step:
+                    self._publish_servo(target)
+                    return True, ""
+                self._publish_servo(self.last_servo + math.copysign(step, remaining))
+            rate.sleep()
+        return False, "node shutdown"
+
     def _handle_rotate(self, req):
         """Latch the current servo target and ramp to (latched +/- degrees).
 
-        Blocks until the ramp finishes. Mod-180 folding is disabled — the jaws
-        are assumed to be gripping the handle, so the target must stay inside
-        the physical window or the call is refused outright."""
+        The valve only travels NOMINAL_TURN_DEG (90); anything beyond is
+        overdrive: ramp the full request (push through the hard stop), then
+        relax back to the nominal target and hold there — undershoot
+        insurance without a sustained servo stall.
+
+        Blocks until the ramp (out and back) finishes. Mod-180 folding is
+        disabled — the jaws are assumed to be gripping the handle, so the
+        overdriven target must stay inside the physical window or the call is
+        refused outright."""
         handle_sign = _parse_direction(req.direction)
         if handle_sign is None:
             return RotateGripperResponse(
@@ -374,6 +404,9 @@ class GripperRollTracker:
             return RotateGripperResponse(
                 success=False, message="rotate degrees must be > 0"
             )
+
+        nominal = min(req.degrees, self.NOMINAL_TURN_DEG)
+        overdrive = req.degrees - nominal
 
         with self._lock:
             if self._turning:
@@ -386,12 +419,14 @@ class GripperRollTracker:
                     message="no roll tracked yet (never saw the target frame)",
                 )
             start = self.last_servo
-            target = start + self.ccw_sign * handle_sign * req.degrees
-            if not (0.0 <= target <= self.theta_max):
+            servo_sign = self.ccw_sign * handle_sign
+            target_full = start + servo_sign * req.degrees
+            target_hold = start + servo_sign * nominal
+            if not (0.0 <= target_full <= self.theta_max):
                 return RotateGripperResponse(
                     success=False,
                     message=(
-                        f"target {target:.1f} deg outside [0, "
+                        f"target {target_full:.1f} deg outside [0, "
                         f"{self.theta_max:.1f}] (start {start:.1f}); refusing "
                         f"to flip while gripped — check pre-positioning"
                     ),
@@ -401,11 +436,15 @@ class GripperRollTracker:
 
         rospy.loginfo(
             "gripper_roll_tracker: turning handle %s %.1f deg "
-            "(servo %.1f -> %.1f at %.0f deg/s)",
+            "(nominal %.0f + overdrive %.0f; servo %.1f -> %.1f, "
+            "hold at %.1f, %.0f deg/s)",
             req.direction.lower(),
             req.degrees,
+            nominal,
+            overdrive,
             start,
-            target,
+            target_full,
+            target_hold,
             self.turn_rate_dps,
         )
 
@@ -414,28 +453,23 @@ class GripperRollTracker:
         step = self.turn_rate_dps / self.rate_hz
         rate = rospy.Rate(self.rate_hz)
         try:
-            while not rospy.is_shutdown():
-                with self._lock:
-                    if self._mode != self.MODE_LATCHED:
-                        return RotateGripperResponse(
-                            success=False,
-                            message="turn interrupted by resume_tracking",
-                        )
-                    remaining = target - self.last_servo
-                    if abs(remaining) <= step:
-                        self._publish_servo(target)
-                        return RotateGripperResponse(
-                            success=True,
-                            message=f"turn complete, holding at {target:.1f} deg",
-                        )
-                    self._publish_servo(
-                        self.last_servo + math.copysign(step, remaining)
-                    )
-                rate.sleep()
+            ok, reason = self._ramp_to(target_full, step, rate)
+            if ok and overdrive > 0.0:
+                # Relax back off the hard stop to the nominal target.
+                ok, reason = self._ramp_to(target_hold, step, rate)
         finally:
             with self._lock:
                 self._turning = False
-        return RotateGripperResponse(success=False, message="node shutdown")
+
+        if not ok:
+            return RotateGripperResponse(success=False, message=reason)
+        return RotateGripperResponse(
+            success=True,
+            message=(
+                f"turn complete ({nominal:.0f} deg + {overdrive:.0f} deg "
+                f"overdrive), holding at {target_hold:.1f} deg"
+            ),
+        )
 
     def _handle_resume_tracking(self, req):
         with self._lock:

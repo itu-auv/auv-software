@@ -102,6 +102,9 @@
       <rosparam param="reference_vector">[0.0, 0.0, 1.0]</rosparam>
       <param name="invert" value="true" />
       <param name="offset_deg" value="90.0" />
+      <!-- Bench-calibrated 2026-06-11: commanded ccw turned the handle cw,
+           so the servo runs opposite to the handle sense on this mount. -->
+      <param name="ccw_sign" value="-1.0" />
     </node>
 
     <node pkg="auv_control" type="gripper_roll_tracker.py"
@@ -115,6 +118,9 @@
       <rosparam param="reference_vector">[1.0, 0.0, 0.0]</rosparam>
       <param name="invert" value="true" />
       <param name="offset_deg" value="90.0" />
+      <!-- NOT yet bench-verified for the bottom gripper — calibrate its
+           handle-vs-servo sense before trusting a bottom-valve turn. -->
+      <param name="ccw_sign" value="1.0" />
     </node>
 
     <!-- ArUco scan-only detector on the front camera (no pose estimation,

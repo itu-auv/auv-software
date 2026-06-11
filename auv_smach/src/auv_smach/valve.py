@@ -1,16 +1,21 @@
 from .initialize import *
+import math
+
 import rospy
 import smach
 import smach_ros
+import tf2_ros
 from std_srvs.srv import SetBool, SetBoolRequest
 
 from auv_msgs.srv import RotateGripper, RotateGripperRequest
 from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
+    SetAlignControllerTargetState,
     SetDepthState,
 )
 from auv_smach.initialize import DelayState
+from auv_smach.tf_utils import get_tf_buffer
 
 
 class _SetBoolServiceState(smach_ros.ServiceState):
@@ -71,6 +76,138 @@ class RotateGripperState(smach_ros.ServiceState):
         )
 
 
+class CheckValveEngagementState(smach.State):
+    """Poll TF until the gripper sits on the valve, with the position error
+    split in the VALVE frame (+X is always the flange normal, for both the
+    front and the bottom valve):
+
+      perpendicular error = |x|        — engagement depth along the normal;
+                                         strict: the jaws must reach the handle.
+      in-plane error      = sqrt(y²+z²) — lateral offset across the valve face;
+                                         loose: the jaws straddle a long handle.
+
+    Both must hold for `confirm_duration` seconds (a single excursion resets
+    the clock). `timeout=None` waits forever (bench use — the operator holds
+    the valve, Ctrl-C is the way out); a finite timeout returns 'succeeded'
+    with a loud warning (graceful degradation, same convention as
+    CheckAlignmentState — attempting the turn slightly out of tolerance still
+    beats guaranteed zero points)."""
+
+    def __init__(
+        self,
+        gripper_frame: str,
+        valve_frame: str,
+        perpendicular_threshold: float = 0.02,
+        in_plane_threshold: float = 0.05,
+        confirm_duration: float = 0.3,
+        timeout: float = None,
+        rate_hz: float = 10.0,
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.gripper_frame = gripper_frame
+        self.valve_frame = valve_frame
+        self.perpendicular_threshold = perpendicular_threshold
+        self.in_plane_threshold = in_plane_threshold
+        self.confirm_duration = confirm_duration
+        self.timeout = timeout
+        self.rate_hz = rate_hz
+        self.tf_buffer = get_tf_buffer()
+
+    def _get_errors(self):
+        """(perpendicular, in_plane) gripper position error in the valve
+        frame, or (None, None) when TF is unavailable."""
+        try:
+            tf = self.tf_buffer.lookup_transform(
+                self.valve_frame,
+                self.gripper_frame,
+                rospy.Time(0),
+                rospy.Duration(0.1),
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(
+                5.0,
+                "[CHECK_ENGAGEMENT] TF %s<-%s failed: %s",
+                self.valve_frame,
+                self.gripper_frame,
+                e,
+            )
+            return None, None
+        t = tf.transform.translation
+        return abs(t.x), math.hypot(t.y, t.z)
+
+    def execute(self, userdata):
+        rospy.loginfo(
+            "[CHECK_ENGAGEMENT] waiting for %s on %s: perp<%.3f m, "
+            "in-plane<%.3f m for %.1f s%s",
+            self.gripper_frame,
+            self.valve_frame,
+            self.perpendicular_threshold,
+            self.in_plane_threshold,
+            self.confirm_duration,
+            "" if self.timeout is None else f" (timeout {self.timeout:.0f} s)",
+        )
+        rate = rospy.Rate(self.rate_hz)
+        start_time = rospy.Time.now()
+        within_since = None
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            if (
+                self.timeout is not None
+                and (rospy.Time.now() - start_time).to_sec() >= self.timeout
+            ):
+                rospy.logwarn(
+                    "[CHECK_ENGAGEMENT] timeout after %.0f s WITHOUT confirmed "
+                    "engagement — continuing anyway (graceful degradation)",
+                    self.timeout,
+                )
+                return "succeeded"
+
+            perp, in_plane = self._get_errors()
+            if perp is None:
+                within_since = None
+            elif (
+                perp < self.perpendicular_threshold
+                and in_plane < self.in_plane_threshold
+            ):
+                if within_since is None:
+                    within_since = rospy.Time.now()
+                held = (rospy.Time.now() - within_since).to_sec()
+                rospy.loginfo_throttle(
+                    0.5,
+                    "[CHECK_ENGAGEMENT] perp=%.3f in-plane=%.3f m "
+                    "(within, %.1f/%.1f s)",
+                    perp,
+                    in_plane,
+                    held,
+                    self.confirm_duration,
+                )
+                if held >= self.confirm_duration:
+                    rospy.loginfo(
+                        "[CHECK_ENGAGEMENT] engaged: perp=%.3f m in-plane=%.3f m",
+                        perp,
+                        in_plane,
+                    )
+                    return "succeeded"
+            else:
+                within_since = None
+                rospy.loginfo_throttle(
+                    1.0,
+                    "[CHECK_ENGAGEMENT] perp=%.3f m in-plane=%.3f m",
+                    perp,
+                    in_plane,
+                )
+
+            rate.sleep()
+        return "preempted"
+
+
 class ValveTaskState(smach.State):
     """Aligns to a valve in two phases: approach → engage.
 
@@ -88,6 +225,11 @@ class ValveTaskState(smach.State):
 
     After approach, the publisher is re-enabled (unfrozen) and the
     engage phase aligns the valve gripper link to the engage target.
+    Engagement is confirmed by CheckValveEngagementState, which splits the
+    gripper<->valve error in the valve frame: strict along the flange
+    normal (the jaws must reach the handle), loose across the valve face
+    (the jaws straddle a long handle). The align controller keeps holding
+    the engage pose through the check and the turn.
 
     If `turn_direction` is set ("cw"/"ccw", handle sense facing the valve),
     the gripper roll tracker is told the direction up front (so tracking
@@ -103,6 +245,7 @@ class ValveTaskState(smach.State):
         self,
         valve_depth,
         gripper_frame: str = "taluy/base_link/valve_gripper_front_link",
+        valve_frame: str = "tac/valve_front",
         approach_target_frame: str = "valve_front_approach_target",
         engage_target_frame: str = "valve_front_engage_target",
         publisher_service: str = "set_publishing_valve_front",
@@ -110,6 +253,10 @@ class ValveTaskState(smach.State):
         tracker_namespace: str = "gripper_roll_tracker_front",
         turn_direction: str = "",
         turn_degrees: float = 90.0,
+        engage_perpendicular_threshold: float = 0.02,
+        engage_in_plane_threshold: float = 0.05,
+        engage_confirm_duration: float = 0.3,
+        engage_timeout: float = 30.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -245,28 +392,42 @@ class ValveTaskState(smach.State):
                 "UNFREEZE_PUBLISHER",
                 _SetBoolServiceState(publisher_service, req=True),
                 transitions={
-                    "succeeded": "ALIGN_TO_ENGAGE",
+                    "succeeded": "SET_ENGAGE_ALIGN_TARGET",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
             # -------- Engage phase --------
-            # Gripper frame aligns to the engage target so the gripper
-            # tip (not base_link centre) lands on the valve.
+            # The gripper frame (not base_link centre) drives toward the
+            # engage target; the align controller keeps holding it from here
+            # through the turn. Engagement itself is judged against the
+            # actual valve frame with the split thresholds (see
+            # CheckValveEngagementState), not the controller's own error.
             smach.StateMachine.add(
-                "ALIGN_TO_ENGAGE",
-                AlignFrame(
+                "SET_ENGAGE_ALIGN_TARGET",
+                SetAlignControllerTargetState(
                     source_frame=gripper_frame,
                     target_frame=engage_target_frame,
-                    dist_threshold=0.03,
-                    yaw_threshold=0.05,
-                    confirm_duration=3.0,
-                    timeout=30.0,
-                    cancel_on_success=False,
                     max_linear_velocity=0.05,
                     max_angular_velocity=0.05,
-                    use_frame_depth=True,
+                    use_depth=True,
+                ),
+                transitions={
+                    "succeeded": "CHECK_ENGAGEMENT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CHECK_ENGAGEMENT",
+                CheckValveEngagementState(
+                    gripper_frame=gripper_frame,
+                    valve_frame=valve_frame,
+                    perpendicular_threshold=engage_perpendicular_threshold,
+                    in_plane_threshold=engage_in_plane_threshold,
+                    confirm_duration=engage_confirm_duration,
+                    timeout=engage_timeout,
                 ),
                 transitions={
                     "succeeded": "DISABLE_PUBLISHER",
