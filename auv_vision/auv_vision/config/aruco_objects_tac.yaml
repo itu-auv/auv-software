@@ -1,10 +1,10 @@
 aruco_dictionary: DICT_ARUCO_ORIGINAL
 
 markers:
-  dock_tl: {aruco_id: 28, size: 0.145}
-  dock_tr: {aruco_id: 7, size: 0.145}
-  dock_bl: {aruco_id: 19, size: 0.145}
-  dock_br: {aruco_id: 96, size: 0.145}
+  dock_tl: {aruco_id: 28, size: 0.150}
+  dock_tr: {aruco_id: 7, size: 0.150}
+  dock_bl: {aruco_id: 19, size: 0.150}
+  dock_br: {aruco_id: 96, size: 0.150}
 
 boards:
   docking_board:
@@ -16,11 +16,14 @@ boards:
     # freezes automatically once the multi-marker camera goes dark.
     disambiguate_single_marker: true
     snapshot_window: 5.0
+    # Official 800x1200 mm board: 150 mm markers inset 35 mm from the board
+    # edges. Layout (x, y) is each marker's top-left corner, origin at the
+    # board center (marker centers at x=+/-0.290, y=+/-0.490).
     marker_layout:
-      dock_tl: {x: -0.352, y: -0.552}
-      dock_tr: {x: 0.207, y: -0.552}
-      dock_bl: {x: -0.352, y: 0.407}
-      dock_br: {x: 0.207, y: 0.407}
+      dock_tl: {x: -0.365, y: -0.565}
+      dock_tr: {x: 0.215, y: -0.565}
+      dock_bl: {x: -0.365, y: 0.415}
+      dock_br: {x: 0.215, y: 0.415}
 
 standalone_markers: {}
 
