@@ -4,7 +4,7 @@
   <arg name="sim" default="false" />
   <arg name="front_image_topic" default="/$(arg namespace)/cameras/cam_front/image_raw" />
   <arg name="bottom_image_topic" default="/$(arg namespace)/cameras/cam_bottom/image_raw" />
-  <arg name="vitpose_model_path" default="$(find auv_detection)/models/valve2.engine" />
+  <arg name="vitpose_model_path" default="$(find auv_detection)/models/valve3.engine" />
   <arg name="yolo_model_path" default="$(find auv_detection)/models/valve_yolo.pt" />
   <arg name="device" default="cuda:0" />
   <arg name="conf_threshold" default="0.5" />
