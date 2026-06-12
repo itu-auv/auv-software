@@ -12,7 +12,6 @@ from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
     SetAlignControllerTargetState,
-    SetDepthState,
 )
 from auv_smach.initialize import DelayState
 from auv_smach.tf_utils import get_tf_buffer
@@ -267,7 +266,6 @@ class ValveTaskState(smach.State):
 
     def __init__(
         self,
-        valve_depth,
         gripper_frame: str = "taluy/base_link/valve_gripper_front_link",
         valve_frame: str = "tac/valve_front",
         approach_target_frame: str = "valve_front_approach_target",
@@ -287,9 +285,7 @@ class ValveTaskState(smach.State):
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
-        self.state_machine.set_initial_state(
-            ["RESUME_TRACKING" if turn_direction else "SET_VALVE_DEPTH"]
-        )
+        self.state_machine.set_initial_state(["SET_MISSION_START_FRAME"])
 
         # -- Build the approach Concurrence --
         # Child 1: align to approach target (loose thresholds, long timeout)
@@ -353,6 +349,25 @@ class ValveTaskState(smach.State):
 
         # -- Wire the top-level state machine --
         with self.state_machine:
+            # (Re)publish mission_start_link at the current pose. The valve
+            # trajectory publisher refuses to publish its approach/engage
+            # targets without this frame (heading reference), and at sea the
+            # valve task runs standalone — skipping INITIALIZE, whose DVL
+            # wait lets the vehicle drift. set_object_transform overwrites
+            # any existing frame, so retrying the task without clearing the
+            # object map still snapshots a fresh, current pose.
+            smach.StateMachine.add(
+                "SET_MISSION_START_FRAME",
+                SetStartFrameState(frame_name="mission_start_link"),
+                transitions={
+                    "succeeded": (
+                        "RESUME_TRACKING" if turn_direction else "ENABLE_PUBLISHER"
+                    ),
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
             if turn_direction:
                 # Un-latch the tracker first (no-op on a fresh run): a
                 # previous run's turn leaves it LATCHED holding the turned
@@ -377,22 +392,15 @@ class ValveTaskState(smach.State):
                         headroom_deg=turn_degrees,
                     ),
                     transitions={
-                        "succeeded": "SET_VALVE_DEPTH",
+                        "succeeded": "ENABLE_PUBLISHER",
                         "preempted": "preempted",
                         "aborted": "aborted",
                     },
                 )
 
-            smach.StateMachine.add(
-                "SET_VALVE_DEPTH",
-                SetDepthState(depth=valve_depth),
-                transitions={
-                    "succeeded": "ENABLE_PUBLISHER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
+            # No depth pre-set: at sea there is no known task depth. The
+            # approach/engage alignments run with use_frame_depth=True, so
+            # depth comes from the target frames themselves.
             # Enable all trajectory frames at once.
             smach.StateMachine.add(
                 "ENABLE_PUBLISHER",

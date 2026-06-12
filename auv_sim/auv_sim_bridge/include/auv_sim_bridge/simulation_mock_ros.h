@@ -128,11 +128,13 @@ class SimulationMockROS {
 
       is_valid_msg.data = true;
       velocity_raw_pub_.publish(velocity_raw_msg);
+    } else {
+      is_valid_msg.data = false;
     }
     altitude_msg.data = msg.altitude;
 
     altitude_pub_.publish(altitude_msg);
-    // is_valid_pub_.publish(is_valid_msg);
+    is_valid_pub_.publish(is_valid_msg);
   }
 
   void initializeParameters() {

@@ -46,7 +46,8 @@ objects:
   # coordinates in valve_keypoints.yaml (8 bolts at link-x=0.020 forming a
   # 0.103 m radius ring + face center at link-x=0.000), pre-transformed into
   # the tac_valve model frame so /gazebo/model_states' tac_valve pose is the
-  # only runtime input. kp10 is the handle tip (orientation-refinement only).
+  # only runtime input. kp10/kp11 are the two handle ends (mirrored through
+  # kp9, orientation-refinement only).
   - name: valve_front
     cameras: [front]
     gazebo_model: tac_valve
@@ -63,7 +64,8 @@ objects:
         - [0.560, 0.482168, 1.347668] # kp7: bolt 135°
         - [0.560, 0.452000, 1.420500] # kp8: bolt 180°
         - [0.580, 0.555000, 1.420500] # kp9: face center
-        - [0.580, 0.555235, 1.487756] # kp10: handle tip
+        - [0.580, 0.555235, 1.487756] # kp10: handle end
+        - [0.580, 0.554765, 1.353244] # kp11: handle end (opposite)
     id_start: 1
 
   # TAC subsea valve, bottom-panel instance (valve_bottom link).
@@ -72,7 +74,7 @@ objects:
   # link-frame point (x, y, z) maps to (-y, -z, x) + translation in model
   # frame. The resulting flange normal is model +Z (the valve faces upward
   # off the top deck), consistent with the bottom-camera approach geometry.
-  # Points below are the same 10 link-frame coordinates as valve_front,
+  # Points below are the same 11 link-frame coordinates as valve_front,
   # pre-transformed through this link's pose.
   - name: valve_bottom
     cameras: [bottom]
@@ -90,5 +92,6 @@ objects:
         - [0.091332, 0.445168, 0.930000] # kp7: bolt 135°
         - [0.121500, 0.518000, 0.930000] # kp8: bolt 180°
         - [0.018500, 0.518000, 0.910000] # kp9: face center
-        - [0.018265, 0.585256, 0.910000] # kp10: handle tip
+        - [0.018265, 0.585256, 0.910000] # kp10: handle end
+        - [0.018735, 0.450744, 0.910000] # kp11: handle end (opposite)
     id_start: 1

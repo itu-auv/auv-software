@@ -136,12 +136,4 @@
       <param name="robot_base_frame" value="$(arg namespace)/base_link" />
     </node>
 
-    <group ns="$(arg namespace)">
-      <node pkg="auv_vision" type="sim_keypoint_node.py"
-            name="sim_keypoint_node" output="screen">
-        <param name="namespace" value="$(arg namespace)" />
-        <param name="config"
-               value="$(find auv_vision)/config/sim_keypoint_objects.yaml" />
-      </node>
-    </group>
 </launch>

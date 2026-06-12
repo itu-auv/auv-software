@@ -41,6 +41,16 @@
       <param name="image_out_topic" value="/keypoint_image_bottom" />
     </node>
 
+    <!-- Sim-only producer: publishes ground-truth KeypointResults from
+         Gazebo model states instead of the ViTPose/YOLO pipeline. -->
+    <node pkg="auv_vision" type="sim_keypoint_node.py"
+          name="sim_keypoint_node" output="screen"
+          if="$(arg sim)">
+      <param name="namespace" value="$(arg namespace)" />
+      <param name="config"
+             value="$(find auv_vision)/config/sim_keypoint_objects.yaml" />
+    </node>
+
     <!-- Single consumer handles both cameras + both valves
          (publishes tac/valve_front and tac/valve_bottom). -->
     <node pkg="auv_vision" type="keypoint_pose_node.py"

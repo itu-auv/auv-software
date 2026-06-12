@@ -121,7 +121,6 @@ class MainStateMachineNode:
         # per valve emits approach + engage target frames simultaneously
         # — see tac_sea.launch.  Engage aligns the valve gripper link
         # (not base_link) to the target.
-        self.valve_front_depth = -1.5
         self.valve_front_frame = "tac/valve_front"
         self.valve_front_gripper_frame = "taluy/base_link/valve_gripper_front_link"
         self.valve_front_approach_target_frame = "valve_front_approach_target"
@@ -131,7 +130,6 @@ class MainStateMachineNode:
 
         # Bottom valve: flange points up. AUV stays level, target
         # frame depth matches valve Z. No special-casing needed.
-        self.valve_bottom_depth = -1.0
         self.valve_bottom_frame = "tac/valve_bottom"
         self.valve_bottom_gripper_frame = "taluy/base_link/valve_gripper_bottom_link"
         self.valve_bottom_approach_target_frame = "valve_bottom_approach_target"
@@ -336,7 +334,6 @@ class MainStateMachineNode:
             "NAVIGATE_TO_VALVE_FRONT_TASK": (
                 ValveTaskState,
                 {
-                    "valve_depth": self.valve_front_depth,
                     "valve_frame": self.valve_front_frame,
                     "gripper_frame": self.valve_front_gripper_frame,
                     "approach_target_frame": self.valve_front_approach_target_frame,
@@ -350,7 +347,6 @@ class MainStateMachineNode:
             "NAVIGATE_TO_VALVE_BOTTOM_TASK": (
                 ValveTaskState,
                 {
-                    "valve_depth": self.valve_bottom_depth,
                     "valve_frame": self.valve_bottom_frame,
                     "gripper_frame": self.valve_bottom_gripper_frame,
                     "approach_target_frame": self.valve_bottom_approach_target_frame,

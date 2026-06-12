@@ -3,17 +3,26 @@
 bottom valves.
 
 For each valve, target frames are offset along the valve's normal direction.
-Orientations use a gimbal-lock-free "look-at" algorithm: the frame's X axis
-points at the valve, free rotation resolved via ``mission_start_link``.
+Orientations are built directly in yaw-locked ZYX form
+``R_target = Rz(psi) * Ry(beta) * Rx(gamma)`` (the ``tf`` ``'sxyz'`` Euler
+convention), so the commanded yaw is *exactly* the mission heading at any
+tilt -- no look-at construction, no body-frame correction quaternion.
 
-An optional body-frame correction quaternion is applied after look-at to
-re-orient the frame to match the AUV's gripper convention:
+* **Front valve**: body +X axis points at the valve (``f = -n``), roll = 0.
+  Yaw faces the valve (horizontal projection of ``f``), falling back to the
+  mission heading when ``f`` is too vertical.
+* **Bottom valve**: body -Z axis points along the valve normal (``R . z = n``),
+  yaw locked to ``mission_start_link`` heading. Pitch/roll absorb the table
+  tilt.
 
-* **Front valve** (no correction): X already faces the valve — matches the
-  front gripper which points along base_link X.
-* **Bottom valve** (Ry +90 deg correction): rotates the look-at frame so
-  that -Z faces the valve and X points forward — matches the bottom gripper
-  which hangs below base_link along -Z.  Correctly handles table tilt.
+A ``~tilt_clamp_deg`` param (default 45 deg) bounds how far the valve normal
+may tilt from nominal before the orientation is clamped (azimuth preserved);
+beyond 90 deg (bottom valve only, normal pointing down) the frame is rejected
+for that cycle and the last published frames are held.
+
+See ``auv_navigation/auv_mapping/docs/valve_pitched_trajectory_plan.md`` for
+the full derivation and ``valve_frame_visualizer.html`` for an interactive
+validator.
 
 Two target frames per valve:
   - approach: standoff distance from valve
@@ -29,83 +38,100 @@ import tf2_ros
 from dynamic_reconfigure.server import Server
 from geometry_msgs.msg import TransformStamped
 from std_srvs.srv import SetBool, SetBoolResponse
-from tf.transformations import (
-    quaternion_from_euler,
-    quaternion_from_matrix,
-    quaternion_matrix,
-    quaternion_multiply,
-)
+from tf.transformations import quaternion_from_euler, quaternion_matrix
 
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from auv_mapping.cfg import ValveTrajectoryConfig
 
 
-_PARALLEL_THRESHOLD = 0.1  # sin(~6 deg) — below this, axis is too parallel
+# Below this horizontal magnitude a vector is too vertical to extract a
+# meaningful yaw from -- fall back to the mission heading. Same constant as
+# the active (level) publisher.
+_HORIZONTAL_EPS = 0.1
 
-# Ry(-pi/2): maps look-at X→-Z, Z→X so that +Z faces up and -Z faces
-# the valve — matching base_link convention for a bottom gripper.
-_BOTTOM_CORRECTION_QUAT = quaternion_from_euler(0.0, -np.pi / 2, 0.0)
-_IDENTITY_QUAT = np.array([0.0, 0.0, 0.0, 1.0])
+_DEFAULT_TILT_CLAMP_DEG = 60.0
 
 
-def _look_at_quaternion(forward, ref_rotation_matrix, hint_axis=None, label=""):
-    """Quaternion whose X axis is *forward*, free rotation resolved by
-    ``ref_rotation_matrix``.
+def _bottom_target(n, psi):
+    """Yaw-locked frame for the bottom valve.
 
-    Algorithm (gimbal-lock-free — no Euler angles):
-      1. Pick a Z-hint from ``ref_rotation_matrix``.  If ``hint_axis`` is
-         given (0=X, 1=Y, 2=Z) use that axis directly — the caller knows
-         which mission-start axis carries the information it cares about.
-         Otherwise fall back to priority order Z -> X -> Y.
-      2. Y = normalise(Z_hint x forward)   — perpendicular to both.
-      3. Z = forward x Y                   — completes right-handed frame.
-      4. Build the 3x3 rotation matrix [X Y Z] and convert to quaternion.
+    Requirement: body -Z onto -n, i.e. ``R . z_hat == n``, with yaw = psi
+    exactly (by construction of the ZYX order)::
+
+        n' = Rz(-psi) . n
+        gamma = -asin(n'_y)   # roll absorbs sideways tilt
+        beta  =  atan2(n'_x, n'_z)  # pitch absorbs fore/aft tilt
     """
-    forward = forward / np.linalg.norm(forward)
+    cos_psi, sin_psi = np.cos(psi), np.sin(psi)
+    n_prime = np.array(
+        [
+            cos_psi * n[0] + sin_psi * n[1],
+            -sin_psi * n[0] + cos_psi * n[1],
+            n[2],
+        ]
+    )
+    gamma = -np.arcsin(np.clip(n_prime[1], -1.0, 1.0))
+    beta = np.arctan2(n_prime[0], n_prime[2])
+    quat = quaternion_from_euler(gamma, beta, psi)
+    return quat, beta, gamma
 
-    cross_mags = [
-        np.linalg.norm(np.cross(forward, ref_rotation_matrix[:, i])) for i in range(3)
-    ]
 
-    if hint_axis is not None:
-        chosen = hint_axis
+def _front_target(n, mission_yaw):
+    """Yaw-locked frame for the front valve.
+
+    Requirement: body +X onto f = -n (face the valve), roll = 0 -- the
+    roll channel about the flange normal is the handle position and is
+    never used::
+
+        h = hypot(f_x, f_y)
+        psi = atan2(f_y, f_x)   if h >= _HORIZONTAL_EPS, else mission yaw
+        beta = atan2(-f_z, h)
+    """
+    f = -n
+    h = np.hypot(f[0], f[1])
+    if h < _HORIZONTAL_EPS:
+        psi = mission_yaw
     else:
-        # Priority order: Z (level roll), X (heading yaw), Y (last resort).
-        priority = [2, 0, 1]
-        chosen = priority[0]
-        for axis_idx in priority:
-            if cross_mags[axis_idx] > _PARALLEL_THRESHOLD:
-                chosen = axis_idx
-                break
+        psi = np.arctan2(f[1], f[0])
+    beta = np.arctan2(-f[2], h)
+    quat = quaternion_from_euler(0.0, beta, psi)
+    return quat, beta, psi
 
-    z_hint = ref_rotation_matrix[:, chosen]
 
-    rospy.loginfo_throttle(
-        2.0,
-        f"[look_at {label}] forward={np.round(forward, 3)}, "
-        f"cross_mags=[{cross_mags[0]:.3f}, {cross_mags[1]:.3f}, {cross_mags[2]:.3f}], "
-        f"chosen_axis={chosen}, z_hint={np.round(z_hint, 3)}",
+def _clamp_bottom_normal(n, clamp_rad):
+    """Tilt-clamp policy for the bottom-valve normal (nominal = +Z).
+
+    Returns ``(n_used_or_None, tilt, status)`` where ``status`` is one of
+    ``"OK"``, ``"CLAMPED"`` (azimuth preserved, tilt clamped) or
+    ``"REJECT"`` (normal points down -- flipped, do not publish).
+    """
+    tilt = np.arccos(np.clip(n[2], -1.0, 1.0))
+    if tilt > np.pi / 2:
+        return None, tilt, "REJECT"
+    if tilt <= clamp_rad:
+        return n, tilt, "OK"
+    az = np.arctan2(n[1], n[0])
+    n_clamped = np.array(
+        [
+            np.sin(clamp_rad) * np.cos(az),
+            np.sin(clamp_rad) * np.sin(az),
+            np.cos(clamp_rad),
+        ]
     )
+    return n_clamped, tilt, "CLAMPED"
 
-    y_axis = np.cross(z_hint, forward)
-    y_axis /= np.linalg.norm(y_axis)
 
-    z_axis = np.cross(forward, y_axis)
-    z_axis /= np.linalg.norm(z_axis)
-
-    R = np.eye(4)
-    R[:3, 0] = forward
-    R[:3, 1] = y_axis
-    R[:3, 2] = z_axis
-    q = quaternion_from_matrix(R)
-
-    rospy.loginfo_throttle(
-        2.0,
-        f"[look_at {label}] Y={np.round(y_axis, 3)}, "
-        f"Z={np.round(z_axis, 3)}, q=[{q[0]:.4f}, {q[1]:.4f}, {q[2]:.4f}, {q[3]:.4f}]",
-    )
-
-    return q
+def _clamp_front_normal(n, clamp_rad):
+    """Tilt-clamp policy for the front-valve normal elevation (nominal =
+    horizontal). Elevation is bounded to +/-90 deg, so there is no reject
+    case here -- only ``"OK"`` or ``"CLAMPED"``."""
+    elevation = np.arcsin(np.clip(n[2], -1.0, 1.0))
+    if abs(elevation) <= clamp_rad:
+        return n, elevation, "OK"
+    az = np.arctan2(n[1], n[0])
+    e = clamp_rad * np.sign(elevation)
+    n_clamped = np.array([np.cos(e) * np.cos(az), np.cos(e) * np.sin(az), np.sin(e)])
+    return n_clamped, elevation, "CLAMPED"
 
 
 class _ValveConfig:
@@ -119,17 +145,14 @@ class _ValveConfig:
         approach_offset,
         engage_offset,
         service_name,
-        correction_quat=_IDENTITY_QUAT,
-        hint_axis=None,
+        is_bottom,
     ):
         self.valve_frame = valve_frame
         self.approach_frame = approach_frame
         self.engage_frame = engage_frame
         self.approach_offset = approach_offset
         self.engage_offset = engage_offset
-        self.correction_quat = np.asarray(correction_quat)
-        self.has_correction = not np.allclose(self.correction_quat, _IDENTITY_QUAT)
-        self.hint_axis = hint_axis
+        self.is_bottom = is_bottom
         self.enabled = False
 
         self._service = rospy.Service(service_name, SetBool, self._handle_enable)
@@ -157,6 +180,9 @@ class ValveTrajectoryPublisherNode:
         self.mission_start_frame = rospy.get_param(
             "~mission_start_frame", "mission_start_link"
         )
+        self.tilt_clamp_rad = np.radians(
+            rospy.get_param("~tilt_clamp_deg", _DEFAULT_TILT_CLAMP_DEG)
+        )
 
         # ---- Front valve ----
         self.front = _ValveConfig(
@@ -172,12 +198,10 @@ class ValveTrajectoryPublisherNode:
             service_name=rospy.get_param(
                 "~front_service", "set_publishing_valve_front"
             ),
+            is_bottom=False,
         )
 
         # ---- Bottom valve ----
-        # hint_axis=0 (mission-start X) so the target frame inherits the
-        # mission heading regardless of valve pitch.  The default Z-hint
-        # becomes degenerate when the valve normal is nearly vertical.
         self.bottom = _ValveConfig(
             valve_frame=rospy.get_param("~bottom_valve_frame", "tac/valve_bottom"),
             approach_frame=rospy.get_param(
@@ -191,8 +215,7 @@ class ValveTrajectoryPublisherNode:
             service_name=rospy.get_param(
                 "~bottom_service", "set_publishing_valve_bottom"
             ),
-            correction_quat=_BOTTOM_CORRECTION_QUAT,
-            hint_axis=0,
+            is_bottom=True,
         )
 
         self.reconfigure_server = Server(
@@ -251,7 +274,7 @@ class ValveTrajectoryPublisherNode:
     # ------------------------------------------------------------------ #
     #  Per-valve computation & publishing
     # ------------------------------------------------------------------ #
-    def _publish_valve(self, valve_cfg, mission_start_R):
+    def _publish_valve(self, valve_cfg, mission_yaw):
         valve_tf = self._lookup_tf(valve_cfg.valve_frame, valve_cfg.valve_frame)
         if valve_tf is None:
             return
@@ -272,37 +295,51 @@ class ValveTrajectoryPublisherNode:
         R_valve = quaternion_matrix(q_valve)[:3, :3]
         valve_normal = R_valve[:, 0]  # +X axis of valve frame
 
+        if valve_cfg.is_bottom:
+            n_used, tilt, status = _clamp_bottom_normal(
+                valve_normal, self.tilt_clamp_rad
+            )
+            if status == "REJECT":
+                rospy.logwarn_throttle(
+                    2.0,
+                    f"[{valve_cfg.valve_frame}] normal tilt "
+                    f"{np.degrees(tilt):.1f} deg exceeds 90 deg (flipped "
+                    f"normal) - rejecting, holding last published frames",
+                )
+                return
+            q_target, beta, gamma = _bottom_target(n_used, mission_yaw)
+            psi = mission_yaw
+        else:
+            n_used, tilt, status = _clamp_front_normal(
+                valve_normal, self.tilt_clamp_rad
+            )
+            q_target, beta, psi = _front_target(n_used, mission_yaw)
+            gamma = 0.0
+
+        if status == "CLAMPED":
+            rospy.logwarn_throttle(
+                2.0,
+                f"[{valve_cfg.valve_frame}] normal tilt {np.degrees(tilt):.1f} "
+                f"deg exceeds clamp {np.degrees(self.tilt_clamp_rad):.1f} deg - "
+                f"clamped (azimuth preserved)",
+            )
+
         rospy.loginfo_throttle(
             2.0,
             f"[{valve_cfg.valve_frame}] pos={np.round(valve_pos, 3)}, "
-            f"normal={np.round(valve_normal, 3)}, "
-            f"has_correction={valve_cfg.has_correction}",
+            f"normal={np.round(valve_normal, 3)}, tilt={np.degrees(tilt):.1f} deg, "
+            f"status={status}, psi={np.degrees(psi):.1f} deg, "
+            f"beta={np.degrees(beta):.1f} deg, gamma={np.degrees(gamma):.1f} deg",
         )
 
         for target_frame, offset in [
             (valve_cfg.approach_frame, valve_cfg.approach_offset),
             (valve_cfg.engage_frame, valve_cfg.engage_offset),
         ]:
+            # Position offset stays along the full 3-D (unclamped) normal so
+            # the standoff clears the structure even when the orientation
+            # has been tilt-clamped.
             target_pos = valve_pos + valve_normal * offset
-            forward = -valve_normal  # point from offset position toward valve
-
-            q_target = _look_at_quaternion(
-                forward,
-                mission_start_R,
-                hint_axis=valve_cfg.hint_axis,
-                label=target_frame,
-            )
-
-            # Apply body-frame correction so the target frame matches the
-            # gripper / base_link axis convention for this valve type.
-            if valve_cfg.has_correction:
-                q_target = quaternion_multiply(q_target, valve_cfg.correction_quat)
-                rospy.loginfo_throttle(
-                    2.0,
-                    f"[{target_frame}] after correction: "
-                    f"q=[{q_target[0]:.4f}, {q_target[1]:.4f}, "
-                    f"{q_target[2]:.4f}, {q_target[3]:.4f}]",
-                )
 
             rospy.loginfo_throttle(
                 2.0,
@@ -320,33 +357,33 @@ class ValveTrajectoryPublisherNode:
                 rate.sleep()
                 continue
 
-            # Lookup mission_start_link once per cycle.
+            # Lookup mission_start_link once per cycle for the mission
+            # heading (bottom-valve yaw, and front-valve fallback yaw).
             ms_tf = self._lookup_tf(self.mission_start_frame, "mission_start_link")
             if ms_tf is None:
                 rate.sleep()
                 continue
 
-            q_ms = np.array(
-                [
-                    ms_tf.transform.rotation.x,
-                    ms_tf.transform.rotation.y,
-                    ms_tf.transform.rotation.z,
-                    ms_tf.transform.rotation.w,
-                ]
-            )
+            q_ms = [
+                ms_tf.transform.rotation.x,
+                ms_tf.transform.rotation.y,
+                ms_tf.transform.rotation.z,
+                ms_tf.transform.rotation.w,
+            ]
             mission_start_R = quaternion_matrix(q_ms)[:3, :3]
-
-            rospy.loginfo_throttle(
-                2.0,
-                f"[mission_start] X={np.round(mission_start_R[:, 0], 3)}, "
-                f"Y={np.round(mission_start_R[:, 1], 3)}, "
-                f"Z={np.round(mission_start_R[:, 2], 3)}",
+            # Heading = yaw of mission_start X axis in the horizontal plane.
+            # This is the ZYX yaw of the snapshot by construction, so it is
+            # exact even if the vehicle was rocking when it was taken.
+            mission_yaw = float(
+                np.arctan2(mission_start_R[1, 0], mission_start_R[0, 0])
             )
+
+            rospy.loginfo_throttle(2.0, f"[mission_start] yaw={mission_yaw:.3f}")
 
             if self.front.enabled:
-                self._publish_valve(self.front, mission_start_R)
+                self._publish_valve(self.front, mission_yaw)
             if self.bottom.enabled:
-                self._publish_valve(self.bottom, mission_start_R)
+                self._publish_valve(self.bottom, mission_yaw)
 
             rate.sleep()
 
