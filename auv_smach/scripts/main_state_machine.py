@@ -11,7 +11,7 @@ from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
-from auv_smach.return_home import NavigateReturnThroughGateState
+from auv_smach.return_home import ReturnHomeState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pinger import PingerTaskState
 from auv_smach.pipeline import NavigateThroughPipelineState
