@@ -14,10 +14,11 @@ class SimPingerMock:
         rospy.init_node("sim_pinger_mock")
 
         self.robot_name = rospy.get_param("~robot_name", "taluy")
+        self.pinger_name = rospy.get_param("~pinger_name", "pinger_cube")
 
-        self.pinger_x = rospy.get_param("~pinger_x", 10.0)
-        self.pinger_y = rospy.get_param("~pinger_y", 0.0)
-        self.pinger_z = rospy.get_param("~pinger_z", -1.0)
+        self.pinger_start_x = rospy.get_param("~pinger_x", 10.0)
+        self.pinger_start_y = rospy.get_param("~pinger_y", 0.0)
+        self.pinger_start_z = rospy.get_param("~pinger_z", -1.0)
 
         self.publish_rate = rospy.get_param("~publish_rate", 1.0)
         self.topic_name = rospy.get_param(
@@ -42,14 +43,14 @@ class SimPingerMock:
         self.spawn_pinger_cube()
 
         rospy.loginfo(
-            f"[sim_pinger_mock] Initialized. Pinger position: ({self.pinger_x}, {self.pinger_y}, {self.pinger_z}) "
+            f"[sim_pinger_mock] Initialized. Pinger position: ({self.pinger_start_x}, {self.pinger_start_y}, {self.pinger_start_z}) "
             f"Publishing on topic '{self.topic_name}' at {self.publish_rate} Hz."
         )
 
     def spawn_pinger_cube(self):
-        sdf_xml = """<?xml version="1.0" ?>
+        sdf_xml = f"""<?xml version="1.0" ?>
 <sdf version="1.6">
-  <model name="pinger_cube">
+  <model name="{self.pinger_name}">
     <static>true</static>
     <link name="link">
       <visual name="visual">
@@ -70,70 +71,40 @@ class SimPingerMock:
 </sdf>
 """
         pose = Pose()
-        pose.position.x = self.pinger_x
-        pose.position.y = self.pinger_y
+        pose.position.x = self.pinger_start_x
+        pose.position.y = self.pinger_start_y
         pose.position.z = 0.0
         pose.orientation.w = 1.0
 
         try:
             resp = self.spawn_model(
-                model_name="pinger_cube",
+                model_name=self.pinger_name,
                 model_xml=sdf_xml,
                 robot_namespace="",
                 initial_pose=pose,
                 reference_frame="world",
             )
-            if resp.success:
-                rospy.loginfo(
-                    "[sim_pinger_mock] Successfully spawned yellow 10cm pinger cube in Gazebo."
-                )
-            else:
+            if not resp.success:
                 rospy.logwarn(
                     f"[sim_pinger_mock] Failed to spawn pinger cube: {resp.status_message}"
                 )
         except Exception as e:
             rospy.logwarn(f"[sim_pinger_mock] Exception during Gazebo spawn: {e}")
 
-    def update_gazebo_cube_state(self):
-        model_state = ModelState()
-        model_state.model_name = "pinger_cube"
-        model_state.pose.position.x = self.pinger_x
-        model_state.pose.position.y = self.pinger_y
-        model_state.pose.position.z = 0.0
-        model_state.pose.orientation.w = 1.0
-        model_state.reference_frame = "world"
-
-        try:
-            self.set_model_state(model_state)
-        except Exception as e:
-            rospy.logwarn(f"[sim_pinger_mock] Failed to update Gazebo cube state: {e}")
-
-    def check_and_update_pinger_position(self):
-        curr_x = rospy.get_param("~pinger_x", self.pinger_x)
-        curr_y = rospy.get_param("~pinger_y", self.pinger_y)
-        curr_z = rospy.get_param("~pinger_z", self.pinger_z)
-
-        if (
-            curr_x != self.pinger_x
-            or curr_y != self.pinger_y
-            or curr_z != self.pinger_z
-        ):
-            self.pinger_x = curr_x
-            self.pinger_y = curr_y
-            self.pinger_z = curr_z
-            self.update_gazebo_cube_state()
-            rospy.loginfo(
-                f"[sim_pinger_mock] Pinger position updated to: ({self.pinger_x}, {self.pinger_y}, {self.pinger_z})"
-            )
-
     def run(self):
         rate = rospy.Rate(self.publish_rate)
         while not rospy.is_shutdown():
-            self.check_and_update_pinger_position()
-
             try:
-                resp = self.get_model_state(self.robot_name, "world")
-                if not resp.success:
+                robot_resp = self.get_model_state(self.robot_name, "world")
+                if not robot_resp.success:
+                    rospy.logwarn_throttle(
+                        5.0,
+                        f"[sim_pinger_mock] Failed to get model state for '{self.robot_name}': {resp.status_message}",
+                    )
+                    rate.sleep()
+                    continue
+                pinger_resp = self.get_model_state(self.pinger_name, "world")
+                if not pinger_resp.success:
                     rospy.logwarn_throttle(
                         5.0,
                         f"[sim_pinger_mock] Failed to get model state for '{self.robot_name}': {resp.status_message}",
@@ -141,13 +112,15 @@ class SimPingerMock:
                     rate.sleep()
                     continue
 
-                pos = resp.pose.position
-                ori = resp.pose.orientation
+                pos = robot_resp.pose.position
+                ori = robot_resp.pose.orientation
                 quat = [ori.x, ori.y, ori.z, ori.w]
 
-                dx = self.pinger_x - pos.x
-                dy = self.pinger_y - pos.y
-                dz = self.pinger_z - pos.z
+                pinger = pinger_resp.pose.position
+
+                dx = pinger.x - pos.x
+                dy = pinger.y - pos.y
+                dz = pinger.z - pos.z
                 R = quaternion_matrix(quat)[:3, :3]
                 v_world = np.array([dx, dy, dz])
                 v_local = R.T.dot(v_world)
