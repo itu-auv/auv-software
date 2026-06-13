@@ -48,7 +48,7 @@ class ModelSpawner:
         )
         rospy.loginfo(f"[spawn_model_server] Ready. Registered services: {registered}")
 
-        self._auto_spawn_models()
+        # self._auto_spawn_models()
 
     def _get_random_table_pose(self, min_dist=0.15):
         """Pick a random (x, y) on the table that is at least min_dist from all
