@@ -80,7 +80,8 @@
     <!-- Inspect trajectory publisher: 8 frames around the FRONT valve
          rectangle, all flattened to a configurable height above the valve's
          Z. Front-only by design (the rectangle geometry is hard-coded to the
-         front panel). Toggled by smach via set_transform_inspect_frames. -->
+         front panel). Toggled by smach via set_transform_inspect_frames_left
+         / _right; the side smach calls mirrors the rectangle geometry. -->
     <node pkg="auv_mapping" type="inspect_trajectory_publisher.py"
           name="inspect_trajectory_publisher" output="screen">
       <param name="valve_frame" value="tac/valve_front" />
@@ -138,6 +139,8 @@
     <node pkg="auv_vision" type="aruco_detection_node.py"
           name="aruco_detection" output="screen">
       <param name="scan_mode" value="true" />
+      <!-- Launch dormant; the inspect SMACH enables it via set_enabled. -->
+      <param name="start_enabled" value="false" />
       <param name="aruco_dictionary" value="DICT_ARUCO_ORIGINAL" />
       <param name="image_topic" value="$(arg front_image_topic)" />
       <param name="camera_frame" value="$(arg namespace)/base_link/front_camera_optical_link_stabilized" />

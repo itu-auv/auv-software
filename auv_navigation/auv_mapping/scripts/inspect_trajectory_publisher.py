@@ -22,10 +22,25 @@ from auv_mapping.cfg import InspectTrajectoryConfig
 
 # Geometry from tac_valve/model.sdf. Desk mesh AABB is X: -0.640..+0.825,
 # Y: ±1.242, so desk origin sits +0.0925 m in X from the table-top centre.
-# valve_front is at (0.580, 0.555, 1.4205) in desk with RPY (0, pi, 0); the
-# Ry(pi) rotation maps valve X = desk -X, valve Y = desk +Y, valve Z = desk -Z.
+# valve_front is at (0.580, 0.555, 1.4205) in the desk frame with RPY
+# (0, pi, 0). That Ry(pi) is the *orientation* of the valve TF frame relative
+# to the desk; _desk_offset_to_valve_local() below uses it to convert
+# desk-frame offsets into the valve's local frame. The valve POSITION is kept
+# in plain desk coordinates (it is subtracted from other desk-frame points
+# *before* the rotation is applied), so it must NOT be sign-flipped.
 RECT_CENTER_IN_DESK = np.array([0.0925, 0.0, 1.4205])
-VALVE_IN_DESK = np.array([0.580, -0.555, 1.4205])
+
+# The valve is mounted on the front (+X) face of the desk at one of two
+# lateral positions that mirror across the desk's long (Y) axis:
+#   left  -> (0.580, +0.555, 1.4205)
+#   right -> (0.580, -0.555, 1.4205)
+# Only the desk-frame Y sign differs between the two layouts; X (distance along
+# the short axis) and Z (height) are identical. The smach layer selects the
+# side by calling the matching left/right enable service (see
+# handle_enable_service).
+VALVE_IN_DESK_X = 0.580
+VALVE_IN_DESK_ABS_Y = 0.555
+VALVE_IN_DESK_Z = 1.4205
 
 BASE_LONG_SIDE = 2.485
 BASE_SHORT_SIDE = 1.464
@@ -33,12 +48,23 @@ BASE_SHORT_SIDE = 1.464
 IDENTITY_QUAT = (0.0, 0.0, 0.0, 1.0)
 
 
+def _valve_in_desk(valve_side: str):
+    """Valve position in the desk frame for the given side ('left'/'right').
+
+    Only the desk-frame Y sign differs between the two layouts: the valve sits
+    on the front face at +0.555 (left) or -0.555 (right) along the desk's long
+    axis. X (short-axis offset) and Z (height) are identical for both.
+    """
+    y = VALVE_IN_DESK_ABS_Y if valve_side == "left" else -VALVE_IN_DESK_ABS_Y
+    return np.array([VALVE_IN_DESK_X, y, VALVE_IN_DESK_Z])
+
+
 def _desk_offset_to_valve_local(desk_vec):
     """Inverse of Ry(pi): (x,y,z) -> (-x, y, -z)."""
     return np.array([-desk_vec[0], desk_vec[1], -desk_vec[2]])
 
 
-def _build_valve_local_offsets(long_side_extension: float):
+def _build_valve_local_offsets(long_side_extension: float, valve_in_desk):
     """Long side grows by `long_side_extension` m; short scales proportionally."""
     long_side = BASE_LONG_SIDE + long_side_extension
     scale = long_side / BASE_LONG_SIDE
@@ -60,7 +86,7 @@ def _build_valve_local_offsets(long_side_extension: float):
     ]
     return [
         _desk_offset_to_valve_local(
-            (RECT_CENTER_IN_DESK + np.array(delta)) - VALVE_IN_DESK
+            (RECT_CENTER_IN_DESK + np.array(delta)) - valve_in_desk
         )
         for delta in offsets_in_desk
     ]
@@ -85,17 +111,27 @@ class InspectTrajectoryPublisherNode:
         self.valve_frame = rospy.get_param("~valve_frame", "tac/valve_front")
 
         self._offsets_lock = threading.Lock()
+        # Geometry is side-dependent and stays unbuilt until smach selects a
+        # side via one of the left/right enable services. valve_side stays
+        # None (and frame_offsets empty) until then, so nothing is published.
+        self.valve_side = None
+        self.valve_in_desk = None
+        self.center_offset_valve_local = None
         self.frame_offsets = []
+        self.long_side_extension = 0.0
         self.height_above_valve = 1.0
-        self.center_offset_valve_local = _desk_offset_to_valve_local(
-            RECT_CENTER_IN_DESK - VALVE_IN_DESK
-        )
 
         self.enable_publishing = False
-        self.set_enable_service = rospy.Service(
-            "set_transform_inspect_frames",
+        # Two enable services; the one smach calls selects the valve side.
+        self.set_enable_left_service = rospy.Service(
+            "set_transform_inspect_frames_left",
             SetBool,
-            self.handle_enable_service,
+            lambda req: self.handle_enable_service("left", req),
+        )
+        self.set_enable_right_service = rospy.Service(
+            "set_transform_inspect_frames_right",
+            SetBool,
+            lambda req: self.handle_enable_service("right", req),
         )
 
         self.reconfigure_server = Server(
@@ -103,13 +139,32 @@ class InspectTrajectoryPublisherNode:
         )
 
     def reconfigure_callback(self, config, level):
-        offsets = _build_valve_local_offsets(config.long_side_extension)
         with self._offsets_lock:
-            self.frame_offsets = [
-                (f"inspect_frame_{i}", off) for i, off in enumerate(offsets)
-            ]
+            self.long_side_extension = config.long_side_extension
             self.height_above_valve = config.height_above_valve
+            # Rebuild only once a side is known; before that, stay empty.
+            if self.valve_in_desk is not None:
+                self._rebuild_offsets_locked()
         return config
+
+    def _rebuild_offsets_locked(self):
+        """Recompute the 8 frame offsets. Caller must hold _offsets_lock."""
+        offsets = _build_valve_local_offsets(
+            self.long_side_extension, self.valve_in_desk
+        )
+        self.frame_offsets = [
+            (f"inspect_frame_{i}", off) for i, off in enumerate(offsets)
+        ]
+
+    def _apply_valve_side(self, valve_side):
+        """Set the valve side and (re)build all side-dependent geometry."""
+        with self._offsets_lock:
+            self.valve_side = valve_side
+            self.valve_in_desk = _valve_in_desk(valve_side)
+            self.center_offset_valve_local = _desk_offset_to_valve_local(
+                RECT_CENTER_IN_DESK - self.valve_in_desk
+            )
+            self._rebuild_offsets_locked()
 
     def _lookup_in_odom(self, frame_id, label):
         try:
@@ -164,14 +219,16 @@ class InspectTrajectoryPublisherNode:
 
         R = self._rotation(valve_tf)
         valve_pos = self._translation(valve_tf)
-        center_pos = valve_pos + R @ self.center_offset_valve_local
 
         with self._offsets_lock:
             frame_offsets = list(self.frame_offsets)
             height_above_valve = self.height_above_valve
+            center_offset_valve_local = self.center_offset_valve_local
 
-        if not frame_offsets:
+        if not frame_offsets or center_offset_valve_local is None:
             return
+
+        center_pos = valve_pos + R @ center_offset_valve_local
 
         # All frames share one Z, a configurable distance above the valve's Z.
         # Only the XY of each frame (and the centre for the inward yaw) uses
@@ -193,9 +250,15 @@ class InspectTrajectoryPublisherNode:
                 quaternion_from_euler(0.0, 0.0, yaw),
             )
 
-    def handle_enable_service(self, req):
-        self.enable_publishing = req.data
-        message = f"Inspect frames publishing is set to: {self.enable_publishing}"
+    def handle_enable_service(self, valve_side, req):
+        if req.data:
+            # Selecting the side rebuilds geometry mirrored for left/right.
+            self._apply_valve_side(valve_side)
+            self.enable_publishing = True
+            message = f"Inspect frames publishing enabled (valve on {valve_side})"
+        else:
+            self.enable_publishing = False
+            message = "Inspect frames publishing disabled"
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 

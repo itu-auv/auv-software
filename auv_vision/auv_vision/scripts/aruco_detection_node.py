@@ -212,6 +212,11 @@ class ArucoDetectionNode:
         # Mode selection: full pose estimation (yaml-driven) vs scan-only (param-driven).
         self.scan_mode = rospy.get_param("~scan_mode", False)
 
+        # Initial enabled state for all cameras. Set false to launch the node
+        # dormant and have it switched on later via the set_enabled service
+        # (e.g. the inspect SMACH enables it for the duration of inspection).
+        self.start_enabled = rospy.get_param("~start_enabled", True)
+
         config_file = rospy.get_param("~config_file", "")
         scan_dict_name = rospy.get_param("~aruco_dictionary", "")
         scan_image_topic = rospy.get_param("~image_topic", "")
@@ -467,6 +472,12 @@ class ArucoDetectionNode:
                 )
             except Exception as e:
                 rospy.logerr(f"Failed to initialize camera '{cam_key}': {e}. Skipping.")
+
+        # Apply the configured initial enabled state to every camera.
+        for cam in self.cameras.values():
+            cam.enabled = self.start_enabled
+        if not self.start_enabled:
+            rospy.loginfo("ArUco cameras start disabled (~start_enabled=false)")
 
         # Enable/disable services
         for cam_key in self.cameras:
