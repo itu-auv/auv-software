@@ -115,12 +115,21 @@ class PipeTaskState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "DISABLE_ARUCO",
+                DisableArucoState(),
+                transitions={
+                    "succeeded": "ENABLE_ARUCO",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "ENABLE_ARUCO",
                 EnableArucoState(),
                 transitions={
                     "succeeded": "SET_DEPTH",
-                    "preempted": "DISABLE_ARUCO_PREEMPTED",
-                    "aborted": "SET_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
 
@@ -133,8 +142,8 @@ class PipeTaskState(smach.State):
                         if self.pipe_method == "legacy"
                         else "ENABLE_PUBLISHER"
                     ),
-                    "preempted": "DISABLE_ARUCO_PREEMPTED",
-                    "aborted": "DISABLE_ARUCO_ABORTED",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
 
@@ -144,8 +153,8 @@ class PipeTaskState(smach.State):
                     EnablePipeFollowerLegacyState(),
                     transitions={
                         "succeeded": "FOLLOW_PIPE_LEGACY",
-                        "preempted": "DISABLE_ARUCO_PREEMPTED",
-                        "aborted": "DISABLE_ARUCO_ABORTED",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
                     },
                 )
 
@@ -154,8 +163,8 @@ class PipeTaskState(smach.State):
                     TimedPipeFollowerLegacyState(duration=self.legacy_duration),
                     transitions={
                         "succeeded": "DISABLE_LEGACY",
-                        "preempted": "DISABLE_LEGACY",
-                        "aborted": "DISABLE_LEGACY",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
                     },
                 )
 
@@ -164,8 +173,8 @@ class PipeTaskState(smach.State):
                     DisablePipeFollowerLegacyState(),
                     transitions={
                         "succeeded": "DISABLE_ARUCO_SUCCEEDED",
-                        "preempted": "DISABLE_ARUCO_PREEMPTED",
-                        "aborted": "DISABLE_ARUCO_ABORTED",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
                     },
                 )
             else:
@@ -174,8 +183,8 @@ class PipeTaskState(smach.State):
                     EnablePipeFramePublisherState(),
                     transitions={
                         "succeeded": "ALIGN_TO_PIPE",
-                        "preempted": "DISABLE_ARUCO_PREEMPTED",
-                        "aborted": "DISABLE_ARUCO_ABORTED",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
                     },
                 )
 
@@ -195,8 +204,8 @@ class PipeTaskState(smach.State):
                     ),
                     transitions={
                         "succeeded": "DISABLE_PUBLISHER",
-                        "preempted": "DISABLE_PUBLISHER",
-                        "aborted": "DISABLE_PUBLISHER",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
                     },
                 )
 
@@ -204,41 +213,11 @@ class PipeTaskState(smach.State):
                     "DISABLE_PUBLISHER",
                     DisablePipeFramePublisherState(),
                     transitions={
-                        "succeeded": "DISABLE_ARUCO_SUCCEEDED",
-                        "preempted": "DISABLE_ARUCO_PREEMPTED",
-                        "aborted": "DISABLE_ARUCO_ABORTED",
+                        "succeeded": "DISABLE_ARUCO",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
                     },
                 )
-
-            smach.StateMachine.add(
-                "DISABLE_ARUCO_SUCCEEDED",
-                DisableArucoState(),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "succeeded",
-                    "aborted": "succeeded",
-                },
-            )
-
-            smach.StateMachine.add(
-                "DISABLE_ARUCO_PREEMPTED",
-                DisableArucoState(),
-                transitions={
-                    "succeeded": "preempted",
-                    "preempted": "preempted",
-                    "aborted": "preempted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "DISABLE_ARUCO_ABORTED",
-                DisableArucoState(),
-                transitions={
-                    "succeeded": "aborted",
-                    "preempted": "aborted",
-                    "aborted": "aborted",
-                },
-            )
 
     def execute(self, userdata):
         outcome = self.state_machine.execute()
