@@ -55,9 +55,9 @@ class MapWidget(QWidget):
         width = self.width()
         height = self.height()
         
-        # 20x20 resolution (viewport is 20m x 20m)
-        scale_x = width / 20.0
-        scale_y = height / 20.0
+        # 40x40 resolution (viewport is 40m x 40m)
+        scale_x = width / 40.0
+        scale_y = height / 40.0
         
         # Center coordinates
         cx = width / 2.0
@@ -70,6 +70,21 @@ class MapWidget(QWidget):
             px = cx - y * scale_x
             py = cy - x * scale_y
             return px, py
+
+        # Draw grid
+        pen_grid = QPen(QColor(50, 50, 50))
+        pen_grid.setWidth(1)
+        painter.setPen(pen_grid)
+        
+        # Grid lines every 1 meter from -20 to 20 (for a 40x40 map)
+        for i in range(-20, 21):
+            px1, py1 = to_pixel(-20, i)
+            px2, py2 = to_pixel(20, i)
+            painter.drawLine(int(px1), int(py1), int(px2), int(py2))
+            
+            px1, py1 = to_pixel(i, -20)
+            px2, py2 = to_pixel(i, 20)
+            painter.drawLine(int(px1), int(py1), int(px2), int(py2))
 
         # Draw history (blue dots)
         painter.setBrush(QBrush(QColor("blue")))
@@ -125,8 +140,8 @@ class VisualizerGUI(QWidget):
         self.map_widget = MapWidget()
         
         layout.addWidget(self.label_front, 0, 0)
-        layout.addWidget(self.label_bottom, 0, 1)
-        layout.addWidget(self.label_torpedo, 1, 0)
+        layout.addWidget(self.label_torpedo, 0, 1)
+        layout.addWidget(self.label_bottom, 1, 0)
         layout.addWidget(self.map_widget, 1, 1)
         
         # Subscribers
@@ -138,21 +153,43 @@ class VisualizerGUI(QWidget):
         self.update_image(self.label_front, msg)
 
     def bottom_cb(self, msg):
-        self.update_image(self.label_bottom, msg)
+        self.update_image(self.label_bottom, msg, rotate=270)
 
     def torpedo_cb(self, msg):
         self.update_image(self.label_torpedo, msg)
 
-    def update_image(self, label, msg):
+    def update_image(self, label, msg, rotate=0):
         pixmap = QPixmap()
         pixmap.loadFromData(msg.data)
         if not pixmap.isNull():
+            if rotate != 0:
+                from PyQt5.QtGui import QTransform
+                transform = QTransform().rotate(rotate)
+                pixmap = pixmap.transformed(transform, Qt.SmoothTransformation)
             # scale to fit the label keeping aspect ratio
             label.setPixmap(pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
 if __name__ == "__main__":
+    import signal
+
+    def signal_handler(sig, frame):
+        print("\nClosing GUI...")
+        QApplication.quit()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
     rospy.init_node("visualizer_gui")
     app = QApplication(sys.argv)
     gui = VisualizerGUI()
     gui.show()
-    sys.exit(app.exec_())
+
+    timer = QTimer()
+    timer.timeout.connect(lambda: None)
+    timer.start(100)
+
+    try:
+        sys.exit(app.exec_())
+    except SystemExit:
+        pass
