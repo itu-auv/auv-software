@@ -198,8 +198,8 @@ class PipeTaskState(smach.State):
                         max_linear_velocity=0.2,
                         max_angular_velocity=0.4,
                         confirm_duration=5.0,
-                        timeout=60.0,
-                        cancel_on_success=True,
+                        timeout=120.0,
+                        cancel_on_success=False,
                         use_frame_depth=True,
                     ),
                     transitions={
