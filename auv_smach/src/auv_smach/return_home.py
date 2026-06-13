@@ -16,55 +16,48 @@ from auv_smach.common import (
 from auv_smach.acoustic import AcousticTransmitter
 
 
-class NavigateReturnThroughGateState(smach.State):
-    def __init__(self, station_frame: str = "bin_whole_link"):
+class ReturnHomeState(smach.State):
+    def __init__(self):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.tf_buffer = get_tf_buffer()
         self.base_link = get_base_link()
 
-        self.gate_look_at_frame = "gate_middle_part"
-        self.station_frame = station_frame
-
-        # Initialize the state machine container
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
 
         with self.state_machine:
-            # smach.StateMachine.add(
-            #     "SET_RETURN_DEPTH",
-            #     SetDepthState(
-            #         depth=-1.2,
-            #         sleep_duration=rospy.get_param("~set_depth_sleep_duration", 3.0),
-            #     ),
-            #     transitions={
-            #         "succeeded": "LOOK_AT_GATE",
-            #         "preempted": "preempted",
-            #         "aborted": "aborted",
-            #     },
-            # )
             smach.StateMachine.add(
-                "LOOK_AT_GATE",
-                SearchForPropState(
-                    look_at_frame=self.gate_look_at_frame,
-                    alignment_frame="look_at_gate",
-                    full_rotation=False,
-                    set_frame_duration=7.0,
-                    source_frame=self.base_link,
-                    rotation_speed=0.2,
+                "SET_RETURN_DEPTH",
+                SetDepthState(
+                    depth=-0.3,
                 ),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_GATE_RETURN",
+                    "succeeded": "LOOK_AT_ODOM",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_GATE_RETURN",
+                "LOOK_AT_ODOM",
+                SearchForPropState(
+                    look_at_frame="odom",
+                    alignment_frame="look_at_odom",
+                    full_rotation=False,
+                    source_frame=self.base_link,
+                    rotation_speed=0.4,
+                ),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_ODOM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_ODOM",
                 DynamicPathState(
-                    plan_target_frame=self.gate_look_at_frame,
-                    angle_offset=3.14,
+                    plan_target_frame="odom",
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_ENTRANCE",
@@ -76,8 +69,7 @@ class NavigateReturnThroughGateState(smach.State):
                 "ALIGN_TO_ENTRANCE",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame="gate_entrance",
-                    angle_offset=3.14,
+                    target_frame="odom",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=2.0,
@@ -86,24 +78,6 @@ class NavigateReturnThroughGateState(smach.State):
                     keep_orientation=False,
                 ),
                 transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_7",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_7",
-                AcousticTransmitter(acoustic_data=7),
-                transitions={
-                    "succeeded": "FINISHED_ROBOSUB",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "FINISHED_ROBOSUB",
-                CancelAlignControllerState(),
-                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -111,9 +85,7 @@ class NavigateReturnThroughGateState(smach.State):
             )
 
     def execute(self, userdata):
-        rospy.logdebug(
-            "[NavigateReturnThroughGateState] Starting state machine execution."
-        )
+        rospy.logdebug("[ReturnHome] Starting state machine execution.")
 
         outcome = self.state_machine.execute()
 

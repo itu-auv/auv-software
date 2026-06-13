@@ -305,9 +305,9 @@ class MainStateMachineNode:
                     "timeout": self.acoustic_rx_timeout,
                 },
             ),
-            "NAVIGATE_RETURN_THROUGH_GATE": (
-                NavigateReturnThroughGateState,
-                {"station_frame": self.return_home_station},
+            "RETURN_HOME": (
+                ReturnHomeState,
+                {},
             ),
             "NAVIGATE_THROUGH_PIPELINE": (
                 NavigateThroughPipelineState,
