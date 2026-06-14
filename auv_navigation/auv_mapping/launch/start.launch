@@ -5,7 +5,7 @@
   <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_$(arg namespace).yaml" />
   <arg name="sim" default="false" />
   <arg name="enable_realsense_nodes" default="$(eval arg('namespace') == 'taluy')" />
-  <arg name="pool_depth" default="2.134" />
+  <arg name="pool_depth" default="5.0" />
 
   <!-- Set pool_depth globally at launch processing time so pressure_odometry_node and
        camera_detection_pose_estimator agree. Replaces the previous in-node rosparam load

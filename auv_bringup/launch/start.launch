@@ -13,7 +13,7 @@
   <arg name="logging_directory" default="$(optenv HOME)/bags" />
   <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_tac.yaml" />
   <arg name="log_filename" default="" />
-  <arg name="pool_depth" default="2.134" />
+  <arg name="pool_depth" default="5.0" />
 
   <rosparam file="$(find auv_bringup)/config/environment.yaml" command="load" ns="" />
 
