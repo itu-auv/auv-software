@@ -223,6 +223,8 @@ class ArucoCamera:
         transform_pub,
         debug_pubs,
         scan_mode=False,
+        scan_id_min=1,
+        scan_id_max=99,
     ):
         self.name = name
         self.camera_frame = camera_frame
@@ -234,9 +236,35 @@ class ArucoCamera:
         self.transform_pub = transform_pub
         self.debug_pubs = debug_pubs
         self.scan_mode = scan_mode
+        # Scan-mode ID window (inclusive). Markers outside [min, max] are
+        # dropped right after detection, so they never reach the TF/pose path
+        # nor the debug overlay.
+        self.scan_id_min = scan_id_min
+        self.scan_id_max = scan_id_max
 
         self.enabled = True
         self.last_published_stamp = rospy.Time(0)
+
+    def _filter_scan_ids(self, corners, ids):
+        """Keep only detections whose ArUco ID is within [scan_id_min,
+        scan_id_max] (inclusive). Returns (corners, ids) shaped exactly as
+        detectMarkers would (a list of corner arrays and an Nx1 id array, or
+        ([], None) when nothing survives)."""
+        if ids is None or len(ids) == 0:
+            return corners, ids
+        ids_flat = ids.flatten()
+        keep = [
+            i
+            for i, mid in enumerate(ids_flat)
+            if self.scan_id_min <= int(mid) <= self.scan_id_max
+        ]
+        if len(keep) == len(ids_flat):
+            return corners, ids
+        if not keep:
+            return [], None
+        filtered_corners = [corners[i] for i in keep]
+        filtered_ids = ids[keep]
+        return filtered_corners, filtered_ids
 
     def process(self, cv_image, stamp, detector, params):
         """Detect ArUco markers and estimate poses for boards and standalone markers.
@@ -256,7 +284,10 @@ class ArucoCamera:
         orig_corners, orig_ids, orig_rejected = detector.detectMarkers(gray)
 
         if self.scan_mode:
-            # Detection-only: no pose estimation, no TF output.
+            # Detection-only: no pose estimation, no TF output. Restrict to the
+            # configured ID window so out-of-range markers are invisible to
+            # both downstream consumers and the debug view.
+            orig_corners, orig_ids = self._filter_scan_ids(orig_corners, orig_ids)
             return gray, orig_corners, orig_ids, []
 
         any_detected = False
@@ -361,10 +392,19 @@ class ArucoDetectionNode:
         # Mode selection: full pose estimation (yaml-driven) vs scan-only (param-driven).
         self.scan_mode = rospy.get_param("~scan_mode", False)
 
+        # Initial enabled state for all cameras. Set false to launch the node
+        # dormant and have it switched on later via the set_enabled service
+        # (e.g. the inspect SMACH enables it for the duration of inspection).
+        self.start_enabled = rospy.get_param("~start_enabled", True)
+
         config_file = rospy.get_param("~config_file", "")
         scan_dict_name = rospy.get_param("~aruco_dictionary", "")
         scan_image_topic = rospy.get_param("~image_topic", "")
         scan_camera_frame = rospy.get_param("~camera_frame", "")
+        # Scan-mode ID window (inclusive on both ends). Defaults restrict the
+        # debug/detection view to IDs 1..99, hiding 0 and anything >= 100.
+        self.scan_id_min = rospy.get_param("~scan_id_min", 1)
+        self.scan_id_max = rospy.get_param("~scan_id_max", 99)
 
         scan_params = (
             ("~aruco_dictionary", scan_dict_name),
@@ -555,6 +595,8 @@ class ArucoDetectionNode:
                 transform_pub=None,
                 debug_pubs=debug_pubs,
                 scan_mode=True,
+                scan_id_min=self.scan_id_min,
+                scan_id_max=self.scan_id_max,
             )
             self.cameras[cam_key] = camera
 
@@ -568,7 +610,8 @@ class ArucoDetectionNode:
 
             rospy.loginfo(
                 f"Scan mode camera '{cam_key}' on {scan_image_topic} "
-                f"(frame: {scan_camera_frame}, dict: {dict_name})"
+                f"(frame: {scan_camera_frame}, dict: {dict_name}, "
+                f"ID window: {self.scan_id_min}..{self.scan_id_max} inclusive)"
             )
 
         for cam_key, cam_cfg in self.config.get("cameras", {}).items():
@@ -633,6 +676,12 @@ class ArucoDetectionNode:
                 )
             except Exception as e:
                 rospy.logerr(f"Failed to initialize camera '{cam_key}': {e}. Skipping.")
+
+        # Apply the configured initial enabled state to every camera.
+        for cam in self.cameras.values():
+            cam.enabled = self.start_enabled
+        if not self.start_enabled:
+            rospy.loginfo("ArUco cameras start disabled (~start_enabled=false)")
 
         # Enable/disable services
         for cam_key in self.cameras:
