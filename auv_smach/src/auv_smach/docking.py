@@ -26,8 +26,15 @@ class DockingTaskState(smach.State):
     def __init__(
         self,
         search_depth: float = -1.0,
+        test_mode: bool = False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+
+        # In test mode we assume the docking board is already visible from the
+        # start, so we skip the search/approach phase (which would otherwise
+        # require driving up to the station) and jump straight to the docking
+        # trajectory after only setting the search depth.
+        self.test_mode = test_mode
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -66,7 +73,11 @@ class DockingTaskState(smach.State):
                 "SET_SEARCH_DEPTH",
                 SetDepthState(depth=search_depth, timeout=10.0),
                 transitions={
-                    "succeeded": "SEARCH_FOR_STATION",
+                    "succeeded": (
+                        "ENABLE_DOCKING_TRAJECTORY"
+                        if self.test_mode
+                        else "SEARCH_FOR_STATION"
+                    ),
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -252,6 +263,15 @@ class DockingTaskState(smach.State):
                     "succeeded": "succeeded",
                 },
             )
+
+        if self.test_mode:
+            # Start from SET_SEARCH_DEPTH, skipping DISABLE_TORPEDO_ARUCO so the
+            # only state run before the docking trajectory is the search depth.
+            rospy.logwarn(
+                "[DockingTaskState] test_mode enabled: skipping search/approach, "
+                "starting from SET_SEARCH_DEPTH (board assumed already visible)"
+            )
+            self.state_machine.set_initial_state(["SET_SEARCH_DEPTH"])
 
     def execute(self, userdata):
         return self.state_machine.execute(userdata)

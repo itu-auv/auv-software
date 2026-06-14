@@ -125,6 +125,11 @@ class MainStateMachineNode:
         self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
         self.acoustic_rx_timeout = 30.0  # seconds
 
+        # Docking-specific test mode: when enabled, the docking task skips the
+        # search/approach phase and starts from the search depth, assuming the
+        # board is already visible. Independent of the mission-level test_mode.
+        self.docking_test_mode = rospy.get_param("~docking_test_mode", False)
+
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
         if test_mode:
@@ -303,7 +308,7 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_TO_DOCKING_TASK": (
                 DockingTaskState,
-                {},
+                {"test_mode": self.docking_test_mode},
             ),
         }
 

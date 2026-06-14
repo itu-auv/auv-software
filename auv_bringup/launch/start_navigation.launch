@@ -27,6 +27,7 @@
     <arg name="use_gui" value="$(arg use_gui)" />
     <arg name="start_state_publisher" value="$(arg start_state_publisher)" />
     <arg name="config_file" value="$(arg config_file)"/>
+    <arg name="docking_mode" value="$(arg docking_mode)" />
   </include>
 
   <include file="$(find auv_mapping)/launch/start.launch">
