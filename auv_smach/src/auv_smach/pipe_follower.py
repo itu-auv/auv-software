@@ -115,15 +115,6 @@ class PipeTaskState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
-                "DISABLE_ARUCO_START",
-                DisableArucoState(),
-                transitions={
-                    "succeeded": "ENABLE_ARUCO",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "ENABLE_ARUCO",
                 EnableArucoState(),
                 transitions={

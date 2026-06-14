@@ -29,6 +29,15 @@ class ReturnHomeState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "CANCEL_ALIGN_CONTROLLER",
+                CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "SET_RETURN_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "SET_RETURN_DEPTH",
                 SetDepthState(
                     depth=-0.3,
