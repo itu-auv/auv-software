@@ -18,7 +18,16 @@ import os
 import cv2
 import numpy as np
 import math
+from copy import deepcopy
 from sensor_msgs.msg import Image as ROSImage
+from geometry_msgs.msg import Pose2D
+from ultralytics_ros.msg import YoloResult
+from vision_msgs.msg import (
+    BoundingBox2D,
+    Detection2D,
+    Detection2DArray,
+    ObjectHypothesisWithPose,
+)
 import rospkg
 
 class ResizeToMultiple(nn.Module):
@@ -47,6 +56,12 @@ class DinoTrackerNode:
         self.model_path = rospy.get_param(
             "~model_path", "/home/frk/AUTO_LABEL/auv_detection/models/dinov3_vits16_pretrain_lvd1689m-08c60483.pth"
         )
+        self.yolo_result_topic = rospy.get_param("~yolo_result_topic", "/yolo_result_seg")
+        self.default_class_id = int(rospy.get_param("~default_class_id", 0))
+        self.class_id_map = {
+            str(name): int(class_id)
+            for name, class_id in rospy.get_param("~class_id_map", {}).items()
+        }
         
         # Resolve vectors directory
         r = rospkg.RosPack()
@@ -93,6 +108,7 @@ class DinoTrackerNode:
 
         # Publisher
         self.pub_annotated = rospy.Publisher('/taluy/vision/dino_tracker/annotated_image', ROSImage, queue_size=1)
+        self.pub_yolo_seg = rospy.Publisher(self.yolo_result_topic, YoloResult, queue_size=1)
 
         # Subscriber
         self.image_sub = rospy.Subscriber(
@@ -101,6 +117,7 @@ class DinoTrackerNode:
 
         rospy.loginfo("[DinoTrackerNode] Subscribed to bottom camera: /taluy/cameras/cam_bottom/image_rect_color")
         rospy.loginfo("[DinoTrackerNode] Publishing annotated tracking to /taluy/vision/dino_tracker/annotated_image")
+        rospy.loginfo(f"[DinoTrackerNode] Publishing DINO masks as YoloResult to {self.yolo_result_topic}")
         rospy.loginfo("[DinoTrackerNode] Initialization complete.")
 
     def get_class_color(self, class_name):
@@ -214,18 +231,42 @@ class DinoTrackerNode:
         img_msg.data = cv_image.tobytes()
         return img_msg
 
+    def make_detection(self, class_id, x, y, w, h):
+        det = Detection2D()
+        hyp = ObjectHypothesisWithPose()
+        hyp.id = class_id
+        hyp.score = 1.0
+        det.results.append(hyp)
+        det.bbox = BoundingBox2D()
+        det.bbox.center = Pose2D(x=float(x + w / 2.0), y=float(y + h / 2.0), theta=0.0)
+        det.bbox.size_x = float(w)
+        det.bbox.size_y = float(h)
+        return det
+
+    def make_yolo_result(self, header, detections=None, masks=None):
+        result_msg = YoloResult()
+        result_msg.header = header
+        result_msg.detections = Detection2DArray()
+        result_msg.detections.header = header
+        result_msg.detections.detections = detections or []
+        result_msg.masks = masks or []
+        return result_msg
+
     def image_callback(self, msg):
         self.update_reference_vectors()
 
         if not self.loaded_vectors:
             rospy.loginfo_throttle(10.0, "[DinoTrackerNode] No reference vectors loaded. Publish original stream.")
             self.pub_annotated.publish(msg)
+            self.pub_yolo_seg.publish(self.make_yolo_result(msg.header))
             return
 
         try:
             # Convert ROS Image to OpenCV
             frame_bgr = self.ros_image_to_numpy(msg, desired_encoding="bgr8")
             vis_dino = frame_bgr.copy()
+            detections = []
+            masks = []
 
             # Preprocess image
             frame_pil = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
@@ -263,10 +304,21 @@ class DinoTrackerNode:
                     cv2.rectangle(vis_dino, (x, y), (x + w, y + h), class_color_bgr, 2)
                     cv2.putText(vis_dino, class_name, (x, max(0, y - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, class_color_bgr, 2)
 
+                    class_id = self.class_id_map.get(class_name, self.default_class_id)
+                    mask_img = (propagated_mask_upsampled == 1).astype(np.uint8) * 255
+                    mask_msg = self.numpy_to_ros_image(mask_img, encoding="mono8")
+                    mask_msg.header = deepcopy(msg.header)
+                    mask_msg.header.frame_id = str(class_id)
+
+                    detections.append(self.make_detection(class_id, x, y, w, h))
+                    masks.append(mask_msg)
+
             # Publish annotated tracking results
             annotated_msg = self.numpy_to_ros_image(vis_dino, encoding="bgr8")
             annotated_msg.header = msg.header
             self.pub_annotated.publish(annotated_msg)
+
+            self.pub_yolo_seg.publish(self.make_yolo_result(msg.header, detections, masks))
 
         except Exception as e:
             rospy.logerr_throttle(5.0, f"[DinoTrackerNode] Error during tracking callback: {e}")
