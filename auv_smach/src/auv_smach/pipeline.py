@@ -12,6 +12,7 @@ from auv_smach.common import (
     CancelAlignControllerState,
 )
 from auv_smach.initialize import DelayState
+from auv_smach.pipe_follower import EnableArucoState, DisableArucoState
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
@@ -50,6 +51,15 @@ class NavigateThroughPipelineState(smach.State):
         )
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "ENABLE_ARUCO",
+                EnableArucoState(),
+                transitions={
+                    "succeeded": "SET_PIPELINE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_PIPELINE_DEPTH",
                 SetDepthState(depth=pipeline_depth),
@@ -349,6 +359,15 @@ class NavigateThroughPipelineState(smach.State):
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
+                transitions={
+                    "succeeded": "DISABLE_ARUCO",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_ARUCO",
+                DisableArucoState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
