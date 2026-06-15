@@ -24,6 +24,18 @@ scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if scripts_dir not in sys.path:
     sys.path.insert(0, scripts_dir)
 
+# Debug overlay sizes (fonts/dots/positions) are tuned for this image height.
+# They are scaled by (image_height / REF_OVERLAY_HEIGHT) so text/dots look the
+# same physical size on cameras of different resolution (e.g. 1920x1080 bottom
+# vs 800x448 torpedo). 1080 == the bottom camera, which looks correct.
+REF_OVERLAY_HEIGHT = 1080.0
+
+
+def _scaled_px(value, scale, min_value=1):
+    """Scale a pixel dimension (radius/thickness/offset) and clamp to >= min."""
+    return max(int(round(value * scale)), min_value)
+
+
 from utils.detection_utils import CameraCalibration
 from utils.aruco_utils import (
     get_aruco_dictionary,
@@ -33,6 +45,7 @@ from utils.aruco_utils import (
     solve_board_pose,
     solve_marker_pose,
     solve_single_board_marker_candidates,
+    normal_verticality,
     rvec_tvec_to_quaternion,
     transform_pose_to_odom,
     publish_pose_to_odom,
@@ -49,6 +62,7 @@ class BoardTarget:
         force_floor_orientation,
         cv_board,
         disambiguate_single_marker=False,
+        alt_disambiguate=False,
         snapshot_window=5.0,
     ):
         self.name = name
@@ -64,6 +78,12 @@ class BoardTarget:
         # (>=2 marker) solves. The snapshot freezes automatically once trusted
         # solves stop arriving (e.g. when the multi-marker camera goes dark).
         self.disambiguate_single_marker = disambiguate_single_marker
+        # Alternative disambiguation: ignore the Z-snapshot entirely and instead
+        # pick the candidate whose board normal is closest to vertical in odom.
+        # Valid because the docking board lies flat on the pool floor (normal
+        # straight up, only yaw free). Needs no prior multi-marker solve, so it
+        # works on the very first single-marker frame.
+        self.alt_disambiguate = alt_disambiguate
         self.snapshot_window = snapshot_window
         self._z_history = deque()  # (stamp_sec, odom_z) within snapshot_window
         self._snapshot_z = None
@@ -414,18 +434,16 @@ class ArucoCamera:
     def _disambiguate_single_marker(
         self, board, marker_id, ref_ids, ref_corners, stamp
     ):
-        """Pick the single-marker PnP candidate nearest the board's snapshot Z.
+        """Resolve the two-fold planar ambiguity for a lone board marker.
 
-        A lone planar marker yields two candidate poses; we transform each into
-        odom and keep the one whose Z is closest to the board's rolling snapshot
-        (anchored by the pressure sensor, so a static board's true odom-Z is
-        constant). Returns the chosen (rvec, tvec), or None if there is no
-        snapshot yet or the solve/transform fails (caller should then hold).
+        A single planar marker yields two candidate poses. Dispatches to one of
+        two strategies and returns the chosen (rvec, tvec), or None if no choice
+        can be made (caller should then hold the last good pose):
+          - ``alt_disambiguate``: pick the candidate whose board normal is most
+            vertical in odom (board lies flat on the floor). Needs no history.
+          - otherwise: pick the candidate whose odom-Z is nearest the board's
+            rolling snapshot of trusted (>=2 marker) solves.
         """
-        snapshot = board.snapshot_z()
-        if snapshot is None:
-            return None
-
         idx = np.where(ref_ids.flatten() == marker_id)[0]
         if len(idx) == 0:
             return None
@@ -435,6 +453,48 @@ class ArucoCamera:
         candidates = solve_single_board_marker_candidates(
             obj_points, corners, self.camera_matrix, self.dist_coeffs
         )
+        if not candidates:
+            return None
+
+        if board.alt_disambiguate:
+            return self._pick_by_vertical_normal(candidates, stamp)
+        return self._pick_by_snapshot_z(board, candidates, stamp)
+
+    def _pick_by_vertical_normal(self, candidates, stamp):
+        """Keep the candidate whose board normal is closest to vertical in odom.
+
+        The docking board lies flat on the pool floor, so its true normal is
+        vertical (only yaw is free). The mirrored IPPE candidate has a normal
+        tilted by ~2x the viewing obliquity, so the true pose maximizes the
+        absolute odom-Z component of the normal. Requires no prior snapshot.
+        """
+        best = None
+        best_vert = None
+        for rvec, tvec in candidates:
+            quat = rvec_tvec_to_quaternion(rvec, tvec)
+            transformed = transform_pose_to_odom(
+                self.camera_frame, tvec.flatten(), quat, stamp, self.tf_buffer
+            )
+            if transformed is None:
+                continue
+            q = transformed.pose.orientation
+            vert = normal_verticality([q.x, q.y, q.z, q.w])
+            if best_vert is None or vert > best_vert:
+                best_vert = vert
+                best = (rvec, tvec)
+
+        return best
+
+    def _pick_by_snapshot_z(self, board, candidates, stamp):
+        """Keep the candidate whose odom-Z is nearest the board's snapshot Z.
+
+        The snapshot is anchored by the pressure sensor, so a static board's
+        true odom-Z is constant. Returns None if there is no snapshot yet or
+        every candidate transform fails (caller should then hold).
+        """
+        snapshot = board.snapshot_z()
+        if snapshot is None:
+            return None
 
         best = None
         best_dz = None
@@ -460,6 +520,16 @@ class ArucoDetectionNode:
 
         # Mode selection: full pose estimation (yaml-driven) vs scan-only (param-driven).
         self.scan_mode = rospy.get_param("~scan_mode", False)
+
+        # When true, single-marker disambiguation ignores the Z-snapshot and
+        # instead picks the most-vertical-normal candidate (board flat on the
+        # pool floor). Applies to boards that have disambiguate_single_marker set.
+        self.alt_disambiguate = rospy.get_param("~alt_disambiguate", False)
+        if self.alt_disambiguate:
+            rospy.loginfo(
+                "Single-marker disambiguation: alt mode (vertical-normal, "
+                "no Z-snapshot)"
+            )
 
         config_file = rospy.get_param("~config_file", "")
         scan_dict_name = rospy.get_param("~aruco_dictionary", "")
@@ -581,6 +651,7 @@ class ArucoDetectionNode:
                 disambiguate_single_marker=board_cfg.get(
                     "disambiguate_single_marker", False
                 ),
+                alt_disambiguate=self.alt_disambiguate,
                 snapshot_window=board_cfg.get("snapshot_window", 5.0),
             )
             rospy.loginfo(
@@ -922,6 +993,10 @@ class ArucoDetectionNode:
                         debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
                         debug_imgs = [debug_img, debug_gray]
 
+                        # Scale all overlay sizes to this camera's resolution so
+                        # they match the bottom-cam reference (REF_OVERLAY_HEIGHT).
+                        overlay_scale = debug_img.shape[0] / REF_OVERLAY_HEIGHT
+
                         if ids is not None and len(ids) > 0:
                             for img in debug_imgs:
                                 cv2.aruco.drawDetectedMarkers(img, corners, ids)
@@ -947,19 +1022,31 @@ class ArucoDetectionNode:
                                             np.float32
                                         )
                                         inlier_set = set(inliers.flatten())
+                                        r_outer = _scaled_px(15, overlay_scale)
+                                        r_inlier = _scaled_px(10, overlay_scale)
+                                        r_outlier = _scaled_px(12, overlay_scale)
+                                        t_outlier = _scaled_px(4, overlay_scale)
                                         for idx, pt in enumerate(img_points):
                                             pt_int = tuple(pt.astype(int))
                                             for img in debug_imgs:
                                                 cv2.circle(
-                                                    img, pt_int, 15, (0, 0, 0), -1
+                                                    img, pt_int, r_outer, (0, 0, 0), -1
                                                 )
                                                 if idx in inlier_set:
                                                     cv2.circle(
-                                                        img, pt_int, 10, (0, 255, 0), -1
+                                                        img,
+                                                        pt_int,
+                                                        r_inlier,
+                                                        (0, 255, 0),
+                                                        -1,
                                                     )
                                                 else:
                                                     cv2.circle(
-                                                        img, pt_int, 12, (0, 0, 255), 4
+                                                        img,
+                                                        pt_int,
+                                                        r_outlier,
+                                                        (0, 0, 255),
+                                                        t_outlier,
                                                     )
 
                                     for img in debug_imgs:
@@ -970,6 +1057,7 @@ class ArucoDetectionNode:
                                             rvec,
                                             tvec,
                                             0.15,
+                                            _scaled_px(3, overlay_scale),
                                         )
 
                                     dist = np.linalg.norm(tvec)
@@ -982,42 +1070,54 @@ class ArucoDetectionNode:
                                         cv2.putText(
                                             img,
                                             info_text,
-                                            (20, 70),
+                                            (
+                                                _scaled_px(20, overlay_scale),
+                                                _scaled_px(70, overlay_scale),
+                                            ),
                                             cv2.FONT_HERSHEY_SIMPLEX,
-                                            1.2,
+                                            1.2 * overlay_scale,
                                             (0, 255, 0),
-                                            3,
+                                            _scaled_px(3, overlay_scale),
                                         )
                                         cv2.putText(
                                             img,
                                             f"IDs: {sorted(matched_ids)}",
-                                            (20, 120),
+                                            (
+                                                _scaled_px(20, overlay_scale),
+                                                _scaled_px(120, overlay_scale),
+                                            ),
                                             cv2.FONT_HERSHEY_SIMPLEX,
-                                            1.5,
+                                            1.5 * overlay_scale,
                                             (255, 255, 0),
-                                            3,
+                                            _scaled_px(3, overlay_scale),
                                         )
                                 elif matched_ids:
                                     for img in debug_imgs:
                                         cv2.putText(
                                             img,
                                             f"RANSAC failed ({len(matched_ids)} mkrs)",
-                                            (20, 70),
+                                            (
+                                                _scaled_px(20, overlay_scale),
+                                                _scaled_px(70, overlay_scale),
+                                            ),
                                             cv2.FONT_HERSHEY_SIMPLEX,
-                                            1.5,
+                                            1.5 * overlay_scale,
                                             (0, 0, 255),
-                                            3,
+                                            _scaled_px(3, overlay_scale),
                                         )
                         else:
                             for img in debug_imgs:
                                 cv2.putText(
                                     img,
                                     "SEARCHING...",
-                                    (20, 70),
+                                    (
+                                        _scaled_px(20, overlay_scale),
+                                        _scaled_px(70, overlay_scale),
+                                    ),
                                     cv2.FONT_HERSHEY_SIMPLEX,
-                                    2.0,
+                                    2.0 * overlay_scale,
                                     (0, 0, 255),
-                                    4,
+                                    _scaled_px(4, overlay_scale),
                                 )
 
                         if pubs["debug"].get_num_connections() > 0:

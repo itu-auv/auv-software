@@ -200,6 +200,18 @@ def solve_single_board_marker_candidates(
     return [(rvecs[i], tvecs[i]) for i in range(n_solutions)]
 
 
+def normal_verticality(quaternion):
+    """|odom-Z component of the frame's local Z axis| for an (x,y,z,w) quaternion.
+
+    The board's surface normal is its local Z axis; this returns how vertical
+    that normal is in odom: 1.0 == perfectly vertical (board flat on the floor),
+    lower == tilted. Sign-agnostic (abs), so it doesn't matter whether the
+    convention points the normal up out of the board or down into the floor.
+    """
+    R = tf.transformations.quaternion_matrix(quaternion)
+    return abs(R[2, 2])
+
+
 def rvec_tvec_to_quaternion(rvec, tvec, force_floor_orientation=False):
     """Convert solvePnP rvec to a quaternion in the camera frame.
 

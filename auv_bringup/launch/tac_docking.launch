@@ -3,6 +3,9 @@
   <arg name="namespace" default="taluy" />
   <arg name="device" default="cuda:0" />
   <arg name="aruco_config" default="$(find auv_vision)/config/aruco_objects_tac.yaml" />
+  <!-- Single-marker disambiguation method. true => ignore the Z-snapshot and
+       pick the most-vertical-normal candidate (board flat on the pool floor). -->
+  <arg name="alt_disambiguate" default="false" />
   <!-- sim:=true when running alongside Gazebo: the real YOLO tracker is skipped
        because sim_bbox_node (launched globally by start_gazebo) publishes
        ground-truth bboxes. ArUco detection runs in both sim and real. -->
@@ -17,6 +20,7 @@
   <node pkg="auv_vision" type="aruco_detection_node.py"
         name="aruco_detection_node" output="screen">
     <param name="config_file" value="$(arg aruco_config)" />
+    <param name="alt_disambiguate" value="$(arg alt_disambiguate)" />
     <remap from="object_transform_updates" to="/$(arg namespace)/map/object_transform_updates" />
   </node>
 </launch>
