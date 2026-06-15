@@ -3,9 +3,13 @@
   <arg name="namespace" default="taluy" />
   <arg name="device" default="cuda:0" />
   <arg name="aruco_config" default="$(find auv_vision)/config/aruco_objects_tac.yaml" />
+  <!-- sim:=true when running alongside Gazebo: the real YOLO tracker is skipped
+       because sim_bbox_node (launched globally by start_gazebo) publishes
+       ground-truth bboxes. ArUco detection runs in both sim and real. -->
+  <arg name="sim" default="false" />
 
-  <!-- TAC Docking detection: YOLO tracker -->
-  <include file="$(find auv_detection)/launch/inc/tracker_docking.launch">
+  <!-- TAC Docking detection: YOLO tracker (real hardware only) -->
+  <include file="$(find auv_detection)/launch/inc/tracker_docking.launch" unless="$(arg sim)">
     <arg name="device" value="$(arg device)" />
   </include>
 

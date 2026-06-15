@@ -8,7 +8,6 @@
     <arg name="namespace" default="taluy" />
     <arg name="use_gui" default="true" />
     <arg name="world_name" value="$(find auv_sim_description)/worlds/tac_pool.world" />
-    <arg name="aruco_config" default="$(find auv_vision)/config/aruco_objects_tac.yaml" />
 
     <include file="$(find gazebo_ros)/launch/empty_world.launch">
         <arg name="world_name" value="$(arg world_name)" />
@@ -19,11 +18,6 @@
         <arg name="verbose" value="true" />
     </include>
 
-    <!-- TAC Docking detection: config-driven ArUco detection node.
-         (YOLO tracker is not needed in sim — sim_bbox_node publishes ground truth.) -->
-    <node pkg="auv_vision" type="aruco_detection_node.py"
-          name="aruco_detection_node" output="screen">
-        <param name="config_file" value="$(arg aruco_config)" />
-        <remap from="object_transform_updates" to="/$(arg namespace)/map/object_transform_updates" />
-    </node>
+    <!-- TAC Docking perception (ArUco + YOLO/sim bbox) is launched separately
+         via auv_bringup/launch/tac_docking.launch (use sim:=true alongside Gazebo). -->
 </launch>
