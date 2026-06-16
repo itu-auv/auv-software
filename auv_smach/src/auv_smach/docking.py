@@ -2,6 +2,7 @@
 import rospy
 import smach
 import smach_ros
+from geometry_msgs.msg import WrenchStamped
 from std_srvs.srv import SetBool, SetBoolRequest
 import math
 from auv_smach.common import (
@@ -20,6 +21,22 @@ class ToggleDockingTrajectoryState(smach_ros.ServiceState):
             SetBool,
             request=SetBoolRequest(data=req),
         )
+
+
+class PublishDockWrenchState(smach.State):
+    def __init__(self):
+        super().__init__(outcomes=["preempted"])
+        self.pub = rospy.Publisher("/taluy/wrench", WrenchStamped, queue_size=1)
+
+    def execute(self, userdata):
+        rate = rospy.Rate(20)
+        while not rospy.is_shutdown() and not self.preempt_requested():
+            msg = WrenchStamped()
+            msg.header.stamp = rospy.Time.now()
+            msg.wrench.force.z = -20.0
+            self.pub.publish(msg)
+            rate.sleep()
+        return "preempted"
 
 
 class DockingTaskState(smach.State):
@@ -196,22 +213,41 @@ class DockingTaskState(smach.State):
                 },
             )
 
+            dock = smach.Concurrence(
+                outcomes=["succeeded", "preempted", "aborted"],
+                default_outcome="aborted",
+                outcome_map={
+                    "succeeded": {"ALIGN": "succeeded"},
+                    "preempted": {"ALIGN": "preempted"},
+                    "aborted": {"ALIGN": "aborted"},
+                },
+                child_termination_cb=lambda outcomes: outcomes.get("ALIGN")
+                is not None,
+            )
+
+            with dock:
+                smach.Concurrence.add(
+                    "ALIGN",
+                    AlignFrame(
+                        source_frame="taluy/base_link/docking_puck_link",
+                        target_frame="docking_puck_target",
+                        angle_offset=math.pi / 2,
+                        dist_threshold=0.03,
+                        yaw_threshold=0.04,
+                        confirm_duration=25.0,
+                        timeout=100.0,
+                        cancel_on_success=True,
+                        keep_orientation=True,
+                        max_linear_velocity=0.1,
+                        max_angular_velocity=0.2,
+                        use_frame_depth=True,
+                    ),
+                )
+                smach.Concurrence.add("WRENCH", PublishDockWrenchState())
+
             smach.StateMachine.add(
                 "DOCK",
-                AlignFrame(
-                    source_frame="taluy/base_link/docking_puck_link",
-                    target_frame="docking_puck_target",
-                    angle_offset=math.pi / 2,
-                    dist_threshold=0.03,
-                    yaw_threshold=0.04,
-                    confirm_duration=25.0,
-                    timeout=40.0,
-                    cancel_on_success=True,
-                    keep_orientation=True,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.2,
-                    use_frame_depth=True,
-                ),
+                dock,
                 transitions={
                     "succeeded": "DISABLE_DOCKING_TRAJECTORY",
                     "preempted": "preempted",
