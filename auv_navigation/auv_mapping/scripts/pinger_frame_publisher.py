@@ -77,7 +77,8 @@ class PingerFramePublisher:
         try:
             t = TransformStamped()
             t.header.stamp = rospy.Time.now()
-            t.header.frame_id = self.robot_base_frame
+            # t.header.frame_id = self.robot_base_frame
+            t.header.frame_id = "mission_start_link"
             t.child_frame_id = self.waypoint_frame
             t.transform.translation.x = dx
             t.transform.translation.y = dy

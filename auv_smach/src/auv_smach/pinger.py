@@ -156,7 +156,7 @@ class PingerTaskState(smach.State):
                 transitions={
                     "succeeded": "SEARCH_FOR_PINGER_1",
                     "preempted": "preempted",
-                    "aborted": "SEARCH_FOR_PINGER_1",
+                    "aborted": "aborted",
                 },
             )
 
