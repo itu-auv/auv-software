@@ -8,7 +8,7 @@
   <arg name="config_file" default="$(find auv_control)/config/$(arg namespace)/default.yaml" />
   <arg name="docking_mode" default="true" />
   <arg name="detection_config" default="$(find auv_vision)/config/detection_objects_$(arg namespace).yaml" />
-  <arg name="pool_depth" default="5.0" />
+  <arg name="pool_depth" default="3.5" />
 
   <include file="$(find auv_localization)/launch/start.launch">
     <arg name="namespace" value="$(arg namespace)" />

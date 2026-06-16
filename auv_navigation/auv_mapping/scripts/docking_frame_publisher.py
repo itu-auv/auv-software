@@ -6,7 +6,7 @@ Publishes target frames for the docking mission.
 
 Frames published (ArUco based, toggle: toggle_docking_trajectory):
 - docking_puck_target: Final docking position (on docking_station by default)
-- docking_pre_touch_target: Position a few cm above docking_puck_target (5cm by default),
+- docking_pre_touch_target: Position a few cm above docking_station (5cm by default),
   used to align right before contact while still free of friction.
 """
 
@@ -161,7 +161,7 @@ class DockingFramePublisher:
             base_pose,
             self.puck_offset_x,
             self.puck_offset_y,
-            self.puck_offset_z + self.pre_touch_offset_z,
+            self.pre_touch_offset_z,
         )
         pre_touch_transform = self.build_transform_message(
             self.pre_touch_target_frame, pre_touch_pose, current_time

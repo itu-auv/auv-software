@@ -71,8 +71,8 @@
     <arg name="yaw" default="1.5708" if="$(eval arg('world') == 'tac_pool')" />
 
     <!-- Pool depth (used by pressure_odometry_node valid range and bin altitude calc) -->
-    <arg name="pool_depth" default="4.0" if="$(eval arg('world') == 'tac_pool')" />
-    <arg name="pool_depth" default="5.0" unless="$(eval arg('world') == 'tac_pool')" />
+    <arg name="pool_depth" default="3.5" if="$(eval arg('world') == 'tac_pool')" />
+    <arg name="pool_depth" default="3.5" unless="$(eval arg('world') == 'tac_pool')" />
 
     <!-- Start world launch -->
     <include file="$(find auv_sim_bringup)/launch/inc/start_$(arg world)_world.launch">
