@@ -67,6 +67,20 @@ class PingerSearchState(smach.StateMachine):
                     "aborted": "aborted",
                 },
             )
+            # LOOK HERE
+            smach.StateMachine.add(
+                "DYNAMIC_TO_WAYPOINT",
+                DynamicPathState(
+                    plan_target_frame=waypoint_frame,
+                    max_linear_velocity=0.4,
+                    keep_orientation=True,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_WAYPOINT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
 
             smach.StateMachine.add(
                 "ALIGN_TO_WAYPOINT",
@@ -78,6 +92,7 @@ class PingerSearchState(smach.StateMachine):
                     timeout=30.0,
                     confirm_duration=10.0,
                     cancel_on_success=True,
+                    keep_orientation=True,
                 ),
                 transitions={
                     "succeeded": "CANCEL_CONTROL",
