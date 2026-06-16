@@ -265,13 +265,14 @@ class DockingTaskState(smach.State):
             )
 
         if self.test_mode:
-            # Start from SET_SEARCH_DEPTH, skipping DISABLE_TORPEDO_ARUCO so the
-            # only state run before the docking trajectory is the search depth.
+            # Start from DISABLE_TORPEDO_ARUCO so the ArUco cameras are still
+            # initialized (torpedo OFF, bottom ON). Search/approach is skipped via
+            # the SET_SEARCH_DEPTH -> ENABLE_DOCKING_TRAJECTORY branch above.
             rospy.logwarn(
                 "[DockingTaskState] test_mode enabled: skipping search/approach, "
-                "starting from SET_SEARCH_DEPTH (board assumed already visible)"
+                "starting from DISABLE_TORPEDO_ARUCO (board assumed already visible)"
             )
-            self.state_machine.set_initial_state(["SET_SEARCH_DEPTH"])
+            self.state_machine.set_initial_state(["DISABLE_TORPEDO_ARUCO"])
 
     def execute(self, userdata):
         return self.state_machine.execute(userdata)
