@@ -2,6 +2,7 @@
 import rospy
 import smach
 import smach_ros
+from geometry_msgs.msg import WrenchStamped
 from std_srvs.srv import SetBool, SetBoolRequest
 import math
 from auv_smach.common import (
@@ -20,6 +21,22 @@ class ToggleDockingTrajectoryState(smach_ros.ServiceState):
             SetBool,
             request=SetBoolRequest(data=req),
         )
+
+
+class PublishDockWrenchState(smach.State):
+    def __init__(self):
+        super().__init__(outcomes=["preempted"])
+        self.pub = rospy.Publisher("/taluy/wrench", WrenchStamped, queue_size=1)
+
+    def execute(self, userdata):
+        rate = rospy.Rate(20)
+        while not rospy.is_shutdown() and not self.preempt_requested():
+            msg = WrenchStamped()
+            msg.header.stamp = rospy.Time.now()
+            msg.wrench.force.z = -20.0
+            self.pub.publish(msg)
+            rate.sleep()
+        return "preempted"
 
 
 class DockingTaskState(smach.State):
@@ -105,7 +122,7 @@ class DockingTaskState(smach.State):
                     plan_target_frame="docking_station_yolo",
                     transform_source_frame="odom",
                     transform_target_frame="docking_station",
-                    max_linear_velocity=0.3,
+                    max_linear_velocity=0.5,
                     transform_timeout=90.0,
                 ),
                 transitions={
@@ -134,7 +151,7 @@ class DockingTaskState(smach.State):
                     dist_threshold=0.05,
                     yaw_threshold=0.04,
                     confirm_duration=1.0,
-                    timeout=50.0,
+                    timeout=30.0,
                     cancel_on_success=True,
                     keep_orientation=False,
                     max_linear_velocity=0.2,
@@ -182,7 +199,7 @@ class DockingTaskState(smach.State):
                     dist_threshold=0.03,
                     yaw_threshold=0.04,
                     confirm_duration=3.0,
-                    timeout=90.0,
+                    timeout=20.0,
                     cancel_on_success=True,
                     keep_orientation=True,
                     max_linear_velocity=0.1,
@@ -196,22 +213,41 @@ class DockingTaskState(smach.State):
                 },
             )
 
+            dock = smach.Concurrence(
+                outcomes=["succeeded", "preempted", "aborted"],
+                default_outcome="aborted",
+                outcome_map={
+                    "succeeded": {"ALIGN": "succeeded"},
+                    "preempted": {"ALIGN": "preempted"},
+                    "aborted": {"ALIGN": "aborted"},
+                },
+                child_termination_cb=lambda outcomes: outcomes.get("ALIGN")
+                is not None,
+            )
+
+            with dock:
+                smach.Concurrence.add(
+                    "ALIGN",
+                    AlignFrame(
+                        source_frame="taluy/base_link/docking_puck_link",
+                        target_frame="docking_puck_target",
+                        angle_offset=math.pi / 2,
+                        dist_threshold=0.03,
+                        yaw_threshold=0.04,
+                        confirm_duration=25.0,
+                        timeout=100.0,
+                        cancel_on_success=True,
+                        keep_orientation=True,
+                        max_linear_velocity=0.1,
+                        max_angular_velocity=0.2,
+                        use_frame_depth=True,
+                    ),
+                )
+                smach.Concurrence.add("WRENCH", PublishDockWrenchState())
+
             smach.StateMachine.add(
                 "DOCK",
-                AlignFrame(
-                    source_frame="taluy/base_link/docking_puck_link",
-                    target_frame="docking_puck_target",
-                    angle_offset=math.pi / 2,
-                    dist_threshold=0.03,
-                    yaw_threshold=0.04,
-                    confirm_duration=20.0,
-                    timeout=40.0,
-                    cancel_on_success=True,
-                    keep_orientation=True,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.2,
-                    use_frame_depth=True,
-                ),
+                dock,
                 transitions={
                     "succeeded": "DISABLE_DOCKING_TRAJECTORY",
                     "preempted": "preempted",
@@ -265,13 +301,14 @@ class DockingTaskState(smach.State):
             )
 
         if self.test_mode:
-            # Start from SET_SEARCH_DEPTH, skipping DISABLE_TORPEDO_ARUCO so the
-            # only state run before the docking trajectory is the search depth.
+            # Start from DISABLE_TORPEDO_ARUCO so the ArUco cameras are still
+            # initialized (torpedo OFF, bottom ON). Search/approach is skipped via
+            # the SET_SEARCH_DEPTH -> ENABLE_DOCKING_TRAJECTORY branch above.
             rospy.logwarn(
                 "[DockingTaskState] test_mode enabled: skipping search/approach, "
-                "starting from SET_SEARCH_DEPTH (board assumed already visible)"
+                "starting from DISABLE_TORPEDO_ARUCO (board assumed already visible)"
             )
-            self.state_machine.set_initial_state(["SET_SEARCH_DEPTH"])
+            self.state_machine.set_initial_state(["DISABLE_TORPEDO_ARUCO"])
 
     def execute(self, userdata):
         return self.state_machine.execute(userdata)
