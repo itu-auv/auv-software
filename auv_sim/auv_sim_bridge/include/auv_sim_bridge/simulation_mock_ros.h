@@ -127,10 +127,17 @@ class SimulationMockROS {
       // rotateVelocity(velocity_raw_msg, 135.0);
 
       is_valid_msg.data = true;
-      velocity_raw_pub_.publish(velocity_raw_msg);
     } else {
+      // DVL invalid (too close to bottom or disabled): publish zero velocity
+      // with is_valid=false, mirroring the real wayfinder driver. velocity_raw
+      // MUST still be published every cycle so the dvl_odometry_node's
+      // ApproximateTimeSynchronizer keeps firing -- otherwise its docking-mode
+      // zeroing never runs and odom_dvl stalls, letting the EKF dead-reckon.
       is_valid_msg.data = false;
     }
+    // velocity_raw_msg is zero-initialized, so the invalid branch publishes 0.
+    velocity_raw_pub_.publish(velocity_raw_msg);
+
     altitude_msg.data = msg.altitude;
 
     altitude_pub_.publish(altitude_msg);

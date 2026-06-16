@@ -28,11 +28,13 @@
     <arg name="valve_turn_direction" default="" doc="Valve handle turn direction: 'cw', 'ccw', or empty to disable"/>
     <arg name="valve_turn_degrees" default="110.0" doc="Valve handle turn magnitude in degrees (90 physical travel + 20 overdrive)"/>
 
-    <!-- Inspect task: which side of the desk the valve sits on. Required, no
-         default — launch with valve_pos:=left or valve_pos:=right. The smach
-         calls the matching inspect-publisher enable service, which mirrors the
-         rectangle geometry accordingly. -->
-    <arg name="valve_pos" doc="Valve side on the desk: 'left' or 'right'. Required, no default."/>
+    <!-- Inspect task: which side of the desk the valve sits on. Only required
+         when running the inspect mission in test mode (test_mode:=true with
+         'inspect' in test_states) — launch with valve_pos:=left or
+         valve_pos:=right. The smach calls the matching inspect-publisher enable
+         service, which mirrors the rectangle geometry accordingly. Defaults to
+         empty otherwise; InspectTaskState validates it left/right at runtime. -->
+    <arg name="valve_pos" default="" doc="Valve side on the desk: 'left' or 'right'. Only required for the inspect mission in test mode."/>
 
     <!-- Test Mode Configuration -->
     <arg name="test_mode" default="false" doc="Enable test mode for state machine"/>
