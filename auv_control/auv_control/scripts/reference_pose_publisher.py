@@ -40,6 +40,9 @@ from tf2_geometry_msgs import do_transform_point, do_transform_vector3
 from geometry_msgs.msg import Vector3Stamped
 
 
+DEFAULT_MAX_VELOCITY = [0.6] * 6
+
+
 def normalize_angle(angle: float) -> float:
     return np.arctan2(np.sin(angle), np.cos(angle))
 
@@ -75,6 +78,9 @@ class ReferencePosePublisherNode:
         )
         self.sync_cmd_pose_service = rospy.Service(
             "sync_cmd_pose", Trigger, self.handle_sync_cmd_pose_request
+        )
+        self.reset_max_velocity_service = rospy.Service(
+            "reset_max_velocity", Trigger, self.handle_reset_max_velocity_request
         )
         self.control_enable_handler = ControlEnableHandler(1.0)
         self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
@@ -149,24 +155,24 @@ class ReferencePosePublisherNode:
             current_cfg = self._read_controller_cfg()
             if current_cfg is not None:
                 self.default_max_velocity = [
-                    current_cfg.get("max_velocity_0", 1.0),
-                    current_cfg.get("max_velocity_1", 1.0),
-                    current_cfg.get("max_velocity_2", 1.0),
-                    current_cfg.get("max_velocity_3", 1.0),
-                    current_cfg.get("max_velocity_4", 1.0),
-                    current_cfg.get("max_velocity_5", 1.0),
+                    current_cfg.get("max_velocity_0", DEFAULT_MAX_VELOCITY[0]),
+                    current_cfg.get("max_velocity_1", DEFAULT_MAX_VELOCITY[1]),
+                    current_cfg.get("max_velocity_2", DEFAULT_MAX_VELOCITY[2]),
+                    current_cfg.get("max_velocity_3", DEFAULT_MAX_VELOCITY[3]),
+                    current_cfg.get("max_velocity_4", DEFAULT_MAX_VELOCITY[4]),
+                    current_cfg.get("max_velocity_5", DEFAULT_MAX_VELOCITY[5]),
                 ]
             else:
                 rospy.logwarn(
                     "Failed to read initial controller configuration; using params/fallback"
                 )
                 self.default_max_velocity = rospy.get_param(
-                    f"{target_server}/max_velocity", [1.0] * 6
+                    f"{target_server}/max_velocity", list(DEFAULT_MAX_VELOCITY)
                 )
         except Exception as e:
             rospy.logwarn(f"Failed to connect to dynamic reconfigure server: {e}")
             self.reconfigure_client = None
-            self.default_max_velocity = [1.0] * 6
+            self.default_max_velocity = list(DEFAULT_MAX_VELOCITY)
 
     def killswitch_callback(self, msg: Bool) -> None:
         if not msg.data:
@@ -413,6 +419,40 @@ class ReferencePosePublisherNode:
             self.set_target_to_odometry()
         rospy.loginfo("cmd_pose synced to current odometry")
         return TriggerResponse(success=True, message="cmd_pose synced to odometry")
+
+    def handle_reset_max_velocity_request(self, req) -> TriggerResponse:
+        with self.state_lock:
+            self.default_max_velocity = list(DEFAULT_MAX_VELOCITY)
+            self.set_depth_velocity = None
+
+            if not self.reconfigure_client:
+                return TriggerResponse(
+                    success=False,
+                    message="Dynamic reconfigure client is not available.",
+                )
+
+            try:
+                self.reconfigure_client.update_configuration(
+                    {
+                        "max_velocity_0": DEFAULT_MAX_VELOCITY[0],
+                        "max_velocity_1": DEFAULT_MAX_VELOCITY[1],
+                        "max_velocity_2": DEFAULT_MAX_VELOCITY[2],
+                        "max_velocity_3": DEFAULT_MAX_VELOCITY[3],
+                        "max_velocity_4": DEFAULT_MAX_VELOCITY[4],
+                        "max_velocity_5": DEFAULT_MAX_VELOCITY[5],
+                    }
+                )
+            except Exception as e:
+                rospy.logwarn(f"Failed to reset max velocity: {e}")
+                return TriggerResponse(
+                    success=False, message=f"Failed to reset max velocity: {e}"
+                )
+
+        rospy.loginfo("Max velocity reset to default values: %s", DEFAULT_MAX_VELOCITY)
+        return TriggerResponse(
+            success=True,
+            message="Max velocity reset to default values.",
+        )
 
     def cancel_align_controller(self):
         self.set_target_to_odometry()

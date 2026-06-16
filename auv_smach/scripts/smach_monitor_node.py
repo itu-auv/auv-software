@@ -15,10 +15,14 @@ class SmachMonitor:
         self.teleop_node_name = "joystick_node"
 
         self.align_frame_service_name = "control/align_frame/cancel"
+        self.reset_max_velocity_service_name = "reset_max_velocity"
         self.detection_focus_service_name = "vision/set_front_camera_focus"
 
         self.align_frame_service = rospy.ServiceProxy(
             self.align_frame_service_name, Trigger
+        )
+        self.reset_max_velocity_service = rospy.ServiceProxy(
+            self.reset_max_velocity_service_name, Trigger
         )
         self.detection_focus_service = rospy.ServiceProxy(
             self.detection_focus_service_name, SetDetectionFocus
@@ -76,7 +80,25 @@ class SmachMonitor:
         ) as e:
             rospy.logerr("Service call to cancel align frame controller failed: %s" % e)
 
-        # 2. Set DetectionFocus to all
+        # 2. Reset controller max velocity limits
+        try:
+            rospy.wait_for_service(self.reset_max_velocity_service_name, timeout=2.0)
+            req = TriggerRequest()
+            resp = self.reset_max_velocity_service(req)
+            if resp.success:
+                rospy.loginfo("Called reset_max_velocity service after SMACH death.")
+            else:
+                rospy.logwarn(
+                    "reset_max_velocity service returned failure: %s" % resp.message
+                )
+        except (
+            rospy.ServiceException,
+            rospy.ROSException,
+            rospy.ROSInterruptException,
+        ) as e:
+            rospy.logerr("Service call to reset max velocity failed: %s" % e)
+
+        # 3. Set DetectionFocus to all
         try:
             rospy.wait_for_service(self.detection_focus_service_name, timeout=2.0)
             req = SetDetectionFocusRequest(focus_object="none")
