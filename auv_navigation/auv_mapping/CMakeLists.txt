@@ -57,6 +57,7 @@ generate_dynamic_reconfigure_options(
   cfg/TorpedoTrajectory.cfg
   cfg/GpsTargetFrame.cfg
   cfg/PipeFollower.cfg
+  cfg/Pinger.cfg
 )
 
 catkin_package(

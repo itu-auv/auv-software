@@ -9,6 +9,8 @@ from geometry_msgs.msg import Pose, TransformStamped
 from std_msgs.msg import Float32, String
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
+from dynamic_reconfigure.server import Server
+from auv_mapping.cfg import PingerConfig
 
 
 class PingerFramePublisher:
@@ -27,7 +29,7 @@ class PingerFramePublisher:
         self.topic_name = rospy.get_param(
             "~topic_name", "/taluy/acoustic/hydrophone/base_angle"
         )
-        self.leg_distance = rospy.get_param("~leg_distance", 2.0)
+        self.search_distance = rospy.get_param("~search_distance", 2.0)
         self.outlier_threshold = rospy.get_param("~outlier_threshold", 0.26)
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -40,6 +42,11 @@ class PingerFramePublisher:
             "PingerFramePublisher: Waiting for set_object_transform service..."
         )
         self.set_object_transform_service.wait_for_service()
+
+        try:
+            self.dyn_srv = Server(PingerConfig, self.reconfigure_callback)
+        except Exception as e:
+            rospy.logwarn(f"Dynamic reconfigure server could not be started: {e}")
 
         self.toggle_collection_srv = rospy.Service(
             "toggle_pinger_collection", SetBool, self.handle_toggle_collection
@@ -60,10 +67,10 @@ class PingerFramePublisher:
         direction = msg.data.strip().lower()
 
         offsets = {
-            "forward": (self.leg_distance, 0.0),
-            "backward": (-self.leg_distance, 0.0),
-            "left": (0.0, self.leg_distance),
-            "right": (0.0, -self.leg_distance),
+            "forward": (self.search_distance, 0.0),
+            "backward": (-self.search_distance, 0.0),
+            "left": (0.0, self.search_distance),
+            "right": (0.0, -self.search_distance),
         }
 
         if direction not in offsets:
@@ -253,6 +260,16 @@ class PingerFramePublisher:
                 rospy.logwarn(f"Failed to publish {self.pinger_frame}: {resp.message}")
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call to set_object_transform failed: {e}")
+
+    def reconfigure_callback(self, config, level):
+        try:
+            self.search_distance = config.get("search_distance", self.search_distance)
+            rospy.loginfo_throttle(
+                5.0, f"Dynamic reconfigure: search_distance={self.search_distance:.3f}"
+            )
+        except Exception as e:
+            rospy.logwarn(f"Reconfigure callback error: {e}")
+        return config
 
     def spin(self):
         rate = rospy.Rate(5.0)
