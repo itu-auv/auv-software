@@ -112,7 +112,7 @@
       <rosparam param="feature_vector">[0.0, 0.0, 1.0]</rosparam>
       <rosparam param="reference_vector">[0.0, 0.0, 1.0]</rosparam>
       <param name="invert" value="true" />
-      <param name="offset_deg" value="90.0" />
+      <param name="offset_deg" value="0.0" />
       <!-- Bench-calibrated 2026-06-11: commanded ccw turned the handle cw,
            so the servo runs opposite to the handle sense on this mount. -->
       <param name="ccw_sign" value="-1.0" />
