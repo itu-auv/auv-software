@@ -39,7 +39,7 @@ class MapWidget(QWidget):
         
         self.history_timer = QTimer(self)
         self.history_timer.timeout.connect(self.save_history)
-        self.history_timer.start(15000)  # 15 seconds
+        self.history_timer.start(3000)  # 15 seconds
         
         self.current_x = 0.0
         self.current_y = 0.0
@@ -70,8 +70,8 @@ class MapWidget(QWidget):
         height = self.height()
         
         # 40x40 resolution (viewport is 40m x 40m)
-        scale_x = width / 40.0
-        scale_y = height / 40.0
+        scale_x = width / 10.0
+        scale_y = height / 10.0
         
         # Center coordinates
         cx = width / 2.0
