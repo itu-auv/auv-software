@@ -1,0 +1,22 @@
+<launch>
+    <!-- Ground-truth drawing web UI (runs on the operator laptop).
+         Subscribes to the robot camera over the ROS network and serves a canvas
+         painter at http://localhost:<port>/. Set ROS_MASTER_URI to the robot
+         first. Saved GT goes to session_dir for seg_optimize.py. -->
+    <arg name="namespace" default="taluy" />
+    <arg name="image_topic" default="cameras/cam_bottom/image_rect_color" />
+    <arg name="use_compressed" default="true" />
+    <arg name="port" default="8088" />
+    <arg name="session_dir" default="/tmp/seg_session" />
+
+    <group ns="$(arg namespace)">
+        <node pkg="auv_vision" type="seg_gt_ui_node.py" name="seg_gt_ui"
+              output="screen">
+            <remap from="image_raw" to="$(arg image_topic)" />
+            <remap from="image_raw/compressed" to="$(arg image_topic)/compressed" />
+            <param name="use_compressed" value="$(arg use_compressed)" />
+            <param name="port" value="$(arg port)" />
+            <param name="session_dir" value="$(arg session_dir)" />
+        </node>
+    </group>
+</launch>

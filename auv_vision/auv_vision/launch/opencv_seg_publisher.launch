@@ -1,0 +1,27 @@
+<launch>
+    <!-- Classic-OpenCV yellow-pipe segmentation publisher (runs on the robot).
+         Drop-in fallback for the YOLO segment model. It consumes the same bottom
+         camera topic and publishes the same mask topic used by start.launch's
+         yolo_seg_to_mask -> pipe_follower_legacy path. Live-tune with
+         rqt_reconfigure, or push a tuned set with:
+           rosrun dynamic_reconfigure dynparam load \
+               /taluy/opencv_seg_publisher best_params.yaml -->
+    <arg name="namespace" default="taluy" />
+    <arg name="image_topic" default="/$(arg namespace)/cameras/cam_bottom/image_rect_color" />
+    <arg name="mask_topic" default="/seg_mask" />
+    <arg name="use_compressed" default="false" />
+    <arg name="publish_debug" default="true" />
+    <arg name="start_enabled" default="true" />
+
+    <group ns="$(arg namespace)">
+        <node pkg="auv_vision" type="opencv_seg_publisher.py"
+              name="opencv_seg_publisher" output="screen">
+            <remap from="image_raw" to="$(arg image_topic)" />
+            <remap from="image_raw/compressed" to="$(arg image_topic)/compressed" />
+            <remap from="bottle_mask" to="$(arg mask_topic)" />
+            <param name="use_compressed" value="$(arg use_compressed)" />
+            <param name="publish_debug" value="$(arg publish_debug)" />
+            <param name="start_enabled" value="$(arg start_enabled)" />
+        </node>
+    </group>
+</launch>

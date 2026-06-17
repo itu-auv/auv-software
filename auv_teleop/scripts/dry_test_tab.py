@@ -159,12 +159,12 @@ class DryTestTab(QWidget):
 
         button_layout.addWidget(self.dry_test_btn)
         button_layout.addSpacing(10)
-        
+
         rqt_row = QHBoxLayout()
         rqt_row.addWidget(self.rqt_btn)
         rqt_row.addWidget(self.draw_mask_btn)
         button_layout.addLayout(rqt_row)
-        
+
         button_layout.addWidget(self.thruster_test_btn)
 
         layout.addWidget(sensor_group, 0, 0)
