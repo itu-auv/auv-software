@@ -2,6 +2,7 @@
 
 import sys
 import os
+import threading
 import rospy
 import tf
 import math
@@ -17,11 +18,13 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QDialogButtonBox,
 )
-from PyQt5.QtGui import QPixmap, QPainter, QColor, QPen, QBrush
+from PyQt5.QtGui import QPixmap, QPainter, QColor, QPen, QBrush, QTransform
 from PyQt5.QtCore import Qt, QTimer
 from sensor_msgs.msg import CompressedImage
 
 CONFIG_FILE = "visiuliser.yaml"
+IMAGE_DISPLAY_INTERVAL_MS = 50
+IMAGE_SUBSCRIBER_BUFF_SIZE = 2**24
 
 class MapWidget(QWidget):
     def __init__(self):
@@ -229,36 +232,94 @@ class VisualizerGUI(QWidget):
         layout.addWidget(self.label_torpedo, 0, 1)
         layout.addWidget(self.label_bottom, 1, 0)
         layout.addWidget(self.map_widget, 1, 1)
+
+        self._frame_lock = threading.Lock()
+        self._latest_frames = {
+            "front": None,
+            "bottom": None,
+            "torpedo": None,
+        }
+        self._displayed_frame_ids = {
+            "front": None,
+            "bottom": None,
+            "torpedo": None,
+        }
+        self._next_frame_id = 0
+        self._streams = {
+            "front": (self.label_front, 0),
+            "bottom": (self.label_bottom, 270),
+            "torpedo": (self.label_torpedo, 0),
+        }
         
         # Subscribers come from the selected YAML mode in this order.
-        rospy.Subscriber(topics[0], CompressedImage, self.front_cb)
-        rospy.Subscriber(topics[1], CompressedImage, self.bottom_cb)
-        rospy.Subscriber(topics[2], CompressedImage, self.torpedo_cb)
+        self.subscribers = [
+            self._subscribe_image(topics[0], self.front_cb),
+            self._subscribe_image(topics[1], self.bottom_cb),
+            self._subscribe_image(topics[2], self.torpedo_cb),
+        ]
+
+        self.image_timer = QTimer(self)
+        self.image_timer.timeout.connect(self.update_images)
+        self.image_timer.start(IMAGE_DISPLAY_INTERVAL_MS)
 
     def set_label_texts(self, topics):
         self.label_front.setText("Stream 1\n{}".format(topics[0]))
         self.label_bottom.setText("Stream 2\n{}".format(topics[1]))
         self.label_torpedo.setText("Stream 3\n{}".format(topics[2]))
 
+    def _subscribe_image(self, topic, callback):
+        return rospy.Subscriber(
+            topic,
+            CompressedImage,
+            callback,
+            queue_size=1,
+            buff_size=IMAGE_SUBSCRIBER_BUFF_SIZE,
+        )
+
+    def _store_latest_frame(self, stream_name, msg):
+        with self._frame_lock:
+            self._next_frame_id += 1
+            self._latest_frames[stream_name] = (self._next_frame_id, bytes(msg.data))
+
     def front_cb(self, msg):
-        self.update_image(self.label_front, msg)
+        self._store_latest_frame("front", msg)
 
     def bottom_cb(self, msg):
-        self.update_image(self.label_bottom, msg, rotate=270)
+        self._store_latest_frame("bottom", msg)
 
     def torpedo_cb(self, msg):
-        self.update_image(self.label_torpedo, msg)
+        self._store_latest_frame("torpedo", msg)
 
-    def update_image(self, label, msg, rotate=0):
+    def update_images(self):
+        with self._frame_lock:
+            frames = dict(self._latest_frames)
+
+        for stream_name, frame in frames.items():
+            if frame is None:
+                continue
+
+            frame_id, image_data = frame
+            if self._displayed_frame_ids[stream_name] == frame_id:
+                continue
+
+            label, rotate = self._streams[stream_name]
+            if self.update_image(label, image_data, rotate=rotate):
+                self._displayed_frame_ids[stream_name] = frame_id
+
+    def update_image(self, label, image_data, rotate=0):
         pixmap = QPixmap()
-        pixmap.loadFromData(msg.data)
-        if not pixmap.isNull():
-            if rotate != 0:
-                from PyQt5.QtGui import QTransform
-                transform = QTransform().rotate(rotate)
-                pixmap = pixmap.transformed(transform, Qt.SmoothTransformation)
-            # scale to fit the label keeping aspect ratio
-            label.setPixmap(pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        pixmap.loadFromData(image_data)
+        if pixmap.isNull():
+            return False
+
+        if rotate != 0:
+            transform = QTransform().rotate(rotate)
+            pixmap = pixmap.transformed(transform, Qt.FastTransformation)
+
+        label.setPixmap(
+            pixmap.scaled(label.size(), Qt.KeepAspectRatio, Qt.FastTransformation)
+        )
+        return True
 
 if __name__ == "__main__":
     import signal

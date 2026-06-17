@@ -1,7 +1,7 @@
 inspection:
   - taluy/cameras/cam_front/image_rect_color/compressed
   - taluy/cameras/cam_bottom/image_rect_color/compressed
-  - taluy/cameras/cam_torpedo/image_rect_color/compressed
+  - taluy/cameras/cam_torpedo/image_raw/compressed
 
 valve:
   - taluy/cameras/cam_front/image_rect_color/compressed
