@@ -234,7 +234,7 @@ class DockingTaskState(smach.State):
                         angle_offset=math.pi / 2,
                         dist_threshold=0.03,
                         yaw_threshold=0.04,
-                        confirm_duration=25.0,
+                        confirm_duration=100.0,
                         timeout=100.0,
                         cancel_on_success=True,
                         keep_orientation=True,
