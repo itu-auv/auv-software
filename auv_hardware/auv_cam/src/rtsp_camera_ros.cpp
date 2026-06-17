@@ -172,8 +172,7 @@ void RTSPCameraROS::start() {
   while (ros::ok()) {
     // Block up to 1 s for the next decoded frame so we react quickly to
     // shutdown and to RTSP stalls.
-    GstSample *sample =
-        gst_app_sink_try_pull_sample(appsink_, GST_SECOND);
+    GstSample *sample = gst_app_sink_try_pull_sample(appsink_, GST_SECOND);
     if (sample == nullptr) {
       if (gst_app_sink_is_eos(appsink_)) {
         ROS_ERROR_STREAM("appsink reached EOS, stopping");
@@ -230,10 +229,11 @@ void RTSPCameraROS::start() {
         ros::Time::now() - ros::Duration(buffer_age_s + stamp_offset_);
 
     if (verbose_) {
-      ROS_INFO_THROTTLE(
-          2.0,
-          "RTSP frame %dx%d, pipeline latency: %.1f ms (manual offset: %.1f ms)",
-          frame_w, frame_h, buffer_age_s * 1000.0, stamp_offset_ * 1000.0);
+      ROS_INFO_THROTTLE(2.0,
+                        "RTSP frame %dx%d, pipeline latency: %.1f ms (manual "
+                        "offset: %.1f ms)",
+                        frame_w, frame_h, buffer_age_s * 1000.0,
+                        stamp_offset_ * 1000.0);
     }
 
     GstMapInfo map;

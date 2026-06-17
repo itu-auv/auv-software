@@ -221,8 +221,7 @@ class DockingTaskState(smach.State):
                     "preempted": {"ALIGN": "preempted"},
                     "aborted": {"ALIGN": "aborted"},
                 },
-                child_termination_cb=lambda outcomes: outcomes.get("ALIGN")
-                is not None,
+                child_termination_cb=lambda outcomes: outcomes.get("ALIGN") is not None,
             )
 
             with dock:
