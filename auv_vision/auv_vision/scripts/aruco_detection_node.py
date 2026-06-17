@@ -912,6 +912,23 @@ class ArucoDetectionNode:
                         debug_gray = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
                         debug_imgs = [debug_img, debug_gray]
 
+                        # Scale overlay sizes to the image resolution so text and
+                        # symbols stay legible without overwhelming small frames
+                        # (e.g. the 640x480 front camera). s == 1.0 at 640px wide.
+                        s = debug_img.shape[1] / 640.0
+                        r_outer = max(2, int(round(7 * s)))
+                        r_inlier = max(1, int(round(5 * s)))
+                        r_outlier = max(2, int(round(6 * s)))
+                        outlier_th = max(1, int(round(2 * s)))
+                        font_th = max(1, int(round(1.5 * s)))
+                        font_info = 0.6 * s
+                        font_ids = 0.6 * s
+                        font_fail = 0.6 * s
+                        font_search = 0.9 * s
+                        margin = max(5, int(round(10 * s)))
+                        line1_y = max(15, int(round(35 * s)))
+                        line2_y = max(30, int(round(60 * s)))
+
                         if ids is not None and len(ids) > 0:
                             for img in debug_imgs:
                                 cv2.aruco.drawDetectedMarkers(img, corners, ids)
@@ -941,15 +958,23 @@ class ArucoDetectionNode:
                                             pt_int = tuple(pt.astype(int))
                                             for img in debug_imgs:
                                                 cv2.circle(
-                                                    img, pt_int, 15, (0, 0, 0), -1
+                                                    img, pt_int, r_outer, (0, 0, 0), -1
                                                 )
                                                 if idx in inlier_set:
                                                     cv2.circle(
-                                                        img, pt_int, 10, (0, 255, 0), -1
+                                                        img,
+                                                        pt_int,
+                                                        r_inlier,
+                                                        (0, 255, 0),
+                                                        -1,
                                                     )
                                                 else:
                                                     cv2.circle(
-                                                        img, pt_int, 12, (0, 0, 255), 4
+                                                        img,
+                                                        pt_int,
+                                                        r_outlier,
+                                                        (0, 0, 255),
+                                                        outlier_th,
                                                     )
 
                                     for img in debug_imgs:
@@ -972,42 +997,42 @@ class ArucoDetectionNode:
                                         cv2.putText(
                                             img,
                                             info_text,
-                                            (20, 70),
+                                            (margin, line1_y),
                                             cv2.FONT_HERSHEY_SIMPLEX,
-                                            1.2,
+                                            font_info,
                                             (0, 255, 0),
-                                            3,
+                                            font_th,
                                         )
                                         cv2.putText(
                                             img,
                                             f"IDs: {sorted(matched_ids)}",
-                                            (20, 120),
+                                            (margin, line2_y),
                                             cv2.FONT_HERSHEY_SIMPLEX,
-                                            1.5,
+                                            font_ids,
                                             (255, 255, 0),
-                                            3,
+                                            font_th,
                                         )
                                 elif matched_ids:
                                     for img in debug_imgs:
                                         cv2.putText(
                                             img,
                                             f"RANSAC failed ({len(matched_ids)} mkrs)",
-                                            (20, 70),
+                                            (margin, line1_y),
                                             cv2.FONT_HERSHEY_SIMPLEX,
-                                            1.5,
+                                            font_fail,
                                             (0, 0, 255),
-                                            3,
+                                            font_th,
                                         )
                         else:
                             for img in debug_imgs:
                                 cv2.putText(
                                     img,
                                     "SEARCHING...",
-                                    (20, 70),
+                                    (margin, line1_y),
                                     cv2.FONT_HERSHEY_SIMPLEX,
-                                    2.0,
+                                    font_search,
                                     (0, 0, 255),
-                                    4,
+                                    font_th,
                                 )
 
                         if pubs["debug"].get_num_connections() > 0:
