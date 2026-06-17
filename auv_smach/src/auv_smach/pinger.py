@@ -62,18 +62,32 @@ class PingerSearchState(smach.StateMachine):
                 "PUBLISH_WAYPOINT",
                 PublishPingerWaypointState(direction=direction),
                 transitions={
-                    "succeeded": "ALIGN_TO_WAYPOINT",
+                    "succeeded": "AIM_TO_WAYPOINT",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-            # LOOK HERE
+            smach.StateMachine.add(
+                "AIM_TO_WAYPOINT",
+                SearchForPropState(
+                    look_at_frame=waypoint_frame,
+                    alignment_frame="waypoint_aim",
+                    full_rotation=False,
+                    source_frame=get_base_link(),
+                    rotation_speed=0.4,
+                ),
+                transitions={
+                    "succeeded": "DYNAMIC_TO_WAYPOINT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "DYNAMIC_TO_WAYPOINT",
                 DynamicPathState(
                     plan_target_frame=waypoint_frame,
                     max_linear_velocity=0.4,
-                    keep_orientation=True,
+                    max_angular_velocity=0.3,
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_WAYPOINT",
