@@ -32,6 +32,8 @@
 #pragma once
 
 #include <cv_bridge/cv_bridge.h>
+#include <gst/app/gstappsink.h>
+#include <gst/gst.h>
 #include <image_transport/image_transport.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <sensor_msgs/Image.h>
@@ -45,7 +47,10 @@ namespace auv_cam {
 class RTSPCameraROS {
  private:
   ros::NodeHandle nh_;
-  cv::VideoCapture capture_;
+
+  // GStreamer pipeline (replaces cv::VideoCapture so we can read buffer PTS).
+  GstElement *pipeline_;
+  GstAppSink *appsink_;
 
   // Video parameters
   int height_;
@@ -56,6 +61,10 @@ class RTSPCameraROS {
   // RTSP parameters
   std::string rtsp_url_;
   int latency_;
+
+  // Optional manual offset on top of the PTS-derived stamp, in seconds.
+  // Default 0.0 -- only set if PTS-based timing is observed to be biased.
+  double stamp_offset_;
 
   // Image transport
   image_transport::ImageTransport it_;
@@ -70,6 +79,11 @@ class RTSPCameraROS {
    * @param nh Node handle
    */
   RTSPCameraROS(const ros::NodeHandle &nh);
+
+  /**
+   * @brief Tear down the GStreamer pipeline.
+   */
+  ~RTSPCameraROS();
 
   /**
    * @brief Start polling frames and publish

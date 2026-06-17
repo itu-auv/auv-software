@@ -31,6 +31,11 @@ if(NOT OpenCV_FOUND)
     CONFIG)
 endif()
 
+# GStreamer is needed by the RTSP camera node so we can pull buffer PTS
+# directly from the appsink and recover capture timestamps.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.0 gstreamer-app-1.0)
+
 catkin_package(
   CATKIN_DEPENDS roscpp
   DEPENDS OpenCV
@@ -39,6 +44,7 @@ catkin_package(
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
+  ${GSTREAMER_INCLUDE_DIRS}
 )
 
 add_library(auv_camera_ros src/auv_camera_ros.cpp)
@@ -51,7 +57,9 @@ add_library(rtsp_camera_ros src/rtsp_camera_ros.cpp)
 target_link_libraries(rtsp_camera_ros
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
+  ${GSTREAMER_LIBRARIES}
 )
+target_compile_options(rtsp_camera_ros PRIVATE ${GSTREAMER_CFLAGS_OTHER})
 
 add_executable(auv_gst_cam_node src/auv_gst_cam_node.cpp)
 target_link_libraries(auv_gst_cam_node

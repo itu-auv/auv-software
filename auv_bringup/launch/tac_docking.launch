@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="device" default="cuda:0" />
+  <arg name="aruco_config" default="$(find auv_vision)/config/aruco_objects_tac.yaml" />
+
+  <!-- TAC Docking detection: YOLO tracker -->
+  <include file="$(find auv_detection)/launch/inc/tracker_docking.launch">
+    <arg name="device" value="$(arg device)" />
+  </include>
+
+  <!-- TAC Docking detection: config-driven ArUco detection node -->
+  <node pkg="auv_vision" type="aruco_detection_node.py"
+        name="aruco_detection_node" output="screen">
+    <param name="config_file" value="$(arg aruco_config)" />
+    <remap from="object_transform_updates" to="/$(arg namespace)/map/object_transform_updates" />
+  </node>
+</launch>
