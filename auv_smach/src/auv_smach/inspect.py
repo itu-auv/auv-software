@@ -1,13 +1,12 @@
-import math
 import rospy
 import smach
 import smach_ros
 from std_srvs.srv import SetBool, SetBoolRequest
+from auv_msgs.srv import SetScanEnabled, SetScanEnabledRequest
 
 from auv_smach.common import (
     AlignFrame,
     CancelAlignControllerState,
-    LookAroundState,
 )
 from auv_smach.initialize import DelayState
 
@@ -43,32 +42,29 @@ class SetArucoDetectionEnabledState(smach_ros.ServiceState):
     """Toggle the ArUco detection node via its ~set_enabled service.
 
     The node launches dormant (start_enabled=false in tac_sea.launch); this
-    switches it on for the duration of the inspection scan.
+    switches it on for the duration of the inspection scan. Each enable opens a
+    fresh scan folder named `scan_name` on the node side (it auto-suffixes
+    2, 3, ... if the folder already exists). The name is ignored on disable.
     """
 
-    def __init__(self, service_name: str, req: bool):
+    def __init__(self, service_name: str, req: bool, scan_name: str = "Inspect_Auto"):
         smach_ros.ServiceState.__init__(
             self,
             service_name,
-            SetBool,
-            request=SetBoolRequest(data=req),
+            SetScanEnabled,
+            request=SetScanEnabledRequest(enabled=req, name=scan_name),
         )
 
 
 class InspectTaskState(smach.State):
     def __init__(
         self,
-        sweep_angle: float = math.pi / 2,
         num_points: int = 8,
         align_timeout: float = 40.0,
         align_dist_threshold: float = 0.15,
         align_yaw_threshold: float = 0.15,
-        align_confirm_duration: float = 1.0,
+        align_confirm_duration: float = 10.0,
         publisher_warmup_delay: float = 1.5,
-        scan_timeout: float = 15.0,
-        scan_confirm_duration: float = 0.2,
-        scan_max_linear_velocity: float = 0.1,
-        scan_max_angular_velocity: float = 0.25,
         keypoint_node_services=(
             "valve_keypoint_node_front/set_enabled",
             "valve_keypoint_node_bottom/set_enabled",
@@ -87,9 +83,6 @@ class InspectTaskState(smach.State):
             )
 
         base_link_frame = "taluy/base_link"
-        # LookAroundState's angle_offset is half the total sweep (it swings
-        # +offset, -offset, 0), so halve the user's full sweep here.
-        half_sweep = sweep_angle / 2.0
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -105,17 +98,6 @@ class InspectTaskState(smach.State):
                 timeout=align_timeout,
                 cancel_on_success=False,
                 use_frame_depth=True,
-            )
-
-        def scan_at(index):
-            return LookAroundState(
-                source_frame=base_link_frame,
-                angle_offset=half_sweep,
-                confirm_duration=scan_confirm_duration,
-                timeout=scan_timeout,
-                max_linear_velocity=scan_max_linear_velocity,
-                max_angular_velocity=scan_max_angular_velocity,
-                current_pose_frame=f"inspect_scan_anchor_{index}",
             )
 
         keypoint_node_services = list(keypoint_node_services)
@@ -181,31 +163,32 @@ class InspectTaskState(smach.State):
 
             for i in range(num_points):
                 align_state = f"ALIGN_TO_FRAME_{i}"
-                scan_state = f"SCAN_AT_FRAME_{i}"
-                after_scan = (
+                after_align = (
                     f"ALIGN_TO_FRAME_{i + 1}"
                     if i + 1 < num_points
-                    else "DISABLE_INSPECT_PUBLISHER"
+                    else "ALIGN_BACK_TO_FRAME_0"
                 )
 
                 smach.StateMachine.add(
                     align_state,
                     align_to(f"inspect_frame_{i}"),
                     transitions={
-                        "succeeded": scan_state,
+                        "succeeded": after_align,
                         "preempted": "preempted",
                         "aborted": "aborted",
                     },
                 )
-                smach.StateMachine.add(
-                    scan_state,
-                    scan_at(i),
-                    transitions={
-                        "succeeded": after_scan,
-                        "preempted": "preempted",
-                        "aborted": "aborted",
-                    },
-                )
+
+            # Return to the starting frame before tearing down.
+            smach.StateMachine.add(
+                "ALIGN_BACK_TO_FRAME_0",
+                align_to("inspect_frame_0"),
+                transitions={
+                    "succeeded": "DISABLE_INSPECT_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
 
             smach.StateMachine.add(
                 "DISABLE_INSPECT_PUBLISHER",

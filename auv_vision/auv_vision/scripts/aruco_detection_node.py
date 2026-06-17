@@ -14,6 +14,7 @@ import rospy
 import rospkg
 from sensor_msgs.msg import Image, CompressedImage
 from std_srvs.srv import SetBool, SetBoolResponse
+from auv_msgs.srv import SetScanEnabled, SetScanEnabledResponse
 from geometry_msgs.msg import TransformStamped
 from cv_bridge import CvBridge, CvBridgeError
 import tf2_ros
@@ -544,22 +545,20 @@ class ArucoDetectionNode:
                 f"'{marker_cfg['tf_frame']}'"
             )
 
-        # Scan logger (must exist before camera subscribers are created)
+        # Scan logger is created per enable (see _set_global_enabled_cb), each
+        # in its own folder named after the enable request's `name`. No logger
+        # exists until the node is enabled; the lock guards the swap against the
+        # image callbacks that read it.
+        self._scan_log_lock = threading.Lock()
+        self.scan_logger = None
         if self.scan_mode:
-            base_dir = os.path.expanduser(
+            self.scan_base_dir = os.path.expanduser(
                 rospy.get_param("~scan_log_dir", "~/aruco_scans")
             )
-            run_stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            log_dir = os.path.join(base_dir, run_stamp)
-            self.scan_logger = ScanLogger(
-                log_dir=log_dir,
-                confirm_count=rospy.get_param("~scan_confirm_count", 3),
-                confirm_window=rospy.get_param("~scan_confirm_window", 2.0),
-                image_throttle=rospy.get_param("~scan_image_throttle", 2.0),
-                dictionary_name=dict_name,
-            )
-        else:
-            self.scan_logger = None
+            self.scan_dict_name = dict_name
+            self.scan_confirm_count = rospy.get_param("~scan_confirm_count", 3)
+            self.scan_confirm_window = rospy.get_param("~scan_confirm_window", 2.0)
+            self.scan_image_throttle = rospy.get_param("~scan_image_throttle", 2.0)
 
         # Create cameras
         self.cameras = {}
@@ -682,6 +681,10 @@ class ArucoDetectionNode:
             cam.enabled = self.start_enabled
         if not self.start_enabled:
             rospy.loginfo("ArUco cameras start disabled (~start_enabled=false)")
+        elif self.scan_mode:
+            # Enabled at launch in scan mode: open a scan folder immediately so
+            # detections are logged without waiting for a service call.
+            self._start_new_scan(rospy.get_param("~scan_name", "scan"))
 
         # Enable/disable services
         for cam_key in self.cameras:
@@ -690,7 +693,7 @@ class ArucoDetectionNode:
                 SetBool,
                 lambda req, k=cam_key: self._set_camera_enabled_cb(req, k),
             )
-        rospy.Service("~set_enabled", SetBool, self._set_global_enabled_cb)
+        rospy.Service("~set_enabled", SetScanEnabled, self._set_global_enabled_cb)
 
         # Debug image publishing thread
         self._debug_lock = threading.Lock()
@@ -790,13 +793,53 @@ class ArucoDetectionNode:
         rospy.loginfo(msg)
         return SetBoolResponse(success=True, message=msg)
 
+    def _unique_log_dir(self, name):
+        """Return base_dir/name, appending 2, 3, ... until the path is free.
+
+        e.g. 'Auto' -> 'Auto' if absent, else 'Auto2', 'Auto3', ...
+        """
+        candidate = os.path.join(self.scan_base_dir, name)
+        if not os.path.exists(candidate):
+            return candidate
+        i = 2
+        while True:
+            candidate = os.path.join(self.scan_base_dir, f"{name}{i}")
+            if not os.path.exists(candidate):
+                return candidate
+            i += 1
+
+    def _start_new_scan(self, name):
+        """Create a fresh ScanLogger in a uniquely-named folder for `name`."""
+        log_dir = self._unique_log_dir(name)
+        logger = ScanLogger(
+            log_dir=log_dir,
+            confirm_count=self.scan_confirm_count,
+            confirm_window=self.scan_confirm_window,
+            image_throttle=self.scan_image_throttle,
+            dictionary_name=self.scan_dict_name,
+        )
+        with self._scan_log_lock:
+            self.scan_logger = logger
+        return log_dir
+
     def _set_global_enabled_cb(self, req):
+        if req.enabled and self.scan_mode:
+            # Each enable opens a new scan folder named after req.name.
+            if not req.name:
+                msg = "Enable request requires a non-empty 'name' in scan mode"
+                rospy.logerr(msg)
+                return SetScanEnabledResponse(success=False, message=msg)
+            log_dir = self._start_new_scan(req.name)
+            scan_msg = f", logging to {log_dir}"
+        else:
+            scan_msg = ""
+
         for cam in self.cameras.values():
-            cam.enabled = req.data
-        state = "enabled" if req.data else "disabled"
-        msg = f"All ArUco cameras {state}"
+            cam.enabled = req.enabled
+        state = "enabled" if req.enabled else "disabled"
+        msg = f"All ArUco cameras {state}{scan_msg}"
         rospy.loginfo(msg)
-        return SetBoolResponse(success=True, message=msg)
+        return SetScanEnabledResponse(success=True, message=msg)
 
     def _image_callback(self, msg, cam_key):
         camera = self.cameras.get(cam_key)
@@ -813,9 +856,11 @@ class ArucoDetectionNode:
             cv_image, msg.header.stamp, self.aruco_detector, self.params
         )
 
-        if self.scan_logger is not None and result is not None:
+        with self._scan_log_lock:
+            scan_logger = self.scan_logger
+        if scan_logger is not None and result is not None:
             _, corners, ids, _ = result
-            self.scan_logger.process_detections(ids, corners, cv_image)
+            scan_logger.process_detections(ids, corners, cv_image)
 
         if result is not None and self._has_debug_subscribers(cam_key):
             gray, corners, ids, board_debug_info = result

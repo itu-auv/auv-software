@@ -118,8 +118,8 @@ class InspectTrajectoryPublisherNode:
         self.valve_in_desk = None
         self.center_offset_valve_local = None
         self.frame_offsets = []
-        self.long_side_extension = 0.0
-        self.height_above_valve = 1.0
+        self.long_side_extension = 2.0
+        self.height_above_valve = 0.0
 
         self.enable_publishing = False
         # Two enable services; the one smach calls selects the valve side.
