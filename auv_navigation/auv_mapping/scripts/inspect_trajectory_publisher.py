@@ -32,8 +32,8 @@ RECT_CENTER_IN_DESK = np.array([0.0925, 0.0, 1.4205])
 
 # The valve is mounted on the front (+X) face of the desk at one of two
 # lateral positions that mirror across the desk's long (Y) axis:
-#   left  -> (0.580, +0.555, 1.4205)
-#   right -> (0.580, -0.555, 1.4205)
+#   left  -> (0.580, -0.555, 1.4205)
+#   right -> (0.580, +0.555, 1.4205)
 # Only the desk-frame Y sign differs between the two layouts; X (distance along
 # the short axis) and Z (height) are identical. The smach layer selects the
 # side by calling the matching left/right enable service (see
@@ -52,10 +52,10 @@ def _valve_in_desk(valve_side: str):
     """Valve position in the desk frame for the given side ('left'/'right').
 
     Only the desk-frame Y sign differs between the two layouts: the valve sits
-    on the front face at +0.555 (left) or -0.555 (right) along the desk's long
+    on the front face at -0.555 (left) or +0.555 (right) along the desk's long
     axis. X (short-axis offset) and Z (height) are identical for both.
     """
-    y = VALVE_IN_DESK_ABS_Y if valve_side == "left" else -VALVE_IN_DESK_ABS_Y
+    y = -VALVE_IN_DESK_ABS_Y if valve_side == "left" else VALVE_IN_DESK_ABS_Y
     return np.array([VALVE_IN_DESK_X, y, VALVE_IN_DESK_Z])
 
 
@@ -229,6 +229,11 @@ class InspectTrajectoryPublisherNode:
             return
 
         center_pos = valve_pos + R @ center_offset_valve_local
+
+        # Publish the rectangle centre itself as a TF frame (at its true 3D
+        # position, valve height) so it can be visualised in RViz and picked
+        # up by the sim debug-cube spawner. Hardware-safe: just another frame.
+        self._broadcast("inspect_rect_center", center_pos)
 
         # All frames share one Z, a configurable distance above the valve's Z.
         # Only the XY of each frame (and the centre for the inward yaw) uses

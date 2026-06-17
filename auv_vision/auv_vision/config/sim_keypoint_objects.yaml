@@ -38,8 +38,8 @@ objects:
       args: [0, 0.1524, 0.1524]
     id_start: 5
 
-  # TAC subsea valve, front-panel instance (valve_front link).
-  # The valve_front link sits at (0.58, 0.555, 1.4205) in the tac_valve
+  # TAC subsea valve, front-panel instance (valve_front link) -- RIGHT side.
+  # The valve_front link sits at (0.58, -0.555, 1.4205) in the tac_valve
   # model frame with rpy=(0, pi, 0): pitch=pi negates the link's local x and z
   # axes, so a link-frame point (x, y, z) maps to (-x, y, -z) + translation
   # in model frame. The 9 model points below come from valve link-frame
@@ -48,6 +48,8 @@ objects:
   # the tac_valve model frame so /gazebo/model_states' tac_valve pose is the
   # only runtime input. kp10/kp11 are the two handle ends (mirrored through
   # kp9, orientation-refinement only).
+  # valve_pos:=right => the link's Y translation flips +0.555 -> -0.555, so
+  # every model-frame Y here is the left layout shifted by -1.11 m.
   - name: valve_front
     cameras: [front]
     gazebo_model: tac_valve
@@ -55,27 +57,29 @@ objects:
     keypoints:
       shape: points
       args:
-        - [0.560, 0.482168, 1.493332] # kp1: bolt -135°
-        - [0.560, 0.555000, 1.523500] # kp2: bolt -90°
-        - [0.560, 0.627832, 1.493332] # kp3: bolt -45°
-        - [0.560, 0.658000, 1.420500] # kp4: bolt 0°
-        - [0.560, 0.627832, 1.347668] # kp5: bolt 45°
-        - [0.560, 0.555000, 1.317500] # kp6: bolt 90°
-        - [0.560, 0.482168, 1.347668] # kp7: bolt 135°
-        - [0.560, 0.452000, 1.420500] # kp8: bolt 180°
-        - [0.580, 0.555000, 1.420500] # kp9: face center
-        - [0.580, 0.555235, 1.487756] # kp10: handle end
-        - [0.580, 0.554765, 1.353244] # kp11: handle end (opposite)
+        - [0.560000, -0.627832, 1.493332] # kp1: bolt -135°
+        - [0.560000, -0.555000, 1.523500] # kp2: bolt -90°
+        - [0.560000, -0.482168, 1.493332] # kp3: bolt -45°
+        - [0.560000, -0.452000, 1.420500] # kp4: bolt 0°
+        - [0.560000, -0.482168, 1.347668] # kp5: bolt 45°
+        - [0.560000, -0.555000, 1.317500] # kp6: bolt 90°
+        - [0.560000, -0.627832, 1.347668] # kp7: bolt 135°
+        - [0.560000, -0.658000, 1.420500] # kp8: bolt 180°
+        - [0.580000, -0.555000, 1.420500] # kp9: face center
+        - [0.580000, -0.554765, 1.487756] # kp10: handle end
+        - [0.580000, -0.555235, 1.353244] # kp11: handle end (opposite)
     id_start: 1
 
-  # TAC subsea valve, bottom-panel instance (valve_bottom link).
-  # valve_bottom link sits at (0.0185, 0.518, 0.91) in the tac_valve model
+  # TAC subsea valve, bottom-panel instance (valve_bottom link) -- RIGHT side.
+  # valve_bottom link sits at (0.0185, -0.518, 0.91) in the tac_valve model
   # frame with rpy=(0, -pi/2, pi/2): R = Rz(pi/2) · Ry(-pi/2), so a
   # link-frame point (x, y, z) maps to (-y, -z, x) + translation in model
   # frame. The resulting flange normal is model +Z (the valve faces upward
   # off the top deck), consistent with the bottom-camera approach geometry.
   # Points below are the same 11 link-frame coordinates as valve_front,
   # pre-transformed through this link's pose.
+  # valve_pos:=right => the link's Y translation flips +0.518 -> -0.518, so
+  # every model-frame Y here is the left layout shifted by -1.036 m.
   - name: valve_bottom
     cameras: [bottom]
     gazebo_model: tac_valve
@@ -83,15 +87,15 @@ objects:
     keypoints:
       shape: points
       args:
-        - [0.091332, 0.590832, 0.930000] # kp1: bolt -135°
-        - [0.018500, 0.621000, 0.930000] # kp2: bolt -90°
-        - [-0.054332, 0.590832, 0.930000] # kp3: bolt -45°
-        - [-0.084500, 0.518000, 0.930000] # kp4: bolt 0°
-        - [-0.054332, 0.445168, 0.930000] # kp5: bolt 45°
-        - [0.018500, 0.415000, 0.930000] # kp6: bolt 90°
-        - [0.091332, 0.445168, 0.930000] # kp7: bolt 135°
-        - [0.121500, 0.518000, 0.930000] # kp8: bolt 180°
-        - [0.018500, 0.518000, 0.910000] # kp9: face center
-        - [0.018265, 0.585256, 0.910000] # kp10: handle end
-        - [0.018735, 0.450744, 0.910000] # kp11: handle end (opposite)
+        - [0.091332, -0.445168, 0.930000] # kp1: bolt -135°
+        - [0.018500, -0.415000, 0.930000] # kp2: bolt -90°
+        - [-0.054332, -0.445168, 0.930000] # kp3: bolt -45°
+        - [-0.084500, -0.518000, 0.930000] # kp4: bolt 0°
+        - [-0.054332, -0.590832, 0.930000] # kp5: bolt 45°
+        - [0.018500, -0.621000, 0.930000] # kp6: bolt 90°
+        - [0.091332, -0.590832, 0.930000] # kp7: bolt 135°
+        - [0.121500, -0.518000, 0.930000] # kp8: bolt 180°
+        - [0.018500, -0.518000, 0.910000] # kp9: face center
+        - [0.018265, -0.450744, 0.910000] # kp10: handle end
+        - [0.018735, -0.585256, 0.910000] # kp11: handle end (opposite)
     id_start: 1
