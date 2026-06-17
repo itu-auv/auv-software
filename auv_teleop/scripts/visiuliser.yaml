@@ -1,0 +1,19 @@
+inspection:
+  - taluy/cameras/cam_front/image_rect_color/compressed
+  - taluy/cameras/cam_bottom/image_rect_color/compressed
+  - taluy/cameras/cam_torpedo/image_rect_color/compressed
+
+valve:
+  - taluy/cameras/cam_front/image_rect_color/compressed
+  - keypoint
+  - alt keypoint
+
+pipeline-yolo:
+  - taluy/cameras/cam_bottom/image_rect_color/compressed
+  - /yolo_image_seg/compressed
+  - /pipe_result_debug_fancy/compressed
+
+pipeline-dino:
+  - taluy/cameras/cam_bottom/image_rect_color/compressed
+  - dino topic
+  - /pipe_result_debug_fancy/compressed

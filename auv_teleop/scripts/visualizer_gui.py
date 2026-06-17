@@ -1,13 +1,27 @@
 #!/usr/bin/env python3
 
 import sys
+import os
 import rospy
 import tf
 import math
-from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QLabel
+import yaml
+from PyQt5.QtWidgets import (
+    QApplication,
+    QWidget,
+    QGridLayout,
+    QLabel,
+    QMessageBox,
+    QDialog,
+    QVBoxLayout,
+    QListWidget,
+    QDialogButtonBox,
+)
 from PyQt5.QtGui import QPixmap, QPainter, QColor, QPen, QBrush
 from PyQt5.QtCore import Qt, QTimer
 from sensor_msgs.msg import CompressedImage
+
+CONFIG_FILE = "visiuliser.yaml"
 
 class MapWidget(QWidget):
     def __init__(self):
@@ -116,26 +130,98 @@ class MapWidget(QWidget):
             painter.setPen(pen)
             painter.drawLine(int(px), int(py), int(ex), int(ey))
 
-class VisualizerGUI(QWidget):
-    def __init__(self):
+def load_visualizer_configs(config_path):
+    with open(config_path, "r") as config_file:
+        configs = yaml.safe_load(config_file)
+
+    if not isinstance(configs, dict) or not configs:
+        raise ValueError("Visualizer config must contain at least one mode.")
+
+    for mode_name, topics in configs.items():
+        if not isinstance(topics, list) or len(topics) != 3:
+            raise ValueError("Mode '{}' must contain exactly 3 topics.".format(mode_name))
+
+        for topic in topics:
+            if not isinstance(topic, str) or not topic.strip():
+                raise ValueError("Mode '{}' contains an empty topic.".format(mode_name))
+
+    return configs
+
+
+def normalize_topic(topic):
+    topic = topic.strip()
+    if not topic.startswith("/"):
+        topic = "/" + topic
+    if any(char.isspace() for char in topic):
+        raise ValueError("Topic '{}' contains whitespace.".format(topic))
+    return topic
+
+
+class ConfigSelectionDialog(QDialog):
+    def __init__(self, mode_names):
         super().__init__()
-        self.setWindowTitle("Camera & Map Visualizer")
+        self.setWindowTitle("Select Visualizer Config")
+        self.resize(560, 420)
+
+        layout = QVBoxLayout(self)
+
+        title = QLabel("Choose visualizer mode")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("font-size: 24px; font-weight: bold; padding: 12px;")
+        layout.addWidget(title)
+
+        self.mode_list = QListWidget()
+        self.mode_list.addItems(mode_names)
+        self.mode_list.setCurrentRow(0)
+        self.mode_list.setStyleSheet("font-size: 22px; padding: 10px;")
+        self.mode_list.itemDoubleClicked.connect(self.accept)
+        layout.addWidget(self.mode_list)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    def selected_mode(self):
+        selected_item = self.mode_list.currentItem()
+        if selected_item is None:
+            return None
+        return selected_item.text()
+
+
+def choose_visualizer_config(configs):
+    mode_names = list(configs.keys())
+    dialog = ConfigSelectionDialog(mode_names)
+
+    if dialog.exec_() != QDialog.Accepted:
+        return None, None
+
+    selected_mode = dialog.selected_mode()
+    return selected_mode, [normalize_topic(topic) for topic in configs[selected_mode]]
+
+
+class VisualizerGUI(QWidget):
+    def __init__(self, mode_name, topics):
+        super().__init__()
+        self.setWindowTitle("Camera & Map Visualizer - {}".format(mode_name))
         self.resize(800, 600)
         
         layout = QGridLayout()
         self.setLayout(layout)
         
-        self.label_front = QLabel("Front Cam")
+        self.label_front = QLabel()
         self.label_front.setAlignment(Qt.AlignCenter)
         self.label_front.setStyleSheet("background-color: #222; color: white;")
         
-        self.label_bottom = QLabel("Bottom Cam")
+        self.label_bottom = QLabel()
         self.label_bottom.setAlignment(Qt.AlignCenter)
         self.label_bottom.setStyleSheet("background-color: #222; color: white;")
         
-        self.label_torpedo = QLabel("Torpedo Cam")
+        self.label_torpedo = QLabel()
         self.label_torpedo.setAlignment(Qt.AlignCenter)
         self.label_torpedo.setStyleSheet("background-color: #222; color: white;")
+
+        self.set_label_texts(topics)
         
         self.map_widget = MapWidget()
         
@@ -144,10 +230,15 @@ class VisualizerGUI(QWidget):
         layout.addWidget(self.label_bottom, 1, 0)
         layout.addWidget(self.map_widget, 1, 1)
         
-        # Subscribers
-        rospy.Subscriber("/taluy/cameras/cam_front/image_rect_color/compressed", CompressedImage, self.front_cb)
-        rospy.Subscriber("/taluy/cameras/cam_bottom/image_rect_color/compressed", CompressedImage, self.bottom_cb)
-        rospy.Subscriber("/taluy/cameras/cam_torpedo/image_rect_color/compressed", CompressedImage, self.torpedo_cb)
+        # Subscribers come from the selected YAML mode in this order.
+        rospy.Subscriber(topics[0], CompressedImage, self.front_cb)
+        rospy.Subscriber(topics[1], CompressedImage, self.bottom_cb)
+        rospy.Subscriber(topics[2], CompressedImage, self.torpedo_cb)
+
+    def set_label_texts(self, topics):
+        self.label_front.setText("Stream 1\n{}".format(topics[0]))
+        self.label_bottom.setText("Stream 2\n{}".format(topics[1]))
+        self.label_torpedo.setText("Stream 3\n{}".format(topics[2]))
 
     def front_cb(self, msg):
         self.update_image(self.label_front, msg)
@@ -182,7 +273,19 @@ if __name__ == "__main__":
 
     rospy.init_node("visualizer_gui")
     app = QApplication(sys.argv)
-    gui = VisualizerGUI()
+
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), CONFIG_FILE)
+    try:
+        configs = load_visualizer_configs(config_path)
+        selected_mode, topics = choose_visualizer_config(configs)
+    except (OSError, yaml.YAMLError, ValueError) as exc:
+        QMessageBox.critical(None, "Visualizer Config Error", str(exc))
+        sys.exit(1)
+
+    if selected_mode is None:
+        sys.exit(0)
+
+    gui = VisualizerGUI(selected_mode, topics)
     gui.show()
 
     timer = QTimer()
