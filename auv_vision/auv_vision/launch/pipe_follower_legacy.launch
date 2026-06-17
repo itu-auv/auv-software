@@ -1,7 +1,7 @@
 <launch>
     <!-- Simple launch file for the simplified pipe follower -->
     <arg name="namespace" default="taluy" />
-    <arg name="mask_topic" default="bottle_mask" />
+    <arg name="mask_topic" default="/seg_mask" />
     <arg name="cmd_vel_topic" default="cmd_vel" />
     <arg name="camera_forward_direction" default="right" />
     <arg name="linear_x" default="0.2" />

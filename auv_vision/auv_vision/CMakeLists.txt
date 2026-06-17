@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
 generate_dynamic_reconfigure_options(
   cfg/PipeFollowerLegacy.cfg
   cfg/Aruco.cfg
+  cfg/OpenCVSeg.cfg
 )
 
 catkin_package(
@@ -40,6 +41,8 @@ catkin_install_python(
     scripts/yolo_result_bridge.py
     scripts/yolo_seg_to_mask.py
     scripts/pipe_follower_legacy.py
+    scripts/opencv_seg_publisher.py
+    scripts/seg_gt_ui_node.py
     scripts/sim_bbox_node.py
     scripts/sim_keypoint_node.py
     scripts/depth_anything_trt_node.py
