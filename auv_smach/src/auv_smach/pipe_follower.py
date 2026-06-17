@@ -3,6 +3,7 @@ import rospy
 import smach
 import smach_ros
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
+from auv_msgs.srv import SetScanEnabled, SetScanEnabledRequest
 
 from auv_smach.common import (
     AlignFrame,
@@ -51,22 +52,22 @@ class DisablePipeFollowerLegacyState(smach_ros.ServiceState):
 
 
 class EnableArucoState(smach_ros.ServiceState):
-    def __init__(self):
+    def __init__(self, folder_name):
         smach_ros.ServiceState.__init__(
             self,
             "aruco_detection/set_enabled",
-            SetBool,
-            request=SetBoolRequest(data=True),
+            SetScanEnabled,
+            request=SetScanEnabledRequest(True, folder_name),
         )
 
 
 class DisableArucoState(smach_ros.ServiceState):
-    def __init__(self):
+    def __init__(self, folder_name):
         smach_ros.ServiceState.__init__(
             self,
             "aruco_detection/set_enabled",
-            SetBool,
-            request=SetBoolRequest(data=False),
+            SetScanEnabled,
+            request=SetScanEnabledRequest(False, folder_name),
         )
 
 
@@ -116,7 +117,7 @@ class PipeTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "ENABLE_ARUCO",
-                EnableArucoState(),
+                EnableArucoState("uykum_var"),
                 transitions={
                     "succeeded": "SET_DEPTH",
                     "preempted": "preempted",
@@ -211,7 +212,7 @@ class PipeTaskState(smach.State):
                 )
                 smach.StateMachine.add(
                     "DISABLE_ARUCO_FINISH",
-                    DisableArucoState(),
+                    DisableArucoState("uykum_var"),
                     transitions={
                         "succeeded": "succeeded",
                         "preempted": "preempted",
