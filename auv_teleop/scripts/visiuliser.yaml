@@ -8,12 +8,7 @@ valve:
   - keypoint
   - alt keypoint
 
-pipeline-yolo:
+pipeline:
   - taluy/cameras/cam_bottom/image_rect_color/compressed
-  - /yolo_image_seg/compressed
-  - /pipe_result_debug_fancy/compressed
-
-pipeline-dino:
-  - taluy/cameras/cam_bottom/image_rect_color/compressed
-  - dino topic
+  - /pipe_result_debug/compressed
   - /pipe_result_debug_fancy/compressed
