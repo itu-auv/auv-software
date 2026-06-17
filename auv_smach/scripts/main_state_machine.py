@@ -14,6 +14,7 @@ from auv_smach.octagon import OctagonTaskState
 from auv_smach.return_home import ReturnHomeState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pinger import PingerTaskState
+from auv_smach.pinger_align import PingerAlignTaskState
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.pipe_follower import PipeTaskState
 from auv_smach.gps import NavigateToGpsTargetState
@@ -323,6 +324,12 @@ class MainStateMachineNode:
             ),
             "PINGER_TASK": (
                 PingerTaskState,
+                {
+                    "pinger_frame": self.pinger_frame,
+                },
+            ),
+            "PINGER_ALIGN_TASK": (
+                PingerAlignTaskState,
                 {
                     "pinger_frame": self.pinger_frame,
                 },

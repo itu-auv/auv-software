@@ -251,34 +251,6 @@ class PingerTaskState(smach.State):
                     rotation_speed=0.2,
                 ),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_PINGER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_PINGER",
-                DynamicPathState(plan_target_frame=self.pinger_frame),
-                transitions={
-                    "succeeded": "ALIGN_TO_PINGER",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-
-            smach.StateMachine.add(
-                "ALIGN_TO_PINGER",
-                AlignFrame(
-                    source_frame=get_base_link(),
-                    target_frame=self.pinger_frame,
-                    keep_orientation=True,
-                    dist_threshold=0.3,
-                    timeout=30.0,
-                    confirm_duration=2.0,
-                    cancel_on_success=True,
-                ),
-                transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",

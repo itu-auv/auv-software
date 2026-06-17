@@ -21,7 +21,8 @@
         return:RETURN_HOME,
         pipeline:NAVIGATE_THROUGH_PIPELINE,
         pipe:FOLLOW_PIPE,
-        pinger:PINGER_TASK
+        pinger:PINGER_TASK,
+        pinger_align:PINGER_ALIGN_TASK
     "/>
 
     <!-- Test Mode Configuration -->
@@ -44,7 +45,8 @@
         'RETURN_HOME',
         'NAVIGATE_THROUGH_PIPELINE',
         'FOLLOW_PIPE',
-        'PINGER_TASK'
+        'PINGER_TASK',
+        'PINGER_ALIGN_TASK'
     ]" doc="Full sequence of mission states"/>
 
     <!-- Test Mission States -->
