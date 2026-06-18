@@ -69,6 +69,12 @@ class ThrusterManagerROS {
         continue;
       }
 
+      if (is_timeouted()) {
+        ros::spinOnce();
+        rate.sleep();
+        continue;
+      }
+
       const auto wrench_msg = latest_wrench_.value();
 
       // Transform wrench if frame_id is provided
@@ -101,10 +107,7 @@ class ThrusterManagerROS {
       allocator_.get_wrench_stamped_vector(thruster_efforts.value(),
                                            thruster_wrench_msgs_);
 
-      ThrusterEffortVector efforts = ThrusterEffortVector::Zero();
-      if (thruster_efforts && !is_timeouted()) {
-        efforts = thruster_efforts.value();
-      }
+      ThrusterEffortVector efforts = thruster_efforts.value();
 
       for (size_t i = 0; i < kThrusterCount; ++i) {
         thruster_wrench_pubs_[i].publish(thruster_wrench_msgs_.at(i));
