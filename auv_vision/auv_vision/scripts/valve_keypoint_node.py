@@ -9,14 +9,28 @@ See VITTRACK_VALVE.md for the design rationale.
 
 State machine:
 
-    UNINIT  ──seed ok──▶  LOCKED  ──update ok──▶ LOCKED
+    UNINIT  ──seed ok──▶  LOCKED  ──good frame──▶ LOCKED
        ▲                    │
-       │                    └─update fail / conf collapse──▶ RECOVERING
-       └────────────────── whole-image ViTPose ◀────────────────┘
+       │                    └─N bad frames in a row──▶ RECOVERING
+       └────────── grown-bbox / whole-image ViTPose ◀──────────┘
 
-The slow whole-image seed runs on a worker thread so it never blocks the
-image callback; the tracker.update + tight-bbox ViTPose path stays on the
-ROS subscriber thread.
+Hysteresis (so a single bad frame can't kill a healthy lock):
+  - A LOCKED frame is "good" if ≥lock_min_conf_kps keypoints clear
+    lock_kp_conf_threshold AND the consensus gate finds it plausible as a
+    valve. Any good frame resets the bad-frame counter.
+  - A LOCKED frame is "bad" for ANY reason — tracker lost the box, too few
+    confident keypoints, or implausible. We only drop to RECOVERING after
+    lock_max_bad_frames bad frames IN A ROW.
+  - On tracker loss we re-run ViTPose on the LAST known bbox grown outward
+    (not the whole image) and try to re-acquire in place; only if that keeps
+    failing do we fall back to the growing whole-image seed.
+  - Promotion RECOVERING→LOCKED stays gated by the strict seed (seed_min_kps
+    + seed_mean_conf_min + plausibility) — a few good keypoints keep a lock
+    alive but never acquire a fresh one.
+
+The slow seed runs on a worker thread so it never blocks the image callback;
+the tracker.update + tight-bbox ViTPose path stays on the ROS subscriber
+thread.
 """
 
 import os
@@ -102,15 +116,37 @@ class ValveKeypointNode:
         # Recovery gates while LOCKED.
         # Min bbox side in px; below this we declare collapse.
         self.min_bbox_side = float(rospy.get_param("~min_bbox_side", 30.0))
-        # Mean keypoint conf inside the tracked bbox required to stay locked.
-        self.lock_mean_conf_min = float(rospy.get_param("~lock_mean_conf_min", 0.40))
+        # "Continue tracking" gate (request 3): a LOCKED frame is good enough to
+        # stay locked if at least lock_min_conf_kps keypoints clear
+        # lock_kp_conf_threshold. Deliberately weaker than the seed gate
+        # (seed_min_kps + seed_mean_conf_min + plausibility) that promotes
+        # RECOVERING→LOCKED — a few confident keypoints keep an existing lock
+        # alive, but they never acquire a fresh one.
+        self.lock_kp_conf_threshold = float(
+            rospy.get_param("~lock_kp_conf_threshold", self.conf_threshold)
+        )
+        self.lock_min_conf_kps = int(rospy.get_param("~lock_min_conf_kps", 3))
+        # Hysteresis (request 1): a LOCKED frame that fails for ANY reason
+        # (tracker lost the box, too few confident keypoints, or implausible as
+        # a valve) is a "bad" frame. We drop to RECOVERING only after
+        # lock_max_bad_frames such frames IN A ROW; any single good frame resets
+        # the counter. Stops one occluded/garbled/jittery frame from killing an
+        # otherwise healthy lock.
+        self.lock_max_bad_frames = int(rospy.get_param("~lock_max_bad_frames", 7))
+        # Bbox-growth on loss (request 2): when the tracker loses the box we do
+        # NOT jump straight to whole-image ViTPose. Instead we re-run ViTPose on
+        # the last known bbox grown outward by loss_bbox_growth per bad frame /
+        # seed attempt (around its centre) until it covers the frame. A brief
+        # loss can re-acquire from a tight region instead of the slow, loose
+        # whole-image seed.
+        self.loss_bbox_growth = float(rospy.get_param("~loss_bbox_growth", 0.4))
         # When running ViTPose inside the tracked bbox, expand the bbox by this
         # fraction so the keypoint head sees a little context around the valve.
         self.track_bbox_pad = float(rospy.get_param("~track_bbox_pad", 0.10))
         # Once the tracked bbox covers at least this fraction of the frame area,
         # the valve is close enough that a tight crop clips keypoints — feed
-        # ViTPose the whole image instead. Tracking keeps running; only a
-        # confidence collapse (lock_mean_conf_min) drops us to RECOVERING.
+        # ViTPose the whole image instead. Tracking keeps running; only a run
+        # of bad frames (lock_max_bad_frames) drops us to RECOVERING.
         self.full_image_bbox_area_frac = float(
             rospy.get_param("~full_image_bbox_area_frac", 0.5)
         )
@@ -165,9 +201,8 @@ class ValveKeypointNode:
         self.min_consensus_fraction = float(
             rospy.get_param("~min_consensus_fraction", 0.6)
         )
-        # Consecutive implausible LOCKED frames before dropping to RECOVERING,
-        # so a single occluded/garbled frame doesn't kill a good lock.
-        self.plausibility_max_fails = int(rospy.get_param("~plausibility_max_fails", 3))
+        # (Consecutive-fail tolerance is now unified into lock_max_bad_frames,
+        # above — a plausibility miss is just one kind of bad LOCKED frame.)
         # PnP needs intrinsics; default to the camera_info sibling of the
         # image topic (.../image_raw → .../camera_info).
         self.camera_info_topic = rospy.get_param("~camera_info_topic", "")
@@ -224,8 +259,13 @@ class ValveKeypointNode:
         self._lock_frame_count = 0
         # Frame counter while in UNINIT/RECOVERING, used to stride seed attempts.
         self._recover_frame_count = 0
-        # Consecutive implausible-as-valve LOCKED frames (callback thread only).
-        self._implausible_count = 0
+        # Consecutive bad LOCKED frames (any failure reason); reset by any good
+        # frame. We drop to RECOVERING only when this hits lock_max_bad_frames.
+        self._bad_frame_count = 0
+        # Last known good tracked bbox (raw extent). Grow-on-loss and the seed
+        # worker anchor to this instead of restarting from the whole image.
+        # None until the first lock.
+        self._last_bbox: Optional[Tuple[float, float, float, float]] = None
         # (K, D) from camera_info; single tuple so reads are atomic. None until
         # the first message — the plausibility check abstains meanwhile.
         self._calibration: Optional[Tuple[np.ndarray, np.ndarray]] = None
@@ -272,7 +312,7 @@ class ValveKeypointNode:
             self._tracker = None
             self._lock_frame_count = 0
             self._recover_frame_count = 0
-        self._implausible_count = 0
+        self._bad_frame_count = 0
         rospy.loginfo("valve_keypoint_node: re-seed requested, dropping tracker.")
         return EmptyResponse()
 
@@ -300,139 +340,166 @@ class ValveKeypointNode:
             self._last_image_bgr = img_bgr  # for seed worker
 
         if state in (STATE_UNINIT, STATE_RECOVERING):
-            # Whole-image ViTPose is expensive; only attempt a seed every
-            # recover_seed_interval frames. The worker also self-guards
-            # against pile-up, but the stride lets the camera breathe between
-            # back-to-back failed seeds.
+            # Whole-image (or grown last-bbox) ViTPose is expensive; only attempt
+            # a seed every recover_seed_interval frames. The worker also
+            # self-guards against pile-up, but the stride lets the camera breathe
+            # between back-to-back failed seeds.
             self._recover_frame_count += 1
             if self._recover_frame_count % self.recover_seed_interval == 0:
                 self._maybe_start_seed_worker()
             # No tracked bbox yet → publish an empty result so downstream nodes
             # see we're alive but not locked.
             self._publish_result(msg.header, [], bbox=None, state=state)
-        elif state == STATE_LOCKED and tracker is not None:
-            ok, raw_bbox = tracker.update(img_bgr)
-            if not ok or not self._bbox_is_sane(raw_bbox, img_bgr.shape):
-                rospy.logwarn_throttle(
-                    2.0,
-                    "VITTrack lost (ok=%s bbox=%s); switching to RECOVERING"
-                    % (ok, raw_bbox),
-                )
-                self._enter_recovering()
-                self._publish_result(msg.header, [], bbox=None, state=STATE_RECOVERING)
+            return
+
+        if state != STATE_LOCKED or tracker is None:
+            return
+
+        ok, raw_bbox = tracker.update(img_bgr)
+        img_h, img_w = img_bgr.shape[:2]
+        hard_loss = not ok or not self._bbox_is_sane(raw_bbox, img_bgr.shape)
+
+        if hard_loss:
+            # Tracker lost the box. Rather than jump to RECOVERING/whole-image,
+            # re-run ViTPose on the last known bbox grown outward (request 2) and
+            # try to re-acquire in place. This frame counts as "bad" unless the
+            # re-acquire below succeeds.
+            infer_bbox = self._grow_bbox(
+                self._last_bbox, self._bad_frame_count + 1, img_bgr.shape
+            )
+            tracked_bbox = None  # no trustworthy tracker extent to draw
+            rospy.logwarn_throttle(
+                2.0,
+                "VITTrack lost (ok=%s bbox=%s); re-acquiring on grown bbox "
+                "%s (bad %d/%d)"
+                % (
+                    ok,
+                    raw_bbox,
+                    tuple(round(v) for v in infer_bbox),
+                    self._bad_frame_count + 1,
+                    self.lock_max_bad_frames,
+                ),
+            )
+        else:
+            # When the tracked valve fills a large fraction of the frame, a tight
+            # crop buys nothing and risks clipping keypoints right when the valve
+            # is closest — feed ViTPose the whole image instead. Trigger off the
+            # RAW tracker extent (not the clamped box) so a valve bigger than the
+            # frame reliably trips it — the ratio can exceed 1.0.
+            raw_area_frac = (raw_bbox[2] * raw_bbox[3]) / float(img_w * img_h)
+            if raw_area_frac >= self.full_image_bbox_area_frac:
+                infer_bbox = (0.0, 0.0, float(img_w), float(img_h))
             else:
-                # When the tracked valve fills a large fraction of the frame, a
-                # tight crop buys nothing and risks clipping keypoints right when
-                # the valve is closest — feed ViTPose the whole image instead.
-                # The tracker still ran above, so tracking continuity is intact;
-                # only a confidence collapse below drops us to RECOVERING.
-                # Trigger off the RAW tracker extent (not the in-frame clamped
-                # box) so a valve bigger than the frame reliably trips it — the
-                # ratio can exceed 1.0.
-                img_h, img_w = img_bgr.shape[:2]
-                raw_area_frac = (raw_bbox[2] * raw_bbox[3]) / float(img_w * img_h)
-                if raw_area_frac >= self.full_image_bbox_area_frac:
-                    infer_bbox = (0.0, 0.0, float(img_w), float(img_h))
-                else:
-                    infer_bbox = self._pad_bbox(
-                        raw_bbox, img_bgr.shape, self.track_bbox_pad
-                    )
-                # Clamped tracker box — this is the VITTrack extent we hand to
-                # the pose node to draw. infer_bbox is only what we fed ViTPose.
-                tracked_bbox = self._pad_bbox(
+                infer_bbox = self._pad_bbox(
                     raw_bbox, img_bgr.shape, self.track_bbox_pad
                 )
+            # Clamped tracker box — the VITTrack extent we hand the pose node to
+            # draw. infer_bbox is only what we fed ViTPose.
+            tracked_bbox = self._pad_bbox(raw_bbox, img_bgr.shape, self.track_bbox_pad)
+            # Remember where the tracker last had a sane box, so a future loss
+            # grows out from here.
+            with self._lock:
+                self._last_bbox = tuple(float(v) for v in raw_bbox)
 
-                img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-                kps, scores = self.vp.predict(img_rgb, infer_bbox)
+        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        kps, scores = self.vp.predict(img_rgb, infer_bbox)
 
-                mean_conf = (
-                    float(np.mean(scores))
-                    if scores is not None and len(scores)
-                    else 0.0
-                )
-                suppress_kps = False
-                if mean_conf < self.lock_mean_conf_min:
-                    rospy.logwarn_throttle(
-                        2.0,
-                        "ViTPose-on-bbox mean conf %.2f < %.2f; switching to RECOVERING"
-                        % (mean_conf, self.lock_mean_conf_min),
-                    )
-                    self._enter_recovering()
-                    # Still publish best-effort keypoints for this frame.
-                    publish_state = STATE_RECOVERING
+        # "Continue tracking" gate (request 3): count confident keypoints. A few
+        # are enough to keep an existing lock alive.
+        flat_scores = scores.reshape(-1) if scores is not None else np.empty(0)
+        n_conf = int(np.count_nonzero(flat_scores >= self.lock_kp_conf_threshold))
+        conf_ok = n_conf >= self.lock_min_conf_kps
+
+        suppress_kps = False
+        good_frame = False
+        why = ""
+        if not conf_ok:
+            why = "only %d/%d confident kps" % (n_conf, self.lock_min_conf_kps)
+        else:
+            # Consensus filter: zeroes outlier-kp confidences (so the pose node
+            # and the reseed bbox only see good points) and vetoes frames where
+            # no valve pose explains enough points (the "this is a human" case).
+            scores, plausible, why = self._model_consensus_filter(kps, scores)
+            if not plausible:
+                # Suspect target — suppress kps so downstream PnP never sees them.
+                suppress_kps = True
+            elif hard_loss:
+                # Good keypoints but the tracker is dead — only a successful
+                # re-init counts as a recovered (good) frame.
+                if self._reacquire_tracker(img_bgr, kps, scores):
+                    good_frame = True
+                    tracked_bbox = self._last_bbox
                 else:
-                    # Consensus filter: zeroes outlier-kp confidences (so the
-                    # pose node and the reseed bbox only see good points) and
-                    # vetoes frames where no valve pose explains enough points.
-                    scores, plausible, why = self._model_consensus_filter(kps, scores)
-                    if not plausible:
-                        # Suspect target (e.g. ViTPose firing on a human).
-                        # Suppress the keypoints so downstream PnP never sees
-                        # them, and bail to RECOVERING after a few consecutive
-                        # fails. No reseed either — don't anchor the tracker
-                        # onto whatever this is.
-                        suppress_kps = True
-                        self._implausible_count += 1
-                        if self._implausible_count >= self.plausibility_max_fails:
-                            rospy.logwarn(
-                                "Tracked target implausible as valve for %d "
-                                "frames (%s); switching to RECOVERING"
-                                % (self._implausible_count, why)
-                            )
-                            self._enter_recovering()
-                            publish_state = STATE_RECOVERING
-                        else:
-                            rospy.logwarn_throttle(
-                                2.0,
-                                "Plausibility check failed (%s), %d/%d"
-                                % (
-                                    why,
-                                    self._implausible_count,
-                                    self.plausibility_max_fails,
-                                ),
-                            )
-                            publish_state = STATE_LOCKED
-                    else:
-                        self._implausible_count = 0
-                        with self._lock:
-                            self._lock_frame_count += 1
-                            do_reseed = (
-                                self.lock_reseed_interval > 0
-                                and self._lock_frame_count >= self.lock_reseed_interval
-                            )
-                        if do_reseed:
-                            self._reseed_from_crop_kps(img_bgr, kps, scores)
-                        publish_state = STATE_LOCKED
+                    why = "re-acquire (tracker re-init) failed"
+            else:
+                good_frame = True
 
-                keypoints = [] if suppress_kps else self._build_keypoints(kps, scores)
-                self._publish_result(
-                    msg.header, keypoints, bbox=tracked_bbox, state=publish_state
+        if good_frame:
+            self._bad_frame_count = 0
+            publish_state = STATE_LOCKED
+            # Periodic reseed keeps the tracker anchored. Skip right after a
+            # hard-loss re-acquire, which just re-init'd the tracker.
+            if not hard_loss:
+                with self._lock:
+                    self._lock_frame_count += 1
+                    do_reseed = (
+                        self.lock_reseed_interval > 0
+                        and self._lock_frame_count >= self.lock_reseed_interval
+                    )
+                if do_reseed:
+                    self._reseed_from_crop_kps(img_bgr, kps, scores)
+        else:
+            self._bad_frame_count += 1
+            if self._bad_frame_count >= self.lock_max_bad_frames:
+                rospy.logwarn(
+                    "LOCKED frame bad for %d in a row (%s); switching to RECOVERING"
+                    % (self._bad_frame_count, why)
                 )
+                self._enter_recovering()
+                publish_state = STATE_RECOVERING
+            else:
+                rospy.logwarn_throttle(
+                    2.0,
+                    "bad LOCKED frame %d/%d (%s)"
+                    % (self._bad_frame_count, self.lock_max_bad_frames, why),
+                )
+                publish_state = STATE_LOCKED
+
+        keypoints = [] if suppress_kps else self._build_keypoints(kps, scores)
+        self._publish_result(
+            msg.header, keypoints, bbox=tracked_bbox, state=publish_state
+        )
 
     # ─────────────────────────────────────────────── seed worker
 
     def _maybe_start_seed_worker(self):
-        """Spawn the whole-image ViTPose seed thread if one isn't already running."""
+        """Spawn the ViTPose seed thread if one isn't already running.
+
+        The search region grows across successive seed attempts (request 2):
+        it starts at the last known bbox (tight) and expands toward the whole
+        frame, so a lock dropped near a known location re-acquires from a small
+        region before falling back to the slow, loose whole-image pass.
+        """
         with self._lock:
             if self._seed_thread is not None and self._seed_thread.is_alive():
                 return
             if self._last_image_bgr is None:
                 return
             frame = self._last_image_bgr.copy()
+            attempt = self._recover_frame_count // self.recover_seed_interval
+            search_bbox = self._grow_bbox(self._last_bbox, attempt, frame.shape)
             self._seed_thread = threading.Thread(
-                target=self._seed_worker, args=(frame,), daemon=True
+                target=self._seed_worker, args=(frame, search_bbox), daemon=True
             )
             self._seed_thread.start()
 
-    def _seed_worker(self, frame_bgr: np.ndarray):
-        """Whole-image ViTPose → seed bbox → init cv2.TrackerVit."""
+    def _seed_worker(self, frame_bgr: np.ndarray, search_bbox):
+        """ViTPose over search_bbox → seed bbox → init cv2.TrackerVit."""
         try:
-            h, w = frame_bgr.shape[:2]
             img_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-            # Whole-image bbox — ViTPose's affine crop handles the resize.
-            whole = (0.0, 0.0, float(w), float(h))
-            kps, scores = self.vp.predict(img_rgb, whole)
+            # ViTPose's affine crop handles the resize of whatever region we hand
+            # it — whole image early on, a tight grown box near a known location.
+            kps, scores = self.vp.predict(img_rgb, search_bbox)
 
             # A seed is a commitment — never lock onto something that can't
             # possibly be the valve (ViTPose can fire confidently on humans).
@@ -469,6 +536,9 @@ class ValveKeypointNode:
             with self._lock:
                 self._tracker = tracker
                 self._state = STATE_LOCKED
+                self._last_bbox = seed_bbox
+                self._lock_frame_count = 0
+            self._bad_frame_count = 0
             rospy.loginfo(
                 "VITTrack seeded: bbox=(%.0f, %.0f, %.0f, %.0f) mean_conf=%.2f"
                 % (
@@ -482,41 +552,92 @@ class ValveKeypointNode:
         except Exception as e:
             rospy.logerr_throttle(5.0, f"seed worker failed: {e}")
 
-    def _reseed_from_crop_kps(self, frame_bgr, kps, scores):
-        """Re-init VITTrack from the bbox extent of the current crop's keypoints.
+    def _build_tracker_from_kps(self, frame_bgr, kps, scores):
+        """Build + init a fresh VITTrack from these keypoints' bbox extent.
 
-        Runs no extra inference — uses the kps/scores already produced by
-        ViTPose-on-bbox for this frame. Keeps the tracker anchored without
-        falling back to the slow whole-image seed (which also yields a much
-        looser bbox).
+        Runs no extra inference — reuses kps/scores already produced for this
+        frame. Returns (tracker, seed_bbox), or None on a low-conf frame or a
+        tracker-init failure.
         """
+        seed_bbox = self._compute_seed_bbox(kps, scores, frame_bgr.shape)
+        if seed_bbox is None:
+            # Low-conf frame: don't poison a working tracker with a bad seed.
+            return None
         try:
-            seed_bbox = self._compute_seed_bbox(kps, scores, frame_bgr.shape)
-            if seed_bbox is None:
-                # Low-conf frame: don't poison a working tracker with a bad seed.
-                return
-
             params = cv2.TrackerVit_Params()
             params.net = self.vit_tracker_model_path
-            new_tracker = cv2.TrackerVit_create(params)
+            tracker = cv2.TrackerVit_create(params)
             x, y, bw, bh = seed_bbox
-            new_tracker.init(frame_bgr, (int(x), int(y), int(bw), int(bh)))
+            tracker.init(frame_bgr, (int(x), int(y), int(bw), int(bh)))
         except Exception as e:
-            rospy.logwarn_throttle(5.0, f"VITTrack periodic reseed failed: {e}")
-            return
+            rospy.logwarn_throttle(5.0, f"VITTrack init failed: {e}")
+            return None
+        return tracker, seed_bbox
 
+    def _reseed_from_crop_kps(self, frame_bgr, kps, scores):
+        """Periodic re-anchor of a healthy lock from the current crop's kps.
+
+        Keeps the tracker anchored without falling back to the slow whole-image
+        seed (which also yields a much looser bbox).
+        """
+        built = self._build_tracker_from_kps(frame_bgr, kps, scores)
+        if built is None:
+            return
+        new_tracker, seed_bbox = built
         with self._lock:
             # Only swap in if we're still LOCKED — avoid clobbering a
             # concurrent recovery transition or service-triggered reseed.
             if self._state != STATE_LOCKED:
                 return
             self._tracker = new_tracker
+            self._last_bbox = seed_bbox
             self._lock_frame_count = 0
         rospy.loginfo_throttle(
             10.0,
             "VITTrack reseeded from crop keypoints: bbox=(%.0f, %.0f, %.0f, %.0f)"
             % seed_bbox,
         )
+
+    def _reacquire_tracker(self, frame_bgr, kps, scores) -> bool:
+        """Hard-loss in-place re-acquire (request 1+2): install a fresh tracker
+        from the current crop keypoints WITHOUT leaving LOCKED. Returns True on
+        success — the caller treats that as a good frame and resets the bad
+        counter."""
+        built = self._build_tracker_from_kps(frame_bgr, kps, scores)
+        if built is None:
+            return False
+        tracker, seed_bbox = built
+        with self._lock:
+            if self._state != STATE_LOCKED:
+                return False
+            self._tracker = tracker
+            self._last_bbox = seed_bbox
+            self._lock_frame_count = 0
+        rospy.loginfo_throttle(
+            5.0,
+            "VITTrack re-acquired after loss: bbox=(%.0f, %.0f, %.0f, %.0f)"
+            % seed_bbox,
+        )
+        return True
+
+    def _grow_bbox(self, base, step, img_shape):
+        """Last-known bbox grown outward around its centre by loss_bbox_growth
+        per step, clamped to the image (request 2). A None base (never locked)
+        or a box that has grown to cover the frame returns the whole image."""
+        h_img, w_img = img_shape[:2]
+        if base is None:
+            return (0.0, 0.0, float(w_img), float(h_img))
+        x, y, bw, bh = base
+        cx, cy = x + bw / 2.0, y + bh / 2.0
+        scale = 1.0 + self.loss_bbox_growth * max(0, step)
+        nw, nh = bw * scale, bh * scale
+        x0 = max(0.0, cx - nw / 2.0)
+        y0 = max(0.0, cy - nh / 2.0)
+        x1 = min(float(w_img), cx + nw / 2.0)
+        y1 = min(float(h_img), cy + nh / 2.0)
+        if (x1 - x0) >= 0.95 * w_img and (y1 - y0) >= 0.95 * h_img:
+            return (0.0, 0.0, float(w_img), float(h_img))
+        return (x0, y0, x1 - x0, y1 - y0)
 
     def _compute_seed_bbox(
         self, kps: np.ndarray, scores: np.ndarray, img_shape
@@ -729,12 +850,14 @@ class ValveKeypointNode:
         return scores_out, True, ""
 
     def _enter_recovering(self):
+        # NB: _last_bbox is intentionally preserved so the seed worker keeps
+        # growing the search region out from where the tracker last had a lock.
         with self._lock:
             self._state = STATE_RECOVERING
             self._tracker = None
             self._lock_frame_count = 0
             self._recover_frame_count = 0
-        self._implausible_count = 0
+        self._bad_frame_count = 0
 
     def _bbox_is_sane(self, bbox, img_shape) -> bool:
         # A close valve legitimately overruns the frame, so a partially
