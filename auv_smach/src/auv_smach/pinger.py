@@ -178,6 +178,8 @@ class PingerTaskState(smach.State):
 
         self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
 
+        collect_samples_duration = 3
+
         with self.sm:
             smach.StateMachine.add(
                 "RESET_PINGER_DATA",
@@ -194,7 +196,7 @@ class PingerTaskState(smach.State):
                 PingerSearchState(
                     direction="forward",
                     waypoint_frame=self.waypoint_frame,
-                    wait_for=20,
+                    wait_for=collect_samples_duration,
                 ),
                 transitions={
                     "succeeded": "SEARCH_FOR_PINGER_2",
@@ -208,7 +210,7 @@ class PingerTaskState(smach.State):
                 PingerSearchState(
                     direction="right",
                     waypoint_frame=self.waypoint_frame,
-                    wait_for=20,
+                    wait_for=collect_samples_duration,
                 ),
                 transitions={
                     "succeeded": "SEARCH_FOR_PINGER_3",
@@ -222,7 +224,7 @@ class PingerTaskState(smach.State):
                 PingerSearchState(
                     direction="backward",
                     waypoint_frame=self.waypoint_frame,
-                    wait_for=20,
+                    wait_for=collect_samples_duration,
                 ),
                 transitions={
                     "succeeded": "COMPUTE_POSITION",

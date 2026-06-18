@@ -50,7 +50,7 @@ class PingerAlignTaskState(smach.State):
                     cancel_on_success=True,
                 ),
                 transitions={
-                    "succeeded": "ALIGN_TO_PINGER",
+                    "succeeded": "IN_ASSAGI",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -60,6 +60,7 @@ class PingerAlignTaskState(smach.State):
                 "IN_ASSAGI",
                 SetDepthState(
                     depth=-5,
+                    confirm_duration=100,
                 ),
                 transitions={
                     "succeeded": "succeeded",
