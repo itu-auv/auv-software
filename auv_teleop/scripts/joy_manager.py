@@ -64,6 +64,7 @@ class JoystickNode:
         self.use_vel = rospy.get_param("~use_vel", False)
         self.original_pid_gains = None
         self.reconfigure_client = None
+        self._was_moving = False
 
         if self.use_vel:
             self._setup_use_vel_mode()
@@ -228,6 +229,24 @@ class JoystickNode:
             )
         return 0.0
 
+    @staticmethod
+    def _is_twist_zero(twist):
+        return (
+            twist.linear.x == 0.0
+            and twist.linear.y == 0.0
+            and twist.linear.z == 0.0
+            and twist.angular.x == 0.0
+            and twist.angular.y == 0.0
+            and twist.angular.z == 0.0
+        )
+
+    def _sync_cmd_pose(self):
+        """Call sync_cmd_pose service to reset cmd_pose to current position."""
+        try:
+            self.sync_cmd_pose_service(TriggerRequest())
+        except rospy.ServiceException:
+            pass
+
     def run(self):
         while not rospy.is_shutdown():
             twist = Twist()
@@ -295,6 +314,15 @@ class JoystickNode:
                     twist.angular.z = 0.0
 
             self.enable_pub.publish(Bool(True))
+
+            # In use_vel mode, sync cmd_pose to current position once
+            # when joystick transitions from moving to idle.
+            if self.use_vel:
+                is_zero = self._is_twist_zero(twist)
+                if is_zero and self._was_moving:
+                    self._sync_cmd_pose()
+                self._was_moving = not is_zero
+
             self.cmd_vel_pub.publish(twist)
             self.rate.sleep()
 

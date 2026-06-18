@@ -409,10 +409,10 @@ class ReferencePosePublisherNode:
         return TriggerResponse(success=True, message="Orientation reset successfully")
 
     def handle_sync_cmd_pose_request(self, req) -> TriggerResponse:
-        """Sync cmd_pose to current robot position (odometry)."""
+        """Sync cmd_pose to current robot position (odometry), preserving depth."""
         with self.state_lock:
-            self.set_target_to_odometry()
-        rospy.loginfo("cmd_pose synced to current odometry")
+            self.set_target_to_odometry_no_z()
+        rospy.loginfo("cmd_pose synced to current odometry (depth preserved)")
         return TriggerResponse(success=True, message="cmd_pose synced to odometry")
 
     def cancel_align_controller(self):
@@ -529,6 +529,24 @@ class ReferencePosePublisherNode:
                 return
 
             self.target_depth = depth
+
+        self.target_frame_id = "odom"
+
+        quaternion = [
+            self.latest_odometry.pose.pose.orientation.x,
+            self.latest_odometry.pose.pose.orientation.y,
+            self.latest_odometry.pose.pose.orientation.z,
+            self.latest_odometry.pose.pose.orientation.w,
+        ]
+        _, _, self.target_heading = euler_from_quaternion(quaternion)
+
+        self.target_roll = 0.0
+        self.target_pitch = 0.0
+
+    def set_target_to_odometry_no_z(self):
+        """Sync X, Y, and heading to current odometry, leaving depth unchanged."""
+        self.target_x = self.latest_odometry.pose.pose.position.x
+        self.target_y = self.latest_odometry.pose.pose.position.y
 
         self.target_frame_id = "odom"
 
