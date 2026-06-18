@@ -56,6 +56,7 @@ import tf2_ros
 from auv_smach.tf_utils import get_tf_buffer
 from auv_smach.valve import (
     CheckValveEngagementState,
+    HoldGripperRollState,
     ResumeTrackingState,
     RotateGripperState,
     SetGripperTurnDirectionState,
@@ -210,6 +211,20 @@ def main():
                 direction=direction,
                 headroom_deg=degrees,
             ),
+            transitions={
+                "succeeded": "HOLD_GRIPPER_ROLL",
+                "preempted": "preempted",
+                "aborted": "aborted",
+            },
+        )
+        # Freeze the gripper roll right at the start (after the turn direction
+        # has parked tracking on a headroom-feasible branch, so the later
+        # ROTATE_VALVE stays in the reachable window). The jaws stop following
+        # the handle from here on; aborts if nothing was tracked yet, i.e. the
+        # valve must already be visible when this SM starts.
+        smach.StateMachine.add(
+            "HOLD_GRIPPER_ROLL",
+            HoldGripperRollState(tracker_namespace=tracker_namespace),
             transitions={
                 "succeeded": "CHECK_ENGAGEMENT",
                 "preempted": "preempted",

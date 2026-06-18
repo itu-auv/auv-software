@@ -75,6 +75,27 @@ class RotateGripperState(smach_ros.ServiceState):
         )
 
 
+class HoldGripperRollState(smach.State):
+    """Call the tracker's hold Trigger service: latch the gripper roll at its
+    current tracked angle without rotating, so it stops chasing the valve while
+    the vehicle runs the approach/engage maneuver. Resume later (or at the next
+    run's start) with ResumeTrackingState. Aborts if nothing was tracked yet."""
+
+    def __init__(self, tracker_namespace: str):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.service_name = f"{tracker_namespace}/hold"
+
+    def execute(self, userdata):
+        try:
+            rospy.wait_for_service(self.service_name, timeout=5.0)
+            resp = rospy.ServiceProxy(self.service_name, Trigger)()
+        except (rospy.ROSException, rospy.ServiceException) as e:
+            rospy.logerr("[HOLD_GRIPPER_ROLL] %s failed: %s", self.service_name, e)
+            return "aborted"
+        rospy.loginfo("[HOLD_GRIPPER_ROLL] %s", resp.message)
+        return "succeeded" if resp.success else "aborted"
+
+
 class ResumeTrackingState(smach.State):
     """Call the tracker's resume_tracking Trigger service (back to live
     tracking after a latched turn). Safe whenever the jaws are NOT on the
@@ -415,11 +436,31 @@ class ValveTaskState(smach.State):
                 "WAIT_FOR_FRAMES",
                 DelayState(delay_time=2.0),
                 transitions={
-                    "succeeded": "APPROACH_WITH_FREEZE",
+                    "succeeded": (
+                        "LOCK_GRIPPER_ROLL"
+                        if turn_direction
+                        else "APPROACH_WITH_FREEZE"
+                    ),
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
+            # Freeze the gripper roll at its current tracked angle before the
+            # approach maneuver so the servo stops chasing the valve. The
+            # tracker has had a roll estimate since the frames came up (above),
+            # and SET_TURN_DIRECTION already parked it on a branch with turn
+            # headroom, so the later ROTATE_VALVE stays in the reachable window.
+            if turn_direction:
+                smach.StateMachine.add(
+                    "LOCK_GRIPPER_ROLL",
+                    HoldGripperRollState(tracker_namespace=tracker_namespace),
+                    transitions={
+                        "succeeded": "APPROACH_WITH_FREEZE",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
 
             # -------- Approach phase (with concurrent freeze) --------
             smach.StateMachine.add(
