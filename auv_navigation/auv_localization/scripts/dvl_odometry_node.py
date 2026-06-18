@@ -27,7 +27,7 @@ class DvlToOdom:
             "dvl_to_odom_node/enable", SetBool, self.enable_cb
         )
 
-        self.docking_mode = rospy.get_param("~docking_mode", False)
+        self.docking_mode = rospy.get_param("~docking_mode", True)
 
         _pos_kp = rospy.get_param("dvl_invalid_position_kp_xy", [1.0, 1.0])
         _pos_ki = rospy.get_param("dvl_invalid_position_ki_xy", [0.0, 0.0])
@@ -55,6 +55,7 @@ class DvlToOdom:
         )
         self._gain_reconfigure_server.update_configuration(
             {
+                "docking_mode": self.docking_mode,
                 "dvl_invalid_position_kp_x": _pos_kp[0],
                 "dvl_invalid_position_kp_y": _pos_kp[1],
                 "dvl_invalid_position_ki_x": _pos_ki[0],
@@ -220,6 +221,7 @@ class DvlToOdom:
         return SetBoolResponse(success=True, message=f"DVL->Odom {state}")
 
     def _gain_reconfigure_cb(self, config, level):
+        self.docking_mode = config.docking_mode
         self.gain_scheduler.update_overrides(
             position_kp_xy=[
                 config.dvl_invalid_position_kp_x,

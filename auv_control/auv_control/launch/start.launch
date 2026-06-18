@@ -11,7 +11,7 @@
        x/y position and vx/vy velocity loops to the dvl_invalid_*_xy gain
        schedule. Must match the docking_mode passed to auv_localization so
        the odometry x/y velocity is also zeroed. -->
-  <arg name="docking_mode" default="false" />
+  <arg name="docking_mode" default="true" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch"
