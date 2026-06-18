@@ -10,6 +10,7 @@ from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
     AlignFrame,
     DynamicPathState,
+    SetDepthState,
 )
 from auv_smach.initialize import DelayState
 
@@ -47,6 +48,18 @@ class PingerAlignTaskState(smach.State):
                     timeout=30.0,
                     confirm_duration=2.0,
                     cancel_on_success=True,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_PINGER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
+            smach.StateMachine.add(
+                "IN_ASSAGI",
+                SetDepthState(
+                    depth=-5,
                 ),
                 transitions={
                     "succeeded": "succeeded",
