@@ -47,8 +47,12 @@ Valve-turn support (the reason this node exists):
     not stall against the stop while holding. Refuses if the overdriven target
     would leave the reachable window or no roll was ever tracked. Blocks until
     the ramp (out and back) completes; returns failure if interrupted.
+  * ~hold (std_srvs/Trigger): latch the servo at its current tracked angle
+    without rotating (stop live tracking, freeze in place). Used to lock the
+    gripper roll before a maneuver so it stops chasing the target; resume with
+    ~resume_tracking.
   * ~resume_tracking (std_srvs/Trigger): back to live tracking (after the
-    jaws have released the handle).
+    jaws have released the handle, or after a ~hold).
 
 Sign conventions (two independent calibration knobs):
     ~invert   : flips the sign of the *tracked* roll (servo vs perception).
@@ -191,6 +195,7 @@ class GripperRollTracker:
             "~set_turn_direction", RotateGripper, self._handle_set_turn_direction
         )
         rospy.Service("~rotate", RotateGripper, self._handle_rotate)
+        rospy.Service("~hold", Trigger, self._handle_hold)
         rospy.Service("~resume_tracking", Trigger, self._handle_resume_tracking)
 
         rospy.loginfo(
@@ -469,6 +474,32 @@ class GripperRollTracker:
                 f"turn complete ({nominal:.0f} deg + {overdrive:.0f} deg "
                 f"overdrive), holding at {target_hold:.1f} deg"
             ),
+        )
+
+    def _handle_hold(self, req):
+        """Freeze the servo at its current tracked angle without rotating
+        (latch in place). Unlike `rotate`, this does not ramp the handle — it
+        just stops live tracking so the gripper roll stays put through the
+        approach/engage maneuver. Refuses if no roll was ever tracked (nothing
+        to hold). `resume_tracking` unlatches it."""
+        with self._lock:
+            if self.last_servo is None:
+                return TriggerResponse(
+                    success=False,
+                    message="no roll tracked yet (never saw the target frame)",
+                )
+            if self._turning:
+                return TriggerResponse(
+                    success=False, message="a turn is in progress; cannot hold"
+                )
+            was = self._mode
+            self._mode = self.MODE_LATCHED
+            held = self.last_servo
+        rospy.loginfo(
+            "gripper_roll_tracker: hold (was %s), latched at %.1f deg", was, held
+        )
+        return TriggerResponse(
+            success=True, message=f"holding at {held:.1f} deg (was {was})"
         )
 
     def _handle_resume_tracking(self, req):
