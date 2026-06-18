@@ -113,7 +113,7 @@
     <joint name="${namespace}/base_link/valve_gripper_bottom_joint" type="fixed">
       <parent link="${namespace}/base_link"/>
       <child link="${namespace}/base_link/valve_gripper_bottom_link"/>
-      <origin xyz="-0.145 0 -0.369736" rpy="0 0 0"/>
+      <origin xyz="-0.1385 0 -0.368736" rpy="0 0 0"/>
     </joint>
     <xacro:torpedo_camera
       name="${namespace}/base_link/torpedo_camera"
