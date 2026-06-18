@@ -119,14 +119,18 @@ class PipeTaskState(smach.State):
                 "ENABLE_ARUCO",
                 EnableArucoState("uykum_var"),
                 transitions={
-                    "succeeded": "SET_DEPTH",
+                    "succeeded": (
+                        "ENABLE_LEGACY"
+                        if self.pipe_method == "legacy"
+                        else "ENABLE_PUBLISHER"
+                    ),
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
 
             smach.StateMachine.add(
-                "SET_DEPTH",
+                "ADINI_DEGISTIR",
                 SetDepthState(depth=pipe_map_depth, confirm_duration=3.0),
                 transitions={
                     "succeeded": (
