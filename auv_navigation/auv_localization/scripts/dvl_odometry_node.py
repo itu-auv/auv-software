@@ -27,7 +27,7 @@ class DvlToOdom:
             "dvl_to_odom_node/enable", SetBool, self.enable_cb
         )
 
-        self.docking_mode = rospy.get_param("~docking_mode", False)
+        self.docking_mode = rospy.get_param("~docking_mode", True)
 
         _pos_kp = rospy.get_param("dvl_invalid_position_kp_xy", [1.0, 1.0])
         _pos_ki = rospy.get_param("dvl_invalid_position_ki_xy", [0.0, 0.0])
