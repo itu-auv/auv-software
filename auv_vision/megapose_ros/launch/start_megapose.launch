@@ -1,0 +1,55 @@
+<launch>
+  <!-- MegaPose ROS Node -->
+  <!-- Requires megapose_server.py to be running separately -->
+  
+  <arg name="zmq_host" default="localhost"/>
+  <arg name="zmq_port" default="5556"/>
+  <arg name="object_label" default=""/>  <!-- Must match mesh filename in server's models/ dir -->
+  <arg name="rate" default="10"/>
+  
+  <arg name="ns" default="taluy"/>
+  <arg name="enable_front" default="true"/>
+  <arg name="enable_bottom" default="true"/>
+  
+  <group ns="$(arg ns)">
+  
+    <!-- FRONT CAMERA NODE -->
+    <group if="$(arg enable_front)">
+      <node name="megapose_front" pkg="megapose_ros" type="megapose_node.py" output="screen">
+        <param name="zmq_host" value="$(arg zmq_host)"/>
+        <param name="zmq_port" value="$(arg zmq_port)"/>
+        <param name="object_label" value="$(arg object_label)"/>
+        <param name="rate" value="$(arg rate)"/>
+        <param name="force_frame_id" value="taluy/base_link/front_camera_optical_link"/>
+        <param name="camera_name" value="front"/>
+        
+        <remap from="~image" to="cameras/cam_front/image_raw"/>
+        <remap from="~camera_info" to="cameras/cam_front/camera_info"/>
+        <!-- Unique topics per node -->
+        <remap from="~poses" to="megapose_front/poses"/>
+        <remap from="~pose" to="megapose_front/pose"/>
+        <remap from="~bbox" to="/yolo_result_front"/>
+      </node>
+    </group>
+    
+    <!-- BOTTOM CAMERA NODE -->
+    <group if="$(arg enable_bottom)">
+      <node name="megapose_bottom" pkg="megapose_ros" type="megapose_node.py" output="screen">
+        <param name="zmq_host" value="$(arg zmq_host)"/>
+        <param name="zmq_port" value="$(arg zmq_port)"/>
+        <param name="object_label" value="$(arg object_label)"/>
+        <param name="rate" value="$(arg rate)"/>
+        <param name="force_frame_id" value="taluy/base_link/bottom_camera_optical_link"/>
+        <param name="camera_name" value="bottom"/>
+        
+        <remap from="~image" to="cameras/cam_bottom/image_raw"/>
+        <remap from="~camera_info" to="cameras/cam_bottom/camera_info"/>
+        <!-- Unique topics per node -->
+        <remap from="~poses" to="megapose_bottom/poses"/>
+        <remap from="~pose" to="megapose_bottom/pose"/>
+        <remap from="~bbox" to="/yolo_result_bottom"/>
+      </node>
+    </group>
+    
+  </group>
+</launch>
