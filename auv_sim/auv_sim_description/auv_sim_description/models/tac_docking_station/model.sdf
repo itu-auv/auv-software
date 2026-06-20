@@ -1,0 +1,116 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="tac_docking_station">
+    <static>true</static>
+    <pose>0 0 0 0 0 0</pose>
+
+    <!-- Main docking station structure -->
+    <link name="base_link">
+      <pose>0 0 0 0 0 0</pose>
+
+      <collision name="base_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://tac_docking_station/meshes/docking_station.stl</uri>
+            <scale>0.001 0.001 0.001</scale> <!-- STEP is in mm, Gazebo in m -->
+          </mesh>
+        </geometry>
+      </collision>
+
+      <visual name="base_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://tac_docking_station/meshes/docking_station.stl</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.8 0.8 0.8 1</ambient>
+          <diffuse>0.9 0.9 0.9 1</diffuse>
+        </material>
+      </visual>
+    </link>
+
+    <!-- ArUco Marker 28 (Top-left: x=0.29, z=0.49) -->
+    <link name="aruco_28">
+      <!-- Position from STEP: (290, 79, 490) mm = (0.29, 0.079, 0.49) m -->
+      <!-- Offset slightly above surface (y+0.001) to prevent z-fighting -->
+      <!-- Rotated to face -Y direction (looking down at the station from above) -->
+      <pose>0.29 0.080 0.49 -1.5708 0 0</pose>
+      <visual name="aruco_28_visual">
+        <geometry>
+          <box>
+            <size>0.15 0.15 0.001</size> <!-- 10cm x 10cm marker -->
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://tac_docking_station/materials/scripts</uri>
+            <uri>model://tac_docking_station/materials/textures</uri>
+            <name>ArUco/Tag28</name>
+          </script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- ArUco Marker 7 (Top-right: x=-0.29, z=0.49) -->
+    <link name="aruco_7">
+      <pose>-0.29 0.080 0.49 -1.5708 0 0</pose>
+      <visual name="aruco_7_visual">
+        <geometry>
+          <box>
+            <size>0.15 0.15 0.001</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://tac_docking_station/materials/scripts</uri>
+            <uri>model://tac_docking_station/materials/textures</uri>
+            <name>ArUco/Tag7</name>
+          </script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- ArUco Marker 19 (Bottom-left: x=0.29, z=-0.49) -->
+    <link name="aruco_19">
+      <pose>0.29 0.080 -0.49 -1.5708 0 0</pose>
+      <visual name="aruco_19_visual">
+        <geometry>
+          <box>
+            <size>0.15 0.15 0.001</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://tac_docking_station/materials/scripts</uri>
+            <uri>model://tac_docking_station/materials/textures</uri>
+            <name>ArUco/Tag19</name>
+          </script>
+        </material>
+      </visual>
+    </link>
+
+    <!-- ArUco Marker 96 (Bottom-right: x=-0.29, z=-0.49) -->
+    <link name="aruco_96">
+      <pose>-0.29 0.080 -0.49 -1.5708 0 0</pose>
+      <visual name="aruco_96_visual">
+        <geometry>
+          <box>
+            <size>0.15 0.15 0.001</size>
+          </box>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://tac_docking_station/materials/scripts</uri>
+            <uri>model://tac_docking_station/materials/textures</uri>
+            <name>ArUco/Tag96</name>
+          </script>
+        </material>
+      </visual>
+    </link>
+
+  </model>
+</sdf>

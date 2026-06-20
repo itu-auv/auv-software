@@ -17,7 +17,8 @@
         acoustic_tx:ACOUSTIC_TRANSMITTER,
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
-        pipeline:NAVIGATE_THROUGH_PIPELINE
+        pipeline:NAVIGATE_THROUGH_PIPELINE,
+        docking:NAVIGATE_TO_DOCKING_TASK
     "/>
 
     <!-- Test Mode Configuration -->

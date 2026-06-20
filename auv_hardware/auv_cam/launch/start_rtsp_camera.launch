@@ -10,6 +10,12 @@
   <arg name="buffer_mode" default="auto" />
   <arg name="drop_on_latency" default="true" />
 
+  <!-- The node now derives capture-time stamps automatically from the
+       GStreamer pipeline (per-frame buffer PTS vs. pipeline running clock).
+       This optional offset is added on top, in seconds, only as a manual
+       override if a residual systematic bias is observed in field testing. -->
+  <arg name="stamp_offset" default="0.0" />
+
   <!-- Reconnection Parameters -->
   <arg name="reconnect_interval_sec" default="5" />
   <arg name="max_consecutive_failures" default="100" />
@@ -54,6 +60,9 @@
       <!-- Reconnection Parameters -->
       <param name="reconnect_interval_sec" value="$(arg reconnect_interval_sec)" />
       <param name="max_consecutive_failures" value="$(arg max_consecutive_failures)" />
+
+      <!-- Timestamp compensation -->
+      <param name="stamp_offset" value="$(arg stamp_offset)" />
 
       <!-- Video Parameters -->
       <param name="width" value="$(arg width)" />
