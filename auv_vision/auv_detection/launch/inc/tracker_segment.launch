@@ -8,7 +8,7 @@
   <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
   <arg name="input_topic" default="/$(arg namespace)/cameras/cam_bottom/image_rect_color"/>
   <arg name="result_topic" default="/yolo_result_seg"/>
-  <arg name="result_image_topic" default="/yolo_image_seg"/>
+  <arg name="result_image_topic" default="/yolo_seg/image_raw/compressed"/>
   <arg name="conf_thres" default="0.25"/>
   <arg name="iou_thres" default="0.45"/>
   <arg name="max_det" default="300"/>
