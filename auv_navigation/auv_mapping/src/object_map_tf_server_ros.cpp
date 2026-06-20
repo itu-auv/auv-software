@@ -45,6 +45,12 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
   node_handler_private.param<std::string>("base_link_frame", base_link_frame_,
                                           "taluy/base_link");
 
+  node_handler_private.param<bool>("enable_candidate_filters",
+                                   enable_candidate_filters_, false);
+
+  node_handler_private.param<int>("candidate_update_limit",
+                                  candidate_update_limit_, 10);
+
   service_ =
       nh_.advertiseService("set_object_transform",
                            &ObjectMapTFServerROS::set_transform_handler, this);
@@ -73,6 +79,7 @@ void ObjectMapTFServerROS::broadcast_transforms() {
   auto lock = std::scoped_lock{mutex_};
   for (auto &entry : filters_) {
     for (const auto &filter_ptr : entry.second) {
+      // if (isFilterCandidate(filter_ptr)) continue;
       tf_broadcaster_.sendTransform(filter_ptr->getFilteredTransform());
     }
   }
@@ -110,8 +117,8 @@ bool ObjectMapTFServerROS::set_transform_handler(
       filters_[target_frame].clear();
     }
 
-    filters_[target_frame].push_back(
-        std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
+    filters_[target_frame].push_back(std::make_unique<ObjectPositionFilter>(
+        *static_transform, 1.0 / rate_, false));
   }
 
   ROS_DEBUG_STREAM("Stored static transform from " << static_frame_ << " to "
@@ -144,6 +151,7 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
     filters_[object_frame].push_back(
         std::make_unique<ObjectPositionFilter>(*static_transform, 1.0 / rate_));
     ROS_DEBUG_STREAM("Created new filter for " << object_frame);
+    update_filter_frame_index(object_frame);
     return;
   }
 
@@ -260,16 +268,32 @@ void ObjectMapTFServerROS::update_filter_frame_index(
             [](const auto &a, const auto &b) { return a.second < b.second; });
 
   // Update frame IDs based on sorted distances
+  size_t counter = 0, candidate_counter = 0;
   for (size_t i = 0; i < filter_distances.size(); ++i) {
     auto &filter = it->second[filter_distances[i].first];
     auto transform = filter->getFilteredTransform();
+    bool is_candidate = isFilterCandidate(filter);
 
-    if (i == 0) {
-      // Closest filter gets the base name without index
-      transform.child_frame_id = object_frame;
+    if (is_candidate) {
+      if (candidate_counter == 0) {
+        // Closest filter gets the base name without index
+        transform.child_frame_id = object_frame + "_candidate";
+      } else {
+        // Other filters get indexed names (starting from 0)
+        transform.child_frame_id = object_frame + "_candidate_" +
+                                   std::to_string(candidate_counter - 1);
+      }
+      candidate_counter += 1;
     } else {
-      // Other filters get indexed names (starting from 0)
-      transform.child_frame_id = object_frame + "_" + std::to_string(i - 1);
+      if (counter == 0) {
+        // Closest filter gets the base name without index
+        transform.child_frame_id = object_frame;
+      } else {
+        // Other filters get indexed names (starting from 0)
+        transform.child_frame_id =
+            object_frame + "_" + std::to_string(counter - 1);
+      }
+      counter += 1;
     }
 
     // Update the filter with the new frame ID
@@ -349,6 +373,12 @@ ObjectMapTFServerROS::get_transform(const std::string &target_frame,
     ROS_WARN_STREAM("Transform lookup failed: " << ex.what());
     return std::nullopt;
   }
+}
+
+bool ObjectMapTFServerROS::isFilterCandidate(
+    const ObjectPositionFilter::Ptr &filter) {
+  return enable_candidate_filters_ && filter->getUpdateCount() != -1 &&
+         filter->getUpdateCount() < candidate_update_limit_;
 }
 
 }  // namespace auv_mapping

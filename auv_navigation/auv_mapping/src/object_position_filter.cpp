@@ -5,7 +5,8 @@
 namespace auv_mapping {
 
 ObjectPositionFilter::ObjectPositionFilter(
-    const geometry_msgs::TransformStamped &initial_transform, const double dt)
+    const geometry_msgs::TransformStamped &initial_transform, const double dt,
+    bool needs_ekf)
     : kf_(6, 3, 0),
       static_frame_(initial_transform.header.frame_id),
       child_frame_(initial_transform.child_frame_id) {
@@ -46,6 +47,8 @@ ObjectPositionFilter::ObjectPositionFilter(
   // Initialize orientation from the initial transform.
   tf2::fromMsg(initial_transform.transform.rotation, filtered_orientation_);
   filtered_orientation_.normalize();
+
+  update_count_ = needs_ekf ? 0 : -1;
 }
 
 void ObjectPositionFilter::predict(const double dt) {
@@ -75,10 +78,13 @@ void ObjectPositionFilter::update(
   const double alpha = 0.2;  // Slerp weighting factor
   filtered_orientation_ = slerp(filtered_orientation_, meas_q, alpha);
   filtered_orientation_.normalize();
+
+  update_count_ += 1;
 }
 void ObjectPositionFilter::updateFrameIndex(const std::string &new_frame_id) {
   child_frame_ = new_frame_id;
 }
+int ObjectPositionFilter::getUpdateCount() const { return update_count_; }
 geometry_msgs::TransformStamped ObjectPositionFilter::getFilteredTransform()
     const {
   geometry_msgs::TransformStamped out;

@@ -41,6 +41,8 @@
       <param name="static_frame" value="$(arg static_frame)" />
       <param name="distance_threshold" value="4.0" />
       <param name="base_link_frame" value="$(arg namespace)/base_link" />
+      <param name="enable_candidate_filters" value="true" />
+      <param name="candidate_update_limit" value="30" />
 
       <remap from="set_object_transform" to="map/set_object_transform" />
       <remap from="clear_object_transforms" to="map/clear_object_transforms" />
