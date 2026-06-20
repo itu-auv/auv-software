@@ -36,6 +36,7 @@ install(DIRECTORY scripts/
 install(PROGRAMS
   scripts/joy_manager.py
   scripts/taluy_gui.py
+  scripts/telegram_telemetry_node.py
   scripts/services_tab.py
   scripts/dry_test_tab.py
   scripts/vehicle_control_tab.py
