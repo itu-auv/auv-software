@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>auv_depth_estimation</name>
+  <version>0.0.1</version>
+  <description>Depth estimation using Depth Anything 3</description>
+  <maintainer email="user@todo.todo">user</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>std_msgs</build_depend>
+
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>pcl_ros</exec_depend>
+  <exec_depend>nodelet</exec_depend>
+  <exec_depend>octomap_server</exec_depend>
+</package>
