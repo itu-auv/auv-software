@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import math
 import rospy
 import actionlib
 import tf2_ros
@@ -25,11 +26,20 @@ class FollowPathActionServer:
         self.dynamic_target_lookahead_distance: float = rospy.get_param(
             "~dynamic_target_lookahead_distance", 1.0
         )
+        self.yaw_gate_enter_threshold_rad: float = rospy.get_param(
+            "~yaw_gate_enter_threshold_rad", 0.4
+        )
+        self.yaw_gate_exit_threshold_rad: float = rospy.get_param(
+            "~yaw_gate_exit_threshold_rad", 0.1
+        )
+        self.yaw_gate_position_lookahead_m: float = rospy.get_param(
+            "~yaw_gate_position_lookahead_m", 0.15
+        )
         self.completion_distance_threshold: float = rospy.get_param(
-            "~completion_distance_threshold", 0.5
+            "~completion_distance_threshold", 0.2
         )
         self.completion_yaw_threshold: float = rospy.get_param(
-            "~completion_yaw_threshold", 0.4
+            "~completion_yaw_threshold", 0.18
         )
         self.source_frame: str = rospy.get_param("~source_frame", "taluy/base_link")
         self.loop_rate = rospy.Rate(rospy.get_param("~loop_rate", 20))
@@ -39,6 +49,7 @@ class FollowPathActionServer:
             "/planned_path", Path, self.path_cb, queue_size=1
         )
         self.current_path = None
+        self.yaw_gate_active = False
 
         self.server = actionlib.SimpleActionServer(
             "follow_path", FollowPathAction, self.execute, auto_start=False
@@ -93,6 +104,44 @@ class FollowPathActionServer:
                     self.loop_rate.sleep()
                     continue
 
+                target_yaw = follow_path_helpers.get_pose_yaw(dynamic_target_pose)
+                robot_yaw = follow_path_helpers.get_pose_yaw(robot_pose)
+                yaw_error = abs(
+                    follow_path_helpers.normalize_angle(target_yaw - robot_yaw)
+                )
+                was_yaw_gate_active = self.yaw_gate_active
+
+                rospy.logdebug(
+                    "[follow_path server] yaw_gate error: %.3f rad (%.1f deg), active=%s",
+                    yaw_error,
+                    math.degrees(yaw_error),
+                    self.yaw_gate_active,
+                )
+
+                (
+                    dynamic_target_pose,
+                    self.yaw_gate_active,
+                ) = follow_path_helpers.apply_yaw_gate(
+                    dynamic_target_pose,
+                    robot_pose,
+                    self.yaw_gate_active,
+                    self.yaw_gate_enter_threshold_rad,
+                    self.yaw_gate_exit_threshold_rad,
+                    self.yaw_gate_position_lookahead_m,
+                )
+                if self.yaw_gate_active and not was_yaw_gate_active:
+                    rospy.logdebug(
+                        "[follow_path server] yaw_gate entered: yaw_error=%.3f rad (%.1f deg)",
+                        yaw_error,
+                        math.degrees(yaw_error),
+                    )
+                elif was_yaw_gate_active and not self.yaw_gate_active:
+                    rospy.logdebug(
+                        "[follow_path server] yaw_gate exited: yaw_error=%.3f rad (%.1f deg)",
+                        yaw_error,
+                        math.degrees(yaw_error),
+                    )
+
                 # Broadcast the dynamic target frame so that controllers can use it
                 follow_path_helpers.broadcast_dynamic_target_frame(
                     self.tf_broadcaster,
@@ -124,6 +173,7 @@ class FollowPathActionServer:
     def execute(self, goal: FollowPathActionGoal) -> None:
         rospy.logdebug("FollowPathActionServer: Received a new path following goal.")
         self.current_path = None  # Clear the path on new goal
+        self.yaw_gate_active = False
 
         success = self.do_path_following()
         result = FollowPathResult(success=success)
