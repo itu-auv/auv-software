@@ -25,6 +25,10 @@ def now_str() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
+def date_str() -> str:
+    return datetime.now().strftime("%Y%m%d")
+
+
 def target_token(x: float) -> str:
     """0.3 -> 0p300, -0.3 -> n0p300"""
     sign = "n" if x < 0 else ""
@@ -75,9 +79,10 @@ class DampingStepWrenchLogger:
 
         self.stabilize_time = float(rospy.get_param("~stabilize_time", 4.0))
 
-        self.log_dir = os.path.expanduser(
-            rospy.get_param("~log_dir", "~/damping_tests")
-        )
+        log_dir = os.path.expanduser(rospy.get_param("~log_dir", "~/damping_tests"))
+        if bool(rospy.get_param("~date_subdir", True)):
+            log_dir = os.path.join(log_dir, date_str())
+        self.log_dir = log_dir
         self.file_prefix = rospy.get_param("~file_prefix", "damping_step")
         os.makedirs(self.log_dir, exist_ok=True)
 
