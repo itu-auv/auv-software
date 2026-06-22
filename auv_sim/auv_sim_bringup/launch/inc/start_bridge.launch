@@ -41,6 +41,13 @@
     <node name="spawn_model_server" pkg="auv_sim_bridge" type="sim_bottle_mock.py" output="screen">
       <!-- service name remapped to ladle by default; the spawner script is configurable via params -->
       <remap from="actuators/ladle/spawn" to="actuators/ladle/spawn" />
+      <!-- Gripper interaction params (fake grab/release) -->
+      <param name="gripper_frame" value="$(arg namespace)/gripper_link" />
+      <param name="drop_speed" value="0.3" />
+      <param name="grab_radius" value="0.5" />
+      <param name="octagon_x" value="13.0" />
+      <param name="octagon_y" value="-4.25" />
+      <param name="octagon_z" value="-2.0" />
     </node>
     <!-- Torpedo Launcher Service Node -->
     <node name="launch_torpedo_server" pkg="auv_sim_bridge" type="sim_torpedo_mock.py" output="screen">
