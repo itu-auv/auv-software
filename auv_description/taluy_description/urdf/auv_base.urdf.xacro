@@ -12,7 +12,7 @@
     <link name="${namespace}/base_link">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0"/>
-        <mass value="25.37"/>
+        <mass value="29.8419"/>
         <inertia ixx="0.1" iyy="0.1" izz="0.1" ixy="0.01" iyz="0.01" ixz="0.1"/>
       </inertial>
       <visual>
@@ -65,8 +65,7 @@
     />
 
     <!-- Parallel Gripper -->
-    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.124 0.0 -0.398" mount_rpy="0 0 0" mass_scale="0.001"/>
-
+    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.101 0.0 -0.418" mount_rpy="0 0 0" mass_scale="0.001"/>
     <!-- <link name="base_footprint">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
