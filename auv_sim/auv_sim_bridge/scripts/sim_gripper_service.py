@@ -70,10 +70,6 @@ class GripperService:
             "/gazebo/clear_joint_forces", JointRequest
         )
 
-        # Object grab/release proxies (provided by sim_bottle_mock)
-        self._grab_proxy = None
-        self._release_proxy = None
-
         rospy.Service("actuators/gripper/set", SetBool, self.handle_set)
         rospy.Service("actuators/gripper/open", Trigger, self.handle_open)
         rospy.Service("actuators/gripper/close", Trigger, self.handle_close)
@@ -328,44 +324,6 @@ class GripperService:
         else:
             return self._move_smooth(left_angle, right_angle)
 
-    # ------------------------------------------------------------------
-    # Object grab / release helpers
-    # ------------------------------------------------------------------
-    def _call_grab(self):
-        """Call the object grab service (despawn nearest object to gripper)."""
-        try:
-            if self._grab_proxy is None:
-                rospy.wait_for_service("actuators/gripper/grab", timeout=2.0)
-                self._grab_proxy = rospy.ServiceProxy(
-                    "actuators/gripper/grab", Trigger
-                )
-            resp = self._grab_proxy()
-            rospy.loginfo(
-                f"[gripper_service] Grab result: success={resp.success}, "
-                f"msg={resp.message}"
-            )
-        except Exception as e:
-            rospy.logwarn(f"[gripper_service] Grab service call failed: {e}")
-
-    def _call_release(self):
-        """Call the object release service (respawn held object at gripper)."""
-        try:
-            if self._release_proxy is None:
-                rospy.wait_for_service("actuators/gripper/release", timeout=2.0)
-                self._release_proxy = rospy.ServiceProxy(
-                    "actuators/gripper/release", Trigger
-                )
-            resp = self._release_proxy()
-            rospy.loginfo(
-                f"[gripper_service] Release result: success={resp.success}, "
-                f"msg={resp.message}"
-            )
-        except Exception as e:
-            rospy.logwarn(f"[gripper_service] Release service call failed: {e}")
-
-    # ------------------------------------------------------------------
-    # Service handlers
-    # ------------------------------------------------------------------
     def handle_set(self, req):
         if not req.data:
             self._stop_holding()
@@ -374,14 +332,6 @@ class GripperService:
         right_target = -base_target if self.mirror_right else base_target
         ok = self.set_angles(base_target, right_target, hold=bool(req.data))
         msg = ("closed" if req.data else "opened") if ok else "command failed"
-
-        # Trigger object grab/release after gripper animation
-        if ok:
-            if req.data:
-                self._call_grab()
-            else:
-                self._call_release()
-
         return SetBoolResponse(success=ok, message=msg)
 
     def handle_open(self, _req):
@@ -390,11 +340,6 @@ class GripperService:
         base = self.open_angle
         right_target = -base if self.mirror_right else base
         ok = self.set_angles(base, right_target, hold=False)
-
-        # Release held object after gripper opens
-        if ok:
-            self._call_release()
-
         return TriggerResponse(success=ok, message="opened" if ok else "open failed")
 
     def handle_close(self, _req):
@@ -403,11 +348,6 @@ class GripperService:
         base = self.close_angle
         right_target = -base if self.mirror_right else base
         ok = self.set_angles(base, right_target, hold=True)
-
-        # Grab nearest object after gripper closes
-        if ok:
-            self._call_grab()
-
         return TriggerResponse(success=ok, message="closed" if ok else "close failed")
 
     def handle_neutral(self, _req):
@@ -421,14 +361,14 @@ class GripperService:
         )
 
     def handle_set_angle(self, msg):
-        if msg.data == 2400:
+        if msg.data == 1930:
             rospy.loginfo(
-                "[gripper_service] Received angle 2400 (open state), opening gripper"
+                "[gripper_service] Received angle 1930 (open state), opening gripper"
             )
             self.handle_open(None)
-        elif msg.data == 1300:
+        elif msg.data == 600:
             rospy.loginfo(
-                "[gripper_service] Received angle 1300 (close state), closing gripper"
+                "[gripper_service] Received angle 600 (close state), closing gripper"
             )
             self.handle_close(None)
         else:
