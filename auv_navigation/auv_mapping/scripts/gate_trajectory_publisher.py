@@ -19,6 +19,12 @@ from auv_mapping.cfg import GateTrajectoryConfig
 from auv_bringup.cfg import SmachParametersConfig
 
 
+ROLE_TO_GATE_FRAME = {
+    "survey_repair": "gate_survey_repair_link",
+    "search_rescue": "gate_search_rescue_link",
+}
+
+
 class TransformServiceNode:
     def __init__(self):
         self.is_enabled = False
@@ -30,9 +36,9 @@ class TransformServiceNode:
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
 
         # Dynamic reconfigure server for gate parameters
-        self.gate_frame_1 = "gate_shark_link"
-        self.gate_frame_2 = "gate_sawfish_link"
-        self.target_gate_frame = "gate_shark_link"
+        self.gate_frame_1 = "gate_survey_repair_link"
+        self.gate_frame_2 = "gate_search_rescue_link"
+        self.target_gate_frame = self.gate_frame_1
         self.entrance_offset = 1.0
         self.exit_offset = 1.0
         self.z_offset = 0.5
@@ -110,11 +116,20 @@ class TransformServiceNode:
         rospy.loginfo("Received smach parameters update: %s", config)
         if "wall_reference_yaw" in config:
             self.wall_reference_yaw = config["wall_reference_yaw"]
-        if "selected_animal" in config:
-            if config["selected_animal"] == "shark":
-                self.target_gate_frame = "gate_shark_link"
-            elif config["selected_animal"] == "sawfish":
-                self.target_gate_frame = "gate_sawfish_link"
+        if "selected_role" in config:
+            self.set_target_gate_frame(config["selected_role"])
+
+    def set_target_gate_frame(self, selected_role):
+        target_gate_frame = ROLE_TO_GATE_FRAME.get(selected_role)
+        if target_gate_frame is None:
+            rospy.logwarn(
+                "Unknown selected role '%s'. Keeping target gate frame: %s",
+                selected_role,
+                self.target_gate_frame,
+            )
+            return
+
+        self.target_gate_frame = target_gate_frame
 
     def handle_toggle_rescuer_service(self, request: SetBool) -> SetBoolResponse:
 
@@ -242,6 +257,7 @@ class TransformServiceNode:
                 (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2
             )
 
+            # --- Create gate_middle_part_link at the midpoint between the two gate role links
             middle_x = (p1.x + p2.x) / 2.0
             middle_y = (p1.y + p2.y) / 2.0
             middle_z = (p1.z + p2.z) / 2.0
@@ -664,6 +680,8 @@ class TransformServiceNode:
             rate.sleep()
 
     def reconfigure_callback(self, config, level):
+        if "selected_role" in config:
+            self.set_target_gate_frame(config["selected_role"])
         self.entrance_offset = config.entrance_offset
         self.exit_offset = config.exit_offset
         self.z_offset = config.z_offset

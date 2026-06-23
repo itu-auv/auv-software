@@ -2,28 +2,58 @@ import rospy
 import tf2_ros
 
 _tf_buffer = None
-_tf_listener = None
+
+
+class _TfBufferHandle:
+    def __init__(self, cache_time):
+        self._cache_time = cache_time
+        self._buffer = None
+        self._listener = None
+        self.reset(cache_time, initialized=True)
+
+    def reset(self, cache_time=None, initialized=False):
+        if cache_time is not None:
+            self._cache_time = cache_time
+
+        self._buffer = tf2_ros.Buffer(cache_time=self._cache_time)
+        self._listener = tf2_ros.TransformListener(self._buffer)
+        action = "initialized" if initialized else "reset"
+        rospy.loginfo(
+            "Global TF Buffer and Listener {} with cache_time={}s".format(
+                action, self._cache_time.to_sec()
+            )
+        )
+
+    def __getattr__(self, name):
+        return getattr(self._buffer, name)
 
 
 def get_tf_buffer(cache_time=None):
     """
     Returns a singleton TF buffer/listener
     """
-    global _tf_buffer, _tf_listener
+    global _tf_buffer
 
     if _tf_buffer is None:
         if cache_time is None:
             cache_time = rospy.Duration(15.0)
 
-        _tf_buffer = tf2_ros.Buffer(cache_time=cache_time)
-        _tf_listener = tf2_ros.TransformListener(_tf_buffer)
-        rospy.loginfo(
-            "Global TF Buffer and Listener initialized with cache_time={}s".format(
-                cache_time.to_sec()
-            )
-        )
+        _tf_buffer = _TfBufferHandle(cache_time)
 
     return _tf_buffer
+
+
+def reset_tf_buffer(cache_time=None):
+    """
+    Resets the singleton TF buffer while keeping existing state references valid.
+    """
+    global _tf_buffer
+    if _tf_buffer is None:
+        return get_tf_buffer(cache_time)
+
+    handle = get_tf_buffer(cache_time)
+    handle.reset(cache_time)
+    return handle
 
 
 _base_link_cache = None
