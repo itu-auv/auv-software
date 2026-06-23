@@ -314,7 +314,9 @@ class KdeObjectMapper:
                 density_work = density.copy()
 
                 for _ in range(self.max_peaks_per_class):
-                    max_idx = np.unravel_index(np.argmax(density_work), density_work.shape)
+                    max_idx = np.unravel_index(
+                        np.argmax(density_work), density_work.shape
+                    )
                     max_val = density_work[max_idx]
                     if max_val < self.min_peak_density:
                         break
