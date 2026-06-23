@@ -51,32 +51,32 @@ def check_inside_image(
 # TORPEDO-specific masks and helpers (copied from detection_objects_taluy.yaml / detection_utils)
 TORPEDO_MASK_REFERENCE_WIDTH = 800.0
 TORPEDO_MASK_REFERENCE_HEIGHT = 448.0
-TORPEDO_FORBIDDEN_SIDE_MASKS = (
-    (
-        (0.0, 0.0),
-        (185.0, 0.0),
-        (145.0, 45.0),
-        (118.0, 95.0),
-        (102.0, 155.0),
-        (96.0, 225.0),
-        (106.0, 290.0),
-        (130.0, 360.0),
-        (175.0, 447.0),
-        (0.0, 447.0),
-    ),
-    (
-        (799.0, 0.0),
-        (615.0, 0.0),
-        (655.0, 45.0),
-        (682.0, 95.0),
-        (698.0, 155.0),
-        (704.0, 225.0),
-        (694.0, 290.0),
-        (670.0, 360.0),
-        (625.0, 447.0),
-        (799.0, 447.0),
-    ),
-)
+TORPEDO_FORBIDDEN_SIDE_MASKS = [
+    [
+        [0.0, 0.0],
+        [185.0, 0.0],
+        [145.0, 45.0],
+        [118.0, 95.0],
+        [102.0, 155.0],
+        [96.0, 225.0],
+        [106.0, 290.0],
+        [130.0, 360.0],
+        [175.0, 447.0],
+        [0.0, 447.0],
+    ],
+    [
+        [799.0, 0.0],
+        [615.0, 0.0],
+        [655.0, 45.0],
+        [682.0, 95.0],
+        [698.0, 155.0],
+        [704.0, 225.0],
+        [694.0, 290.0],
+        [670.0, 360.0],
+        [625.0, 447.0],
+        [799.0, 447.0],
+    ],
+]
 
 
 def _scale_polygon(
@@ -146,6 +146,7 @@ def check_inside_image_torpedo(
         (center.x - half_size_x, center.y + half_size_y),
     )
 
+    # no-op
     if forbidden_side_masks is None:
         forbidden_side_masks = tuple(
             _scale_polygon(
@@ -158,7 +159,8 @@ def check_inside_image_torpedo(
             for mask in TORPEDO_FORBIDDEN_SIDE_MASKS
         )
 
-    for forbidden_mask in forbidden_side_masks:
+    # TODO: fix this
+    for forbidden_mask in TORPEDO_FORBIDDEN_SIDE_MASKS:
         if any(_point_in_polygon(corner, forbidden_mask) for corner in bbox_corners):
             return False
 
