@@ -5,6 +5,7 @@
   <arg name="control_config_file" default="$(find auv_control)/config/taluy/default.yaml" />
   <arg name="dvl_velocity_topic" default="$(eval 'dvl/velocity' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/velocity_raw')" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
+  <arg name="publish_zero_velocity_when_dvl_invalid" default="false" />
 
   <group ns="$(arg namespace)">
     <rosparam file="$(find auv_localization)/config/$(arg namespace)/sensor_calibration_data.yaml" />
@@ -36,6 +37,7 @@
       <remap from="odometry" to="odometry" />
       <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable" />
       <param name="cmdvel_tau" value="0.2" />
+      <param name="publish_zero_velocity_when_dvl_invalid" value="$(arg publish_zero_velocity_when_dvl_invalid)" />
     </node>
 
     <!-- Euler Orientation Publisher Node -->

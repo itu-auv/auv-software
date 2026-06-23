@@ -80,6 +80,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   const Vectornd& get_desired_velocity() const { return desired_velocity_; }
 
+  void set_use_zero_velocity_state_for_velocity_error(bool use_zero) {
+    use_zero_velocity_state_for_velocity_error_ = use_zero;
+  }
+
   /**
    * @brief Calculate the control output, in the form of a wrench
    *
@@ -138,7 +142,12 @@ class MultiDOFPIDController : public ControllerBase<N> {
                             .cwiseMax(-max_velocity_limits_);
     const auto acceleration_state = d_state.tail(N);
 
-    const auto error = desired_velocity_ - velocity_state;
+    Vectornd velocity_state_for_error = velocity_state;
+    if (use_zero_velocity_state_for_velocity_error_) {
+      velocity_state_for_error(0) = 0.0;
+      velocity_state_for_error(1) = 0.0;
+    }
+    const auto error = desired_velocity_ - velocity_state_for_error;
     const auto p_term = kp_.template block<N, N>(N, N) * error;
 
     integral_.tail(N) += error * dt;
@@ -155,6 +164,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
     StateVector feedforward_state = desired_state;
     feedforward_state.tail(N) = desired_velocity_;
+    if (use_zero_velocity_state_for_velocity_error_) {
+      feedforward_state(N) = 0.0;
+      feedforward_state(N + 1) = 0.0;
+    }
     const auto damping_force = damping_control(feedforward_state);
     const auto coriolis_force = coriolis_control(feedforward_state);
 
@@ -253,6 +266,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   // Last computed desired velocity (for external access)
   Vectornd desired_velocity_{Vectornd::Zero()};
+  bool use_zero_velocity_state_for_velocity_error_{false};
 };
 
 using SixDOFPIDController = MultiDOFPIDController<6>;

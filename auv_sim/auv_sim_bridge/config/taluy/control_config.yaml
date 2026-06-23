@@ -31,7 +31,7 @@ kp: [1.0, 1.0, 0.5, 0.0, 0.0, 2.0, 1.0, 1.0, 1.0, 0.1, 0.0, 1.0]
 ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 kd: [1.0, 1.0, 0.1, 0.0, 0.0, 0.3, 1.0, 1.0, 1.0, 0.0, 0.0, 1.0]
 
-max_velocity: [0.600, 0.400, 0.600, 0.400, 0.400, 0.400]
+max_velocity: [0.600, 0.600, 0.600, 0.400, 0.400, 0.400]
 
 max_thrust: 60.0 # N
 min_thrust: 0.5 # N
@@ -46,3 +46,10 @@ gravity_compensation_z: 0.0
 
 max_acceleration: [0.000, 0.000, 0.000, 0.000, 0.000, 0.000]
 max_acceleration_rate: [0.000, 0.000, 0.000, 0.000, 0.000, 0.000]
+
+dvl_invalid_position_kp_xy: [1.000, 1.000]
+dvl_invalid_position_ki_xy: [0.000, 0.000]
+dvl_invalid_position_kd_xy: [1.000, 1.000]
+dvl_invalid_velocity_kp_xy: [1.000, 0.000]
+dvl_invalid_velocity_ki_xy: [0.000, 0.000]
+dvl_invalid_velocity_kd_xy: [0.000, 0.000]

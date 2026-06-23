@@ -207,7 +207,8 @@ class WayfinderNode:
 
         bad_beam = np.isnan(velocity_vector).any() or np.isnan(data.mean_range)
 
-        self.pub_is_valid.publish(not bad_beam)
+        # self.pub_is_valid.publish(not bad_beam)
+        # TEST ICIN
 
         if bad_beam:
             velocity_vector = np.array([0.0, 0.0, 0.0])

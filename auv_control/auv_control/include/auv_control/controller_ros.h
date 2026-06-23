@@ -6,6 +6,7 @@
 #include <tf2_ros/transform_listener.h>
 
 #include <type_traits>
+#include <vector>
 
 #include "auv_common_lib/ros/conversions.h"
 #include "auv_common_lib/ros/rosparam.h"
@@ -65,10 +66,22 @@ class ControllerROS {
     nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
     nh_private.param<double>("odometry_timeout", odometry_timeout_, 1.0);
+    nh_private.param<bool>("use_dvl_invalid_velocity_zero",
+                           use_dvl_invalid_velocity_zero_, true);
+    nh_private.param<double>("dvl_invalid_velocity_zero_timeout",
+                             dvl_invalid_velocity_zero_timeout_, 1.0);
 
     ROS_INFO_STREAM("kp: \n" << kp_.transpose());
     ROS_INFO_STREAM("ki: \n" << ki_.transpose());
     ROS_INFO_STREAM("kd: \n" << kd_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_position_kp_xy: \n"
+                    << dvl_invalid_position_kp_xy_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_position_kd_xy: \n"
+                    << dvl_invalid_position_kd_xy_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_velocity_kp_xy: \n"
+                    << dvl_invalid_velocity_kp_xy_.transpose());
+    ROS_INFO_STREAM("dvl_invalid_velocity_kd_xy: \n"
+                    << dvl_invalid_velocity_kd_xy_.transpose());
     ROS_INFO_STREAM("integral_clamp_limits: \n"
                     << integral_clamp_limits_.transpose());
     ROS_INFO_STREAM("gravity_compensation_z: " << gravity_compensation_z_);
@@ -109,6 +122,9 @@ class ControllerROS {
     accel_sub_ =
         nh_.subscribe("acceleration", 1, &ControllerROS::accel_callback, this,
                       transport_hints);
+    dvl_is_valid_sub_ =
+        nh_.subscribe("dvl/is_valid", 1, &ControllerROS::dvl_is_valid_callback,
+                      this, transport_hints);
 
     control_enable_sub_.subscribe(
         "enable", 1, nullptr,
@@ -149,15 +165,34 @@ class ControllerROS {
         desired_state_.tail(6) = ControllerBase::Vector::Zero();
       }
 
+      auto* pid_controller =
+          dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
+      if (pid_controller) {
+        const auto use_zero_velocity_state =
+            should_use_zero_velocity_state_for_velocity_error();
+        pid_controller->set_use_zero_velocity_state_for_velocity_error(
+            use_zero_velocity_state);
+        apply_dvl_invalid_gain_schedule(pid_controller,
+                                        use_zero_velocity_state);
+
+        if (use_zero_velocity_state) {
+          ROS_WARN_THROTTLE(
+              1.0,
+              "DVL has been invalid for at least %.2f seconds; using zero "
+              "velocity state for velocity error",
+              dvl_invalid_velocity_zero_timeout_);
+        }
+      }
+
       const auto control_output =
           controller_->control(state_, desired_state_, d_state_, dt);
 
-      auto pid_controller =
-          dynamic_cast<auv::control::SixDOFPIDController*>(controller_.get());
-      desired_velocity_pub_.publish(
-          auv::common::conversions::convert<ControllerBase::Vector,
-                                            geometry_msgs::Twist>(
-              pid_controller->get_desired_velocity()));
+      if (pid_controller) {
+        desired_velocity_pub_.publish(
+            auv::common::conversions::convert<ControllerBase::Vector,
+                                              geometry_msgs::Twist>(
+                pid_controller->get_desired_velocity()));
+      }
 
       geometry_msgs::WrenchStamped wrench_msg;
       if (is_control_enabled() && !is_timeouted() && has_fresh_odometry()) {
@@ -281,6 +316,59 @@ class ControllerROS {
     d_state_.tail(3) = Eigen::Vector3d::Zero();
   }
 
+  void dvl_is_valid_callback(const std_msgs::Bool::ConstPtr& msg) {
+    has_dvl_is_valid_message_ = true;
+
+    if (msg->data) {
+      dvl_is_valid_ = true;
+      dvl_invalid_since_ = ros::Time(0);
+      return;
+    }
+
+    if (dvl_is_valid_ || dvl_invalid_since_.isZero()) {
+      dvl_invalid_since_ = ros::Time::now();
+    }
+    dvl_is_valid_ = false;
+  }
+
+  bool should_use_zero_velocity_state_for_velocity_error() const {
+    if (!use_dvl_invalid_velocity_zero_ || !has_dvl_is_valid_message_ ||
+        dvl_is_valid_ || dvl_invalid_since_.isZero()) {
+      return false;
+    }
+
+    return (ros::Time::now() - dvl_invalid_since_).toSec() >=
+           dvl_invalid_velocity_zero_timeout_;
+  }
+
+  void apply_dvl_invalid_gain_schedule(
+      auv::control::SixDOFPIDController* controller,
+      const bool use_dvl_invalid_gains) const {
+    auto active_kp = kp_;
+    auto active_ki = ki_;
+    auto active_kd = kd_;
+
+    if (use_dvl_invalid_gains) {
+      active_kp(0) = dvl_invalid_position_kp_xy_(0);
+      active_kp(1) = dvl_invalid_position_kp_xy_(1);
+      active_ki(0) = 0.0;
+      active_ki(1) = 0.0;
+      active_kd(0) = dvl_invalid_position_kd_xy_(0);
+      active_kd(1) = dvl_invalid_position_kd_xy_(1);
+
+      active_kp(6) = dvl_invalid_velocity_kp_xy_(0);
+      active_kp(7) = dvl_invalid_velocity_kp_xy_(1);
+      active_ki(6) = 0.0;
+      active_ki(7) = 0.0;
+      active_kd(6) = dvl_invalid_velocity_kd_xy_(0);
+      active_kd(7) = dvl_invalid_velocity_kd_xy_(1);
+    }
+
+    controller->set_kp(active_kp);
+    controller->set_ki(active_ki);
+    controller->set_kd(active_kd);
+  }
+
   void reconfigure_callback(auv_control::ControllerConfig& config,
                             uint32_t level) {
     auto controller =
@@ -301,9 +389,16 @@ class ControllerROS {
         config.integral_clamp_6, config.integral_clamp_7,
         config.integral_clamp_8, config.integral_clamp_9,
         config.integral_clamp_10, config.integral_clamp_11;
-    controller->set_kp(kp_);
-    controller->set_ki(ki_);
-    controller->set_kd(kd_);
+    dvl_invalid_position_kp_xy_ << config.dvl_invalid_position_kp_x,
+        config.dvl_invalid_position_kp_y;
+    dvl_invalid_position_kd_xy_ << config.dvl_invalid_position_kd_x,
+        config.dvl_invalid_position_kd_y;
+    dvl_invalid_velocity_kp_xy_ << config.dvl_invalid_velocity_kp_x,
+        config.dvl_invalid_velocity_kp_y;
+    dvl_invalid_velocity_kd_xy_ << config.dvl_invalid_velocity_kd_x,
+        config.dvl_invalid_velocity_kd_y;
+    apply_dvl_invalid_gain_schedule(
+        controller, should_use_zero_velocity_state_for_velocity_error());
     controller->set_integral_clamp_limits(integral_clamp_limits_);
     controller->set_gravity_compensation_z(config.gravity_compensation_z);
     gravity_compensation_z_ = config.gravity_compensation_z;
@@ -334,6 +429,19 @@ class ControllerROS {
 
     // Load integral clamp limits with default values of 0 (0 means no clamping)
     ros::NodeHandle nh_private("~");
+    dvl_invalid_position_kp_xy_ << kp_(0), kp_(1);
+    dvl_invalid_position_kd_xy_ << kd_(0), kd_(1);
+    dvl_invalid_velocity_kp_xy_ << kp_(6), kp_(7);
+    dvl_invalid_velocity_kd_xy_ << kd_(6), kd_(7);
+    load_optional_xy_gains("dvl_invalid_position_kp_xy",
+                           dvl_invalid_position_kp_xy_, nh_private);
+    load_optional_xy_gains("dvl_invalid_position_kd_xy",
+                           dvl_invalid_position_kd_xy_, nh_private);
+    load_optional_xy_gains("dvl_invalid_velocity_kp_xy",
+                           dvl_invalid_velocity_kp_xy_, nh_private);
+    load_optional_xy_gains("dvl_invalid_velocity_kd_xy",
+                           dvl_invalid_velocity_kd_xy_, nh_private);
+
     if (nh_private.hasParam("integral_clamp_limits")) {
       integral_clamp_limits_ = VectorRosparamParser::parse(
           "integral_clamp_limits", ros::NodeHandle("~"));
@@ -384,6 +492,23 @@ class ControllerROS {
     }
   }
 
+  void load_optional_xy_gains(const std::string& param_name,
+                              Eigen::Vector2d& gains,
+                              const ros::NodeHandle& nh_private) {
+    std::vector<double> values;
+    if (!nh_private.getParam(param_name, values)) {
+      return;
+    }
+
+    if (values.size() != 2) {
+      ROS_WARN_STREAM("Ignoring " << param_name
+                                  << ": expected exactly 2 values for x/y");
+      return;
+    }
+
+    gains << values[0], values[1];
+  }
+
   void set_initial_config(auv_control::ControllerConfig& config) {
     config.kp_0 = kp_(0);
     config.kp_1 = kp_(1);
@@ -423,6 +548,15 @@ class ControllerROS {
     config.kd_9 = kd_(9);
     config.kd_10 = kd_(10);
     config.kd_11 = kd_(11);
+
+    config.dvl_invalid_position_kp_x = dvl_invalid_position_kp_xy_(0);
+    config.dvl_invalid_position_kp_y = dvl_invalid_position_kp_xy_(1);
+    config.dvl_invalid_position_kd_x = dvl_invalid_position_kd_xy_(0);
+    config.dvl_invalid_position_kd_y = dvl_invalid_position_kd_xy_(1);
+    config.dvl_invalid_velocity_kp_x = dvl_invalid_velocity_kp_xy_(0);
+    config.dvl_invalid_velocity_kp_y = dvl_invalid_velocity_kp_xy_(1);
+    config.dvl_invalid_velocity_kd_x = dvl_invalid_velocity_kd_xy_(0);
+    config.dvl_invalid_velocity_kd_y = dvl_invalid_velocity_kd_xy_(1);
 
     config.integral_clamp_0 = integral_clamp_limits_(0);
     config.integral_clamp_1 = integral_clamp_limits_(1);
@@ -503,6 +637,31 @@ class ControllerROS {
     replace_param(content, "kd", kd_);
     replace_param(content, "integral_clamp_limits", integral_clamp_limits_);
 
+    auto replace_vector2_param = [](std::string& content,
+                                    const std::string& param,
+                                    const Eigen::Vector2d& values) {
+      std::stringstream ss;
+      ss << std::fixed << std::setprecision(3);
+      ss << param << ": [" << values(0) << ", " << values(1) << "]";
+
+      std::string::size_type start_pos = content.find(param + ": [");
+      if (start_pos == std::string::npos) {
+        content += "\n" + ss.str();
+      } else {
+        std::string::size_type end_pos = content.find("]", start_pos);
+        content.replace(start_pos, end_pos - start_pos + 1, ss.str());
+      }
+    };
+
+    replace_vector2_param(content, "dvl_invalid_position_kp_xy",
+                          dvl_invalid_position_kp_xy_);
+    replace_vector2_param(content, "dvl_invalid_position_kd_xy",
+                          dvl_invalid_position_kd_xy_);
+    replace_vector2_param(content, "dvl_invalid_velocity_kp_xy",
+                          dvl_invalid_velocity_kp_xy_);
+    replace_vector2_param(content, "dvl_invalid_velocity_kd_xy",
+                          dvl_invalid_velocity_kd_xy_);
+
     auto replace_vector6_param = [](std::string& content,
                                     const std::string& param,
                                     const Eigen::Matrix<double, 6, 1>& values) {
@@ -567,6 +726,7 @@ class ControllerROS {
   ros::Subscriber cmd_vel_sub_;
   ros::Subscriber cmd_pose_sub_;
   ros::Subscriber accel_sub_;
+  ros::Subscriber dvl_is_valid_sub_;
   ros::Publisher wrench_pub_;
   ros::Publisher desired_velocity_pub_;
 
@@ -575,6 +735,11 @@ class ControllerROS {
   ros::Time latest_cmd_pose_time_{ros::Time(0)};
   ros::Time latest_cmd_vel_time_{ros::Time(0)};
   ros::Time latest_odometry_time_{ros::Time(0)};
+  ros::Time dvl_invalid_since_{ros::Time(0)};
+  bool has_dvl_is_valid_message_{false};
+  bool dvl_is_valid_{true};
+  bool use_dvl_invalid_velocity_zero_{true};
+  double dvl_invalid_velocity_zero_timeout_{1.0};
 
   ControllerBase::StateVector state_{ControllerBase::StateVector::Zero()};
   ControllerBase::StateVector desired_state_{
@@ -591,6 +756,10 @@ class ControllerROS {
   Eigen::Matrix<double, 6, 1> max_velocity_;
   Eigen::Matrix<double, 6, 1> max_acceleration_;
   Eigen::Matrix<double, 6, 1> max_acceleration_rate_;
+  Eigen::Vector2d dvl_invalid_position_kp_xy_;
+  Eigen::Vector2d dvl_invalid_position_kd_xy_;
+  Eigen::Vector2d dvl_invalid_velocity_kp_xy_;
+  Eigen::Vector2d dvl_invalid_velocity_kd_xy_;
   Eigen::Matrix<double, 12, 1>
       integral_clamp_limits_;           // Integral clamping limits
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis

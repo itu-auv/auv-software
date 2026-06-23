@@ -31,6 +31,14 @@ model:
 kp: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 ki: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 kd: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+# Used for x/y position and vx/vy velocity when DVL has been invalid long
+# enough to zero velocity state.
+dvl_invalid_position_kp_xy: [1.0, 1.0]
+dvl_invalid_position_kd_xy: [0.0, 0.0]
+dvl_invalid_velocity_kp_xy: [0.0, 0.0]
+dvl_invalid_velocity_kd_xy: [0.0, 0.0]
+
 integral_clamp_limits: [0.0, 0.0, 100.0, 100.0, 100.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 100.0]
 
 max_velocity: [0.4, 0.4, 0.4, 0.4, 0.4, 0.4]
