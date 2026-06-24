@@ -5,7 +5,7 @@ import math
 import cv2
 import numpy as np
 import rospy
-from cv_bridge import CvBridge
+from sensor_msgs.msg import CompressedImage
 
 
 def _invalid_result(debug_image=None):
@@ -75,6 +75,20 @@ def _geometry_metric_lines(geometry: dict):
         lines.append(f"r={radius_px:.1f} d={diameter_px:.1f}")
 
     return lines
+
+
+def _cv2_to_compressed_msg(image: np.ndarray, header, fmt: str = "jpeg"):
+    msg = CompressedImage()
+    msg.header = header
+    msg.format = fmt
+
+    ext = ".jpg" if fmt in ("jpeg", "jpg") else f".{fmt}"
+    ok, encoded = cv2.imencode(ext, image)
+    if not ok:
+        raise RuntimeError(f"cv2.imencode failed for {fmt}")
+
+    msg.data = encoded.tobytes()
+    return msg
 
 
 def findposes_rect(mask: np.ndarray, last_yaw: float = None, debug: bool = False):
@@ -240,15 +254,13 @@ def publish_debug_image(
             cv2.LINE_AA,
         )
 
-    if bridge is None:
-        bridge = CvBridge()
-
     try:
-        out_msg = bridge.cv2_to_imgmsg(vis, encoding="bgr8")
-        out_msg.header = header
+        out_msg = _cv2_to_compressed_msg(vis, header)
         publisher.publish(out_msg)
     except Exception as e:
-        rospy.logwarn_throttle(5.0, f"Failed to publish segment pose debug image: {e}")
+        rospy.logwarn_throttle(
+            5.0, f"Failed to publish compressed segment pose debug image: {e}"
+        )
 
 
 def publish_merged_debug_image(publisher, header, debug_items, bridge=None):
@@ -346,14 +358,10 @@ def publish_merged_debug_image(publisher, header, debug_items, bridge=None):
                 cv2.LINE_AA,
             )
 
-    if bridge is None:
-        bridge = CvBridge()
-
     try:
-        out_msg = bridge.cv2_to_imgmsg(vis, encoding="bgr8")
-        out_msg.header = header
+        out_msg = _cv2_to_compressed_msg(vis, header)
         publisher.publish(out_msg)
     except Exception as e:
         rospy.logwarn_throttle(
-            5.0, f"Failed to publish merged segment pose debug image: {e}"
+            5.0, f"Failed to publish compressed merged segment pose debug image: {e}"
         )

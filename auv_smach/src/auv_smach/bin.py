@@ -101,7 +101,7 @@ class CheckForDropAreaState(smach.State):
                         self.source_frame,
                         frame,
                         rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                        rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                        rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
                     )
                     rospy.loginfo(
                         f"[CheckForDropAreaState] Target selection '{self.target_selection}': Transform from '{self.source_frame}' to '{frame}' found."
@@ -265,7 +265,6 @@ class BinSecondTrialState(smach.StateMachine):
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",
                     full_rotation=False,
-                    set_frame_duration=5.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
@@ -381,7 +380,6 @@ class BinTaskState(smach.State):
                     look_at_frame="bin_whole_link",
                     alignment_frame="bin_search",
                     full_rotation=False,
-                    set_frame_duration=7.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
