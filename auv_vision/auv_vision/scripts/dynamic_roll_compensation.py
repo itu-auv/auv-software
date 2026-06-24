@@ -32,6 +32,11 @@ class CameraRollStabilizer:
         self.sync_queue = int(rospy.get_param("~sync_queue_size", 10))
         self.sync_slop = float(rospy.get_param("~sync_slop", 0.05))  # seconds
 
+        # If no odometry arrives within this window, publish a placeholder image
+        # telling the operator to start localization.
+        self.odom_timeout = float(rospy.get_param("~odom_timeout", 1.0))
+        self.last_odom_time = rospy.Time(0)
+
         # Only recompute warp matrix if angle changes beyond this (degrees) or dims change
         self.recalc_threshold_deg = float(rospy.get_param("~recalc_threshold_deg", 0.1))
 
@@ -59,6 +64,10 @@ class CameraRollStabilizer:
             [img_sub, odom_sub], queue_size=self.sync_queue, slop=self.sync_slop
         )
         self.sync.registerCallback(self.synced_callback)
+
+        # Track odom arrival independently; timer publishes placeholder if stale.
+        rospy.Subscriber("odometry", Odometry, self._odom_watchdog, queue_size=1)
+        rospy.Timer(rospy.Duration(0.5), self._placeholder_tick)
 
     def synced_callback(self, img_msg: Image, odom_msg: Odometry):
         """
@@ -141,6 +150,29 @@ class CameraRollStabilizer:
             rospy.logwarn_throttle(
                 5.0, "[camera_roll_stabilizer] CvBridge encode failed: %s", str(e)
             )
+
+    def _odom_watchdog(self, odom_msg: Odometry):
+        self.last_odom_time = odom_msg.header.stamp
+
+    def _placeholder_tick(self, _event):
+        if (rospy.Time.now() - self.last_odom_time).to_sec() < self.odom_timeout:
+            return
+
+        h, w = 480, 640
+        placeholder = np.zeros((h, w, 3), dtype=np.uint8)
+        text = "bro localization baslat"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 1.0
+        thickness = 2
+        (text_w, text_h), _ = cv2.getTextSize(text, font, font_scale, thickness)
+        org = ((w - text_w) // 2, (h + text_h) // 2)
+        cv2.putText(
+            placeholder, text, org, font, font_scale, (0, 0, 255), thickness, cv2.LINE_AA
+        )
+
+        out_msg = self.bridge.cv2_to_imgmsg(placeholder, encoding="bgr8")
+        out_msg.header.stamp = rospy.Time.now()
+        self.img_pub.publish(out_msg)
 
     # ---------------- Helpers ----------------
     def _broadcast_stabilized_tf(self, stamp, correction_rad: float):
