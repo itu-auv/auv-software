@@ -75,7 +75,7 @@ objects:
   # Torpedo holes - 4 red circles printed on the torpedo_map texture.
   # Two small (0.100 m diameter) and two large (0.125 m diameter).
   # All published as ID 5 - the pose estimator sorts upper/lower by image Y.
-  - class_id: 5
+  - class_id: 0
     name: torpedo_hole
     cameras: [torpedo]
     gazebo_model: robosub_torpedo
@@ -84,7 +84,7 @@ objects:
       shape: circle
       args: [0, 0.0500, 0.0500]
 
-  - class_id: 5
+  - class_id: 0
     name: torpedo_hole
     cameras: [torpedo]
     gazebo_model: robosub_torpedo
@@ -93,7 +93,7 @@ objects:
       shape: circle
       args: [0, 0.0626, 0.0626]
 
-  - class_id: 5
+  - class_id: 0
     name: torpedo_hole
     cameras: [torpedo]
     gazebo_model: robosub_torpedo
@@ -102,7 +102,7 @@ objects:
       shape: circle
       args: [0, 0.0500, 0.0500]
 
-  - class_id: 5
+  - class_id: 0
     name: torpedo_hole
     cameras: [torpedo]
     gazebo_model: robosub_torpedo

@@ -127,7 +127,7 @@ class ReferencePosePublisherNode:
             rospy.get_param("~tf_lookup_timeout", 0.2)
         )
         self.tf_freshness_threshold = rospy.Duration(
-            rospy.get_param("~tf_freshness_threshold", 0.2)
+            rospy.get_param("~tf_freshness_threshold", 0.4)
         )
 
         self.killswitch_sub = rospy.Subscriber(

@@ -119,7 +119,7 @@ class CheckBottleLinkState(smach.State):
                     self.source_frame,
                     self.target_frame,
                     rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
-                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.2)),
+                    rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
                 )
                 rospy.loginfo(
                     f"[CheckBottleLinkState] Transform from '{self.source_frame}' to '{self.target_frame}' found."
@@ -183,6 +183,7 @@ class PickAndDropSequence(smach.StateMachine):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         base_link = get_base_link()
+        keep_object_orientation = target_object in {"pill_link", "nutbolt_link"}
 
         with self:
             smach.StateMachine.add(
@@ -203,7 +204,8 @@ class PickAndDropSequence(smach.StateMachine):
                     target_frame=target_object,
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
-                    closest_yaw=True,
+                    keep_orientation=keep_object_orientation,
+                    closest_yaw=not keep_object_orientation,
                     confirm_duration=4.0,
                     timeout=30.0,
                     max_linear_velocity=0.1,
@@ -370,11 +372,19 @@ class PickAndDropSequence(smach.StateMachine):
 
 
 class OctagonTaskState(smach.State):
-    def __init__(self, octagon_depth: float, animal: str):
+    def __init__(
+        self,
+        octagon_depth: float,
+        animal: str,
+        start_from_table: bool = False,
+    ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.griper_mode = True
         self.base_link = get_base_link()
         self.animal_frame = f"gate_{animal}_link"
+        after_bottom_focus = (
+            "MOVE_GRIPPER" if start_from_table else "DYNAMIC_PATH_WITH_BOTTLE_CHECK"
+        )
         pick_and_drop_targets = [
             ("pill_link", "basket_redcross_segment_link"),
             ("nutbolt_link", "basket_warning_segment_link"),
@@ -412,9 +422,8 @@ class OctagonTaskState(smach.State):
                     look_at_frame="octagon_link",
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
-                    set_frame_duration=4.0,
                     source_frame=self.base_link,
-                    rotation_speed=0.2,
+                    rotation_speed=0.4,
                 ),
                 transitions={
                     "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER",
@@ -434,15 +443,6 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_OCTAGON_FRAME",
                 DelayState(delay_time=5.0),
-                transitions={
-                    "succeeded": "CLOSE_DETECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CLOSE_DETECTION",
-                SetDetectionFocusState(focus_object="none"),
                 transitions={
                     "succeeded": "SET_OCTAGON_DEPTH",
                     "preempted": "preempted",
@@ -482,22 +482,22 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "anana",
+                    "succeeded": "DISABLE_OCTAGON_FRAME_PUBLISHER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "anana",
+                "DISABLE_OCTAGON_FRAME_PUBLISHER",
                 OctagonFramePublisherServiceState(req=False),
                 transitions={
-                    "succeeded": "SET_batuhan_DEPTH",
+                    "succeeded": "SET_BATUHAN_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_batuhan_DEPTH",
+                "SET_BATUHAN_DEPTH",
                 SetDepthState(depth=-0.6),
                 transitions={
                     "succeeded": "ENABLE_BOTTOM_DETECTION",
@@ -527,7 +527,7 @@ class OctagonTaskState(smach.State):
                 "SET_BOTTOM_FOCUS_OCTAGON",
                 SetDetectionFocusBottomState(focus_object="octagon"),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
+                    "succeeded": after_bottom_focus,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -571,13 +571,13 @@ class OctagonTaskState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
-                    "succeeded": "baba",
+                    "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER_ON_TABLE",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "baba",
+                "ENABLE_OCTAGON_FRAME_PUBLISHER_ON_TABLE",
                 OctagonFramePublisherServiceState(req=True),
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_1",
@@ -621,6 +621,9 @@ class OctagonTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
+
+        if start_from_table:
+            self.state_machine.set_initial_state(["ENABLE_BOTTOM_DETECTION"])
 
     ##############################################################
 
@@ -858,7 +861,7 @@ class OctagonTaskState(smach.State):
     #         look_at_frame=self.animal_frame,
     #         alignment_frame="octagon_search_frame",
     #         full_rotation=False,
-    #         set_frame_duration=5.0,
+    #         stimeout=20.0,
     #         source_frame=self.base_link,
     #         rotation_speed=-0.2,
     #     ),
