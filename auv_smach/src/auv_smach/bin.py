@@ -168,7 +168,6 @@ class BinTaskState(smach.State):
                     look_at_frame="bin_basket_front_link",  #should entegrate kde frame here
                     alignment_frame="bin_search",
                     full_rotation=False,
-                    set_frame_duration=7.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
