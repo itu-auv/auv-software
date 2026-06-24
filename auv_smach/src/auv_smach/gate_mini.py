@@ -73,7 +73,7 @@ class NavigateThroughGateMiniState(smach.State):
         gate_search_depth: float,
         gate_exit_angle: float = 0.0,
         roll_depth: float = -0.8,
-        target_animal: str = "gate_shark_link",
+        target_animal: str = "gate_survey_repair_link",
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -153,7 +153,6 @@ class NavigateThroughGateMiniState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=5.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
@@ -204,7 +203,6 @@ class NavigateThroughGateMiniState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=5.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
