@@ -1,0 +1,8 @@
+std_msgs/Header header
+bool valid
+float32 center_error
+float32 gate_width_ratio
+float32 gate_height_ratio
+float32 red_center_x
+float32 white_center_x
+float32 confidence

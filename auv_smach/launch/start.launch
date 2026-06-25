@@ -54,6 +54,8 @@
             <param name="roll" value="$(arg roll)"/>
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
+            <param name="use_mini_slalom" value="$(eval arg('namespace') == 'taluy_mini')"/>
+            <param name="mini_slalom_gate_count" value="3"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -66,6 +68,9 @@
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
             <remap from="odometry" to="odometry"/>
             <remap from="cmd_vel" to="cmd_vel"/>
+            <remap from="slalom/run" to="slalom/run"/>
+            <remap from="slalom/active" to="slalom/active"/>
+            <remap from="slalom/visual_wrench" to="slalom/visual_wrench"/>
 
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>

@@ -7,6 +7,9 @@
   <arg name="command_timeout" default="0.1" />
   <arg name="config_file" default="$(find auv_control)/config/$(arg namespace)/default.yaml" />
   <arg name="start_visual_servoing" default="true" />
+  <arg name="start_mini_slalom" default="$(eval arg('namespace') == 'taluy_mini')" />
+  <arg name="controller_wrench_topic"
+    default="$(eval 'wrench_nominal' if arg('start_mini_slalom') else 'wrench')" />
 
   <include file="$(find auv_description)/launch/start_state_publisher.launch"
     if="$(arg start_state_publisher)">
@@ -26,7 +29,7 @@
       <remap from="acceleration" to="acceleration" />
       <remap from="enable" to="enable" />
 
-      <remap from="wrench" to="wrench" />
+      <remap from="wrench" to="$(arg controller_wrench_topic)" />
       <rosparam file="$(arg config_file)" command="load" ns="" />
     </node>
 
@@ -80,6 +83,35 @@
         <remap from="visual_servoing/error" to="visual_servoing/error" />
         <remap from="visual_servoing/current_yaw" to="visual_servoing/current_yaw" />
         <remap from="visual_servoing/target_yaw" to="visual_servoing/target_yaw" />
+      </node>
+    </group>
+
+    <group if="$(arg start_mini_slalom)">
+      <node pkg="auv_control" type="wrench_overlay_mux.py" name="wrench_overlay_mux"
+        output="screen">
+        <param name="body_frame" value="$(arg namespace)/base_link" />
+        <param name="rate_hz" value="$(arg rate)" />
+        <remap from="wrench_nominal" to="wrench_nominal" />
+        <remap from="slalom/visual_wrench" to="slalom/visual_wrench" />
+        <remap from="slalom/active" to="slalom/active" />
+        <remap from="wrench" to="wrench" />
+      </node>
+
+      <node pkg="auv_control" type="mini_slalom_controller.py"
+        name="mini_slalom_controller" output="screen">
+        <param name="body_frame" value="$(arg namespace)/base_link" />
+        <param name="rate_hz" value="$(arg rate)" />
+        <param name="target_timeout" value="0.35" />
+        <param name="overall_timeout" value="90.0" />
+        <param name="exit_duration" value="1.5" />
+        <param name="yaw_sign" value="-1.0" />
+        <remap from="slalom/target" to="slalom/target" />
+        <remap from="slalom/direction" to="slalom/direction" />
+        <remap from="slalom/visual_wrench" to="slalom/visual_wrench" />
+        <remap from="slalom/active" to="slalom/active" />
+        <remap from="slalom/run" to="slalom/run" />
+        <remap from="enable" to="enable" />
+        <remap from="cmd_vel" to="cmd_vel" />
       </node>
     </group>
 

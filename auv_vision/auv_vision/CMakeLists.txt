@@ -7,18 +7,22 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(catkin REQUIRED COMPONENTS
   auv_detection
+  auv_msgs
   rospy
   image_transport
   cv_bridge
   sensor_msgs
+  std_msgs
   tf
 )
 
 catkin_package(
   CATKIN_DEPENDS
     auv_detection
+    auv_msgs
     rospy
     sensor_msgs
+    std_msgs
     tf
 )
 
@@ -37,6 +41,12 @@ catkin_install_python(
     scripts/sim_keypoint_node.py
     scripts/depth_anything_trt_node.py
     scripts/depth_anything_zmq_client.py
+    scripts/mini_slalom_bbox_node.py
+    scripts/mini_slalom_core.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test)
+endif()

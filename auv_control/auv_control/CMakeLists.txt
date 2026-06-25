@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(catkin REQUIRED COMPONENTS
+  actionlib
   auv_common_lib
   auv_controllers
   auv_msgs
@@ -26,6 +27,7 @@ generate_dynamic_reconfigure_options(
   cfg/Controller.cfg
   cfg/VisualServoing.cfg
   cfg/AlignFrame.cfg
+  cfg/MiniSlalom.cfg
 )
 
 find_package(Eigen3 REQUIRED)
@@ -33,6 +35,7 @@ find_package(Eigen3 REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
   CATKIN_DEPENDS
+    actionlib
     auv_msgs
     dynamic_reconfigure
     geometry_msgs
@@ -51,6 +54,9 @@ catkin_install_python(PROGRAMS
   scripts/reference_pose_publisher.py
   scripts/battery_monitor_node.py
   scripts/visual_servoing_controller.py
+  scripts/mini_slalom_controller.py
+  scripts/mini_slalom_core.py
+  scripts/wrench_overlay_mux.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
@@ -95,3 +101,7 @@ install(DIRECTORY include/
   FILES_MATCHING PATTERN "*.h"
   PATTERN ".svn" EXCLUDE
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test)
+endif()

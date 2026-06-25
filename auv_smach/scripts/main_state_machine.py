@@ -6,7 +6,10 @@ import auv_smach
 import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
-from auv_smach.slalom import NavigateThroughSlalomState
+from auv_smach.slalom import (
+    NavigateThroughMiniSlalomState,
+    NavigateThroughSlalomState,
+)
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
@@ -96,6 +99,11 @@ class MainStateMachineNode:
         self.roll_depth = -0.8
 
         self.slalom_depth = -1.1
+        self.use_mini_slalom = rospy.get_param(
+            "~use_mini_slalom",
+            rospy.get_namespace().strip("/") == "taluy_mini",
+        )
+        self.mini_slalom_gate_count = rospy.get_param("~mini_slalom_gate_count", 3)
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -240,12 +248,24 @@ class MainStateMachineNode:
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (
-                NavigateThroughSlalomState,
-                {
-                    "slalom_depth": self.slalom_depth,
-                    "slalom_exit_angle": slalom_exit_angle_rad,
-                    "slalom_direction": self.slalom_direction,
-                },
+                (
+                    NavigateThroughMiniSlalomState
+                    if self.use_mini_slalom
+                    else NavigateThroughSlalomState
+                ),
+                (
+                    {
+                        "slalom_depth": self.slalom_depth,
+                        "slalom_direction": self.slalom_direction,
+                        "target_gate_count": self.mini_slalom_gate_count,
+                    }
+                    if self.use_mini_slalom
+                    else {
+                        "slalom_depth": self.slalom_depth,
+                        "slalom_exit_angle": slalom_exit_angle_rad,
+                        "slalom_direction": self.slalom_direction,
+                    }
+                ),
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,

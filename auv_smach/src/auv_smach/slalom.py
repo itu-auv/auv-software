@@ -11,6 +11,16 @@ from auv_smach.common import (
     AlignFrame,
 )
 from auv_smach.initialize import DelayState
+import actionlib
+import rospy
+from actionlib_msgs.msg import GoalStatus
+from geometry_msgs.msg import WrenchStamped
+from std_msgs.msg import Bool
+from auv_msgs.msg import MiniSlalomAction, MiniSlalomGoal
+from auv_msgs.srv import (
+    SetDetectionFocus,
+    SetDetectionFocusRequest,
+)
 
 
 class PublishSearchPointsState(smach_ros.ServiceState):
@@ -314,3 +324,83 @@ class NavigateThroughSlalomState(smach.State):
 
     def execute(self, userdata):
         return self.sm.execute()
+
+
+class NavigateThroughMiniSlalomState(smach.State):
+    """RoboSub 2026 image-space slalom task for Taluy Mini."""
+
+    def __init__(
+        self,
+        slalom_depth: float,
+        slalom_direction: str = "left",
+        target_gate_count: int = 3,
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.slalom_depth = slalom_depth
+        self.slalom_direction = slalom_direction
+        self.target_gate_count = target_gate_count
+        self.active_pub = rospy.Publisher("slalom/active", Bool, queue_size=1)
+        self.visual_wrench_pub = rospy.Publisher(
+            "slalom/visual_wrench", WrenchStamped, queue_size=1
+        )
+
+    @staticmethod
+    def _set_front_detection(enabled):
+        rospy.wait_for_service("vision/enable_front_camera_detections", timeout=5.0)
+        service = rospy.ServiceProxy("vision/enable_front_camera_detections", SetBool)
+        response = service(SetBoolRequest(data=enabled))
+        if not response.success:
+            raise rospy.ServiceException(response.message)
+
+    @staticmethod
+    def _set_focus(focus):
+        rospy.wait_for_service("vision/set_front_camera_focus", timeout=5.0)
+        service = rospy.ServiceProxy("vision/set_front_camera_focus", SetDetectionFocus)
+        response = service(SetDetectionFocusRequest(focus_object=focus))
+        if not response.success:
+            raise rospy.ServiceException(response.message)
+
+    def _cleanup(self):
+        self.active_pub.publish(False)
+        self.visual_wrench_pub.publish(WrenchStamped())
+        try:
+            self._set_focus("none")
+        except (rospy.ROSException, rospy.ServiceException) as exc:
+            rospy.logwarn("[MiniSlalom] Cleanup focus failed: %s", exc)
+
+    def execute(self, userdata):
+        depth_outcome = SetDepthState(depth=self.slalom_depth).execute(userdata)
+        if depth_outcome != "succeeded":
+            return depth_outcome
+
+        client = actionlib.SimpleActionClient("slalom/run", MiniSlalomAction)
+        try:
+            self._set_front_detection(True)
+            self._set_focus("slalom")
+            if not client.wait_for_server(rospy.Duration(8.0)):
+                rospy.logerr("[MiniSlalom] slalom/run action server unavailable")
+                return "aborted"
+
+            goal = MiniSlalomGoal(
+                direction=self.slalom_direction,
+                target_gate_count=self.target_gate_count,
+            )
+            client.send_goal(goal)
+            while not rospy.is_shutdown():
+                if self.preempt_requested():
+                    client.cancel_goal()
+                    client.wait_for_result(rospy.Duration(1.0))
+                    self.service_preempt()
+                    return "preempted"
+                if client.wait_for_result(rospy.Duration(0.1)):
+                    result = client.get_result()
+                    if client.get_state() == GoalStatus.SUCCEEDED:
+                        return "succeeded" if result and result.success else "aborted"
+                    return "aborted"
+            return "preempted"
+        except (rospy.ROSException, rospy.ServiceException) as exc:
+            rospy.logerr("[MiniSlalom] Setup or execution failed: %s", exc)
+            client.cancel_all_goals()
+            return "aborted"
+        finally:
+            self._cleanup()

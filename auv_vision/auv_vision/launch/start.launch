@@ -1,7 +1,21 @@
 <launch>
   <arg name="namespace" default="taluy" />
+  <arg name="start_mini_slalom" default="$(eval arg('namespace') == 'taluy_mini')" />
 
   <group ns="$(arg namespace)">
+    <node if="$(arg start_mini_slalom)"
+      pkg="auv_vision"
+      type="mini_slalom_bbox_node.py"
+      name="mini_slalom_bbox_node"
+      output="screen">
+      <remap from="yolo_result" to="/yolo_result_front" />
+      <remap from="slalom/target" to="slalom/target" />
+      <remap from="slalom/direction" to="slalom/direction" />
+      <param name="image_width" value="1280" />
+      <param name="image_height" value="720" />
+      <param name="default_direction" value="left" />
+    </node>
+
     <!-- YOLO Segmentation to Mask Node -->
     <node
       pkg="auv_vision"

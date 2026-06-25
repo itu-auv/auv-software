@@ -4,6 +4,7 @@
   <arg name="compressed" default="true"/>
   <arg name="verbose" default="false"/>
   <arg name="pub_camera_info" default="true"/>
+  <arg name="enable_yolo" default="true"/>
 
   <group ns="$(arg namespace)/cameras">
     <rosparam command="load" file="$(find auv_bringup)/config/cameras_$(arg namespace).yaml"/>
@@ -16,6 +17,10 @@
   </group>
   <include file="$(find auv_cam)/launch/inc/image_proc.launch.xml">
     <arg name="camera_namespace" value="$(arg namespace)/cameras/cam_front" />
+  </include>
+
+  <include if="$(arg enable_yolo)" file="$(find auv_detection)/launch/inc/tracker_mini.launch">
+    <arg name="namespace" value="$(arg namespace)"/>
   </include>
 
   <include file="$(find auv_cam)/launch/start_gst_camera.launch">

@@ -15,6 +15,7 @@ add_action_files(
   DIRECTORY action
   FILES
   FollowPath.action
+  MiniSlalom.action
 )
 
 add_message_files(
@@ -24,6 +25,7 @@ add_message_files(
   KeypointResult.msg
   PropsYaw.msg
   SegmentMeasurement.msg
+  SlalomTarget.msg
   TDOA.msg
 )
 

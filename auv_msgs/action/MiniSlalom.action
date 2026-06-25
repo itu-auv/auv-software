@@ -1,0 +1,13 @@
+# Goal
+string direction
+uint8 target_gate_count
+---
+# Result
+bool success
+string message
+uint8 gates_passed
+---
+# Feedback
+string state
+uint8 gates_passed
+float32 horizontal_error
