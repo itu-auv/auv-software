@@ -23,6 +23,11 @@ class MiniSlalomBboxNode:
             rospy.get_param("~max_separation_ratio", 0.95)
         )
         self.direction = rospy.get_param("~default_direction", "left")
+        rospy.loginfo(
+            "Mini slalom YOLO classes: red=%d white=%d",
+            self.red_class_id,
+            self.white_class_id,
+        )
 
         self.target_pub = rospy.Publisher("slalom/target", SlalomTarget, queue_size=1)
         rospy.Subscriber(
@@ -35,7 +40,7 @@ class MiniSlalomBboxNode:
             self.direction = msg.data
         else:
             rospy.logwarn_throttle(
-                2.0, "Ignoring invalid mini slalom direction: %s", msg.data
+                2.0, f"Ignoring invalid mini slalom direction: {msg.data}"
             )
 
     def yolo_callback(self, msg):

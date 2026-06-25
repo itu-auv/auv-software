@@ -68,7 +68,9 @@ class MiniSlalomControllerNode:
         self.config.align_error_threshold = config.align_error_threshold
         self.config.near_height_ratio = config.near_height_ratio
         self.config.near_width_ratio = config.near_width_ratio
-        self.config.pass_loss_duration = config.pass_loss_duration
+        self.config.near_confirm_duration = config.near_confirm_duration
+        self.config.pass_confirm_duration = config.pass_confirm_duration
+        self.config.pass_forward_force = config.pass_forward_force
         self.config.search_yaw_torque = config.search_yaw_torque
         return config
 
@@ -158,6 +160,9 @@ class MiniSlalomControllerNode:
                 target = self.get_target(now)
                 command = self.controller.update(now.to_sec(), target)
                 self.active_pub.publish(True)
+                # Heartbeats keep the nominal 6-DOF controller producing fresh
+                # depth/roll/pitch stabilization. The mux replaces only its
+                # planar Fx/Fy/Tz output while visual servoing is active.
                 self.enable_pub.publish(True)
                 self.cmd_vel_pub.publish(Twist())
                 self.publish_command(command.force_x, command.torque_z)
