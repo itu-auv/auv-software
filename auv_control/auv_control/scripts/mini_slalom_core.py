@@ -99,18 +99,29 @@ class SlalomController:
                 self.gates_passed,
             )
 
-        # A returning detection cancels the current pass attempt and requires
-        # a fresh aligned-near confirmation before another loss can count.
         pass_was_interrupted = self.lost_since is not None
-        self.lost_since = None
         aligned = abs(target.center_error) <= self.config.align_error_threshold
         near_and_aligned = aligned and (
             target.gate_height_ratio >= self.config.near_height_ratio
             or target.gate_width_ratio >= self.config.near_width_ratio
         )
-        if pass_was_interrupted:
+
+        # During blind-forward confirmation, an off-center edge flicker is
+        # expected as a pipe moves past the camera. Ignore it and preserve the
+        # timer. Only a near, aligned gate reappearing means the pass attempt
+        # should be cancelled.
+        if pass_was_interrupted and not near_and_aligned:
+            return ControlCommand(
+                self.config.pass_forward_force,
+                0.0,
+                "PASS_CONFIRM",
+                self.gates_passed,
+            )
+
+        self.lost_since = None
+        if pass_was_interrupted and near_and_aligned:
             self.pass_armed = False
-            self.near_since = now if near_and_aligned else None
+            self.near_since = now
 
         if not self.pass_armed and near_and_aligned:
             if self.near_since is None:

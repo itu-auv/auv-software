@@ -118,6 +118,40 @@ def test_detection_return_cancels_pass_confirmation():
     assert command.state == "SEARCH"
 
 
+def test_unaligned_flicker_does_not_cancel_pass_confirmation():
+    controller = CORE.SlalomController(
+        CORE.ControllerConfig(
+            align_error_threshold=0.2,
+            near_height_ratio=0.5,
+            near_confirm_duration=0.4,
+            pass_confirm_duration=0.8,
+            pass_forward_force=6.0,
+        )
+    )
+    controller.reset("left", 3)
+    near = CORE.Target(valid=True, center_error=0.0, gate_height_ratio=0.8)
+
+    controller.update(0.0, near)
+    controller.update(0.5, near)
+    assert controller.update(0.6, CORE.Target()).state == "PASS_CONFIRM"
+
+    edge_flicker = CORE.Target(
+        valid=True,
+        center_error=0.75,
+        gate_height_ratio=0.9,
+    )
+    command = controller.update(1.0, edge_flicker)
+    assert command.state == "PASS_CONFIRM"
+    assert command.force_x == 6.0
+    assert command.torque_z == 0.0
+    assert controller.pass_armed
+    assert controller.lost_since == 0.6
+
+    command = controller.update(1.5, CORE.Target())
+    assert command.gates_passed == 1
+    assert command.state == "SEARCH"
+
+
 def test_wrench_overlay_preserves_depth_roll_pitch():
     nominal = (1.0, 2.0, 3.0, 4.0, 5.0, 6.0)
     visual = (10.0, 0.0, 0.0, 0.0, 0.0, -7.0)
