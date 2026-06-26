@@ -17,6 +17,11 @@ import yaml
 _CFG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         "..", "config", "randomization")
 
+# Randomization categories the TUI/runner can toggle independently.
+#   spawn : x, y, z (+ placement constraint)   yaw : heading
+#   depth : z-origin depth offset              rates : IMU/DVL/pressure rates
+CATEGORIES = ("spawn", "yaw", "depth", "rates")
+
 
 def load_config(world="pool", cfg_dir=_CFG_DIR):
     """Load the (shared) randomization spec and the per-world object data."""
@@ -48,33 +53,56 @@ class Randomizer:
             meta={"mode": "nominal", "world": self.world["world"]},
         )
 
-    def sample(self, seed):
-        """Draw one reproducible episode configuration for the given seed."""
+    def sample(self, seed, enabled=None):
+        """Draw one reproducible episode configuration for the given seed.
+
+        `enabled` is the set of randomization categories to apply (subset of
+        CATEGORIES); disabled categories fall back to their nominal value. To
+        keep a seed reproducible regardless of which toggles are on, every value
+        is ALWAYS drawn (in a fixed order) and only then selected -- so toggling
+        a category never shifts the RNG stream for the others."""
+        if enabled is None:
+            enabled = set(CATEGORIES)
         rng = random.Random(seed)
         s = self.cfg["spawn"]
+        n = self.world["nominal"]
 
-        x, y, attempts, placed = self._sample_xy(rng)
-        z = rng.uniform(*self.world["spawn_z"])
-        roll = rng.uniform(s["roll"]["min"], s["roll"]["max"])
-        pitch = rng.uniform(s["pitch"]["min"], s["pitch"]["max"])
-        yaw = rng.uniform(s["yaw"]["min"], s["yaw"]["max"])
-
+        # always draw, fixed order
+        rx, ry, attempts, placed = self._sample_xy(rng)
+        rz = rng.uniform(*self.world["spawn_z"])
+        rroll = rng.uniform(s["roll"]["min"], s["roll"]["max"])
+        rpitch = rng.uniform(s["pitch"]["min"], s["pitch"]["max"])
+        ryaw = rng.uniform(s["yaw"]["min"], s["yaw"]["max"])
         d = self.cfg["depth_origin_offset"]
-        depth_off = rng.uniform(d["min"], d["max"]) if rng.random() < d["probability"] else 0.0
-        pool_depth = self.cfg["pool_depth_nominal"] + depth_off
-
+        rdepth = rng.uniform(d["min"], d["max"]) if rng.random() < d["probability"] else 0.0
         ur = self.cfg["update_rates"]
-        imu_rate = rng.choice(ur["imu"]["values"])
-        dvl_rate = rng.randint(ur["dvl"]["min"], ur["dvl"]["max"])
-        pressure_rate = rng.randint(ur["pressure"]["min"], ur["pressure"]["max"])
+        rimu = rng.choice(ur["imu"]["values"])
+        rdvl = rng.randint(ur["dvl"]["min"], ur["dvl"]["max"])
+        rpress = rng.randint(ur["pressure"]["min"], ur["pressure"]["max"])
+
+        # select per enabled category
+        spawn_on = "spawn" in enabled
+        x = rx if spawn_on else n["x"]
+        y = ry if spawn_on else n["y"]
+        z = rz if spawn_on else n["z"]
+        roll = rroll if spawn_on else 0.0
+        pitch = rpitch if spawn_on else 0.0
+        yaw = ryaw if "yaw" in enabled else n["yaw"]
+        depth_off = rdepth if "depth" in enabled else 0.0
+        imu_rate = rimu if "rates" in enabled else 20
+        dvl_rate = rdvl if "rates" in enabled else 20
+        pressure_rate = rpress if "rates" in enabled else 20
 
         return _resolved(
             x=x, y=y, z=z, roll=roll, pitch=pitch, yaw=yaw,
-            depth_origin_offset=depth_off, pool_depth=pool_depth,
+            depth_origin_offset=depth_off,
+            pool_depth=self.cfg["pool_depth_nominal"] + depth_off,
             imu_rate=imu_rate, dvl_rate=dvl_rate, pressure_rate=pressure_rate,
             meta={
-                "mode": "random", "world": self.world["world"], "seed": seed,
-                "xy_attempts": attempts, "xy_placed": placed,
+                "mode": "random" if enabled else "nominal",
+                "world": self.world["world"], "seed": seed,
+                "enabled": sorted(enabled),
+                "xy_attempts": attempts, "xy_placed": placed if spawn_on else None,
             },
         )
 

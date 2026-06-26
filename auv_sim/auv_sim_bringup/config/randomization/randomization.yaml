@@ -4,13 +4,12 @@
 # value (zero, identity, aligned, equal, default, in-range). Every knob below
 # exists to destroy one of those coincidences so the buggy code path runs.
 #
-# `randomize:=false` (episode_runner --no-randomize) reproduces today's exact
+# `--randomize none` (or legacy `--no-randomize`) reproduces today's exact
 # behaviour: all offsets 0, spawn pose = the per-world nominal in objects_*.yaml.
-# Nothing here changes the sim unless randomization is explicitly enabled.
 
 # Nominal pool depth used by the depth validity gate (pressure_odometry).
 # Must match /env/pool_depth in auv_bringup/config/environment.yaml so that
-# `--no-randomize` is identical to today. The depth-origin offset (below) is
+# `--randomize none` is identical to today. The depth-origin offset (below) is
 # ADDED to this so deep readings stay valid.
 pool_depth_nominal: 2.134
 
@@ -51,6 +50,24 @@ depth_origin_offset:
   distribution: uniform
   min: 8.0
   max: 20.0
+
+bag:
+  # Single run bag. Drop every native image/pointcloud/theora stream (these are
+  # huge); the only images kept are the cameras below, throttled + compressed
+  # onto /bag_cams/<name>/compressed (no "image"/"points"/"theora" in the name,
+  # so the exclude does not touch them). Everything else (odom, depth sensor,
+  # tf, cmd_vel, smach, markers, ...) is recorded.
+  # Drop native image/pointcloud/theora streams + the heaviest redundant
+  # firehoses (per-link ground truth, perf metrics). model_states is kept for
+  # ground truth; tf/clock stay. Keeps the single run bag small.
+  exclude_regex: ".*(image|points|theora|link_states|performance_metrics).*"
+  camera_rate_hz: 5
+  cameras:
+    # pool is an overhead 3rd-person cam; it only renders with the GUI, so in
+    # headless batch runs its helper idles (no /bag_cams/pool) -- harmless.
+    - { name: pool, topic: /pool_camera/image_raw }
+    - { name: bottom, topic: /taluy/cameras/cam_bottom/image_raw }
+    - { name: torpedo, topic: /taluy/cameras/cam_torpedo/image_raw }
 
 update_rates:
   # Differentiate the three sensor rates. They are all 20 Hz today, which hides
