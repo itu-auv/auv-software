@@ -20,6 +20,7 @@ from auv_smach.common import (
     SetDetectionState,
     SetDetectionFocusBottomState,
     DynamicPathWithTransformCheck,
+    AlignFrameWithTransformCheck,
 )
 
 from auv_smach.initialize import DelayState
@@ -66,6 +67,335 @@ class BinTransformServiceEnableState(smach_ros.ServiceState):
             SetBool,
             request=SetBoolRequest(data=req),
         )
+
+
+class CheckForDropAreaState(smach.State):
+    """Checks which bin drop area frame is available after DynamicPathWithTransformCheck.
+    Writes the found frame name to userdata.found_frame.
+    Priority order follows target_frames list (index 0 has highest priority)."""
+
+    def __init__(
+        self,
+        source_frame: str = "odom",
+        timeout: float = 2.0,
+        target_frames=None,
+    ):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["found_frame"],
+        )
+        self.source_frame = source_frame
+        self.timeout = rospy.Duration(timeout)
+        self.tf_buffer = get_tf_buffer()
+        self.target_frames = target_frames or ["bin_shark_link", "bin_sawfish_link"]
+
+        rospy.loginfo(
+            f"[CheckForDropAreaState] Frame priority: {self.target_frames}"
+        )
+
+    def execute(self, userdata) -> str:
+        start_time = rospy.Time.now()
+        rate = rospy.Rate(10)
+
+        while (rospy.Time.now() - start_time) < self.timeout:
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            for frame in self.target_frames:
+                try:
+                    lookup_fresh_transform(
+                        self.tf_buffer,
+                        self.source_frame,
+                        frame,
+                        rospy.Duration(rospy.get_param("~tf_lookup_timeout", 0.2)),
+                        rospy.Duration(rospy.get_param("~tf_freshness_threshold", 0.4)),
+                    )
+                    rospy.loginfo(
+                        f"[CheckForDropAreaState] Transform from '{self.source_frame}' to '{frame}' found."
+                    )
+                    userdata.found_frame = frame
+                    return "succeeded"
+                except (
+                    tf2_ros.LookupException,
+                    tf2_ros.ConnectivityException,
+                    tf2_ros.ExtrapolationException,
+                ):
+                    pass
+
+            rate.sleep()
+
+        rospy.logwarn(
+            f"[CheckForDropAreaState] Timeout: No drop area transforms found after {self.timeout.to_sec()} seconds."
+        )
+        return "aborted"
+
+
+class CheckTargetFrameAvailable(smach.State):
+    """Checks if the found_frame matches the primary target frame.
+    If yes, transitions to target_found. If not, transitions to need_search."""
+
+    def __init__(self, target_frame: str):
+        smach.State.__init__(
+            self,
+            outcomes=["target_found", "need_search", "preempted"],
+            input_keys=["found_frame"],
+        )
+        self.target_frame = target_frame
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+
+        found = userdata.found_frame
+        if found == self.target_frame:
+            rospy.loginfo(
+                f"[CheckTargetFrameAvailable] Primary target '{self.target_frame}' found."
+            )
+            return "target_found"
+        else:
+            rospy.logwarn(
+                f"[CheckTargetFrameAvailable] Found '{found}' but need '{self.target_frame}'. Searching..."
+            )
+            return "need_search"
+
+
+class BottomSearchServiceEnableState(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "toggle_bottom_search",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
+
+
+class DisableSearchAndSetFoundState(smach.State):
+    def __init__(self, target_frame: str):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["found_frame"],
+        )
+        self.target_frame = target_frame
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+
+        userdata.found_frame = self.target_frame
+
+        try:
+            service_client = rospy.ServiceProxy("toggle_bottom_search", SetBool)
+            service_client.wait_for_service(timeout=1.0)
+            service_client.call(SetBoolRequest(data=False))
+            return "succeeded"
+        except Exception as e:
+            rospy.logwarn(f"[DisableSearchAndSetFoundState] Service call failed: {e}")
+            return "succeeded"
+
+
+class BinSearchSequenceState(smach.StateMachine):
+    def __init__(self, base_link: str, target_frame: str):
+        super().__init__(
+            outcomes=["succeeded", "preempted", "aborted"],
+            output_keys=["found_frame"],
+        )
+        with self:
+            smach.StateMachine.add(
+                "ENABLE_BOTTOM_SEARCH",
+                BottomSearchServiceEnableState(True),
+                transitions={
+                    "succeeded": "ALIGN_SEARCH_FRONT",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                }
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_SEARCH_FRONT",
+                AlignFrameWithTransformCheck(
+                    source_frame=base_link + "/ball_dropper_1_link",
+                    target_frame="bin_search_front",
+                    transform_source_frame="odom",
+                    transform_target_frame=target_frame,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=20.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
+                    transform_timeout=20.0,
+                ),
+                transitions={
+                    "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
+                    "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
+                    "aborted": "ALIGN_SEARCH_BACK",
+                }
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_SEARCH_BACK",
+                AlignFrameWithTransformCheck(
+                    source_frame=base_link + "/ball_dropper_1_link",
+                    target_frame="bin_search_left",
+                    transform_source_frame="odom",
+                    transform_target_frame=target_frame,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=20.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
+                    transform_timeout=20.0,
+                ),
+                transitions={
+                    "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
+                    "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
+                    "aborted": "ALIGN_SEARCH_LEFT",
+                }
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_SEARCH_LEFT",
+                AlignFrameWithTransformCheck(
+                    source_frame=base_link + "/ball_dropper_1_link",
+                    target_frame="bin_search_left",
+                    transform_source_frame="odom",
+                    transform_target_frame=target_frame,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=20.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
+                    transform_timeout=20.0,
+                ),
+                transitions={
+                    "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
+                    "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
+                    "aborted": "ALIGN_SEARCH_RIGHT",
+                }
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_SEARCH_RIGHT",
+                AlignFrameWithTransformCheck(
+                    source_frame=base_link + "/ball_dropper_1_link",
+                    target_frame="bin_search_right",
+                    transform_source_frame="odom",
+                    transform_target_frame=target_frame,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=20.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
+                    transform_timeout=20.0,
+                ),
+                transitions={
+                    "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
+                    "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
+                    "aborted": "DISABLE_BOTTOM_SEARCH_ABORTED",
+                }
+            )
+
+            smach.StateMachine.add(
+                "DISABLE_BOTTOM_SEARCH_SUCCESS",
+                DisableSearchAndSetFoundState(target_frame),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "succeeded",
+                }
+            )
+
+            smach.StateMachine.add(
+                "DISABLE_BOTTOM_SEARCH_PREEMPTED",
+                BottomSearchServiceEnableState(False),
+                transitions={
+                    "succeeded": "preempted",
+                    "preempted": "preempted",
+                    "aborted": "preempted",
+                }
+            )
+
+            smach.StateMachine.add(
+                "DISABLE_BOTTOM_SEARCH_ABORTED",
+                BottomSearchServiceEnableState(False),
+                transitions={
+                    "succeeded": "aborted",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                }
+            )
+
+
+
+class SetAlignToFoundState(smach.State):
+    """Reads found_frame from userdata and dynamically creates an AlignFrame
+    to align the ball_dropper source frame to the found target frame."""
+
+    def __init__(
+        self,
+        source_frame: str = None,
+        dist_threshold: float = 0.1,
+        yaw_threshold: float = 0.1,
+        confirm_duration: float = 4.0,
+        timeout: float = 60.0,
+        cancel_on_success: bool = False,
+        keep_orientation: bool = True,
+        max_linear_velocity: float = 0.1,
+        max_angular_velocity: float = 0.1,
+    ):
+        super().__init__(
+            outcomes=["succeeded", "preempted", "aborted"],
+            input_keys=["found_frame"],
+        )
+        if source_frame is None:
+            source_frame = f"{get_base_link()}/ball_dropper_1_link"
+        self.source_frame = source_frame
+        self.dist_threshold = dist_threshold
+        self.yaw_threshold = yaw_threshold
+        self.confirm_duration = confirm_duration
+        self.timeout = timeout
+        self.cancel_on_success = cancel_on_success
+        self.keep_orientation = keep_orientation
+        self.max_linear_velocity = max_linear_velocity
+        self.max_angular_velocity = max_angular_velocity
+
+    def execute(self, userdata):
+        if self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+
+        if "found_frame" not in userdata or not userdata.found_frame:
+            rospy.logerr("[SetAlignToFoundState] No found_frame in userdata")
+            return "aborted"
+
+        target_frame = userdata.found_frame
+        rospy.loginfo(f"[SetAlignToFoundState] Aligning to '{target_frame}'")
+
+        align_state = AlignFrame(
+            source_frame=self.source_frame,
+            target_frame=target_frame,
+            dist_threshold=self.dist_threshold,
+            yaw_threshold=self.yaw_threshold,
+            confirm_duration=self.confirm_duration,
+            timeout=self.timeout,
+            cancel_on_success=self.cancel_on_success,
+            keep_orientation=self.keep_orientation,
+            max_linear_velocity=self.max_linear_velocity,
+            max_angular_velocity=self.max_angular_velocity,
+        )
+        return align_state.execute(userdata)
 
 
 ###############################################################################
@@ -270,38 +600,51 @@ class BinTaskState(smach.State):
                     max_linear_velocity=0.2,
                 ),
                 transitions={
-                    "succeeded": "ALLIGN_TO_INITAL_SELECTION",
+                    "succeeded": "CHECK_DROP_AREA",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALLIGN_TO_INITAL_SELECTION",
-                AlignFrame(
-                    source_frame=self.base_link+"/ball_dropper_1_link",
-                    target_frame=target_frames[0],
-                    angle_offset=0.0,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=4.0,
-                    timeout=60.0,
-                    keep_orientation=True,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.1,
-                    cancel_on_success=False,
+                "CHECK_DROP_AREA",
+                CheckForDropAreaState(
+                    source_frame="odom",
+                    timeout=2.0,
+                    target_frames=target_frames,
                 ),
                 transitions={
-                    "succeeded": "SET_BALL_DROP_DEPTH",
+                    "succeeded": "CHECK_TARGET_FRAME",
                     "preempted": "preempted",
-                    "aborted": "ALIGN_TO_SECOND_DETECTION",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ALIGN_TO_SECOND_DETECTION",
-                AlignFrame(
-                    source_frame=self.base_link,
-                    target_frame=target_frames[1],
-                    angle_offset=0.0,
+                "CHECK_TARGET_FRAME",
+                CheckTargetFrameAvailable(
+                    target_frame=target_frames[0],
+                ),
+                transitions={
+                    "target_found": "ALIGN_TO_PRIMARY_TARGET",
+                    "need_search": "SEARCH_FOR_TARGET",
+                    "preempted": "preempted",
+                },
+            )
+            smach.StateMachine.add(
+                "SEARCH_FOR_TARGET",
+                BinSearchSequenceState(
+                    base_link=self.base_link,
+                    target_frame=target_frames[0],
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_PRIMARY_TARGET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_PRIMARY_TARGET",
+                SetAlignToFoundState(
+                    source_frame=self.base_link + "/ball_dropper_1_link",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=4.0,
@@ -338,15 +681,6 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "WAIT_FOR_BALL_DROP_1",
                 DelayState(delay_time=5.0),
-                transitions={
-                    "succeeded": "close_detection",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "close_detection",
-                SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
                     "succeeded": "ALLIGN_TO_SECOND_BASKET",
                     "preempted": "preempted",

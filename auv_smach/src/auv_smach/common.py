@@ -1784,3 +1784,68 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
                     allow_mutli_check_goal=allow_mutli_check_goal,
                 ),
             )
+
+
+class AlignFrameWithTransformCheck(smach.Concurrence):
+
+    def __init__(
+        self,
+        source_frame,
+        target_frame,
+        transform_source_frame: str,
+        transform_target_frame,
+        angle_offset=0.0,
+        dist_threshold=0.1,
+        yaw_threshold=0.1,
+        timeout=30.0,
+        cancel_on_success=False,
+        confirm_duration=0.0,
+        keep_orientation=False,
+        max_linear_velocity=None,
+        max_angular_velocity=None,
+        use_frame_depth=False,
+        closest_yaw=False,
+        transform_timeout: float = 60.0,
+        allow_mutli_check_goal: bool = False,
+    ):
+        super().__init__(
+            outcomes=["succeeded", "preempted", "aborted"],
+            default_outcome="aborted",
+            outcome_map={
+                "succeeded": {"CHECK_FOR_TRANSFORM": "succeeded"},
+                "preempted": {"ALIGN_FRAME": "preempted"},
+                "aborted": {"ALIGN_FRAME": "aborted"},
+            },
+            child_termination_cb=lambda outcome_map: True,
+        )
+
+        with self:
+            smach.Concurrence.add(
+                "ALIGN_FRAME",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=target_frame,
+                    angle_offset=angle_offset,
+                    dist_threshold=dist_threshold,
+                    yaw_threshold=yaw_threshold,
+                    timeout=timeout,
+                    cancel_on_success=cancel_on_success,
+                    confirm_duration=confirm_duration,
+                    keep_orientation=keep_orientation,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                    use_frame_depth=use_frame_depth,
+                    closest_yaw=closest_yaw,
+                ),
+            )
+
+            smach.Concurrence.add(
+                "CHECK_FOR_TRANSFORM",
+                CheckForTransformState(
+                    source_frame=transform_source_frame,
+                    target_frame=transform_target_frame,
+                    timeout=transform_timeout,
+                    allow_mutli_check_goal=allow_mutli_check_goal,
+                ),
+            )
+
