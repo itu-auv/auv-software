@@ -218,31 +218,8 @@ class BinSearchSequenceState(smach.StateMachine):
             smach.StateMachine.add(
                 "ALIGN_SEARCH_FRONT",
                 AlignFrameWithTransformCheck(
-                    source_frame=base_link + "/ball_dropper_1_link",
+                    source_frame=base_link,
                     target_frame="bin_search_front",
-                    transform_source_frame="odom",
-                    transform_target_frame=target_frame,
-                    dist_threshold=0.1,
-                    yaw_threshold=0.1,
-                    confirm_duration=4.0,
-                    timeout=20.0,
-                    keep_orientation=True,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.1,
-                    transform_timeout=20.0,
-                ),
-                transitions={
-                    "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
-                    "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
-                    "aborted": "ALIGN_SEARCH_BACK",
-                }
-            )
-
-            smach.StateMachine.add(
-                "ALIGN_SEARCH_BACK",
-                AlignFrameWithTransformCheck(
-                    source_frame=base_link + "/ball_dropper_1_link",
-                    target_frame="bin_search_left",
                     transform_source_frame="odom",
                     transform_target_frame=target_frame,
                     dist_threshold=0.1,
@@ -264,8 +241,31 @@ class BinSearchSequenceState(smach.StateMachine):
             smach.StateMachine.add(
                 "ALIGN_SEARCH_LEFT",
                 AlignFrameWithTransformCheck(
-                    source_frame=base_link + "/ball_dropper_1_link",
+                    source_frame=base_link,
                     target_frame="bin_search_left",
+                    transform_source_frame="odom",
+                    transform_target_frame=target_frame,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=20.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
+                    transform_timeout=20.0,
+                ),
+                transitions={
+                    "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
+                    "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
+                    "aborted": "ALIGN_SEARCH_BACK",
+                }
+            )
+
+            smach.StateMachine.add(
+                "ALIGN_SEARCH_BACK",
+                AlignFrameWithTransformCheck(
+                    source_frame=base_link,
+                    target_frame="bin_search_back",
                     transform_source_frame="odom",
                     transform_target_frame=target_frame,
                     dist_threshold=0.1,
@@ -287,7 +287,7 @@ class BinSearchSequenceState(smach.StateMachine):
             smach.StateMachine.add(
                 "ALIGN_SEARCH_RIGHT",
                 AlignFrameWithTransformCheck(
-                    source_frame=base_link + "/ball_dropper_1_link",
+                    source_frame=base_link,
                     target_frame="bin_search_right",
                     transform_source_frame="odom",
                     transform_target_frame=target_frame,
