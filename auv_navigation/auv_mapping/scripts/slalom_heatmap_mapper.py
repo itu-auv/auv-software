@@ -225,6 +225,7 @@ class SlalomHeatmapMapper:
         self.object_tfs = []
         self.waypoint_tfs = []
         self.points = []
+        self.waypoints_search_frame = []
         self.collecting = False
         self.i = 0
         self.heatmap_vis = None
@@ -385,6 +386,7 @@ class SlalomHeatmapMapper:
             self.slalom_rows = []
             self.object_tfs = []
             self.waypoint_tfs = []
+            self.waypoints_search_frame = []
             self.collecting = True
             self.i = 0
             self.last_heatmap_build_time = 0.0
@@ -418,6 +420,13 @@ class SlalomHeatmapMapper:
     def publish_waypoints_callback(self, req):
         if self.slalom_rows:
             self.waypoint_tfs = self.build_waypoint_transforms(self.slalom_rows)
+            heatmap_data = self.build_heatmap_data()
+            if heatmap_data is not None:
+                self.heatmap_vis = self.build_heatmap_visualization(
+                    heatmap_data["heatmap"], heatmap_data["pixel_points"]
+                )
+                self.draw_waypoints_on_heatmap(heatmap_data)
+                self.publish_heatmap()
 
         if not self.waypoint_tfs:
             return SetBoolResponse(success=False, message="No waypoints available")
@@ -434,6 +443,13 @@ class SlalomHeatmapMapper:
         self.slalom_direction = config.slalom_direction
         if self.slalom_rows:
             self.waypoint_tfs = self.build_waypoint_transforms(self.slalom_rows)
+            heatmap_data = self.build_heatmap_data()
+            if heatmap_data is not None:
+                self.heatmap_vis = self.build_heatmap_visualization(
+                    heatmap_data["heatmap"], heatmap_data["pixel_points"]
+                )
+                self.draw_waypoints_on_heatmap(heatmap_data)
+                self.publish_heatmap()
         rospy.loginfo(f"Slalom direction updated to: {self.slalom_direction}")
 
     def get_all_pipe_positions(self, frame_prefix):
@@ -674,6 +690,7 @@ class SlalomHeatmapMapper:
             self.slalom_rows = []
             self.object_tfs = []
             self.waypoint_tfs = []
+            self.waypoints_search_frame = []
             return
 
         heatmap = heatmap_data["heatmap"]
@@ -737,6 +754,7 @@ class SlalomHeatmapMapper:
         self.object_tfs = tf_group.object_tfs
         self.waypoint_tfs = tf_group.waypoint_tfs
 
+        self.draw_waypoints_on_heatmap(heatmap_data)
         self.publish_heatmap()
 
     def build_slalom_rows(
@@ -810,6 +828,7 @@ class SlalomHeatmapMapper:
     ) -> List[TransformStamped]:
         transforms = []
         side = self.get_selected_waypoint_side()
+        self.waypoints_search_frame = []
 
         for i, row in enumerate(rows):
             side_point = row.white_left if side == "left" else row.white_right
@@ -834,6 +853,7 @@ class SlalomHeatmapMapper:
                 )
                 continue
             yaw = math.atan2(v_forward[1], v_forward[0])
+            self.waypoints_search_frame.append((pos_wp[0], pos_wp[1], yaw))
             q = transformations.quaternion_from_euler(0, 0, yaw)
 
             try:
@@ -910,6 +930,83 @@ class SlalomHeatmapMapper:
         t.transform.translation.z = pose_in_odom.pose.position.z
         t.transform.rotation = pose_in_odom.pose.orientation
         return t
+
+    def world_to_pixel(self, wx, wy, heatmap_data):
+        scale = heatmap_data["scale"]
+        x_max = heatmap_data["x_max"]
+        y_max = heatmap_data["y_max"]
+        width = heatmap_data["width"]
+        height = heatmap_data["height"]
+
+        u = int(
+            (y_max - wy) * scale
+            + (self.heatmap_image_width_px - height * scale) / 2
+        )
+        v = int(
+            (x_max - wx) * scale
+            + (self.heatmap_image_height_px - width * scale) / 2
+        )
+        return u, v
+
+    def draw_waypoints_on_heatmap(self, heatmap_data):
+        if self.heatmap_vis is None or not self.waypoints_search_frame:
+            return
+
+        for i, (wx, wy, yaw) in enumerate(self.waypoints_search_frame):
+            u, v = self.world_to_pixel(wx, wy, heatmap_data)
+
+            # Draw arrow representing yaw
+            arrow_length = 30  # pixels
+            arrow_end_u = int(u + arrow_length * (-math.sin(yaw)))
+            arrow_end_v = int(v + arrow_length * (-math.cos(yaw)))
+
+            # Black outline for arrow
+            cv2.arrowedLine(
+                self.heatmap_vis,
+                (u, v),
+                (arrow_end_u, arrow_end_v),
+                (0, 0, 0),
+                5,
+                tipLength=0.3,
+            )
+            # Green arrow
+            cv2.arrowedLine(
+                self.heatmap_vis,
+                (u, v),
+                (arrow_end_u, arrow_end_v),
+                (0, 255, 0),
+                2,
+                tipLength=0.3,
+            )
+
+            # Black outline for waypoint center point
+            cv2.circle(self.heatmap_vis, (u, v), 6, (0, 0, 0), -1)
+            # Green center point
+            cv2.circle(self.heatmap_vis, (u, v), 4, (0, 255, 0), -1)
+
+            # Text label shadow
+            label = f"WP {i}"
+            cv2.putText(
+                self.heatmap_vis,
+                label,
+                (u + 8, v + 4),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (0, 0, 0),
+                3,
+                cv2.LINE_AA,
+            )
+            # Text label
+            cv2.putText(
+                self.heatmap_vis,
+                label,
+                (u + 8, v + 4),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (255, 255, 255),
+                1,
+                cv2.LINE_AA,
+            )
 
     def build_heatmap_visualization(self, heatmap, pixel_points):
         heatmap_vis = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
