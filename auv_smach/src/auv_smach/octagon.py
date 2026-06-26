@@ -34,7 +34,7 @@ class GripperAngleOpenState(smach.State):
             self,
             outcomes=["succeeded", "preempted", "aborted"],
         )
-        self.pub = rospy.Publisher("actuators/gripper/set_angle", UInt16, queue_size=1)
+        self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
         self.angle_value = 2400
 
     def execute(self, userdata) -> str:
@@ -63,7 +63,7 @@ class GripperAngleCloseState(smach.State):
             self,
             outcomes=["succeeded", "preempted", "aborted"],
         )
-        self.pub = rospy.Publisher("actuators/gripper/set_angle", UInt16, queue_size=1)
+        self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
         self.angle_value = 1300
 
     def execute(self, userdata) -> str:
@@ -377,6 +377,7 @@ class OctagonTaskState(smach.State):
         octagon_depth: float,
         animal: str,
         octagon_search_frame: str,
+        octagon_role_frame: str,
         start_from_table: bool = False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -384,6 +385,7 @@ class OctagonTaskState(smach.State):
         self.base_link = get_base_link()
         self.octagon_search_frame = octagon_search_frame
         self.animal_frame = f"gate_{animal}_link"
+        self.octagon_role_frame = octagon_role_frame
         after_bottom_focus = (
             "MOVE_GRIPPER" if start_from_table else "DYNAMIC_PATH_WITH_BOTTLE_CHECK"
         )
@@ -421,7 +423,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "FIND_AIM_OCTAGON",
                 SearchForPropState(
-                    look_at_frame=self.octagon_search_frame,
+                    look_at_frame="octagon_link",
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     source_frame=self.base_link,
@@ -617,6 +619,72 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "PICK_AND_DROP_SEQUENCE_4",
                 PickAndDropSequence(*pick_and_drop_targets[3]),
+                transitions={
+                    "succeeded": "OCTAGON_FACING_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "OCTAGON_FACING_DEPTH",
+                SetDepthState(
+                    depth=-0.4,
+                    max_velocity=0.1,
+                    depth_threshold=0.05,
+                    confirm_duration=2.0,
+                ),
+                transitions={
+                    "succeeded": "ROTATE_THREE_TURNS",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ROTATE_THREE_TURNS",
+                AlignAndCreateRotatingFrame(
+                    source_frame=self.base_link,
+                    rotating_frame_name="animal_search_frame",
+                    rotation_period=15,
+                    rotation_count=3,
+                ),
+                transitions={
+                    "succeeded": "SEARCH_FOR_ROLE_TARGET",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SEARCH_FOR_ROLE_TARGET",
+                SearchForPropState(
+                    look_at_frame=self.octagon_role_frame,
+                    alignment_frame="octagon_search_frame",
+                    full_rotation=False,
+                    source_frame=self.base_link,
+                    rotation_speed=-0.2,
+                ),
+                transitions={
+                    "succeeded": "FINAL_SURFACE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FINAL_SURFACE",
+                SetDepthState(
+                    depth=-0.2,
+                    max_velocity=0.1,
+                    depth_threshold=0.05,
+                    confirm_duration=2.0,
+                ),
+                transitions={
+                    "succeeded": "FINISHED_OCTAGON_TASK",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FINISHED_OCTAGON_TASK",
+                SetDepthState(depth=-0.5, max_velocity=0.2, confirm_duration=1.0),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -860,7 +928,7 @@ class OctagonTaskState(smach.State):
     # smach.StateMachine.add(
     #     "c",
     #     SearchForPropState(
-    #         look_at_frame=self.animal_frame,
+    #         look_at_frame=self.octagon_role_frame,
     #         alignment_frame="octagon_search_frame",
     #         full_rotation=False,
     #         stimeout=20.0,

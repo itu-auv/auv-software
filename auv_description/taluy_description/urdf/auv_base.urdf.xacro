@@ -73,7 +73,7 @@
     />
 
     <!-- Parallel Gripper -->
-    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.101 0.0 -0.418" mount_rpy="0 0 0" mass_scale="0.001"/>
+    <xacro:parallel_gripper namespace="${namespace}" parent_link="${namespace}/base_link" mount_xyz="-0.102 0.0 -0.425" mount_rpy="0 0 0" mass_scale="0.001"/>
     <!-- <link name="base_footprint">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
@@ -109,7 +109,7 @@
     <xacro:torpedo_camera
       name="${namespace}/base_link/torpedo_camera"
       parent="${namespace}/base_link"
-      position="-0.38970 0.1 -0.142301"
+      position="-0.453292 0.1 -0.150301"
       orientation="0.0 0.0 ${math.pi}"
       use_models="$(arg use_models)"
     />
