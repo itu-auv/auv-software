@@ -1,0 +1,5 @@
+bool enable
+float64 target
+---
+bool success
+string message
