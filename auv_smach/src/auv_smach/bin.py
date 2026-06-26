@@ -498,7 +498,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_BIN",
                 SearchForPropState(
-                    look_at_frame="bin_basket_front_link",  #should entegrate kde frame here
+                    look_at_frame=self.bin_search_frame,  #should entegrate kde frame here
                     alignment_frame="bin_search",
                     full_rotation=False,
                     source_frame=self.base_link,
