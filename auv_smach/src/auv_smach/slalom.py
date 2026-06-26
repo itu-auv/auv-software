@@ -94,7 +94,7 @@ class NavigateThroughSlalomState(smach.State):
                     look_at_frame="slalom_red_pipe_link",
                     alignment_frame="sus",
                     full_rotation=False,
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link_180",
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -110,7 +110,7 @@ class NavigateThroughSlalomState(smach.State):
                     look_at_frame="slalom_white_pipe_link",
                     alignment_frame="sus",
                     full_rotation=False,
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link_180",
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -146,7 +146,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_SEQUENCE_START",
                 AlignFrame(
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link_180",
                     target_frame="slalom_search_start",
                     confirm_duration=2.0,
                 ),
@@ -160,7 +160,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_FIRST_SEARCH",
                 AlignFrame(
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link_180",
                     target_frame=f"slalom_search_{first_side}",
                     confirm_duration=2.0,
                     max_linear_velocity=0.2,
@@ -176,7 +176,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_SECOND_SEARCH",
                 AlignFrame(
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link_180",
                     target_frame=f"slalom_search_{second_side}",
                     confirm_duration=2.0,
                     max_linear_velocity=0.2,
@@ -223,7 +223,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_WP_0",
                 AlignFrame(
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link",
                     target_frame="slalom_wp_0",
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
@@ -242,7 +242,7 @@ class NavigateThroughSlalomState(smach.State):
                     look_at_frame="slalom_wp_1",
                     alignment_frame=f"sus",
                     full_rotation=False,
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link_180",
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -255,7 +255,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_WP_1",
                 AlignFrame(
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link",
                     target_frame="slalom_wp_1",
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
@@ -275,7 +275,7 @@ class NavigateThroughSlalomState(smach.State):
                     look_at_frame="slalom_wp_2",
                     alignment_frame=f"sus",
                     full_rotation=False,
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link_180",
                     rotation_speed=0.2,
                 ),
                 transitions={
@@ -288,7 +288,7 @@ class NavigateThroughSlalomState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_WP_2",
                 AlignFrame(
-                    source_frame=self.base_link,
+                    source_frame=f"taluy/base_link",
                     target_frame="slalom_wp_2",
                     confirm_duration=1.0,
                     max_linear_velocity=0.2,
