@@ -376,11 +376,13 @@ class OctagonTaskState(smach.State):
         self,
         octagon_depth: float,
         animal: str,
+        octagon_search_frame: str,
         start_from_table: bool = False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.griper_mode = True
         self.base_link = get_base_link()
+        self.octagon_search_frame = octagon_search_frame
         self.animal_frame = f"gate_{animal}_link"
         after_bottom_focus = (
             "MOVE_GRIPPER" if start_from_table else "DYNAMIC_PATH_WITH_BOTTLE_CHECK"
@@ -419,7 +421,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "FIND_AIM_OCTAGON",
                 SearchForPropState(
-                    look_at_frame="octagon_link",
+                    look_at_frame=self.octagon_search_frame,
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     source_frame=self.base_link,
