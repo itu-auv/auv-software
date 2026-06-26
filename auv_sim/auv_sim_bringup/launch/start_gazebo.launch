@@ -7,6 +7,17 @@
 
     <param name="use_sim_time" value="true" />
 
+    <!-- Domain randomization: z-origin (depth) offset. 0 = today's behaviour.
+         When >0 the world-0 is shifted up so odom reports a large depth while
+         the robot stays physically in the shallow pool. The shift is applied on
+         the SIM side (auv_sim_bridge reads /env/depth_origin_offset), so no
+         autonomy code is touched. We widen the pressure node's depth validity
+         gate from here too (its ~max_valid_depth param), so the deep reading is
+         accepted, again without editing the node. -->
+    <arg name="depth_origin_offset" default="0.0" />
+    <arg name="pool_depth" default="2.134" /><!-- nominal value, only sizes the gate -->
+    <arg name="min_valid_depth" default="0.1" />
+
     <arg name="namespace" default="taluy" />
     <arg name="control_rate" default="20.0" />
     <arg name="reference_frame" value="world" />
@@ -56,10 +67,11 @@
     <arg name="z" default="-0.6" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="z" default="-0.5" if="$(eval arg('world') == 'tac_sea')" />
-    <arg name="roll" value="0" />
-    <arg name="pitch" value="0" />
-    <arg name="yaw" value="0.7" if="$(eval arg('world') == 'seabed')" />
-    <arg name="yaw" value="0" if="$(eval arg('world') == 'pool')" />
+    <!-- default (not value) so the episode runner can override roll/pitch/yaw -->
+    <arg name="roll" default="0" />
+    <arg name="pitch" default="0" />
+    <arg name="yaw" default="0.7" if="$(eval arg('world') == 'seabed')" />
+    <arg name="yaw" default="0" if="$(eval arg('world') == 'pool')" />
     <arg name="yaw" default="0" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="yaw" default="0.5" if="$(eval arg('world') == 'tac_sea')" />
 
@@ -135,4 +147,15 @@
       <param name="robot_name" value="$(arg namespace)" />
       <param name="robot_base_frame" value="$(arg namespace)/base_link" />
     </node>
+
+    <!-- Randomization (sim side only):
+         (1) the z-origin offset for auv_sim_bridge's pressure->depth conversion,
+         (2) widen the pressure node's depth validity gate to accept the deep
+             reading, by setting its ~max_valid_depth param (= -(pool_depth +
+             offset)). Default offset 0 => gate = -pool_depth = today's value. -->
+    <param name="/env/depth_origin_offset" value="$(arg depth_origin_offset)" />
+    <param name="$(arg namespace)/pressure_to_odom_node/max_valid_depth"
+           value="$(eval -1.0 * (arg('pool_depth') + arg('depth_origin_offset')))" />
+    <param name="$(arg namespace)/pressure_to_odom_node/min_valid_depth"
+           value="$(arg min_valid_depth)" />
 </launch>

@@ -1,0 +1,34 @@
+# Per-world data for the placement sampler (world: pool).
+#
+# Object (x, y) are read from worlds/pool.world. Only the horizontal position
+# matters for the spawn exclusion/lane constraints.
+#
+# `bounds` is a generous in-water box; the `max_nearest` constraint already
+# keeps the robot hugging the objects, so slightly-off bounds are low-risk.
+# Verify against the actual pool walls if you widen max_nearest.
+
+world: pool
+
+bounds:
+  x: [-8.0, 14.0]
+  y: [-16.0, 2.0]
+
+# Physical spawn depth range inside the real pool (Gazebo world z, negative = down).
+spawn_z: [-1.8, -0.3]
+
+# Today's hard-coded spawn (used when randomize is off / sampler falls back).
+nominal:
+  x: -7.0
+  y: -15.5
+  z: -0.6
+  yaw: 0.0
+
+objects:
+  - { name: robosub_gate, x: -2.0, y: -13.7 }
+  - { name: robosub_slalom_1, x: 6.5, y: -13.7 }
+  - { name: robosub_slalom_2, x: 4.7, y: -12.18 }
+  - { name: robosub_slalom_3, x: 2.9, y: -13.3 }
+  - { name: robosub_bin, x: 9.8, y: -12.6 }
+  - { name: robosub_torpedo, x: 5.25, y: -1.4 }
+  - { name: robosub_octagon, x: 13.0, y: -4.25 }
+  - { name: robosub_octagon_animals, x: 11.65, y: -4.25 }

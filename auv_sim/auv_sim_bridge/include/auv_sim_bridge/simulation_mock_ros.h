@@ -44,6 +44,7 @@ class SimulationMockROS {
   double gravity_;            /// m/s^2
   double density_;            /// kg / m^3
   double standard_pressure_;  /// kPa
+  double depth_origin_offset_;  /// m, domain-randomization z-origin shift
   double battery_voltage_;    /// V
   double battery_current_;    /// A
   bool dvl_enabled_;
@@ -102,7 +103,11 @@ class SimulationMockROS {
     const double depth =
         1000.0 * (fluid_pressure - standard_pressure_) / (gravity_ * density_);
     std_msgs::Float32 depth_msg;
-    depth_msg.data = -depth;
+    // Domain randomization (z-origin trick): shift the reported depth deeper so
+    // the robot, while physically in the shallow pool, reports a large depth.
+    // 0 = today's behaviour. Done here (sim side) to keep the autonomy node
+    // untouched; the depth validity gate is widened via a launch param.
+    depth_msg.data = -depth - depth_origin_offset_;
     depth_pub_.publish(depth_msg);
   }
 
@@ -170,6 +175,10 @@ class SimulationMockROS {
       density_ = 1000.0;
       ROS_WARN(
           "Parameter '/env/density' not set. Using default: 1000.0 kg/m^3");
+    }
+
+    if (!nh_.getParam("/env/depth_origin_offset", depth_origin_offset_)) {
+      depth_origin_offset_ = 0.0;  // no shift unless randomization sets it
     }
 
     if (!nh_priv.getParam("battery_voltage", battery_voltage_)) {

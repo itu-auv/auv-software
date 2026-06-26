@@ -7,6 +7,12 @@ catkin_package()
 
 include_directories()
 
+catkin_install_python(PROGRAMS
+  scripts/episode_runner.py
+  scripts/randomization.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 install(DIRECTORY
   launch
   config

@@ -41,8 +41,8 @@
             control_rate:=$(arg control_rate)
             inertial_reference_frame:=$(arg inertial_reference_frame)
             imu_update_rate:=$(arg imu_update_rate)
-            dvl_update_rate:=$(arg imu_update_rate)
-            pressure_update_rate:=$(arg imu_update_rate)
+            dvl_update_rate:=$(arg dvl_update_rate)
+            pressure_update_rate:=$(arg pressure_update_rate)
             use_models:=$(arg use_models)" />
 
         <node name="urdf_spawner" pkg="uuv_descriptions" type="spawn_model" respawn="false"

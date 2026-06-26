@@ -1,0 +1,69 @@
+# Domain-randomization specification for the AUV simulation.
+#
+# Philosophy: the simulation hides code bugs whenever it sits at a "special"
+# value (zero, identity, aligned, equal, default, in-range). Every knob below
+# exists to destroy one of those coincidences so the buggy code path runs.
+#
+# `randomize:=false` (episode_runner --no-randomize) reproduces today's exact
+# behaviour: all offsets 0, spawn pose = the per-world nominal in objects_*.yaml.
+# Nothing here changes the sim unless randomization is explicitly enabled.
+
+# Nominal pool depth used by the depth validity gate (pressure_odometry).
+# Must match /env/pool_depth in auv_bringup/config/environment.yaml so that
+# `--no-randomize` is identical to today. The depth-origin offset (below) is
+# ADDED to this so deep readings stay valid.
+pool_depth_nominal: 2.134
+
+spawn:
+  # Physical spawn stays inside the real (shallow) pool. x/y come from the
+  # placement sampler (see `placement`); z/roll/pitch/yaw are independent.
+  #
+  # roll/pitch are DISABLED (kept at 0): the AUV self-rights (CoB above CoG) in
+  # ~1-2 s, so an initial tilt decays before it can exercise any "non-level"
+  # code path -- verified live. Re-enable only if the vehicle stops self-righting.
+  roll:
+    distribution: uniform
+    min: 0.0
+    max: 0.0
+  pitch:
+    distribution: uniform
+    min: 0.0
+    max: 0.0
+  yaw:
+    distribution: uniform
+    min: -3.141592653589793 # full circle : break "starts facing +x / 0 yaw"
+    max: 3.141592653589793
+
+placement:
+  # Invisible circles around every object: Taluy must spawn OUTSIDE all of them
+  # but still close to the active lane (within max_nearest of some object).
+  # Net effect: nearest object distance lands in [exclusion_radius, max_nearest].
+  exclusion_radius: 4.0 # m : never spawn on top of an object
+  max_nearest: 8.0 # m : at least one object this close (stay in the lane)
+  max_attempts: 300 # rejection-sampling budget before falling back to nominal
+
+depth_origin_offset:
+  # z-origin trick: keep the robot physically in the shallow pool, but shift the
+  # world-0 far up so odom reports a large depth. Inflates every absolute-depth
+  # number the control stack sees -> exposes hard-coded depth thresholds
+  # (the 2 m teleop limit, pool_depth caps, sign/clamp bugs) without a deep pool.
+  probability: 0.5 # fraction of episodes that get a big offset (rest = 0)
+  distribution: uniform
+  min: 8.0
+  max: 20.0
+
+update_rates:
+  # Differentiate the three sensor rates. They are all 20 Hz today, which hides
+  # the spawn_robot.launch bug that wired DVL/pressure rate to the IMU rate.
+  # Keeping them distinct makes any rate-plumbing bug observable.
+  imu:
+    distribution: choice
+    values: [20]
+  dvl:
+    distribution: uniform_int
+    min: 5
+    max: 20
+  pressure:
+    distribution: uniform_int
+    min: 5
+    max: 20
