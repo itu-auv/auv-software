@@ -101,7 +101,7 @@
     <xacro:torpedo_camera
       name="${namespace}/base_link/torpedo_camera"
       parent="${namespace}/base_link"
-      position="-0.42470 0.1 -0.150901"
+      position="-0.453292 0.1 -0.150301"
       orientation="0.0 0.0 ${math.pi}"
       use_models="$(arg use_models)"
     />
