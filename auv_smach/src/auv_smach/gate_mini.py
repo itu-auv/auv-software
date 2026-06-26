@@ -1,5 +1,6 @@
 from auv_smach.tf_utils import get_tf_buffer, get_base_link
 from .initialize import *
+import math
 import smach
 import smach_ros
 import rospy
@@ -23,6 +24,13 @@ from auv_smach.roll import PitchTwoTimes, TwoRollState, TwoYawState
 from auv_smach.coin_flip import CoinFlipState
 from auv_smach.acoustic import AcousticTransmitter
 from std_msgs.msg import Bool
+
+
+START_DIRECTION_TO_YAW = {
+    "turn_right": -math.pi / 2.0,
+    "turn_left": math.pi / 2.0,
+    "turn_back": math.pi,
+}
 
 
 class TransformServiceEnableState(smach_ros.ServiceState):
@@ -76,6 +84,7 @@ class NavigateThroughGateMiniState(smach.State):
         target_animal: str = "gate_survey_repair_link",
         pitch_torque: float = -90.0,
         pitch_timeout: float = 15.0,
+        mini_coin_flip: str = "",
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -91,6 +100,7 @@ class NavigateThroughGateMiniState(smach.State):
         self.target_animal = target_animal
         self.pitch_torque = pitch_torque
         self.pitch_timeout = pitch_timeout
+        self.start_frame_yaw = self.get_start_frame_yaw(mini_coin_flip)
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -98,6 +108,35 @@ class NavigateThroughGateMiniState(smach.State):
         )
 
         with self.state_machine:
+            smach.StateMachine.add(
+                "SET_START_FRAME",
+                SetStartFrameState(
+                    frame_name="mini_coin_flip",
+                    rotation_yaw=self.start_frame_yaw,
+                ),
+                transitions={
+                    "succeeded": "GATE_E_DON",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "GATE_E_DON",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="mini_coin_flip",
+                    dist_threshold=0.2,
+                    yaw_threshold=0.2,
+                    confirm_duration=2.0,
+                    timeout=15.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "SET_INITIAL_GATE_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
             smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
@@ -261,6 +300,20 @@ class NavigateThroughGateMiniState(smach.State):
                     "aborted": "aborted",
                 },
             )
+
+    @staticmethod
+    def get_start_frame_yaw(mini_coin_flip: str) -> float:
+        if not mini_coin_flip:
+            return 0.0
+
+        if mini_coin_flip not in START_DIRECTION_TO_YAW:
+            rospy.logwarn(
+                "Unknown mini_coin_flip '%s'. Using 0 yaw.",
+                mini_coin_flip,
+            )
+            return 0.0
+
+        return START_DIRECTION_TO_YAW[mini_coin_flip]
 
     def execute(self, userdata):
         rospy.logdebug(
