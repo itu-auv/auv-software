@@ -110,6 +110,8 @@ class MainStateMachineNode:
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
 
+        self.mini_coin_flip = rospy.get_param("~mini_coin_flip", "")
+
         self.bin_front_look_depth = -1.3
         self.bin_bottom_look_depth = -0.7
 
@@ -260,6 +262,7 @@ class MainStateMachineNode:
                     "roll_depth": self.roll_depth,
                     "gate_exit_angle": gate_exit_angle_rad,
                     "target_animal": gate_target_frame,
+                    "mini_coin_flip": self.mini_coin_flip,
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (
