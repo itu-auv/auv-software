@@ -15,7 +15,9 @@ import rospy
 import yaml
 import numpy as np
 from collections import defaultdict
-from scipy.stats import gaussian_kde
+# NOTE: scipy.stats.gaussian_kde removed — replaced with lightweight
+# weighted-centroid clustering (see _run_kde). This cuts per-cycle cost
+# from O(N² + N·G) to O(N·max_peaks).
 
 _scripts_dir = os.path.dirname(os.path.abspath(__file__))
 if _scripts_dir not in sys.path:
@@ -262,13 +264,9 @@ class KdeObjectMapper:
         for cls_name in list(self.class_colors.keys()):
             if cls_name in buffers_snapshot:
                 pts = buffers_snapshot[cls_name]
-                xy = pts[:, :2].T  # shape (2, N)
+                xy = pts[:, :2]  # shape (N, 2)
 
-                # Compute bandwidth factor relative to data std
-                xy_std = max(np.std(xy, axis=1).mean(), 1e-6)
-                bw_factor = self.bandwidth / xy_std
-
-                # Temporal Weighting: compute weights for gaussian_kde
+                # ── Temporal weighting (unchanged formula) ─────────────
                 if pts.shape[1] < 3:
                     timestamps = np.full(pts.shape[0], now)
                 else:
@@ -283,60 +281,57 @@ class KdeObjectMapper:
                 else:
                     weights = np.ones_like(age)
 
+
+                # Normalize weights
                 weights_sum = np.sum(weights)
                 if weights_sum > 1e-9:
                     weights = weights / weights_sum
                 else:
                     weights = np.ones_like(weights) / len(weights)
 
-                try:
-                    kde = gaussian_kde(xy, bw_method=bw_factor, weights=weights)
-                except np.linalg.LinAlgError:
-                    rospy.logwarn_throttle(
-                        5.0, f"KDE singular matrix for {cls_name}. Skipping."
-                    )
-                    continue
-
-                # Evaluation grid
-                x_min, x_max = xy[0].min() - 1.0, xy[0].max() + 1.0
-                y_min, y_max = xy[1].min() - 1.0, xy[1].max() + 1.0
-                nx = max(int((x_max - x_min) / self.grid_resolution), 10)
-                ny = max(int((y_max - y_min) / self.grid_resolution), 10)
-
-                xi = np.linspace(x_min, x_max, nx)
-                yi = np.linspace(y_min, y_max, ny)
-                xx, yy = np.meshgrid(xi, yi)
-                grid_coords = np.vstack([xx.ravel(), yy.ravel()])
-
-                density = kde(grid_coords).reshape(xx.shape)
-
+                # ── Weighted-centroid peak finding ─────────────────────
+                # Computes weighted centroid of ALL remaining points for
+                # each peak. suppression_radius is only used AFTER the
+                # centroid to remove nearby points for the next peak.
+                # This ensures old + new detections all contribute to
+                # the average, preventing jumps to latest detections.
                 peaks = []
-                density_work = density.copy()
+                remaining = np.ones(len(xy), dtype=bool)
 
                 for _ in range(self.max_peaks_per_class):
-                    max_idx = np.unravel_index(
-                        np.argmax(density_work), density_work.shape
-                    )
-                    max_val = density_work[max_idx]
-                    if max_val < self.min_peak_density:
+                    if not np.any(remaining):
                         break
 
-                    peak_x = float(xx[max_idx])
-                    peak_y = float(yy[max_idx])
+                    rem_idx = np.where(remaining)[0]
+                    rem_w = weights[rem_idx]
+                    w_sum = float(np.sum(rem_w))
+                    if w_sum < self.min_peak_density:
+                        break
 
-                    peaks.append((peak_x, peak_y, float(max_val)))
+                    # Weighted centroid of ALL remaining points
+                    centroid = (
+                        np.sum(xy[rem_idx] * rem_w[:, None], axis=0)
+                        / w_sum
+                    )
+                    peaks.append(
+                        (float(centroid[0]), float(centroid[1]), w_sum)
+                    )
 
-                    # Suppress around this peak
-                    dist_grid = np.sqrt((xx - peak_x) ** 2 + (yy - peak_y) ** 2)
-                    density_work[dist_grid < self.suppression_radius] = 0.0
+                    # Suppress: remove points near this centroid so
+                    # the next iteration finds a separate cluster
+                    dists_to_centroid = np.linalg.norm(
+                        xy - centroid, axis=1
+                    )
+                    remaining[dists_to_centroid < self.suppression_radius] = False
 
                 results[cls_name] = peaks
 
-                # Store for visualisation
+                # Visualisation metadata (no density grid → heatmap disabled)
+                x_min = float(xy[:, 0].min()) - 1.0
+                x_max = float(xy[:, 0].max()) + 1.0
+                y_min = float(xy[:, 1].min()) - 1.0
+                y_max = float(xy[:, 1].max()) + 1.0
                 kde_data[cls_name] = {
-                    "xx": xx,
-                    "yy": yy,
-                    "density": density,
                     "points": pts,
                     "x_min": x_min,
                     "x_max": x_max,
@@ -344,7 +339,7 @@ class KdeObjectMapper:
                     "y_max": y_max,
                     "timestamps": timestamps,
                     "rejected_peaks": [],
-                    "kde_active": True,
+                    "kde_active": False,  # no density heatmap
                 }
             elif cls_name in self.premap:
                 pm_x, pm_y = self.premap[cls_name]
