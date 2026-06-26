@@ -19,7 +19,7 @@ from auv_smach.common import (
 )
 
 from std_srvs.srv import SetBool, SetBoolRequest
-from auv_smach.roll import TwoRollState, TwoYawState
+from auv_smach.roll import PitchTwoTimes, TwoRollState, TwoYawState
 from auv_smach.coin_flip import CoinFlipState
 from auv_smach.acoustic import AcousticTransmitter
 from std_msgs.msg import Bool
@@ -74,6 +74,8 @@ class NavigateThroughGateMiniState(smach.State):
         gate_exit_angle: float = 0.0,
         roll_depth: float = -0.8,
         target_animal: str = "gate_survey_repair_link",
+        pitch_torque: float = -90.0,
+        pitch_timeout: float = 15.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -87,6 +89,8 @@ class NavigateThroughGateMiniState(smach.State):
         self.gate_exit_angle = gate_exit_angle
         self.roll_depth = roll_depth
         self.target_animal = target_animal
+        self.pitch_torque = pitch_torque
+        self.pitch_timeout = pitch_timeout
 
         # Initialize the state machine container
         self.state_machine = smach.StateMachine(
@@ -157,32 +161,6 @@ class NavigateThroughGateMiniState(smach.State):
                     rotation_speed=0.2,
                 ),
                 transitions={
-                    "succeeded": (
-                        "CALIFORNIA_ROLL"
-                        if self.roll
-                        else (
-                            "TWO_YAW_STATE" if self.yaw else "SET_GATE_TRAJECTORY_DEPTH"
-                        )
-                    ),
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "CALIFORNIA_ROLL",
-                TwoRollState(
-                    roll_torque=50.0, gate_look_at_frame=self.gate_look_at_frame
-                ),
-                transitions={
-                    "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TWO_YAW_STATE",
-                TwoYawState(yaw_frame=self.gate_search_frame),
-                transitions={
                     "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -235,17 +213,48 @@ class NavigateThroughGateMiniState(smach.State):
                     timeout=20.0,
                     cancel_on_success=True,
                     keep_orientation=False,
+                    max_linear_velocity=0.15,
+                    max_angular_velocity=0.15,
                 ),
                 transitions={
-                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
-                    "target_lost": "CANCEL_ALIGN_CONTROLLER",
+                    "succeeded": "a",
+                    "target_lost": "a",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "CANCEL_ALIGN_CONTROLLER",
-                CancelAlignControllerState(),
+                "a",
+                SetDepthState(
+                    depth=-0.6,
+                    confirm_duration=5.0,
+                    timeout=15.0,
+                ),
+                transitions={
+                    "succeeded": "PITCH_TWO_TIMES",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "PITCH_TWO_TIMES",
+                PitchTwoTimes(
+                    pitch_torque=self.pitch_torque,
+                    timeout_s=self.pitch_timeout,
+                ),
+                transitions={
+                    "succeeded": "SON_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SON_DEPTH",
+                SetDepthState(
+                    depth=-0.6,
+                    confirm_duration=1.0,
+                    timeout=15.0,
+                ),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
