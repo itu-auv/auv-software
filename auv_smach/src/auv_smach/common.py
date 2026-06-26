@@ -1835,6 +1835,8 @@ class AlignFrameWithVisibilityCheck(smach.Concurrence):
         prop_name=None,
         lost_timeout=3.0,
         camera_name="front",
+        max_linear_velocity=None,
+        max_angular_velocity=None,
         **align_kwargs,
     ):
         smach.Concurrence.__init__(
@@ -1857,7 +1859,11 @@ class AlignFrameWithVisibilityCheck(smach.Concurrence):
             smach.Concurrence.add(
                 "ALIGN",
                 AlignFrame(
-                    source_frame=source_frame, target_frame=target_frame, **align_kwargs
+                    source_frame=source_frame,
+                    target_frame=target_frame,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                    **align_kwargs,
                 ),
             )
             smach.Concurrence.add(
