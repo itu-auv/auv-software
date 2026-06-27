@@ -76,6 +76,16 @@
       <remap from="actuators/gripper/close" to="actuators/gripper/close" />
       <remap from="actuators/gripper/neutral" to="actuators/gripper/neutral" />
     </node>
+
+    <!-- Pinger Simulation Mock Node -->
+    <node name="sim_pinger_mock" pkg="auv_sim_bridge" type="sim_pinger_mock.py" output="screen">
+      <param name="robot_name" value="$(arg namespace)" />
+      <param name="pinger_x" value="10.0" />
+      <param name="pinger_y" value="0.0" />
+      <param name="pinger_z" value="-1.0" />
+      <param name="publish_rate" value="1.0" />
+      <param name="topic_name" value="/$(arg namespace)/acoustic/hydrophone/base_angle" />
+    </node>
   </group>
 
   <include file="$(find auv_bringup)/launch/start_navigation.launch">
