@@ -40,6 +40,7 @@ directions: [1, 1, 1, 1, 1, 1, 1, 1]
 integral_clamp_limits: [0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
 gravity_compensation_z: 0.0
+yaw_cross_coupling_gain: 0.000
 
 max_acceleration: [0.000, 0.000, 0.000, 0.000, 0.000, 0.000]
 max_acceleration_rate: [0.000, 0.000, 0.000, 0.000, 0.000, 0.000]
