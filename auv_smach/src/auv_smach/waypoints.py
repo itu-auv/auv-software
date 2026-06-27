@@ -25,6 +25,10 @@ class FollowWaypointsState(smach.StateMachine):
         max_angular_velocity: float = None,
         keep_orientation: bool = False,
         angle_offset: float = 0.0,
+        align_dist_threshold: float = 0.3,
+        align_yaw_threshold: float = 0.2,
+        align_timeout: float = 10.0,
+        align_confirm_duration: float = 0.1,
         final_align: bool = False,
         final_align_dist_threshold: float = 0.15,
         final_align_yaw_threshold: float = 0.1,
@@ -51,14 +55,7 @@ class FollowWaypointsState(smach.StateMachine):
             for idx, frame in enumerate(self._waypoint_frames):
                 is_last = idx == len(self._waypoint_frames) - 1
                 path_state_name = _tag(f"PATH_TO_{idx + 1}_{frame.upper()}")
-
-                if is_last and final_align:
-                    next_on_success = _tag(f"ALIGN_AT_{idx + 1}_{frame.upper()}")
-                elif is_last:
-                    next_on_success = "succeeded"
-                else:
-                    next_frame = self._waypoint_frames[idx + 1]
-                    next_on_success = _tag(f"PATH_TO_{idx + 2}_{next_frame.upper()}")
+                align_state_name = _tag(f"ALIGN_AT_{idx + 1}_{frame.upper()}")
 
                 smach.StateMachine.add(
                     path_state_name,
@@ -71,34 +68,47 @@ class FollowWaypointsState(smach.StateMachine):
                         keep_orientation=keep_orientation,
                     ),
                     transitions={
-                        "succeeded": next_on_success,
+                        "succeeded": align_state_name,
                         "preempted": "preempted",
                         "aborted": "aborted",
                     },
                 )
 
-                if is_last and final_align:
-                    smach.StateMachine.add(
-                        _tag(f"ALIGN_AT_{idx + 1}_{frame.upper()}"),
-                        AlignFrame(
-                            source_frame=source_frame,
-                            target_frame=frame,
-                            angle_offset=angle_offset,
-                            dist_threshold=final_align_dist_threshold,
-                            yaw_threshold=final_align_yaw_threshold,
-                            timeout=final_align_timeout,
-                            confirm_duration=final_align_confirm_duration,
-                            cancel_on_success=False,
-                            keep_orientation=keep_orientation,
-                            max_linear_velocity=max_linear_velocity,
-                            max_angular_velocity=max_angular_velocity,
-                        ),
-                        transitions={
-                            "succeeded": "succeeded",
-                            "preempted": "preempted",
-                            "aborted": "aborted",
-                        },
-                    )
+                if is_last:
+                    next_on_success = "succeeded"
+                    dist_thresh = final_align_dist_threshold if final_align else align_dist_threshold
+                    yaw_thresh = final_align_yaw_threshold if final_align else align_yaw_threshold
+                    timeout_val = final_align_timeout if final_align else align_timeout
+                    confirm_dur = final_align_confirm_duration if final_align else align_confirm_duration
+                else:
+                    next_frame = self._waypoint_frames[idx + 1]
+                    next_on_success = _tag(f"PATH_TO_{idx + 2}_{next_frame.upper()}")
+                    dist_thresh = align_dist_threshold
+                    yaw_thresh = align_yaw_threshold
+                    timeout_val = align_timeout
+                    confirm_dur = align_confirm_duration
+
+                smach.StateMachine.add(
+                    align_state_name,
+                    AlignFrame(
+                        source_frame=source_frame,
+                        target_frame=frame,
+                        angle_offset=angle_offset,
+                        dist_threshold=dist_thresh,
+                        yaw_threshold=yaw_thresh,
+                        timeout=timeout_val,
+                        confirm_duration=confirm_dur,
+                        cancel_on_success=False,
+                        keep_orientation=keep_orientation,
+                        max_linear_velocity=max_linear_velocity,
+                        max_angular_velocity=max_angular_velocity,
+                    ),
+                    transitions={
+                        "succeeded": next_on_success,
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
 
     @classmethod
     def from_prefix(
@@ -165,6 +175,10 @@ class DynamicPathExecutionState(smach.StateMachine):
         max_angular_velocity: float = None,
         keep_orientation: bool = False,
         angle_offset: float = 0.0,
+        align_dist_threshold: float = 0.3,
+        align_yaw_threshold: float = 0.2,
+        align_timeout: float = 10.0,
+        align_confirm_duration: float = 0.1,
         final_align: bool = False,
         final_align_dist_threshold: float = 0.15,
         final_align_yaw_threshold: float = 0.1,
@@ -226,6 +240,10 @@ class DynamicPathExecutionState(smach.StateMachine):
                     max_angular_velocity=max_angular_velocity,
                     keep_orientation=keep_orientation,
                     angle_offset=angle_offset,
+                    align_dist_threshold=align_dist_threshold,
+                    align_yaw_threshold=align_yaw_threshold,
+                    align_timeout=align_timeout,
+                    align_confirm_duration=align_confirm_duration,
                     final_align=final_align,
                     final_align_dist_threshold=final_align_dist_threshold,
                     final_align_yaw_threshold=final_align_yaw_threshold,
