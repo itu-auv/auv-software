@@ -364,17 +364,33 @@ class ReferencePosePublisherNode:
             self.target_frame_id = req.target_frame
 
             if self.reconfigure_client:
-                linear_vel = (
-                    req.max_linear_velocity
-                    if req.max_linear_velocity > 0
-                    else self.default_max_velocity[0]
+                linear_vel_x = self._resolve_linear_velocity_limit(
+                    req.max_linear_velocity_x,
+                    req.max_linear_velocity,
+                    self.default_max_velocity[0],
+                )
+                linear_vel_y = self._resolve_linear_velocity_limit(
+                    req.max_linear_velocity_y,
+                    req.max_linear_velocity,
+                    self.default_max_velocity[1],
+                )
+                linear_vel_z = self._resolve_linear_velocity_limit(
+                    req.max_linear_velocity_z,
+                    req.max_linear_velocity,
+                    self.default_max_velocity[2],
                 )
                 angular_vel = (
                     req.max_angular_velocity
                     if req.max_angular_velocity > 0
                     else self.default_max_velocity[3]
                 )
-                self._update_controller_cfg(linear_vel, angular_vel, req.use_depth)
+                self._update_controller_cfg(
+                    linear_vel_x,
+                    linear_vel_y,
+                    linear_vel_z,
+                    angular_vel,
+                    req.use_depth,
+                )
 
         rospy.loginfo(
             f"Aligning {req.source_frame} to {req.target_frame} with angle offset {req.angle_offset}"
@@ -433,22 +449,37 @@ class ReferencePosePublisherNode:
             rospy.logwarn(f"Failed to read controller configuration: {e}")
             return None
 
+    @staticmethod
+    def _resolve_linear_velocity_limit(
+        axis_velocity: float, fallback_velocity: float, default_velocity: float
+    ) -> float:
+        if axis_velocity > 0:
+            return axis_velocity
+        if fallback_velocity > 0:
+            return fallback_velocity
+        return default_velocity
+
     def _update_controller_cfg(
-        self, linear_vel: float, angular_vel: float, use_depth: bool = True
+        self,
+        linear_vel_x: float,
+        linear_vel_y: float,
+        linear_vel_z: float,
+        angular_vel: float,
+        use_depth: bool = True,
     ):
         try:
-            # Determine Z velocity: use linear_vel if use_depth, else preserve current or use default
-            if use_depth:
-                z_vel = linear_vel
-            elif self.set_depth_velocity is not None:
+            # If align_frame does not own depth, keep the active set_depth limit.
+            if not use_depth and self.set_depth_velocity is not None:
                 z_vel = self.set_depth_velocity
+            elif use_depth:
+                z_vel = linear_vel_z
             else:
                 z_vel = self.default_max_velocity[2]
 
             self.reconfigure_client.update_configuration(
                 {
-                    "max_velocity_0": linear_vel,
-                    "max_velocity_1": linear_vel,
+                    "max_velocity_0": linear_vel_x,
+                    "max_velocity_1": linear_vel_y,
                     "max_velocity_2": z_vel,
                     "max_velocity_3": angular_vel,
                     "max_velocity_4": angular_vel,
