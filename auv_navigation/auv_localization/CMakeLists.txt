@@ -4,12 +4,19 @@ project(auv_localization)
 find_package(catkin REQUIRED COMPONENTS
   angles
   auv_msgs
+  dynamic_reconfigure
   geometry_msgs
   message_generation
   nav_msgs
   rospy
   std_msgs
   tf
+)
+
+catkin_python_setup()
+
+generate_dynamic_reconfigure_options(
+  cfg/DvlOdometry.cfg
 )
 
 add_service_files(
