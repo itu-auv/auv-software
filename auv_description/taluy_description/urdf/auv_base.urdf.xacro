@@ -30,14 +30,6 @@
       </collision>
     </link>
 
-    <!-- child frame: base_link_180 - same position, rotated 180° around Z -->
-    <link name="${namespace}/base_link_180"/>
-    <joint name="${namespace}/base_link_to_base_link_180" type="fixed">
-      <parent link="${namespace}/base_link"/>
-      <child link="${namespace}/base_link_180"/>
-      <origin xyz="0 0 0" rpy="0 0 ${math.pi}"/>
-    </joint>
-
     <!-- Thrusters -->
     <xacro:t200_thruster name="${namespace}/thruster_0" parent="${namespace}/base_link" position="0.16040 0.20070 -0.012879" orientation="${pi} 0 ${-pi/2}" use_models="$(arg use_models)"/>
     <xacro:t200_thruster name="${namespace}/thruster_1" parent="${namespace}/base_link" position="0.16040 -0.20070 -0.012879" orientation="${pi} 0 ${pi/2}" use_models="$(arg use_models)"/>

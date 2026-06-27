@@ -48,125 +48,6 @@ def check_inside_image(
     return True
 
 
-# TORPEDO-specific masks and helpers (copied from detection_objects_taluy.yaml / detection_utils)
-TORPEDO_MASK_REFERENCE_WIDTH = 800.0
-TORPEDO_MASK_REFERENCE_HEIGHT = 448.0
-TORPEDO_FORBIDDEN_SIDE_MASKS = [
-    [
-        [0.0, 0.0],
-        [185.0, 0.0],
-        [145.0, 45.0],
-        [118.0, 95.0],
-        [102.0, 155.0],
-        [96.0, 225.0],
-        [106.0, 290.0],
-        [130.0, 360.0],
-        [175.0, 447.0],
-        [0.0, 447.0],
-    ],
-    [
-        [799.0, 0.0],
-        [615.0, 0.0],
-        [655.0, 45.0],
-        [682.0, 95.0],
-        [698.0, 155.0],
-        [704.0, 225.0],
-        [694.0, 290.0],
-        [670.0, 360.0],
-        [625.0, 447.0],
-        [799.0, 447.0],
-    ],
-]
-
-
-def _scale_polygon(
-    points, image_width: int, image_height: int, ref_w: float, ref_h: float
-):
-    """Scale polygon points from reference resolution to actual image resolution."""
-    scale_x = image_width / ref_w
-    scale_y = image_height / ref_h
-    return tuple((x * scale_x, y * scale_y) for x, y in points)
-
-
-def _point_in_polygon(point, polygon) -> bool:
-    """Return True when point is inside polygon, including polygon boundary."""
-    point_x, point_y = point
-    inside = False
-
-    for index, current in enumerate(polygon):
-        next_point = polygon[(index + 1) % len(polygon)]
-        x1, y1 = current
-        x2, y2 = next_point
-
-        cross_product = (point_y - y1) * (x2 - x1) - (point_x - x1) * (y2 - y1)
-        if (
-            abs(cross_product) < 1e-9
-            and min(x1, x2) <= point_x <= max(x1, x2)
-            and min(y1, y2) <= point_y <= max(y1, y2)
-        ):
-            return True
-
-        if (y1 > point_y) != (y2 > point_y):
-            intersection_x = (x2 - x1) * (point_y - y1) / (y2 - y1) + x1
-            if point_x <= intersection_x:
-                inside = not inside
-
-    return inside
-
-
-def check_inside_image_torpedo(
-    detection,
-    image_width: int = 800,
-    image_height: int = 448,
-    forbidden_side_masks=None,
-) -> bool:
-    """Check if a torpedo detection bbox is inside the usable image area.
-
-    Defaults and forbidden-side masks copied from detection_objects_taluy.yaml
-    """
-    center = detection.bbox.center
-    half_size_x = detection.bbox.size_x * 0.5
-    half_size_y = detection.bbox.size_y * 0.5
-    deadzone = 5  # pixels
-    if (
-        center.x + half_size_x >= image_width - deadzone
-        or center.x - half_size_x <= deadzone
-    ):
-        return False
-    if (
-        center.y + half_size_y >= image_height - deadzone
-        or center.y - half_size_y <= deadzone
-    ):
-        return False
-
-    bbox_corners = (
-        (center.x - half_size_x, center.y - half_size_y),
-        (center.x + half_size_x, center.y - half_size_y),
-        (center.x + half_size_x, center.y + half_size_y),
-        (center.x - half_size_x, center.y + half_size_y),
-    )
-
-    # no-op
-    if forbidden_side_masks is None:
-        forbidden_side_masks = tuple(
-            _scale_polygon(
-                mask,
-                image_width,
-                image_height,
-                TORPEDO_MASK_REFERENCE_WIDTH,
-                TORPEDO_MASK_REFERENCE_HEIGHT,
-            )
-            for mask in TORPEDO_FORBIDDEN_SIDE_MASKS
-        )
-
-    # TODO: fix this
-    for forbidden_mask in TORPEDO_FORBIDDEN_SIDE_MASKS:
-        if any(_point_in_polygon(corner, forbidden_mask) for corner in bbox_corners):
-            return False
-
-    return True
-
-
 @dataclass
 class Point:
     x: float
@@ -194,9 +75,6 @@ class SlalomHeatmapMapper:
         self.rate = rospy.Rate(self.frequency)
 
         self.base_link_frame = rospy.get_param("~base_link_frame", "taluy/base_link")
-        self.camera_frame = rospy.get_param(
-            "~camera_frame", "torpedo_camera_optical_link"
-        )
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.search_frame = rospy.get_param("~search_frame", "slalom_search_start")
         self.red_pipe_frame = "slalom_red_pipe_link"
@@ -210,7 +88,7 @@ class SlalomHeatmapMapper:
         self.slalom_width = rospy.get_param("~slalom_width", 0.0254)
         self.slalom_height = rospy.get_param("~slalom_height", 0.9)
 
-        self.cam = CameraCalibrationFetcher("cameras/cam_torpedo").get_camera_info()
+        self.cam = CameraCalibrationFetcher("cameras/cam_front").get_camera_info()
         self.yolo_res = rospy.Subscriber(
             "/yolo_result_slalom", YoloResult, self.yolo_callback
         )
@@ -225,7 +103,6 @@ class SlalomHeatmapMapper:
         self.object_tfs = []
         self.waypoint_tfs = []
         self.points = []
-        self.waypoints_search_frame = []
         self.collecting = False
         self.i = 0
         self.heatmap_vis = None
@@ -309,7 +186,7 @@ class SlalomHeatmapMapper:
 
             robot_trans = self.tf_buffer.lookup_transform(
                 self.odom_frame,
-                f"taluy/base_link_180",
+                self.base_link_frame,
                 rospy.Time(0),
                 rospy.Duration(1.0),
             )
@@ -386,7 +263,6 @@ class SlalomHeatmapMapper:
             self.slalom_rows = []
             self.object_tfs = []
             self.waypoint_tfs = []
-            self.waypoints_search_frame = []
             self.collecting = True
             self.i = 0
             self.last_heatmap_build_time = 0.0
@@ -420,13 +296,6 @@ class SlalomHeatmapMapper:
     def publish_waypoints_callback(self, req):
         if self.slalom_rows:
             self.waypoint_tfs = self.build_waypoint_transforms(self.slalom_rows)
-            heatmap_data = self.build_heatmap_data()
-            if heatmap_data is not None:
-                self.heatmap_vis = self.build_heatmap_visualization(
-                    heatmap_data["heatmap"], heatmap_data["pixel_points"]
-                )
-                self.draw_waypoints_on_heatmap(heatmap_data)
-                self.publish_heatmap()
 
         if not self.waypoint_tfs:
             return SetBoolResponse(success=False, message="No waypoints available")
@@ -443,13 +312,6 @@ class SlalomHeatmapMapper:
         self.slalom_direction = config.slalom_direction
         if self.slalom_rows:
             self.waypoint_tfs = self.build_waypoint_transforms(self.slalom_rows)
-            heatmap_data = self.build_heatmap_data()
-            if heatmap_data is not None:
-                self.heatmap_vis = self.build_heatmap_visualization(
-                    heatmap_data["heatmap"], heatmap_data["pixel_points"]
-                )
-                self.draw_waypoints_on_heatmap(heatmap_data)
-                self.publish_heatmap()
         rospy.loginfo(f"Slalom direction updated to: {self.slalom_direction}")
 
     def get_all_pipe_positions(self, frame_prefix):
@@ -504,7 +366,7 @@ class SlalomHeatmapMapper:
             return
 
         for x in detections.detections:
-            if not check_inside_image_torpedo(
+            if not check_inside_image(
                 x,
                 self.cam.width,
                 self.cam.height,
@@ -540,7 +402,7 @@ class SlalomHeatmapMapper:
                 pose_stamped = PoseStamped()
                 pose_stamped.header.stamp = msg.header.stamp
                 pose_stamped.header.frame_id = (
-                    f"{self.base_link_frame}/{self.camera_frame}"
+                    self.base_link_frame + "/front_camera_optical_link_stabilized"
                 )
                 pose_stamped.pose.position.x = off_x
                 pose_stamped.pose.position.y = off_y
@@ -690,7 +552,6 @@ class SlalomHeatmapMapper:
             self.slalom_rows = []
             self.object_tfs = []
             self.waypoint_tfs = []
-            self.waypoints_search_frame = []
             return
 
         heatmap = heatmap_data["heatmap"]
@@ -754,7 +615,6 @@ class SlalomHeatmapMapper:
         self.object_tfs = tf_group.object_tfs
         self.waypoint_tfs = tf_group.waypoint_tfs
 
-        self.draw_waypoints_on_heatmap(heatmap_data)
         self.publish_heatmap()
 
     def build_slalom_rows(
@@ -828,7 +688,6 @@ class SlalomHeatmapMapper:
     ) -> List[TransformStamped]:
         transforms = []
         side = self.get_selected_waypoint_side()
-        self.waypoints_search_frame = []
 
         for i, row in enumerate(rows):
             side_point = row.white_left if side == "left" else row.white_right
@@ -853,7 +712,6 @@ class SlalomHeatmapMapper:
                 )
                 continue
             yaw = math.atan2(v_forward[1], v_forward[0])
-            self.waypoints_search_frame.append((pos_wp[0], pos_wp[1], yaw))
             q = transformations.quaternion_from_euler(0, 0, yaw)
 
             try:
@@ -930,83 +788,6 @@ class SlalomHeatmapMapper:
         t.transform.translation.z = pose_in_odom.pose.position.z
         t.transform.rotation = pose_in_odom.pose.orientation
         return t
-
-    def world_to_pixel(self, wx, wy, heatmap_data):
-        scale = heatmap_data["scale"]
-        x_max = heatmap_data["x_max"]
-        y_max = heatmap_data["y_max"]
-        width = heatmap_data["width"]
-        height = heatmap_data["height"]
-
-        u = int(
-            (y_max - wy) * scale
-            + (self.heatmap_image_width_px - height * scale) / 2
-        )
-        v = int(
-            (x_max - wx) * scale
-            + (self.heatmap_image_height_px - width * scale) / 2
-        )
-        return u, v
-
-    def draw_waypoints_on_heatmap(self, heatmap_data):
-        if self.heatmap_vis is None or not self.waypoints_search_frame:
-            return
-
-        for i, (wx, wy, yaw) in enumerate(self.waypoints_search_frame):
-            u, v = self.world_to_pixel(wx, wy, heatmap_data)
-
-            # Draw arrow representing yaw
-            arrow_length = 30  # pixels
-            arrow_end_u = int(u + arrow_length * (-math.sin(yaw)))
-            arrow_end_v = int(v + arrow_length * (-math.cos(yaw)))
-
-            # Black outline for arrow
-            cv2.arrowedLine(
-                self.heatmap_vis,
-                (u, v),
-                (arrow_end_u, arrow_end_v),
-                (0, 0, 0),
-                5,
-                tipLength=0.3,
-            )
-            # Green arrow
-            cv2.arrowedLine(
-                self.heatmap_vis,
-                (u, v),
-                (arrow_end_u, arrow_end_v),
-                (0, 255, 0),
-                2,
-                tipLength=0.3,
-            )
-
-            # Black outline for waypoint center point
-            cv2.circle(self.heatmap_vis, (u, v), 6, (0, 0, 0), -1)
-            # Green center point
-            cv2.circle(self.heatmap_vis, (u, v), 4, (0, 255, 0), -1)
-
-            # Text label shadow
-            label = f"WP {i}"
-            cv2.putText(
-                self.heatmap_vis,
-                label,
-                (u + 8, v + 4),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.4,
-                (0, 0, 0),
-                3,
-                cv2.LINE_AA,
-            )
-            # Text label
-            cv2.putText(
-                self.heatmap_vis,
-                label,
-                (u + 8, v + 4),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.4,
-                (255, 255, 255),
-                1,
-                cv2.LINE_AA,
-            )
 
     def build_heatmap_visualization(self, heatmap, pixel_points):
         heatmap_vis = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX).astype(
