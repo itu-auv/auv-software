@@ -93,6 +93,7 @@ catkin_install_python(PROGRAMS
   scripts/premap_publisher.py
   scripts/competition_map_gui.py
   scripts/kde_object_mapper.py
+  scripts/waypoint_gui.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
