@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-import math
 import rospy
 import actionlib
 import tf2_ros
 from typing import List, Optional
-from tf.transformations import euler_from_quaternion
 
 from nav_msgs.msg import Path
 from auv_msgs.msg import (
@@ -41,7 +39,6 @@ class FollowPathActionServer:
             "/planned_path", Path, self.path_cb, queue_size=1
         )
         self.current_path = None
-        self._last_dynamic_target_stamp = None
 
         self.server = actionlib.SimpleActionServer(
             "follow_path", FollowPathAction, self.execute, auto_start=False
@@ -96,20 +93,13 @@ class FollowPathActionServer:
                     self.loop_rate.sleep()
                     continue
 
-                # Broadcast the dynamic target frame so that controllers can use it.
-                # Guard against repeated timestamps under use_sim_time (same fix as waypoint_gui).
-                _now = rospy.Time.now()
-                if (
-                    self._last_dynamic_target_stamp is None
-                    or _now > self._last_dynamic_target_stamp
-                ):
-                    self._last_dynamic_target_stamp = _now
-                    follow_path_helpers.broadcast_dynamic_target_frame(
-                        self.tf_broadcaster,
-                        self.tf_buffer,
-                        self.source_frame,
-                        dynamic_target_pose,
-                    )
+                # Broadcast the dynamic target frame so that controllers can use it
+                follow_path_helpers.broadcast_dynamic_target_frame(
+                    self.tf_broadcaster,
+                    self.tf_buffer,
+                    self.source_frame,
+                    dynamic_target_pose,
+                )
 
                 if follow_path_helpers.is_path_completed(
                     robot_pose,

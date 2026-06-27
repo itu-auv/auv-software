@@ -129,14 +129,12 @@ def find_closest_point_index(path: Path, robot_pose: PoseStamped) -> int:
     closest_index = 0
 
     for i, pose in enumerate(path.poses):
-        # Use 2D distance (x, y) to match is_path_completed behaviour.
-        # Including Z causes path tracking to stall when the AUV is at a
-        # different depth than the planned path.
         dist = np.linalg.norm(
             np.array(
                 [
                     pose.pose.position.x - robot_pose.pose.position.x,
                     pose.pose.position.y - robot_pose.pose.position.y,
+                    pose.pose.position.z - robot_pose.pose.position.z,
                 ]
             )
         )
@@ -161,32 +159,53 @@ def is_path_completed(
     completion_yaw_threshold: float,
 ) -> bool:
     """
-    Checks if the robot has reached the end of the path based on 2D distance only.
-
-    Yaw is intentionally ignored here: the GUI waypoint's frame orientation rarely
-    matches the AUV's natural approach direction, causing the AUV to spin in place
-    near the waypoint until both distance AND yaw are satisfied simultaneously.
-    Precise heading at the final destination is the job of AlignFrame, not this check.
+    Checks if the robot has reached the end of the path based on distance and yaw thresholds.
 
     Args:
         robot_pose: Current pose of the robot.
         path: The path to check.
-        completion_distance_threshold: The maximum allowed 2D distance to the final point.
-        completion_yaw_threshold: Kept for API compatibility; not used.
+        completion_distance_threshold: The maximum allowed distance to the final point.
+        completion_yaw_threshold: The maximum allowed yaw difference to the final orientation.
 
     Returns:
-        True if the robot is within completion_distance_threshold of the last point.
+        True if the robot is within the specified thresholds of the last point, False otherwise.
     """
     if not path.poses:
         return False
 
     last_pose = path.poses[-1].pose
 
+    # Calculate 2D distance (x, y)
+    # Don't consider z error
     dx = robot_pose.pose.position.x - last_pose.position.x
     dy = robot_pose.pose.position.y - last_pose.position.y
     distance_to_last_point = np.sqrt(dx**2 + dy**2)
 
-    return distance_to_last_point <= completion_distance_threshold
+    # Calculate yaw difference
+    robot_orientation = robot_pose.pose.orientation
+    _, _, robot_yaw = euler_from_quaternion(
+        [
+            robot_orientation.x,
+            robot_orientation.y,
+            robot_orientation.z,
+            robot_orientation.w,
+        ]
+    )
+
+    last_orientation = last_pose.orientation
+    _, _, last_yaw = euler_from_quaternion(
+        [last_orientation.x, last_orientation.y, last_orientation.z, last_orientation.w]
+    )
+
+    yaw_difference = abs(robot_yaw - last_yaw)
+    # Normalize yaw difference to be within [0, pi]
+    if yaw_difference > np.pi:
+        yaw_difference = 2 * np.pi - yaw_difference
+
+    return (
+        distance_to_last_point <= completion_distance_threshold
+        and yaw_difference <= completion_yaw_threshold
+    )
 
 
 def combine_segments(paths: List[Path]) -> Tuple[Path, List[int]]:
