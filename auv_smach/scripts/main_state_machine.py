@@ -15,6 +15,7 @@ from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
+from auv_smach.waypoints import DynamicPathExecutionState
 from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
@@ -208,6 +209,39 @@ class MainStateMachineNode:
         )
         return LEFT_TOP_TORPEDO_FIRE_FRAMES
 
+    @staticmethod
+    def _is_path_token(name):
+        return isinstance(name, str) and name.startswith("path") and name[4:].isdigit()
+
+    def _build_path_state(self, token, gui_paths):
+        cfg = (gui_paths or {}).get(token)
+        if not cfg:
+            rospy.logwarn(
+                "No GUI path config found for '%s' at /waypoint_gui/paths. "
+                "Draw it in the waypoint GUI before running this mission.",
+                token,
+            )
+            return None
+
+        waypoint_frames = cfg.get("waypoint_frames")
+        if not waypoint_frames and "waypoints" in cfg:
+            count = int(cfg["waypoints"])
+            waypoint_frames = [f"{token}_wp{i + 1}" for i in range(count)]
+        if not waypoint_frames:
+            rospy.logwarn("GUI path '%s' has no waypoints; skipping.", token)
+            return None
+
+        reference_frame = cfg.get("reference_frame", f"{token}_ref")
+        rospy.loginfo(
+            "[main] %s: ref=%s, wps=%s", token, reference_frame, waypoint_frames
+        )
+        return DynamicPathExecutionState(
+            path_name=token,
+            reference_frame=reference_frame,
+            waypoint_frames=waypoint_frames,
+            final_align=True,
+        )
+
     def execute_state_machine(self):
         # Convert degrees to radians
         gate_exit_angle_rad = math.radians(self.gate_exit_angle_deg)
@@ -310,6 +344,15 @@ class MainStateMachineNode:
         rospy.loginfo("Executing state machine with states: %s", self.state_list)
         self.sm = smach.StateMachine(outcomes=["succeeded", "preempted", "aborted"])
 
+        gui_paths_ns = rospy.get_param("~gui_paths_rosparam", "/waypoint_gui/paths")
+        gui_paths = rospy.get_param(gui_paths_ns, None) or {}
+        if gui_paths:
+            rospy.loginfo(
+                "Loaded GUI path configs from %s: %s",
+                gui_paths_ns,
+                list(gui_paths.keys()),
+            )
+
         with self.sm:
             for i, state_name in enumerate(self.state_list):
                 next_state = (
@@ -317,15 +360,21 @@ class MainStateMachineNode:
                     if i + 1 < len(self.state_list)
                     else "succeeded"
                 )
-                state_class, params = state_mapping.get(state_name, (None, {}))
 
-                if state_class is None:
-                    rospy.logerr(f"Unknown state: {state_name}")
-                    continue
+                if self._is_path_token(state_name):
+                    state_instance = self._build_path_state(state_name, gui_paths)
+                    if state_instance is None:
+                        continue
+                else:
+                    state_class, params = state_mapping.get(state_name, (None, {}))
+                    if state_class is None:
+                        rospy.logerr(f"Unknown state: {state_name}")
+                        continue
+                    state_instance = state_class(**params)
 
                 smach.StateMachine.add(
                     state_name,
-                    state_class(**params),
+                    state_instance,
                     transitions={
                         "succeeded": next_state,
                         "preempted": "preempted",
