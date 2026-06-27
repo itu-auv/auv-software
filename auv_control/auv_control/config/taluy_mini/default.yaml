@@ -45,3 +45,4 @@ mapping: [0, 1, 2, 3, 4, 5, 6, 7]
 directions: [1, 1, 1, 1, 1, -1, 1, 1]
 
 gravity_compensation_z: 0.0
+yaw_cross_coupling_gain: 0.0
