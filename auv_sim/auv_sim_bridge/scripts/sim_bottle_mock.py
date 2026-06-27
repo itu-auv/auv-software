@@ -84,7 +84,7 @@ class ModelSpawner:
         """Automatically spawn the task 5 models facing upwards on startup."""
         for key in self.keys:
             x, y = self._get_random_table_pose()
-            self._spawn_single_model(key, x, y, -1.0)
+            self._spawn_single_model(key, x, y, -1.3)
 
     def _spawn_single_model(self, key, x, y, z):
         if key not in self.configs:
