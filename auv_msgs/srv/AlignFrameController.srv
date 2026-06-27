@@ -4,7 +4,11 @@ float32 angle_offset
 bool keep_orientation
 bool use_depth
 bool closest_yaw
+# Fallback linear velocity limit for x/y/z when axis-specific limits are not set.
 float32 max_linear_velocity
+float32 max_linear_velocity_x
+float32 max_linear_velocity_y
+float32 max_linear_velocity_z
 float32 max_angular_velocity
 float32 max_linear_velocity_x
 float32 max_linear_velocity_y
