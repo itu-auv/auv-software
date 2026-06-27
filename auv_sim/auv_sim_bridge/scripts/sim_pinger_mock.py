@@ -15,10 +15,21 @@ class SimPingerMock:
 
         self.robot_name = rospy.get_param("~robot_name", "taluy")
         self.pinger_name = rospy.get_param("~pinger_name", "pinger_cube")
+        self.pinger_mode = rospy.get_param("~pinger_mode", "octagon")
 
-        self.pinger_start_x = rospy.get_param("~pinger_x", 10.0)
-        self.pinger_start_y = rospy.get_param("~pinger_y", 0.0)
-        self.pinger_start_z = rospy.get_param("~pinger_z", -1.0)
+        pinger_positions = {
+            "octagon": (13.0, -4.25, -1.95),
+            "torpedo": (5.25, -1.0, -1.95),
+        }
+        if self.pinger_mode not in pinger_positions:
+            rospy.logwarn(
+                f"[sim_pinger_mock] Unknown pinger_mode '{self.pinger_mode}', using octagon"
+            )
+            self.pinger_mode = "octagon"
+
+        self.pinger_start_x, self.pinger_start_y, self.pinger_start_z = (
+            pinger_positions[self.pinger_mode]
+        )
 
         self.publish_rate = rospy.get_param("~publish_rate", 1.0)
         self.topic_name = rospy.get_param(
@@ -39,11 +50,11 @@ class SimPingerMock:
             "/gazebo/get_model_state", GetModelState
         )
 
-        # z = 0
         self.spawn_pinger_cube()
 
         rospy.loginfo(
-            f"[sim_pinger_mock] Initialized. Pinger position: ({self.pinger_start_x}, {self.pinger_start_y}, {self.pinger_start_z}) "
+            f"[sim_pinger_mock] Initialized in '{self.pinger_mode}' mode. "
+            f"Pinger position: ({self.pinger_start_x}, {self.pinger_start_y}, {self.pinger_start_z}) "
             f"Publishing on topic '{self.topic_name}' at {self.publish_rate} Hz."
         )
 
@@ -73,7 +84,7 @@ class SimPingerMock:
         pose = Pose()
         pose.position.x = self.pinger_start_x
         pose.position.y = self.pinger_start_y
-        pose.position.z = 0.0
+        pose.position.z = self.pinger_start_z
         pose.orientation.w = 1.0
 
         try:
@@ -99,7 +110,7 @@ class SimPingerMock:
                 if not robot_resp.success:
                     rospy.logwarn_throttle(
                         5.0,
-                        f"[sim_pinger_mock] Failed to get model state for '{self.robot_name}': {resp.status_message}",
+                        f"[sim_pinger_mock] Failed to get model state for '{self.robot_name}': {robot_resp.status_message}",
                     )
                     rate.sleep()
                     continue
@@ -107,7 +118,7 @@ class SimPingerMock:
                 if not pinger_resp.success:
                     rospy.logwarn_throttle(
                         5.0,
-                        f"[sim_pinger_mock] Failed to get model state for '{self.robot_name}': {resp.status_message}",
+                        f"[sim_pinger_mock] Failed to get model state for '{self.pinger_name}': {pinger_resp.status_message}",
                     )
                     rate.sleep()
                     continue
