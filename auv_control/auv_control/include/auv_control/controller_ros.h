@@ -77,6 +77,7 @@ class ControllerROS {
     ROS_INFO_STREAM("integral_clamp_limits: \n"
                     << integral_clamp_limits_.transpose());
     ROS_INFO_STREAM("gravity_compensation_z: " << gravity_compensation_z_);
+    ROS_INFO_STREAM("yaw_cross_coupling_gain: " << yaw_cross_coupling_gain_);
     load_controller("auv::control::SixDOFPIDController");
 
     auto controller =
@@ -88,6 +89,7 @@ class ControllerROS {
     controller->set_kd(kd_);
     controller->set_integral_clamp_limits(integral_clamp_limits_);
     controller->set_gravity_compensation_z(gravity_compensation_z_);
+    controller->set_yaw_cross_coupling_gain(yaw_cross_coupling_gain_);
     controller->set_max_velocity_limits(max_velocity_);
     controller->set_max_acceleration_limits(max_acceleration_);
     controller->set_max_acceleration_rate_limits(max_acceleration_rate_);
@@ -334,6 +336,8 @@ class ControllerROS {
     controller->set_integral_clamp_limits(integral_clamp_limits_);
     controller->set_gravity_compensation_z(config.gravity_compensation_z);
     gravity_compensation_z_ = config.gravity_compensation_z;
+    controller->set_yaw_cross_coupling_gain(config.yaw_cross_coupling_gain);
+    yaw_cross_coupling_gain_ = config.yaw_cross_coupling_gain;
 
     max_velocity_ << config.max_velocity_0, config.max_velocity_1,
         config.max_velocity_2, config.max_velocity_3, config.max_velocity_4,
@@ -375,6 +379,7 @@ class ControllerROS {
 
     // Load gravity compensation parameter
     gravity_compensation_z_ = nh_private.param("gravity_compensation_z", 0.0);
+    yaw_cross_coupling_gain_ = nh_private.param("yaw_cross_coupling_gain", 0.0);
 
     // Load max velocity limits
     if (nh_private.hasParam("max_velocity")) {
@@ -465,6 +470,7 @@ class ControllerROS {
     config.integral_clamp_11 = integral_clamp_limits_(11);
 
     config.gravity_compensation_z = gravity_compensation_z_;
+    config.yaw_cross_coupling_gain = yaw_cross_coupling_gain_;
 
     config.max_velocity_0 = max_velocity_(0);
     config.max_velocity_1 = max_velocity_(1);
@@ -555,9 +561,10 @@ class ControllerROS {
 
     // Save gravity compensation parameter
     auto replace_scalar_param = [](std::string& content,
-                                   const std::string& param, double value) {
+                                   const std::string& param, double value,
+                                   int precision = 1) {
       std::stringstream ss;
-      ss << std::fixed << std::setprecision(1);
+      ss << std::fixed << std::setprecision(precision);
       ss << param << ": " << value;
 
       std::string::size_type start_pos = content.find(param + ": ");
@@ -575,6 +582,8 @@ class ControllerROS {
 
     replace_scalar_param(content, "gravity_compensation_z",
                          gravity_compensation_z_);
+    replace_scalar_param(content, "yaw_cross_coupling_gain",
+                         yaw_cross_coupling_gain_, 3);
 
     std::ofstream out_file(config_file_);
     if (!out_file.is_open()) {
@@ -625,7 +634,8 @@ class ControllerROS {
   Eigen::Matrix<double, 12, 1>
       integral_clamp_limits_;           // Integral clamping limits
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
-  std::string config_file_;             // Path to the config file
+  double yaw_cross_coupling_gain_{0.0};
+  std::string config_file_;  // Path to the config file
 
   std::string depth_control_reference_frame_;
 };
