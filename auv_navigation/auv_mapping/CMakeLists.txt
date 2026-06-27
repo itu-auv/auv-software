@@ -83,6 +83,7 @@ add_definitions(
 
 catkin_install_python(PROGRAMS
   scripts/gate_trajectory_publisher.py
+  scripts/mini_gate_trajectory_publisher.py
   scripts/bin_trajectory_publisher.py
   scripts/torpedo_frame_publisher.py
   scripts/slalom_heatmap_mapper.py

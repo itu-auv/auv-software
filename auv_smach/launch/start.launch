@@ -89,7 +89,7 @@
             <remap from="odometry" to="odometry"/>
             <remap from="wrench" to="wrench"/>
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
-            <remap from="toggle_gate_single_frame_trajectory" to="toggle_gate_single_frame_trajectory"/>
+            <remap from="toggle_mini_gate_trajectory" to="toggle_mini_gate_trajectory"/>
             <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable"/>
 
             <!--initialize.py-->

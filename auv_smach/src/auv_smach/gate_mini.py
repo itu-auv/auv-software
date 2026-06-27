@@ -37,7 +37,7 @@ class TransformServiceEnableState(smach_ros.ServiceState):
     def __init__(self, req: bool):
         smach_ros.ServiceState.__init__(
             self,
-            "toggle_gate_single_frame_trajectory",
+            "toggle_mini_gate_trajectory",
             SetBool,
             request=SetBoolRequest(data=req),
         )
@@ -93,7 +93,7 @@ class NavigateThroughGateMiniState(smach.State):
         self.roll = rospy.get_param("~roll", True)
         self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip = rospy.get_param("~coin_flip", False)
-        self.gate_look_at_frame = "gate_middle_part"
+        self.gate_look_at_frame = "mini_gate_middle_part"
         self.gate_search_frame = "gate_search"
         self.gate_exit_angle = gate_exit_angle
         self.roll_depth = roll_depth
@@ -132,6 +132,15 @@ class NavigateThroughGateMiniState(smach.State):
                     cancel_on_success=False,
                 ),
                 transitions={
+                    "succeeded": "SET_DETECTION_FOCUS_GATE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_DETECTION_FOCUS_GATE",
+                SetDetectionFocusState(focus_object="gate"),
+                transitions={
                     "succeeded": "SET_INITIAL_GATE_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -152,37 +161,21 @@ class NavigateThroughGateMiniState(smach.State):
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
                 transitions={
-                    "succeeded": (
-                        "COIN_FLIP_STATE"
-                        if self.coin_flip
-                        else "SET_DETECTION_FOCUS_GATE"
-                    ),
+                    "succeeded": "SABIT_BAKMA",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "COIN_FLIP_STATE",
-                CoinFlipState(),
-                transitions={
-                    "succeeded": "SET_DETECTION_FOCUS_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_DETECTION_FOCUS_GATE",
-                SetDetectionFocusState(focus_object="gate"),
-                transitions={
-                    "succeeded": "SET_ROLL_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_ROLL_DEPTH",
-                SetDepthState(
-                    depth=self.roll_depth,
+                "SABIT_BAKMA",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="mini_gate_center_entrance",
+                    dist_threshold=0.2,
+                    yaw_threshold=0.2,
+                    confirm_duration=10.0,
+                    timeout=30.0,
+                    cancel_on_success=False,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -200,30 +193,6 @@ class NavigateThroughGateMiniState(smach.State):
                     rotation_speed=0.2,
                 ),
                 transitions={
-                    "succeeded": "SET_GATE_TRAJECTORY_DEPTH",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_GATE_TRAJECTORY_DEPTH",
-                SetDepthState(depth=gate_search_depth),
-                transitions={
-                    "succeeded": "LOOK_AT_GATE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "LOOK_AT_GATE",
-                SearchForPropState(
-                    look_at_frame=self.gate_look_at_frame,
-                    alignment_frame=self.gate_search_frame,
-                    full_rotation=False,
-                    source_frame=self.base_link,
-                    rotation_speed=0.2,
-                ),
-                transitions={
                     "succeeded": "SET_GATE_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -231,7 +200,7 @@ class NavigateThroughGateMiniState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=-1.0),
+                SetDepthState(depth=-1.35),
                 transitions={
                     "succeeded": "ALIGN_FRAME_TO_GATE",
                     "preempted": "preempted",
@@ -242,7 +211,7 @@ class NavigateThroughGateMiniState(smach.State):
                 "ALIGN_FRAME_TO_GATE",
                 AlignFrameWithVisibilityCheck(
                     source_frame=self.base_link,
-                    target_frame="gate_middle_part",
+                    target_frame=self.gate_look_at_frame,
                     prop_name=self.target_animal,
                     lost_timeout=3.0,
                     angle_offset=self.gate_exit_angle,
