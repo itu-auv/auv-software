@@ -379,23 +379,6 @@ class ReferencePosePublisherNode:
                     req.max_linear_velocity,
                     self.default_max_velocity[2],
                 )
-                linear_vel_y = self._resolve_axis_velocity(
-                    req.max_linear_velocity_y,
-                    req.max_linear_velocity,
-                    self.default_max_velocity[1],
-                )
-                if req.max_linear_velocity_z > 0:
-                    linear_vel_z = req.max_linear_velocity_z
-                elif req.use_depth:
-                    linear_vel_z = self._resolve_axis_velocity(
-                        0.0,
-                        req.max_linear_velocity,
-                        self.default_max_velocity[2],
-                    )
-                elif self.set_depth_velocity is not None:
-                    linear_vel_z = self.set_depth_velocity
-                else:
-                    linear_vel_z = self.default_max_velocity[2]
                 angular_vel = (
                     req.max_angular_velocity
                     if req.max_angular_velocity > 0
