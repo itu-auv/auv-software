@@ -50,7 +50,6 @@ class NavigateReturnThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame="look_at_gate",
                     full_rotation=False,
-                    set_frame_duration=7.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),

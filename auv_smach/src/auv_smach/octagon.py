@@ -34,7 +34,7 @@ class GripperAngleOpenState(smach.State):
             self,
             outcomes=["succeeded", "preempted", "aborted"],
         )
-        self.pub = rospy.Publisher("actuators/gripper/set_angle", UInt16, queue_size=1)
+        self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
         self.angle_value = 2400
 
     def execute(self, userdata) -> str:
@@ -63,7 +63,7 @@ class GripperAngleCloseState(smach.State):
             self,
             outcomes=["succeeded", "preempted", "aborted"],
         )
-        self.pub = rospy.Publisher("actuators/gripper/set_angle", UInt16, queue_size=1)
+        self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
         self.angle_value = 1300
 
     def execute(self, userdata) -> str:
@@ -422,9 +422,8 @@ class OctagonTaskState(smach.State):
                     look_at_frame="octagon_link",
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
-                    set_frame_duration=4.0,
                     source_frame=self.base_link,
-                    rotation_speed=0.2,
+                    rotation_speed=0.4,
                 ),
                 transitions={
                     "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER",
@@ -862,7 +861,7 @@ class OctagonTaskState(smach.State):
     #         look_at_frame=self.animal_frame,
     #         alignment_frame="octagon_search_frame",
     #         full_rotation=False,
-    #         set_frame_duration=5.0,
+    #         stimeout=20.0,
     #         source_frame=self.base_link,
     #         rotation_speed=-0.2,
     #     ),
