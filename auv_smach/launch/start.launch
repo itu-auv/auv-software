@@ -10,6 +10,7 @@
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
         slalom:NAVIGATE_THROUGH_SLALOM,
+        pinger:RANDOM_PINGER_TASK,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
