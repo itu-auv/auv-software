@@ -6,6 +6,9 @@ bool use_depth
 bool closest_yaw
 float32 max_linear_velocity
 float32 max_angular_velocity
+float32 max_linear_velocity_x
+float32 max_linear_velocity_y
+float32 max_linear_velocity_z
 ---
 bool success
 string message

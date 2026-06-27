@@ -315,6 +315,9 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         keep_orientation: bool = False,
         angle_offset: float = 0.0,
         max_linear_velocity: float = None,
+        max_linear_velocity_x: float = None,
+        max_linear_velocity_y: float = None,
+        max_linear_velocity_z: float = None,
         max_angular_velocity: float = None,
         use_depth: bool = False,
         closest_yaw: bool = False,
@@ -328,6 +331,12 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         align_request.closest_yaw = closest_yaw
         if max_linear_velocity is not None:
             align_request.max_linear_velocity = max_linear_velocity
+        if max_linear_velocity_x is not None:
+            align_request.max_linear_velocity_x = max_linear_velocity_x
+        if max_linear_velocity_y is not None:
+            align_request.max_linear_velocity_y = max_linear_velocity_y
+        if max_linear_velocity_z is not None:
+            align_request.max_linear_velocity_z = max_linear_velocity_z
         if max_angular_velocity is not None:
             align_request.max_angular_velocity = max_angular_velocity
 
@@ -1132,6 +1141,9 @@ class AlignFrame(smach.StateMachine):
         confirm_duration=0.0,
         keep_orientation=False,
         max_linear_velocity=None,
+        max_linear_velocity_x=None,
+        max_linear_velocity_y=None,
+        max_linear_velocity_z=None,
         max_angular_velocity=None,
         use_frame_depth=False,
         closest_yaw=False,
@@ -1151,6 +1163,9 @@ class AlignFrame(smach.StateMachine):
                     angle_offset=angle_offset,
                     keep_orientation=keep_orientation,
                     max_linear_velocity=max_linear_velocity,
+                    max_linear_velocity_x=max_linear_velocity_x,
+                    max_linear_velocity_y=max_linear_velocity_y,
+                    max_linear_velocity_z=max_linear_velocity_z,
                     max_angular_velocity=max_angular_velocity,
                     use_depth=use_frame_depth,
                     closest_yaw=closest_yaw,
