@@ -694,7 +694,7 @@ class BinTaskState(smach.State):
                 "ALLIGN_TO_SECOND_BASKET",
                 AlignFrame(
                     source_frame=self.base_link+"/ball_dropper_2_link",
-                    target_frame=target_frames[0]+"_0",
+                    target_frame=target_frames[0],
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -742,7 +742,7 @@ class BinTaskState(smach.State):
                 "ALIGN_TO_BIN_EXIT",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame="bin_exit",
+                    target_frame="bin_close_approach",
                     angle_offset=bin_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
