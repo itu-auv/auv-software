@@ -24,7 +24,7 @@ ROLE_TO_GATE_FRAME = {
 class MiniGateTrajectoryPublisher:
     def __init__(self):
         self.is_enabled = False
-        self.relative_gate_pose = None
+        self.center_entrance_reference = None
 
         rospy.init_node("mini_gate_trajectory_publisher")
         self.tf_buffer = tf2_ros.Buffer()
@@ -97,9 +97,10 @@ class MiniGateTrajectoryPublisher:
     def handle_enable_service(self, request: SetBool) -> SetBoolResponse:
         self.is_enabled = request.data
         if request.data:
-            self.capture_relative_gate_pose()
+            self.center_entrance_reference = None
+            self.capture_center_entrance_reference()
         else:
-            self.relative_gate_pose = None
+            self.center_entrance_reference = None
 
         message = (
             "Mini gate single-frame trajectory publishing is set to: "
@@ -136,9 +137,9 @@ class MiniGateTrajectoryPublisher:
         self.publish_pose(self.entrance_frame, entrance_pose)
         self.publish_pose(self.exit_frame, exit_pose)
 
-        relative_gate_pose = self.compute_relative_gate_pose(t_gate1, t_gate2)
-        if relative_gate_pose is not None:
-            self.publish_pose(self.center_entrance_frame, relative_gate_pose)
+        center_entrance_pose = self.compute_center_entrance(target_transform)
+        if center_entrance_pose is not None:
+            self.publish_pose(self.center_entrance_frame, center_entrance_pose)
 
     def lookup_gate_transform(self, frame: str) -> Optional[TransformStamped]:
         try:
@@ -188,91 +189,64 @@ class MiniGateTrajectoryPublisher:
         robot_pos = robot_transform.transform.translation
         return self.compute_entrance_exit_from_position(gate_pos, robot_pos)
 
-    def capture_relative_gate_pose(self) -> bool:
-        t_gate1 = self.lookup_gate_transform(self.gate_frame_1)
-        t_gate2 = self.lookup_gate_transform(self.gate_frame_2)
+    def capture_center_entrance_reference(
+        self,
+        target_transform: Optional[TransformStamped] = None,
+    ) -> bool:
+        if target_transform is None:
+            t_gate1 = self.lookup_gate_transform(self.gate_frame_1)
+            t_gate2 = self.lookup_gate_transform(self.gate_frame_2)
+            target_transform = self.select_single_frame_transform(t_gate1, t_gate2)
+
         robot_transform = self.lookup_robot_transform()
-        if t_gate1 is None or t_gate2 is None or robot_transform is None:
+        if target_transform is None or robot_transform is None:
             rospy.logwarn(
-                "Mini gate relative frame was not captured yet. Waiting for both gate frames and robot TF."
+                "Mini gate center entrance was not captured yet. Waiting for selected gate frame and robot TF."
             )
             return False
 
-        geometry = self.compute_gate_pair_geometry(t_gate1, t_gate2)
-        if geometry is None:
+        robot_pos = robot_transform.transform.translation
+        target_pos = target_transform.transform.translation
+        dx = target_pos.x - robot_pos.x
+        dy = target_pos.y - robot_pos.y
+        distance = math.sqrt(dx**2 + dy**2)
+        if distance < self.min_gate_separation_threshold:
+            rospy.logwarn(
+                "Robot is too close to the selected mini gate frame for center entrance capture."
+            )
             return False
 
-        center, unit_gate, unit_normal = geometry
-        robot_pos = robot_transform.transform.translation
-        offset_x = robot_pos.x - center.x
-        offset_y = robot_pos.y - center.y
-        self.relative_gate_pose = (
-            offset_x * unit_gate[0] + offset_y * unit_gate[1],
-            offset_x * unit_normal[0] + offset_y * unit_normal[1],
-            robot_pos.z - center.z,
-        )
+        yaw_to_target = math.atan2(dy, dx)
+        z_offset = robot_pos.z - target_pos.z
+        self.center_entrance_reference = (distance, yaw_to_target, z_offset)
         rospy.loginfo(
-            "Captured mini gate relative frame offset: along=%.3f, normal=%.3f, z=%.3f",
-            self.relative_gate_pose[0],
-            self.relative_gate_pose[1],
-            self.relative_gate_pose[2],
+            "Captured mini gate center entrance reference: distance=%.3f, yaw=%.3f, z_offset=%.3f",
+            distance,
+            yaw_to_target,
+            z_offset,
         )
         return True
 
-    def compute_relative_gate_pose(
+    def compute_center_entrance(
         self,
-        t_gate1: Optional[TransformStamped],
-        t_gate2: Optional[TransformStamped],
+        target_transform: TransformStamped,
     ) -> Optional[Pose]:
-        if t_gate1 is None or t_gate2 is None:
+        if (
+            self.center_entrance_reference is None
+            and not self.capture_center_entrance_reference(target_transform)
+        ):
             return None
 
-        if self.relative_gate_pose is None and not self.capture_relative_gate_pose():
-            return None
-
-        geometry = self.compute_gate_pair_geometry(t_gate1, t_gate2)
-        if geometry is None:
-            return None
-
-        center, unit_gate, unit_normal = geometry
-        along_offset, normal_offset, z_offset = self.relative_gate_pose
+        distance, yaw_to_target, z_offset = self.center_entrance_reference
+        target_pos = target_transform.transform.translation
         frame_position = Point(
-            center.x + along_offset * unit_gate[0] + normal_offset * unit_normal[0],
-            center.y + along_offset * unit_gate[1] + normal_offset * unit_normal[1],
-            center.z + z_offset,
+            target_pos.x - distance * math.cos(yaw_to_target),
+            target_pos.y - distance * math.sin(yaw_to_target),
+            target_pos.z + z_offset,
         )
-        yaw_to_center = math.atan2(
-            center.y - frame_position.y,
-            center.x - frame_position.x,
-        )
-        quat = tf_conversions.transformations.quaternion_from_euler(0, 0, yaw_to_center)
+        quat = tf_conversions.transformations.quaternion_from_euler(0, 0, yaw_to_target)
 
         return Pose(position=frame_position, orientation=Quaternion(*quat))
-
-    def compute_gate_pair_geometry(
-        self,
-        t_gate1: TransformStamped,
-        t_gate2: TransformStamped,
-    ) -> Optional[Tuple[Point, Tuple[float, float], Tuple[float, float]]]:
-        p1 = t_gate1.transform.translation
-        p2 = t_gate2.transform.translation
-        dx = p2.x - p1.x
-        dy = p2.y - p1.y
-        length = math.sqrt(dx**2 + dy**2)
-        if length < self.min_gate_separation_threshold:
-            rospy.logwarn(
-                "Mini gate links are too close for relative frame calculation."
-            )
-            return None
-
-        center = Point(
-            (p1.x + p2.x) / 2.0,
-            (p1.y + p2.y) / 2.0,
-            (p1.z + p2.z) / 2.0,
-        )
-        unit_gate = (dx / length, dy / length)
-        unit_normal = (-unit_gate[1], unit_gate[0])
-        return center, unit_gate, unit_normal
 
     def lookup_robot_transform(self) -> Optional[TransformStamped]:
         try:
