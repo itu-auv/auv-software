@@ -380,7 +380,6 @@ class MainStateMachineNode:
         if falling_edge:
             # TODO: maybe add restart logic
             rospy.logerr("KILLSWITCH!")
-            rospy.signal_shutdown("Force stopping state machine")
 
 
 if __name__ == "__main__":

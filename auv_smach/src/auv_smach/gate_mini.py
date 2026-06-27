@@ -140,7 +140,7 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
-                    depth=-0.5,
+                    depth=-0.7,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -231,7 +231,7 @@ class NavigateThroughGateMiniState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=-1.0),
+                SetDepthState(depth=-1.5),
                 transitions={
                     "succeeded": "ALIGN_FRAME_TO_GATE",
                     "preempted": "preempted",
@@ -244,7 +244,7 @@ class NavigateThroughGateMiniState(smach.State):
                     source_frame=self.base_link,
                     target_frame="gate_middle_part",
                     prop_name=self.target_animal,
-                    lost_timeout=3.0,
+                    lost_timeout=6.0,
                     angle_offset=self.gate_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -270,7 +270,7 @@ class NavigateThroughGateMiniState(smach.State):
                     timeout=15.0,
                 ),
                 transitions={
-                    "succeeded": "PITCH_TWO_TIMES",
+                    "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
