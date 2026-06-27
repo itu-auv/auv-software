@@ -17,15 +17,19 @@
     <arg name="imu_update_rate" default="20" />
     <arg name="dvl_update_rate" default="20" />
     <arg name="pressure_update_rate" default="20" />
+    <arg name="camera_update_rate" default="10.0" />
     <arg name="enable_logging" default="false" />
     <arg name="logging_directory" default="$(optenv HOME)/bags" />
     <arg name="log_filename" default="" />
     <arg name="start_bridge" default="true" />
+    <arg name="pointcloud_filter" default="true" />
     <arg name="sim" default="true" />
     <arg name="use_taluy_gui" default="true" />
+    <arg name="use_rviz" default="false" />
     <arg name="use_models" default="false" />
     <arg name="robot_description_file" default="$(eval find(arg('namespace') + '_sim_description') + '/urdf/' + arg('namespace') + '_sim.urdf.xacro')" />
     <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/yolo_cam.rviz')" />
+    <arg name="start_tf_gazebo_debug" default="false" />
 
     <!-- Run Taluy GUI -->
     <group if="$(arg use_taluy_gui)">
@@ -40,7 +44,7 @@
         pkg="rviz"
         type="rviz"
         args="-d $(arg rviz_config)"
-        if="$(arg use_gui)"
+        if="$(arg use_rviz)"
     />
 
     <!-- Initial robot position and orientation -->
@@ -86,7 +90,9 @@
         <arg name="imu_update_rate" value="$(arg imu_update_rate)" />
         <arg name="dvl_update_rate" value="$(arg dvl_update_rate)" />
         <arg name="pressure_update_rate" value="$(arg pressure_update_rate)" />
+        <arg name="camera_update_rate" value="$(arg camera_update_rate)" />
         <arg name="use_models" value="$(arg use_models)" />
+        <arg name="pointcloud_filter" value="$(arg pointcloud_filter)" />
         <arg name="robot_description_file" value="$(arg robot_description_file)" />
     </include>
 
@@ -131,7 +137,7 @@
     </include>
 
     <!-- TF-Gazebo Debug Node -->
-    <node name="tf_gazebo_debug" pkg="auv_sim" type="tf_gazebo_debug.py" output="screen">
+    <node if="$(arg start_tf_gazebo_debug)" name="tf_gazebo_debug" pkg="auv_sim" type="tf_gazebo_debug.py" output="screen">
       <param name="robot_name" value="$(arg namespace)" />
       <param name="robot_base_frame" value="$(arg namespace)/base_link" />
     </node>
