@@ -35,11 +35,11 @@ class BottomCameraHandler:
 
         # IDs that use altitude for distance instead of prop size estimation
         self.altitude_distance_ids = self.id_tf_map.ids_of(
-            "bin_shark_link", "bin_sawfish_link", "octagon_table_link"
+            "bin_blood_link", "bin_fire_link", "octagon_table_link"
         )
 
         # Bottom camera specific state
-        self.active_ids = self.id_tf_map.ids_of("bin_shark_link", "bin_sawfish_link")
+        self.active_ids = self.id_tf_map.ids_of("bin_blood_link", "bin_fire_link")
 
     def set_active_ids(self, ids: list):
         """Called by orchestrator when set_bottom_camera_focus service is triggered."""

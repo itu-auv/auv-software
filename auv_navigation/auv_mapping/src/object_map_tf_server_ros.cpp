@@ -151,13 +151,16 @@ void ObjectMapTFServerROS::dynamic_transform_callback(
   const bool is_slalom_gate =
       object_frame.find("red_pipe_link") != std::string::npos ||
       object_frame.find("white_pipe_link") != std::string::npos;
+  const bool is_bin_bottom =
+      object_frame.find("bin_blood_link") != std::string::npos ||
+      object_frame.find("bin_fire_link") != std::string::npos;
 
-  // If object is a slalom gate, use a smaller distance threshold
+  // If object is a slalom gate or bin bottom, use a smaller distance threshold
   double current_distance_threshold_squared = distance_threshold_squared_;
-  if (is_slalom_gate) {
+  if (is_slalom_gate || is_bin_bottom) {
     current_distance_threshold_squared = 1.0;  // 1.0 metre'nin karesi
     ROS_DEBUG_STREAM(
-        "Using special distance threshold for slalom gate: " << object_frame);
+        "Using special distance threshold for object: " << object_frame);
   }
 
   // Find the closest filter to update

@@ -25,7 +25,7 @@ class BinTransformServiceNode:
 
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.robot_frame = rospy.get_param("~robot_frame", "taluy/base_link")
-        self.bin_frame = rospy.get_param("~bin_frame", "bin_whole_link")
+        self.bin_frame = rospy.get_param("~bin_frame", "bin_basket_front_link")
         self.bin_further_frame = rospy.get_param("~bin_further_frame", "bin_far_trial")
         self.bin_closer_frame = rospy.get_param(
             "~bin_closer_frame", "bin_close_approach"
@@ -45,6 +45,11 @@ class BinTransformServiceNode:
 
         self.set_enable_service = rospy.Service(
             "toggle_bin_trajectory", SetBool, self.handle_enable_service
+        )
+
+        self.bottom_search_enable = False
+        self.set_bottom_search_service = rospy.Service(
+            "toggle_bottom_search", SetBool, self.handle_bottom_search_service
         )
 
     def get_pose(self, transform: TransformStamped) -> Pose:
@@ -75,6 +80,88 @@ class BinTransformServiceNode:
                 )
         except rospy.ServiceException as e:
             rospy.logerr(f"Service call failed: {e}")
+
+    def create_bottom_search_frames(self):
+        center_frame = None
+        for frame in ["bin_blood_link", "bin_fire_link"]:
+            try:
+                self.tf_buffer.lookup_transform(
+                    self.odom_frame, frame, rospy.Time(0), rospy.Duration(0.1)
+                )
+                center_frame = frame
+                break
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException,
+            ):
+                pass
+
+        if center_frame is None:
+            rospy.logwarn_throttle(
+                5.0, "No bottom search center frame (bin_blood_link/bin_fire_link) available."
+            )
+            return
+
+        try:
+            transform_center = self.tf_buffer.lookup_transform(
+                self.odom_frame, center_frame, rospy.Time(0), rospy.Duration(1.0)
+            )
+        except Exception as e:
+            rospy.logwarn(f"Failed to lookup center frame {center_frame}: {e}")
+            return
+
+        # Get orientation from bin_close_approach if available, fallback to odom orientation
+        yaw = 0.0
+        try:
+            transform_closer = self.tf_buffer.lookup_transform(
+                self.odom_frame, self.bin_closer_frame, rospy.Time(0), rospy.Duration(1.0)
+            )
+            closer_pose = self.get_pose(transform_closer)
+            q_closer = [
+                closer_pose.orientation.x,
+                closer_pose.orientation.y,
+                closer_pose.orientation.z,
+                closer_pose.orientation.w,
+            ]
+            _, _, yaw = tf.transformations.euler_from_quaternion(q_closer)
+        except Exception as e:
+            rospy.logwarn_throttle(
+                10.0, f"Could not lookup closer frame orientation: {e}. Defaulting to yaw 0.0"
+            )
+
+        center_pose = self.get_pose(transform_center)
+        center_pos = np.array(
+            [center_pose.position.x, center_pose.position.y, center_pose.position.z]
+        )
+
+        q = tf.transformations.quaternion_from_euler(0, 0, yaw)
+        orientation = Pose().orientation
+        orientation.x = q[0]
+        orientation.y = q[1]
+        orientation.z = q[2]
+        orientation.w = q[3]
+
+        d = 0.4
+        cos_y = np.cos(yaw)
+        sin_y = np.sin(yaw)
+
+        offsets = {
+            "bin_search_front": np.array([d * cos_y, d * sin_y, 0.0]),
+            "bin_search_back": np.array([-d * cos_y, -d * sin_y, 0.0]),
+            "bin_search_left": np.array([-d * sin_y, d * cos_y, 0.0]),
+            "bin_search_right": np.array([d * sin_y, -d * cos_y, 0.0]),
+        }
+
+        for child_name, offset in offsets.items():
+            p = Pose()
+            p.position.x = center_pos[0] + offset[0]
+            p.position.y = center_pos[1] + offset[1]
+            p.position.z = center_pos[2] + offset[2]
+            p.orientation = orientation
+
+            t_msg = self.build_transform_message(child_name, p)
+            self.send_transform(t_msg)
 
     def create_bin_frames(self):
         try:
@@ -234,11 +321,19 @@ class BinTransformServiceNode:
         rospy.loginfo(message)
         return SetBoolResponse(success=True, message=message)
 
+    def handle_bottom_search_service(self, req):
+        self.bottom_search_enable = req.data
+        message = f"Bottom search frames transform publish is set to: {self.bottom_search_enable}"
+        rospy.loginfo(message)
+        return SetBoolResponse(success=True, message=message)
+
     def spin(self):
         rate = rospy.Rate(5.0)
         while not rospy.is_shutdown():
             if self.enable:
                 self.create_bin_frames()
+            if self.bottom_search_enable:
+                self.create_bottom_search_frames()
             rate.sleep()
 
 
