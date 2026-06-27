@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="namespace" default="taluy" />
+
+    <!--
+      Comma-separated test states (same convention as test_follow_waypoints).
+      Supported tokens:
+        init                    -> InitializeState
+        path<N>                 -> a GUI-drawn path (unconditional)
+        octagon|torpedo|bin|... -> a task state
+        octagon_torpedo_pinger  -> the conditional pinger token
+      Example:
+        test_states:="init, gate, path3, bin, octagon_torpedo_pinger"
+    -->
+    <arg name="test_states" default="init, octagon_torpedo_pinger" />
+
+    <!-- dry_run: validate flow with stub states (no real tasks/paths). -->
+    <arg name="dry_run" default="false" />
+
+    <!--
+      align_only: octagon/torpedo run for real ONLY up to their close-approach
+      AlignFrame, then succeed (no bottle grab / torpedo firing). The pinger
+      decision and path following still run for real. This is the default for
+      this test launch because the goal here is to validate the pinger-driven
+      path selection — real task execution lives in main_state_machine.
+      Override with align_only:=false if you actually need the full task.
+      Ignored when dry_run:=true (stubs already skip everything).
+    -->
+    <arg name="align_only" default="true" />
+
+    <!--
+      Mission config. Leave empty (default) and it is chosen automatically
+      from dry_run:
+        dry_run:=true  -> pinger_mission_sim.yaml      (Gazebo model poses;
+                          tasks are stubs so nothing publishes object frames)
+        dry_run:=false -> pinger_mission_example.yaml  (real TF frames;
+                          tasks run for real and reveal octagon/torpedo)
+      Set mission_yaml:=<file> to override this and force a specific config.
+    -->
+    <arg name="mission_yaml" default="" />
+    <arg name="_mission_yaml"
+         value="$(eval mission_yaml if mission_yaml != '' else
+                       (find('auv_smach') + '/config/pinger_mission_sim.yaml' if dry_run
+                        else find('auv_smach') + '/config/pinger_mission_example.yaml'))" />
+
+    <arg name="final_align" default="true" />
+    <arg name="wait_timeout" default="120.0" />
+    <arg name="max_linear_velocity" default="0.3" />
+    <arg name="max_angular_velocity" default="0.45" />
+
+    <param name="/smach/max_linear_velocity" value="$(arg max_linear_velocity)" />
+    <param name="/smach/max_angular_velocity" value="$(arg max_angular_velocity)" />
+
+    <group ns="$(arg namespace)">
+        <node name="test_pinger_mission" pkg="auv_smach" type="test_pinger_mission.py" output="screen" required="true">
+            <param name="base_link" value="$(arg namespace)/base_link" />
+            <param name="test_states" value="$(arg test_states)" />
+            <param name="dry_run" value="$(arg dry_run)" />
+            <param name="align_only" value="$(arg align_only)" />
+            <param name="final_align" value="$(arg final_align)" />
+            <param name="wait_timeout" value="$(arg wait_timeout)" />
+            <param name="max_linear_velocity" value="$(arg max_linear_velocity)" />
+            <param name="max_angular_velocity" value="$(arg max_angular_velocity)" />
+
+            <rosparam command="load" file="$(arg _mission_yaml)" />
+
+            <!-- same remaps the main SM uses so task states / InitializeState work -->
+            <remap from="align_frame/start" to="control/align_frame/start" />
+            <remap from="align_frame/cancel" to="control/align_frame/cancel" />
+            <remap from="set_depth" to="set_depth" />
+            <remap from="set_pose" to="set_pose" />
+            <remap from="reset_odometry" to="reset_odometry" />
+            <remap from="dvl/enable" to="sensors/dvl/enable" />
+            <remap from="localization_enable" to="auv_localization_node/enable" />
+            <remap from="enable" to="enable" />
+            <remap from="propulsion_board/status" to="propulsion_board/status" />
+            <remap from="odometry" to="odometry" />
+            <remap from="cmd_vel" to="cmd_vel" />
+
+            <!--
+              Detection remaps the octagon/torpedo task states need (same as
+              auv_smach/launch/start.launch). Without these,
+              SetDetectionFocusState / SetDetectionState block forever on
+              'Still waiting for service set_front_camera_focus...' because
+              the provider node advertises them under the vision/ namespace.
+            -->
+            <remap from="set_front_camera_focus" to="vision/set_front_camera_focus" />
+            <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus" />
+            <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections" />
+            <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections" />
+            <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections" />
+            <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections" />
+            <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable" />
+
+            <!--
+              Object-map remaps the InitializeState ('init' token) needs (same
+              as auv_smach/launch/start.launch). Without these,
+              ClearObjectMapState / SetStartFrameState block forever on
+              'Still waiting for service clear_object_transforms...' because
+              the object map node advertises them under the map/ namespace.
+            -->
+            <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+            <remap from="set_object_transform" to="map/set_object_transform" />
+        </node>
+    </group>
+</launch>

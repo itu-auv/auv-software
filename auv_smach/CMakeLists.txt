@@ -21,5 +21,11 @@ include_directories(
 catkin_install_python(PROGRAMS
   scripts/main_state_machine.py
   scripts/smach_monitor_node.py
+  scripts/test_follow_waypoints.py
+  scripts/test_pinger_mission.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(DIRECTORY launch config
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="namespace" default="taluy" />
+
+    <!--
+      Comma-separated test states (same convention as start.launch).
+      Supported tokens:
+        init         -> InitializeState
+        path<N>      -> DynamicPathExecutionState for that path
+      Example:
+        test_states:=init,path1,path2
+    -->
+    <arg name="test_states" default="path1" />
+
+    <!--
+      Optional YAML with per-path overrides. Must define ~paths as a mapping:
+
+        paths:
+          path1:
+            waypoints: 3              # or: waypoint_frames: [path1_wp1, ...]
+            final_align: true
+            max_linear_velocity: 0.25
+          path2:
+            waypoints: 2
+
+      When a path token has no entry (or no waypoints/waypoint_frames), the
+      runner auto-discovers waypoints from TF — requires the GUI to be
+      publishing them live.
+    -->
+    <arg name="paths_yaml" default="" />
+
+    <!--
+      GUI auto-save state file. Used as a last-resort fallback for path
+      configs (only the waypoint count is consumed; TF frames must still be
+      live, so the GUI needs to be running for the AUV to actually follow).
+    -->
+    <arg name="waypoint_gui_state_file" default="~/.ros/waypoint_gui_state.yaml" />
+
+    <arg name="world_frame" default="odom" />
+    <arg name="final_align" default="true" />
+    <arg name="wait_timeout" default="120.0" />
+    <arg name="auto_max_waypoints" default="20" />
+    <arg name="max_linear_velocity" default="0.3" />
+    <arg name="max_angular_velocity" default="0.45" />
+
+    <param name="/smach/max_linear_velocity" value="$(arg max_linear_velocity)" />
+    <param name="/smach/max_angular_velocity" value="$(arg max_angular_velocity)" />
+
+    <group ns="$(arg namespace)">
+        <node name="test_follow_waypoints" pkg="auv_smach" type="test_follow_waypoints.py" output="screen" required="true">
+            <param name="base_link" value="$(arg namespace)/base_link" />
+            <param name="test_states" value="$(arg test_states)" />
+            <param name="world_frame" value="$(arg world_frame)" />
+            <param name="final_align" value="$(arg final_align)" />
+            <param name="wait_timeout" value="$(arg wait_timeout)" />
+            <param name="auto_max_waypoints" value="$(arg auto_max_waypoints)" />
+            <param name="max_linear_velocity" value="$(arg max_linear_velocity)" />
+            <param name="max_angular_velocity" value="$(arg max_angular_velocity)" />
+            <param name="waypoint_gui_state_file" value="$(arg waypoint_gui_state_file)" />
+
+            <rosparam command="load" file="$(arg paths_yaml)" if="$(eval paths_yaml != '')" />
+
+            <!-- same remaps the main SM uses so AlignFrame / InitializeState work -->
+            <remap from="align_frame/start" to="control/align_frame/start" />
+            <remap from="align_frame/cancel" to="control/align_frame/cancel" />
+            <remap from="set_depth" to="set_depth" />
+            <remap from="set_pose" to="set_pose" />
+            <remap from="reset_odometry" to="reset_odometry" />
+            <remap from="dvl/enable" to="sensors/dvl/enable" />
+            <remap from="localization_enable" to="auv_localization_node/enable" />
+            <remap from="enable" to="enable" />
+            <remap from="propulsion_board/status" to="propulsion_board/status" />
+            <remap from="odometry" to="odometry" />
+            <remap from="cmd_vel" to="cmd_vel" />
+
+            <!--
+              InitializeState ('init' token) disables bottom detection, sets
+              detection focus to 'none', clears the object map and sets the
+              start frame. Without these remaps those states block forever
+              (same fix as auv_smach/launch/test_pinger_mission.launch).
+            -->
+            <remap from="set_front_camera_focus" to="vision/set_front_camera_focus" />
+            <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus" />
+            <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections" />
+            <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections" />
+            <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections" />
+            <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections" />
+            <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable" />
+            <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+            <remap from="set_object_transform" to="map/set_object_transform" />
+        </node>
+    </group>
+</launch>
