@@ -364,28 +364,21 @@ class ReferencePosePublisherNode:
             self.target_frame_id = req.target_frame
 
             if self.reconfigure_client:
-                linear_vel_x = self._resolve_axis_velocity(
+                linear_vel_x = self._resolve_linear_velocity_limit(
                     req.max_linear_velocity_x,
                     req.max_linear_velocity,
                     self.default_max_velocity[0],
                 )
-                linear_vel_y = self._resolve_axis_velocity(
+                linear_vel_y = self._resolve_linear_velocity_limit(
                     req.max_linear_velocity_y,
                     req.max_linear_velocity,
                     self.default_max_velocity[1],
                 )
-                if req.max_linear_velocity_z > 0:
-                    linear_vel_z = req.max_linear_velocity_z
-                elif req.use_depth:
-                    linear_vel_z = self._resolve_axis_velocity(
-                        0.0,
-                        req.max_linear_velocity,
-                        self.default_max_velocity[2],
-                    )
-                elif self.set_depth_velocity is not None:
-                    linear_vel_z = self.set_depth_velocity
-                else:
-                    linear_vel_z = self.default_max_velocity[2]
+                linear_vel_z = self._resolve_linear_velocity_limit(
+                    req.max_linear_velocity_z,
+                    req.max_linear_velocity,
+                    self.default_max_velocity[2],
+                )
                 angular_vel = (
                     req.max_angular_velocity
                     if req.max_angular_velocity > 0
@@ -396,6 +389,7 @@ class ReferencePosePublisherNode:
                     linear_vel_y,
                     linear_vel_z,
                     angular_vel,
+                    req.use_depth,
                 )
 
         rospy.loginfo(
@@ -456,7 +450,7 @@ class ReferencePosePublisherNode:
             return None
 
     @staticmethod
-    def _resolve_axis_velocity(
+    def _resolve_linear_velocity_limit(
         axis_velocity: float, fallback_velocity: float, default_velocity: float
     ) -> float:
         if axis_velocity > 0:
@@ -471,13 +465,22 @@ class ReferencePosePublisherNode:
         linear_vel_y: float,
         linear_vel_z: float,
         angular_vel: float,
+        use_depth: bool = True,
     ):
         try:
+            # If align_frame does not own depth, keep the active set_depth limit.
+            if not use_depth and self.set_depth_velocity is not None:
+                z_vel = self.set_depth_velocity
+            elif use_depth:
+                z_vel = linear_vel_z
+            else:
+                z_vel = self.default_max_velocity[2]
+
             self.reconfigure_client.update_configuration(
                 {
                     "max_velocity_0": linear_vel_x,
                     "max_velocity_1": linear_vel_y,
-                    "max_velocity_2": linear_vel_z,
+                    "max_velocity_2": z_vel,
                     "max_velocity_3": angular_vel,
                     "max_velocity_4": angular_vel,
                     "max_velocity_5": angular_vel,
