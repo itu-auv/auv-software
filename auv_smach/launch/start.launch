@@ -17,7 +17,8 @@
         acoustic_tx:ACOUSTIC_TRANSMITTER,
         acoustic_rx:ACOUSTIC_RECEIVER,
         return:NAVIGATE_RETURN_THROUGH_GATE,
-        pipeline:NAVIGATE_THROUGH_PIPELINE
+        pipeline:NAVIGATE_THROUGH_PIPELINE,
+        square:NAVIGATE_SQUARE_PATH
     "/>
 
     <!-- Test Mode Configuration -->
@@ -25,6 +26,10 @@
     <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
+    <arg name="square_side_length" default="10.0" doc="Side length for the square path task in meters"/>
+    <arg name="square_depth" default="-1.0" doc="Depth for the square path SetDepth states"/>
+    <arg name="square_max_linear_velocity" default="0.6" doc="Max linear velocity for the square path AlignFrame states"/>
+    <arg name="square_max_angular_velocity" default="0.45" doc="Max angular velocity for the square path AlignFrame states"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -54,6 +59,10 @@
             <param name="roll" value="$(arg roll)"/>
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
+            <param name="square_side_length" value="$(arg square_side_length)"/>
+            <param name="square_depth" value="$(arg square_depth)"/>
+            <param name="square_max_linear_velocity" value="$(arg square_max_linear_velocity)"/>
+            <param name="square_max_angular_velocity" value="$(arg square_max_angular_velocity)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>

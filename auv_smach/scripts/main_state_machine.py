@@ -15,6 +15,7 @@ from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
+from auv_smach.square import NavigateSquarePathState
 from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
@@ -114,6 +115,18 @@ class MainStateMachineNode:
         # GPS parameters
         self.gps_depth = -1.0
         self.gps_target_frame = "gps_target"
+
+        # Square path parameters
+        self.square_side_length = rospy.get_param("~square_side_length", 10.0)
+        self.square_depth = rospy.get_param("~square_depth", -1.0)
+        self.square_max_linear_velocity = rospy.get_param(
+            "~square_max_linear_velocity",
+            rospy.get_param("/smach/max_linear_velocity", 0.3),
+        )
+        self.square_max_angular_velocity = rospy.get_param(
+            "~square_max_angular_velocity",
+            rospy.get_param("/smach/max_angular_velocity", 0.45),
+        )
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
@@ -299,6 +312,15 @@ class MainStateMachineNode:
             "NAVIGATE_THROUGH_PIPELINE": (
                 NavigateThroughPipelineState,
                 {"pipeline_depth": self.pipeline_depth},
+            ),
+            "NAVIGATE_SQUARE_PATH": (
+                NavigateSquarePathState,
+                {
+                    "side_length": self.square_side_length,
+                    "depth": self.square_depth,
+                    "max_linear_velocity": self.square_max_linear_velocity,
+                    "max_angular_velocity": self.square_max_angular_velocity,
+                },
             ),
         }
 
