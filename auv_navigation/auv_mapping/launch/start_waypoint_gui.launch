@@ -1,11 +1,9 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="namespace" default="taluy" />
-    <arg name="world_frame" default="odom" />
     <arg name="waypoint_prefix" default="path" />
     <arg name="default_waypoint_z" default="-1.0" />
-    <arg name="broadcast_rate_hz" default="20.0" />
-    <arg name="state_file" default="$(find auv_mapping)/config/waypoints/waypoint_gui_state.yaml" />
+    <arg name="set_waypoint_service" default="set_waypoint" />
 
     <!--
       Canvas bounds in the per-path local frame (A = 0,0; +x forward in ref coords).
@@ -21,25 +19,15 @@
 
     <group ns="$(arg namespace)">
         <node name="waypoint_gui" pkg="auv_mapping" type="waypoint_gui.py" output="screen">
-            <param name="world_frame" value="$(arg world_frame)" />
+            <param name="set_waypoint_service" value="$(arg set_waypoint_service)" />
             <param name="waypoint_prefix" value="$(arg waypoint_prefix)" />
             <param name="default_waypoint_z" value="$(arg default_waypoint_z)" />
-            <param name="broadcast_rate_hz" value="$(arg broadcast_rate_hz)" />
-            <param name="state_file" value="$(arg state_file)" />
 
             <param name="canvas_x_min" value="$(arg canvas_x_min)" />
             <param name="canvas_x_max" value="$(arg canvas_x_max)" />
             <param name="canvas_y_min" value="$(arg canvas_y_min)" />
             <param name="canvas_y_max" value="$(arg canvas_y_max)" />
             <param name="b_arrow_length" value="$(arg b_arrow_length)" />
-
-            <rosparam param="known_object_frames">
-                - "gate_search_rescue_link"
-                - "gate_survey_repair_link"
-                - "bin_whole_link"
-                - "torpedo_map_link"
-                - "octagon_link"
-            </rosparam>
 
             <rosparam param="reference_frame_options">
                 - "odom"

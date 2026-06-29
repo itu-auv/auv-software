@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 
 import math
-import os
-import threading
 import tkinter as tk
-from datetime import datetime
-from tkinter import ttk, messagebox
+from tkinter import messagebox, ttk
 
 import rospy
-import tf2_ros
-import yaml
-from geometry_msgs.msg import TransformStamped
+from auv_msgs.msg import WaypointPath
+from auv_msgs.srv import SetWaypoint, SetWaypointRequest
+from geometry_msgs.msg import Pose
 from tf.transformations import quaternion_from_euler
 
 
@@ -25,42 +22,23 @@ PATH_COLORS = [
     "#607d8b",
 ]
 
-DEFAULT_STATE_FILE = os.path.abspath(
-    os.path.join(
-        os.path.dirname(__file__),
-        "..",
-        "config",
-        "waypoints",
-        "waypoint_gui_state.yaml",
-    )
-)
-SAVE_DEBOUNCE_MS = 500
-
 
 class PathData:
-    """A single editable path: two frames (A, B) define a composite ref; waypoints
-    are stored in that ref frame with +x = A→B."""
-
     def __init__(
         self, index, color, waypoint_prefix, default_z, default_ref_a, default_ref_b
     ):
-        self.index = index  # 1-based
+        self.index = index
         self.name = f"path{index}"
         self.color = color
         self.waypoint_prefix = waypoint_prefix
 
         self.ref_a = tk.StringVar(value=default_ref_a)
         self.ref_b = tk.StringVar(value=default_ref_b)
-        self.publish_enabled = tk.BooleanVar(value=True)
-
         self.yaw_var = tk.DoubleVar(value=0.0)
         self.z_var = tk.DoubleVar(value=default_z)
 
-        self.waypoints = []  # [{x, y, z, yaw}] in composite ref coords
+        self.waypoints = []
         self.selected_index = None
-
-    def composite_frame_name(self):
-        return f"{self.name}_ref"
 
     def wp_frame_name(self, i):
         return f"{self.waypoint_prefix}{self.index}_wp{i + 1}"
@@ -69,28 +47,18 @@ class PathData:
 class WaypointGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Waypoint GUI (multi-path, composite refs)")
+        self.root.title("Waypoint GUI")
         self.root.attributes("-zoomed", True)
 
-        # Suppress auto-save while constructing & loading the initial state.
-        self._loading = True
-
-        self.world_frame = rospy.get_param("~world_frame", "odom")
-        self.known_object_frames = list(rospy.get_param("~known_object_frames", []))
-        default_options = ["coin_flip"] + self.known_object_frames
+        self.service_name = rospy.get_param("~set_waypoint_service", "set_waypoint")
         self.reference_frame_options = list(
             rospy.get_param(
                 "~reference_frame_options",
-                default_options,
+                ["odom", "coin_flip"],
             )
         )
         self.waypoint_prefix = rospy.get_param("~waypoint_prefix", "path")
         self.default_z = float(rospy.get_param("~default_waypoint_z", -1.0))
-        self.broadcast_rate_hz = float(rospy.get_param("~broadcast_rate_hz", 20.0))
-        self.state_file = os.path.expanduser(
-            rospy.get_param("~state_file", DEFAULT_STATE_FILE)
-        )
-        self._save_after_id = None
 
         self.x_min = float(rospy.get_param("~canvas_x_min", -8.0))
         self.x_max = float(rospy.get_param("~canvas_x_max", 8.0))
@@ -100,52 +68,40 @@ class WaypointGUI:
             raise ValueError("Invalid canvas bounds")
         self.pool_width = self.x_max - self.x_min
         self.pool_height = self.y_max - self.y_min
-
         self.b_arrow_length = float(rospy.get_param("~b_arrow_length", 14.0))
-        self.paths_rosparam = rospy.get_param("~paths_rosparam", "/waypoint_gui/paths")
-
-        self.tf_buffer = tf2_ros.Buffer(cache_time=rospy.Duration(10.0))
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
-
-        self.simulate_var = tk.BooleanVar(value=False)
-        self._rosparam_sync_counter = 0
-        # Last stamp we actually broadcast. Under use_sim_time the 20 Hz
-        # rospy.Rate can tick several times within one /clock step, so
-        # consecutive ticks would re-send the *same* timestamp and flood
-        # the console with TF_REPEATED_DATA (which also pollutes the TF
-        # buffer and degrades path-following / alignment). We skip a tick
-        # whose stamp didn't advance past the previous broadcast.
-        self._last_broadcast_stamp = None
 
         self.paths = []
         self.active_path_idx = None
+        self.service_connected = False
 
         self.canvas_padding = 40
         self.scale = 1.0
         self.pool_x_offset = 0
         self.pool_y_offset = 0
 
-        self._paths_lock = threading.Lock()
-        self._shutdown_event = threading.Event()
-
         self.setup_ui()
-        self._attach_global_traces()
-        if not self._load_state():
-            self.add_path()
-        self._loading = False
-
-        self._broadcast_thread = threading.Thread(
-            target=self._broadcast_loop, daemon=True
-        )
-        self._broadcast_thread.start()
-
+        self.add_path()
         self.root.after(100, self.draw_pool)
-        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.root.after(500, self.check_ros_service)
 
-    # ------------------------------------------------------------------
-    # UI setup
-    # ------------------------------------------------------------------
+    def check_ros_service(self):
+        was_connected = self.service_connected
+        try:
+            rospy.wait_for_service(self.service_name, timeout=1.0)
+            self.service_connected = True
+            self.status_label.config(text="ROS: Connected", fg="green")
+            if not was_connected:
+                rospy.loginfo(f"[WaypointGUI] Service connected: {self.service_name}")
+        except rospy.ROSException:
+            self.service_connected = False
+            self.status_label.config(text="ROS: Not connected", fg="red")
+            if was_connected:
+                rospy.logwarn(
+                    f"[WaypointGUI] Service disconnected: {self.service_name}"
+                )
+
+        self.root.after(5000, self.check_ros_service)
+
     def setup_ui(self):
         main_frame = tk.Frame(self.root)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -172,14 +128,17 @@ class WaypointGUI:
             fg="white",
         ).pack(side=tk.LEFT, padx=2)
 
-        sim_row = tk.Frame(left_frame)
-        sim_row.pack(fill=tk.X, pady=(0, 4))
-        tk.Checkbutton(
-            sim_row,
-            text="Simulate missing A/B frames (offline test)",
-            variable=self.simulate_var,
-            font=("Arial", 9),
-        ).pack(side=tk.LEFT, padx=2)
+        tk.Button(
+            left_frame,
+            text="Send to Vehicle",
+            command=self.send_to_vehicle,
+            bg="#2196F3",
+            fg="white",
+            font=("Arial", 10, "bold"),
+        ).pack(fill=tk.X, pady=(0, 5))
+
+        self.status_label = tk.Label(left_frame, text="ROS: Checking...", fg="orange")
+        self.status_label.pack(fill=tk.X, pady=(0, 5))
 
         self.notebook = ttk.Notebook(left_frame)
         self.notebook.pack(fill=tk.BOTH, expand=True)
@@ -194,7 +153,7 @@ class WaypointGUI:
                 f"Per-path local frame  "
                 f"x:[{self.x_min:.1f}, {self.x_max:.1f}]  "
                 f"y:[{self.y_min:.1f}, {self.y_max:.1f}]   "
-                f"(A = origin, +x = A→B)"
+                f"(A = origin, +x = A to B)"
             ),
         )
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
@@ -210,20 +169,9 @@ class WaypointGUI:
         path._tab = tab
         path._controls = {}
 
-        path._status_label = tk.Label(
-            tab,
-            text="○ initialising…",
-            fg="gray",
-            font=("Arial", 9, "italic"),
-            anchor="w",
-            justify="left",
-            wraplength=340,
-        )
-        path._status_label.pack(fill=tk.X, padx=5, pady=(2, 2))
-
         ref_box = tk.LabelFrame(
             tab,
-            text="Reference frame (A → B composite, or A only if B is empty)",
+            text="Reference frame (A to B composite, or A only if B is empty)",
         )
         ref_box.pack(fill=tk.X, padx=5, pady=5)
 
@@ -253,12 +201,6 @@ class WaypointGUI:
         b_combo.pack(side=tk.LEFT, padx=(5, 0))
         b_combo.bind("<<ComboboxSelected>>", lambda _e: self.redraw_dynamic())
 
-        tk.Checkbutton(
-            ref_box,
-            text="Publish this path's frames (TF broadcast)",
-            variable=path.publish_enabled,
-        ).pack(anchor="w", padx=5, pady=(4, 5))
-
         wp_box = tk.LabelFrame(tab, text="New / selected waypoint")
         wp_box.pack(fill=tk.X, padx=5, pady=5)
         tk.Scale(
@@ -267,23 +209,21 @@ class WaypointGUI:
             to=-180,
             orient=tk.HORIZONTAL,
             variable=path.yaw_var,
-            label="Yaw (deg, in A→B frame)",
+            label="Yaw (deg, in A to B frame)",
             command=lambda v, p=path: self._on_yaw_change(p, v),
         ).pack(fill=tk.X, padx=5, pady=2)
         z_row = tk.Frame(wp_box)
         z_row.pack(fill=tk.X, padx=5, pady=2)
-        tk.Label(z_row, text="Z (m, in A→B frame):").pack(side=tk.LEFT)
+        tk.Label(z_row, text="Z (m, in A to B frame):").pack(side=tk.LEFT)
         tk.Entry(z_row, textvariable=path.z_var, width=8).pack(
             side=tk.LEFT, padx=(5, 0)
         )
 
         btn_row = tk.Frame(tab)
         btn_row.pack(fill=tk.X, padx=5, pady=5)
-        tk.Button(
-            btn_row,
-            text="Undo",
-            command=lambda p=path: self._undo(p),
-        ).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2))
+        tk.Button(btn_row, text="Undo", command=lambda p=path: self._undo(p)).pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 2)
+        )
         tk.Button(
             btn_row,
             text="Delete Sel.",
@@ -309,34 +249,17 @@ class WaypointGUI:
         sb = tk.Scrollbar(list_frame, orient=tk.VERTICAL, command=listbox.yview)
         sb.pack(side=tk.RIGHT, fill=tk.Y)
         listbox.config(yscrollcommand=sb.set)
-        listbox.bind(
-            "<<ListboxSelect>>",
-            lambda _e, p=path: self._on_list_select(p),
-        )
+        listbox.bind("<<ListboxSelect>>", lambda _e, p=path: self._on_list_select(p))
         path._controls["listbox"] = listbox
 
         return tab
-
-    # ------------------------------------------------------------------
-    # Path management
-    # ------------------------------------------------------------------
-    def _register_path(self, path, select=True):
-        tab = self._build_tab(path)
-        with self._paths_lock:
-            self.paths.append(path)
-        self.notebook.add(tab, text=path.name)
-        if select:
-            self.notebook.select(tab)
-            self.active_path_idx = len(self.paths) - 1
-        self._refresh_listbox(path)
-        self._attach_path_traces(path)
 
     def add_path(self):
         idx = len(self.paths) + 1
         color = PATH_COLORS[(idx - 1) % len(PATH_COLORS)]
         opts = self.reference_frame_options
         default_a = opts[0] if opts else ""
-        default_b = opts[1] if len(opts) > 1 else default_a
+        default_b = opts[1] if len(opts) > 1 else ""
         path = PathData(
             index=idx,
             color=color,
@@ -345,56 +268,13 @@ class WaypointGUI:
             default_ref_a=default_a,
             default_ref_b=default_b,
         )
-        self._register_path(path, select=True)
+        tab = self._build_tab(path)
+        self.paths.append(path)
+        self.notebook.add(tab, text=path.name)
+        self.notebook.select(tab)
+        self.active_path_idx = len(self.paths) - 1
+        self._refresh_listbox(path)
         self.redraw_dynamic()
-        self._schedule_save()
-
-    def _add_path_from_dict(self, entry):
-        """Rebuild a path from the on-disk state YAML. No save side effects."""
-        if not isinstance(entry, dict):
-            return None
-        idx = len(self.paths) + 1
-        color = PATH_COLORS[(idx - 1) % len(PATH_COLORS)]
-        opts = self.reference_frame_options
-        default_a = opts[0] if opts else ""
-        default_b = opts[1] if len(opts) > 1 else default_a
-
-        path = PathData(
-            index=idx,
-            color=color,
-            waypoint_prefix=self.waypoint_prefix,
-            default_z=float(entry.get("z", self.default_z)),
-            default_ref_a=str(entry.get("ref_a", default_a)),
-            default_ref_b=str(entry.get("ref_b", default_b)),
-        )
-        try:
-            path.yaw_var.set(float(entry.get("yaw", 0.0)))
-        except (TypeError, ValueError):
-            pass
-        try:
-            path.publish_enabled.set(bool(entry.get("publish_enabled", True)))
-        except (TypeError, ValueError):
-            pass
-
-        for wp in entry.get("waypoints", []) or []:
-            if not isinstance(wp, dict):
-                continue
-            try:
-                path.waypoints.append(
-                    {
-                        "x": float(wp["x"]),
-                        "y": float(wp["y"]),
-                        "z": float(wp.get("z", path.z_var.get())),
-                        "yaw": float(wp.get("yaw", 0.0)),
-                    }
-                )
-            except (KeyError, TypeError, ValueError):
-                continue
-        if path.waypoints:
-            path.selected_index = len(path.waypoints) - 1
-
-        self._register_path(path, select=False)
-        return path
 
     def remove_active_path(self):
         if self.active_path_idx is None or not self.paths:
@@ -403,8 +283,7 @@ class WaypointGUI:
             messagebox.showinfo("Cannot remove", "At least one path must remain.")
             return
         idx = self.active_path_idx
-        with self._paths_lock:
-            path = self.paths.pop(idx)
+        path = self.paths.pop(idx)
         self.notebook.forget(path._tab)
         for i, p in enumerate(self.paths, start=1):
             p.index = i
@@ -413,7 +292,6 @@ class WaypointGUI:
             self._refresh_listbox(p)
         self.active_path_idx = min(idx, len(self.paths) - 1)
         self.redraw_dynamic()
-        self._schedule_save()
 
     def _on_tab_change(self, _event):
         current = self.notebook.select()
@@ -426,15 +304,12 @@ class WaypointGUI:
         self.redraw_dynamic()
 
     def _active_path(self):
-        if self.active_path_idx is None or not self.paths:
+        if self.active_path_idx is None:
             return None
         if not (0 <= self.active_path_idx < len(self.paths)):
             return None
         return self.paths[self.active_path_idx]
 
-    # ------------------------------------------------------------------
-    # Canvas drawing
-    # ------------------------------------------------------------------
     def on_resize(self, _event):
         self.draw_pool()
         self.redraw_dynamic()
@@ -448,10 +323,7 @@ class WaypointGUI:
 
         available_w = canvas_w - 2 * self.canvas_padding
         available_h = canvas_h - 2 * self.canvas_padding
-        self.scale = min(
-            available_w / self.pool_width,
-            available_h / self.pool_height,
-        )
+        self.scale = min(available_w / self.pool_width, available_h / self.pool_height)
 
         pool_w = self.pool_width * self.scale
         pool_h = self.pool_height * self.scale
@@ -517,15 +389,6 @@ class WaypointGUI:
             x_val += grid_step
 
     def ref_to_pixels(self, x_ref, y_ref):
-        """Ref-frame coords (x forward, y left) → canvas pixels (x up, y left).
-
-        We rotate the ref frame so that its +x (forward) appears upward on the
-        canvas and its +y (left) appears leftward. That means:
-            canvas_horizontal = -y_ref   (right = negative y_ref = ref's +y goes left on screen → invert for display)
-            canvas_vertical   = +x_ref   (upward)
-        With canvas_horizontal mapped to screen x through x_min..x_max and
-        canvas_vertical mapped to screen y (inverted).
-        """
         canvas_x_m = -y_ref
         canvas_y_m = x_ref
         pool_h = self.pool_height * self.scale
@@ -537,9 +400,7 @@ class WaypointGUI:
         pool_h = self.pool_height * self.scale
         canvas_x_m = (px - self.pool_x_offset) / self.scale + self.x_min
         canvas_y_m = (self.pool_y_offset + pool_h - py) / self.scale + self.y_min
-        x_ref = canvas_y_m
-        y_ref = -canvas_x_m
-        return x_ref, y_ref
+        return canvas_y_m, -canvas_x_m
 
     def _in_bounds_ref(self, x_ref, y_ref):
         canvas_x = -y_ref
@@ -549,15 +410,10 @@ class WaypointGUI:
             and self.y_min <= canvas_y <= self.y_max
         )
 
-    # ------------------------------------------------------------------
-    # Mouse / list handlers
-    # ------------------------------------------------------------------
     def on_mouse_move(self, event):
         x_ref, y_ref = self.pixels_to_ref(event.x, event.y)
         if self._in_bounds_ref(x_ref, y_ref):
-            self.coord_label.config(
-                text=f"Mouse: x: {x_ref:+.2f}m  y: {y_ref:+.2f}m  (in A→B frame)"
-            )
+            self.coord_label.config(text=f"Mouse: x: {x_ref:+.2f}m  y: {y_ref:+.2f}m")
         else:
             self.coord_label.config(text="Mouse: x: -  y: -")
 
@@ -569,18 +425,23 @@ class WaypointGUI:
         if not self._in_bounds_ref(x_ref, y_ref):
             return
 
+        try:
+            z = float(path.z_var.get())
+        except (TypeError, ValueError):
+            messagebox.showerror("Invalid Z", "Waypoint Z must be a number.")
+            return
+
         path.waypoints.append(
             {
                 "x": x_ref,
                 "y": y_ref,
-                "z": float(path.z_var.get()),
+                "z": z,
                 "yaw": float(path.yaw_var.get()),
             }
         )
         path.selected_index = len(path.waypoints) - 1
         self._refresh_listbox(path)
         self.redraw_dynamic()
-        self._schedule_save()
 
     def _on_list_select(self, path):
         lb = path._controls["listbox"]
@@ -601,7 +462,6 @@ class WaypointGUI:
             path.waypoints[path.selected_index]["yaw"] = float(value)
             self._refresh_listbox(path)
             self.redraw_dynamic()
-            self._schedule_save()
 
     def _undo(self, path):
         if not path.waypoints:
@@ -613,7 +473,6 @@ class WaypointGUI:
             path.selected_index = len(path.waypoints) - 1 if path.waypoints else None
         self._refresh_listbox(path)
         self.redraw_dynamic()
-        self._schedule_save()
 
     def _delete_selected(self, path):
         if path.selected_index is None:
@@ -626,14 +485,12 @@ class WaypointGUI:
                 path.selected_index = len(path.waypoints) - 1
             self._refresh_listbox(path)
             self.redraw_dynamic()
-            self._schedule_save()
 
     def _clear_all(self, path):
         path.waypoints.clear()
         path.selected_index = None
         self._refresh_listbox(path)
         self.redraw_dynamic()
-        self._schedule_save()
 
     def _refresh_listbox(self, path):
         lb = path._controls["listbox"]
@@ -642,7 +499,8 @@ class WaypointGUI:
             name = path.wp_frame_name(i)
             lb.insert(
                 tk.END,
-                f"{name:<14} x={wp['x']:+6.2f} y={wp['y']:+6.2f} yaw={wp['yaw']:+6.1f}",
+                f"{name:<14} x={wp['x']:+6.2f} y={wp['y']:+6.2f} "
+                f"z={wp['z']:+5.2f} yaw={wp['yaw']:+6.1f}",
             )
         if path.selected_index is not None and 0 <= path.selected_index < len(
             path.waypoints
@@ -651,9 +509,6 @@ class WaypointGUI:
             lb.selection_set(path.selected_index)
             lb.activate(path.selected_index)
 
-    # ------------------------------------------------------------------
-    # Drawing overlay (only the active path's local frame)
-    # ------------------------------------------------------------------
     def redraw_dynamic(self):
         self.canvas.delete("dynamic")
         path = self._active_path()
@@ -688,8 +543,7 @@ class WaypointGUI:
             tags="dynamic",
         )
 
-        arrow_end = self.b_arrow_length
-        bx, by = self.ref_to_pixels(arrow_end, 0.0)
+        bx, by = self.ref_to_pixels(self.b_arrow_length, 0.0)
         self.canvas.create_line(
             ox,
             oy,
@@ -759,405 +613,65 @@ class WaypointGUI:
                 arrow=tk.LAST,
                 tags="dynamic",
             )
-            label = f"{path.name}.wp{i + 1}"
             self.canvas.create_text(
                 px,
                 py + 14,
-                text=label,
+                text=f"{path.name}.wp{i + 1}",
                 font=("Arial", 9, "bold"),
                 fill=outline,
                 tags="dynamic",
             )
 
-    # ------------------------------------------------------------------
-    # TF broadcast loop
-    # ------------------------------------------------------------------
-    def _broadcast_loop(self):
-        rate = rospy.Rate(self.broadcast_rate_hz)
-        while not rospy.is_shutdown() and not self._shutdown_event.is_set():
-            try:
-                self._broadcast_tick()
-            except Exception as exc:  # noqa: BLE001
-                rospy.logwarn_throttle(
-                    5.0, f"[WaypointGUI] Broadcast tick failed: {exc}"
-                )
-            try:
-                rate.sleep()
-            except rospy.ROSInterruptException:
-                break
+    def _build_service_request(self):
+        req = SetWaypointRequest()
+        req.paths = [self._path_to_msg(path) for path in self.paths if path.waypoints]
+        return req
 
-    def _broadcast_tick(self):
-        now = rospy.Time.now()
+    def _path_to_msg(self, path):
+        msg = WaypointPath()
+        msg.name = path.name
+        msg.ref_a = path.ref_a.get()
+        msg.ref_b = path.ref_b.get()
+        msg.waypoint_prefix = path.waypoint_prefix
+        msg.waypoints = [self._waypoint_to_pose(wp) for wp in path.waypoints]
+        return msg
 
-        # Skip if the clock hasn't advanced since the last broadcast:
-        # re-sending the same (or an older) stamp triggers TF_REPEATED_DATA
-        # and corrupts the TF buffer. Common under use_sim_time when the
-        # 20 Hz rate loop runs faster than /clock updates.
-        if self._last_broadcast_stamp is not None and now <= self._last_broadcast_stamp:
-            return
-        self._last_broadcast_stamp = now
-
-        transforms = []
-
-        with self._paths_lock:
-            paths_snapshot = list(self.paths)
-
-        sim_transforms = self._collect_simulated_transforms(paths_snapshot, now)
-        transforms.extend(sim_transforms)
-
-        per_path_status = {}
-        for path in paths_snapshot:
-            if not path.publish_enabled.get():
-                per_path_status[path] = ("paused", len(path.waypoints))
-                continue
-
-            composite_tf = self._build_composite_transform(path, now)
-            if composite_tf is None:
-                per_path_status[path] = ("waiting", len(path.waypoints))
-                continue
-            transforms.append(composite_tf)
-
-            ref_frame_name = path.composite_frame_name()
-            for i, wp in enumerate(path.waypoints):
-                transforms.append(
-                    self._build_wp_transform(path, i, wp, ref_frame_name, now)
-                )
-            per_path_status[path] = ("broadcasting", len(path.waypoints))
-
-        if transforms:
-            self.tf_broadcaster.sendTransform(transforms)
-
-        for path, (status, wp_count) in per_path_status.items():
-            self._schedule_status_update(path, status, wp_count)
-
-        self._rosparam_sync_counter += 1
-        if self._rosparam_sync_counter >= 10:
-            self._rosparam_sync_counter = 0
-            self._sync_paths_rosparam(paths_snapshot)
-
-    def _collect_simulated_transforms(self, paths_snapshot, now):
-        if not self.simulate_var.get():
-            return []
-
-        transforms = []
-        seen = set()
-        slot = 0
-        for path in paths_snapshot:
-            for frame_name in (path.ref_a.get(), path.ref_b.get()):
-                if not frame_name or frame_name in seen:
-                    continue
-                seen.add(frame_name)
-                try:
-                    self.tf_buffer.lookup_transform(
-                        self.world_frame,
-                        frame_name,
-                        rospy.Time(0),
-                        rospy.Duration(0.05),
-                    )
-                    continue
-                except (
-                    tf2_ros.LookupException,
-                    tf2_ros.ConnectivityException,
-                    tf2_ros.ExtrapolationException,
-                ):
-                    pass
-                t = TransformStamped()
-                t.header.stamp = now
-                t.header.frame_id = self.world_frame
-                t.child_frame_id = frame_name
-                t.transform.translation.x = 5.0 + 3.0 * slot
-                t.transform.translation.y = 0.0
-                t.transform.translation.z = 0.0
-                t.transform.rotation.w = 1.0
-                transforms.append(t)
-                slot += 1
-        return transforms
-
-    def _schedule_status_update(self, path, status, wp_count):
-        def _update():
-            if not hasattr(path, "_status_label"):
-                return
-            try:
-                if status == "broadcasting":
-                    text = (
-                        f"● Broadcasting  {path.composite_frame_name()} "
-                        f"(+ {wp_count} waypoint{'s' if wp_count != 1 else ''})"
-                    )
-                    color = "#2e7d32"
-                elif status == "paused":
-                    text = "⏸ Publish disabled (toggle checkbox in ref panel)"
-                    color = "#757575"
-                else:
-                    a = path.ref_a.get() or "?"
-                    b = path.ref_b.get() or "?"
-                    if self.simulate_var.get():
-                        text = (
-                            f"⚠ A→B lookup failed for {a}→{b} "
-                            f"(simulate mode on — frames may still be wiring up)"
-                        )
-                    else:
-                        text = (
-                            f"⚠ A or B not in TF ({a}→{b}). "
-                            f"Enable 'Simulate missing A/B frames' above to test offline."
-                        )
-                    color = "#d84315"
-                path._status_label.config(text=text, fg=color)
-            except tk.TclError:
-                pass
-
-        try:
-            self.root.after(0, _update)
-        except RuntimeError:
-            pass
-
-    def _sync_paths_rosparam(self, paths_snapshot):
-        data = {}
-        for path in paths_snapshot:
-            data[path.name] = {
-                "ref_a": path.ref_a.get(),
-                "ref_b": path.ref_b.get(),
-                "reference_frame": path.composite_frame_name(),
-                "waypoints": len(path.waypoints),
-                "waypoint_frames": [
-                    path.wp_frame_name(i) for i in range(len(path.waypoints))
-                ],
-                "publish_enabled": bool(path.publish_enabled.get()),
-            }
-        try:
-            rospy.set_param(self.paths_rosparam, data)
-        except Exception as exc:  # noqa: BLE001
-            rospy.logwarn_throttle(
-                5.0, f"[WaypointGUI] Failed to publish {self.paths_rosparam}: {exc}"
-            )
-
-    def _build_composite_transform(self, path, now):
-        """Broadcast <path>_ref as child of A frame.
-
-        Two modes:
-          - A + B: <path>_ref coincides with A; its +x axis points toward B
-            (yaw computed from B's position in A's frame).
-          - A only (B empty): <path>_ref is identity-attached to A, so it
-            inherits A's full orientation. Waypoint (+x, +y, yaw) on the canvas
-            are then expressed directly in A's frame.
-
-        Returns None if A isn't set or the A->B lookup fails when B is given.
-        """
-        a = path.ref_a.get()
-        b = path.ref_b.get()
-        if not a:
-            return None
-
-        if not b or a == b:
-            t = TransformStamped()
-            t.header.stamp = now
-            t.header.frame_id = a
-            t.child_frame_id = path.composite_frame_name()
-            t.transform.rotation.w = 1.0
-            return t
-
-        try:
-            tf_a_b = self.tf_buffer.lookup_transform(
-                a,
-                b,
-                rospy.Time(0),
-                rospy.Duration(0.1),
-            )
-        except (
-            tf2_ros.LookupException,
-            tf2_ros.ConnectivityException,
-            tf2_ros.ExtrapolationException,
-        ):
-            return None
-
-        bx = tf_a_b.transform.translation.x
-        by = tf_a_b.transform.translation.y
-        if abs(bx) < 1e-9 and abs(by) < 1e-9:
-            return None
-        yaw = math.atan2(by, bx)
-
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = a
-        t.child_frame_id = path.composite_frame_name()
-        t.transform.translation.x = 0.0
-        t.transform.translation.y = 0.0
-        t.transform.translation.z = 0.0
-        q = quaternion_from_euler(0.0, 0.0, yaw)
-        t.transform.rotation.x = q[0]
-        t.transform.rotation.y = q[1]
-        t.transform.rotation.z = q[2]
-        t.transform.rotation.w = q[3]
-        return t
-
-    def _build_wp_transform(self, path, i, wp, ref_frame_name, now):
-        t = TransformStamped()
-        t.header.stamp = now
-        t.header.frame_id = ref_frame_name
-        t.child_frame_id = path.wp_frame_name(i)
-        t.transform.translation.x = float(wp["x"])
-        t.transform.translation.y = float(wp["y"])
-        t.transform.translation.z = float(wp["z"])
+    def _waypoint_to_pose(self, wp):
+        pose = Pose()
+        pose.position.x = float(wp["x"])
+        pose.position.y = float(wp["y"])
+        pose.position.z = float(wp["z"])
         q = quaternion_from_euler(0.0, 0.0, math.radians(float(wp["yaw"])))
-        t.transform.rotation.x = q[0]
-        t.transform.rotation.y = q[1]
-        t.transform.rotation.z = q[2]
-        t.transform.rotation.w = q[3]
-        return t
+        pose.orientation.x = q[0]
+        pose.orientation.y = q[1]
+        pose.orientation.z = q[2]
+        pose.orientation.w = q[3]
+        return pose
 
-    def _on_close(self):
-        self._shutdown_event.set()
-        if self._save_after_id is not None:
-            try:
-                self.root.after_cancel(self._save_after_id)
-            except (tk.TclError, ValueError):
-                pass
-            self._save_after_id = None
-        try:
-            self._write_state_to_disk(self._build_state_dict())
-        except Exception as exc:  # noqa: BLE001
-            rospy.logwarn(f"[WaypointGUI] Final state save failed: {exc}")
-        try:
-            if rospy.has_param(self.paths_rosparam):
-                rospy.delete_param(self.paths_rosparam)
-        except Exception:  # noqa: BLE001
-            pass
-        self.root.destroy()
-
-    # ------------------------------------------------------------------
-    # State persistence (YAML)
-    # ------------------------------------------------------------------
-    def _attach_global_traces(self):
-        self.simulate_var.trace_add("write", lambda *_: self._schedule_save())
-
-    def _attach_path_traces(self, path):
-        cb = lambda *_: self._schedule_save()  # noqa: E731
-        path.ref_a.trace_add("write", cb)
-        path.ref_b.trace_add("write", cb)
-        path.yaw_var.trace_add("write", cb)
-        path.z_var.trace_add("write", cb)
-        path.publish_enabled.trace_add("write", cb)
-
-    def _schedule_save(self):
-        if self._loading:
+    def send_to_vehicle(self):
+        if not self.service_connected:
+            messagebox.showerror(
+                "Error", "ROS service not connected. Start waypoint_publisher first."
+            )
             return
-        if self._save_after_id is not None:
-            try:
-                self.root.after_cancel(self._save_after_id)
-            except (tk.TclError, ValueError):
-                pass
+
+        waypoint_count = sum(len(path.waypoints) for path in self.paths)
+        if waypoint_count == 0:
+            messagebox.showwarning("Warning", "No waypoints to send.")
+            return
+
         try:
-            self._save_after_id = self.root.after(SAVE_DEBOUNCE_MS, self._flush_save)
-        except tk.TclError:
-            self._save_after_id = None
-
-    def _flush_save(self):
-        self._save_after_id = None
-        self._write_state_to_disk(self._build_state_dict())
-
-    def _build_state_dict(self):
-        with self._paths_lock:
-            paths_snapshot = list(self.paths)
-        return {
-            "created_at": datetime.now().isoformat(),
-            "simulate": bool(self.simulate_var.get()),
-            "paths": [
-                {
-                    "name": p.name,
-                    "ref_a": p.ref_a.get(),
-                    "ref_b": p.ref_b.get(),
-                    "publish_enabled": bool(p.publish_enabled.get()),
-                    "yaw": float(p.yaw_var.get()),
-                    "z": float(p.z_var.get()),
-                    "waypoints": [
-                        {
-                            "x": float(wp["x"]),
-                            "y": float(wp["y"]),
-                            "z": float(wp["z"]),
-                            "yaw": float(wp["yaw"]),
-                        }
-                        for wp in p.waypoints
-                    ],
-                }
-                for p in paths_snapshot
-            ],
-        }
-
-    def _write_state_to_disk(self, data):
-        try:
-            directory = os.path.dirname(self.state_file)
-            if directory:
-                os.makedirs(directory, exist_ok=True)
-            if os.path.exists(self.state_file):
-                try:
-                    with open(self.state_file, "r") as old_f:
-                        old_data = yaml.safe_load(old_f) or {}
-                    old_timestamp = old_data.get("created_at", "")
-                    if old_timestamp:
-                        old_dt = datetime.fromisoformat(old_timestamp)
-                        timestamp = old_dt.strftime("%Y%m%d_%H%M")
-                    else:
-                        mtime = os.path.getmtime(self.state_file)
-                        timestamp = datetime.fromtimestamp(mtime).strftime(
-                            "%Y%m%d_%H%M"
-                        )
-                except Exception:  # noqa: BLE001
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-
-                base, ext = os.path.splitext(self.state_file)
-                backup_path = f"{base}_{timestamp}{ext}"
-                os.rename(self.state_file, backup_path)
-                rospy.loginfo(f"[WaypointGUI] Backed up old state to {backup_path}")
-
-            with open(self.state_file, "w") as f:
-                yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
-            rospy.loginfo(f"[WaypointGUI] Saved state to {self.state_file}")
-        except OSError as exc:
-            rospy.logwarn_throttle(
-                5.0,
-                f"[WaypointGUI] Failed to save state to {self.state_file}: {exc}",
-            )
-
-    def _load_state(self):
-        """Restore paths + simulate flag from disk. Returns True if anything loaded."""
-        try:
-            with open(self.state_file, "r") as f:
-                data = yaml.safe_load(f) or {}
-        except FileNotFoundError:
-            return False
-        except (yaml.YAMLError, OSError) as exc:
-            rospy.logwarn(
-                f"[WaypointGUI] Failed to load state from {self.state_file}: {exc}"
-            )
-            return False
-
-        if not isinstance(data, dict):
-            return False
-
-        if "simulate" in data:
-            try:
-                self.simulate_var.set(bool(data["simulate"]))
-            except Exception:  # noqa: BLE001
-                pass
-
-        saved_paths = data.get("paths", []) or []
-        if not isinstance(saved_paths, list):
-            return False
-
-        loaded = 0
-        for entry in saved_paths:
-            if self._add_path_from_dict(entry) is not None:
-                loaded += 1
-
-        if loaded == 0:
-            return False
-
-        self.active_path_idx = 0
-        try:
-            self.notebook.select(self.paths[0]._tab)
-        except (tk.TclError, IndexError):
-            pass
-        rospy.loginfo(f"[WaypointGUI] Loaded {loaded} path(s) from {self.state_file}")
-        return True
+            rospy.wait_for_service(self.service_name, timeout=2.0)
+            set_waypoint = rospy.ServiceProxy(self.service_name, SetWaypoint)
+            resp = set_waypoint(self._build_service_request())
+            if resp.success:
+                messagebox.showinfo("Success", resp.message)
+            else:
+                messagebox.showerror("Error", resp.message)
+        except rospy.ServiceException as exc:
+            messagebox.showerror("Error", f"Service call failed:\n{exc}")
+        except rospy.ROSException as exc:
+            messagebox.showerror("Error", f"Service unavailable:\n{exc}")
 
 
 def main():
