@@ -41,6 +41,15 @@ class TransformServiceEnableState(smach_ros.ServiceState):
             SetBool,
             request=SetBoolRequest(data=req),
         )
+        
+class TransformServiceEnableStateTaluy(smach_ros.ServiceState):
+    def __init__(self, req: bool):
+        smach_ros.ServiceState.__init__(
+            self,
+            "toggle_gate_trajectory",
+            SetBool,
+            request=SetBoolRequest(data=req),
+        )
 
 
 class PlanGatePathsState(smach.State):
@@ -130,6 +139,8 @@ class NavigateThroughGateMiniState(smach.State):
                     confirm_duration=2.0,
                     timeout=15.0,
                     cancel_on_success=False,
+                    max_linear_velocity=0.15,
+                    max_linear_velocity_y=0.05,
                 ),
                 transitions={
                     "succeeded": "SET_DETECTION_FOCUS_GATE",
@@ -149,7 +160,7 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
-                    depth=-0.5,
+                    depth=-1.1,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
@@ -161,6 +172,15 @@ class NavigateThroughGateMiniState(smach.State):
                 "ENABLE_GATE_TRAJECTORY_PUBLISHER",
                 TransformServiceEnableState(req=True),
                 transitions={
+                    "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER_taluy",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_GATE_TRAJECTORY_PUBLISHER_taluy",
+                TransformServiceEnableStateTaluy(req=True),
+                transitions={
                     "succeeded": "SABIT_BAKMA",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -170,12 +190,15 @@ class NavigateThroughGateMiniState(smach.State):
                 "SABIT_BAKMA",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame="mini_gate_center_entrance",
+                    target_frame="gate_entrance",
                     dist_threshold=0.2,
                     yaw_threshold=0.2,
                     confirm_duration=10.0,
                     timeout=30.0,
                     cancel_on_success=False,
+                    max_linear_velocity=0.02,
+                    max_linear_velocity_y=0.02,
+                    max_angular_velocity=0.1,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_GATE",
@@ -200,7 +223,7 @@ class NavigateThroughGateMiniState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_GATE_DEPTH",
-                SetDepthState(depth=-1.35),
+                SetDepthState(depth=-1.3),
                 transitions={
                     "succeeded": "ALIGN_FRAME_TO_GATE",
                     "preempted": "preempted",
@@ -222,7 +245,7 @@ class NavigateThroughGateMiniState(smach.State):
                     cancel_on_success=True,
                     keep_orientation=False,
                     max_linear_velocity=0.15,
-                    max_angular_velocity=0.15,
+                    max_linear_velocity_y=0.05,
                 ),
                 transitions={
                     "succeeded": "a",
@@ -234,12 +257,12 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "a",
                 SetDepthState(
-                    depth=-0.6,
+                    depth=-1.0,
                     confirm_duration=5.0,
                     timeout=15.0,
                 ),
                 transitions={
-                    "succeeded": "succeeded",
+                    "succeeded": "PITCH_TWO_TIMES",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -259,7 +282,7 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "SON_DEPTH",
                 SetDepthState(
-                    depth=-0.6,
+                    depth=-1.0,
                     confirm_duration=1.0,
                     timeout=15.0,
                 ),
