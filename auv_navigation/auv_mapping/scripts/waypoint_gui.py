@@ -4,6 +4,7 @@ import math
 import os
 import threading
 import tkinter as tk
+from datetime import datetime
 from tkinter import ttk, messagebox
 
 import rospy
@@ -24,7 +25,15 @@ PATH_COLORS = [
     "#607d8b",
 ]
 
-DEFAULT_STATE_FILE = "~/.ros/waypoint_gui_state.yaml"
+DEFAULT_STATE_FILE = os.path.abspath(
+    os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "config",
+        "waypoints",
+        "waypoint_gui_state.yaml",
+    )
+)
 SAVE_DEBOUNCE_MS = 500
 
 
@@ -1049,6 +1058,7 @@ class WaypointGUI:
         with self._paths_lock:
             paths_snapshot = list(self.paths)
         return {
+            "created_at": datetime.now().isoformat(),
             "simulate": bool(self.simulate_var.get()),
             "paths": [
                 {
@@ -1077,10 +1087,30 @@ class WaypointGUI:
             directory = os.path.dirname(self.state_file)
             if directory:
                 os.makedirs(directory, exist_ok=True)
-            tmp_path = self.state_file + ".tmp"
-            with open(tmp_path, "w") as f:
+            if os.path.exists(self.state_file):
+                try:
+                    with open(self.state_file, "r") as old_f:
+                        old_data = yaml.safe_load(old_f) or {}
+                    old_timestamp = old_data.get("created_at", "")
+                    if old_timestamp:
+                        old_dt = datetime.fromisoformat(old_timestamp)
+                        timestamp = old_dt.strftime("%Y%m%d_%H%M")
+                    else:
+                        mtime = os.path.getmtime(self.state_file)
+                        timestamp = datetime.fromtimestamp(mtime).strftime(
+                            "%Y%m%d_%H%M"
+                        )
+                except Exception:  # noqa: BLE001
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+
+                base, ext = os.path.splitext(self.state_file)
+                backup_path = f"{base}_{timestamp}{ext}"
+                os.rename(self.state_file, backup_path)
+                rospy.loginfo(f"[WaypointGUI] Backed up old state to {backup_path}")
+
+            with open(self.state_file, "w") as f:
                 yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
-            os.replace(tmp_path, self.state_file)
+            rospy.loginfo(f"[WaypointGUI] Saved state to {self.state_file}")
         except OSError as exc:
             rospy.logwarn_throttle(
                 5.0,

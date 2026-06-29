@@ -5,8 +5,7 @@
     <arg name="waypoint_prefix" default="path" />
     <arg name="default_waypoint_z" default="-1.0" />
     <arg name="broadcast_rate_hz" default="20.0" />
-    <!-- Auto-saved state file. Survives Ctrl+C / relaunches so paths are restored. -->
-    <arg name="state_file" default="~/.ros/waypoint_gui_state.yaml" />
+    <arg name="state_file" default="$(find auv_mapping)/config/waypoints/waypoint_gui_state.yaml" />
 
     <!--
       Canvas bounds in the per-path local frame (A = 0,0; +x forward in ref coords).
