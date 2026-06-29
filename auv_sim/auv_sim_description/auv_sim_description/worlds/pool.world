@@ -35,9 +35,9 @@
     <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
     <atmosphere type='adiabatic'/>
     <physics type='ode'>
-      <max_step_size>0.002</max_step_size>
+      <max_step_size>0.01</max_step_size>
       <real_time_factor>1</real_time_factor>
-      <real_time_update_rate>500</real_time_update_rate>
+      <real_time_update_rate>100</real_time_update_rate>
     </physics>
     <wind/>
     <spherical_coordinates>
@@ -324,7 +324,7 @@
           </material>
         </visual>
         <sensor name="camera_sensor" type="camera">
-          <update_rate>30.0</update_rate>
+          <update_rate>10.0</update_rate>
           <camera name="pool_camera">
             <horizontal_fov>1.36136</horizontal_fov>
             <image>
@@ -344,7 +344,7 @@
           </camera>
           <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
             <alwaysOn>true</alwaysOn>
-            <updateRate>30.0</updateRate>
+            <updateRate>10.0</updateRate>
             <cameraName>pool_camera</cameraName>
             <imageTopicName>image_raw</imageTopicName>
             <cameraInfoTopicName>camera_info</cameraInfoTopicName>
