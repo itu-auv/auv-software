@@ -1,8 +1,6 @@
 string name
 string ref_a
 string ref_b
-uint8 B_MODE_FIXED=0
-uint8 B_MODE_RELATIVE=1
 uint8 b_mode
 float64 b_reference_distance
 string waypoint_prefix
