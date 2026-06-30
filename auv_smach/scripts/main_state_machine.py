@@ -7,9 +7,11 @@ import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.slalom import NavigateThroughSlalomState
+from auv_smach.gate_mini import NavigateThroughGateMiniState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
+from auv_smach.bin_mini import BinTaskMiniState
 from auv_smach.octagon import OctagonTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
@@ -26,6 +28,10 @@ DEFAULT_TORPEDO_MAP = "fire"
 ROLE_TO_BIN_TARGET_SELECTION = {
     "survey_repair": "shark",
     "search_rescue": "sawfish",
+}
+ROLE_TO_GATE_TARGET_FRAME = {
+    "survey_repair": "gate_survey_repair_link",
+    "search_rescue": "gate_search_rescue_link",
 }
 LEFT_TOP_TORPEDO_FIRE_FRAMES = [
     "torpedo_left_mid_fire_frame",
@@ -103,6 +109,8 @@ class MainStateMachineNode:
         self.torpedo_map_depth = -1.25
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
+
+        self.mini_coin_flip = rospy.get_param("~mini_coin_flip", "")
 
         self.bin_front_look_depth = -1.3
         self.bin_bottom_look_depth = -0.7
@@ -186,6 +194,12 @@ class MainStateMachineNode:
             ROLE_TO_BIN_TARGET_SELECTION[DEFAULT_SELECTED_ROLE],
         )
 
+    def get_gate_target_frame(self):
+        return ROLE_TO_GATE_TARGET_FRAME.get(
+            self.selected_role,
+            ROLE_TO_GATE_TARGET_FRAME[DEFAULT_SELECTED_ROLE],
+        )
+
     def get_torpedo_fire_frames(self):
         is_survey_repair = self.selected_role == DEFAULT_SELECTED_ROLE
 
@@ -220,6 +234,7 @@ class MainStateMachineNode:
         )
 
         legacy_target_selection = self.get_legacy_target_selection()
+        gate_target_frame = self.get_gate_target_frame()
 
         torpedo_fire_frames = self.get_torpedo_fire_frames()
         rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
@@ -237,6 +252,17 @@ class MainStateMachineNode:
                     "gate_search_depth": self.gate_search_depth,
                     "roll_depth": self.roll_depth,
                     "gate_exit_angle": gate_exit_angle_rad,
+                },
+            ),
+            "NAVIGATE_THROUGH_GATE_MINI": (
+                NavigateThroughGateMiniState,
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_search_depth": self.gate_search_depth,
+                    "roll_depth": self.roll_depth,
+                    "gate_exit_angle": gate_exit_angle_rad,
+                    "target_animal": gate_target_frame,
+                    "mini_coin_flip": self.mini_coin_flip,
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (
@@ -264,6 +290,12 @@ class MainStateMachineNode:
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
                     "target_selection": legacy_target_selection,
                     "bin_exit_angle": bin_exit_angle_rad,
+                },
+            ),
+            "NAVIGATE_TO_BIN_MINI_TASK": (
+                BinTaskMiniState,
+                {
+                    "target_animal": f"bin_{legacy_target_selection}_link",
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
@@ -348,7 +380,6 @@ class MainStateMachineNode:
         if falling_edge:
             # TODO: maybe add restart logic
             rospy.logerr("KILLSWITCH!")
-            rospy.signal_shutdown("Force stopping state machine")
 
 
 if __name__ == "__main__":
