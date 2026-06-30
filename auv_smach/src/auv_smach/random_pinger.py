@@ -12,7 +12,7 @@ from std_msgs.msg import Float32
 from auv_common_lib.transform import lookup_fresh_transform
 from auv_smach.common import CancelAlignControllerState, SetDepthState
 from auv_smach.initialize import DelayState
-from auv_smach.octagon import OctagonTaskState
+from auv_smach.octagon import OctagonSurfaceState, OctagonTaskState
 from auv_smach.tf_utils import get_base_link, get_tf_buffer
 from auv_smach.torpedo import TorpedoTaskState
 
@@ -355,11 +355,17 @@ class RandomPingerTaskState(smach.State):
         tie_threshold=math.radians(10.0),
         outlier_rejection_threshold=math.radians(15.0),
         min_consensus_ratio=0.6,
-        depth_recovery_threshold=-0.25,
+        depth_recovery_threshold=-0.35,
         depth_recovery_policy="fallback",  # "fallback" or "locked_samples"
         depth_recovery_min_samples=2,
+        surface_and_return_if_octagon_first=False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        octagon_first_state = (
+            "OCTAGON_SURFACE_FIRST"
+            if surface_and_return_if_octagon_first
+            else "OCTAGON_FIRST"
+        )
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -431,7 +437,7 @@ class RandomPingerTaskState(smach.State):
                 "RESTORE_DEPTH_BEFORE_OCTAGON_FIRST",
                 SetDepthState(depth=pinger_depth),
                 transitions={
-                    "succeeded": "OCTAGON_FIRST",
+                    "succeeded": octagon_first_state,
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -454,24 +460,54 @@ class RandomPingerTaskState(smach.State):
                     "aborted": "aborted",
                 },
             )
-            smach.StateMachine.add(
-                "OCTAGON_FIRST",
-                OctagonTaskState(**octagon_params),
-                transitions={
-                    "succeeded": "TORPEDO_SECOND",
-                    "preempted": "preempted",
-                    "aborted": "TORPEDO_SECOND",
-                },
-            )
-            smach.StateMachine.add(
-                "TORPEDO_SECOND",
-                TorpedoTaskState(**torpedo_params),
-                transitions={
-                    "succeeded": "succeeded",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
+            if surface_and_return_if_octagon_first:
+                smach.StateMachine.add(
+                    "OCTAGON_SURFACE_FIRST",
+                    OctagonSurfaceState(octagon_depth=octagon_params["octagon_depth"]),
+                    transitions={
+                        "succeeded": "TORPEDO_AFTER_OCTAGON_SURFACE",
+                        "preempted": "preempted",
+                        "aborted": "TORPEDO_AFTER_OCTAGON_SURFACE",
+                    },
+                )
+                # TODO: return back after surfacing
+                smach.StateMachine.add(
+                    "TORPEDO_AFTER_OCTAGON_SURFACE",
+                    TorpedoTaskState(**torpedo_params),
+                    transitions={
+                        "succeeded": "OCTAGON_AFTER_SURFACE_TORPEDO",
+                        "preempted": "preempted",
+                        "aborted": "OCTAGON_AFTER_SURFACE_TORPEDO",
+                    },
+                )
+                smach.StateMachine.add(
+                    "OCTAGON_AFTER_SURFACE_TORPEDO",
+                    OctagonTaskState(**octagon_params),
+                    transitions={
+                        "succeeded": "succeeded",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
+            else:
+                smach.StateMachine.add(
+                    "OCTAGON_FIRST",
+                    OctagonTaskState(**octagon_params),
+                    transitions={
+                        "succeeded": "TORPEDO_SECOND",
+                        "preempted": "preempted",
+                        "aborted": "TORPEDO_SECOND",
+                    },
+                )
+                smach.StateMachine.add(
+                    "TORPEDO_SECOND",
+                    TorpedoTaskState(**torpedo_params),
+                    transitions={
+                        "succeeded": "succeeded",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
 
     def execute(self, userdata):
         rospy.loginfo("Starting Random Pinger SMACH Task")
