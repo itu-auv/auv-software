@@ -150,6 +150,7 @@ class SlalomHeatmapMapper:
         self.pipe_angle_pub = rospy.Publisher(
             "slalom/pipe_angles", Float32MultiArray, queue_size=1
         )
+        self.last_pipe_angle_data = None
         self.reconfigure_server = Server(SlalomHeatmapConfig, self.reconfigure_callback)
         self.smach_params_client = Client(
             "smach_parameters_server",
@@ -506,11 +507,13 @@ class SlalomHeatmapMapper:
         red_detections = [x for x in angle_detections if x["id"] == 2]
         white_detections = [x for x in angle_detections if x["id"] == 3]
         if not red_detections:
+            self.publish_last_pipe_angles()
             return
 
         selected_red = self.select_red_angle_detections(red_detections)
         red_center_x = float(np.mean([x["center_x"] for x in selected_red]))
         red_angle = self.average_angles([x["angle"] for x in selected_red])
+        red_height = float(np.mean([x["height"] for x in selected_red]))
 
         left_white = self.select_side_white_detection(
             [x for x in white_detections if x["center_x"] < red_center_x],
@@ -521,12 +524,35 @@ class SlalomHeatmapMapper:
             side="right",
         )
 
-        msg = Float32MultiArray()
-        msg.data = [
+        pipe_angle_data = [
             red_angle,
-            left_white["angle"] if left_white is not None else float("nan"),
-            right_white["angle"] if right_white is not None else float("nan"),
+            left_white["angle"] if left_white is not None else None,
+            right_white["angle"] if right_white is not None else None,
+            red_height,
+            left_white["height"] if left_white is not None else None,
+            right_white["height"] if right_white is not None else None,
         ]
+
+        if self.last_pipe_angle_data is not None:
+            pipe_angle_data = [
+                self.last_pipe_angle_data[i] if value is None else value
+                for i, value in enumerate(pipe_angle_data)
+            ]
+
+        if any(value is None for value in pipe_angle_data):
+            return
+
+        msg = Float32MultiArray()
+        msg.data = pipe_angle_data
+        self.last_pipe_angle_data = pipe_angle_data
+        self.pipe_angle_pub.publish(msg)
+
+    def publish_last_pipe_angles(self):
+        if self.last_pipe_angle_data is None:
+            return
+
+        msg = Float32MultiArray()
+        msg.data = self.last_pipe_angle_data
         self.pipe_angle_pub.publish(msg)
 
     def select_red_angle_detections(self, red_detections):

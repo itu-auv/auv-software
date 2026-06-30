@@ -7,6 +7,7 @@ import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.slalom import NavigateThroughSlalomState
+from auv_smach.slalom_mini import NavigateThroughSlalomMiniState
 from auv_smach.gate_mini import NavigateThroughGateMiniState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
@@ -21,7 +22,6 @@ from std_msgs.msg import Bool
 import threading
 from dynamic_reconfigure.client import Client
 from auv_bringup.cfg import SmachParametersConfig
-
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
@@ -101,7 +101,18 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.roll_depth = -0.8
 
-        self.slalom_depth = -1.1
+        self.slalom_depth = rospy.get_param("~slalom_depth", -1.1)
+        self.slalom_mini_forward_wrench = rospy.get_param(
+            "~slalom_mini_forward_wrench", 5.0
+        )
+        self.slalom_mini_lateral_kp = rospy.get_param("~slalom_mini_lateral_kp", 0.0)
+        self.slalom_mini_lateral_kd = rospy.get_param("~slalom_mini_lateral_kd", 0.0)
+        self.slalom_mini_max_lateral_wrench = rospy.get_param(
+            "~slalom_mini_max_lateral_wrench", 30.0
+        )
+        self.slalom_mini_follow_duration = rospy.get_param(
+            "~slalom_mini_follow_duration", 120.0
+        )
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -271,6 +282,18 @@ class MainStateMachineNode:
                     "slalom_depth": self.slalom_depth,
                     "slalom_exit_angle": slalom_exit_angle_rad,
                     "slalom_direction": self.slalom_direction,
+                },
+            ),
+            "NAVIGATE_THROUGH_SLALOM_MINI": (
+                NavigateThroughSlalomMiniState,
+                {
+                    "slalom_depth": self.slalom_depth,
+                    "white_side": self.slalom_direction,
+                    "forward_wrench": self.slalom_mini_forward_wrench,
+                    "lateral_kp": self.slalom_mini_lateral_kp,
+                    "lateral_kd": self.slalom_mini_lateral_kd,
+                    "max_lateral_wrench": self.slalom_mini_max_lateral_wrench,
+                    "follow_duration": self.slalom_mini_follow_duration,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (

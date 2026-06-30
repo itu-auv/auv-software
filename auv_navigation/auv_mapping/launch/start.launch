@@ -31,6 +31,7 @@
       <remap from="odometry" to="odometry" />
       <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
       <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+      <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
       <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
       <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
       <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
