@@ -8,6 +8,7 @@ from utils.detection_utils import (
     calculate_angles_and_offsets,
     transform_to_odom_and_publish,
     check_inside_image_bottom,
+    check_inside_image_bottom_bin,
 )
 
 
@@ -68,7 +69,7 @@ class BottomCameraHandler:
 
             # Bin detections use altitude for distance and check inside-image (with bottom masks)
             if detection_id in self.altitude_distance_ids:
-                if not check_inside_image_bottom(
+                if not check_inside_image_bottom_bin(
                     detection, self.image_width, self.image_height
                 ):
                     continue
