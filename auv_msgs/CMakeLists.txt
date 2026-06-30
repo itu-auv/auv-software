@@ -20,6 +20,7 @@ add_action_files(
 add_message_files(
   FILES
   EulerOrientation.msg
+  ObjectPose.msg
   Keypoint.msg
   KeypointResult.msg
   PropsYaw.msg
@@ -34,6 +35,7 @@ add_service_files(
   SendAcoustic.srv
   SetDepth.srv
   SetObjectTransform.srv
+  SetPremap.srv
   VisualServoing.srv
   SetDetectionFocus.srv
   SpawnDebugCube.srv
