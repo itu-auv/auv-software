@@ -95,6 +95,8 @@
 
             <!--red_buoy.py-->
             <remap from="set_object_transform" to="map/set_object_transform"/>
+            <remap from="save_object_map_snapshot" to="map/save_object_map_snapshot"/>
+            <remap from="recover_object_map_snapshot" to="map/recover_object_map_snapshot"/>
 
             <!--bin.py-->
             <remap from="toggle_bin_trajectory" to="toggle_bin_trajectory"/>
