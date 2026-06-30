@@ -23,5 +23,16 @@
 			</visual>
 
 		</link>
+
+		<!-- Blood (Sawfish) Link -->
+		<link name="bin_blood_link">
+			<pose>-0.1525 0.0144 0.9337 0 0 0</pose>
+		</link>
+
+		<!-- Fire (Shark) Link -->
+		<link name="bin_fire_link">
+			<pose>0.1525 0.0144 0.9337 0 0 0</pose>
+		</link>
+
 	</model>
 </sdf>

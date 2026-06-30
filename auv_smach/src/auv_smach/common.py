@@ -7,7 +7,7 @@ import tf2_ros
 import tf.transformations as transformations
 import math
 import angles
-from auv_smach.tf_utils import get_tf_buffer, get_base_link
+from auv_smach.tf_utils import get_tf_buffer, get_base_link, reset_tf_buffer
 from auv_common_lib.transform import lookup_fresh_transform
 import actionlib
 
@@ -164,8 +164,7 @@ class SetDepthState(smach.State):
         self._stop_publishing = threading.Event()
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
 
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
 
         self.base_frame = get_base_link()
 
@@ -335,7 +334,16 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
             "align_frame/start",
             AlignFrameController,
             request=align_request,
+            response_cb=self.response_cb,
         )
+
+    @staticmethod
+    def response_cb(userdata, response):
+        if not response.success:
+            rospy.logwarn("SetAlignControllerTargetState failed: %s", response.message)
+            return "aborted"
+
+        return "succeeded"
 
 
 class NavigateToFrameState(smach.State):
@@ -702,7 +710,17 @@ class ClearObjectMapState(smach_ros.ServiceState):
             "clear_object_transforms",
             Trigger,
             request=TriggerRequest(),
+            response_cb=self.response_cb,
         )
+
+    @staticmethod
+    def response_cb(userdata, response):
+        if not response.success:
+            rospy.logwarn("ClearObjectMapState: clear_object_transforms failed")
+            return "aborted"
+
+        reset_tf_buffer()
+        return "succeeded"
 
 
 class SetDetectionState(smach_ros.ServiceState):
@@ -1575,8 +1593,7 @@ class CheckForTransformState(smach.State):
         self.source_frame = source_frame
         self.target_frame = target_frame
         self.timeout = timeout
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
+        self.tf_buffer = get_tf_buffer()
         self.rate = rospy.Rate(check_rate_hz)
 
     def is_transform_available(self):

@@ -1,80 +1,167 @@
 <?xml version='1.0'?>
 <sdf version="1.7">
-  <model name="two_hangings">
+  <model name="robosub_octagon_animals">
     <static>true</static>  <!-- Static for stability -->
 
-    <!-- First Hanging -->
-    <link name="hanging1">
+    <!-- Repair hanging (facing +X) -->
+    <link name="octagon_repair_link">
       <!-- Front face -->
       <visual name="visual1_front">
         <geometry>
           <plane>
-            <normal>1 0 0</normal>  <!-- Faces +X direction -->
-            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+            <normal>1 0 0</normal>
+            <size>0.305 0.305</size>
           </plane>
         </geometry>
         <material>
           <script>
             <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>ReefSharkMaterial</name>
+            <uri>model://robosub_octagon_animals/materials/textures</uri>
+            <name>Task5RepairMaterial</name>
           </script>
         </material>
-        <pose>0 0 0.1525 1.5708 0 1.5708</pose>  <!-- 90° clockwise rotation -->
+        <cast_shadows>false</cast_shadows>
+        <pose>0 0 0.1525 1.5708 0 1.5708</pose>
       </visual>
       <!-- Back face -->
       <visual name="visual1_back">
         <geometry>
           <plane>
-            <normal>-1 0 0</normal>  <!-- Faces -X direction -->
-            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+            <normal>-1 0 0</normal>
+            <size>0.305 0.305</size>
           </plane>
         </geometry>
         <material>
           <script>
             <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>ReefSharkBackMaterial</name>
+            <name>Task5BackMaterial</name>
           </script>
         </material>
-        <pose>0 0 0.1525 1.5708 0 1.5708</pose>  <!-- 90° clockwise rotation -->
+        <cast_shadows>false</cast_shadows>
+        <pose>0 0 0.1525 1.5708 0 1.5708</pose>
       </visual>
-      <pose>0 0 0.4 0 0 0</pose>  <!-- Ground level -->
+      <pose>0 0 0.4 0 0 0</pose>
     </link>
 
-    <!-- Second Hanging -->
-    <link name="hanging2">
+    <!-- Rescue hanging (facing -X) -->
+    <link name="octagon_rescue_link">
       <!-- Front face -->
       <visual name="visual2_front">
         <geometry>
           <plane>
-            <normal>-1 0 0</normal>  <!-- Faces -X direction (towards first hanging) -->
-            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+            <normal>-1 0 0</normal>
+            <size>0.305 0.305</size>
           </plane>
         </geometry>
         <material>
           <script>
             <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>SawfishMaterial</name>
+            <uri>model://robosub_octagon_animals/materials/textures</uri>
+            <name>Task5RescueMaterial</name>
           </script>
         </material>
-        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>  <!-- 90° clockwise rotation -->
+        <cast_shadows>false</cast_shadows>
+        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
       </visual>
       <!-- Back face -->
       <visual name="visual2_back">
         <geometry>
           <plane>
-            <normal>1 0 0</normal>  <!-- Faces +X direction -->
-            <size>0.305 0.305</size>  <!-- 30.5cm x 30.5cm -->
+            <normal>1 0 0</normal>
+            <size>0.305 0.305</size>
           </plane>
         </geometry>
         <material>
           <script>
             <uri>model://robosub_octagon_animals/materials/scripts</uri>
-            <name>SawfishBackMaterial</name>
+            <name>Task5BackMaterial</name>
           </script>
         </material>
-        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>  <!-- 90° clockwise rotation -->
+        <cast_shadows>false</cast_shadows>
+        <pose>0 0 0.1525 1.5708 0 -1.5708</pose>
       </visual>
-      <pose>2.7 0 0.4 0 0 0</pose>  <!-- 2.7m away from first hanging -->
+      <pose>2.7 0 0.4 0 0 0</pose>
     </link>
+
+    <!-- Search hanging (facing -Y) -->
+    <link name="octagon_search_link">
+      <!-- Front face -->
+      <visual name="visual3_front">
+        <geometry>
+          <plane>
+            <normal>0 -1 0</normal>
+            <size>0.305 0.305</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <uri>model://robosub_octagon_animals/materials/textures</uri>
+            <name>Task5SearchMaterial</name>
+          </script>
+        </material>
+        <cast_shadows>false</cast_shadows>
+        <pose>0 0 0.1525 1.5708 0 0</pose>
+      </visual>
+      <!-- Back face -->
+      <visual name="visual3_back">
+        <geometry>
+          <plane>
+            <normal>0 1 0</normal>
+            <size>0.305 0.305</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <name>Task5BackMaterial</name>
+          </script>
+        </material>
+        <cast_shadows>false</cast_shadows>
+        <pose>0 0 0.1525 1.5708 0 0</pose>
+      </visual>
+      <pose>1.35 1.35 0.4 0 0 0</pose>
+    </link>
+
+    <!-- Survey hanging (facing +Y) -->
+    <link name="octagon_survey_link">
+      <!-- Front face -->
+      <visual name="visual4_front">
+        <geometry>
+          <plane>
+            <normal>0 1 0</normal>
+            <size>0.305 0.305</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <uri>model://robosub_octagon_animals/materials/textures</uri>
+            <name>Task5SurveyMaterial</name>
+          </script>
+        </material>
+        <cast_shadows>false</cast_shadows>
+        <pose>0 0 0.1525 1.5708 0 3.14159</pose>
+      </visual>
+      <!-- Back face -->
+      <visual name="visual4_back">
+        <geometry>
+          <plane>
+            <normal>0 -1 0</normal>
+            <size>0.305 0.305</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon_animals/materials/scripts</uri>
+            <name>Task5BackMaterial</name>
+          </script>
+        </material>
+        <cast_shadows>false</cast_shadows>
+        <pose>0 0 0.1525 1.5708 0 3.14159</pose>
+      </visual>
+      <pose>1.35 -1.35 0.4 0 0 0</pose>
+    </link>
+
   </model>
 </sdf>

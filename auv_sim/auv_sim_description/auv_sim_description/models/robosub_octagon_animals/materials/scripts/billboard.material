@@ -1,21 +1,84 @@
-material ReefSharkMaterial
+material Task5RepairMaterial
 {
   technique
   {
     pass
     {
       lighting off
+      scene_blend alpha_blend
+      depth_write off
+      alpha_rejection greater_equal 128
       cull_hardware clockwise
       texture_unit
       {
-        texture reefshark.png
-        filtering none
+        texture Task5_Repair.png
+        filtering anisotropic
       }
     }
   }
 }
 
-material ReefSharkBackMaterial
+material Task5RescueMaterial
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      scene_blend alpha_blend
+      depth_write off
+      alpha_rejection greater_equal 128
+      cull_hardware clockwise
+      texture_unit
+      {
+        texture Task5_Rescue.png
+        filtering anisotropic
+      }
+    }
+  }
+}
+
+material Task5SearchMaterial
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      scene_blend alpha_blend
+      depth_write off
+      alpha_rejection greater_equal 128
+      cull_hardware clockwise
+      texture_unit
+      {
+        texture Task5_Search.png
+        filtering anisotropic
+      }
+    }
+  }
+}
+
+material Task5SurveyMaterial
+{
+  technique
+  {
+    pass
+    {
+      lighting off
+      scene_blend alpha_blend
+      depth_write off
+      alpha_rejection greater_equal 128
+      cull_hardware clockwise
+      texture_unit
+      {
+        texture Task5_Survey.png
+        filtering anisotropic
+      }
+    }
+  }
+}
+
+material Task5BackMaterial
 {
   technique
   {
@@ -25,37 +88,6 @@ material ReefSharkBackMaterial
       cull_hardware anticlockwise
       ambient 0.5 0.5 0.5 1.0
       diffuse 0.5 0.5 0.5 1.0
-    }
-  }
-}
-
-material SawfishMaterial
-{
-  technique
-  {
-    pass
-    {
-      lighting off
-      cull_hardware clockwise
-      texture_unit
-      {
-        texture sawfish.png
-        filtering none
-      }
-    }
-  }
-}
-
-material SawfishBackMaterial
-{
-  technique
-  {
-    pass
-    {
-      lighting off
-      cull_hardware anticlockwise
-      ambient 0.4 0.4 0.4 1.0
-      diffuse 0.4 0.4 0.4 1.0
     }
   }
 }
