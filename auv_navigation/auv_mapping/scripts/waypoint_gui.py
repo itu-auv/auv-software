@@ -22,10 +22,21 @@ PATH_COLORS = [
     "#607d8b",
 ]
 
+B_MODE_FIXED = 0
+B_MODE_RELATIVE = 1
+
 
 class PathData:
     def __init__(
-        self, index, color, waypoint_prefix, default_z, default_ref_a, default_ref_b
+        self,
+        index,
+        color,
+        waypoint_prefix,
+        default_z,
+        default_ref_a,
+        default_ref_b,
+        default_b_mode,
+        b_reference_distance,
     ):
         self.index = index
         self.name = f"path{index}"
@@ -34,6 +45,8 @@ class PathData:
 
         self.ref_a = tk.StringVar(value=default_ref_a)
         self.ref_b = tk.StringVar(value=default_ref_b)
+        self.b_mode = tk.IntVar(value=default_b_mode)
+        self.b_reference_distance = float(b_reference_distance)
         self.yaw_var = tk.DoubleVar(value=0.0)
         self.z_var = tk.DoubleVar(value=default_z)
 
@@ -69,6 +82,9 @@ class WaypointGUI:
         self.pool_width = self.x_max - self.x_min
         self.pool_height = self.y_max - self.y_min
         self.b_arrow_length = float(rospy.get_param("~b_arrow_length", 14.0))
+        self.default_b_mode = self._normalize_b_mode(
+            rospy.get_param("~default_b_mode", B_MODE_FIXED)
+        )
 
         self.paths = []
         self.active_path_idx = None
@@ -201,6 +217,23 @@ class WaypointGUI:
         b_combo.pack(side=tk.LEFT, padx=(5, 0))
         b_combo.bind("<<ComboboxSelected>>", lambda _e: self.redraw_dynamic())
 
+        mode_box = tk.LabelFrame(tab, text="B mode")
+        mode_box.pack(fill=tk.X, padx=5, pady=5)
+        tk.Radiobutton(
+            mode_box,
+            text="Use GUI metres (+x only)",
+            variable=path.b_mode,
+            value=B_MODE_FIXED,
+            command=self.redraw_dynamic,
+        ).pack(anchor="w", padx=5, pady=1)
+        tk.Radiobutton(
+            mode_box,
+            text="Scale by A-B distance",
+            variable=path.b_mode,
+            value=B_MODE_RELATIVE,
+            command=self.redraw_dynamic,
+        ).pack(anchor="w", padx=5, pady=1)
+
         wp_box = tk.LabelFrame(tab, text="New / selected waypoint")
         wp_box.pack(fill=tk.X, padx=5, pady=5)
         tk.Scale(
@@ -267,6 +300,8 @@ class WaypointGUI:
             default_z=self.default_z,
             default_ref_a=default_a,
             default_ref_b=default_b,
+            default_b_mode=self.default_b_mode,
+            b_reference_distance=self.b_arrow_length,
         )
         tab = self._build_tab(path)
         self.paths.append(path)
@@ -558,11 +593,16 @@ class WaypointGUI:
         self.canvas.create_text(
             bx,
             by - 14,
-            text=f"{b_name}  (+x)",
+            text=self._b_label(path, b_name),
             font=("Arial", 10, "bold"),
             fill="#5d4037",
             tags="dynamic",
         )
+
+    def _b_label(self, path, b_name):
+        if path.b_mode.get() == B_MODE_RELATIVE:
+            return f"{b_name}  (relative +x)"
+        return f"{b_name}  (+x)"
 
     def _draw_waypoints(self, path):
         pts = []
@@ -632,9 +672,18 @@ class WaypointGUI:
         msg.name = path.name
         msg.ref_a = path.ref_a.get()
         msg.ref_b = path.ref_b.get()
+        msg.b_mode = self._normalize_b_mode(path.b_mode.get())
+        msg.b_reference_distance = float(path.b_reference_distance)
         msg.waypoint_prefix = path.waypoint_prefix
         msg.waypoints = [self._waypoint_to_pose(wp) for wp in path.waypoints]
         return msg
+
+    def _normalize_b_mode(self, value):
+        try:
+            mode = int(value)
+        except (TypeError, ValueError):
+            return B_MODE_FIXED
+        return mode if mode in (B_MODE_FIXED, B_MODE_RELATIVE) else B_MODE_FIXED
 
     def _waypoint_to_pose(self, wp):
         pose = Pose()

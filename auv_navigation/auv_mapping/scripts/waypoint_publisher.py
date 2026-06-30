@@ -24,6 +24,9 @@ DEFAULT_STATE_FILE = os.path.abspath(
     )
 )
 
+B_MODE_FIXED = 0
+B_MODE_RELATIVE = 1
+
 
 @dataclass
 class PathState:
@@ -31,6 +34,8 @@ class PathState:
     name: str
     ref_a: str
     ref_b: str
+    b_mode: int
+    b_reference_distance: float
     waypoint_prefix: str
     waypoints: list
 
@@ -51,6 +56,9 @@ class WaypointPublisher:
             rospy.get_param("~state_file", DEFAULT_STATE_FILE)
         )
         self.default_waypoint_prefix = rospy.get_param("~waypoint_prefix", "path")
+        self.default_b_reference_distance = float(
+            rospy.get_param("~b_reference_distance", 14.0)
+        )
         self.paths_rosparam = rospy.get_param("~paths_rosparam", "/waypoint_gui/paths")
 
         self.lock = threading.Lock()
@@ -103,6 +111,13 @@ class WaypointPublisher:
     def _path_from_msg(self, index, path_msg):
         ref_a = path_msg.ref_a.strip()
         ref_b = path_msg.ref_b.strip()
+        b_mode = self._normalize_b_mode(getattr(path_msg, "b_mode", B_MODE_FIXED))
+        b_reference_distance = self._positive_float_or_default(
+            getattr(
+                path_msg, "b_reference_distance", self.default_b_reference_distance
+            ),
+            self.default_b_reference_distance,
+        )
         waypoint_prefix = (
             path_msg.waypoint_prefix.strip() or self.default_waypoint_prefix
         )
@@ -124,9 +139,27 @@ class WaypointPublisher:
             name=path_msg.name.strip() or f"path{index}",
             ref_a=ref_a,
             ref_b=ref_b,
+            b_mode=b_mode,
+            b_reference_distance=b_reference_distance,
             waypoint_prefix=waypoint_prefix,
             waypoints=waypoints,
         )
+
+    def _normalize_b_mode(self, value):
+        try:
+            mode = int(value)
+        except (TypeError, ValueError):
+            return B_MODE_FIXED
+        return mode if mode in (B_MODE_FIXED, B_MODE_RELATIVE) else B_MODE_FIXED
+
+    def _positive_float_or_default(self, value, default):
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return float(default)
+        if parsed <= 1e-6:
+            return float(default)
+        return parsed
 
     def _waypoint_from_pose(self, pose):
         return {
@@ -178,6 +211,11 @@ class WaypointPublisher:
 
         ref_a = str(entry.get("ref_a", "")).strip()
         ref_b = str(entry.get("ref_b", "")).strip()
+        b_mode = self._normalize_b_mode(entry.get("b_mode", B_MODE_FIXED))
+        b_reference_distance = self._positive_float_or_default(
+            entry.get("b_reference_distance", self.default_b_reference_distance),
+            self.default_b_reference_distance,
+        )
         if not ref_a:
             return None
 
@@ -195,6 +233,8 @@ class WaypointPublisher:
             name=str(entry.get("name") or f"path{index}"),
             ref_a=ref_a,
             ref_b=ref_b,
+            b_mode=b_mode,
+            b_reference_distance=b_reference_distance,
             waypoint_prefix=str(
                 entry.get("waypoint_prefix") or self.default_waypoint_prefix
             ),
@@ -221,6 +261,8 @@ class WaypointPublisher:
                     "name": path.name,
                     "ref_a": path.ref_a,
                     "ref_b": path.ref_b,
+                    "b_mode": int(path.b_mode),
+                    "b_reference_distance": float(path.b_reference_distance),
                     "waypoint_prefix": path.waypoint_prefix,
                     "waypoints": [self._waypoint_to_dict(wp) for wp in path.waypoints],
                 }
@@ -268,14 +310,23 @@ class WaypointPublisher:
 
         transforms = []
         for path in paths_snapshot:
-            composite_tf = self._build_composite_transform(path, now)
-            if composite_tf is None:
+            composite = self._build_composite_transform(path, now)
+            if composite is None:
                 continue
+            composite_tf, ab_distance = composite
             transforms.append(composite_tf)
 
             ref_frame_name = path.composite_frame_name()
+            waypoint_scale = self._waypoint_scale(path, ab_distance)
             transforms.extend(
-                self._build_wp_transform(path, i, wp, ref_frame_name, now)
+                self._build_wp_transform(
+                    path,
+                    i,
+                    wp,
+                    ref_frame_name,
+                    now,
+                    waypoint_scale,
+                )
                 for i, wp in enumerate(path.waypoints)
             )
 
@@ -297,7 +348,7 @@ class WaypointPublisher:
             t.header.frame_id = path.ref_a
             t.child_frame_id = path.composite_frame_name()
             t.transform.rotation.w = 1.0
-            return t
+            return t, None
 
         try:
             tf_a_b = self.tf_buffer.lookup_transform(
@@ -319,6 +370,7 @@ class WaypointPublisher:
 
         bx = tf_a_b.transform.translation.x
         by = tf_a_b.transform.translation.y
+        ab_distance = math.hypot(bx, by)
 
         t = TransformStamped()
         t.header.stamp = now
@@ -326,16 +378,23 @@ class WaypointPublisher:
         t.child_frame_id = path.composite_frame_name()
         q = quaternion_from_euler(0.0, 0.0, math.atan2(by, bx))
         t.transform.rotation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
-        return t
+        return t, ab_distance
 
-    def _build_wp_transform(self, path, i, wp, ref_frame_name, now):
+    def _waypoint_scale(self, path, ab_distance):
+        if path.b_mode != B_MODE_RELATIVE:
+            return 1.0
+        if ab_distance is None:
+            return 1.0
+        return float(ab_distance) / float(path.b_reference_distance)
+
+    def _build_wp_transform(self, path, i, wp, ref_frame_name, now, scale=1.0):
         t = TransformStamped()
         t.header.stamp = now
         t.header.frame_id = ref_frame_name
         t.child_frame_id = path.wp_frame_name(i)
         t.transform.translation = Vector3(
-            x=float(wp["x"]),
-            y=float(wp["y"]),
+            x=float(wp["x"]) * scale,
+            y=float(wp["y"]) * scale,
             z=float(wp["z"]),
         )
         q = quaternion_from_euler(0.0, 0.0, math.radians(float(wp["yaw"])))
@@ -348,6 +407,8 @@ class WaypointPublisher:
             data[path.name] = {
                 "ref_a": path.ref_a,
                 "ref_b": path.ref_b,
+                "b_mode": int(path.b_mode),
+                "b_reference_distance": float(path.b_reference_distance),
                 "reference_frame": path.composite_frame_name(),
                 "waypoints": len(path.waypoints),
                 "waypoint_frames": [
