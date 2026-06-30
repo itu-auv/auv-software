@@ -30,6 +30,26 @@ def circular_mean(angles):
     return math.atan2(sin_sum, cos_sum)
 
 
+def densest_angle_cluster(angles, max_distance):
+    best_cluster = []
+    best_spread = float("inf")
+
+    for center in angles:
+        cluster = [
+            angle for angle in angles if angular_distance(angle, center) <= max_distance
+        ]
+        cluster_mean = circular_mean(cluster)
+        spread = sum(angular_distance(angle, cluster_mean) for angle in cluster)
+
+        if len(cluster) > len(best_cluster) or (
+            len(cluster) == len(best_cluster) and spread < best_spread
+        ):
+            best_cluster = cluster
+            best_spread = spread
+
+    return best_cluster
+
+
 class RandomPingerSelectorState(smach.State):
     def __init__(
         self,
@@ -41,6 +61,8 @@ class RandomPingerSelectorState(smach.State):
         timeout=10.0,
         fallback_first="torpedo",
         tie_threshold=math.radians(5.0),
+        outlier_rejection_threshold=math.radians(15.0),
+        min_consensus_ratio=0.6,
         tf_lookup_timeout=2.0,
         tf_freshness_threshold=0.0,
     ):
@@ -56,6 +78,8 @@ class RandomPingerSelectorState(smach.State):
         self.timeout = float(timeout)
         self.fallback_first = fallback_first
         self.tie_threshold = float(tie_threshold)
+        self.outlier_rejection_threshold = max(0.0, float(outlier_rejection_threshold))
+        self.min_consensus_ratio = min(1.0, max(0.0, float(min_consensus_ratio)))
         self.tf_lookup_timeout = rospy.Duration(float(tf_lookup_timeout))
         self.tf_freshness_threshold = rospy.Duration(float(tf_freshness_threshold))
 
@@ -90,6 +114,38 @@ class RandomPingerSelectorState(smach.State):
     def _get_samples(self):
         with self._samples_lock:
             return list(self._samples)
+
+    def _filter_outlier_samples(self, samples):
+        if len(samples) < 3 or self.outlier_rejection_threshold <= 0.0:
+            return samples
+
+        cluster = densest_angle_cluster(samples, self.outlier_rejection_threshold)
+        min_cluster_size = max(
+            1, int(math.ceil(len(samples) * self.min_consensus_ratio))
+        )
+
+        if len(cluster) < min_cluster_size:
+            rospy.logwarn(
+                "[RandomPingerSelector] No stable pinger angle cluster: best "
+                "%d/%d sample(s) within %.3f rad, need %d.",
+                len(cluster),
+                len(samples),
+                self.outlier_rejection_threshold,
+                min_cluster_size,
+            )
+            return []
+
+        rejected_count = len(samples) - len(cluster)
+        if rejected_count > 0:
+            rospy.logwarn(
+                "[RandomPingerSelector] Rejected %d/%d pinger outlier sample(s). "
+                "Using %d-sample consensus cluster.",
+                rejected_count,
+                len(samples),
+                len(cluster),
+            )
+
+        return cluster
 
     def _fallback_outcome(self, reason):
         if self.fallback_first == "torpedo":
@@ -169,8 +225,14 @@ class RandomPingerSelectorState(smach.State):
         if not samples:
             return self._fallback_outcome("No pinger samples received")
 
+        filtered_samples = self._filter_outlier_samples(samples)
+        if not filtered_samples:
+            return self._fallback_outcome(
+                "No pinger angle consensus after outlier rejection"
+            )
+
         try:
-            pinger_angle = circular_mean(samples)
+            pinger_angle = circular_mean(filtered_samples)
             torpedo_angle = self._angle_to_frame(self.torpedo_frame)
             octagon_angle = self._angle_to_frame(self.octagon_frame)
         except (
@@ -184,9 +246,12 @@ class RandomPingerSelectorState(smach.State):
         octagon_error = angular_distance(pinger_angle, octagon_angle)
 
         rospy.loginfo(
-            "[RandomPingerSelector] pinger=%.3f rad, torpedo(%s)=%.3f rad "
-            "error=%.3f rad, octagon(%s)=%.3f rad error=%.3f rad",
+            "[RandomPingerSelector] pinger=%.3f rad using %d/%d sample(s), "
+            "torpedo(%s)=%.3f rad error=%.3f rad, octagon(%s)=%.3f rad "
+            "error=%.3f rad",
             pinger_angle,
+            len(filtered_samples),
+            len(samples),
             self.torpedo_frame,
             torpedo_angle,
             torpedo_error,
@@ -221,6 +286,8 @@ class RandomPingerTaskState(smach.State):
         timeout=10.0,
         fallback_first="torpedo",
         tie_threshold=math.radians(5.0),
+        outlier_rejection_threshold=math.radians(30.0),
+        min_consensus_ratio=0.6,
         tf_lookup_timeout=2.0,
         tf_freshness_threshold=0.0,
     ):
@@ -259,6 +326,8 @@ class RandomPingerTaskState(smach.State):
                     timeout=timeout,
                     fallback_first=fallback_first,
                     tie_threshold=tie_threshold,
+                    outlier_rejection_threshold=outlier_rejection_threshold,
+                    min_consensus_ratio=min_consensus_ratio,
                     tf_lookup_timeout=tf_lookup_timeout,
                     tf_freshness_threshold=tf_freshness_threshold,
                 ),
