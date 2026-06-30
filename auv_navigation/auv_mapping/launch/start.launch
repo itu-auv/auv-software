@@ -43,7 +43,7 @@
       <param name="base_link_frame" value="$(arg namespace)/base_link" />
 
       <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="clear_object_transforms" to="map/clear_object_transforms_internal" />
+      <remap from="clear_object_transforms" to="map/clear_object_transforms" />
       <remap from="object_transform_updates" to="map/object_transform_updates" />
     </node>
 
@@ -95,7 +95,6 @@
       </rosparam>
       <remap from="set_object_transform" to="map/set_object_transform" />
       <remap from="clear_object_transforms" to="map/clear_object_transforms" />
-      <remap from="clear_object_transforms_internal" to="map/clear_object_transforms_internal" />
     </node>
 
     <node pkg="auv_mapping" type="gps_target_frame_publisher.py" name="gps_target_frame_publisher" output="screen">
