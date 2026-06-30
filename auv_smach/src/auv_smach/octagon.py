@@ -582,7 +582,7 @@ class OctagonTaskState(smach.State):
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_1",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "PICK_AND_DROP_SEQUENCE_1",
                 },
             )
             smach.StateMachine.add(
@@ -591,7 +591,7 @@ class OctagonTaskState(smach.State):
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_2",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "PICK_AND_DROP_SEQUENCE_2",
                 },
             )
             smach.StateMachine.add(
@@ -600,7 +600,7 @@ class OctagonTaskState(smach.State):
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_3",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "PICK_AND_DROP_SEQUENCE_3",
                 },
             )
             smach.StateMachine.add(
@@ -609,7 +609,7 @@ class OctagonTaskState(smach.State):
                 transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_4",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "PICK_AND_DROP_SEQUENCE_4",
                 },
             )
             smach.StateMachine.add(
@@ -684,7 +684,7 @@ class OctagonTaskState(smach.State):
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "succeeded",
                 },
             )
 
