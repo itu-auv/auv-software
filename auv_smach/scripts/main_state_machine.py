@@ -7,6 +7,7 @@ import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.slalom import NavigateThroughSlalomState
+from auv_smach.slalom_mini import NavigateThroughSlalomMiniState
 from auv_smach.gate_mini import NavigateThroughGateMiniState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
@@ -101,7 +102,44 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.roll_depth = -0.8
 
-        self.slalom_depth = -1.1
+        self.slalom_depth = rospy.get_param("~slalom_depth", -1.1)
+        self.mini_slalom_forward_velocity = rospy.get_param(
+            "~mini_slalom_forward_velocity", 0.25
+        )
+        self.mini_slalom_yaw_gain = rospy.get_param("~mini_slalom_yaw_gain", 1.0)
+        self.mini_slalom_max_yaw_step_rad = rospy.get_param(
+            "~mini_slalom_max_yaw_step_rad", 0.0
+        )
+        self.mini_slalom_target_timeout_s = rospy.get_param(
+            "~mini_slalom_target_timeout_s", 0.5
+        )
+        self.mini_slalom_lateral_strategy = rospy.get_param(
+            "~mini_slalom_lateral_strategy", "none"
+        )
+        self.mini_slalom_lateral_gain = rospy.get_param(
+            "~mini_slalom_lateral_gain", 0.0
+        )
+        self.mini_slalom_max_lateral_velocity = rospy.get_param(
+            "~mini_slalom_max_lateral_velocity", 0.15
+        )
+        self.mini_slalom_min_runtime_s = rospy.get_param(
+            "~mini_slalom_min_runtime_s", 5.0
+        )
+        self.mini_slalom_target_lost_success_timeout_s = rospy.get_param(
+            "~mini_slalom_target_lost_success_timeout_s", 1.5
+        )
+        self.mini_slalom_target_acquire_timeout_s = rospy.get_param(
+            "~mini_slalom_target_acquire_timeout_s", 8.0
+        )
+        self.mini_slalom_max_runtime_s = rospy.get_param(
+            "~mini_slalom_max_runtime_s", 25.0
+        )
+        self.mini_slalom_min_travel_distance_m = rospy.get_param(
+            "~mini_slalom_min_travel_distance_m", 4.0
+        )
+        self.mini_slalom_premature_target_lost_abort_timeout_s = rospy.get_param(
+            "~mini_slalom_premature_target_lost_abort_timeout_s", 3.0
+        )
 
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
@@ -237,6 +275,33 @@ class MainStateMachineNode:
         gate_target_frame = self.get_gate_target_frame()
 
         torpedo_fire_frames = self.get_torpedo_fire_frames()
+        slalom_state_params = {
+            "slalom_depth": self.slalom_depth,
+            "slalom_exit_angle": slalom_exit_angle_rad,
+            "slalom_direction": self.slalom_direction,
+        }
+        slalom_mini_state_params = {
+            "slalom_depth": self.slalom_depth,
+            "forward_velocity": self.mini_slalom_forward_velocity,
+            "yaw_gain": self.mini_slalom_yaw_gain,
+            "max_yaw_step_rad": self.mini_slalom_max_yaw_step_rad,
+            "target_timeout_s": self.mini_slalom_target_timeout_s,
+            "lateral_strategy": self.mini_slalom_lateral_strategy,
+            "lateral_gain": self.mini_slalom_lateral_gain,
+            "max_lateral_velocity": self.mini_slalom_max_lateral_velocity,
+            "min_runtime_s": self.mini_slalom_min_runtime_s,
+            "target_lost_success_timeout_s": self.mini_slalom_target_lost_success_timeout_s,
+            "target_acquire_timeout_s": self.mini_slalom_target_acquire_timeout_s,
+            "max_runtime_s": self.mini_slalom_max_runtime_s,
+            "min_travel_distance_m": self.mini_slalom_min_travel_distance_m,
+            "premature_target_lost_abort_timeout_s": self.mini_slalom_premature_target_lost_abort_timeout_s,
+        }
+        if self.slalom_mode not in ["close", "far"]:
+            rospy.logwarn(
+                "Unknown slalom_mode '%s'. Using standard slalom state.",
+                self.slalom_mode,
+            )
+
         rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
         rospy.loginfo(
             f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
@@ -267,11 +332,11 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_THROUGH_SLALOM": (
                 NavigateThroughSlalomState,
-                {
-                    "slalom_depth": self.slalom_depth,
-                    "slalom_exit_angle": slalom_exit_angle_rad,
-                    "slalom_direction": self.slalom_direction,
-                },
+                slalom_state_params,
+            ),
+            "NAVIGATE_THROUGH_SLALOM_MINI": (
+                NavigateThroughSlalomMiniState,
+                slalom_mini_state_params,
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,

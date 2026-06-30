@@ -9,7 +9,7 @@ from geometry_msgs.msg import (
     Quaternion,
 )
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw
+from auv_msgs.msg import PropsYaw, SlalomProp
 import tf2_ros
 import tf2_geometry_msgs
 from utils.detection_utils import (
@@ -41,6 +41,7 @@ class SlalomCameraHandler:
         self.tf_buffer = tf_buffer
         self.object_transform_pub = publishers["object_transform"]
         self.props_yaw_pub = publishers["props_yaw"]
+        self.slalom_prop_pub = publishers.get("slalom_prop")
         self.shared_state = shared_state
 
         # Front camera specific state
@@ -94,6 +95,18 @@ class SlalomCameraHandler:
             props_yaw_msg.object = prop.name
             props_yaw_msg.angle = -angles[0]
             self.props_yaw_pub.publish(props_yaw_msg)
+
+            if self.slalom_prop_pub is not None:
+                slalom_prop_msg = SlalomProp()
+                slalom_prop_msg.header.stamp = stamp
+                slalom_prop_msg.object = prop.name
+                slalom_prop_msg.angle = -angles[0]
+                slalom_prop_msg.distance = distance
+                slalom_prop_msg.bbox_center_x = detection.bbox.center.x
+                slalom_prop_msg.bbox_center_y = detection.bbox.center.y
+                slalom_prop_msg.bbox_size_x = detection.bbox.size_x
+                slalom_prop_msg.bbox_size_y = detection.bbox.size_y
+                self.slalom_prop_pub.publish(slalom_prop_msg)
 
             # Max distance check drake bro
             if (offset_x**2 + offset_y**2 + distance**2) > 30**2:

@@ -24,6 +24,8 @@ add_message_files(
   KeypointResult.msg
   PropsYaw.msg
   SegmentMeasurement.msg
+  SlalomProp.msg
+  SlalomTarget.msg
   TDOA.msg
 )
 

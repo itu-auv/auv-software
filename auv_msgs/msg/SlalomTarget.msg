@@ -1,0 +1,9 @@
+std_msgs/Header header
+string direction
+float32 yaw_error
+float32 red_angle
+float32 white_angle
+float32 red_distance
+float32 white_distance
+float32 red_bbox_center_x
+float32 white_bbox_center_x

@@ -6,7 +6,7 @@ import importlib
 import rospy
 from geometry_msgs.msg import TransformStamped
 from ultralytics_ros.msg import YoloResult
-from auv_msgs.msg import PropsYaw
+from auv_msgs.msg import PropsYaw, SlalomProp
 from nav_msgs.msg import Odometry
 from std_srvs.srv import SetBool, SetBoolResponse
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusResponse
@@ -49,6 +49,7 @@ class CameraDetectionNode:
                 "object_transform_updates", TransformStamped, queue_size=10
             ),
             "props_yaw": rospy.Publisher("props_yaw", PropsYaw, queue_size=10),
+            "slalom_prop": rospy.Publisher("slalom/props", SlalomProp, queue_size=10),
         }
 
         # Shared state accessible by handlers

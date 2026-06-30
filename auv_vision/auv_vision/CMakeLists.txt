@@ -7,19 +7,29 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(catkin REQUIRED COMPONENTS
   auv_detection
+  auv_msgs
+  geometry_msgs
+  nav_msgs
   rospy
   image_transport
   cv_bridge
   sensor_msgs
+  std_srvs
   tf
+  tf2_ros
 )
 
 catkin_package(
   CATKIN_DEPENDS
     auv_detection
+    auv_msgs
+    geometry_msgs
+    nav_msgs
     rospy
     sensor_msgs
+    std_srvs
     tf
+    tf2_ros
 )
 
 include_directories(
@@ -37,6 +47,7 @@ catkin_install_python(
     scripts/sim_keypoint_node.py
     scripts/depth_anything_trt_node.py
     scripts/depth_anything_zmq_client.py
+    scripts/camera_detection_node.py
   DESTINATION
     ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

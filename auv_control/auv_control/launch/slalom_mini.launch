@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="taluy_mini" />
+  <arg name="direction" default="left" />
+  <arg name="depth" default="-1.1" />
+  <arg name="forward_velocity" default="0.25" />
+  <arg name="yaw_gain" default="1.0" />
+  <arg name="max_yaw_step_rad" default="0.0" />
+  <arg name="target_timeout_s" default="0.5" />
+  <arg name="lateral_strategy" default="none" />
+  <arg name="lateral_gain" default="0.0" />
+  <arg name="max_lateral_velocity" default="0.15" />
+  <arg name="auto_enable" default="false" />
+
+  <group ns="$(arg namespace)">
+    <node pkg="auv_control" type="slalom_target_publisher.py" name="slalom_target_publisher"
+      output="screen">
+      <param name="direction" value="$(arg direction)" />
+      <remap from="slalom/props" to="slalom/props" />
+      <remap from="slalom/target" to="slalom/target" />
+    </node>
+
+    <node pkg="auv_control" type="slalom_mini_controller.py" name="slalom_mini_controller"
+      output="screen">
+      <param name="depth" value="$(arg depth)" />
+      <param name="forward_velocity" value="$(arg forward_velocity)" />
+      <param name="yaw_gain" value="$(arg yaw_gain)" />
+      <param name="max_yaw_step_rad" value="$(arg max_yaw_step_rad)" />
+      <param name="target_timeout_s" value="$(arg target_timeout_s)" />
+      <param name="lateral_strategy" value="$(arg lateral_strategy)" />
+      <param name="lateral_gain" value="$(arg lateral_gain)" />
+      <param name="max_lateral_velocity" value="$(arg max_lateral_velocity)" />
+      <param name="auto_enable" value="$(arg auto_enable)" />
+
+      <remap from="slalom/target" to="slalom/target" />
+      <remap from="odometry" to="odometry" />
+      <remap from="cmd_pose" to="cmd_pose" />
+      <remap from="cmd_vel" to="cmd_vel" />
+      <remap from="enable" to="enable" />
+      <remap from="slalom/yaw_error" to="slalom/yaw_error" />
+      <remap from="slalom/target_yaw" to="slalom/target_yaw" />
+    </node>
+  </group>
+</launch>

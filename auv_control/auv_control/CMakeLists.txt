@@ -18,6 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rosfmt
   rospy
+  std_msgs
+  tf
   tf2_ros
 )
 
@@ -39,6 +41,8 @@ catkin_package(
     sensor_msgs
     nav_msgs
     roscpp
+    std_msgs
+    tf
 )
 
 include_directories(
@@ -51,6 +55,8 @@ catkin_install_python(PROGRAMS
   scripts/reference_pose_publisher.py
   scripts/battery_monitor_node.py
   scripts/visual_servoing_controller.py
+  scripts/slalom_target_publisher.py
+  scripts/slalom_mini_controller.py
   scripts/damping_tester.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

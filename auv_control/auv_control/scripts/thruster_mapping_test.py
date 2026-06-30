@@ -52,7 +52,9 @@ def publish_for_duration(pub, data: List[int], duration: float, rate_hz: float) 
         rate.sleep()
 
 
-def run_single_test(args, pub, mapping: List[int], logical_motor_zero_based: int) -> None:
+def run_single_test(
+    args, pub, mapping: List[int], logical_motor_zero_based: int
+) -> None:
     drive_slot = mapping.index(logical_motor_zero_based)
     neutral = [args.neutral] * 8
     command = neutral.copy()
@@ -99,7 +101,9 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         type=parse_mapping,
         help="Override mapping as comma-separated zero-based values.",
     )
-    parser.add_argument("--pwm", type=int, default=1600, help="PWM sent to the tested motor.")
+    parser.add_argument(
+        "--pwm", type=int, default=1600, help="PWM sent to the tested motor."
+    )
     parser.add_argument("--neutral", type=int, default=1500, help="Neutral PWM value.")
     parser.add_argument(
         "--duration", type=float, default=0.75, help="Seconds to publish the test PWM."
@@ -110,13 +114,17 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         default=0.35,
         help="Seconds to publish neutral before and after each test.",
     )
-    parser.add_argument("--pause", type=float, default=1.5, help="Pause between --all tests.")
+    parser.add_argument(
+        "--pause", type=float, default=1.5, help="Pause between --all tests."
+    )
     parser.add_argument("--rate", type=float, default=20.0, help="Publish rate in Hz.")
     parser.add_argument(
         "--topic",
         help="Drive pulse topic. Defaults to /<namespace>/board/drive_pulse.",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Print only; do not publish.")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Print only; do not publish."
+    )
     args = parser.parse_args(argv)
 
     if args.motor is not None and not 1 <= args.motor <= 8:

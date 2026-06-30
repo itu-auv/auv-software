@@ -11,6 +11,7 @@
         gate:NAVIGATE_THROUGH_GATE,
         gate_mini:NAVIGATE_THROUGH_GATE_MINI,
         slalom:NAVIGATE_THROUGH_SLALOM,
+        slalom_mini:NAVIGATE_THROUGH_SLALOM_MINI,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
         bin_mini:NAVIGATE_TO_BIN_MINI_TASK,
@@ -28,6 +29,20 @@
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
     <arg name="mini_coin_flip" default="" doc="Gate mini start frame direction: turn_right, turn_left, turn_back, or empty"/>
+    <arg name="slalom_depth" default="-1.1" />
+    <arg name="mini_slalom_forward_velocity" default="0.25" />
+    <arg name="mini_slalom_yaw_gain" default="1.0" />
+    <arg name="mini_slalom_max_yaw_step_rad" default="0.0" />
+    <arg name="mini_slalom_target_timeout_s" default="0.5" />
+    <arg name="mini_slalom_lateral_strategy" default="none" />
+    <arg name="mini_slalom_lateral_gain" default="0.0" />
+    <arg name="mini_slalom_max_lateral_velocity" default="0.15" />
+    <arg name="mini_slalom_min_runtime_s" default="5.0" />
+    <arg name="mini_slalom_target_lost_success_timeout_s" default="1.5" />
+    <arg name="mini_slalom_target_acquire_timeout_s" default="8.0" />
+    <arg name="mini_slalom_max_runtime_s" default="25.0" />
+    <arg name="mini_slalom_min_travel_distance_m" default="4.0" />
+    <arg name="mini_slalom_premature_target_lost_abort_timeout_s" default="3.0" />
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -59,6 +74,20 @@
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
             <param name="mini_coin_flip" value="$(arg mini_coin_flip)"/>
+            <param name="slalom_depth" value="$(arg slalom_depth)"/>
+            <param name="mini_slalom_forward_velocity" value="$(arg mini_slalom_forward_velocity)"/>
+            <param name="mini_slalom_yaw_gain" value="$(arg mini_slalom_yaw_gain)"/>
+            <param name="mini_slalom_max_yaw_step_rad" value="$(arg mini_slalom_max_yaw_step_rad)"/>
+            <param name="mini_slalom_target_timeout_s" value="$(arg mini_slalom_target_timeout_s)"/>
+            <param name="mini_slalom_lateral_strategy" value="$(arg mini_slalom_lateral_strategy)"/>
+            <param name="mini_slalom_lateral_gain" value="$(arg mini_slalom_lateral_gain)"/>
+            <param name="mini_slalom_max_lateral_velocity" value="$(arg mini_slalom_max_lateral_velocity)"/>
+            <param name="mini_slalom_min_runtime_s" value="$(arg mini_slalom_min_runtime_s)"/>
+            <param name="mini_slalom_target_lost_success_timeout_s" value="$(arg mini_slalom_target_lost_success_timeout_s)"/>
+            <param name="mini_slalom_target_acquire_timeout_s" value="$(arg mini_slalom_target_acquire_timeout_s)"/>
+            <param name="mini_slalom_max_runtime_s" value="$(arg mini_slalom_max_runtime_s)"/>
+            <param name="mini_slalom_min_travel_distance_m" value="$(arg mini_slalom_min_travel_distance_m)"/>
+            <param name="mini_slalom_premature_target_lost_abort_timeout_s" value="$(arg mini_slalom_premature_target_lost_abort_timeout_s)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -75,11 +104,17 @@
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+            <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
             <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
             <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
             <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus"/>
             <remap from="enable_realsense_publisher" to="/process_tracker_with_cloud/enable"/>
+
+            <!-- slalom_mini.py -->
+            <remap from="slalom/target" to="slalom/target"/>
+            <remap from="slalom_controller/set_enabled" to="slalom_controller/set_enabled"/>
+            <remap from="slalom_controller/stop" to="slalom_controller/stop"/>
 
             <param name="enable_rate" value="$(arg enable_rate)"/>
 
