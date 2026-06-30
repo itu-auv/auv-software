@@ -1,0 +1,4 @@
+auv_msgs/WaypointPath[] paths
+---
+bool success
+string message

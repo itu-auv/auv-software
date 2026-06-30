@@ -50,7 +50,7 @@ class SimulationTab(QWidget):
         control_row.addWidget(self.smach_stop)
 
         state_row = QHBoxLayout()
-        self.states = ["init", "gate", "buoy", "torpedo", "bin", "octagon"]
+        self.states = ["init", "gate", "buoy", "pinger", "torpedo", "bin", "octagon"]
         self.state_checks = {state: QCheckBox(state) for state in self.states}
         for cb in self.state_checks.values():
             state_row.addWidget(cb)

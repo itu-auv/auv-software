@@ -34,6 +34,10 @@ class ThrusterManagerROS {
     nh_private.getParam("mapping", mapping_);
     nh_private.getParam("max_thrust", max_wrench_);
     nh_private.getParam("min_thrust", min_wrench_);
+    nh_private.param<double>("minimum_voltage_threshold", voltage_threshold_,
+                             13.5);
+    nh_private.param<double>("low_voltage_duration", low_voltage_duration_,
+                             3.0);
 
     // Load per-thruster direction: 1 = normal, -1 = reversed (CCW)
     if (!nh_private.getParam("directions", directions_)) {
@@ -63,7 +67,31 @@ class ThrusterManagerROS {
   void spin() {
     ros::Rate rate(10);
     while (ros::ok()) {
-      if (!latest_wrench_ || !latest_power_) {
+      if (!latest_power_) {
+        ros::spinOnce();
+        rate.sleep();
+        continue;
+      }
+
+      const auto voltage = latest_power_->voltage;
+      if (voltage < voltage_threshold_) {
+        if (!low_voltage_start_) {
+          low_voltage_start_ = ros::Time::now();
+        }
+
+        if ((ros::Time::now() - low_voltage_start_.value()).toSec() >=
+            low_voltage_duration_) {
+          ROS_ERROR_STREAM("Battery voltage stayed below "
+                           << voltage_threshold_ << " V for "
+                           << low_voltage_duration_
+                           << " seconds. Stopping thruster manager.");
+          return;
+        }
+      } else {
+        low_voltage_start_.reset();
+      }
+
+      if (!latest_wrench_) {
         ros::spinOnce();
         rate.sleep();
         continue;
@@ -112,7 +140,6 @@ class ThrusterManagerROS {
 
       std_msgs::UInt16MultiArray motor_command_msg;
       motor_command_msg.data.resize(kThrusterCount);
-      double voltage = latest_power_ ? latest_power_->voltage : 16.0;
       for (size_t i = 0; i < kThrusterCount; ++i) {
         const int dir = (i < directions_.size()) ? directions_[i] : 1;
         const auto pwm = wrench_to_drive(efforts(mapping_[i]) * dir, voltage);
@@ -191,6 +218,9 @@ class ThrusterManagerROS {
   tf2_ros::TransformListener tf_listener_;
   std::string body_frame_;
   double transform_timeout_;
+  double voltage_threshold_{14.0};
+  double low_voltage_duration_{5.0};
+  std::optional<ros::Time> low_voltage_start_;
 
   std::vector<double> coeffs_ccw_;
   std::vector<double> coeffs_cw_;

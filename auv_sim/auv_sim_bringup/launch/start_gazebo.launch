@@ -13,6 +13,7 @@
     <arg name="use_gui" default="true" />
     <arg name="debug" default="false" />
     <arg name="world" default="pool" />
+    <arg name="objects" default="gate,torpedo,bin,slalom,octagon" />
     <arg name="use_ned_frame" default="false" />
     <arg name="imu_update_rate" default="20" />
     <arg name="dvl_update_rate" default="20" />
@@ -27,8 +28,13 @@
     <arg name="use_taluy_gui" default="true" />
     <arg name="use_rviz" default="false" />
     <arg name="use_models" default="false" />
+    <arg name="pinger_mode" default="torpedo" />
     <arg name="robot_description_file" default="$(eval find(arg('namespace') + '_sim_description') + '/urdf/' + arg('namespace') + '_sim.urdf.xacro')" />
     <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/yolo_cam.rviz')" />
+    <arg name="first_pool_torpedo" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'torpedo')" />
+    <arg name="first_pool_octagon" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'octagon')" />
+    <arg name="first_pool_bin" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'bin')" />
+    <arg name="first_pool_slalom" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'slalom')" />
     <arg name="start_tf_gazebo_debug" default="false" />
 
     <!-- Run Taluy GUI -->
@@ -48,11 +54,19 @@
     />
 
     <!-- Initial robot position and orientation -->
-    <arg name="x" default="-7.0" if="$(eval arg('world') == 'pool')" />
+    <arg name="x" default="-7.0" if="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] not in ['torpedo', 'octagon', 'bin', 'slalom'])" />
+    <arg name="x" default="0.8" if="$(arg first_pool_torpedo)" />
+    <arg name="x" default="7.4" if="$(arg first_pool_octagon)" />
+    <arg name="x" default="5.0" if="$(arg first_pool_bin)" />
+    <arg name="x" default="0.15" if="$(arg first_pool_slalom)" />
     <arg name="x" default="7.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="x" default="-9.5" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="x" default="3.0" if="$(eval arg('world') == 'tac_sea')" />
-    <arg name="y" default="-15.5" if="$(eval arg('world') == 'pool')" />
+    <arg name="y" default="-15.5" if="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] not in ['torpedo', 'octagon', 'bin', 'slalom'])" />
+    <arg name="y" default="-3.8" if="$(arg first_pool_torpedo)" />
+    <arg name="y" default="-7.0" if="$(arg first_pool_octagon)" />
+    <arg name="y" default="-6.6" if="$(arg first_pool_bin)" />
+    <arg name="y" default="-13.3" if="$(arg first_pool_slalom)" />
     <arg name="y" default="1.5" if="$(eval arg('world') == 'seabed')" />
     <arg name="y" default="-3" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="y" default="0" if="$(eval arg('world') == 'tac_sea')" />
@@ -63,7 +77,11 @@
     <arg name="roll" value="0" />
     <arg name="pitch" value="0" />
     <arg name="yaw" value="0.7" if="$(eval arg('world') == 'seabed')" />
-    <arg name="yaw" value="0" if="$(eval arg('world') == 'pool')" />
+    <arg name="yaw" value="0" if="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] not in ['torpedo', 'octagon', 'bin', 'slalom'])" />
+    <arg name="yaw" default="0.33" if="$(arg first_pool_torpedo)" />
+    <arg name="yaw" default="0.33" if="$(arg first_pool_octagon)" />
+    <arg name="yaw" default="-0.9" if="$(arg first_pool_bin)" />
+    <arg name="yaw" default="-0.12" if="$(arg first_pool_slalom)" />
     <arg name="yaw" default="0" if="$(eval arg('world') == 'semi_final_pool')" />
     <arg name="yaw" default="0.5" if="$(eval arg('world') == 'tac_sea')" />
 
@@ -72,6 +90,7 @@
         <arg name="use_gui" value="$(arg use_gui)" />
         <arg name="debug" value="$(arg debug)" />
         <arg name="namespace" value="$(arg namespace)" />
+        <arg name="objects" value="$(arg objects)" />
     </include>
 
     <!-- Spawn robot -->
@@ -103,6 +122,8 @@
             <arg name="control_rate" value="$(arg control_rate)" />
             <arg name="sim" value="$(arg sim)" />
             <arg name="use_gui" value="$(arg use_gui)" />
+            <arg name="pinger_mode" value="$(arg pinger_mode)" />
+            <arg name="objects" value="$(arg objects)" />
         </include>
     </group>
 
