@@ -9,7 +9,7 @@ import tf2_ros
 from std_msgs.msg import Float32
 
 from auv_common_lib.transform import lookup_fresh_transform
-from auv_smach.common import CancelAlignControllerState
+from auv_smach.common import CancelAlignControllerState, SetDepthState
 from auv_smach.initialize import DelayState
 from auv_smach.octagon import OctagonTaskState
 from auv_smach.tf_utils import get_base_link, get_tf_buffer
@@ -281,6 +281,7 @@ class RandomPingerTaskState(smach.State):
         angle_topic="acoustic/hydrophone/base_angle",
         torpedo_frame="torpedo_map_link",
         octagon_frame="octagon_link",
+        pinger_depth=-2.0,
         stabilization_time=2.0,
         sample_count=5,
         timeout=10.0,
@@ -302,9 +303,18 @@ class RandomPingerTaskState(smach.State):
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
+                    "succeeded": "DEPTH_BEFORE_PINGER",
+                    "preempted": "preempted",
+                    "aborted": "DEPTH_BEFORE_PINGER",
+                },
+            )
+            smach.StateMachine.add(
+                "DEPTH_BEFORE_PINGER",
+                SetDepthState(depth=pinger_depth),
+                transitions={
                     "succeeded": "WAIT_FOR_PINGER_STABILIZATION",
                     "preempted": "preempted",
-                    "aborted": "WAIT_FOR_PINGER_STABILIZATION",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
