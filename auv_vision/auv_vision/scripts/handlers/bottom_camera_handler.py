@@ -7,6 +7,7 @@ from utils.detection_utils import (
     check_inside_image,
     calculate_angles_and_offsets,
     transform_to_odom_and_publish,
+    check_inside_image_bottom,
 )
 
 
@@ -65,8 +66,12 @@ class BottomCameraHandler:
 
             prop = self.props[prop_name]
 
-            # Bin detections use altitude for distance and skip inside-image check
+            # Bin detections use altitude for distance and check inside-image (with bottom masks)
             if detection_id in self.altitude_distance_ids:
+                if not check_inside_image_bottom(
+                    detection, self.image_width, self.image_height
+                ):
+                    continue
                 distance = self.shared_state.get("altitude")
                 if distance is None:
                     rospy.logwarn_throttle(
