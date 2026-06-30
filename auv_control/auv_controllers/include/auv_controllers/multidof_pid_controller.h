@@ -78,6 +78,10 @@ class MultiDOFPIDController : public ControllerBase<N> {
     gravity_compensation_z_ = compensation;
   }
 
+  void set_yaw_cross_coupling_gain(double gain) {
+    yaw_cross_coupling_gain_ = gain;
+  }
+
   void set_external_wrench(const WrenchVector& wrench) {
     external_wrench_ = wrench;
   }
@@ -162,6 +166,8 @@ class MultiDOFPIDController : public ControllerBase<N> {
     const auto coriolis_force = coriolis_control(feedforward_state);
 
     WrenchVector wrench = pid_force + damping_force + coriolis_force;
+    wrench(5) +=
+        yaw_cross_coupling_gain_ * desired_velocity_(0) * desired_velocity_(1);
 
     Eigen::Vector3d gravity_force_global = Eigen::Vector3d::Zero();
     gravity_force_global(2) = gravity_compensation_z_;
@@ -248,6 +254,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
   Matrix2nd ki_;
   Matrix2nd kd_;
   double gravity_compensation_z_{0.0};  // Gravity compensation for z-axis
+  double yaw_cross_coupling_gain_{0.0};
 
   // MAD MAX
   Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};

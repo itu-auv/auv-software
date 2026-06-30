@@ -9,9 +9,11 @@
     <arg name="state_map" default="
         init:INITIALIZE,
         gate:NAVIGATE_THROUGH_GATE,
+        gate_mini:NAVIGATE_THROUGH_GATE_MINI,
         slalom:NAVIGATE_THROUGH_SLALOM,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
+        bin_mini:NAVIGATE_TO_BIN_MINI_TASK,
         octagon:NAVIGATE_TO_OCTAGON_TASK,
         gps:NAVIGATE_TO_GPS_TARGET,
         acoustic_tx:ACOUSTIC_TRANSMITTER,
@@ -25,6 +27,7 @@
     <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
+    <arg name="mini_coin_flip" default="" doc="Gate mini start frame direction: turn_right, turn_left, turn_back, or empty"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -33,6 +36,7 @@
         'NAVIGATE_THROUGH_SLALOM',
         'NAVIGATE_TO_TORPEDO_TASK',
         'NAVIGATE_TO_BIN_TASK',
+        'NAVIGATE_TO_BIN_MINI_TASK',
         'NAVIGATE_TO_OCTAGON_TASK',
         'NAVIGATE_TO_GPS_TARGET',
         'ACOUSTIC_TRANSMITTER',
@@ -54,6 +58,7 @@
             <param name="roll" value="$(arg roll)"/>
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
+            <param name="mini_coin_flip" value="$(arg mini_coin_flip)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -84,6 +89,7 @@
             <remap from="odometry" to="odometry"/>
             <remap from="wrench" to="wrench"/>
             <remap from="toggle_gate_trajectory" to="toggle_gate_trajectory"/>
+            <remap from="toggle_gate_single_frame_trajectory" to="toggle_gate_single_frame_trajectory"/>
             <remap from="dvl_to_odom_node/enable" to="dvl_to_odom_node/enable"/>
 
             <!--initialize.py-->
