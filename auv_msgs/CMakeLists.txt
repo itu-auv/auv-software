@@ -26,6 +26,7 @@ add_message_files(
   PropsYaw.msg
   SegmentMeasurement.msg
   TDOA.msg
+  WaypointPath.msg
 )
 
 add_service_files(
@@ -40,6 +41,7 @@ add_service_files(
   SetDetectionFocus.srv
   SpawnDebugCube.srv
   SetDampingTarget.srv
+  SetWaypoint.srv
 )
 
 # # Generate added messages and services with any dependencies listed here
