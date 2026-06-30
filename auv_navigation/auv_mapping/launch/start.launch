@@ -9,6 +9,7 @@
   <arg name="torpedo_frame" default="torpedo_map_link" />
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
+  <arg name="slalom_yolo_result_topic" default="/yolo_result_slalom" />
 
   <group if="$(arg enable_realsense_nodes)">
     <include file="$(find auv_mapping)/launch/process_tracker_with_cloud.launch">
@@ -74,8 +75,8 @@
 
     <node pkg="auv_mapping" type="slalom_heatmap_mapper.py" name="slalom_heatmap_mapper" output="screen">
       <param name="base_link_frame" value="$(arg namespace)/base_link" />
+      <param name="yolo_result_topic" value="$(arg slalom_yolo_result_topic)" />
       <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="/yolo_result_front" to="/yolo_result_front" />
     </node>
 
     <node pkg="auv_mapping" type="gps_target_frame_publisher.py" name="gps_target_frame_publisher" output="screen">

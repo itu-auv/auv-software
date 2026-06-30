@@ -18,9 +18,11 @@ from geometry_msgs.msg import (
     PoseStamped,
     TransformStamped,
     Quaternion,
+    Vector3Stamped,
 )
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
+from std_msgs.msg import Float32MultiArray
 from std_srvs.srv import SetBool, SetBoolResponse, Trigger, TriggerResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from dataclasses import dataclass, field
@@ -79,6 +81,10 @@ class SlalomHeatmapMapper:
         self.search_frame = rospy.get_param("~search_frame", "slalom_search_start")
         self.red_pipe_frame = "slalom_red_pipe_link"
         self.white_pipe_frame = "slalom_white_pipe_link"
+        self.slalom_camera_frame = rospy.get_param(
+            "~slalom_camera_frame",
+            self.base_link_frame + "/front_camera_optical_link_stabilized",
+        )
         self.search_start_distance = rospy.get_param("~search_start_distance", 2.0)
         self.search_side_offset = rospy.get_param("~search_side_offset", 1.0)
         self.search_side_yaw_offset_deg = rospy.get_param(
@@ -89,8 +95,11 @@ class SlalomHeatmapMapper:
         self.slalom_height = rospy.get_param("~slalom_height", 0.9)
 
         self.cam = CameraCalibrationFetcher("cameras/cam_front").get_camera_info()
+        self.yolo_result_topic = rospy.get_param(
+            "~yolo_result_topic", "/yolo_result_slalom"
+        )
         self.yolo_res = rospy.Subscriber(
-            "/yolo_result_slalom", YoloResult, self.yolo_callback
+            self.yolo_result_topic, YoloResult, self.yolo_callback
         )
 
         self.tf_buffer = tf2_ros.Buffer()
@@ -129,9 +138,18 @@ class SlalomHeatmapMapper:
         self.heatmap_suppression_radius_px = rospy.get_param(
             "~heatmap_suppression_radius_px", 50
         )
+        self.pipe_angle_full_height_ratio = rospy.get_param(
+            "~pipe_angle_full_height_ratio", 0.9
+        )
+        self.pipe_angle_vertical_edge_margin_px = rospy.get_param(
+            "~pipe_angle_vertical_edge_margin_px", 5.0
+        )
         self.slalom_direction = rospy.get_param("~slalom_direction", "left")
         self.cv_bridge = CvBridge()
         self.heatmap_pub = rospy.Publisher("slalom/heatmap_vis", Image, queue_size=1)
+        self.pipe_angle_pub = rospy.Publisher(
+            "slalom/pipe_angles", Float32MultiArray, queue_size=1
+        )
         self.reconfigure_server = Server(SlalomHeatmapConfig, self.reconfigure_callback)
         self.smach_params_client = Client(
             "smach_parameters_server",
@@ -358,11 +376,13 @@ class SlalomHeatmapMapper:
         return pipe_positions
 
     def yolo_callback(self, msg):
-        if not self.collecting:
-            return
-
         detections: Detection2DArray = msg.detections
         if len(detections.detections) == 0:
+            return
+
+        self.publish_pipe_angles(detections, msg.header.stamp)
+
+        if not self.collecting:
             return
 
         for x in detections.detections:
@@ -449,6 +469,140 @@ class SlalomHeatmapMapper:
 
             except Exception as e:
                 rospy.logwarn_throttle(5, f"transformation error: {e}")
+
+    def publish_pipe_angles(self, detections: Detection2DArray, stamp):
+        angle_detections = []
+        for detection in detections.detections:
+            if len(detection.results) == 0:
+                continue
+
+            detection_id = detection.results[0].id
+            if detection_id not in [2, 3]:
+                continue
+
+            bbox = detection.bbox
+            if bbox.size_x <= 0 or bbox.size_y <= 0:
+                continue
+
+            angle = self.bbox_angle_relative_base(
+                bbox.center.x,
+                bbox.center.y,
+                stamp,
+            )
+            if angle is None:
+                continue
+
+            angle_detections.append(
+                {
+                    "id": detection_id,
+                    "height": bbox.size_y,
+                    "center_x": bbox.center.x,
+                    "top": bbox.center.y - bbox.size_y * 0.5,
+                    "bottom": bbox.center.y + bbox.size_y * 0.5,
+                    "angle": angle,
+                }
+            )
+
+        red_detections = [x for x in angle_detections if x["id"] == 2]
+        white_detections = [x for x in angle_detections if x["id"] == 3]
+        if not red_detections:
+            return
+
+        selected_red = self.select_red_angle_detections(red_detections)
+        red_center_x = float(np.mean([x["center_x"] for x in selected_red]))
+        red_angle = self.average_angles([x["angle"] for x in selected_red])
+
+        left_white = self.select_side_white_detection(
+            [x for x in white_detections if x["center_x"] < red_center_x],
+            side="left",
+        )
+        right_white = self.select_side_white_detection(
+            [x for x in white_detections if x["center_x"] > red_center_x],
+            side="right",
+        )
+
+        msg = Float32MultiArray()
+        msg.data = [
+            red_angle,
+            left_white["angle"] if left_white is not None else float("nan"),
+            right_white["angle"] if right_white is not None else float("nan"),
+        ]
+        self.pipe_angle_pub.publish(msg)
+
+    def select_red_angle_detections(self, red_detections):
+        max_height = max(x["height"] for x in red_detections)
+        full_height = self.pipe_angle_full_height_ratio * self.cam.height
+
+        if max_height >= full_height:
+            selected = [x for x in red_detections if x["height"] >= full_height]
+            if selected:
+                return selected
+
+        return [max(red_detections, key=lambda x: x["height"])]
+
+    def select_side_white_detection(self, white_detections, side: str):
+        if not white_detections:
+            return None
+
+        candidates = [x for x in white_detections if self.is_vertically_inside_image(x)]
+        if not candidates:
+            return None
+
+        if side == "right":
+            return max(candidates, key=lambda x: x["center_x"])
+        return min(candidates, key=lambda x: x["center_x"])
+
+    def is_vertically_inside_image(self, detection):
+        margin = self.pipe_angle_vertical_edge_margin_px
+        return (
+            detection["top"] > margin and detection["bottom"] < self.cam.height - margin
+        )
+
+    @staticmethod
+    def average_angles(angles):
+        return math.atan2(
+            sum(math.sin(angle) for angle in angles),
+            sum(math.cos(angle) for angle in angles),
+        )
+
+    def bbox_angle_relative_base(self, u: float, v: float, stamp):
+        fx = self.cam.K[0]
+        fy = self.cam.K[4]
+        cx = self.cam.K[2]
+        cy = self.cam.K[5]
+
+        ray = Vector3Stamped()
+        ray.header.frame_id = self.slalom_camera_frame
+        ray.header.stamp = stamp
+        ray.vector.x = (u - cx) / fx
+        ray.vector.y = (v - cy) / fy
+        ray.vector.z = 1.0
+
+        if stamp == rospy.Time(0):
+            ray.header.stamp = rospy.Time(0)
+
+        try:
+            if not self.tf_buffer.can_transform(
+                self.base_link_frame,
+                self.slalom_camera_frame,
+                ray.header.stamp,
+                rospy.Duration(0.05),
+            ):
+                rospy.logwarn_throttle(
+                    5,
+                    "No transform from %s to %s for slalom pipe angle",
+                    self.slalom_camera_frame,
+                    self.base_link_frame,
+                )
+                return None
+
+            ray_in_base = self.tf_buffer.transform(
+                ray, self.base_link_frame, rospy.Duration(1.0)
+            )
+            return math.atan2(ray_in_base.vector.y, ray_in_base.vector.x)
+        except Exception as e:
+            rospy.logwarn_throttle(5, f"slalom pipe angle transform error: {e}")
+            return None
 
     def build_heatmap_data(self):
         if not self.points:
