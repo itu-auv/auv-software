@@ -34,6 +34,7 @@
     <arg name="slalom_mini_lateral_kp" default="0.0"/>
     <arg name="slalom_mini_lateral_kd" default="0.0"/>
     <arg name="slalom_mini_max_lateral_wrench" default="30.0"/>
+    <arg name="slalom_mini_max_angular_velocity" default="0.15"/>
     <arg name="slalom_mini_follow_duration" default="0.0"/>
 
     <!-- Full Mission States -->
@@ -71,6 +72,7 @@
             <param name="slalom_mini_lateral_kp" value="$(arg slalom_mini_lateral_kp)"/>
             <param name="slalom_mini_lateral_kd" value="$(arg slalom_mini_lateral_kd)"/>
             <param name="slalom_mini_max_lateral_wrench" value="$(arg slalom_mini_max_lateral_wrench)"/>
+            <param name="slalom_mini_max_angular_velocity" value="$(arg slalom_mini_max_angular_velocity)"/>
             <param name="slalom_mini_follow_duration" value="$(arg slalom_mini_follow_duration)"/>
 
             <!-- common.py -->

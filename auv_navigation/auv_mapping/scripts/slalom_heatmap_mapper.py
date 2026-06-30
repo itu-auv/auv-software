@@ -507,7 +507,19 @@ class SlalomHeatmapMapper:
         red_detections = [x for x in angle_detections if x["id"] == 2]
         white_detections = [x for x in angle_detections if x["id"] == 3]
         if not red_detections:
-            self.publish_last_pipe_angles()
+            left_white, right_white = self.select_outer_white_detections(
+                white_detections
+            )
+            self.publish_pipe_angle_data(
+                [
+                    None,
+                    left_white["angle"] if left_white is not None else None,
+                    right_white["angle"] if right_white is not None else None,
+                    None,
+                    left_white["height"] if left_white is not None else None,
+                    right_white["height"] if right_white is not None else None,
+                ]
+            )
             return
 
         selected_red = self.select_red_angle_detections(red_detections)
@@ -533,6 +545,9 @@ class SlalomHeatmapMapper:
             right_white["height"] if right_white is not None else None,
         ]
 
+        self.publish_pipe_angle_data(pipe_angle_data)
+
+    def publish_pipe_angle_data(self, pipe_angle_data):
         if self.last_pipe_angle_data is not None:
             pipe_angle_data = [
                 self.last_pipe_angle_data[i] if value is None else value
@@ -547,13 +562,14 @@ class SlalomHeatmapMapper:
         self.last_pipe_angle_data = pipe_angle_data
         self.pipe_angle_pub.publish(msg)
 
-    def publish_last_pipe_angles(self):
-        if self.last_pipe_angle_data is None:
-            return
+    def select_outer_white_detections(self, white_detections):
+        candidates = [x for x in white_detections if self.is_vertically_inside_image(x)]
+        if not candidates:
+            return None, None
 
-        msg = Float32MultiArray()
-        msg.data = self.last_pipe_angle_data
-        self.pipe_angle_pub.publish(msg)
+        left_white = min(candidates, key=lambda x: x["center_x"])
+        right_white = max(candidates, key=lambda x: x["center_x"])
+        return left_white, right_white
 
     def select_red_angle_detections(self, red_detections):
         max_height = max(x["height"] for x in red_detections)

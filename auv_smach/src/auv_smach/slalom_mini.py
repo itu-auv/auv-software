@@ -33,6 +33,7 @@ class FollowMiniSlalomState(smach.State):
         lateral_kp: float = 0.0,
         lateral_kd: float = 0.0,
         max_lateral_wrench: float = 30.0,
+        max_angular_velocity: float = 0.15,
         duration: float = 0.0,
         rate_hz: float = 10.0,
     ):
@@ -47,6 +48,7 @@ class FollowMiniSlalomState(smach.State):
         self.lateral_kp = lateral_kp
         self.lateral_kd = lateral_kd
         self.max_lateral_wrench = abs(max_lateral_wrench)
+        self.max_angular_velocity = max_angular_velocity
         self.duration = duration
         self.rate_hz = rate_hz
         self.base_link = get_base_link()
@@ -211,6 +213,7 @@ class FollowMiniSlalomState(smach.State):
         req.keep_orientation = False
         req.use_depth = True
         req.closest_yaw = False
+        req.max_angular_velocity = self.max_angular_velocity
 
         try:
             res = self.align_start(req)
@@ -296,6 +299,7 @@ class NavigateThroughSlalomMiniState(smach.State):
         lateral_kp: float = 0.0,
         lateral_kd: float = 0.0,
         max_lateral_wrench: float = 30.0,
+        max_angular_velocity: float = 0.15,
         follow_duration: float = 0.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -307,6 +311,7 @@ class NavigateThroughSlalomMiniState(smach.State):
         self.lateral_kp = lateral_kp
         self.lateral_kd = lateral_kd
         self.max_lateral_wrench = max_lateral_wrench
+        self.max_angular_velocity = max_angular_velocity
         self.follow_duration = follow_duration
 
         self.state_machine = smach.StateMachine(
@@ -374,6 +379,7 @@ class NavigateThroughSlalomMiniState(smach.State):
                     lateral_kp=self.lateral_kp,
                     lateral_kd=self.lateral_kd,
                     max_lateral_wrench=self.max_lateral_wrench,
+                    max_angular_velocity=self.max_angular_velocity,
                     duration=self.follow_duration,
                 ),
                 transitions={

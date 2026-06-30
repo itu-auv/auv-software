@@ -110,6 +110,9 @@ class MainStateMachineNode:
         self.slalom_mini_max_lateral_wrench = rospy.get_param(
             "~slalom_mini_max_lateral_wrench", 30.0
         )
+        self.slalom_mini_max_angular_velocity = rospy.get_param(
+            "~slalom_mini_max_angular_velocity", 0.15
+        )
         self.slalom_mini_follow_duration = rospy.get_param(
             "~slalom_mini_follow_duration", 120.0
         )
@@ -293,6 +296,7 @@ class MainStateMachineNode:
                     "lateral_kp": self.slalom_mini_lateral_kp,
                     "lateral_kd": self.slalom_mini_lateral_kd,
                     "max_lateral_wrench": self.slalom_mini_max_lateral_wrench,
+                    "max_angular_velocity": self.slalom_mini_max_angular_velocity,
                     "follow_duration": self.slalom_mini_follow_duration,
                 },
             ),
