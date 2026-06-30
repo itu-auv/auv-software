@@ -52,7 +52,9 @@ class ProcessTrackerWithCloud {
 
   // Service Servers
   ros::ServiceServer enable_service_;
+  ros::ServiceClient tracker_enable_client_;
   bool enabled_;
+  std::string tracker_enable_service_;
 
   // Subscribers and synchronizers
   message_filters::Subscriber<sensor_msgs::CameraInfo> camera_info_sub_;
@@ -107,6 +109,8 @@ class ProcessTrackerWithCloud {
     pnh_.param<int>("max_cluster_size", max_cluster_size_, 10000);
     pnh_.param<float>("roi_expansion_factor", roi_expansion_factor_,
                       1.1);  // 10% expansion
+    pnh_.param<std::string>("tracker_enable_service", tracker_enable_service_,
+                            "/tracker_node_realsense/enable");
 
     std::vector<int> skip_ids;
     pnh_.getParam("skip_detection_ids", skip_ids);
@@ -128,6 +132,10 @@ class ProcessTrackerWithCloud {
     // Initialize service server
     enable_service_ = pnh_.advertiseService(
         "enable", &ProcessTrackerWithCloud::enableCallback, this);
+    if (!tracker_enable_service_.empty()) {
+      tracker_enable_client_ =
+          nh_.serviceClient<std_srvs::SetBool>(tracker_enable_service_);
+    }
 
     // Initialize subscribers
     camera_info_sub_.subscribe(nh_, camera_info_topic_, 10);
@@ -151,9 +159,43 @@ class ProcessTrackerWithCloud {
   bool enableCallback(std_srvs::SetBool::Request& req,
                       std_srvs::SetBool::Response& res) {
     enabled_ = req.data;
+    bool tracker_updated = setTrackerEnabled(enabled_);
     res.success = true;
     res.message = "Successfully set enabled  to " + std::to_string(enabled_);
+    if (!tracker_updated) {
+      res.message += "; YOLO tracker state was not updated";
+    }
     ROS_INFO_STREAM(res.message);
+    return true;
+  }
+
+  bool setTrackerEnabled(bool enabled) {
+    if (tracker_enable_service_.empty()) {
+      return true;
+    }
+
+    if (!tracker_enable_client_.exists()) {
+      ROS_WARN_STREAM("Could not set YOLO tracker via "
+                      << tracker_enable_service_
+                      << ": service is not available");
+      return false;
+    }
+
+    std_srvs::SetBool tracker_enable_srv;
+    tracker_enable_srv.request.data = enabled;
+    if (!tracker_enable_client_.call(tracker_enable_srv)) {
+      ROS_WARN_STREAM("Failed to call YOLO tracker enable service "
+                      << tracker_enable_service_);
+      return false;
+    }
+
+    if (!tracker_enable_srv.response.success) {
+      ROS_WARN_STREAM("YOLO tracker rejected enable="
+                      << enabled << ": "
+                      << tracker_enable_srv.response.message);
+      return false;
+    }
+
     return true;
   }
 
