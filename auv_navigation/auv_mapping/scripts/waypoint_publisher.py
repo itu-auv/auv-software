@@ -57,7 +57,7 @@ class WaypointPublisher:
         )
         self.default_waypoint_prefix = rospy.get_param("~waypoint_prefix", "path")
         self.default_b_reference_distance = float(
-            rospy.get_param("~b_reference_distance", 14.0)
+            rospy.get_param("~b_reference_distance", 12.0)
         )
         self.paths_rosparam = rospy.get_param("~paths_rosparam", "/waypoint_gui/paths")
 

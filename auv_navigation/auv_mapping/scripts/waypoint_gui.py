@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+import signal
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -62,6 +63,7 @@ class WaypointGUI:
         self.root = root
         self.root.title("Waypoint GUI")
         self.root.attributes("-zoomed", True)
+        self._is_closing = False
 
         self.service_name = rospy.get_param("~set_waypoint_service", "set_waypoint")
         self.reference_frame_options = list(
@@ -81,7 +83,7 @@ class WaypointGUI:
             raise ValueError("Invalid canvas bounds")
         self.pool_width = self.x_max - self.x_min
         self.pool_height = self.y_max - self.y_min
-        self.b_arrow_length = float(rospy.get_param("~b_arrow_length", 14.0))
+        self.b_arrow_length = float(rospy.get_param("~b_arrow_length", 12.0))
         self.default_b_mode = self._normalize_b_mode(
             rospy.get_param("~default_b_mode", B_MODE_FIXED)
         )
@@ -96,9 +98,27 @@ class WaypointGUI:
         self.pool_y_offset = 0
 
         self.setup_ui()
+        self.root.protocol("WM_DELETE_WINDOW", self.close)
+        self.root.bind_all("<Control-c>", lambda _event: self.close())
+        self.root.bind_all("<Control-C>", lambda _event: self.close())
         self.add_path()
-        self.root.after(100, self.draw_pool)
+        self.root.after_idle(self.redraw_all)
+        self.root.after(100, self.redraw_all)
+        self.root.after(100, self._poll_signal_events)
         self.root.after(500, self.check_ros_service)
+
+    def _poll_signal_events(self):
+        if not self._is_closing:
+            self.root.after(100, self._poll_signal_events)
+
+    def close(self):
+        if self._is_closing:
+            return
+        self._is_closing = True
+        if not rospy.is_shutdown():
+            rospy.signal_shutdown("Waypoint GUI closed")
+        self.root.quit()
+        self.root.destroy()
 
     def check_ros_service(self):
         was_connected = self.service_connected
@@ -202,6 +222,7 @@ class WaypointGUI:
         )
         a_combo.pack(side=tk.LEFT, padx=(5, 0))
         a_combo.bind("<<ComboboxSelected>>", lambda _e: self.redraw_dynamic())
+        path.ref_a.trace_add("write", lambda *_args: self.redraw_dynamic())
 
         b_row = tk.Frame(ref_box)
         b_row.pack(fill=tk.X, padx=5, pady=3)
@@ -216,6 +237,8 @@ class WaypointGUI:
         )
         b_combo.pack(side=tk.LEFT, padx=(5, 0))
         b_combo.bind("<<ComboboxSelected>>", lambda _e: self.redraw_dynamic())
+        path.ref_b.trace_add("write", lambda *_args: self.redraw_dynamic())
+        path.b_mode.trace_add("write", lambda *_args: self.redraw_all())
 
         mode_box = tk.LabelFrame(tab, text="B mode")
         mode_box.pack(fill=tk.X, padx=5, pady=5)
@@ -224,14 +247,12 @@ class WaypointGUI:
             text="Use GUI metres (+x only)",
             variable=path.b_mode,
             value=B_MODE_FIXED,
-            command=self.redraw_dynamic,
         ).pack(anchor="w", padx=5, pady=1)
         tk.Radiobutton(
             mode_box,
             text="Scale by A-B distance",
             variable=path.b_mode,
             value=B_MODE_RELATIVE,
-            command=self.redraw_dynamic,
         ).pack(anchor="w", padx=5, pady=1)
 
         wp_box = tk.LabelFrame(tab, text="New / selected waypoint")
@@ -309,7 +330,7 @@ class WaypointGUI:
         self.notebook.select(tab)
         self.active_path_idx = len(self.paths) - 1
         self._refresh_listbox(path)
-        self.redraw_dynamic()
+        self.redraw_all()
 
     def remove_active_path(self):
         if self.active_path_idx is None or not self.paths:
@@ -326,7 +347,7 @@ class WaypointGUI:
             self.notebook.tab(p._tab, text=p.name)
             self._refresh_listbox(p)
         self.active_path_idx = min(idx, len(self.paths) - 1)
-        self.redraw_dynamic()
+        self.redraw_all()
 
     def _on_tab_change(self, _event):
         current = self.notebook.select()
@@ -336,7 +357,7 @@ class WaypointGUI:
             if str(p._tab) == current:
                 self.active_path_idx = i
                 break
-        self.redraw_dynamic()
+        self.redraw_all()
 
     def _active_path(self):
         if self.active_path_idx is None:
@@ -346,8 +367,15 @@ class WaypointGUI:
         return self.paths[self.active_path_idx]
 
     def on_resize(self, _event):
+        self.redraw_all()
+
+    def redraw_all(self):
         self.draw_pool()
         self.redraw_dynamic()
+
+    def _is_scale_mode(self):
+        path = self._active_path()
+        return path is not None and path.b_mode.get() == B_MODE_RELATIVE
 
     def draw_pool(self):
         self.canvas.delete("pool")
@@ -390,14 +418,15 @@ class WaypointGUI:
                 dash=() if is_axis else (2, 4),
                 tags="pool",
             )
-            self.canvas.create_text(
-                self.pool_x_offset - 18,
-                py,
-                text=f"{y_val:.0f}",
-                font=("Arial", 8),
-                fill="#b71c1c" if is_axis else "black",
-                tags="pool",
-            )
+            if not self._is_scale_mode():
+                self.canvas.create_text(
+                    self.pool_x_offset - 18,
+                    py,
+                    text=f"{y_val:.0f}",
+                    font=("Arial", 8),
+                    fill="#b71c1c" if is_axis else "black",
+                    tags="pool",
+                )
             y_val += grid_step
 
         x_val = math.ceil(self.x_min / grid_step) * grid_step
@@ -413,14 +442,15 @@ class WaypointGUI:
                 dash=() if is_axis else (2, 4),
                 tags="pool",
             )
-            self.canvas.create_text(
-                px,
-                self.pool_y_offset + pool_h + 12,
-                text=f"{x_val:.0f}",
-                font=("Arial", 8),
-                fill="#b71c1c" if is_axis else "black",
-                tags="pool",
-            )
+            if not self._is_scale_mode():
+                self.canvas.create_text(
+                    px,
+                    self.pool_y_offset + pool_h + 12,
+                    text=f"{x_val:.0f}",
+                    font=("Arial", 8),
+                    fill="#b71c1c" if is_axis else "black",
+                    tags="pool",
+                )
             x_val += grid_step
 
     def ref_to_pixels(self, x_ref, y_ref):
@@ -555,6 +585,7 @@ class WaypointGUI:
     def _draw_origin_and_vector(self, path):
         a_name = path.ref_a.get() or "A"
         b_name = path.ref_b.get() or "B"
+        is_scale_mode = path.b_mode.get() == B_MODE_RELATIVE
 
         ox, oy = self.ref_to_pixels(0.0, 0.0)
         r = 8
@@ -587,9 +618,21 @@ class WaypointGUI:
             fill="#5d4037",
             width=2,
             dash=(8, 4),
-            arrow=tk.LAST,
+            arrow=tk.NONE if is_scale_mode else tk.LAST,
             tags="dynamic",
         )
+        if is_scale_mode:
+            br = 8
+            self.canvas.create_oval(
+                bx - br,
+                by - br,
+                bx + br,
+                by + br,
+                fill="#80deea",
+                outline="#00838f",
+                width=2,
+                tags="dynamic",
+            )
         self.canvas.create_text(
             bx,
             by - 14,
@@ -726,7 +769,8 @@ class WaypointGUI:
 def main():
     rospy.init_node("waypoint_gui", anonymous=True)
     root = tk.Tk()
-    WaypointGUI(root)
+    gui = WaypointGUI(root)
+    signal.signal(signal.SIGINT, lambda _sig, _frame: root.after(0, gui.close))
     root.mainloop()
 
 

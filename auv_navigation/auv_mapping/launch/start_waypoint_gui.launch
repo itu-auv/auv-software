@@ -15,7 +15,7 @@
     <arg name="canvas_x_max" default="8.0" />
     <arg name="canvas_y_min" default="-2.0" />
     <arg name="canvas_y_max" default="18.0" />
-    <arg name="b_arrow_length" default="14.0" />
+    <arg name="b_arrow_length" default="12.0" />
 
     <group ns="$(arg namespace)">
         <node name="waypoint_gui" pkg="auv_mapping" type="waypoint_gui.py" output="screen">
