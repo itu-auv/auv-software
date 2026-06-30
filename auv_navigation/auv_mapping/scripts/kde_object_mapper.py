@@ -112,11 +112,9 @@ class KdeObjectMapper:
         self.set_object_transform_service = rospy.ServiceProxy(
             "set_object_transform", SetObjectTransform
         )
-        self.clear_tf_service = rospy.ServiceProxy(
-            "clear_object_transforms", Trigger
-        )
 
         # ── Services ─────────────────────────────────────────────────────
+        rospy.Service("clear_object_transforms", Trigger, self._clear_callback)
         rospy.Service("kde_map/clear", Trigger, self._clear_callback)
         rospy.Service("kde_map/trigger_update", Trigger, self._trigger_callback)
 
@@ -232,20 +230,8 @@ class KdeObjectMapper:
             self.current_results.clear()
         rospy.loginfo("KDE: cleared all point buffers.")
 
-        # Forward the clear request to the TF server
-        try:
-            rospy.wait_for_service("clear_object_transforms", timeout=1.0)
-            self.clear_tf_service()
-            rospy.loginfo("KDE: successfully forwarded clear to TF server.")
-        except rospy.ROSException:
-            rospy.logwarn(
-                "KDE: clear_object_transforms service not available."
-            )
-        except rospy.ServiceException as e:
-            rospy.logwarn(f"KDE: failed to call clear_object_transforms: {e}")
-
         return TriggerResponse(
-            success=True, message="Cleared all KDE buffers and TF transforms"
+            success=True, message="Cleared all KDE buffers"
         )
 
     def _trigger_callback(self, _req):
