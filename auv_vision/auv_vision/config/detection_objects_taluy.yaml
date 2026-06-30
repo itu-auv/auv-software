@@ -86,7 +86,7 @@ cameras:
       0: gate_search_rescue_link
       1: gate_survey_repair_link
       4: torpedo_map_link
-      6: bin_basket_link
+      6: bin_basket_front_link
       7: octagon_link
   bottom_seg:
     ns: "taluy/cameras/cam_bottom"
