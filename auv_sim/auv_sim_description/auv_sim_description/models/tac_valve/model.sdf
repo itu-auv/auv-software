@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <!-- TAC Docking Station with Valves
+       Change the model <pose> in the .world file to rotate/move the entire assembly.
+       Valve positions are relative to the desk frame. -->
+  <model name="tac_valve">
+    <static>true</static>
+
+    <!-- Desk body -->
+    <link name="desk">
+      <pose>0 0 0 0 0 0</pose>
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://tac_valve/meshes/tac_desk_no_valve.dae</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://tac_valve/meshes/tac_desk_no_valve.dae</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Front panel valve (horizontal handle)
+         Hole center: (0.0185, 0.518, 0.870) in desk frame
+         Front face normal = +Z, so barrel axis along Z.
+         pitch=-pi/2 rotates valve flange face to +Z (upward/outward)
+         yaw=pi flips 180 deg around barrel for text orientation -->
+    <link name="valve_front">
+      <pose>0.0185 0.518 0.91 0 -1.5708 1.5708</pose>
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://tac_valve/meshes/subsea_valve.stl</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.886 0.325 0.012 1</ambient>
+          <diffuse>0.886 0.325 0.012 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://tac_valve/meshes/subsea_valve.stl</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- Right panel valve (vertical handle)
+         Hole center: (0.620, 0.555, 1.4205) in desk frame
+         Right face normal = +X, so barrel axis along X.
+         pitch=pi rotates valve X-axis to -X (flange into desk, large end outward +X)
+         roll=pi flips 180 deg around barrel for text
+         roll += pi/2 for vertical handle orientation (total roll = 3*pi/2) -->
+    <link name="valve_right">
+      <pose>0.58 0.555 1.4205 0 3.14159 0</pose>
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://tac_valve/meshes/subsea_valve.stl</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+        <material>
+          <ambient>0.886 0.325 0.012 1</ambient>
+          <diffuse>0.886 0.325 0.012 1</diffuse>
+          <specular>0.3 0.3 0.3 1</specular>
+        </material>
+      </visual>
+      <collision name="collision">
+        <geometry>
+          <mesh>
+            <uri>model://tac_valve/meshes/subsea_valve.stl</uri>
+            <scale>0.001 0.001 0.001</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>

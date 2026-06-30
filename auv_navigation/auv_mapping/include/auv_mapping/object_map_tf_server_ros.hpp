@@ -44,7 +44,7 @@ class ObjectMapTFServerROS {
 
   std::optional<geometry_msgs::TransformStamped> get_transform(
       const std::string &target_frame, const std::string &source_frame,
-      const ros::Duration timeout);
+      const ros::Time &lookup_time, const ros::Duration timeout);
 
   ros::NodeHandle nh_;
   tf2_ros::Buffer tf_buffer_;
@@ -52,6 +52,7 @@ class ObjectMapTFServerROS {
   double rate_;
   double distance_threshold_squared_;
   std::string static_frame_;
+  std::string base_link_frame_;
   FilterMap filters_;
   tf2_ros::TransformBroadcaster tf_broadcaster_;
   //

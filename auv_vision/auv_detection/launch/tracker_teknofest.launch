@@ -1,8 +1,12 @@
 <launch>
   <arg name="namespace" default="taluy" />
 
-  <include file="$(find auv_detection)/launch/inc/tracker_segment.launch" />
-  <include file="$(find auv_detection)/launch/inc/tracker_detection.launch" />
+  <include file="$(find auv_detection)/launch/inc/tracker_segment.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
+  <include file="$(find auv_detection)/launch/inc/tracker_detection.launch">
+    <arg name="namespace" value="$(arg namespace)" />
+  </include>
 
   <group ns="$(arg namespace)">
     <node pkg="auv_vision" type="yolo_to_mask_node.py" name="yolo_seg_to_pipe_mask" output="screen" />

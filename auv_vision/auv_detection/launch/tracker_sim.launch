@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Simulation ground truth bbox tracker.
+       Replaces tracker_robosub.launch when running in Gazebo.
+       Publishes YoloResult on /yolo_result_front, /yolo_result_bottom, /yolo_result_torpedo.
+       Publishes annotated debug images on /yolo_image_front, /yolo_image_bottom, /yolo_image_torpedo. -->
+
+  <arg name="namespace" default="taluy"/>
+
+  <node name="sim_bbox_node" pkg="auv_vision" type="sim_bbox_node.py" output="screen">
+    <param name="namespace" value="$(arg namespace)"/>
+  </node>
+</launch>

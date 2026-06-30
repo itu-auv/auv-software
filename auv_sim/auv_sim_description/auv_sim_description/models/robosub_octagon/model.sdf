@@ -1,27 +1,133 @@
 <?xml version="1.0"?>
 <sdf version="1.6">
-	<model name="robosub_octagon">
-		<static>true</static>
-    	<pose>0 0 0 0 0 0</pose>
-		<link name="robosub_octagon">
-			<pose>0 0 0 0 0 0</pose>
-			<collision name="robosub_octagon_col">
-				<pose>0 0 0 0 0 0</pose>
-				<geometry>
-					<mesh>
-						<uri>model://robosub_octagon/meshes/octagon.dae</uri>
-					</mesh>
-				</geometry>
-			</collision>
-			<visual name="robosub_octagon_vis">
-				<pose>0 0 0 0 0 0</pose>
-				<geometry>
-					<mesh>
-						<uri>model://robosub_octagon/meshes/octagon.dae</uri>
-					</mesh>
-				</geometry>
-			</visual>
+  <model name="robosub_octagon">
+    <static>true</static>
+    <pose>0 0 0 0 0 0</pose>
+    <link name="robosub_octagon">
+      <pose>0 0 0 0 0 0</pose>
 
-		</link>
-	</model>
+      <!-- Main collision for the octagon walls -->
+      <collision name="octagon_walls_col">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://robosub_octagon/meshes/octagon.dae</uri>
+          </mesh>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>100.0</mu>
+              <mu2>100.0</mu2>
+              <slip1>0.0</slip1>
+              <slip2>0.0</slip2>
+            </ode>
+          </friction>
+          <bounce>
+            <restitution_coefficient>0.0</restitution_coefficient>
+            <threshold>100000.0</threshold>
+          </bounce>
+          <contact>
+            <ode>
+              <kp>10000000</kp>
+              <kd>1000</kd>
+              <max_vel>0.1</max_vel>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+        </surface>
+        <max_contacts>100</max_contacts>
+      </collision>
+
+      <!-- Additional collision box for the base to prevent going under -->
+      <collision name="octagon_base_col">
+        <pose>0 0 -0.5 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>3.0 3.0 1.0</size>
+          </box>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>100.0</mu>
+              <mu2>100.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+
+      <!-- Visual representation -->
+      <visual name="robosub_octagon_vis">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>model://robosub_octagon/meshes/octagon.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+
+      <!-- Physics properties -->
+      <inertial>
+        <mass>1000.0</mass>  <!-- Heavy to prevent movement -->
+        <inertia>
+          <ixx>1000.0</ixx>
+          <iyy>1000.0</iyy>
+          <izz>1000.0</izz>
+          <ixy>0.0</ixy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+        </inertia>
+      </inertial>
+
+    </link>
+
+    <!-- RedCross Basket Photo -->
+    <link name="basket_redcross_link">
+      <visual name="redcross_visual">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>0.25 0.25</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon/materials/scripts</uri>
+            <uri>model://robosub_octagon/materials/textures</uri>
+            <name>OctagonRedCrossMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0 0 0 0</pose>
+      </visual>
+      <pose>-0.02144 -0.431928 0.56 0 0 0</pose>
+    </link>
+
+    <!-- Warning Basket Photo -->
+    <link name="basket_warning_link">
+      <visual name="warning_visual">
+        <geometry>
+          <plane>
+            <normal>0 0 1</normal>
+            <size>0.25 0.25</size>
+          </plane>
+        </geometry>
+        <material>
+          <script>
+            <uri>model://robosub_octagon/materials/scripts</uri>
+            <uri>model://robosub_octagon/materials/textures</uri>
+            <name>OctagonWarningMaterial</name>
+          </script>
+        </material>
+        <pose>0 0 0 0 0 0</pose>
+      </visual>
+      <pose>-0.02144 0.431928 0.56 0 0 0</pose>
+    </link>
+
+    <!-- Table Link -->
+    <link name="octagon_table_link">
+      <pose>0 0 0.6245 0 0 0</pose>
+    </link>
+
+  </model>
 </sdf>

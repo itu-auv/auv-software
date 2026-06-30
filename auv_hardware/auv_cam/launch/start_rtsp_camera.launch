@@ -20,7 +20,7 @@
   <arg name="fps" default="30" />
 
   <!-- Camera calibration parameters -->
-  <arg name="camera_config" default="$(find auv_bringup)/config/cameras.yaml"/>
+  <arg name="camera_config" default="$(find auv_bringup)/config/cameras_$(arg namespace).yaml"/>
 
   <group ns="$(arg namespace)/cameras">
     <!-- Load camera calibration from YAML for the specific camera -->

@@ -20,7 +20,10 @@ add_action_files(
 add_message_files(
   FILES
   EulerOrientation.msg
+  Keypoint.msg
+  KeypointResult.msg
   PropsYaw.msg
+  SegmentMeasurement.msg
   TDOA.msg
 )
 
@@ -34,6 +37,7 @@ add_service_files(
   VisualServoing.srv
   SetDetectionFocus.srv
   SpawnDebugCube.srv
+  SetDampingTarget.srv
 )
 
 # # Generate added messages and services with any dependencies listed here

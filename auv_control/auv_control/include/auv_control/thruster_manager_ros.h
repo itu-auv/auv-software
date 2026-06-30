@@ -34,6 +34,11 @@ class ThrusterManagerROS {
     nh_private.getParam("mapping", mapping_);
     nh_private.getParam("max_thrust", max_wrench_);
     nh_private.getParam("min_thrust", min_wrench_);
+
+    // Load per-thruster direction: 1 = normal, -1 = reversed (CCW)
+    if (!nh_private.getParam("directions", directions_)) {
+      directions_.assign(kThrusterCount, 1);
+    }
     nh_private.param<std::string>("body_frame", body_frame_, "taluy/base_link");
     nh_private.param<double>("transform_timeout", transform_timeout_, 1.0);
 
@@ -109,7 +114,8 @@ class ThrusterManagerROS {
       motor_command_msg.data.resize(kThrusterCount);
       double voltage = latest_power_ ? latest_power_->voltage : 16.0;
       for (size_t i = 0; i < kThrusterCount; ++i) {
-        const auto pwm = wrench_to_drive(efforts(mapping_[i]), voltage);
+        const int dir = (i < directions_.size()) ? directions_[i] : 1;
+        const auto pwm = wrench_to_drive(efforts(mapping_[i]) * dir, voltage);
         motor_command_msg.data[i] = std::clamp(
             pwm, static_cast<uint16_t>(1100U), static_cast<uint16_t>(1900U));
       }
@@ -189,6 +195,7 @@ class ThrusterManagerROS {
   std::vector<double> coeffs_ccw_;
   std::vector<double> coeffs_cw_;
   std::vector<int> mapping_;
+  std::vector<int> directions_;
   double max_wrench_{0.0};
   double min_wrench_{0.0};
 };

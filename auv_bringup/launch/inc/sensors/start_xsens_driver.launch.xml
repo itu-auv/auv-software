@@ -3,7 +3,8 @@
   <arg name="namespace" default="taluy"/>
   <arg name="control_rate" default="20.0"/>
   <arg name="imu_topic" default="data"/>
-  <arg name="port" default="/dev/ttyUSB0"/>
+  <arg name="port" default="/dev/auv_imu"/>
+  <arg name="baudrate" default="115200"/>
   <group ns="$(arg namespace)">
     <node name="auv_imu_node" pkg="xsens_mti_driver" type="xsens_mti_node" output="screen">
       <!-- Topic Remappings -->
@@ -25,8 +26,7 @@
       <!-- Parameters -->
       <param name="frame_id" value="$(arg namespace)/base_link/imu_link"/>
       <param name="port" value="$(arg port)"/>
-      <!-- This is not important since USB CDC doesn't require baudrate -->
-      <param name="baudrate" value="2000000"/>
+      <param name="baudrate" value="$(arg baudrate)"/>
       <param name="pub_imu" value="true"/>
       <param name="pub_quaternion" value="true"/>
       <param name="pub_acceleration" value="true"/>

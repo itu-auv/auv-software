@@ -3,10 +3,11 @@
   <name>taluy_description</name>
   <version>0.1.0</version>
   <description>Contains robot descriptions of taluy</description>
-  <maintainer email="senceryazici@gmail.com">Sencer Yazici</maintainer>
-  <author email="senceryazici@gmail.com">Sencer Yazici</author>
+  <maintainer email="melihokur.okur@gmail.com">Melih Okur</maintainer>
+  <author email="melihokur.okur@gmail.com">Melih Okur</author>
   <license>BSD-3-Clause</license>
   <buildtool_depend>catkin</buildtool_depend>
   <exec_depend>auv_common_descriptions</exec_depend>
+  <exec_depend>xacro</exec_depend>
   <export/>
 </package>

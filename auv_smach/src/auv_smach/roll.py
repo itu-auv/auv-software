@@ -8,6 +8,7 @@ from tf.transformations import euler_from_quaternion
 from .initialize import *
 import smach_ros
 import math
+from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
     SetAlignControllerTargetState,
     CancelAlignControllerState,
@@ -39,9 +40,8 @@ class PitchCorrection(smach.State):
         )
 
         self.odometry_topic = "odometry"
-        self.killswitch_topic = "propulsion_board/status"
         self.wrench_topic = "wrench"
-        self.frame_id = "taluy/base_link"
+        self.frame_id = get_base_link()
 
         self.fixed_torque = -abs(fixed_torque)
         self.timeout = rospy.Duration(timeout_s)
@@ -53,9 +53,6 @@ class PitchCorrection(smach.State):
         self.start_time = None
 
         self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
-        self.sub_kill = rospy.Subscriber(
-            self.killswitch_topic, Bool, self.killswitch_cb
-        )
         self.pub_wrench = rospy.Publisher(
             self.wrench_topic, WrenchStamped, queue_size=1
         )
@@ -70,11 +67,6 @@ class PitchCorrection(smach.State):
             self.odom_ready = True
         except:
             rospy.logwarn("PITCH_CORRECTION: Quaternion conversion failed!")
-
-    def killswitch_cb(self, msg: Bool):
-        if not msg.data:
-            self.active = False
-            rospy.logwarn("PITCH_CORRECTION: Propulsion board disabled → aborting")
 
     def execute(self, userdata):
         rospy.loginfo("PITCH_CORRECTION: Waiting for odometry data...")
@@ -159,9 +151,8 @@ class RollTwoTimes(smach.State):
         )
 
         self.odometry_topic = "odometry"
-        self.killswitch_topic = "propulsion_board/status"
         self.wrench_topic = "wrench"
-        self.frame_id = "taluy/base_link"
+        self.frame_id = get_base_link()
 
         self.roll_torque = roll_torque
         self.timeout = rospy.Duration(timeout_s)
@@ -173,9 +164,6 @@ class RollTwoTimes(smach.State):
         self.last_time = None
 
         self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
-        self.sub_kill = rospy.Subscriber(
-            self.killswitch_topic, Bool, self.killswitch_cb
-        )
         self.pub_wrench = rospy.Publisher(
             self.wrench_topic, WrenchStamped, queue_size=1
         )
@@ -198,11 +186,6 @@ class RollTwoTimes(smach.State):
         omega_x = msg.twist.twist.angular.x
         delta_angle = omega_x * dt
         self.total_roll += abs(delta_angle)
-
-    def killswitch_cb(self, msg: Bool):
-        if not msg.data:
-            self.active = False
-            rospy.logwarn("ROLL_TWO_TIMES: propulsion board disabled → aborting")
 
     def execute(self, userdata):
         rospy.loginfo("ROLL_TWO_TIMES: waiting for odometry data…")
@@ -280,6 +263,7 @@ class TwoRollState(smach.StateMachine):
         )
         self.roll_torque = roll_torque
         self.gate_look_at_frame = gate_look_at_frame
+        self.base_link = get_base_link()
 
         with self:
             smach.StateMachine.add(
@@ -349,7 +333,6 @@ class TwoRollState(smach.StateMachine):
                 "SET_ROLL_DEPTH",
                 SetDepthState(
                     depth=-0.8,
-                    sleep_duration=5.0,
                 ),
                 transitions={
                     "succeeded": "ALIGN_TO_LOOK_AT_GATE",
@@ -363,8 +346,7 @@ class TwoRollState(smach.StateMachine):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame="gate_search_after_roll",
                     full_rotation=True,
-                    set_frame_duration=7.0,
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     rotation_speed=0.25,
                 ),
                 transitions={
@@ -426,6 +408,7 @@ class TwoYawState(smach.StateMachine):
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
         self.yaw_frame = yaw_frame
+        self.base_link = get_base_link()
 
         with self:
             smach.StateMachine.add(
@@ -440,7 +423,7 @@ class TwoYawState(smach.StateMachine):
             smach.StateMachine.add(
                 "YAW_FIRST_360_DEGREES",
                 RotationState(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     look_at_frame=self.yaw_frame,
                     rotation_speed=0.5,
                     full_rotation=True,
@@ -456,7 +439,7 @@ class TwoYawState(smach.StateMachine):
             smach.StateMachine.add(
                 "YAW_SECOND_360_DEGREES",
                 RotationState(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     look_at_frame=self.yaw_frame,
                     rotation_speed=0.5,
                     full_rotation=True,

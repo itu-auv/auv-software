@@ -7,6 +7,7 @@ from std_srvs.srv import Trigger, TriggerRequest
 from robot_localization.srv import SetPose, SetPoseRequest
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
+from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
     CancelAlignControllerState,
     ClearObjectMapState,
@@ -92,7 +93,7 @@ class ResetOdometryPoseState(smach_ros.ServiceState):
 class SetStartFrameState(smach_ros.ServiceState):
     def __init__(self, frame_name: str):
         transform_request = SetObjectTransformRequest()
-        transform_request.transform.header.frame_id = "taluy/base_link"
+        transform_request.transform.header.frame_id = get_base_link()
         transform_request.transform.child_frame_id = frame_name
         transform_request.transform.transform.rotation.w = 1.0
 
@@ -163,6 +164,15 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=False),
+                transitions={
+                    "succeeded": "DISABLE_SLALOM_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_SLALOM_DETECTION",
+                SetDetectionState(camera_name="slalom", enable=False),
                 transitions={
                     "succeeded": "SET_DETECTION_TO_NONE",
                     "preempted": "preempted",

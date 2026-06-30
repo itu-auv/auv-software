@@ -3,6 +3,7 @@ import rospy
 from std_srvs.srv import SetBool, SetBoolRequest
 from .initialize import *
 import smach_ros
+from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
     AlignFrame,
     SetDepthState,
@@ -24,6 +25,7 @@ class CoinFlipState(smach.StateMachine):
         smach.StateMachine.__init__(
             self, outcomes=["succeeded", "preempted", "aborted"]
         )
+        self.base_link = get_base_link()
         with self:
             smach.StateMachine.add(
                 "RESCUE_COIN_FLIP_SERVICE_ENABLE",
@@ -55,7 +57,7 @@ class CoinFlipState(smach.StateMachine):
             smach.StateMachine.add(
                 "ALIGN_TO_RESCUE_COIN_FLIP_FRAME",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="coin_flip_rescuer",
                     angle_offset=0.0,
                     dist_threshold=0.1,
@@ -75,7 +77,7 @@ class CoinFlipState(smach.StateMachine):
             smach.StateMachine.add(
                 "ALIGN_ORIENTATION_TO_RESCUE_COIN_FLIP_FRAME",
                 AlignFrame(
-                    source_frame="taluy/base_link",
+                    source_frame=self.base_link,
                     target_frame="coin_flip_rescuer",
                     angle_offset=0.0,
                     dist_threshold=0.1,

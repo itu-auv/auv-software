@@ -144,7 +144,8 @@ class ProcessTrackerWithCloud {
     tf_broadcaster_.reset(new tf2_ros::TransformBroadcaster());
     pnh_.param<std::string>("camera_optical_frame", camera_optical_frame_,
                             "taluy/camera_depth_optical_frame");
-    base_link_frame_ = "taluy/base_link";
+    pnh_.param<std::string>("base_link_frame", base_link_frame_,
+                            "taluy/base_link");
   }
 
   bool enableCallback(std_srvs::SetBool::Request& req,

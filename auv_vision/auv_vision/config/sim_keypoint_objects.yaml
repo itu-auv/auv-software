@@ -1,0 +1,29 @@
+cameras:
+  front:
+    image_topic: "/{ns}/cameras/cam_front/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_front/camera_info"
+    optical_frame: "{ns}/base_link/front_camera_optical_link_stabilized"
+    result_topic: "/keypoint_result_front"
+    image_out_topic: "/keypoint_image_front"
+
+objects:
+  # Gate shark sign — 0.3048 m (1 ft) square, face in YZ plane
+  # Corners ordered: (+Y+Z, +Y-Z, -Y+Z, -Y-Z) = TR, BR, TL, BL looking face-on
+  - name: shark_sign
+    cameras: [front]
+    gazebo_model: robosub_gate
+    offset: [0.0, 0.762, 1.356]
+    keypoints:
+      shape: rect
+      args: [0, 0.1524, 0.1524]
+    id_start: 1
+
+  # Gate sawfish sign — same dimensions, opposite side
+  - name: sawfish_sign
+    cameras: [front]
+    gazebo_model: robosub_gate
+    offset: [0.0, -0.762, 1.356]
+    keypoints:
+      shape: rect
+      args: [0, 0.1524, 0.1524]
+    id_start: 5

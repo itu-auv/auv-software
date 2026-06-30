@@ -78,6 +78,13 @@
       <pose>3 0 -2.5 0 0 -1.5708</pose>
     </include>
 
+    <!-- TAC Docking Station (valve panel) - near AUV spawn -->
+    <include>
+      <uri>model://tac_valve</uri>
+      <name>tac_valve</name>
+      <pose>7 -4 -3.0 0 0 0</pose>
+    </include>
+
     <plugin name="underwater_current_plugin" filename="libuuv_underwater_current_ros_plugin.so">
       <namespace>hydrodynamics</namespace>
       <constant_current>
