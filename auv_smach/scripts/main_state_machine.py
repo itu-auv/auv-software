@@ -33,6 +33,10 @@ ROLE_TO_BIN_TARGET_SELECTION = {
     "survey_repair": "shark",
     "search_rescue": "sawfish",
 }
+ROLE_TO_OCTAGON_TARGET_ROLE_FRAME = {
+    "survey_repair": "octagon_repair_link",
+    "search_rescue": "octagon_rescue_link",
+}
 LEFT_TOP_TORPEDO_FIRE_FRAMES = [
     "torpedo_left_mid_fire_frame",
     "torpedo_top_mid_fire_frame",
@@ -246,6 +250,12 @@ class MainStateMachineNode:
             ROLE_TO_BIN_TARGET_SELECTION[DEFAULT_SELECTED_ROLE],
         )
 
+    def get_octagon_target_role_frame(self):
+        return ROLE_TO_OCTAGON_TARGET_ROLE_FRAME.get(
+            self.selected_role,
+            ROLE_TO_OCTAGON_TARGET_ROLE_FRAME[DEFAULT_SELECTED_ROLE],
+        )
+
     def get_torpedo_fire_frames(self):
         is_survey_repair = self.selected_role == DEFAULT_SELECTED_ROLE
 
@@ -313,9 +323,11 @@ class MainStateMachineNode:
         )
 
         legacy_target_selection = self.get_legacy_target_selection()
+        octagon_target_role_frame = self.get_octagon_target_role_frame()
 
         torpedo_fire_frames = self.get_torpedo_fire_frames()
         rospy.loginfo(f"Torpedo fire frames order: {torpedo_fire_frames}")
+        rospy.loginfo(f"Octagon target role frame: {octagon_target_role_frame}")
         rospy.loginfo(
             f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
         )
@@ -330,9 +342,9 @@ class MainStateMachineNode:
         }
         octagon_task_params = {
             "octagon_depth": self.octagon_depth,
-            "animal": self.selected_role,
             "start_from_table": self.octagon_start_from_table,
             "octagon_search_frame": self.octagon_search_frame,
+            "octagon_target_role_frame": octagon_target_role_frame,
         }
 
         # Map state names to their corresponding classes and parameters
