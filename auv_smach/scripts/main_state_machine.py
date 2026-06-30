@@ -11,6 +11,7 @@ from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
 from auv_smach.octagon import OctagonTaskState
+from auv_smach.random_pinger import RandomPingerTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
 from auv_smach.acoustic import AcousticTransmitter, AcousticReceiver
 from auv_smach.pipeline import NavigateThroughPipelineState
@@ -23,6 +24,10 @@ from auv_bringup.cfg import SmachParametersConfig
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
+RANDOM_PINGER_MEMBER_STATES = {
+    "NAVIGATE_TO_TORPEDO_TASK",
+    "NAVIGATE_TO_OCTAGON_TASK",
+}
 ROLE_TO_BIN_TARGET_SELECTION = {
     "survey_repair": "shark",
     "search_rescue": "sawfish",
@@ -138,7 +143,9 @@ class MainStateMachineNode:
         if test_mode:
             state_map = rospy.get_param("~state_map")
 
-            short_state_list = rospy.get_param("~test_states", "").split(",")
+            short_state_list = self.parse_state_list_param(
+                rospy.get_param("~test_states", "")
+            )
 
             # Parse state mapping
             state_mapping = {
@@ -153,7 +160,11 @@ class MainStateMachineNode:
                 if state.strip() in state_mapping
             ]
         else:
-            self.state_list = rospy.get_param("~full_mission_states")
+            self.state_list = self.parse_state_list_param(
+                rospy.get_param("~full_mission_states")
+            )
+
+        self.apply_random_pinger_state_rules()
 
         # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
@@ -188,6 +199,45 @@ class MainStateMachineNode:
         self.slalom_exit_angle_deg = config.slalom_exit_angle
         self.bin_exit_angle_deg = config.bin_exit_angle
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
+
+    @staticmethod
+    def parse_state_list_param(raw_state_list):
+        if isinstance(raw_state_list, list):
+            return [
+                str(state).strip() for state in raw_state_list if str(state).strip()
+            ]
+
+        raw_state_list = str(raw_state_list).strip()
+        if raw_state_list.startswith("[") and raw_state_list.endswith("]"):
+            raw_state_list = raw_state_list[1:-1]
+
+        return [
+            state.strip().strip("'\"")
+            for state in raw_state_list.split(",")
+            if state.strip().strip("'\"")
+        ]
+
+    def apply_random_pinger_state_rules(self):
+        if "RANDOM_PINGER_TASK" not in self.state_list:
+            return
+
+        removed_states = []
+        filtered_state_list = []
+        for state_name in self.state_list:
+            if state_name in RANDOM_PINGER_MEMBER_STATES:
+                removed_states.append(state_name)
+                continue
+            filtered_state_list.append(state_name)
+
+        if removed_states:
+            rospy.logwarn(
+                "%s includes torpedo and octagon internally; removing direct task "
+                "states from mission list: %s",
+                "RANDOM_PINGER_TASK",
+                removed_states,
+            )
+
+        self.state_list = filtered_state_list
 
     def get_legacy_target_selection(self):
         return ROLE_TO_BIN_TARGET_SELECTION.get(
@@ -236,6 +286,21 @@ class MainStateMachineNode:
             f"Exit angles (radians): gate={gate_exit_angle_rad}, slalom={slalom_exit_angle_rad}, bin={bin_exit_angle_rad}, torpedo={torpedo_exit_angle_rad}"
         )
 
+        torpedo_task_params = {
+            "torpedo_map_depth": self.torpedo_map_depth,
+            "torpedo_target_frame": self.torpedo_target_frame,
+            "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
+            "torpedo_exit_angle": torpedo_exit_angle_rad,
+            "torpedo_fire_frames": torpedo_fire_frames,
+            "torpedo_search_frame": self.torpedo_search_frame,
+        }
+        octagon_task_params = {
+            "octagon_depth": self.octagon_depth,
+            "animal": self.selected_role,
+            "start_from_table": self.octagon_start_from_table,
+            "octagon_search_frame": self.octagon_search_frame,
+        }
+
         # Map state names to their corresponding classes and parameters
         state_mapping = {
             "INITIALIZE": (InitializeState, {}),
@@ -259,14 +324,7 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
                 TorpedoTaskState,
-                {
-                    "torpedo_map_depth": self.torpedo_map_depth,
-                    "torpedo_target_frame": self.torpedo_target_frame,
-                    "torpedo_realsense_target_frame": self.torpedo_realsense_target_frame,
-                    "torpedo_exit_angle": torpedo_exit_angle_rad,
-                    "torpedo_fire_frames": torpedo_fire_frames,
-                    "torpedo_search_frame": self.torpedo_search_frame,
-                },
+                torpedo_task_params,
             ),
             "NAVIGATE_TO_BIN_TASK": (
                 BinTaskState,
@@ -280,11 +338,13 @@ class MainStateMachineNode:
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
                 OctagonTaskState,
+                octagon_task_params,
+            ),
+            "RANDOM_PINGER_TASK": (
+                RandomPingerTaskState,
                 {
-                    "octagon_depth": self.octagon_depth,
-                    "animal": self.selected_role,
-                    "octagon_search_frame": self.octagon_search_frame,
-                    "start_from_table": self.octagon_start_from_table,
+                    "torpedo_params": torpedo_task_params,
+                    "octagon_params": octagon_task_params,
                 },
             ),
             "NAVIGATE_TO_GPS_TARGET": (

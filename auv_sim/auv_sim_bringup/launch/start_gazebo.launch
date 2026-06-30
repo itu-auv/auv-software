@@ -28,6 +28,7 @@
     <arg name="use_taluy_gui" default="true" />
     <arg name="use_rviz" default="false" />
     <arg name="use_models" default="false" />
+    <arg name="pinger_mode" default="torpedo" />
     <arg name="robot_description_file" default="$(eval find(arg('namespace') + '_sim_description') + '/urdf/' + arg('namespace') + '_sim.urdf.xacro')" />
     <arg name="rviz_config" default="$(eval find(arg('namespace') + '_description') + '/rviz/yolo_cam.rviz')" />
     <arg name="first_pool_torpedo" value="$(eval arg('world') == 'pool' and ([object.strip() for object in arg('objects').split(',') if object.strip()] + [''])[0] == 'torpedo')" />
@@ -121,6 +122,7 @@
             <arg name="control_rate" value="$(arg control_rate)" />
             <arg name="sim" value="$(arg sim)" />
             <arg name="use_gui" value="$(arg use_gui)" />
+            <arg name="pinger_mode" value="$(arg pinger_mode)" />
             <arg name="objects" value="$(arg objects)" />
         </include>
     </group>

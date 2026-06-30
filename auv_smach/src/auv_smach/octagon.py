@@ -627,6 +627,247 @@ class OctagonTaskState(smach.State):
         if start_from_table:
             self.state_machine.set_initial_state(["ENABLE_BOTTOM_DETECTION"])
 
+
+class OctagonSurfaceState(smach.State):
+    def __init__(
+        self,
+        octagon_depth: float,
+    ):
+        smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
+        self.base_link = get_base_link()
+
+        # Initialize the state machine
+        self.state_machine = smach.StateMachine(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        # Open the container for adding states
+        with self.state_machine:
+            smach.StateMachine.add(
+                "SET_OCTAGON_INITIAL_DEPTH",
+                SetDepthState(depth=-1.2),
+                transitions={
+                    "succeeded": "FOCUS_ON_OCTAGON",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FOCUS_ON_OCTAGON",
+                SetDetectionFocusState(focus_object="octagon"),
+                transitions={
+                    "succeeded": "FIND_AIM_OCTAGON",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FIND_AIM_OCTAGON",
+                SearchForPropState(
+                    look_at_frame="octagon_link",
+                    alignment_frame="octagon_search_frame",
+                    full_rotation=False,
+                    source_frame=self.base_link,
+                    rotation_speed=0.4,
+                ),
+                transitions={
+                    "succeeded": "ENABLE_OCTAGON_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_OCTAGON_FRAME_PUBLISHER",
+                OctagonFramePublisherServiceState(req=True),
+                transitions={
+                    "succeeded": "WAIT_FOR_OCTAGON_FRAME",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_OCTAGON_FRAME",
+                DelayState(delay_time=5.0),
+                transitions={
+                    "succeeded": "SET_OCTAGON_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_OCTAGON_DEPTH",
+                SetDepthState(depth=octagon_depth),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_CLOSE_APPROACH",
+                DynamicPathState(
+                    plan_target_frame="octagon_closer_link",
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_CLOSE_APPROACH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_CLOSE_APPROACH",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="octagon_closer_link",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=1.0,
+                    timeout=60.0,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "DISABLE_OCTAGON_FRAME_PUBLISHER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_OCTAGON_FRAME_PUBLISHER",
+                OctagonFramePublisherServiceState(req=False),
+                transitions={
+                    "succeeded": "SET_BATUHAN_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BATUHAN_DEPTH",
+                SetDepthState(depth=-0.6),
+                transitions={
+                    "succeeded": "ENABLE_BOTTOM_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_BOTTOM_DETECTION",
+                SetDetectionState(camera_name="bottom", enable=True),
+                transitions={
+                    "succeeded": "ENABLE_SEGMENT_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ENABLE_SEGMENT_DETECTION",
+                SetDetectionState(camera_name="segment", enable=True),
+                transitions={
+                    "succeeded": "SET_BOTTOM_FOCUS_OCTAGON",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "SET_BOTTOM_FOCUS_OCTAGON",
+                SetDetectionFocusBottomState(focus_object="octagon"),
+                transitions={
+                    "succeeded": "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
+                DynamicPathWithTransformCheck(
+                    plan_target_frame="octagon_further_link",
+                    transform_source_frame="odom",
+                    transform_target_frame="octagon_table_segment_link",
+                    max_linear_velocity=0.2,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TO_TABLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_TABLE",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="octagon_table_segment_link",
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    confirm_duration=4.0,
+                    timeout=60.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.1,
+                    max_angular_velocity=0.1,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "OCTAGON_FACING_DEPTH",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "OCTAGON_FACING_DEPTH",
+                SetDepthState(
+                    depth=-0.4,
+                    max_velocity=0.1,
+                    depth_threshold=0.05,
+                    confirm_duration=2.0,
+                ),
+                transitions={
+                    "succeeded": "FINAL_SURFACE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FINAL_SURFACE",
+                SetDepthState(
+                    depth=-0.2,
+                    max_velocity=0.1,
+                    depth_threshold=0.05,
+                    confirm_duration=2.0,
+                ),
+                transitions={
+                    "succeeded": "FINISHED_OCTAGON_TASK",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "FINISHED_OCTAGON_TASK",
+                SetDepthState(depth=-0.5, max_velocity=0.2, confirm_duration=1.0),
+                transitions={
+                    "succeeded": "DISABLE_BOTTOM_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_BOTTOM_DETECTION",
+                SetDetectionState(camera_name="bottom", enable=False),
+                transitions={
+                    "succeeded": "DISABLE_SEGMENT_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_SEGMENT_DETECTION",
+                SetDetectionState(camera_name="segment", enable=False),
+                transitions={
+                    "succeeded": "succeeded",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+
     ##############################################################
 
     # smach.StateMachine.add(
