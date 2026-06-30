@@ -375,15 +375,20 @@ class OctagonTaskState(smach.State):
     def __init__(
         self,
         octagon_depth: float,
-        octagon_role_frame: str,
-        octagon_search_frame: str,
+        octagon_role_frame: str = None,
+        octagon_search_frame: str = None,
         start_from_table: bool = False,
+        octagon_target_role_frame: str = None,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.griper_mode = True
         self.base_link = get_base_link()
-        self.octagon_role_frame = octagon_role_frame
+        self.octagon_target_role_frame = octagon_target_role_frame or octagon_role_frame
         self.octagon_search_frame = octagon_search_frame
+        if self.octagon_target_role_frame is None:
+            raise ValueError("octagon_target_role_frame must be provided")
+        if self.octagon_search_frame is None:
+            raise ValueError("octagon_search_frame must be provided")
         after_bottom_focus = (
             "MOVE_GRIPPER" if start_from_table else "DYNAMIC_PATH_WITH_BOTTLE_CHECK"
         )
@@ -641,7 +646,7 @@ class OctagonTaskState(smach.State):
                 "ROTATE_THREE_TURNS",
                 AlignAndCreateRotatingFrame(
                     source_frame=self.base_link,
-                    rotating_frame_name="animal_search_frame",
+                    rotating_frame_name="octagon_target_role_search_frame",
                     rotation_period=12.0,
                     rotation_count=3,
                 ),
@@ -654,7 +659,7 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "SEARCH_FOR_ROLE_TARGET",
                 SearchForPropState(
-                    look_at_frame=self.octagon_role_frame,
+                    look_at_frame=self.octagon_target_role_frame,
                     alignment_frame="octagon_search_frame",
                     full_rotation=False,
                     source_frame=self.base_link,
@@ -692,6 +697,14 @@ class OctagonTaskState(smach.State):
 
         if start_from_table:
             self.state_machine.set_initial_state(["ENABLE_BOTTOM_DETECTION"])
+
+    def execute(self, userdata):
+        outcome = self.state_machine.execute()
+
+        if outcome is None:
+            return "preempted"
+
+        return outcome
 
 
 class OctagonSurfaceState(smach.State):
@@ -1146,8 +1159,8 @@ class OctagonSurfaceState(smach.State):
     #     "ROTATE_FOR_ANIMALS",
     #     AlignAndCreateRotatingFrame(
     #         source_frame=self.base_link,
-    #         target_frame="animal_search_frame",
-    #         rotating_frame_name="animal_search_frame",
+    #         target_frame="octagon_target_role_search_frame",
+    #         rotating_frame_name="octagon_target_role_search_frame",
     #     ),
     #     transitions={
     #         "succeeded": "b",
@@ -1167,7 +1180,7 @@ class OctagonSurfaceState(smach.State):
     # smach.StateMachine.add(
     #     "c",
     #     SearchForPropState(
-    #         look_at_frame=self.octagon_role_frame,
+    #         look_at_frame=self.octagon_target_role_frame,
     #         alignment_frame="octagon_search_frame",
     #         full_rotation=False,
     #         stimeout=20.0,
