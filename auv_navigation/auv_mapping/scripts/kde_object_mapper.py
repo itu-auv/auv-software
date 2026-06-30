@@ -230,9 +230,7 @@ class KdeObjectMapper:
             self.current_results.clear()
         rospy.loginfo("KDE: cleared all point buffers.")
 
-        return TriggerResponse(
-            success=True, message="Cleared all KDE buffers"
-        )
+        return TriggerResponse(success=True, message="Cleared all KDE buffers")
 
     def _trigger_callback(self, _req):
         self._run_kde()
