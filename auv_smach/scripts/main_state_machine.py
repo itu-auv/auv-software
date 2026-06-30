@@ -95,7 +95,7 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.roll_depth = -0.8
 
-        self.gate_search_frame = "gate_search_rescue_link_kde"
+        self.gate_look_at_frame = "gate_middle_part" #dont use kde for gate do not need that.
         self.torpedo_search_frame = "torpedo_map_link_kde"
         self.bin_search_frame = "bin_basket_front_link_kde"
         self.octagon_search_frame = "octagon_link_kde"
@@ -244,7 +244,7 @@ class MainStateMachineNode:
                     "gate_search_depth": self.gate_search_depth,
                     "roll_depth": self.roll_depth,
                     "gate_exit_angle": gate_exit_angle_rad,
-                    "gate_search_frame": self.gate_search_frame,
+                    "gate_look_at_frame": self.gate_look_at_frame,
                 },
             ),
             "NAVIGATE_THROUGH_SLALOM": (
@@ -307,7 +307,7 @@ class MainStateMachineNode:
                 NavigateReturnThroughGateState,
                 {
                     "station_frame": self.return_home_station,
-                    "gate_search_frame": self.gate_search_frame,
+                    "gate_search_frame": self.gate_look_at_frame,
                 },
             ),
             "NAVIGATE_THROUGH_PIPELINE": (
