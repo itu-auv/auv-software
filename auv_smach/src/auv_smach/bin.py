@@ -498,7 +498,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_BIN",
                 SearchForPropState(
-                    look_at_frame="bin_basket_front_link",  #should entegrate kde frame here
+                    look_at_frame=self.bin_search_frame,  #should entegrate kde frame here
                     alignment_frame="bin_search",
                     full_rotation=False,
                     source_frame=self.base_link,
@@ -521,18 +521,27 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "WAIT_FOR_ENABLE_BIN_FRAME_PUBLISHER",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=3.0),
                 transitions={
-                    "succeeded": "DYNAMIC_PATH_TO_CLOSE_APPROACH",
+                    "succeeded": "DynamicPathState_APPROACH_TO_BIN",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "DYNAMIC_PATH_TO_CLOSE_APPROACH",
+                "DynamicPathState_APPROACH_TO_BIN",
                 DynamicPathState(
                     plan_target_frame="bin_close_approach",
                 ),
+                transitions={
+                    "succeeded": "CLOSE_ENABLE_SERVICE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLOSE_ENABLE_SERVICE",
+                BinTransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "ALIGN_TO_CLOSE_APPROACH",
                     "preempted": "preempted",
@@ -694,7 +703,7 @@ class BinTaskState(smach.State):
                 "ALLIGN_TO_SECOND_BASKET",
                 AlignFrame(
                     source_frame=self.base_link+"/ball_dropper_2_link",
-                    target_frame=target_frames[0]+"_0",
+                    target_frame=target_frames[0],
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -742,7 +751,7 @@ class BinTaskState(smach.State):
                 "ALIGN_TO_BIN_EXIT",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame="bin_exit",
+                    target_frame="bin_close_approach",
                     angle_offset=bin_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
