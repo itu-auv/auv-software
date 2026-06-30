@@ -661,7 +661,7 @@ class OctagonTaskState(smach.State):
                 transitions={
                     "succeeded": "FINAL_SURFACE",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "FINAL_SURFACE",
                 },
             )
             smach.StateMachine.add(
