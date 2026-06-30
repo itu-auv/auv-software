@@ -15,6 +15,7 @@ import rospy
 import yaml
 import numpy as np
 from collections import defaultdict
+
 # NOTE: scipy.stats.gaussian_kde removed — replaced with lightweight
 # weighted-centroid clustering (see _run_kde). This cuts per-cycle cost
 # from O(N² + N·G) to O(N·max_peaks).
@@ -238,11 +239,15 @@ class KdeObjectMapper:
             self.clear_tf_service()
             rospy.loginfo("KDE: successfully forwarded clear to TF server.")
         except rospy.ROSException:
-            rospy.logwarn("KDE: clear_object_transforms_internal service not available.")
+            rospy.logwarn(
+                "KDE: clear_object_transforms_internal service not available."
+            )
         except rospy.ServiceException as e:
             rospy.logwarn(f"KDE: failed to call clear_object_transforms_internal: {e}")
 
-        return TriggerResponse(success=True, message="Cleared all KDE buffers and TF transforms")
+        return TriggerResponse(
+            success=True, message="Cleared all KDE buffers and TF transforms"
+        )
 
     def _trigger_callback(self, _req):
         self._run_kde()
@@ -296,7 +301,6 @@ class KdeObjectMapper:
                 else:
                     weights = np.ones_like(age)
 
-
                 # Normalize weights
                 weights_sum = np.sum(weights)
                 if weights_sum > 1e-9:
@@ -324,19 +328,12 @@ class KdeObjectMapper:
                         break
 
                     # Weighted centroid of ALL remaining points
-                    centroid = (
-                        np.sum(xy[rem_idx] * rem_w[:, None], axis=0)
-                        / w_sum
-                    )
-                    peaks.append(
-                        (float(centroid[0]), float(centroid[1]), w_sum)
-                    )
+                    centroid = np.sum(xy[rem_idx] * rem_w[:, None], axis=0) / w_sum
+                    peaks.append((float(centroid[0]), float(centroid[1]), w_sum))
 
                     # Suppress: remove points near this centroid so
                     # the next iteration finds a separate cluster
-                    dists_to_centroid = np.linalg.norm(
-                        xy - centroid, axis=1
-                    )
+                    dists_to_centroid = np.linalg.norm(xy - centroid, axis=1)
                     remaining[dists_to_centroid < self.suppression_radius] = False
 
                 results[cls_name] = peaks

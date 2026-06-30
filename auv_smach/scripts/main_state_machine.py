@@ -95,7 +95,9 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.roll_depth = -0.8
 
-        self.gate_look_at_frame = "gate_middle_part" #dont use kde for gate do not need that.
+        self.gate_look_at_frame = (
+            "gate_middle_part"  # dont use kde for gate do not need that.
+        )
         self.torpedo_search_frame = "torpedo_map_link_kde"
         self.bin_search_frame = "bin_basket_front_link_kde"
         self.octagon_search_frame = "octagon_link_kde"
