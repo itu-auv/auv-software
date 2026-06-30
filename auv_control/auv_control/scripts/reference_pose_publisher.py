@@ -76,6 +76,14 @@ class ReferencePosePublisherNode:
         self.sync_cmd_pose_service = rospy.Service(
             "sync_cmd_pose", Trigger, self.handle_sync_cmd_pose_request
         )
+        self.save_base_link_snapshot_service = rospy.Service(
+            "save_base_link_snapshot", Trigger, self.handle_save_base_link_snapshot
+        )
+        self.recover_base_link_snapshot_service = rospy.Service(
+            "recover_base_link_snapshot",
+            Trigger,
+            self.handle_recover_base_link_snapshot,
+        )
         self.control_enable_handler = ControlEnableHandler(1.0)
         self.set_pose_client = rospy.ServiceProxy("set_pose", SetPose)
 
@@ -106,6 +114,8 @@ class ReferencePosePublisherNode:
         self.last_cmd_time = rospy.Time.now()
         self.state_lock = Lock()
         self.latest_odometry = Odometry()
+        self.has_latest_odometry = False
+        self.base_link_snapshot_xy = None
 
         self.set_pose_req = SetPoseRequest()
         self.set_pose_req.pose = PoseWithCovarianceStamped()
@@ -414,6 +424,87 @@ class ReferencePosePublisherNode:
         rospy.loginfo("cmd_pose synced to current odometry")
         return TriggerResponse(success=True, message="cmd_pose synced to odometry")
 
+    def handle_save_base_link_snapshot(self, req) -> TriggerResponse:
+        with self.state_lock:
+            if not self.has_latest_odometry:
+                return TriggerResponse(
+                    success=False, message="Cannot save snapshot before odometry."
+                )
+
+            odom_position = self.latest_odometry.pose.pose.position
+            self.base_link_snapshot_xy = (odom_position.x, odom_position.y)
+
+        rospy.loginfo(
+            "Saved base_link snapshot in odom: "
+            f"x={self.base_link_snapshot_xy[0]:.3f}, "
+            f"y={self.base_link_snapshot_xy[1]:.3f}"
+        )
+        return TriggerResponse(
+            success=True,
+            message=(
+                "base_link snapshot saved at "
+                f"x={self.base_link_snapshot_xy[0]:.3f}, "
+                f"y={self.base_link_snapshot_xy[1]:.3f}"
+            ),
+        )
+
+    def handle_recover_base_link_snapshot(self, req) -> TriggerResponse:
+        with self.state_lock:
+            if self.base_link_snapshot_xy is None:
+                return TriggerResponse(
+                    success=False, message="No base_link snapshot has been saved."
+                )
+            if not self.has_latest_odometry:
+                return TriggerResponse(
+                    success=False, message="Cannot recover snapshot before odometry."
+                )
+
+            snapshot_x, snapshot_y = self.base_link_snapshot_xy
+            odom_pose = self.latest_odometry.pose.pose
+            odom_quaternion = [
+                odom_pose.orientation.x,
+                odom_pose.orientation.y,
+                odom_pose.orientation.z,
+                odom_pose.orientation.w,
+            ]
+            _, _, current_heading = euler_from_quaternion(odom_quaternion)
+
+            set_pose_req = SetPoseRequest()
+            set_pose_req.pose = PoseWithCovarianceStamped()
+            set_pose_req.pose.header.stamp = rospy.Time.now()
+            set_pose_req.pose.header.frame_id = "odom"
+            set_pose_req.pose.pose.pose.position.x = snapshot_x
+            set_pose_req.pose.pose.pose.position.y = snapshot_y
+            set_pose_req.pose.pose.pose.position.z = odom_pose.position.z
+            set_pose_req.pose.pose.pose.orientation = odom_pose.orientation
+
+        try:
+            self.set_pose_client(set_pose_req)
+        except (rospy.ServiceException, rospy.ROSException) as e:
+            rospy.logerr(f"Service call failed: {e}")
+            return TriggerResponse(success=False, message=f"Service call failed: {e}")
+
+        with self.state_lock:
+            self.target_frame_id = "odom"
+            self.target_x = snapshot_x
+            self.target_y = snapshot_y
+            self.target_depth = set_pose_req.pose.pose.pose.position.z
+            self.target_roll = 0.0
+            self.target_pitch = 0.0
+            self.target_heading = current_heading
+
+        rospy.loginfo(
+            "Recovered base_link snapshot in odom: "
+            f"x={snapshot_x:.3f}, y={snapshot_y:.3f}, yaw={current_heading:.3f}"
+        )
+        return TriggerResponse(
+            success=True,
+            message=(
+                "base_link snapshot recovered at "
+                f"x={snapshot_x:.3f}, y={snapshot_y:.3f}"
+            ),
+        )
+
     def cancel_align_controller(self):
         self.set_target_to_odometry()
         self.align_frame_active = False
@@ -505,6 +596,7 @@ class ReferencePosePublisherNode:
 
     def odometry_callback(self, msg):
         self.latest_odometry = msg
+        self.has_latest_odometry = True
 
         if (
             self.control_enable_handler.is_enabled() and not self.is_resetting
