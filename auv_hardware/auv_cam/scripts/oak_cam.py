@@ -40,7 +40,7 @@ class OakCameraNode:
         self.camRgb.initialControl.setAutoFocusMode(
             dai.CameraControl.AutoFocusMode.CONTINUOUS_VIDEO
         )
-        
+
         self.camRgb.initialControl.setAutoWhiteBalanceMode(
             dai.CameraControl.AutoWhiteBalanceMode.OFF
         )

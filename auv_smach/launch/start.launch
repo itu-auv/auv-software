@@ -11,6 +11,7 @@
         gate:NAVIGATE_THROUGH_GATE,
         gate_mini:NAVIGATE_THROUGH_GATE_MINI,
         slalom:NAVIGATE_THROUGH_SLALOM,
+        slalom_mini:NAVIGATE_THROUGH_SLALOM_MINI,
         torpedo:NAVIGATE_TO_TORPEDO_TASK,
         bin:NAVIGATE_TO_BIN_TASK,
         bin_mini:NAVIGATE_TO_BIN_MINI_TASK,
@@ -28,6 +29,13 @@
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
     <arg name="mini_coin_flip" default="" doc="Gate mini start frame direction: turn_right, turn_left, turn_back, or empty"/>
+    <arg name="slalom_depth" default="-1.1"/>
+    <arg name="slalom_mini_forward_wrench" default="0.0"/>
+    <arg name="slalom_mini_lateral_kp" default="0.0"/>
+    <arg name="slalom_mini_lateral_kd" default="0.0"/>
+    <arg name="slalom_mini_max_lateral_wrench" default="30.0"/>
+    <arg name="slalom_mini_max_angular_velocity" default="0.15"/>
+    <arg name="slalom_mini_follow_duration" default="0.0"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -59,6 +67,13 @@
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
             <param name="mini_coin_flip" value="$(arg mini_coin_flip)"/>
+            <param name="slalom_depth" value="$(arg slalom_depth)"/>
+            <param name="slalom_mini_forward_wrench" value="$(arg slalom_mini_forward_wrench)"/>
+            <param name="slalom_mini_lateral_kp" value="$(arg slalom_mini_lateral_kp)"/>
+            <param name="slalom_mini_lateral_kd" value="$(arg slalom_mini_lateral_kd)"/>
+            <param name="slalom_mini_max_lateral_wrench" value="$(arg slalom_mini_max_lateral_wrench)"/>
+            <param name="slalom_mini_max_angular_velocity" value="$(arg slalom_mini_max_angular_velocity)"/>
+            <param name="slalom_mini_follow_duration" value="$(arg slalom_mini_follow_duration)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
@@ -71,10 +86,13 @@
             <remap from="propulsion_board/status" to="propulsion_board/status"/>
             <remap from="odometry" to="odometry"/>
             <remap from="cmd_vel" to="cmd_vel"/>
+            <remap from="cmd_pose" to="cmd_pose"/>
+            <remap from="cmd_wrench" to="cmd_wrench"/>
 
             <!-- camera_detection_pose_estimator.py -->
             <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
             <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
+            <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
             <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
             <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
             <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
