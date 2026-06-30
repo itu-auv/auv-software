@@ -6,6 +6,7 @@ import threading
 import rospy
 import smach
 import tf2_ros
+from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32
 
 from auv_common_lib.transform import lookup_fresh_transform
@@ -56,15 +57,17 @@ class RandomPingerSelectorState(smach.State):
         angle_topic,
         torpedo_frame,
         octagon_frame,
-        source_frame=None,
-        sample_count=5,
-        timeout=10.0,
-        fallback_first="torpedo",
-        tie_threshold=math.radians(5.0),
-        outlier_rejection_threshold=math.radians(15.0),
-        min_consensus_ratio=0.6,
-        tf_lookup_timeout=2.0,
-        tf_freshness_threshold=0.0,
+        source_frame,
+        sample_count,
+        timeout,
+        fallback_first,
+        tie_threshold,
+        outlier_rejection_threshold,
+        min_consensus_ratio,
+        pinger_depth,
+        depth_recovery_threshold,
+        depth_recovery_policy,
+        depth_recovery_min_samples,
     ):
         smach.State.__init__(
             self,
@@ -80,16 +83,26 @@ class RandomPingerSelectorState(smach.State):
         self.tie_threshold = float(tie_threshold)
         self.outlier_rejection_threshold = max(0.0, float(outlier_rejection_threshold))
         self.min_consensus_ratio = min(1.0, max(0.0, float(min_consensus_ratio)))
-        self.tf_lookup_timeout = rospy.Duration(float(tf_lookup_timeout))
-        self.tf_freshness_threshold = rospy.Duration(float(tf_freshness_threshold))
+        self.pinger_depth = float(pinger_depth)
+        self.depth_recovery_threshold = float(depth_recovery_threshold)
+        self.depth_recovery_policy = str(depth_recovery_policy).lower()
+        self.depth_recovery_min_samples = max(1, int(depth_recovery_min_samples))
 
         self.tf_buffer = get_tf_buffer()
         self._samples = []
         self._samples_lock = threading.Lock()
+        self._latest_depth = None
+        self._latest_depth_lock = threading.Lock()
         self._subscriber = rospy.Subscriber(
             self.angle_topic,
             Float32,
             self._angle_callback,
+            queue_size=10,
+        )
+        self._odometry_subscriber = rospy.Subscriber(
+            "odometry",
+            Odometry,
+            self._odometry_callback,
             queue_size=10,
         )
 
@@ -107,6 +120,10 @@ class RandomPingerSelectorState(smach.State):
             if len(self._samples) > max_buffer_size:
                 self._samples = self._samples[-max_buffer_size:]
 
+    def _odometry_callback(self, msg):
+        with self._latest_depth_lock:
+            self._latest_depth = msg.pose.pose.position.z
+
     def _clear_samples(self):
         with self._samples_lock:
             self._samples = []
@@ -115,8 +132,61 @@ class RandomPingerSelectorState(smach.State):
         with self._samples_lock:
             return list(self._samples)
 
+    def _get_latest_depth(self):
+        with self._latest_depth_lock:
+            return self._latest_depth
+
+    def _get_depth_recovery_breach(self):
+        current_depth = self._get_latest_depth()
+        if current_depth is None:
+            return None
+
+        if current_depth < self.depth_recovery_threshold:
+            return None
+
+        return current_depth, self.depth_recovery_threshold
+
+    def _handle_depth_recovery(self, samples, current_depth, activation_depth):
+        if self.depth_recovery_policy not in ("fallback", "locked_samples"):
+            rospy.logerr(
+                "[RandomPingerSelector] Invalid depth_recovery_policy='%s'. "
+                "Expected one of %s.",
+                self.depth_recovery_policy,
+                ["fallback", "locked_samples"],
+            )
+            return None, "aborted", None
+
+        reason = (
+            "Depth recovery triggered at "
+            f"{current_depth:.3f}m (activation depth {activation_depth:.3f}m)"
+        )
+        rospy.logwarn(
+            "[RandomPingerSelector] %s. Routing through SetDepthState before "
+            "continuing.",
+            reason,
+        )
+
+        if self.depth_recovery_policy == "fallback":
+            return [], None, f"{reason}; pinger samples treated as noisy"
+
+        if len(samples) < self.depth_recovery_min_samples:
+            return (
+                [],
+                None,
+                f"{reason}; only {len(samples)}/{self.depth_recovery_min_samples} "
+                "locked pinger sample(s) available",
+            )
+
+        rospy.logwarn(
+            "[RandomPingerSelector] %s. Locking %d pinger sample(s) collected "
+            "before depth recovery.",
+            reason,
+            len(samples),
+        )
+        return samples, None, None
+
     def _filter_outlier_samples(self, samples):
-        if len(samples) < 3 or self.outlier_rejection_threshold <= 0.0:
+        if self.outlier_rejection_threshold <= 0.0:
             return samples
 
         cluster = densest_angle_cluster(samples, self.outlier_rejection_threshold)
@@ -178,11 +248,18 @@ class RandomPingerSelectorState(smach.State):
         while not rospy.is_shutdown():
             if self.preempt_requested():
                 self.service_preempt()
-                return None, "preempted"
+                return None, "preempted", None
 
             samples = self._get_samples()
+            depth_breach = self._get_depth_recovery_breach()
+            if depth_breach is not None:
+                current_depth, activation_depth = depth_breach
+                return self._handle_depth_recovery(
+                    samples, current_depth, activation_depth
+                )
+
             if len(samples) >= self.sample_count:
-                return samples[-self.sample_count :], None
+                return samples[-self.sample_count :], None, None
 
             if rospy.Time.now() - start_time >= timeout_duration:
                 if samples:
@@ -191,39 +268,27 @@ class RandomPingerSelectorState(smach.State):
                         f"{len(samples)}/{self.sample_count} pinger samples; using "
                         "available samples."
                     )
-                    return samples, None
-                return [], None
+                    return samples, None, None
+                return [], None, None
 
             rate.sleep()
 
-        return None, "aborted"
+        return None, "aborted", None
 
     def _angle_to_frame(self, frame):
-        if self.tf_freshness_threshold.to_sec() > 0.0:
-            transform = lookup_fresh_transform(
-                self.tf_buffer,
-                self.source_frame,
-                frame,
-                self.tf_lookup_timeout,
-                self.tf_freshness_threshold,
-            )
-        else:
-            transform = self.tf_buffer.lookup_transform(
-                self.source_frame,
-                frame,
-                rospy.Time(0),
-                self.tf_lookup_timeout,
-            )
+        transform = lookup_fresh_transform(self.tf_buffer, self.source_frame, frame)
         translation = transform.transform.translation
         return math.atan2(translation.y, translation.x)
 
     def execute(self, userdata):
-        samples, outcome = self._wait_for_samples()
+        samples, outcome, fallback_reason = self._wait_for_samples()
         if outcome is not None:
             return outcome
 
         if not samples:
-            return self._fallback_outcome("No pinger samples received")
+            return self._fallback_outcome(
+                fallback_reason or "No pinger samples received"
+            )
 
         filtered_samples = self._filter_outlier_samples(samples)
         if not filtered_samples:
@@ -281,16 +346,18 @@ class RandomPingerTaskState(smach.State):
         angle_topic="acoustic/hydrophone/base_angle",
         torpedo_frame="torpedo_map_link",
         octagon_frame="octagon_link",
+        source_frame=None,
         pinger_depth=-2.0,
         stabilization_time=2.0,
-        sample_count=5,
+        sample_count=10,
         timeout=10.0,
         fallback_first="torpedo",
-        tie_threshold=math.radians(5.0),
-        outlier_rejection_threshold=math.radians(30.0),
+        tie_threshold=math.radians(10.0),
+        outlier_rejection_threshold=math.radians(15.0),
         min_consensus_ratio=0.6,
-        tf_lookup_timeout=2.0,
-        tf_freshness_threshold=0.0,
+        depth_recovery_threshold=-0.25,
+        depth_recovery_policy="fallback",  # "fallback" or "locked_samples"
+        depth_recovery_min_samples=2,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -332,18 +399,39 @@ class RandomPingerTaskState(smach.State):
                     angle_topic=angle_topic,
                     torpedo_frame=torpedo_frame,
                     octagon_frame=octagon_frame,
+                    source_frame=source_frame,
                     sample_count=sample_count,
                     timeout=timeout,
                     fallback_first=fallback_first,
                     tie_threshold=tie_threshold,
                     outlier_rejection_threshold=outlier_rejection_threshold,
                     min_consensus_ratio=min_consensus_ratio,
-                    tf_lookup_timeout=tf_lookup_timeout,
-                    tf_freshness_threshold=tf_freshness_threshold,
+                    pinger_depth=pinger_depth,
+                    depth_recovery_threshold=depth_recovery_threshold,
+                    depth_recovery_policy=depth_recovery_policy,
+                    depth_recovery_min_samples=depth_recovery_min_samples,
                 ),
                 transitions={
-                    "torpedo_first": "TORPEDO_FIRST",
-                    "octagon_first": "OCTAGON_FIRST",
+                    "torpedo_first": "RESTORE_DEPTH_BEFORE_TORPEDO_FIRST",
+                    "octagon_first": "RESTORE_DEPTH_BEFORE_OCTAGON_FIRST",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESTORE_DEPTH_BEFORE_TORPEDO_FIRST",
+                SetDepthState(depth=pinger_depth),
+                transitions={
+                    "succeeded": "TORPEDO_FIRST",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESTORE_DEPTH_BEFORE_OCTAGON_FIRST",
+                SetDepthState(depth=pinger_depth),
+                transitions={
+                    "succeeded": "OCTAGON_FIRST",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
