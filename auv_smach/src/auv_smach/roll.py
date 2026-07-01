@@ -256,6 +256,119 @@ class RollTwoTimes(smach.State):
         return self._stop_and("aborted")
 
 
+class PitchTwoTimes(smach.State):
+    def __init__(self, pitch_torque=-40.0, rate_hz=20, timeout_s=15.0):
+        super(PitchTwoTimes, self).__init__(
+            outcomes=["succeeded", "preempted", "aborted"]
+        )
+
+        self.odometry_topic = "odometry"
+        self.cmd_wrench_topic = "cmd_wrench"
+        self.frame_id = get_base_link()
+
+        self.pitch_torque = -abs(pitch_torque)
+        self.timeout = rospy.Duration(timeout_s)
+        self.rate = rospy.Rate(rate_hz)
+
+        self.odom_ready = False
+        self.active = True
+        self.total_pitch = 0.0
+        self.last_time = None
+
+        self.sub_odom = rospy.Subscriber(self.odometry_topic, Odometry, self.odom_cb)
+        self.pub_cmd_wrench = rospy.Publisher(
+            self.cmd_wrench_topic, WrenchStamped, queue_size=1
+        )
+
+    def odom_cb(self, msg: Odometry):
+        now = rospy.Time.now()
+
+        if not self.odom_ready:
+            self.last_time = now
+            self.odom_ready = True
+            return
+
+        if self.last_time is None:
+            self.last_time = now
+            return
+
+        dt = (now - self.last_time).to_sec()
+        self.last_time = now
+
+        omega_y = msg.twist.twist.angular.y
+        delta_angle = omega_y * dt
+        self.total_pitch += abs(delta_angle)
+
+    def execute(self, userdata):
+        rospy.loginfo("PITCH_TWO_TIMES: waiting for odometry data...")
+        start_wait = rospy.Time.now()
+        while not rospy.is_shutdown() and not self.odom_ready:
+            if (rospy.Time.now() - start_wait).to_sec() > 5.0:
+                rospy.logerr("PITCH_TWO_TIMES: No odometry data after 5 s -> abort")
+                return "aborted"
+            if self.preempt_requested():
+                return "preempted"
+            try:
+                self.rate.sleep()
+            except rospy.ROSInterruptException:
+                return self._abort_on_shutdown()
+
+        self.total_pitch = 0.0
+        self.last_time = rospy.Time.now()
+        self.start_time = rospy.Time.now()
+        target = math.radians(660.0)
+        rospy.loginfo(
+            "PITCH_TWO_TIMES: starting pitch with torque %.2f Nm on cmd_wrench, target = %.2f rad",
+            self.pitch_torque,
+            target,
+        )
+
+        try:
+            while not rospy.is_shutdown() and self.total_pitch < target and self.active:
+
+                if self.preempt_requested():
+                    return self._stop_and("preempted")
+
+                if (rospy.Time.now() - self.start_time) > self.timeout:
+                    rospy.logerr(
+                        "PITCH_TWO_TIMES: timed out after %.1f s",
+                        self.timeout.to_sec(),
+                    )
+                    return self._stop_and("aborted")
+
+                cmd = WrenchStamped()
+                cmd.header.stamp = rospy.Time.now()
+                cmd.header.frame_id = self.frame_id
+                cmd.wrench.torque.y = self.pitch_torque
+                self.pub_cmd_wrench.publish(cmd)
+
+                rospy.loginfo_throttle(
+                    1.0,
+                    "PITCH_TWO_TIMES: total_pitch = %.2f / %.2f",
+                    self.total_pitch,
+                    target,
+                )
+
+                self.rate.sleep()
+
+        except rospy.ROSInterruptException:
+            return self._abort_on_shutdown()
+
+        return self._stop_and("succeeded")
+
+    def _stop_and(self, outcome):
+        stop = WrenchStamped()
+        stop.header.stamp = rospy.Time.now()
+        stop.header.frame_id = self.frame_id
+        stop.wrench.torque.y = 0.0
+        self.pub_cmd_wrench.publish(stop)
+        return outcome
+
+    def _abort_on_shutdown(self):
+        rospy.logwarn("PITCH_TWO_TIMES: ROS shutdown detected -> aborting state")
+        return self._stop_and("aborted")
+
+
 class TwoRollState(smach.StateMachine):
     def __init__(self, gate_look_at_frame, roll_torque=50.0):
         smach.StateMachine.__init__(

@@ -2,16 +2,23 @@ cmake_minimum_required(VERSION 3.10.2)
 project(auv_smach)
 
 find_package(catkin REQUIRED COMPONENTS
+  auv_bringup
+  auv_msgs
+  geometry_msgs
+  nav_msgs
   rospy
   smach
   smach_ros
+  std_msgs
   std_srvs
+  tf
+  dynamic_reconfigure
 )
 
 catkin_python_setup()
 
 catkin_package(
-  CATKIN_DEPENDS rospy smach smach_ros auv_navigation std_srvs
+  CATKIN_DEPENDS auv_bringup auv_msgs dynamic_reconfigure geometry_msgs nav_msgs rospy smach smach_ros auv_navigation std_msgs std_srvs tf
 )
 
 include_directories(

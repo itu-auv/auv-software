@@ -315,6 +315,9 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         keep_orientation: bool = False,
         angle_offset: float = 0.0,
         max_linear_velocity: float = None,
+        max_linear_velocity_x: float = None,
+        max_linear_velocity_y: float = None,
+        max_linear_velocity_z: float = None,
         max_angular_velocity: float = None,
         use_depth: bool = False,
         closest_yaw: bool = False,
@@ -328,6 +331,12 @@ class SetAlignControllerTargetState(smach_ros.ServiceState):
         align_request.closest_yaw = closest_yaw
         if max_linear_velocity is not None:
             align_request.max_linear_velocity = max_linear_velocity
+        if max_linear_velocity_x is not None:
+            align_request.max_linear_velocity_x = max_linear_velocity_x
+        if max_linear_velocity_y is not None:
+            align_request.max_linear_velocity_y = max_linear_velocity_y
+        if max_linear_velocity_z is not None:
+            align_request.max_linear_velocity_z = max_linear_velocity_z
         if max_angular_velocity is not None:
             align_request.max_angular_velocity = max_angular_velocity
 
@@ -1134,6 +1143,9 @@ class AlignFrame(smach.StateMachine):
         confirm_duration=0.0,
         keep_orientation=False,
         max_linear_velocity=None,
+        max_linear_velocity_x=None,
+        max_linear_velocity_y=None,
+        max_linear_velocity_z=None,
         max_angular_velocity=None,
         use_frame_depth=False,
         closest_yaw=False,
@@ -1153,6 +1165,9 @@ class AlignFrame(smach.StateMachine):
                     angle_offset=angle_offset,
                     keep_orientation=keep_orientation,
                     max_linear_velocity=max_linear_velocity,
+                    max_linear_velocity_x=max_linear_velocity_x,
+                    max_linear_velocity_y=max_linear_velocity_y,
+                    max_linear_velocity_z=max_linear_velocity_z,
                     max_angular_velocity=max_angular_velocity,
                     use_depth=use_frame_depth,
                     closest_yaw=closest_yaw,
@@ -1272,6 +1287,9 @@ class DynamicPathState(smach.StateMachine):
         align_source_frame: str = None,
         align_target_frame: str = "dynamic_target",
         max_linear_velocity: float = None,
+        max_linear_velocity_x: float = None,
+        max_linear_velocity_y: float = None,
+        max_linear_velocity_z: float = None,
         max_angular_velocity: float = None,
         angle_offset: float = 0.0,
         keep_orientation: bool = False,
@@ -1300,6 +1318,9 @@ class DynamicPathState(smach.StateMachine):
                     source_frame=align_source_frame,
                     target_frame=align_target_frame,
                     max_linear_velocity=max_linear_velocity,
+                    max_linear_velocity_x=max_linear_velocity_x,
+                    max_linear_velocity_y=max_linear_velocity_y,
+                    max_linear_velocity_z=max_linear_velocity_z,
                     max_angular_velocity=max_angular_velocity,
                     keep_orientation=keep_orientation,
                 ),
@@ -1337,6 +1358,9 @@ class LookAroundState(smach.StateMachine):
         confirm_duration: float = 0.1,
         timeout: float = 10.0,
         max_linear_velocity: float = 0.1,
+        max_linear_velocity_x: float = None,
+        max_linear_velocity_y: float = None,
+        max_linear_velocity_z: float = None,
         max_angular_velocity: float = 0.15,
         current_pose_frame: str = "selam_frame",
     ):
@@ -1367,6 +1391,9 @@ class LookAroundState(smach.StateMachine):
                     cancel_on_success=False,
                     keep_orientation=False,
                     max_linear_velocity=max_linear_velocity,
+                    max_linear_velocity_x=max_linear_velocity_x,
+                    max_linear_velocity_y=max_linear_velocity_y,
+                    max_linear_velocity_z=max_linear_velocity_z,
                     max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
@@ -1386,6 +1413,9 @@ class LookAroundState(smach.StateMachine):
                     cancel_on_success=False,
                     keep_orientation=False,
                     max_linear_velocity=max_linear_velocity,
+                    max_linear_velocity_x=max_linear_velocity_x,
+                    max_linear_velocity_y=max_linear_velocity_y,
+                    max_linear_velocity_z=max_linear_velocity_z,
                     max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
@@ -1405,6 +1435,9 @@ class LookAroundState(smach.StateMachine):
                     cancel_on_success=False,
                     keep_orientation=False,
                     max_linear_velocity=max_linear_velocity,
+                    max_linear_velocity_x=max_linear_velocity_x,
+                    max_linear_velocity_y=max_linear_velocity_y,
+                    max_linear_velocity_z=max_linear_velocity_z,
                     max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
@@ -1632,6 +1665,9 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
         rotation_period: float = 15.0,
         rotation_count: int = 1,
         max_linear_velocity: float = None,
+        max_linear_velocity_x: float = None,
+        max_linear_velocity_y: float = None,
+        max_linear_velocity_z: float = None,
         max_angular_velocity: float = None,
         look_at_frame: str = None,
         full_rotation: bool = False,
@@ -1644,6 +1680,9 @@ class AlignAndCreateRotatingFrame(smach.StateMachine):
                     source_frame=source_frame,
                     target_frame=rotating_frame_name,
                     max_linear_velocity=max_linear_velocity,
+                    max_linear_velocity_x=max_linear_velocity_x,
+                    max_linear_velocity_y=max_linear_velocity_y,
+                    max_linear_velocity_z=max_linear_velocity_z,
                     max_angular_velocity=max_angular_velocity,
                 ),
                 transitions={
@@ -1756,6 +1795,9 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
         align_source_frame: str = "taluy/base_link",
         align_target_frame: str = "dynamic_target",
         max_linear_velocity: float = None,
+        max_linear_velocity_x: float = None,
+        max_linear_velocity_y: float = None,
+        max_linear_velocity_z: float = None,
         max_angular_velocity: float = None,
         angle_offset: float = 0.0,
         keep_orientation: bool = False,
@@ -1781,6 +1823,9 @@ class DynamicPathWithTransformCheck(smach.Concurrence):
                     align_source_frame=align_source_frame,
                     align_target_frame=align_target_frame,
                     max_linear_velocity=max_linear_velocity,
+                    max_linear_velocity_x=max_linear_velocity_x,
+                    max_linear_velocity_y=max_linear_velocity_y,
+                    max_linear_velocity_z=max_linear_velocity_z,
                     max_angular_velocity=max_angular_velocity,
                     angle_offset=angle_offset,
                     keep_orientation=keep_orientation,
@@ -1858,5 +1903,168 @@ class AlignFrameWithTransformCheck(smach.Concurrence):
                     target_frame=transform_target_frame,
                     timeout=transform_timeout,
                     allow_mutli_check_goal=allow_mutli_check_goal,
+                ),
+            )
+
+
+class MonitorVisibilityState(smach.State):
+    def __init__(self, prop_name, timeout=3.0, camera_name="front"):
+        smach.State.__init__(self, outcomes=["target_lost", "preempted"])
+        self.prop_name = prop_name
+        self.timeout = timeout
+        self.camera_name = camera_name
+        self.last_seen_time = None
+        self.subscriber = None
+
+        namespace = rospy.get_namespace().strip("/")
+        if not namespace:
+            namespace = "taluy"  # fallback
+        self.topic_name = (
+            f"/{namespace}/vision/{camera_name}/{prop_name}_is_inside_image"
+        )
+
+    def is_visible_cb(self, msg):
+        if msg.data:
+            self.last_seen_time = rospy.Time.now()
+
+    def execute(self, userdata):
+        self.last_seen_time = rospy.Time.now()
+        self.subscriber = rospy.Subscriber(self.topic_name, Bool, self.is_visible_cb)
+
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            if self.preempt_requested():
+                if self.subscriber:
+                    self.subscriber.unregister()
+                self.service_preempt()
+                return "preempted"
+
+            if self.last_seen_time is not None:
+                if (rospy.Time.now() - self.last_seen_time).to_sec() > self.timeout:
+                    rospy.logwarn(
+                        f"[MonitorVisibility] Target has not been seen for {self.timeout} seconds! ({self.topic_name})"
+                    )
+                    if self.subscriber:
+                        self.subscriber.unregister()
+                    return "target_lost"
+
+            rate.sleep()
+
+        if self.subscriber:
+            self.subscriber.unregister()
+        return "preempted"
+
+
+class AlignFrameWithVisibilityCheck(smach.Concurrence):
+    """
+    Runs the standard AlignFrame state concurrently with a MonitorVisibilityState.
+    If the target is not seen for 'lost_timeout' seconds, the alignment is halted and returns 'target_lost'.
+    """
+
+    def __init__(
+        self,
+        source_frame,
+        target_frame,
+        prop_name=None,
+        lost_timeout=3.0,
+        camera_name="front",
+        max_linear_velocity=None,
+        max_angular_velocity=None,
+        **align_kwargs,
+    ):
+        smach.Concurrence.__init__(
+            self,
+            outcomes=["succeeded", "target_lost", "preempted", "aborted"],
+            default_outcome="aborted",
+            child_termination_cb=lambda so: True,  # Stop the other state when one finishes
+            outcome_map={
+                "succeeded": {"ALIGN": "succeeded"},
+                "target_lost": {"MONITOR": "target_lost"},
+                "aborted": {"ALIGN": "aborted"},
+            },
+        )
+
+        # Use target_frame name if prop_name is not provided
+        if prop_name is None:
+            prop_name = target_frame
+
+        with self:
+            smach.Concurrence.add(
+                "ALIGN",
+                AlignFrame(
+                    source_frame=source_frame,
+                    target_frame=target_frame,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                    **align_kwargs,
+                ),
+            )
+            smach.Concurrence.add(
+                "MONITOR",
+                MonitorVisibilityState(
+                    prop_name=prop_name, timeout=lost_timeout, camera_name=camera_name
+                ),
+            )
+
+
+class DynamicPathWithTransformAndVisibilityCheck(smach.Concurrence):
+    """
+    Runs DynamicPathWithTransformCheck concurrently with a MonitorVisibilityState.
+    If the target is not seen for 'lost_timeout' seconds, it halts and returns 'target_lost'.
+    Nested concurrences are fully supported in SMACH.
+    """
+
+    def __init__(
+        self,
+        plan_target_frame: str,
+        transform_source_frame: str,
+        transform_target_frame: str,
+        align_source_frame: str = "taluy/base_link",
+        align_target_frame: str = "dynamic_target",
+        max_linear_velocity: float = None,
+        max_angular_velocity: float = None,
+        angle_offset: float = 0.0,
+        keep_orientation: bool = False,
+        transform_timeout: float = 60.0,
+        prop_name: str = None,
+        lost_timeout: float = 3.0,
+        camera_name: str = "front",
+    ):
+        smach.Concurrence.__init__(
+            self,
+            outcomes=["succeeded", "target_lost", "preempted", "aborted"],
+            default_outcome="aborted",
+            child_termination_cb=lambda so: True,
+            outcome_map={
+                "succeeded": {"DYNAMIC_PATH": "succeeded"},
+                "target_lost": {"MONITOR": "target_lost"},
+                "aborted": {"DYNAMIC_PATH": "aborted"},
+                "preempted": {"DYNAMIC_PATH": "preempted"},
+            },
+        )
+
+        if prop_name is None:
+            prop_name = transform_target_frame
+
+        with self:
+            smach.Concurrence.add(
+                "DYNAMIC_PATH",
+                DynamicPathWithTransformCheck(
+                    plan_target_frame=plan_target_frame,
+                    transform_source_frame=transform_source_frame,
+                    transform_target_frame=transform_target_frame,
+                    align_source_frame=align_source_frame,
+                    align_target_frame=align_target_frame,
+                    max_linear_velocity=max_linear_velocity,
+                    max_angular_velocity=max_angular_velocity,
+                    angle_offset=angle_offset,
+                    keep_orientation=keep_orientation,
+                    transform_timeout=transform_timeout,
+                ),
+            )
+            smach.Concurrence.add(
+                "MONITOR",
+                MonitorVisibilityState(
+                    prop_name=prop_name, timeout=lost_timeout, camera_name=camera_name
                 ),
             )

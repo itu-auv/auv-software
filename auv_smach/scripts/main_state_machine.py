@@ -7,9 +7,12 @@ import math
 from auv_smach.initialize import InitializeState
 from auv_smach.gate import NavigateThroughGateState
 from auv_smach.slalom import NavigateThroughSlalomState
+from auv_smach.slalom_mini import NavigateThroughSlalomMiniState
+from auv_smach.gate_mini import NavigateThroughGateMiniState
 from auv_smach.red_buoy import RotateAroundBuoyState
 from auv_smach.torpedo import TorpedoTaskState
 from auv_smach.bin import BinTaskState
+from auv_smach.bin_mini import BinTaskMiniState
 from auv_smach.octagon import OctagonTaskState
 from auv_smach.random_pinger import RandomPingerTaskState
 from auv_smach.return_home import NavigateReturnThroughGateState
@@ -22,7 +25,6 @@ import threading
 from dynamic_reconfigure.client import Client
 from auv_bringup.cfg import SmachParametersConfig
 
-
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
 BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_link", "bin_blood_link"]
@@ -34,6 +36,10 @@ RANDOM_PINGER_MEMBER_STATES = {
 ROLE_TO_BIN_TARGET_SELECTION = {
     "survey_repair": "shark",
     "search_rescue": "sawfish",
+}
+ROLE_TO_GATE_TARGET_FRAME = {
+    "survey_repair": "gate_survey_repair_link",
+    "search_rescue": "gate_search_rescue_link",
 }
 ROLE_TO_OCTAGON_TARGET_ROLE_FRAME = {
     "survey_repair": "octagon_repair_link",
@@ -107,6 +113,21 @@ class MainStateMachineNode:
         self.gate_depth = -1.35
         self.roll_depth = -0.8
 
+        self.slalom_depth = rospy.get_param("~slalom_depth", -1.1)
+        self.slalom_mini_forward_wrench = rospy.get_param(
+            "~slalom_mini_forward_wrench", 5.0
+        )
+        self.slalom_mini_lateral_kp = rospy.get_param("~slalom_mini_lateral_kp", 0.0)
+        self.slalom_mini_lateral_kd = rospy.get_param("~slalom_mini_lateral_kd", 0.0)
+        self.slalom_mini_max_lateral_wrench = rospy.get_param(
+            "~slalom_mini_max_lateral_wrench", 30.0
+        )
+        self.slalom_mini_max_angular_velocity = rospy.get_param(
+            "~slalom_mini_max_angular_velocity", 0.15
+        )
+        self.slalom_mini_follow_duration = rospy.get_param(
+            "~slalom_mini_follow_duration", 120.0
+        )
         self.gate_look_at_frame = (
             "gate_middle_part"  # dont use kde for gate do not need that.
         )
@@ -116,14 +137,14 @@ class MainStateMachineNode:
         self.red_buoy_search_frame = "red_buoy_link_kde"
         self.slalom_search_frame = "slalom_red_pipe_link_kde"
 
-        self.slalom_depth = -1.1
-
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
 
         self.torpedo_map_depth = -1.25
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
+
+        self.mini_coin_flip = rospy.get_param("~mini_coin_flip", "")
 
         self.bin_front_look_depth = -1.3
         self.bin_bottom_look_depth = -0.7
@@ -260,6 +281,12 @@ class MainStateMachineNode:
             ROLE_TO_BIN_TARGET_SELECTION[DEFAULT_SELECTED_ROLE],
         )
 
+    def get_gate_target_frame(self):
+        return ROLE_TO_GATE_TARGET_FRAME.get(
+            self.selected_role,
+            ROLE_TO_GATE_TARGET_FRAME[DEFAULT_SELECTED_ROLE],
+        )
+
     def get_octagon_target_role_frame(self):
         return ROLE_TO_OCTAGON_TARGET_ROLE_FRAME.get(
             self.selected_role,
@@ -335,6 +362,7 @@ class MainStateMachineNode:
         bin_target_frames = self.get_bin_target_frames()
         rospy.loginfo(f"Bin target frames order: {bin_target_frames}")
         legacy_target_selection = self.get_legacy_target_selection()
+        gate_target_frame = self.get_gate_target_frame()
         octagon_target_role_frame = self.get_octagon_target_role_frame()
 
         torpedo_fire_frames = self.get_torpedo_fire_frames()
@@ -372,12 +400,36 @@ class MainStateMachineNode:
                     "gate_look_at_frame": self.gate_look_at_frame,
                 },
             ),
+            "NAVIGATE_THROUGH_GATE_MINI": (
+                NavigateThroughGateMiniState,
+                {
+                    "gate_depth": self.gate_depth,
+                    "gate_search_depth": self.gate_search_depth,
+                    "roll_depth": self.roll_depth,
+                    "gate_exit_angle": gate_exit_angle_rad,
+                    "target_animal": gate_target_frame,
+                    "mini_coin_flip": self.mini_coin_flip,
+                },
+            ),
             "NAVIGATE_THROUGH_SLALOM": (
                 NavigateThroughSlalomState,
                 {
                     "slalom_depth": self.slalom_depth,
                     "slalom_exit_angle": slalom_exit_angle_rad,
                     "slalom_direction": self.slalom_direction,
+                },
+            ),
+            "NAVIGATE_THROUGH_SLALOM_MINI": (
+                NavigateThroughSlalomMiniState,
+                {
+                    "slalom_depth": self.slalom_depth,
+                    "white_side": self.slalom_direction,
+                    "forward_wrench": self.slalom_mini_forward_wrench,
+                    "lateral_kp": self.slalom_mini_lateral_kp,
+                    "lateral_kd": self.slalom_mini_lateral_kd,
+                    "max_lateral_wrench": self.slalom_mini_max_lateral_wrench,
+                    "max_angular_velocity": self.slalom_mini_max_angular_velocity,
+                    "follow_duration": self.slalom_mini_follow_duration,
                 },
             ),
             "NAVIGATE_TO_TORPEDO_TASK": (
@@ -392,6 +444,12 @@ class MainStateMachineNode:
                     "target_frames": bin_target_frames,
                     "bin_exit_angle": bin_exit_angle_rad,
                     "bin_search_frame": self.bin_search_frame,
+                },
+            ),
+            "NAVIGATE_TO_BIN_MINI_TASK": (
+                BinTaskMiniState,
+                {
+                    "target_animal": f"bin_{legacy_target_selection}_link",
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (
@@ -497,7 +555,6 @@ class MainStateMachineNode:
         if falling_edge:
             # TODO: maybe add restart logic
             rospy.logerr("KILLSWITCH!")
-            rospy.signal_shutdown("Force stopping state machine")
 
 
 if __name__ == "__main__":

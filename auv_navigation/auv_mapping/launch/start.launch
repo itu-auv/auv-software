@@ -9,6 +9,7 @@
   <arg name="torpedo_frame" default="torpedo_map_link" />
   <arg name="torpedo_realsense_frame" default="torpedo_map_link_closest" />
   <arg name="torpedo_hole_frame" default="torpedo_hole_upper_link" />
+  <arg name="slalom_yolo_result_topic" default="/yolo_result_slalom" />
   <arg name="waypoint_prefix" default="path" />
   <arg name="waypoint_broadcast_rate_hz" default="20.0" />
   <arg name="waypoint_state_file" default="$(find auv_mapping)/config/waypoints/waypoint_gui_state.yaml" />
@@ -67,6 +68,12 @@
       <remap from="set_object_transform" to="map/set_object_transform" />
     </node>
 
+    <node pkg="auv_mapping" type="mini_gate_trajectory_publisher.py" name="mini_gate_trajectory_publisher">
+      <param name="robot_base_frame" value="$(arg namespace)/base_link" />
+      <remap from="toggle_mini_gate_trajectory" to="toggle_mini_gate_trajectory" />
+      <remap from="set_object_transform" to="map/set_object_transform" />
+    </node>
+
     <node pkg="auv_mapping" type="acoustic_transmitter.py" name="acoustic_transmitter">
       <remap from="modem/data/tx" to="modem/data/tx" />
     </node>
@@ -80,8 +87,8 @@
 
     <node pkg="auv_mapping" type="slalom_heatmap_mapper.py" name="slalom_heatmap_mapper" output="screen">
       <param name="base_link_frame" value="$(arg namespace)/base_link" />
+      <param name="yolo_result_topic" value="$(arg slalom_yolo_result_topic)" />
       <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="/yolo_result_front" to="/yolo_result_front" />
     </node>
     <node pkg="auv_mapping" type="kde_object_mapper.py" name="kde_object_mapper" output="screen">
       <param name="bandwidth" value="1" />
