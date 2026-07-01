@@ -9,6 +9,7 @@ from datetime import datetime
 import rospy
 import tf2_ros
 import yaml
+from std_srvs.srv import Trigger, TriggerResponse
 from auv_msgs.srv import SetWaypoint, SetWaypointResponse
 from geometry_msgs.msg import Quaternion, TransformStamped, Vector3
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
@@ -75,6 +76,9 @@ class WaypointPublisher:
         self.set_waypoint_srv = rospy.Service(
             "set_waypoint", SetWaypoint, self.set_waypoint_handler
         )
+        self.get_waypoint_srv = rospy.Service(
+            "get_waypoint", Trigger, self.get_waypoint_handler
+        )
 
         rospy.loginfo(
             f"[WaypointPublisher] Ready. paths={len(self.paths)}, "
@@ -107,6 +111,23 @@ class WaypointPublisher:
         )
         rospy.loginfo(f"[WaypointPublisher] {msg}")
         return SetWaypointResponse(success=True, message=msg)
+
+    def get_waypoint_handler(self, _req):
+        try:
+            with self.lock:
+                paths_snapshot = list(self.paths)
+
+            state = self._build_state_dict(paths_snapshot)
+            return TriggerResponse(
+                success=True,
+                message=yaml.safe_dump(
+                    state, sort_keys=False, default_flow_style=False
+                ),
+            )
+        except Exception as exc:
+            msg = f"Failed to get waypoint state: {exc}"
+            rospy.logerr(f"[WaypointPublisher] {msg}")
+            return TriggerResponse(success=False, message=msg)
 
     def _path_from_msg(self, index, path_msg):
         ref_a = path_msg.ref_a.strip()
@@ -363,7 +384,7 @@ class WaypointPublisher:
             tf2_ros.ExtrapolationException,
         ) as exc:
             rospy.logwarn_throttle(
-                5.0,
+                30.0,
                 f"[WaypointPublisher] Waiting for TF {path.ref_a}->{path.ref_b}: {exc}",
             )
             return None

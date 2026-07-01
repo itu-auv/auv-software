@@ -58,6 +58,7 @@
       <param name="static_frame" value="$(arg static_frame)" />
       <param name="premap_file" value="$(find auv_mapping)/config/premaps/premap.yaml" />
       <remap from="set_premap" to="map/set_premap" />
+      <remap from="get_premap" to="map/get_premap" />
     </node>
 
 
@@ -100,7 +101,7 @@
         [gate_search_rescue_link, gate_survey_repair_link, slalom_red_pipe_link, slalom_white_pipe_link, torpedo_map_link, bin_basket_front_link, octagon_link]
       </rosparam>
       <remap from="set_object_transform" to="map/set_object_transform" />
-      <remap from="clear_object_transforms" to="map/clear_object_transforms" />
+      <remap from="kde_map/clear" to="map/kde_map/clear" />
     </node>
 
     <node pkg="auv_mapping" type="gps_target_frame_publisher.py" name="gps_target_frame_publisher" output="screen">
@@ -112,6 +113,8 @@
       <param name="waypoint_prefix" value="$(arg waypoint_prefix)" />
       <param name="broadcast_rate_hz" value="$(arg waypoint_broadcast_rate_hz)" />
       <param name="state_file" value="$(arg waypoint_state_file)" />
+      <remap from="set_waypoint" to="map/set_waypoint" />
+      <remap from="get_waypoint" to="map/get_waypoint" />
     </node>
 
     <group if="$(arg enable_realsense_nodes)">

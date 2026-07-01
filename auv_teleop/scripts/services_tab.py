@@ -26,6 +26,21 @@ from auv_msgs.srv import SetDepth, SetDepthRequest
 
 
 class ROSServiceCaller:
+    def _call_trigger_service(self, service_name):
+        try:
+            rospy.wait_for_service(service_name, timeout=1)
+            trigger_service = rospy.ServiceProxy(service_name, Trigger)
+            response = trigger_service(TriggerRequest())
+            if not response.success:
+                print(f"{service_name} failed: {response.message}")
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"{service_name} call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"{service_name} not available: {e}")
+            return False
+
     def set_depth(self, target_depth):
         try:
             rospy.wait_for_service("set_depth", timeout=1)
@@ -87,23 +102,13 @@ class ROSServiceCaller:
             return False
 
     def clear_objects(self):
-        try:
-            rospy.wait_for_service("clear_object_transforms", timeout=1)
-            clear_objects_service = rospy.ServiceProxy(
-                "clear_object_transforms", Trigger
-            )
-            response = clear_objects_service(TriggerRequest())
-            if response.success:
-                print("Objects cleared successfully")
-            else:
-                print(f"Failed to clear objects: {response.message}")
-            return response.success
-        except rospy.ServiceException as e:
-            print(f"Service call failed: {e}")
-            return False
-        except rospy.ROSException as e:
-            print(f"Service not available: {e}")
-            return False
+        object_transforms_cleared = self._call_trigger_service(
+            "clear_object_transforms"
+        )
+        kde_buffers_cleared = self._call_trigger_service("kde_map/clear")
+        if object_transforms_cleared and kde_buffers_cleared:
+            print("Objects and KDE buffers cleared successfully")
+        return object_transforms_cleared and kde_buffers_cleared
 
     def cancel_alignment(self):
         try:

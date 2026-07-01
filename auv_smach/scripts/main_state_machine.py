@@ -40,12 +40,12 @@ ROLE_TO_OCTAGON_TARGET_ROLE_FRAME = {
     "search_rescue": "octagon_rescue_link",
 }
 LEFT_TOP_TORPEDO_FIRE_FRAMES = [
-    "torpedo_left_mid_fire_frame",
-    "torpedo_top_mid_fire_frame",
+    "torpedo_left_fire_frame",
+    "torpedo_top_fire_frame",
 ]
 RIGHT_BOTTOM_TORPEDO_FIRE_FRAMES = [
-    "torpedo_bottom_right_fire_frame",
-    "torpedo_bottom_mid_fire_frame",
+    "torpedo_right_fire_frame",
+    "torpedo_bottom_fire_frame",
 ]
 
 
