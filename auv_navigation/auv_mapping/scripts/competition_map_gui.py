@@ -163,7 +163,7 @@ class CompetitionMapGUI:
 
         tk.Button(
             left_frame,
-            text="Get From Vehicle",
+            text="Get from Vehicle",
             command=self.get_from_vehicle,
             bg="#4CAF50",
             fg="white",
