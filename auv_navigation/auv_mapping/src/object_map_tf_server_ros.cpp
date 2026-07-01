@@ -30,6 +30,7 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
       rate_{10.0},
       distance_threshold_squared_{16.0},
       static_frame_{""},
+      has_snapshot_{false},
       tf_broadcaster_{} {
   auto node_handler_private = ros::NodeHandle{"~"};
 
@@ -52,6 +53,14 @@ ObjectMapTFServerROS::ObjectMapTFServerROS(const ros::NodeHandle &nh)
   clear_service_ =
       nh_.advertiseService("clear_object_transforms",
                            &ObjectMapTFServerROS::clear_map_handler, this);
+
+  save_snapshot_service_ =
+      nh_.advertiseService("save_object_map_snapshot",
+                           &ObjectMapTFServerROS::save_snapshot_handler, this);
+
+  recover_snapshot_service_ = nh_.advertiseService(
+      "recover_object_map_snapshot",
+      &ObjectMapTFServerROS::recover_snapshot_handler, this);
 
   dynamic_sub_ =
       nh_.subscribe("object_transform_updates", 10,
@@ -87,6 +96,61 @@ bool ObjectMapTFServerROS::clear_map_handler(std_srvs::Trigger::Request &req,
   res.message = "Cleared all object transforms and filters.";
 
   ROS_INFO("Cleared all object transforms and filters.");
+  return true;
+}
+
+bool ObjectMapTFServerROS::save_snapshot_handler(
+    std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res) {
+  auto lock = std::scoped_lock{mutex_};
+
+  snapshot_.clear();
+  for (const auto &entry : filters_) {
+    auto &snapshot_entry = snapshot_[entry.first];
+    snapshot_entry.reserve(entry.second.size());
+
+    for (const auto &filter_ptr : entry.second) {
+      snapshot_entry.push_back(filter_ptr->getFilteredTransform());
+    }
+  }
+
+  has_snapshot_ = true;
+
+  res.success = true;
+  res.message = "Saved object map snapshot with " +
+                std::to_string(snapshot_.size()) + " transforms.";
+
+  ROS_INFO_STREAM(res.message);
+  return true;
+}
+
+bool ObjectMapTFServerROS::recover_snapshot_handler(
+    std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res) {
+  auto lock = std::scoped_lock{mutex_};
+
+  if (!has_snapshot_) {
+    res.success = false;
+    res.message = "No object map snapshot has been saved.";
+    return true;
+  }
+
+  filters_.clear();
+
+  for (const auto &entry : snapshot_) {
+    auto &filters = filters_[entry.first];
+    filters.reserve(entry.second.size());
+
+    for (auto transform : entry.second) {
+      transform.header.stamp = ros::Time::now();
+      filters.push_back(
+          std::make_unique<ObjectPositionFilter>(transform, 1.0 / rate_));
+    }
+  }
+
+  res.success = true;
+  res.message = "Recovered object map snapshot with " +
+                std::to_string(snapshot_.size()) + " transforms.";
+
+  ROS_INFO_STREAM(res.message);
   return true;
 }
 
