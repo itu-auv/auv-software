@@ -668,7 +668,7 @@ class OctagonTaskState(smach.State):
                     CheckForTransformState(
                         source_frame="odom",
                         target_frame=target_frame,
-                        timeout=0.2,
+                        timeout=0.5,
                         check_rate_hz=20,
                     ),
                     transitions={
