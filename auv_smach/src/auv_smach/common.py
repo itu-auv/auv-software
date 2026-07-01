@@ -706,6 +706,25 @@ class ClearObjectMapState(smach_ros.ServiceState):
         return "succeeded"
 
 
+class ClearKDEMapState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "kde_map/clear",
+            Trigger,
+            request=TriggerRequest(),
+            response_cb=self.response_cb,
+        )
+
+    @staticmethod
+    def response_cb(userdata, response):
+        if not response.success:
+            rospy.logwarn("ClearKDEMapState: kde_map/clear failed")
+            return "aborted"
+
+        return "succeeded"
+
+
 class SetDetectionState(smach_ros.ServiceState):
     """
     Calls the service to enable or disable camera detections.

@@ -99,6 +99,7 @@
         [gate_search_rescue_link, gate_survey_repair_link, slalom_red_pipe_link, slalom_white_pipe_link, torpedo_map_link, bin_basket_front_link, octagon_link]
       </rosparam>
       <remap from="set_object_transform" to="map/set_object_transform" />
+      <remap from="kde_map/clear" to="map/kde_map/clear" />
     </node>
 
     <node pkg="auv_mapping" type="gps_target_frame_publisher.py" name="gps_target_frame_publisher" output="screen">

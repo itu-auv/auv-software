@@ -11,6 +11,7 @@ from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
     CancelAlignControllerState,
     ClearObjectMapState,
+    ClearKDEMapState,
 )
 from typing import Optional, Literal
 from dataclasses import dataclass
@@ -191,6 +192,15 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "CLEAR_OBJECT_MAP",
                 ClearObjectMapState(),
+                transitions={
+                    "succeeded": "CLEAR_KDE_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_KDE_MAP",
+                ClearKDEMapState(),
                 transitions={
                     "succeeded": "SET_START_FRAME",
                     "preempted": "preempted",
