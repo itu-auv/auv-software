@@ -99,7 +99,8 @@ class BinTransformServiceNode:
 
         if center_frame is None:
             rospy.logwarn_throttle(
-                5.0, "No bottom search center frame (bin_blood_link/bin_fire_link) available."
+                5.0,
+                "No bottom search center frame (bin_blood_link/bin_fire_link) available.",
             )
             return
 
@@ -115,7 +116,10 @@ class BinTransformServiceNode:
         yaw = 0.0
         try:
             transform_closer = self.tf_buffer.lookup_transform(
-                self.odom_frame, self.bin_closer_frame, rospy.Time(0), rospy.Duration(1.0)
+                self.odom_frame,
+                self.bin_closer_frame,
+                rospy.Time(0),
+                rospy.Duration(1.0),
             )
             closer_pose = self.get_pose(transform_closer)
             q_closer = [
@@ -127,7 +131,8 @@ class BinTransformServiceNode:
             _, _, yaw = tf.transformations.euler_from_quaternion(q_closer)
         except Exception as e:
             rospy.logwarn_throttle(
-                10.0, f"Could not lookup closer frame orientation: {e}. Defaulting to yaw 0.0"
+                10.0,
+                f"Could not lookup closer frame orientation: {e}. Defaulting to yaw 0.0",
             )
 
         center_pose = self.get_pose(transform_center)

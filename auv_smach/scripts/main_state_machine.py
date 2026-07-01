@@ -216,6 +216,7 @@ class MainStateMachineNode:
             if is_survey_repair
             else BIN_BLOOD_FIRST_LIST_FRAMES
         )
+
     @staticmethod
     def parse_state_list_param(raw_state_list):
         if isinstance(raw_state_list, list):

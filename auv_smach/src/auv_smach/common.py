@@ -1860,4 +1860,3 @@ class AlignFrameWithTransformCheck(smach.Concurrence):
                     allow_mutli_check_goal=allow_mutli_check_goal,
                 ),
             )
-

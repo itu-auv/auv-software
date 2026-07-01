@@ -90,9 +90,7 @@ class CheckForDropAreaState(smach.State):
         self.tf_buffer = get_tf_buffer()
         self.target_frames = target_frames or ["bin_shark_link", "bin_sawfish_link"]
 
-        rospy.loginfo(
-            f"[CheckForDropAreaState] Frame priority: {self.target_frames}"
-        )
+        rospy.loginfo(f"[CheckForDropAreaState] Frame priority: {self.target_frames}")
 
     def execute(self, userdata) -> str:
         start_time = rospy.Time.now()
@@ -212,7 +210,7 @@ class BinSearchSequenceState(smach.StateMachine):
                     "succeeded": "ALIGN_SEARCH_FRONT",
                     "preempted": "preempted",
                     "aborted": "aborted",
-                }
+                },
             )
 
             smach.StateMachine.add(
@@ -235,7 +233,7 @@ class BinSearchSequenceState(smach.StateMachine):
                     "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
                     "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
                     "aborted": "ALIGN_SEARCH_LEFT",
-                }
+                },
             )
 
             smach.StateMachine.add(
@@ -258,7 +256,7 @@ class BinSearchSequenceState(smach.StateMachine):
                     "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
                     "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
                     "aborted": "ALIGN_SEARCH_BACK",
-                }
+                },
             )
 
             smach.StateMachine.add(
@@ -281,7 +279,7 @@ class BinSearchSequenceState(smach.StateMachine):
                     "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
                     "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
                     "aborted": "ALIGN_SEARCH_RIGHT",
-                }
+                },
             )
 
             smach.StateMachine.add(
@@ -304,7 +302,7 @@ class BinSearchSequenceState(smach.StateMachine):
                     "succeeded": "DISABLE_BOTTOM_SEARCH_SUCCESS",
                     "preempted": "DISABLE_BOTTOM_SEARCH_PREEMPTED",
                     "aborted": "DISABLE_BOTTOM_SEARCH_ABORTED",
-                }
+                },
             )
 
             smach.StateMachine.add(
@@ -314,7 +312,7 @@ class BinSearchSequenceState(smach.StateMachine):
                     "succeeded": "succeeded",
                     "preempted": "preempted",
                     "aborted": "succeeded",
-                }
+                },
             )
 
             smach.StateMachine.add(
@@ -324,7 +322,7 @@ class BinSearchSequenceState(smach.StateMachine):
                     "succeeded": "preempted",
                     "preempted": "preempted",
                     "aborted": "preempted",
-                }
+                },
             )
 
             smach.StateMachine.add(
@@ -334,9 +332,8 @@ class BinSearchSequenceState(smach.StateMachine):
                     "succeeded": "aborted",
                     "preempted": "preempted",
                     "aborted": "aborted",
-                }
+                },
             )
-
 
 
 class SetAlignToFoundState(smach.State):
@@ -403,6 +400,7 @@ class SetAlignToFoundState(smach.State):
 # for the bin task. Handles path planning, execution, and verification of the second trial process.
 ###############################################################################
 
+
 class BinSecondTrialState(smach.StateMachine):
     def __init__(
         self,
@@ -443,7 +441,9 @@ class BinSecondTrialState(smach.StateMachine):
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
-           )
+            )
+
+
 ###############################################################################
 # BinTaskState - Main state for managing the bin task. Handles the complete
 # process including frame management, depth control, path planning, and ball dropping operations.
@@ -498,7 +498,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "FIND_AND_AIM_BIN",
                 SearchForPropState(
-                    look_at_frame=self.bin_search_frame,  #should entegrate kde frame here
+                    look_at_frame=self.bin_search_frame,  # should entegrate kde frame here
                     alignment_frame="bin_search",
                     full_rotation=False,
                     source_frame=self.base_link,
@@ -702,7 +702,7 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "ALLIGN_TO_SECOND_BASKET",
                 AlignFrame(
-                    source_frame=self.base_link+"/ball_dropper_2_link",
+                    source_frame=self.base_link + "/ball_dropper_2_link",
                     target_frame=target_frames[0],
                     angle_offset=0.0,
                     dist_threshold=0.1,

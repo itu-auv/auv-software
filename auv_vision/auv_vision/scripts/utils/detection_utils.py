@@ -245,7 +245,7 @@ BOTTOM_FORBIDDEN_MASKS = (
         (1917.0, 429.0),
         (1917.0, 321.0),
     ),
-)   
+)
 
 
 def _scale_polygon(
