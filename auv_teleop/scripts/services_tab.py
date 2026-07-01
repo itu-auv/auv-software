@@ -181,6 +181,21 @@ class ROSServiceCaller:
             print(f"Service not available: {e}")
             return False
 
+    def enable_all_detections(self, enable):
+        try:
+            rospy.wait_for_service("vision/enable_all_camera_detections", timeout=1)
+            service = rospy.ServiceProxy("vision/enable_all_camera_detections", SetBool)
+            request = SetBoolRequest()
+            request.data = enable
+            response = service(request)
+            return response.success
+        except rospy.ServiceException as e:
+            print(f"Service call failed: {e}")
+            return False
+        except rospy.ROSException as e:
+            print(f"Service not available: {e}")
+            return False
+
 
 class ServicesTab(QWidget):
     def __init__(self, include_simulation=True):
@@ -225,7 +240,9 @@ class ServicesTab(QWidget):
 
         # Services
         service_group = QGroupBox("Services")
-        service_layout = QVBoxLayout()
+        service_main_layout = QHBoxLayout()
+
+        service_left_layout = QVBoxLayout()
 
         # First row of buttons
         first_row = QHBoxLayout()
@@ -255,9 +272,31 @@ class ServicesTab(QWidget):
         second_row.addStretch(1)
         second_row.addWidget(self.reset_pose_btn, 0, Qt.AlignLeft)
 
-        service_layout.addLayout(first_row)
-        service_layout.addLayout(second_row)
-        service_group.setLayout(service_layout)
+        service_left_layout.addLayout(first_row)
+        service_left_layout.addLayout(second_row)
+
+        # Right side layout for Vision Enable/Disable
+        service_right_layout = QVBoxLayout()
+        service_right_layout.addStretch(1)
+
+        self.enable_all_vision_btn = QPushButton("Enable All\nVision")
+        self.enable_all_vision_btn.setFixedSize(120, 60)
+        self.enable_all_vision_btn.setStyleSheet("font-size: 11px;")
+
+        self.disable_all_vision_btn = QPushButton("Disable All\nVision")
+        self.disable_all_vision_btn.setFixedSize(120, 60)
+        self.disable_all_vision_btn.setStyleSheet("font-size: 11px;")
+
+        service_right_layout.addWidget(self.enable_all_vision_btn, 0, Qt.AlignCenter)
+        service_right_layout.addSpacing(10)
+        service_right_layout.addWidget(self.disable_all_vision_btn, 0, Qt.AlignCenter)
+        service_right_layout.addStretch(1)
+
+        service_main_layout.addLayout(service_left_layout)
+        service_main_layout.addSpacing(5)
+        service_main_layout.addLayout(service_right_layout)
+
+        service_group.setLayout(service_main_layout)
 
         # Missions
         mission_group = QGroupBox("Missions")
@@ -296,6 +335,8 @@ class ServicesTab(QWidget):
         self.reset_pose_btn.clicked.connect(self.reset_pose)
         self.torpedo1_btn.clicked.connect(lambda: self.launch_torpedo("torpedo_1"))
         self.torpedo2_btn.clicked.connect(lambda: self.launch_torpedo("torpedo_2"))
+        self.enable_all_vision_btn.clicked.connect(self.enable_all_vision)
+        self.disable_all_vision_btn.clicked.connect(self.disable_all_vision)
 
     def set_depth(self):
         depth = self.depth_spin.value()
@@ -374,3 +415,17 @@ class ServicesTab(QWidget):
         result = self.ros_service_caller.launch_torpedo(torpedo_id)
         if not result:
             QMessageBox.warning(self, "Error", f"Failed to launch {torpedo_id}.")
+
+    def enable_all_vision(self):
+        result = self.ros_service_caller.enable_all_detections(True)
+        if result:
+            print("All vision/detections enabled")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to enable all vision.")
+
+    def disable_all_vision(self):
+        result = self.ros_service_caller.enable_all_detections(False)
+        if result:
+            print("All vision/detections disabled")
+        else:
+            QMessageBox.warning(self, "Error", "Failed to disable all vision.")

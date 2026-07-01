@@ -32,10 +32,12 @@
       <remap from="object_transform_updates" to="map/object_transform_updates" />
       <remap from="odometry" to="odometry" />
       <remap from="enable_front_camera_detections" to="vision/enable_front_camera_detections"/>
+      <remap from="enable_front_kde_camera_detections" to="vision/enable_front_kde_camera_detections"/>
       <remap from="enable_bottom_camera_detections" to="vision/enable_bottom_camera_detections"/>
       <remap from="enable_slalom_camera_detections" to="vision/enable_slalom_camera_detections"/>
       <remap from="enable_torpedo_camera_detections" to="vision/enable_torpedo_camera_detections"/>
       <remap from="enable_segment_camera_detections" to="vision/enable_segment_camera_detections"/>
+      <remap from="enable_all_camera_detections" to="vision/enable_all_camera_detections"/>
       <remap from="set_front_camera_focus" to="vision/set_front_camera_focus"/>
       <remap from="set_bottom_camera_focus" to="vision/set_bottom_camera_focus"/>
     </node>
