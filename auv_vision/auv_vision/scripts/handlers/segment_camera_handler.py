@@ -175,15 +175,26 @@ class SegmentCameraHandler:
             return
 
         _, table_binary = cv2.threshold(table_mask, 0, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(
+            table_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        if not contours:
+            return
+
+        table_area = table_binary.copy()
+        table_area[:] = 0
+        table_contour = max(contours, key=cv2.contourArea)
+        cv2.drawContours(table_area, [table_contour], -1, 255, thickness=cv2.FILLED)
+
         visible_objects = []
 
         for prop_name in self.OCTAGON_TASK_OBJECT_ORDER:
             object_mask = object_masks.get(prop_name)
-            if object_mask is None or object_mask.shape[:2] != table_binary.shape[:2]:
+            if object_mask is None or object_mask.shape[:2] != table_area.shape[:2]:
                 continue
 
             _, object_binary = cv2.threshold(object_mask, 0, 255, cv2.THRESH_BINARY)
-            overlap = cv2.bitwise_and(table_binary, object_binary)
+            overlap = cv2.bitwise_and(table_area, object_binary)
             if cv2.countNonZero(overlap) > 0:
                 visible_objects.append(prop_name)
 
