@@ -197,7 +197,7 @@ objects:
 
   # Bin baskets (front camera)
   - class_id: 6
-    name: bin_basket
+    name: bin_basket_front
     cameras: [front, realsense]
     gazebo_model: robosub_bin
     offset: [-0.7432, 0.2978, -0.1486]
@@ -206,7 +206,7 @@ objects:
       args: [0.17, 0.17, 0.17]
 
   - class_id: 6
-    name: bin_basket
+    name: bin_basket_front
     cameras: [front, realsense]
     gazebo_model: robosub_bin
     offset: [-0.4462, 1.5502, 0.3349]
@@ -215,7 +215,7 @@ objects:
       args: [0.17, 0.17, 0.17]
 
   - class_id: 6
-    name: bin_basket
+    name: bin_basket_front
     cameras: [front, realsense]
     gazebo_model: robosub_bin
     offset: [-0.0937, 0.6191, -0.0805]
@@ -224,7 +224,7 @@ objects:
       args: [0.17, 0.17, 0.17]
 
   - class_id: 6
-    name: bin_basket
+    name: bin_basket_front
     cameras: [front, realsense]
     gazebo_model: robosub_bin
     offset: [-1.0420, 1.2816, 0.0919]

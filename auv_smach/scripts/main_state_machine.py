@@ -25,6 +25,8 @@ from auv_bringup.cfg import SmachParametersConfig
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
+BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_link", "bin_blood_link"]
+BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_link", "bin_fire_link"]
 RANDOM_PINGER_MEMBER_STATES = {
     "NAVIGATE_TO_TORPEDO_TASK",
     "NAVIGATE_TO_OCTAGON_TASK",
@@ -205,6 +207,14 @@ class MainStateMachineNode:
         self.bin_exit_angle_deg = config.bin_exit_angle
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
 
+    def get_bin_target_frames(self):
+        is_survey_repair = self.selected_role == DEFAULT_SELECTED_ROLE
+        return (
+            BIN_FIRE_FIRST_LIST_FRAMES
+            if is_survey_repair
+            else BIN_BLOOD_FIRST_LIST_FRAMES
+        )
+
     @staticmethod
     def parse_state_list_param(raw_state_list):
         if isinstance(raw_state_list, list):
@@ -322,6 +332,8 @@ class MainStateMachineNode:
             f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
         )
 
+        bin_target_frames = self.get_bin_target_frames()
+        rospy.loginfo(f"Bin target frames order: {bin_target_frames}")
         legacy_target_selection = self.get_legacy_target_selection()
         octagon_target_role_frame = self.get_octagon_target_role_frame()
 
@@ -377,7 +389,7 @@ class MainStateMachineNode:
                 {
                     "bin_front_look_depth": self.bin_front_look_depth,
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
-                    "target_selection": legacy_target_selection,
+                    "target_frames": bin_target_frames,
                     "bin_exit_angle": bin_exit_angle_rad,
                     "bin_search_frame": self.bin_search_frame,
                 },
