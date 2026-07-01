@@ -35,6 +35,8 @@
       <param name="rate" value="$(arg rate)" />
       <param name="body_frame" value="$(arg namespace)/base_link" />
       <param name="frame_prefix" value="$(arg namespace)" />
+      <param name="minimum_voltage_threshold" value="13.5" />
+      <param name="low_voltage_duration" value="3.0" />
       <remap from="power" to="mainboard/power_sensor/power" />
       <rosparam file="$(arg config_file)" command="load" ns="" />
     </node>
@@ -62,7 +64,7 @@
     <node pkg="auv_control" type="battery_monitor_node.py" name="battery_monitor_node"
       output="screen">
       <remap from="power" to="mainboard/power_sensor/power" />
-      <param name="minimum_voltage_threshold" value="13.0" />
+      <param name="minimum_voltage_threshold" value="13.5" />
       <param name="voltage_warn_threshold" value="15.0" />
       <param name="power_message_timeout" value="5" />
       <param name="min_log_interval" value="1.0" />
