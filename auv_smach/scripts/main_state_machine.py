@@ -138,12 +138,13 @@ class MainStateMachineNode:
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
-        self.acoustic_tx_publish_rate = 1.0  # Hz
-        self.acoustic_tx_duration = 5.0  # seconds
+        self.acoustic_tx_topic = "acoustic/modem/transmitted"
 
         # Acoustic receiver parameters
-        self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
-        self.acoustic_rx_timeout = 30.0  # seconds
+        self.acoustic_rx_expected_data = [1]
+        self.acoustic_rx_timeout = 60.0  # seconds
+        self.acoustic_rx_topic = "acoustic/modem/received"
+        self.acoustic_rx_accept_any_data = False
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -414,13 +415,18 @@ class MainStateMachineNode:
             ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
-                {},
+                {
+                    "acoustic_data": self.acoustic_tx_data_value,
+                    "topic_name": self.acoustic_tx_topic,
+                },
             ),
             "ACOUSTIC_RECEIVER": (
                 AcousticReceiver,
                 {
                     "expected_data": self.acoustic_rx_expected_data,
                     "timeout": self.acoustic_rx_timeout,
+                    "topic_name": self.acoustic_rx_topic,
+                    "accept_any_data": self.acoustic_rx_accept_any_data,
                 },
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (
