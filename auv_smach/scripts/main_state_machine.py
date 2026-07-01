@@ -144,6 +144,7 @@ class MainStateMachineNode:
         self.acoustic_rx_expected_data = [1]
         self.acoustic_rx_timeout = 60.0  # seconds
         self.acoustic_rx_topic = "acoustic/modem/received"
+        self.acoustic_rx_accept_any_data = False
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -425,6 +426,7 @@ class MainStateMachineNode:
                     "expected_data": self.acoustic_rx_expected_data,
                     "timeout": self.acoustic_rx_timeout,
                     "topic_name": self.acoustic_rx_topic,
+                    "accept_any_data": self.acoustic_rx_accept_any_data,
                 },
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (

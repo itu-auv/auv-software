@@ -59,24 +59,26 @@ class AcousticReceiver(smach.State):
         expected_data=None,
         timeout=None,
         topic_name=DEFAULT_ACOUSTIC_RX_TOPIC,
+        accept_any_data=False,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
         self.expected_data = _normalize_data(expected_data)
         self.timeout = timeout
         self.topic_name = topic_name
+        self.accept_any_data = accept_any_data
         self.data_received = False
         self.acoustic_sub = None
 
         rospy.loginfo(
-            f"AcousticReceiver initialized - topic: {self.topic_name}, expected: {self.expected_data}, timeout: {timeout}s"
+            f"AcousticReceiver initialized - topic: {self.topic_name}, expected: {self.expected_data}, accept_any_data: {self.accept_any_data}, timeout: {timeout}s"
         )
 
     def acoustic_callback(self, msg):
         received_data = list(msg.data)
         rospy.logdebug(f"Received acoustic data: {received_data}")
 
-        if self.expected_data is None:
+        if self.accept_any_data or self.expected_data is None:
             self.data_received = True
             rospy.loginfo(f"Acoustic data received: {received_data}")
         elif received_data == self.expected_data:
@@ -85,7 +87,7 @@ class AcousticReceiver(smach.State):
 
     def execute(self, userdata):
         rospy.loginfo(
-            f"Starting acoustic reception on {self.topic_name} - waiting for: {self.expected_data}"
+            f"Starting acoustic reception on {self.topic_name} - waiting for: {self.expected_data}, accept_any_data: {self.accept_any_data}"
         )
 
         self.data_received = False
