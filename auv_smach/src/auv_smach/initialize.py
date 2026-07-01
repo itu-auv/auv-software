@@ -174,6 +174,15 @@ class InitializeState(smach.State):
                 "DISABLE_SLALOM_DETECTION",
                 SetDetectionState(camera_name="slalom", enable=False),
                 transitions={
+                    "succeeded": "DISABLE_SEGMENT_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_SEGMENT_DETECTION",
+                SetDetectionState(camera_name="segment", enable=False),
+                transitions={
                     "succeeded": "SET_DETECTION_TO_NONE",
                     "preempted": "preempted",
                     "aborted": "aborted",
