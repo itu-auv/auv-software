@@ -111,10 +111,10 @@ props:
   slalom_red_pipe_link: {name: "slalom_red_pipe", real_height: 0.9, real_width: 0.0254}
   slalom_white_pipe_link: {name: "slalom_white_pipe", real_height: 0.9, real_width: 0.0254}
   torpedo_map_link: {name: "torpedo_map", real_height: 0.6096, real_width: 0.6096}
-  torpedo_hole_left_mid_link: {name: "torpedo_hole", real_height: 0.1525, real_width: 0.1525}
-  torpedo_hole_bottom_right_link: {name: "torpedo_hole", real_height: 0.1525, real_width: 0.1525}
-  torpedo_hole_bottom_mid_link: {name: "torpedo_hole", real_height: 0.1275, real_width: 0.1275}
-  torpedo_hole_top_mid_link: {name: "torpedo_hole", real_height: 0.1275, real_width: 0.1275}
+  torpedo_hole_left_link: {name: "torpedo_hole", real_height: 0.1525, real_width: 0.1525}
+  torpedo_hole_right_link: {name: "torpedo_hole", real_height: 0.1525, real_width: 0.1525}
+  torpedo_hole_bottom_link: {name: "torpedo_hole", real_height: 0.1275, real_width: 0.1275}
+  torpedo_hole_top_link: {name: "torpedo_hole", real_height: 0.1275, real_width: 0.1275}
   bin_whole_link: {name: "bin_whole", real_height: null, real_width: null}
   bin_basket_front_link: {name: "bin_basket_front", real_height: 0.304, real_width: 0.304}
   octagon_link: {name: "octagon", real_height: 0.74, real_width: 0.91}
