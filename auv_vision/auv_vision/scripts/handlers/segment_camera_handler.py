@@ -6,9 +6,11 @@ from collections import defaultdict, deque
 import re
 
 import rospy
+import cv2
 from cv_bridge import CvBridge
 from geometry_msgs.msg import Point, PoseStamped, Quaternion, TransformStamped, Vector3
 from sensor_msgs.msg import CompressedImage
+from std_msgs.msg import String
 from ultralytics_ros.msg import YoloResult
 import tf2_ros
 from tf import transformations as tf_transformations
@@ -25,6 +27,14 @@ from utils.segment_utils import (
 
 
 class SegmentCameraHandler:
+    OCTAGON_TABLE_SEGMENT_NAME = "octagon_table_segment_link"
+    OCTAGON_TASK_OBJECT_ORDER = (
+        "pill_link",
+        "nutbolt_link",
+        "electric_link",
+        "bandaid_link",
+    )
+
     def __init__(
         self,
         camera_config,
@@ -59,6 +69,9 @@ class SegmentCameraHandler:
             else None
         )
         self.last_yaws = {}
+        self.task_object_list_pub = rospy.Publisher(
+            "octagon/object_list", String, queue_size=1
+        )
 
     def _mask_to_cv2(self, mask_msg):
         try:
@@ -157,10 +170,31 @@ class SegmentCameraHandler:
 
         return Quaternion(0, 0, 0, 1)
 
+    def _publish_octagon_task_object_list(self, table_mask, object_masks):
+        if table_mask is None:
+            return
+
+        _, table_binary = cv2.threshold(table_mask, 0, 255, cv2.THRESH_BINARY)
+        visible_objects = []
+
+        for prop_name in self.OCTAGON_TASK_OBJECT_ORDER:
+            object_mask = object_masks.get(prop_name)
+            if object_mask is None or object_mask.shape[:2] != table_binary.shape[:2]:
+                continue
+
+            _, object_binary = cv2.threshold(object_mask, 0, 255, cv2.THRESH_BINARY)
+            overlap = cv2.bitwise_and(table_binary, object_binary)
+            if cv2.countNonZero(overlap) > 0:
+                visible_objects.append(prop_name)
+
+        self.task_object_list_pub.publish(String(data=",".join(visible_objects)))
+
     def handle(self, detection_msg: YoloResult):
         masks_msgs = list(detection_msg.masks) if detection_msg.masks else []
         stamp = detection_msg.header.stamp
         masks_by_id = defaultdict(deque)
+        octagon_table_mask = None
+        octagon_task_object_masks = {}
 
         # Prefer explicit mask IDs from mask headers.
         for mask_msg in masks_msgs:
@@ -203,6 +237,11 @@ class SegmentCameraHandler:
                 if mask_msg is not None:
                     mask = self._mask_to_cv2(mask_msg)
                     if mask is not None:
+                        if prop_name == self.OCTAGON_TABLE_SEGMENT_NAME:
+                            octagon_table_mask = mask
+                        elif prop_name in self.OCTAGON_TASK_OBJECT_ORDER:
+                            octagon_task_object_masks[prop_name] = mask
+
                         last_yaw = self.last_yaws.get(detection_id)
                         if prop_name == "electric_link" or prop_name == "bandaid_link":
                             geometry = findposes_rect(
@@ -313,6 +352,9 @@ class SegmentCameraHandler:
                     f"Segment detection processing failed for id={detection_id}: {e}",
                 )
                 continue
+        self._publish_octagon_task_object_list(
+            octagon_table_mask, octagon_task_object_masks
+        )
         if self.debug_segment_pose and debug_items_by_id:
             publish_merged_debug_image(
                 self.segment_pose_debug_pub,
