@@ -55,9 +55,7 @@ class CompetitionMapGUI:
         self.root.attributes("-zoomed", True)
 
         self.service_name = rospy.get_param("~set_premap_service", "map/set_premap")
-        self.get_service_name = rospy.get_param(
-            "~get_premap_service", "map/get_premap"
-        )
+        self.get_service_name = rospy.get_param("~get_premap_service", "map/get_premap")
         default_reference_frame = str(
             rospy.get_param("~reference_frame", self.REFERENCE_FRAME)
         )
@@ -758,7 +756,9 @@ class CompetitionMapGUI:
             resp = get_premap(TriggerRequest())
 
             if not resp.success:
-                messagebox.showerror("Error", f"Service returned error:\n{resp.message}")
+                messagebox.showerror(
+                    "Error", f"Service returned error:\n{resp.message}"
+                )
                 return
 
             premap_data = yaml.safe_load(resp.message) or {}
