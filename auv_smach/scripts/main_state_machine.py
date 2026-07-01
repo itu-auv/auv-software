@@ -27,8 +27,6 @@ DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
 BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_link", "bin_blood_link"]
 BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_link", "bin_fire_link"]
-LEFT_TOP_TORPEDO_FIRE_FRAMES = ["torpedo_left_fire", "torpedo_top_fire"]
-RIGHT_BOTTOM_TORPEDO_FIRE_FRAMES = ["torpedo_right_fire", "torpedo_bottom_fire"]
 RANDOM_PINGER_MEMBER_STATES = {
     "NAVIGATE_TO_TORPEDO_TASK",
     "NAVIGATE_TO_OCTAGON_TASK",
