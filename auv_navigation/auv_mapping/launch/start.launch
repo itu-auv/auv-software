@@ -56,6 +56,7 @@
       <param name="static_frame" value="$(arg static_frame)" />
       <param name="premap_file" value="$(find auv_mapping)/config/premaps/premap.yaml" />
       <remap from="set_premap" to="map/set_premap" />
+      <remap from="get_premap" to="map/get_premap" />
     </node>
 
 

@@ -3,12 +3,14 @@
 import tkinter as tk
 from tkinter import messagebox
 import math
+import yaml
 
 import rospy
 from geometry_msgs.msg import Pose
-from tf.transformations import quaternion_from_euler
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from auv_msgs.msg import ObjectPose
 from auv_msgs.srv import SetPremap, SetPremapRequest
+from std_srvs.srv import Trigger, TriggerRequest
 
 
 class CompetitionMapGUI:
@@ -36,6 +38,13 @@ class CompetitionMapGUI:
         "torpedo": ["torpedo_map_link"],
         "octagon": ["octagon_link"],
     }
+    SERVICE_LABEL_TO_OBJECT = {
+        "gate_search_rescue_link": "gate",
+        "gate_survey_repair_link": "gate",
+        "bin_basket_front_link": "bin",
+        "torpedo_map_link": "torpedo",
+        "octagon_link": "octagon",
+    }
 
     REFERENCE_FRAME = "coin_flip_rescuer"
     REFERENCE_FRAME_OPTIONS = ("coin_flip_rescuer", "odom")
@@ -46,6 +55,9 @@ class CompetitionMapGUI:
         self.root.attributes("-zoomed", True)
 
         self.service_name = rospy.get_param("~set_premap_service", "map/set_premap")
+        self.get_service_name = rospy.get_param(
+            "~get_premap_service", "map/get_premap"
+        )
         default_reference_frame = str(
             rospy.get_param("~reference_frame", self.REFERENCE_FRAME)
         )
@@ -147,6 +159,15 @@ class CompetitionMapGUI:
             text="Send to Vehicle",
             command=self.send_to_vehicle,
             bg="#2196F3",
+            fg="white",
+            font=("Arial", 10, "bold"),
+        ).pack(fill=tk.X, padx=10, pady=5)
+
+        tk.Button(
+            left_frame,
+            text="Get From Vehicle",
+            command=self.get_from_vehicle,
+            bg="#4CAF50",
             fg="white",
             font=("Arial", 10, "bold"),
         ).pack(fill=tk.X, padx=10, pady=5)
@@ -558,6 +579,12 @@ class CompetitionMapGUI:
         self.positions_text.delete(1.0, tk.END)
         self.positions_text.config(state=tk.DISABLED)
 
+    def get_object_style(self, obj_name):
+        for name, color, obj_type, length in self.OBJECTS:
+            if name == obj_name:
+                return color, obj_type, length
+        return "black", "point", 0
+
     def get_relative_positions(self):
         """Calculate relative positions of all objects to reference frame"""
         if "reference" not in self.placed_objects:
@@ -673,6 +700,7 @@ class CompetitionMapGUI:
                 messagebox.showwarning("Warning", "No objects placed to send")
                 return
 
+            self.add_gui_metadata_to_request(req, selected_frame)
             self.log_request_positions(selected_frame, relative_positions)
 
             rospy.loginfo(
@@ -702,6 +730,157 @@ class CompetitionMapGUI:
             messagebox.showerror("Error", f"Service call failed:\n{e}")
         except Exception as e:
             messagebox.showerror("Error", f"Failed to send:\n{e}")
+
+    def add_gui_metadata_to_request(self, req, selected_frame):
+        reference_frame_marker = ObjectPose()
+        reference_frame_marker.label = f"__gui/reference_frame/{selected_frame}"
+        req.objects.append(reference_frame_marker)
+
+        for obj_name, obj_data in self.placed_objects.items():
+            obj_pose = ObjectPose()
+            obj_pose.label = f"__gui/object/{obj_name}"
+            obj_pose.pose.position.x = obj_data[0]
+            obj_pose.pose.position.y = obj_data[1]
+            obj_pose.pose.position.z = 0.0
+
+            yaw_rad = math.radians(obj_data[5])
+            q = quaternion_from_euler(0, 0, yaw_rad)
+            obj_pose.pose.orientation.x = q[0]
+            obj_pose.pose.orientation.y = q[1]
+            obj_pose.pose.orientation.z = q[2]
+            obj_pose.pose.orientation.w = q[3]
+            req.objects.append(obj_pose)
+
+    def get_from_vehicle(self):
+        try:
+            rospy.wait_for_service(self.get_service_name, timeout=2.0)
+            get_premap = rospy.ServiceProxy(self.get_service_name, Trigger)
+            resp = get_premap(TriggerRequest())
+
+            if not resp.success:
+                messagebox.showerror("Error", f"Service returned error:\n{resp.message}")
+                return
+
+            premap_data = yaml.safe_load(resp.message) or {}
+            objects = premap_data.get("objects", {})
+            gui_state = premap_data.get("gui_state", {}) or {}
+            gui_objects = gui_state.get("objects", {})
+            if not objects and not gui_objects:
+                messagebox.showwarning("Warning", "Vehicle has no loaded premap data")
+                return
+
+            response_frame = gui_state.get(
+                "reference_frame", premap_data.get("reference_frame", "odom")
+            )
+            if response_frame in self.REFERENCE_FRAME_OPTIONS:
+                self.reference_frame_var.set(response_frame)
+
+            if gui_objects:
+                self.apply_gui_state(gui_objects)
+                loaded_count = len(gui_objects)
+            else:
+                self.apply_vehicle_premap(objects, response_frame)
+                loaded_count = len(objects)
+
+            messagebox.showinfo(
+                "Success",
+                f"Loaded {loaded_count} object(s) from vehicle.",
+            )
+
+        except rospy.ServiceException as e:
+            messagebox.showerror("Error", f"Service call failed:\n{e}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to get premap:\n{e}")
+
+    def apply_gui_state(self, objects):
+        self.placed_objects.clear()
+
+        for obj_name, obj_data in objects.items():
+            color, obj_type, obj_length = self.get_object_style(obj_name)
+            position = obj_data.get("position", [0.0, 0.0, 0.0])
+            quat = obj_data.get("orientation", [0.0, 0.0, 0.0, 1.0])
+            _, _, yaw_rad = euler_from_quaternion(quat)
+            yaw = math.degrees(yaw_rad)
+
+            self.placed_objects[obj_name] = (
+                float(position[0]),
+                float(position[1]),
+                color,
+                obj_type,
+                obj_length,
+                yaw,
+            )
+
+        selected = self.selected_object.get()
+        if selected in self.placed_objects:
+            self.yaw_var.set(self.placed_objects[selected][5])
+
+        self.redraw_objects()
+        self.update_positions_text()
+
+    def apply_vehicle_premap(self, objects, response_frame):
+        if response_frame == "odom":
+            self.placed_objects["reference"] = (
+                0.0,
+                0.0,
+                "green",
+                "frame",
+                0,
+                -90.0,
+            )
+        elif "reference" not in self.placed_objects:
+            self.placed_objects["reference"] = (
+                0.0,
+                0.0,
+                "green",
+                "frame",
+                0,
+                0.0,
+            )
+
+        ref_data = self.placed_objects["reference"]
+        ref_x, ref_y, ref_yaw = ref_data[0], ref_data[1], ref_data[5]
+        frame_heading_rad = math.radians(ref_yaw + 90)
+
+        for label, obj_data in objects.items():
+            obj_name = self.SERVICE_LABEL_TO_OBJECT.get(label, label)
+            if obj_name == "reference":
+                continue
+
+            color, obj_type, obj_length = self.get_object_style(obj_name)
+            position = obj_data.get("position", [0.0, 0.0, 0.0])
+            rel_x = float(position[0])
+            rel_y = float(position[1])
+            dx = rel_x * math.cos(frame_heading_rad) - rel_y * math.sin(
+                frame_heading_rad
+            )
+            dy = rel_x * math.sin(frame_heading_rad) + rel_y * math.cos(
+                frame_heading_rad
+            )
+
+            quat = obj_data.get("orientation", [0.0, 0.0, 0.0, 1.0])
+            _, _, yaw_rad = euler_from_quaternion(quat)
+            obj_yaw = math.degrees(yaw_rad) + ref_yaw
+            while obj_yaw > 180:
+                obj_yaw -= 360
+            while obj_yaw < -180:
+                obj_yaw += 360
+
+            self.placed_objects[obj_name] = (
+                ref_x + dx,
+                ref_y + dy,
+                color,
+                obj_type,
+                obj_length,
+                obj_yaw,
+            )
+
+        selected = self.selected_object.get()
+        if selected in self.placed_objects:
+            self.yaw_var.set(self.placed_objects[selected][5])
+
+        self.redraw_objects()
+        self.update_positions_text()
 
 
 def main():
