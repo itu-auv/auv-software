@@ -212,75 +212,38 @@ TORPEDO_FORBIDDEN_SIDE_MASKS = (
 BOTTOM_MASK_REFERENCE_WIDTH = 1920.0
 BOTTOM_MASK_REFERENCE_HEIGHT = 1080.0
 BOTTOM_FORBIDDEN_MASKS = (
-    # Polygon 1 — left side AUV body / arms
+    # Polygon 1
     (
-        (438.0, 29.0),
-        (447.0, 98.0),
-        (458.0, 123.0),
-        (460.0, 175.0),
-        (454.0, 202.0),
-        (454.0, 226.0),
-        (450.0, 261.0),
-        (443.0, 277.0),
-        (433.0, 294.0),
-        (397.0, 333.0),
-        (393.0, 367.0),
-        (394.0, 408.0),
-        (405.0, 423.0),
-        (455.0, 442.0),
-        (458.0, 467.0),
-        (459.0, 517.0),
-        (457.0, 536.0),
-        (423.0, 536.0),
-        (411.0, 574.0),
-        (412.0, 592.0),
-        (412.0, 625.0),
-        (413.0, 653.0),
-        (413.0, 663.0),
-        (430.0, 690.0),
-        (445.0, 722.0),
-        (448.0, 750.0),
-        (447.0, 777.0),
-        (443.0, 807.0),
-        (440.0, 854.0),
-        (441.0, 877.0),
-        (441.0, 899.0),
-        (439.0, 920.0),
-        (438.0, 945.0),
-        (420.0, 975.0),
-        (439.0, 979.0),
-        (481.0, 979.0),
-        (492.0, 999.0),
-        (508.0, 1021.0),
-        (495.0, 1046.0),
-        (471.0, 1056.0),
-        (470.0, 1075.0),
-        (2.0, 1080.0),
-        (2.0, 32.0),
-        (439.0, 34.0),
+        (466.0, 1066.0),
+        (448.0, 720.0),
+        (423.0, 408.0),
+        (439.0, 33.0),
+        (295.0, 7.0),
+        (5.0, 11.0),
+        (2.0, 63.0),
+        (5.0, 159.0),
+        (0.0, 228.0),
+        (1.0, 857.0),
+        (2.0, 932.0),
+        (1.0, 1006.0),
+        (7.0, 1047.0),
+        (8.0, 1068.0),
+        (11.0, 1074.0),
+        (138.0, 1074.0),
+        (247.0, 1075.0),
+        (357.0, 1077.0),
+        (436.0, 1068.0),
+        (460.0, 1071.0),
     ),
-    # Polygon 2 — right side DVL
+    # Polygon 2
     (
-        (1875.0, 144.0),
-        (1788.0, 177.0),
-        (1732.0, 218.0),
-        (1685.0, 262.0),
-        (1645.0, 330.0),
-        (1629.0, 367.0),
-        (1607.0, 424.0),
-        (1603.0, 504.0),
-        (1594.0, 553.0),
-        (1603.0, 591.0),
-        (1614.0, 640.0),
-        (1649.0, 713.0),
-        (1700.0, 791.0),
-        (1755.0, 846.0),
-        (1848.0, 885.0),
-        (1892.0, 908.0),
-        (1920.0, 920.0),
-        (1918.0, 151.0),
-        (1920.0, 142.0),
-        (1876.0, 145.0),
+        (1911.0, 329.0),
+        (1891.0, 435.0),
+        (1893.0, 537.0),
+        (1903.0, 603.0),
+        (1918.0, 498.0),
+        (1917.0, 429.0),
+        (1917.0, 321.0),
     ),
 )
 
@@ -396,6 +359,48 @@ def check_inside_image_bottom(
         or center.y - half_size_y <= deadzone
     ):
         return False
+
+    # Forbidden polygon check
+    bbox_corners = (
+        (center.x - half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y - half_size_y),
+        (center.x + half_size_x, center.y + half_size_y),
+        (center.x - half_size_x, center.y + half_size_y),
+    )
+
+    if forbidden_masks is None:
+        forbidden_masks = tuple(
+            _scale_polygon(
+                mask,
+                image_width,
+                image_height,
+                BOTTOM_MASK_REFERENCE_WIDTH,
+                BOTTOM_MASK_REFERENCE_HEIGHT,
+            )
+            for mask in BOTTOM_FORBIDDEN_MASKS
+        )
+
+    for forbidden_mask in forbidden_masks:
+        if any(_point_in_polygon(corner, forbidden_mask) for corner in bbox_corners):
+            return False
+
+    return True
+
+
+def check_inside_image_bottom_bin(
+    detection,
+    image_width: int = 1920,
+    image_height: int = 1080,
+    forbidden_masks=None,
+) -> bool:
+    """Check if a bottom-camera detection bbox is inside the usable image area.
+
+    Returns False if:
+      - Any corner of the bbox falls inside a forbidden mask polygon.
+    """
+    center = detection.bbox.center
+    half_size_x = detection.bbox.size_x * 0.5
+    half_size_y = detection.bbox.size_y * 0.5
 
     # Forbidden polygon check
     bbox_corners = (

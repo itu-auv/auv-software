@@ -3,7 +3,8 @@
     <arg name="namespace" default="taluy" />
     <arg name="waypoint_prefix" default="path" />
     <arg name="default_waypoint_z" default="-1.0" />
-    <arg name="set_waypoint_service" default="set_waypoint" />
+    <arg name="set_waypoint_service" default="map/set_waypoint" />
+    <arg name="get_waypoint_service" default="map/get_waypoint" />
 
     <!--
       Canvas bounds in the per-path local frame (A = 0,0; +x forward in ref coords).
@@ -20,6 +21,7 @@
     <group ns="$(arg namespace)">
         <node name="waypoint_gui" pkg="auv_mapping" type="waypoint_gui.py" output="screen">
             <param name="set_waypoint_service" value="$(arg set_waypoint_service)" />
+            <param name="get_waypoint_service" value="$(arg get_waypoint_service)" />
             <param name="waypoint_prefix" value="$(arg waypoint_prefix)" />
             <param name="default_waypoint_z" value="$(arg default_waypoint_z)" />
 
@@ -32,11 +34,10 @@
             <rosparam param="reference_frame_options">
                 - "odom"
                 - "coin_flip"
-                - "bin_whole_link"
-                - "torpedo_map_link"
-                - "octagon_link"
-                - "gate_search_rescue_link"
-                - "gate_survey_repair_link"
+                - "gate_exit"
+                - "torpedo_map_link_kde"
+                - "octagon_link_kde"
+                - "bin_basket_front_link_kde"
             </rosparam>
         </node>
     </group>

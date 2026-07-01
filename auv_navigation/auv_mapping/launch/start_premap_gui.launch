@@ -6,6 +6,7 @@
     <group ns="$(arg namespace)">
         <node name="competition_map_gui" pkg="auv_mapping" type="competition_map_gui.py" output="screen">
             <param name="set_premap_service" value="map/set_premap" />
+            <param name="get_premap_service" value="map/get_premap" />
             <param name="reference_frame" value="$(arg reference_frame)" />
         </node>
     </group>

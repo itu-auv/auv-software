@@ -27,6 +27,8 @@ from auv_bringup.cfg import SmachParametersConfig
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
+BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_link", "bin_blood_link"]
+BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_link", "bin_fire_link"]
 RANDOM_PINGER_MEMBER_STATES = {
     "NAVIGATE_TO_TORPEDO_TASK",
     "NAVIGATE_TO_OCTAGON_TASK",
@@ -44,12 +46,12 @@ ROLE_TO_OCTAGON_TARGET_ROLE_FRAME = {
     "search_rescue": "octagon_rescue_link",
 }
 LEFT_TOP_TORPEDO_FIRE_FRAMES = [
-    "torpedo_left_mid_fire_frame",
-    "torpedo_top_mid_fire_frame",
+    "torpedo_left_fire_frame",
+    "torpedo_top_fire_frame",
 ]
 RIGHT_BOTTOM_TORPEDO_FIRE_FRAMES = [
-    "torpedo_bottom_right_fire_frame",
-    "torpedo_bottom_mid_fire_frame",
+    "torpedo_right_fire_frame",
+    "torpedo_bottom_fire_frame",
 ]
 
 
@@ -157,12 +159,13 @@ class MainStateMachineNode:
 
         # Acoustic transmitter parameters
         self.acoustic_tx_data_value = 1
-        self.acoustic_tx_publish_rate = 1.0  # Hz
-        self.acoustic_tx_duration = 5.0  # seconds
+        self.acoustic_tx_topic = "acoustic/modem/transmitted"
 
         # Acoustic receiver parameters
-        self.acoustic_rx_expected_data = [1, 2, 3]  # Accept any of these values
-        self.acoustic_rx_timeout = 30.0  # seconds
+        self.acoustic_rx_expected_data = [1]
+        self.acoustic_rx_timeout = 60.0  # seconds
+        self.acoustic_rx_topic = "acoustic/modem/received"
+        self.acoustic_rx_accept_any_data = False
 
         test_mode = rospy.get_param("~test_mode", False)
         # Get test states from ROS param
@@ -225,6 +228,14 @@ class MainStateMachineNode:
         self.slalom_exit_angle_deg = config.slalom_exit_angle
         self.bin_exit_angle_deg = config.bin_exit_angle
         self.torpedo_exit_angle_deg = config.torpedo_exit_angle
+
+    def get_bin_target_frames(self):
+        is_survey_repair = self.selected_role == DEFAULT_SELECTED_ROLE
+        return (
+            BIN_FIRE_FIRST_LIST_FRAMES
+            if is_survey_repair
+            else BIN_BLOOD_FIRST_LIST_FRAMES
+        )
 
     @staticmethod
     def parse_state_list_param(raw_state_list):
@@ -349,6 +360,8 @@ class MainStateMachineNode:
             f"Exit angles (degrees): gate={self.gate_exit_angle_deg}, slalom={self.slalom_exit_angle_deg}, bin={self.bin_exit_angle_deg}, torpedo={self.torpedo_exit_angle_deg}"
         )
 
+        bin_target_frames = self.get_bin_target_frames()
+        rospy.loginfo(f"Bin target frames order: {bin_target_frames}")
         legacy_target_selection = self.get_legacy_target_selection()
         gate_target_frame = self.get_gate_target_frame()
         octagon_target_role_frame = self.get_octagon_target_role_frame()
@@ -429,7 +442,7 @@ class MainStateMachineNode:
                 {
                     "bin_front_look_depth": self.bin_front_look_depth,
                     "bin_bottom_look_depth": self.bin_bottom_look_depth,
-                    "target_selection": legacy_target_selection,
+                    "target_frames": bin_target_frames,
                     "bin_exit_angle": bin_exit_angle_rad,
                     "bin_search_frame": self.bin_search_frame,
                 },
@@ -460,13 +473,18 @@ class MainStateMachineNode:
             ),
             "ACOUSTIC_TRANSMITTER": (
                 AcousticTransmitter,
-                {},
+                {
+                    "acoustic_data": self.acoustic_tx_data_value,
+                    "topic_name": self.acoustic_tx_topic,
+                },
             ),
             "ACOUSTIC_RECEIVER": (
                 AcousticReceiver,
                 {
                     "expected_data": self.acoustic_rx_expected_data,
                     "timeout": self.acoustic_rx_timeout,
+                    "topic_name": self.acoustic_rx_topic,
+                    "accept_any_data": self.acoustic_rx_accept_any_data,
                 },
             ),
             "NAVIGATE_RETURN_THROUGH_GATE": (
