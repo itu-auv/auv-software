@@ -683,7 +683,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "DROP_BALL_1",
-                BallDropperSetAngleState(angle_value=50.0),
+                BallDropperSetAngleState(angle_value=60.0),
                 transitions={
                     "succeeded": "WAIT_FOR_BALL_DROP_1",
                     "preempted": "preempted",
@@ -722,7 +722,7 @@ class BinTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "DROP_BALL_2",
-                BallDropperSetAngleState(angle_value=-50.0),
+                BallDropperSetAngleState(angle_value=-60.0),
                 transitions={
                     "succeeded": "WAIT_FOR_BALL_DROP_2",
                     "preempted": "preempted",
