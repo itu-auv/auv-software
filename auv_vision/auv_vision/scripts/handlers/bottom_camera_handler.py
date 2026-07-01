@@ -7,6 +7,8 @@ from utils.detection_utils import (
     check_inside_image,
     calculate_angles_and_offsets,
     transform_to_odom_and_publish,
+    check_inside_image_bottom,
+    check_inside_image_bottom_bin,
 )
 
 
@@ -35,11 +37,11 @@ class BottomCameraHandler:
 
         # IDs that use altitude for distance instead of prop size estimation
         self.altitude_distance_ids = self.id_tf_map.ids_of(
-            "bin_shark_link", "bin_sawfish_link", "octagon_table_link"
+            "bin_blood_link", "bin_fire_link", "octagon_table_link"
         )
 
         # Bottom camera specific state
-        self.active_ids = self.id_tf_map.ids_of("bin_shark_link", "bin_sawfish_link")
+        self.active_ids = self.id_tf_map.ids_of("bin_blood_link", "bin_fire_link")
 
     def set_active_ids(self, ids: list):
         """Called by orchestrator when set_bottom_camera_focus service is triggered."""
@@ -65,8 +67,12 @@ class BottomCameraHandler:
 
             prop = self.props[prop_name]
 
-            # Bin detections use altitude for distance and skip inside-image check
+            # Bin detections use altitude for distance and check inside-image (with bottom masks)
             if detection_id in self.altitude_distance_ids:
+                if not check_inside_image_bottom_bin(
+                    detection, self.image_width, self.image_height
+                ):
+                    continue
                 distance = self.shared_state.get("altitude")
                 if distance is None:
                     rospy.logwarn_throttle(
