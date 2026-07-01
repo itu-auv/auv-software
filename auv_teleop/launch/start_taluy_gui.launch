@@ -15,6 +15,7 @@
         <remap from="enable" to="$(arg namespace)/enable"/>
         <remap from="drive_pulse" to="$(arg namespace)/board/drive_pulse"/>
         <remap from="clear_object_transforms" to="$(arg namespace)/map/clear_object_transforms"/>
+        <remap from="kde_map/clear" to="$(arg namespace)/kde_map/clear"/>
       <remap from="power" to="$(arg namespace)/mainboard/power_sensor/power" />
 
         <remap from="align_frame/cancel" to="$(arg namespace)/control/align_frame/cancel"/>
