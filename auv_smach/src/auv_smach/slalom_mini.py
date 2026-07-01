@@ -29,12 +29,13 @@ class FollowMiniSlalomState(smach.State):
         self,
         depth: float,
         white_side: str = "right",
-        forward_wrench: float = 10.0,
+        forward_wrench: float = 15.0,
         lateral_kp: float = 0.0,
         lateral_kd: float = 0.0,
         max_lateral_wrench: float = 30.0,
-        max_angular_velocity: float = 0.15,
+        max_angular_velocity: float = 0.20,
         duration: float = 0.0,
+        pipe_angle_stale_timeout: float = 3.0,
         rate_hz: float = 10.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
@@ -58,6 +59,9 @@ class FollowMiniSlalomState(smach.State):
         self.last_lateral_error_time = None
         self.follow_frame = "slalom_mini_follow"
         self.alignment_started = False
+        self.pipe_angle_stale_timeout = rospy.Duration(pipe_angle_stale_timeout)
+        self.last_pipe_angle_values = None
+        self.last_pipe_angle_change_time = None
 
         self.cmd_wrench_pub = rospy.Publisher("cmd_wrench", WrenchStamped, queue_size=1)
         self.enable_pub = rospy.Publisher("enable", Bool, queue_size=1)
@@ -82,6 +86,12 @@ class FollowMiniSlalomState(smach.State):
                 len(msg.data),
             )
             return
+        pipe_angle_values = tuple(msg.data[:3])
+        if self.last_pipe_angle_values is None or not self.pipe_angle_values_equal(
+            self.last_pipe_angle_values, pipe_angle_values
+        ):
+            self.last_pipe_angle_values = pipe_angle_values
+            self.last_pipe_angle_change_time = rospy.Time.now()
         self.latest_pipe_angles = msg
 
     def execute(self, userdata) -> str:
@@ -101,6 +111,16 @@ class FollowMiniSlalomState(smach.State):
                 self.duration > 0
                 and (rospy.Time.now() - started_at).to_sec() > self.duration
             ):
+                self.cancel_alignment()
+                self.publish_zero_wrench()
+                return "succeeded"
+
+            if self.pipe_angles_stale():
+                rospy.loginfo(
+                    "[FollowMiniSlalomState] First 3 slalom/pipe_angles values "
+                    "unchanged for %.1f seconds, succeeding",
+                    self.pipe_angle_stale_timeout.to_sec(),
+                )
                 self.cancel_alignment()
                 self.publish_zero_wrench()
                 return "succeeded"
@@ -136,6 +156,14 @@ class FollowMiniSlalomState(smach.State):
             rate.sleep()
 
         return "aborted"
+
+    def pipe_angles_stale(self):
+        if self.last_pipe_angle_change_time is None:
+            return False
+        return (
+            rospy.Time.now() - self.last_pipe_angle_change_time
+            > self.pipe_angle_stale_timeout
+        )
 
     def target_relative_yaw(self):
         red_angle = self.latest_pipe_angles.data[0]
@@ -289,6 +317,14 @@ class FollowMiniSlalomState(smach.State):
     def normalize_angle(angle):
         return math.atan2(math.sin(angle), math.cos(angle))
 
+    @staticmethod
+    def pipe_angle_values_equal(left, right):
+        return all(
+            (math.isnan(left_value) and math.isnan(right_value))
+            or left_value == right_value
+            for left_value, right_value in zip(left, right)
+        )
+
 
 class NavigateThroughSlalomMiniState(smach.State):
     def __init__(
@@ -301,6 +337,7 @@ class NavigateThroughSlalomMiniState(smach.State):
         max_lateral_wrench: float = 30.0,
         max_angular_velocity: float = 0.15,
         follow_duration: float = 0.0,
+        pipe_angle_stale_timeout: float = 3.0,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -313,6 +350,7 @@ class NavigateThroughSlalomMiniState(smach.State):
         self.max_lateral_wrench = max_lateral_wrench
         self.max_angular_velocity = max_angular_velocity
         self.follow_duration = follow_duration
+        self.pipe_angle_stale_timeout = pipe_angle_stale_timeout
 
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
@@ -381,6 +419,7 @@ class NavigateThroughSlalomMiniState(smach.State):
                     max_lateral_wrench=self.max_lateral_wrench,
                     max_angular_velocity=self.max_angular_velocity,
                     duration=self.follow_duration,
+                    pipe_angle_stale_timeout=self.pipe_angle_stale_timeout,
                 ),
                 transitions={
                     "succeeded": "succeeded",
