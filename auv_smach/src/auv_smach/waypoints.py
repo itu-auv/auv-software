@@ -5,6 +5,7 @@ from auv_smach.common import (
     AlignFrame,
     CheckForTransformState,
     DynamicPathState,
+    SearchForPropState,
 )
 from auv_smach.tf_utils import get_base_link
 
@@ -54,8 +55,23 @@ class FollowWaypointsState(smach.StateMachine):
         with self:
             for idx, frame in enumerate(self._waypoint_frames):
                 is_last = idx == len(self._waypoint_frames) - 1
+                search_state_name = _tag(f"SEARCH_FOR_{idx + 1}_{frame.upper()}")
                 path_state_name = _tag(f"PATH_TO_{idx + 1}_{frame.upper()}")
                 align_state_name = _tag(f"ALIGN_AT_{idx + 1}_{frame.upper()}")
+
+                smach.StateMachine.add(
+                    search_state_name,
+                    SearchForPropState(
+                        look_at_frame=frame,
+                        alignment_frame=f"{frame}_search",
+                        source_frame=source_frame,
+                    ),
+                    transitions={
+                        "succeeded": path_state_name,
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
 
                 smach.StateMachine.add(
                     path_state_name,
@@ -94,7 +110,7 @@ class FollowWaypointsState(smach.StateMachine):
                     )
                 else:
                     next_frame = self._waypoint_frames[idx + 1]
-                    next_on_success = _tag(f"PATH_TO_{idx + 2}_{next_frame.upper()}")
+                    next_on_success = _tag(f"SEARCH_FOR_{idx + 2}_{next_frame.upper()}")
                     dist_thresh = align_dist_threshold
                     yaw_thresh = align_yaw_threshold
                     timeout_val = align_timeout

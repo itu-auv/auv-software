@@ -64,6 +64,7 @@
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
+            <remap from="kde_map/clear" to="map/kde_map/clear"/>
             <remap from="torpedo_1/launch" to="actuators/torpedo_1/launch"/>
             <remap from="torpedo_2/launch" to="actuators/torpedo_2/launch"/>
             <remap from="ball_dropper/drop" to="actuators/ball_dropper/drop"/>

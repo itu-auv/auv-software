@@ -3,7 +3,7 @@
 import rospy
 import rosnode
 import os
-from std_srvs.srv import Trigger, TriggerRequest
+from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from auv_msgs.srv import SetDetectionFocus, SetDetectionFocusRequest
 
 
@@ -17,11 +17,27 @@ class SmachMonitor:
         self.align_frame_service_name = "control/align_frame/cancel"
         self.detection_focus_service_name = "vision/set_front_camera_focus"
 
+        # Camera detection disabling service names
+        self.disable_segment_service_name = "vision/enable_segment_camera_detections"
+        self.disable_bottom_service_name = "vision/enable_bottom_camera_detections"
+        self.disable_slalom_service_name = "vision/enable_slalom_camera_detections"
+
         self.align_frame_service = rospy.ServiceProxy(
             self.align_frame_service_name, Trigger
         )
         self.detection_focus_service = rospy.ServiceProxy(
             self.detection_focus_service_name, SetDetectionFocus
+        )
+
+        # Service proxies for disabling detections
+        self.disable_segment_service = rospy.ServiceProxy(
+            self.disable_segment_service_name, SetBool
+        )
+        self.disable_bottom_service = rospy.ServiceProxy(
+            self.disable_bottom_service_name, SetBool
+        )
+        self.disable_slalom_service = rospy.ServiceProxy(
+            self.disable_slalom_service_name, SetBool
         )
 
         self.smach_is_active = False
@@ -76,18 +92,36 @@ class SmachMonitor:
         ) as e:
             rospy.logerr("Service call to cancel align frame controller failed: %s" % e)
 
-        # 2. Set DetectionFocus to all
+        # 2. Set DetectionFocus to none
         try:
             rospy.wait_for_service(self.detection_focus_service_name, timeout=2.0)
             req = SetDetectionFocusRequest(focus_object="none")
             self.detection_focus_service(req)
-            rospy.loginfo("Set DetectionFocus to 'all'.")
+            rospy.loginfo("Set DetectionFocus to 'none'.")
         except (
             rospy.ServiceException,
             rospy.ROSException,
             rospy.ROSInterruptException,
         ) as e:
             rospy.logerr("Service call to set detection focus failed: %s" % e)
+
+        # 3. Disable other camera detections (segment, bottom, slalom)
+        for service_name, service_proxy in [
+            (self.disable_segment_service_name, self.disable_segment_service),
+            (self.disable_bottom_service_name, self.disable_bottom_service),
+            (self.disable_slalom_service_name, self.disable_slalom_service),
+        ]:
+            try:
+                rospy.wait_for_service(service_name, timeout=2.0)
+                req = SetBoolRequest(data=False)
+                service_proxy(req)
+                rospy.loginfo("Disabled detections for service: %s" % service_name)
+            except (
+                rospy.ServiceException,
+                rospy.ROSException,
+                rospy.ROSInterruptException,
+            ) as e:
+                rospy.logerr("Service call to %s failed: %s" % (service_name, e))
 
 
 if __name__ == "__main__":

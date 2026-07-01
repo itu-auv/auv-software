@@ -11,6 +11,7 @@ from auv_smach.tf_utils import get_base_link
 from auv_smach.common import (
     CancelAlignControllerState,
     ClearObjectMapState,
+    ClearKDEMapState,
 )
 from typing import Optional, Literal
 from dataclasses import dataclass
@@ -174,6 +175,15 @@ class InitializeState(smach.State):
                 "DISABLE_SLALOM_DETECTION",
                 SetDetectionState(camera_name="slalom", enable=False),
                 transitions={
+                    "succeeded": "DISABLE_SEGMENT_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_SEGMENT_DETECTION",
+                SetDetectionState(camera_name="segment", enable=False),
+                transitions={
                     "succeeded": "SET_DETECTION_TO_NONE",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -191,6 +201,15 @@ class InitializeState(smach.State):
             smach.StateMachine.add(
                 "CLEAR_OBJECT_MAP",
                 ClearObjectMapState(),
+                transitions={
+                    "succeeded": "CLEAR_KDE_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_KDE_MAP",
+                ClearKDEMapState(),
                 transitions={
                     "succeeded": "SET_START_FRAME",
                     "preempted": "preempted",
