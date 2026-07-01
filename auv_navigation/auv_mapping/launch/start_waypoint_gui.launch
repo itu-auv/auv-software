@@ -34,11 +34,10 @@
             <rosparam param="reference_frame_options">
                 - "odom"
                 - "coin_flip"
-                - "bin_whole_link"
-                - "torpedo_map_link"
-                - "octagon_link"
-                - "gate_search_rescue_link"
-                - "gate_survey_repair_link"
+                - "gate_exit"
+                - "torpedo_map_link_kde"
+                - "octagon_link_kde"
+                - "bin_basket_front_link_kde"
             </rosparam>
         </node>
     </group>
