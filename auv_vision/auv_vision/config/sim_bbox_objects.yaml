@@ -7,9 +7,9 @@ cameras:
     image_out_topic: "/yolo_image_front"
 
   slalom:
-    image_topic: "/{ns}/cameras/cam_front/image_raw"
-    camera_info_topic: "/{ns}/cameras/cam_front/camera_info"
-    optical_frame: "{ns}/base_link/front_camera_optical_link_stabilized"
+    image_topic: "/{ns}/cameras/cam_torpedo/image_raw"
+    camera_info_topic: "/{ns}/cameras/cam_torpedo/camera_info"
+    optical_frame: "{ns}/base_link/torpedo_camera_optical_link"
     result_topic: "/yolo_result_slalom"
     image_out_topic: "/yolo_image_slalom"
 
