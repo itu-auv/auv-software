@@ -23,7 +23,7 @@
     <arg name="spawn_torpedo" value="$(eval 'torpedo' in [object.strip() for object in arg('objects').split(',')])" />
     <arg name="spawn_bin" value="$(eval 'bin' in [object.strip() for object in arg('objects').split(',')])" />
     <arg name="spawn_slalom" value="$(eval 'slalom' in [object.strip() for object in arg('objects').split(',')])" />
-    <arg name="spawn_octagon" value="$(eval 'octagon' in [object.strip() for object in arg('objects').split(',')])" />
+    <arg name="spawn_octagon" value="$(eval any(object.strip() in ['octagon', 'octagon_table'] for object in arg('objects').split(',')))" />
 
     <group if="$(arg spawn_gate)">
         <node name="spawn_robosub_gate" pkg="gazebo_ros" type="spawn_model"

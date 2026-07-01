@@ -12,6 +12,7 @@ from auv_smach.common import (
     SetDetectionFocusBottomState,
     DynamicPathState,
     DynamicPathWithTransformCheck,
+    CheckForTransformState,
     AlignFrame,
     SearchForPropState,
     SetDetectionState,
@@ -20,7 +21,7 @@ from auv_smach.common import (
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
-from std_msgs.msg import UInt16
+from std_msgs.msg import String, UInt16
 import tf2_ros
 
 
@@ -184,6 +185,11 @@ class PickAndDropSequence(smach.StateMachine):
         )
         base_link = get_base_link()
         keep_object_orientation = target_object in {"pill_link", "nutbolt_link"}
+        rospy.loginfo(
+            "[PickAndDropSequence] target_object=%s, target_basket=%s",
+            target_object,
+            target_basket,
+        )
 
         with self:
             smach.StateMachine.add(
@@ -371,6 +377,91 @@ class PickAndDropSequence(smach.StateMachine):
             )
 
 
+class PickRemainingOctagonTargetsState(smach.State):
+    def __init__(
+        self,
+        target_baskets: dict,
+        object_list_topic: str = "octagon/object_list",
+        wait_timeout: float = 2.0,
+        max_targets: int = 2,
+    ):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+        self.target_baskets = target_baskets
+        self.wait_timeout = rospy.Duration(wait_timeout)
+        self.max_targets = max_targets
+        self.latest_objects = []
+        self.last_update_time = rospy.Time(0)
+        self.active_sequence = None
+        self.object_list_sub = rospy.Subscriber(
+            object_list_topic, String, self._object_list_cb, queue_size=1
+        )
+
+    def _object_list_cb(self, msg):
+        selected_objects = []
+        seen_objects = set()
+
+        for object_name in msg.data.split(","):
+            object_name = object_name.strip()
+            if not object_name:
+                continue
+            if object_name not in self.target_baskets or object_name in seen_objects:
+                continue
+
+            selected_objects.append(object_name)
+            seen_objects.add(object_name)
+
+        self.latest_objects = selected_objects[: self.max_targets]
+        self.last_update_time = rospy.Time.now()
+
+    def request_preempt(self):
+        smach.State.request_preempt(self)
+        if self.active_sequence is not None:
+            self.active_sequence.request_preempt()
+
+    def _wait_for_fresh_targets(self):
+        start_time = rospy.Time.now()
+        rate = rospy.Rate(10)
+
+        while rospy.Time.now() - start_time < self.wait_timeout:
+            if self.preempt_requested():
+                return None
+
+            if self.last_update_time >= start_time:
+                break
+
+            rate.sleep()
+
+        return [
+            (object_name, self.target_baskets[object_name])
+            for object_name in self.latest_objects[: self.max_targets]
+        ]
+
+    def execute(self, userdata) -> str:
+        targets = self._wait_for_fresh_targets()
+        if targets is None or self.preempt_requested():
+            self.service_preempt()
+            return "preempted"
+
+        for target_object, target_basket in targets[: self.max_targets]:
+            if self.preempt_requested():
+                self.service_preempt()
+                return "preempted"
+
+            self.active_sequence = PickAndDropSequence(target_object, target_basket)
+            try:
+                outcome = self.active_sequence.execute()
+            finally:
+                self.active_sequence = None
+
+            if outcome is None or outcome == "preempted":
+                return "preempted"
+
+        return "succeeded"
+
+
 class OctagonTaskState(smach.State):
     def __init__(
         self,
@@ -379,6 +470,8 @@ class OctagonTaskState(smach.State):
         octagon_search_frame: str = None,
         start_from_table: bool = False,
         octagon_target_role_frame: str = None,
+        remaining_targets_wait_timeout: float = 2.0,
+        remaining_targets_max_targets: int = 2,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.griper_mode = True
@@ -402,6 +495,15 @@ class OctagonTaskState(smach.State):
         self.state_machine = smach.StateMachine(
             outcomes=["succeeded", "preempted", "aborted"]
         )
+        pick_and_drop_target_baskets = dict(pick_and_drop_targets)
+        fallback_align_targets = [
+            "pill_link",
+            "nutbolt_link",
+            "electric_link",
+            "bandaid_link",
+            "basket_redcross_segment_link",
+            "basket_warning_segment_link",
+        ]
 
         # Open the container for adding states
         with self.state_machine:
@@ -550,9 +652,51 @@ class OctagonTaskState(smach.State):
                 transitions={
                     "succeeded": "MOVE_GRIPPER",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "CHECK_OCTAGON_SEGMENT_FALLBACK_1",
                 },
             )
+            for index, target_frame in enumerate(fallback_align_targets):
+                check_state_name = f"CHECK_OCTAGON_SEGMENT_FALLBACK_{index + 1}"
+                align_state_name = f"ALIGN_TO_OCTAGON_SEGMENT_FALLBACK_{index + 1}"
+                next_state = (
+                    f"CHECK_OCTAGON_SEGMENT_FALLBACK_{index + 2}"
+                    if index + 1 < len(fallback_align_targets)
+                    else "MOVE_GRIPPER"
+                )
+                smach.StateMachine.add(
+                    check_state_name,
+                    CheckForTransformState(
+                        source_frame="odom",
+                        target_frame=target_frame,
+                        timeout=0.5,
+                        check_rate_hz=20,
+                    ),
+                    transitions={
+                        "succeeded": align_state_name,
+                        "preempted": "preempted",
+                        "aborted": next_state,
+                    },
+                )
+                smach.StateMachine.add(
+                    align_state_name,
+                    AlignFrame(
+                        source_frame=self.base_link,
+                        target_frame=target_frame,
+                        dist_threshold=0.1,
+                        yaw_threshold=0.1,
+                        confirm_duration=2.0,
+                        timeout=15.0,
+                        keep_orientation=True,
+                        max_linear_velocity=0.2,
+                        max_angular_velocity=0.1,
+                        cancel_on_success=False,
+                    ),
+                    transitions={
+                        "succeeded": "MOVE_GRIPPER",
+                        "preempted": "preempted",
+                        "aborted": next_state,
+                    },
+                )
             smach.StateMachine.add(
                 "MOVE_GRIPPER",
                 GripperAngleOpenState(),
@@ -623,9 +767,22 @@ class OctagonTaskState(smach.State):
                 "PICK_AND_DROP_SEQUENCE_4",
                 PickAndDropSequence(*pick_and_drop_targets[3]),
                 transitions={
+                    "succeeded": "PICK_REMAINING_OCTAGON_TARGETS",
+                    "preempted": "preempted",
+                    "aborted": "PICK_REMAINING_OCTAGON_TARGETS",
+                },
+            )
+            smach.StateMachine.add(
+                "PICK_REMAINING_OCTAGON_TARGETS",
+                PickRemainingOctagonTargetsState(
+                    pick_and_drop_target_baskets,
+                    wait_timeout=remaining_targets_wait_timeout,
+                    max_targets=remaining_targets_max_targets,
+                ),
+                transitions={
                     "succeeded": "OCTAGON_FACING_DEPTH",
                     "preempted": "preempted",
-                    "aborted": "aborted",
+                    "aborted": "OCTAGON_FACING_DEPTH",
                 },
             )
             smach.StateMachine.add(
@@ -946,290 +1103,6 @@ class OctagonSurfaceState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
-    ##############################################################
-
-    # smach.StateMachine.add(
-    #     "ALIGN_TO_BOTTLE",
-    #     AlignFrame(
-    #         source_frame="taluy/gripper_link",
-    #         target_frame="bottle_link",
-    #         angle_offset=0.0,
-    #         dist_threshold=0.05,
-    #         yaw_threshold=0.1,
-    #         confirm_duration=5.0,
-    #         timeout=60.0,
-    #         max_linear_velocity=0.1,
-    #         max_angular_velocity=0.1,
-    #         cancel_on_success=False,
-    #     ),
-    #     transitions={
-    #         "succeeded": "m",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "m",
-    #     SetDetectionState(camera_name="bottom", enable=False),
-    #     transitions={
-    #         "succeeded": "SET_BOTTLE_DEPTH",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-
-    # smach.StateMachine.add(
-    #     "SET_BOTTLE_DEPTH",
-    #     SetDepthState(
-    #         depth=-1.12,
-    #         max_velocity=0.1,
-    #         confirm_duration=5.0,
-    #         depth_threshold=0.03,
-    #     ),
-    #     transitions={
-    #         "succeeded": "CLOSE_GRIPPER",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-
-    # smach.StateMachine.add(
-    #     "CLOSE_GRIPPER",
-    #     GripperAngleCloseState(),
-    #     transitions={
-    #         "succeeded": "SURFACE_WITH_BOTTLE",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-
-    # smach.StateMachine.add(
-    #     "SEARCH_RIGHT",
-    #     AlignFrame(
-    #         source_frame=self.base_link,
-    #         target_frame="octagon_search_right",
-    #         angle_offset=0.0,
-    #         dist_threshold=0.15,
-    #         yaw_threshold=0.15,
-    #         confirm_duration=2.0,
-    #         timeout=30.0,
-    #         cancel_on_success=False,
-    #         keep_orientation=True,
-    #     ),
-    #     transitions={
-    #         "succeeded": "CHECK_BOTTLE_AFTER_RIGHT",
-    #         "preempted": "preempted",
-    #         "aborted": "CHECK_BOTTLE_AFTER_RIGHT",  # Continue to check even if align fails
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "CHECK_BOTTLE_AFTER_RIGHT",
-    #     CheckBottleLinkState(
-    #         source_frame="odom", target_frame="bottle_link", timeout=2.0
-    #     ),
-    #     transitions={
-    #         "succeeded": "ALIGN_TO_BOTTLE",
-    #         "preempted": "preempted",
-    #         "aborted": "SEARCH_FORWARD",
-    #     },
-    # )
-
-    # smach.StateMachine.add(
-    #     "SEARCH_FORWARD",
-    #     AlignFrame(
-    #         source_frame=self.base_link,
-    #         target_frame="octagon_search_forward",
-    #         angle_offset=0.0,
-    #         dist_threshold=0.15,
-    #         yaw_threshold=0.15,
-    #         confirm_duration=2.0,
-    #         timeout=30.0,
-    #         cancel_on_success=False,
-    #         keep_orientation=True,
-    #     ),
-    #     transitions={
-    #         "succeeded": "CHECK_BOTTLE_AFTER_FORWARD",
-    #         "preempted": "preempted",
-    #         "aborted": "CHECK_BOTTLE_AFTER_FORWARD",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "CHECK_BOTTLE_AFTER_FORWARD",
-    #     CheckBottleLinkState(
-    #         source_frame="odom", target_frame="bottle_link", timeout=2.0
-    #     ),
-    #     transitions={
-    #         "succeeded": "ALIGN_TO_BOTTLE",
-    #         "preempted": "preempted",
-    #         "aborted": "SEARCH_LEFT",
-    #     },
-    # )
-
-    # smach.StateMachine.add(
-    #     "SEARCH_LEFT",
-    #     AlignFrame(
-    #         source_frame=self.base_link,
-    #         target_frame="octagon_search_left",
-    #         angle_offset=0.0,
-    #         dist_threshold=0.15,
-    #         yaw_threshold=0.15,
-    #         confirm_duration=2.0,
-    #         timeout=30.0,
-    #         cancel_on_success=False,
-    #         keep_orientation=True,
-    #     ),
-    #     transitions={
-    #         "succeeded": "CHECK_BOTTLE_AFTER_LEFT",
-    #         "preempted": "preempted",
-    #         "aborted": "CHECK_BOTTLE_AFTER_LEFT",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "CHECK_BOTTLE_AFTER_LEFT",
-    #     CheckBottleLinkState(
-    #         source_frame="odom", target_frame="bottle_link", timeout=2.0
-    #     ),
-    #     transitions={
-    #         "succeeded": "ALIGN_TO_BOTTLE",
-    #         "preempted": "preempted",
-    #         "aborted": "SEARCH_BACKWARD",
-    #     },
-    # )
-
-    # smach.StateMachine.add(
-    #     "SEARCH_BACKWARD",
-    #     AlignFrame(
-    #         source_frame=self.base_link,
-    #         target_frame="octagon_search_backward",
-    #         angle_offset=0.0,
-    #         dist_threshold=0.15,
-    #         yaw_threshold=0.15,
-    #         confirm_duration=2.0,
-    #         timeout=30.0,
-    #         cancel_on_success=False,
-    #         keep_orientation=True,
-    #     ),
-    #     transitions={
-    #         "succeeded": "CHECK_BOTTLE_AFTER_BACKWARD",
-    #         "preempted": "preempted",
-    #         "aborted": "CHECK_BOTTLE_AFTER_BACKWARD",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "CHECK_BOTTLE_AFTER_BACKWARD",
-    #     CheckBottleLinkState(
-    #         source_frame="odom", target_frame="bottle_link", timeout=2.0
-    #     ),
-    #     transitions={
-    #         "succeeded": "ALIGN_TO_BOTTLE",
-    #         "preempted": "preempted",
-    #         "aborted": "SEARCH_RIGHT",  # Loop back to start (or could abort)
-    #     },
-    # )
-
-    # smach.StateMachine.add(
-    #     "SURFACE_WITH_BOTTLE",
-    #     SetDepthState(depth=-0.15, max_velocity=0.1, depth_threshold=0.05),
-    #     transitions={
-    #         "succeeded": "succeeded",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "SURFACE_TO_ANIMAL_DEPTH",
-    #     SetDepthState(depth=-0.43),
-    #     transitions={
-    #         "succeeded": "SET_DETECTION_FOCUS_TO_ANIMALS",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "SET_DETECTION_FOCUS_TO_ANIMALS",
-    #     SetDetectionFocusState(focus_object="gate"),
-    #     transitions={
-    #         "succeeded": "ROTATE_FOR_ANIMALS",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "ROTATE_FOR_ANIMALS",
-    #     AlignAndCreateRotatingFrame(
-    #         source_frame=self.base_link,
-    #         target_frame="octagon_target_role_search_frame",
-    #         rotating_frame_name="octagon_target_role_search_frame",
-    #     ),
-    #     transitions={
-    #         "succeeded": "b",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "b",
-    #     DelayState(delay_time=5.0),
-    #     transitions={
-    #         "succeeded": "c",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "c",
-    #     SearchForPropState(
-    #         look_at_frame=self.octagon_target_role_frame,
-    #         alignment_frame="octagon_search_frame",
-    #         full_rotation=False,
-    #         stimeout=20.0,
-    #         source_frame=self.base_link,
-    #         rotation_speed=-0.2,
-    #     ),
-    #     transitions={
-    #         "succeeded": "SURFACING",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "SURFACING",
-    #     SetDepthState(depth=-0.05),
-    #     transitions={
-    #         "succeeded": "SET_FINAL_DEPTH",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "SET_FINAL_DEPTH",
-    #     SetDepthState(depth=octagon_depth),
-    #     transitions={
-    #         "succeeded": "TRANSMIT_ACOUSTIC_5",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "TRANSMIT_ACOUSTIC_5",
-    #     AcousticTransmitter(acoustic_data=5),
-    #     transitions={
-    #         "succeeded": "CANCEL_ALIGN_CONTROLLER",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    # smach.StateMachine.add(
-    #     "CANCEL_ALIGN_CONTROLLER",
-    #     CancelAlignControllerState(),
-    #     transitions={
-    #         "succeeded": "succeeded",
-    #         "preempted": "preempted",
-    #         "aborted": "aborted",
-    #     },
-    # )
-    #
 
     def execute(self, userdata):
         # Execute the state machine
