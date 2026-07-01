@@ -751,7 +751,7 @@ class BinTaskState(smach.State):
                 "ALIGN_TO_BIN_EXIT",
                 AlignFrame(
                     source_frame=self.base_link,
-                    target_frame="bin_close_approach",
+                    target_frame="bin_exit",
                     angle_offset=bin_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -763,9 +763,18 @@ class BinTaskState(smach.State):
                     max_angular_velocity=0.2,
                 ),
                 transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_3",
+                    "succeeded": "DISABLE_BOTTOM_DETECTION",
                     "preempted": "preempted",
                     "aborted": "CANCEL_ALIGN_CONTROLLER",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_BOTTOM_DETECTION",
+                SetDetectionState(camera_name="bottom", enable=False),
+                transitions={
+                    "succeeded": "TRANSMIT_ACOUSTIC_3",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
