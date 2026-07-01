@@ -110,6 +110,8 @@
       <param name="waypoint_prefix" value="$(arg waypoint_prefix)" />
       <param name="broadcast_rate_hz" value="$(arg waypoint_broadcast_rate_hz)" />
       <param name="state_file" value="$(arg waypoint_state_file)" />
+      <remap from="set_waypoint" to="map/set_waypoint" />
+      <remap from="get_waypoint" to="map/get_waypoint" />
     </node>
 
     <group if="$(arg enable_realsense_nodes)">
