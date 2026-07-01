@@ -36,10 +36,10 @@ class TorpedoCameraHandler:
         self.shared_state = shared_state
 
         self.reference_hole_frames = [
-            "torpedo_reference_hole_left_mid_link",
-            "torpedo_reference_hole_bottom_right_link",
-            "torpedo_reference_hole_bottom_mid_link",
-            "torpedo_reference_hole_top_mid_link",
+            "torpedo_reference_hole_left_link",
+            "torpedo_reference_hole_right_link",
+            "torpedo_reference_hole_bottom_link",
+            "torpedo_reference_hole_top_link",
         ]
         self.reference_holes_ready = False
 
@@ -96,20 +96,20 @@ class TorpedoCameraHandler:
 
         remaining_holes = list(detected_holes)
 
-        left_mid_hole = min(remaining_holes, key=self._bbox_center_x)
-        remaining_holes.remove(left_mid_hole)
+        left_hole = min(remaining_holes, key=self._bbox_center_x)
+        remaining_holes.remove(left_hole)
 
-        bottom_right_hole = max(remaining_holes, key=self._bbox_center_x)
-        remaining_holes.remove(bottom_right_hole)
+        right_hole = max(remaining_holes, key=self._bbox_center_x)
+        remaining_holes.remove(right_hole)
 
-        top_mid_hole = min(remaining_holes, key=self._bbox_center_y)
-        bottom_mid_hole = max(remaining_holes, key=self._bbox_center_y)
+        top_hole = min(remaining_holes, key=self._bbox_center_y)
+        bottom_hole = max(remaining_holes, key=self._bbox_center_y)
 
         assignments = [
-            ("torpedo_reference_hole_left_mid_link", left_mid_hole),
-            ("torpedo_reference_hole_bottom_right_link", bottom_right_hole),
-            ("torpedo_reference_hole_bottom_mid_link", bottom_mid_hole),
-            ("torpedo_reference_hole_top_mid_link", top_mid_hole),
+            ("torpedo_reference_hole_left_link", left_hole),
+            ("torpedo_reference_hole_right_link", right_hole),
+            ("torpedo_reference_hole_bottom_link", bottom_hole),
+            ("torpedo_reference_hole_top_link", top_hole),
         ]
 
         for child_frame_id, detection in assignments:

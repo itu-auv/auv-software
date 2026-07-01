@@ -10,12 +10,15 @@ from datetime import datetime
 from typing import Dict
 
 from geometry_msgs.msg import TransformStamped, Vector3, Quaternion, PoseStamped
+from std_srvs.srv import Trigger, TriggerResponse
 from auv_msgs.srv import SetPremap, SetPremapResponse
 import tf2_ros
 import tf2_geometry_msgs
 
 
 class PremapPublisher:
+    GUI_METADATA_PREFIX = "__gui/"
+
     def __init__(self):
         rospy.init_node("premap_publisher", anonymous=False)
         rospy.loginfo("Premap Publisher starting...")
@@ -29,6 +32,7 @@ class PremapPublisher:
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
 
         self.premap: Dict[str, Dict] = {}
+        self.gui_state = {}
         premap_file = rospy.get_param("~premap_file", "")
         self.premap_yaml_path = premap_file
         if premap_file:
@@ -36,6 +40,9 @@ class PremapPublisher:
 
         self.set_premap_srv = rospy.Service(
             "set_premap", SetPremap, self.set_premap_handler
+        )
+        self.get_premap_srv = rospy.Service(
+            "get_premap", Trigger, self.get_premap_handler
         )
 
         rospy.loginfo(
@@ -54,6 +61,8 @@ class PremapPublisher:
             if "objects" not in data:
                 rospy.logwarn(f"Pre-map file has no 'objects' key: {filepath}")
                 return
+
+            self.gui_state = data.get("gui_state", {}) or {}
 
             source_frame = data.get("reference_frame", self.world_frame)
             needs_transform = source_frame != self.world_frame
@@ -186,7 +195,7 @@ class PremapPublisher:
             target_frame = self.world_frame
             source_frame = req.reference_frame or target_frame
 
-            new_premap_data, yaml_data_objects = (
+            new_premap_data, yaml_data_objects, gui_state = (
                 self._transform_and_parse_service_objects(
                     req.objects, source_frame, target_frame
                 )
@@ -203,7 +212,7 @@ class PremapPublisher:
                 )
 
             self._atomic_update_and_save(
-                new_premap_data, yaml_data_objects, target_frame
+                new_premap_data, yaml_data_objects, target_frame, gui_state
             )
 
             msg = f"Pre-map set with {len(self.premap)} objects: {list(self.premap.keys())}"
@@ -215,10 +224,40 @@ class PremapPublisher:
             rospy.logerr(msg)
             return SetPremapResponse(success=False, message=msg)
 
+    def get_premap_handler(self, _req) -> TriggerResponse:
+        try:
+            objects = {}
+            with self.lock:
+                premap_items = list(self.premap.items())
+
+            for label, data in premap_items:
+                pos = data["position"]
+                q = data.get("orientation", np.array([0.0, 0.0, 0.0, 1.0]))
+                objects[label] = {
+                    "position": [float(pos[0]), float(pos[1]), float(pos[2])],
+                    "orientation": [float(q[0]), float(q[1]), float(q[2]), float(q[3])],
+                }
+
+            data = {
+                "reference_frame": self.world_frame,
+                "objects": objects,
+                "gui_state": self.gui_state,
+            }
+            return TriggerResponse(
+                success=True,
+                message=yaml.safe_dump(data, default_flow_style=False, sort_keys=False),
+            )
+
+        except Exception as e:
+            msg = f"Failed to get pre-map: {e}"
+            rospy.logerr(msg)
+            return TriggerResponse(success=False, message=msg)
+
     def _transform_and_parse_service_objects(self, objects, source_frame, target_frame):
         """Transform request objects to target frame."""
         new_premap_data = {}
         yaml_data_objects = {}
+        gui_state = {"reference_frame": source_frame, "objects": {}}
         transform_stamped = None
 
         if source_frame != target_frame:
@@ -232,10 +271,14 @@ class PremapPublisher:
                 tf2_ros.ConnectivityException,
             ) as e:
                 rospy.logerr(f"Transform error: {e}")
-                return None, None
+                return None, None, None
 
         for obj_pose in objects:
             label = obj_pose.label
+            if label.startswith(self.GUI_METADATA_PREFIX):
+                self._parse_gui_metadata(label, obj_pose, gui_state)
+                continue
+
             p_stamped = PoseStamped()
             p_stamped.header.frame_id = source_frame
             p_stamped.pose = obj_pose.pose
@@ -275,12 +318,44 @@ class PremapPublisher:
                 rospy.logwarn(f"Failed to process object {label}: {e}")
                 continue
 
-        return new_premap_data, yaml_data_objects
+        if not gui_state["objects"]:
+            gui_state = {}
 
-    def _atomic_update_and_save(self, new_premap_data, yaml_data_objects, target_frame):
+        return new_premap_data, yaml_data_objects, gui_state
+
+    def _parse_gui_metadata(self, label, obj_pose, gui_state):
+        key = label[len(self.GUI_METADATA_PREFIX) :]
+        if key.startswith("reference_frame/"):
+            gui_state["reference_frame"] = key.split("/", 1)[1]
+            return
+
+        if not key.startswith("object/"):
+            rospy.logwarn(f"Skipping unknown GUI metadata label '{label}'")
+            return
+
+        obj_name = key.split("/", 1)[1]
+        pose = obj_pose.pose
+        gui_state["objects"][obj_name] = {
+            "position": [
+                float(pose.position.x),
+                float(pose.position.y),
+                float(pose.position.z),
+            ],
+            "orientation": [
+                float(pose.orientation.x),
+                float(pose.orientation.y),
+                float(pose.orientation.z),
+                float(pose.orientation.w),
+            ],
+        }
+
+    def _atomic_update_and_save(
+        self, new_premap_data, yaml_data_objects, target_frame, gui_state=None
+    ):
         """Update internal state and save to YAML."""
         with self.lock:
             self.premap = new_premap_data
+            self.gui_state = gui_state or {}
 
         rospy.loginfo(
             f"Pre-map reset update complete. Loaded {len(self.premap)} objects."
@@ -317,6 +392,8 @@ class PremapPublisher:
                     "created_at": datetime.now().isoformat(),
                     "objects": yaml_data_objects,
                 }
+                if self.gui_state:
+                    yaml_final_data["gui_state"] = self.gui_state
 
                 with open(self.premap_yaml_path, "w") as f:
                     yaml.dump(
