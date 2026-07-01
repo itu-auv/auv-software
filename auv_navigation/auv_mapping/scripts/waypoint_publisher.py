@@ -363,7 +363,7 @@ class WaypointPublisher:
             tf2_ros.ExtrapolationException,
         ) as exc:
             rospy.logwarn_throttle(
-                5.0,
+                30.0,
                 f"[WaypointPublisher] Waiting for TF {path.ref_a}->{path.ref_b}: {exc}",
             )
             return None
