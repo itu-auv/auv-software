@@ -38,6 +38,7 @@ ROLE_TO_BIN_TARGET_SELECTION = {
 ROLE_TO_GATE_TARGET_FRAME = {
     "survey_repair": "gate_survey_repair_link",
     "search_rescue": "gate_search_rescue_link",
+}
 ROLE_TO_OCTAGON_TARGET_ROLE_FRAME = {
     "survey_repair": "octagon_repair_link",
     "search_rescue": "octagon_rescue_link",
@@ -274,6 +275,8 @@ class MainStateMachineNode:
         return ROLE_TO_GATE_TARGET_FRAME.get(
             self.selected_role,
             ROLE_TO_GATE_TARGET_FRAME[DEFAULT_SELECTED_ROLE],
+        )
+
     def get_octagon_target_role_frame(self):
         return ROLE_TO_OCTAGON_TARGET_ROLE_FRAME.get(
             self.selected_role,
