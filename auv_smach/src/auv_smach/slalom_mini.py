@@ -21,6 +21,8 @@ from auv_smach.common import (
     SetDetectionState,
     AlignFrame
 )
+from auv_smach.initialize import ClearObjectMapState,ResetOdometryPoseState
+
 from auv_smach.initialize import DelayState
 from auv_smach.tf_utils import get_base_link
 
@@ -359,34 +361,7 @@ class NavigateThroughSlalomMiniState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_SLALOM_DEPTH",
-                SetDepthState(depth=self.slalom_depth),
-                transitions={
-                    "succeeded": "ENABLE_SLALOM_DETECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ENABLE_SLALOM_DETECTION",
-                SetDetectionState(camera_name="slalom", enable=True),
-                transitions={
-                    "succeeded": "SET_SLALOM_FOCUS",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_SLALOM_FOCUS",
-                SetDetectionFocusState(focus_object="slalom"),
-                transitions={
-                    "succeeded": "SEARCH_RED_PIPE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SEARCH_RED_PIPE",
+                "kirmiziya_bakis",
                 SearchForPropState(
                     look_at_frame="slalom_red_pipe_link",
                     alignment_frame="slalom_mini_search",
@@ -395,14 +370,32 @@ class NavigateThroughSlalomMiniState(smach.State):
                     rotation_speed=0.2,
                 ),
                 transitions={
-                    "succeeded": "APPROACH_PLACEHOLDER",
+                    "succeeded": "SET_SLALOM_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "APPROACH_PLACEHOLDER",
-                DelayState(delay_time=0.1),
+                "SET_SLALOM_DEPTH",
+                SetDepthState(depth=-1.4),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSE",
+                ResetOdometryPoseState(),
+                transitions={
+                    "succeeded": "CLEAR_OBJECT_MAP",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "CLEAR_OBJECT_MAP",
+                ClearObjectMapState(),
                 transitions={
                     "succeeded": "FOLLOW_SLALOM",
                     "preempted": "preempted",
