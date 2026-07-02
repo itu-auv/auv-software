@@ -6,9 +6,11 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 import rospy
+import yaml
 from auv_msgs.msg import WaypointPath
 from auv_msgs.srv import SetWaypoint, SetWaypointRequest
 from geometry_msgs.msg import Pose
+from std_srvs.srv import Trigger, TriggerRequest
 from tf.transformations import quaternion_from_euler
 
 
@@ -66,6 +68,7 @@ class WaypointGUI:
         self._is_closing = False
 
         self.service_name = rospy.get_param("~set_waypoint_service", "set_waypoint")
+        self.get_service_name = rospy.get_param("~get_waypoint_service", "get_waypoint")
         self.reference_frame_options = list(
             rospy.get_param(
                 "~reference_frame_options",
@@ -169,6 +172,15 @@ class WaypointGUI:
             text="Send to Vehicle",
             command=self.send_to_vehicle,
             bg="#2196F3",
+            fg="white",
+            font=("Arial", 10, "bold"),
+        ).pack(fill=tk.X, pady=(0, 5))
+
+        tk.Button(
+            left_frame,
+            text="Get from Vehicle",
+            command=self.get_from_vehicle,
+            bg="#4CAF50",
             fg="white",
             font=("Arial", 10, "bold"),
         ).pack(fill=tk.X, pady=(0, 5))
@@ -348,6 +360,12 @@ class WaypointGUI:
             self._refresh_listbox(p)
         self.active_path_idx = min(idx, len(self.paths) - 1)
         self.redraw_all()
+
+    def clear_paths(self):
+        for path in self.paths:
+            self.notebook.forget(path._tab)
+        self.paths = []
+        self.active_path_idx = None
 
     def _on_tab_change(self, _event):
         current = self.notebook.select()
@@ -739,6 +757,98 @@ class WaypointGUI:
         pose.orientation.z = q[2]
         pose.orientation.w = q[3]
         return pose
+
+    def get_from_vehicle(self):
+        try:
+            rospy.wait_for_service(self.get_service_name, timeout=2.0)
+            get_waypoint = rospy.ServiceProxy(self.get_service_name, Trigger)
+            resp = get_waypoint(TriggerRequest())
+
+            if not resp.success:
+                messagebox.showerror("Error", resp.message)
+                return
+
+            state = yaml.safe_load(resp.message) or {}
+            paths = state.get("paths", [])
+            if not paths:
+                messagebox.showwarning("Warning", "Vehicle has no waypoint paths.")
+                return
+
+            self.apply_vehicle_paths(paths)
+            waypoint_count = sum(len(path.waypoints) for path in self.paths)
+            messagebox.showinfo(
+                "Success",
+                f"Loaded {len(self.paths)} path(s), {waypoint_count} waypoint(s).",
+            )
+        except rospy.ServiceException as exc:
+            messagebox.showerror("Error", f"Service call failed:\n{exc}")
+        except rospy.ROSException as exc:
+            messagebox.showerror("Error", f"Service unavailable:\n{exc}")
+        except Exception as exc:
+            messagebox.showerror("Error", f"Failed to get waypoints:\n{exc}")
+
+    def apply_vehicle_paths(self, path_entries):
+        self.clear_paths()
+
+        for entry in path_entries:
+            path = self._path_from_state_dict(entry)
+            if path is None:
+                continue
+            tab = self._build_tab(path)
+            self.paths.append(path)
+            self.notebook.add(tab, text=path.name)
+            self._refresh_listbox(path)
+
+        if not self.paths:
+            self.add_path()
+            raise ValueError("No valid waypoint paths in vehicle response")
+
+        self.active_path_idx = 0
+        self.notebook.select(self.paths[0]._tab)
+        self.redraw_all()
+
+    def _path_from_state_dict(self, entry):
+        if not isinstance(entry, dict):
+            return None
+
+        idx = len(self.paths) + 1
+        color = PATH_COLORS[(idx - 1) % len(PATH_COLORS)]
+        path = PathData(
+            index=idx,
+            color=color,
+            waypoint_prefix=str(entry.get("waypoint_prefix") or self.waypoint_prefix),
+            default_z=self.default_z,
+            default_ref_a=str(entry.get("ref_a") or ""),
+            default_ref_b=str(entry.get("ref_b") or ""),
+            default_b_mode=self._normalize_b_mode(entry.get("b_mode", B_MODE_FIXED)),
+            b_reference_distance=float(
+                entry.get("b_reference_distance") or self.b_arrow_length
+            ),
+        )
+        path.name = str(entry.get("name") or f"path{idx}")
+
+        waypoints = []
+        for wp in entry.get("waypoints", []) or []:
+            try:
+                waypoints.append(
+                    {
+                        "x": float(wp["x"]),
+                        "y": float(wp["y"]),
+                        "z": float(wp.get("z", self.default_z)),
+                        "yaw": float(wp.get("yaw", 0.0)),
+                    }
+                )
+            except (KeyError, TypeError, ValueError):
+                continue
+
+        if not waypoints:
+            return None
+
+        path.waypoints = waypoints
+        path.selected_index = 0
+        path.yaw_var.set(waypoints[0]["yaw"])
+        path.z_var.set(waypoints[0]["z"])
+        return path
 
     def send_to_vehicle(self):
         if not self.service_connected:
