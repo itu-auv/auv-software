@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options(-std=c++17)
 
 find_package(catkin REQUIRED COMPONENTS
+  auv_common_lib
   auv_msgs
   geometry_msgs
   message_filters
@@ -52,7 +53,6 @@ if(NOT OpenCV_FOUND)
 endif()
 
 generate_dynamic_reconfigure_options(
-  cfg/SlalomHeatmap.cfg
   cfg/GateTrajectory.cfg
   cfg/TorpedoTrajectory.cfg
   cfg/GpsTargetFrame.cfg
@@ -61,7 +61,7 @@ generate_dynamic_reconfigure_options(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES object_position_filter
-  CATKIN_DEPENDS roscpp rospy std_msgs std_srvs tf2_ros tf2_geometry_msgs geometry_msgs auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs cv_bridge dynamic_reconfigure
+  CATKIN_DEPENDS roscpp rospy std_msgs std_srvs tf2_ros tf2_geometry_msgs geometry_msgs auv_common_lib auv_msgs sensor_msgs message_filters pcl_ros pcl_conversions vision_msgs visualization_msgs cv_bridge dynamic_reconfigure
   DEPENDS OpenCV PCL
 )
 
@@ -86,7 +86,7 @@ catkin_install_python(PROGRAMS
   scripts/mini_gate_trajectory_publisher.py
   scripts/bin_trajectory_publisher.py
   scripts/torpedo_frame_publisher.py
-  scripts/slalom_heatmap_mapper.py
+  scripts/mini_slalom_angle_publisher.py
   scripts/octagon_trajectory_publisher.py
   scripts/gps_target_frame_publisher.py
   scripts/acoustic_transmitter.py
