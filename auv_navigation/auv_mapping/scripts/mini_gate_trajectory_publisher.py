@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import math
+import threading
 from typing import Optional, Tuple
 
 import rospy
@@ -24,7 +25,7 @@ ROLE_TO_GATE_FRAME = {
 class MiniGateTrajectoryPublisher:
     def __init__(self):
         self.is_enabled = False
-        self.relative_gate_pose = None
+        self.publish_lock = threading.Lock()
 
         rospy.init_node("mini_gate_trajectory_publisher")
         self.tf_buffer = tf2_ros.Buffer()
@@ -40,10 +41,6 @@ class MiniGateTrajectoryPublisher:
 
         self.entrance_frame = rospy.get_param("~entrance_frame", "mini_gate_entrance")
         self.exit_frame = rospy.get_param("~exit_frame", "mini_gate_exit")
-        self.middle_frame = rospy.get_param("~middle_frame", "mini_gate_middle_part")
-        self.center_entrance_frame = rospy.get_param(
-            "~center_entrance_frame", "mini_gate_center_entrance"
-        )
 
         self.entrance_offset = 1.0
         self.exit_offset = 1.0
@@ -51,6 +48,7 @@ class MiniGateTrajectoryPublisher:
         self.min_gate_separation_threshold = rospy.get_param(
             "~min_gate_separation_threshold", 0.3
         )
+        self.gate_lookup_timeout = rospy.get_param("~gate_lookup_timeout", 0.1)
 
         self.reconfigure_server = Server(
             GateTrajectoryConfig, self.reconfigure_callback
@@ -78,6 +76,8 @@ class MiniGateTrajectoryPublisher:
         self.entrance_offset = config.entrance_offset
         self.exit_offset = config.exit_offset
         self.z_offset = config.z_offset
+        if self.is_enabled and hasattr(self, "set_object_transform_service"):
+            self.publish_current_trajectory()
         return config
 
     def set_target_gate_frame(self, selected_role):
@@ -94,10 +94,8 @@ class MiniGateTrajectoryPublisher:
 
     def handle_enable_service(self, request: SetBool) -> SetBoolResponse:
         self.is_enabled = request.data
-        if request.data:
-            self.capture_relative_gate_pose()
-        else:
-            self.relative_gate_pose = None
+        if self.is_enabled:
+            self.publish_current_trajectory()
 
         message = (
             "Mini gate single-frame trajectory publishing is set to: "
@@ -107,10 +105,7 @@ class MiniGateTrajectoryPublisher:
         return SetBoolResponse(success=True, message=message)
 
     def create_trajectory_frames(self) -> None:
-        t_gate1 = self.lookup_gate_transform(self.gate_frame_1)
-        t_gate2 = self.lookup_gate_transform(self.gate_frame_2)
-
-        target_transform = self.select_single_frame_transform(t_gate1, t_gate2)
+        target_transform = self.lookup_selected_gate_transform()
         if target_transform is None:
             rospy.logwarn(
                 "Mini gate trajectory requested, but no gate frame is visible."
@@ -122,58 +117,42 @@ class MiniGateTrajectoryPublisher:
             return
 
         entrance_pose, exit_pose = poses
-        target_position = target_transform.transform.translation
 
-        self.publish_pose(
-            self.middle_frame,
-            Pose(
-                position=Point(target_position.x, target_position.y, target_position.z),
-                orientation=entrance_pose.orientation,
-            ),
-        )
         self.publish_pose(self.entrance_frame, entrance_pose)
         self.publish_pose(self.exit_frame, exit_pose)
-
-        relative_gate_pose = self.compute_relative_gate_pose(t_gate1, t_gate2)
-        if relative_gate_pose is not None:
-            self.publish_pose(self.center_entrance_frame, relative_gate_pose)
 
     def lookup_gate_transform(self, frame: str) -> Optional[TransformStamped]:
         try:
             return self.tf_buffer.lookup_transform(
                 self.odom_frame,
                 frame,
-                rospy.Time.now(),
-                rospy.Duration(4.0),
+                rospy.Time(0),
+                rospy.Duration(self.gate_lookup_timeout),
             )
         except tf2_ros.TransformException:
             return None
 
-    def select_single_frame_transform(
-        self,
-        t_gate1: Optional[TransformStamped],
-        t_gate2: Optional[TransformStamped],
-    ) -> Optional[TransformStamped]:
-        if self.target_gate_frame == self.gate_frame_1 and t_gate1 is not None:
-            return t_gate1
+    def lookup_selected_gate_transform(self) -> Optional[TransformStamped]:
+        target_transform = self.lookup_gate_transform(self.target_gate_frame)
+        if target_transform is not None:
+            return target_transform
 
-        if self.target_gate_frame == self.gate_frame_2 and t_gate2 is not None:
-            return t_gate2
-
-        fallback_transform = t_gate1 if t_gate1 is not None else t_gate2
+        fallback_frame = self.get_fallback_gate_frame()
+        fallback_transform = self.lookup_gate_transform(fallback_frame)
         if fallback_transform is not None:
-            fallback_frame = (
-                self.gate_frame_1
-                if fallback_transform is t_gate1
-                else self.gate_frame_2
-            )
-            rospy.logwarn(
+            rospy.logwarn_throttle(
+                5.0,
                 "Target gate frame '%s' is not visible. Using '%s'.",
                 self.target_gate_frame,
                 fallback_frame,
             )
 
         return fallback_transform
+
+    def get_fallback_gate_frame(self) -> str:
+        if self.target_gate_frame == self.gate_frame_1:
+            return self.gate_frame_2
+        return self.gate_frame_1
 
     def compute_single_frame_trajectory(
         self, gate_transform: TransformStamped
@@ -185,92 +164,6 @@ class MiniGateTrajectoryPublisher:
         gate_pos = gate_transform.transform.translation
         robot_pos = robot_transform.transform.translation
         return self.compute_entrance_exit_from_position(gate_pos, robot_pos)
-
-    def capture_relative_gate_pose(self) -> bool:
-        t_gate1 = self.lookup_gate_transform(self.gate_frame_1)
-        t_gate2 = self.lookup_gate_transform(self.gate_frame_2)
-        robot_transform = self.lookup_robot_transform()
-        if t_gate1 is None or t_gate2 is None or robot_transform is None:
-            rospy.logwarn(
-                "Mini gate relative frame was not captured yet. Waiting for both gate frames and robot TF."
-            )
-            return False
-
-        geometry = self.compute_gate_pair_geometry(t_gate1, t_gate2)
-        if geometry is None:
-            return False
-
-        center, unit_gate, unit_normal = geometry
-        robot_pos = robot_transform.transform.translation
-        offset_x = robot_pos.x - center.x
-        offset_y = robot_pos.y - center.y
-        self.relative_gate_pose = (
-            offset_x * unit_gate[0] + offset_y * unit_gate[1],
-            offset_x * unit_normal[0] + offset_y * unit_normal[1],
-            robot_pos.z - center.z,
-        )
-        rospy.loginfo(
-            "Captured mini gate relative frame offset: along=%.3f, normal=%.3f, z=%.3f",
-            self.relative_gate_pose[0],
-            self.relative_gate_pose[1],
-            self.relative_gate_pose[2],
-        )
-        return True
-
-    def compute_relative_gate_pose(
-        self,
-        t_gate1: Optional[TransformStamped],
-        t_gate2: Optional[TransformStamped],
-    ) -> Optional[Pose]:
-        if t_gate1 is None or t_gate2 is None:
-            return None
-
-        if self.relative_gate_pose is None and not self.capture_relative_gate_pose():
-            return None
-
-        geometry = self.compute_gate_pair_geometry(t_gate1, t_gate2)
-        if geometry is None:
-            return None
-
-        center, unit_gate, unit_normal = geometry
-        along_offset, normal_offset, z_offset = self.relative_gate_pose
-        frame_position = Point(
-            center.x + along_offset * unit_gate[0] + normal_offset * unit_normal[0],
-            center.y + along_offset * unit_gate[1] + normal_offset * unit_normal[1],
-            center.z + z_offset,
-        )
-        yaw_to_center = math.atan2(
-            center.y - frame_position.y,
-            center.x - frame_position.x,
-        )
-        quat = tf_conversions.transformations.quaternion_from_euler(0, 0, yaw_to_center)
-
-        return Pose(position=frame_position, orientation=Quaternion(*quat))
-
-    def compute_gate_pair_geometry(
-        self,
-        t_gate1: TransformStamped,
-        t_gate2: TransformStamped,
-    ) -> Optional[Tuple[Point, Tuple[float, float], Tuple[float, float]]]:
-        p1 = t_gate1.transform.translation
-        p2 = t_gate2.transform.translation
-        dx = p2.x - p1.x
-        dy = p2.y - p1.y
-        length = math.sqrt(dx**2 + dy**2)
-        if length < self.min_gate_separation_threshold:
-            rospy.logwarn(
-                "Mini gate links are too close for relative frame calculation."
-            )
-            return None
-
-        center = Point(
-            (p1.x + p2.x) / 2.0,
-            (p1.y + p2.y) / 2.0,
-            (p1.z + p2.z) / 2.0,
-        )
-        unit_gate = (dx / length, dy / length)
-        unit_normal = (-unit_gate[1], unit_gate[0])
-        return center, unit_gate, unit_normal
 
     def lookup_robot_transform(self) -> Optional[TransformStamped]:
         try:
@@ -358,11 +251,15 @@ class MiniGateTrajectoryPublisher:
         except rospy.ServiceException as e:
             rospy.logerr("Service call failed: %s", e)
 
+    def publish_current_trajectory(self) -> None:
+        with self.publish_lock:
+            self.create_trajectory_frames()
+
     def spin(self) -> None:
         rate = rospy.Rate(2.0)
         while not rospy.is_shutdown():
             if self.is_enabled:
-                self.create_trajectory_frames()
+                self.publish_current_trajectory()
             rate.sleep()
 
 

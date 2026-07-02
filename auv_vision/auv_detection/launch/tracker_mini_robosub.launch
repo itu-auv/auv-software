@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="namespace" default="taluy_mini"/>
+    <arg name="sim" default="false"/>
+    <arg name="use_gui" default="false"/>
+
+    <include file="$(find auv_detection)/launch/inc/tracker_slalom.launch">
+        <arg name="namespace" value="$(arg namespace)"/>
+        <arg name="sim" value="$(arg sim)"/>
+        <arg name="use_gui" value="$(arg use_gui)"/>
+    </include>
+
+    <include file="$(find auv_detection)/launch/inc/tracker_mini.launch">
+        <arg name="namespace" value="$(arg namespace)"/>
+        <arg name="sim" value="$(arg sim)"/>
+        <arg name="use_gui" value="$(arg use_gui)"/>
+    </include>
+</launch>

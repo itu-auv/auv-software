@@ -11,6 +11,7 @@ cameras:
       1: gate_survey_repair_link
       2: slalom_red_pipe_link
       3: slalom_white_pipe_link
+      6: bin_basket_front_link
   slalom:
     ns: "taluy_mini/cameras/cam_front"
     frame: "taluy_mini/base_link/front_camera_optical_link_stabilized"
@@ -28,6 +29,7 @@ props:
   gate_survey_repair_link: {name: "gate_survey_repair", real_height: 0.3048, real_width: 0.3048}
   slalom_red_pipe_link: {name: "slalom_red_pipe", real_height: 0.9, real_width: 0.0254}
   slalom_white_pipe_link: {name: "slalom_white_pipe", real_height: 0.9, real_width: 0.0254}
+  bin_basket_front_link: {name: "bin_basket_front_link", real_height: 0.3048, real_width: 0.3048}
 
   # Front camera focus service object groups (keyed by YOLO detection ID)
 object_groups:

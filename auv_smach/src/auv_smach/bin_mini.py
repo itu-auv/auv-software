@@ -27,7 +27,7 @@ class BinTaskMiniState(smach.State):
         self.bin_search_depth = bin_search_depth
         self.bin_drop_depth = bin_drop_depth
         self.target_animal = target_animal
-        self.bin_look_at_frame = "bin_whole_link"
+        self.bin_look_at_frame = "bin_basket_front_link"
         self.bin_alignment_frame = "bin_search"
 
         # Initialize the state machine container
@@ -77,7 +77,8 @@ class BinTaskMiniState(smach.State):
             smach.StateMachine.add(
                 "SET_SEARCH_DEPTH",
                 SetDepthState(
-                    depth=self.bin_search_depth,
+                    depth=-0.5,
+                    max_velocity=0.2,
                 ),
                 transitions={
                     "succeeded": "FIND_AND_AIM_BIN",
@@ -92,9 +93,8 @@ class BinTaskMiniState(smach.State):
                     look_at_frame=self.bin_look_at_frame,
                     alignment_frame=self.bin_alignment_frame,
                     full_rotation=False,
-                    set_frame_duration=5.0,
                     source_frame=self.base_link,
-                    rotation_speed=0.2,
+                    rotation_speed=-0.2,
                 ),
                 transitions={
                     "succeeded": "ALIGN_FRAME_TO_BIN",
@@ -147,7 +147,7 @@ class BinTaskMiniState(smach.State):
             smach.StateMachine.add(
                 "SET_DROP_DEPTH",
                 SetDepthState(
-                    depth=self.bin_drop_depth,
+                    depth=-1.0,
                 ),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",

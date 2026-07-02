@@ -19,6 +19,7 @@ from auv_smach.common import (
     SetDepthState,
     SetDetectionFocusState,
     SetDetectionState,
+    AlignFrame
 )
 from auv_smach.initialize import DelayState
 from auv_smach.tf_utils import get_base_link
