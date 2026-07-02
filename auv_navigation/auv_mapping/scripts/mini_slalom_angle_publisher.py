@@ -18,6 +18,7 @@ from geometry_msgs.msg import (
 )
 from sensor_msgs.msg import CompressedImage, Image
 from std_msgs.msg import Float32MultiArray
+from std_srvs.srv import SetBool, SetBoolResponse
 from ultralytics_ros.msg import YoloResult
 from vision_msgs.msg import Detection2DArray
 
@@ -41,6 +42,7 @@ class MiniSlalomAnglePublisher:
         self.yolo_result_topic = rospy.get_param(
             "~yolo_result_topic", "/yolo_result_slalom"
         )
+        self.cmd_pose_topic = rospy.get_param("~cmd_pose_topic", "cmd_pose")
         self.image_topic = rospy.get_param(
             "~image_topic", "/taluy_mini/cameras/cam_front/image_corrected"
         )
@@ -61,7 +63,13 @@ class MiniSlalomAnglePublisher:
 
         self.cv_bridge = CvBridge()
         self.latest_image_msg = None
+        self.latest_cmd_pose_msg = None
+        self.image_sub = None
+        self.cmd_pose_sub = None
+        self.pipe_angle_debug_enabled = False
         self.last_pipe_angle_data = None
+        self.last_pipe_angle_debug_detections = None
+        self.last_red_detection = None
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -79,12 +87,58 @@ class MiniSlalomAnglePublisher:
         rospy.Subscriber(
             self.yolo_result_topic, YoloResult, self.yolo_callback, queue_size=1
         )
-        rospy.Subscriber(
-            self.image_topic, Image, self.image_callback, queue_size=1, buff_size=2**24
+        rospy.Service(
+            "slalom/pipe_angles_debug/set_enabled",
+            SetBool,
+            self.set_pipe_angle_debug_enabled_callback,
         )
+        self.set_pipe_angle_debug_enabled(
+            rospy.get_param("~pipe_angle_debug_enabled", False)
+        )
+
+    def set_pipe_angle_debug_enabled_callback(self, req):
+        self.set_pipe_angle_debug_enabled(req.data)
+        state = "enabled" if self.pipe_angle_debug_enabled else "disabled"
+        return SetBoolResponse(success=True, message=f"pipe angle debug {state}")
+
+    def set_pipe_angle_debug_enabled(self, enabled: bool):
+        enabled = bool(enabled)
+        if enabled == self.pipe_angle_debug_enabled:
+            return
+
+        self.pipe_angle_debug_enabled = enabled
+        if enabled:
+            self.image_sub = rospy.Subscriber(
+                self.image_topic,
+                Image,
+                self.image_callback,
+                queue_size=1,
+                buff_size=2**24,
+            )
+            self.cmd_pose_sub = rospy.Subscriber(
+                self.cmd_pose_topic,
+                PoseStamped,
+                self.cmd_pose_callback,
+                queue_size=1,
+            )
+            rospy.loginfo("Slalom pipe angle debug image enabled")
+            return
+
+        if self.image_sub is not None:
+            self.image_sub.unregister()
+            self.image_sub = None
+        if self.cmd_pose_sub is not None:
+            self.cmd_pose_sub.unregister()
+            self.cmd_pose_sub = None
+        self.latest_image_msg = None
+        self.latest_cmd_pose_msg = None
+        rospy.loginfo("Slalom pipe angle debug image disabled")
 
     def image_callback(self, msg: Image):
         self.latest_image_msg = msg
+
+    def cmd_pose_callback(self, msg: PoseStamped):
+        self.latest_cmd_pose_msg = msg
 
     def yolo_callback(self, msg: YoloResult):
         detections: Detection2DArray = msg.detections
@@ -99,29 +153,37 @@ class MiniSlalomAnglePublisher:
         white_detections = [x for x in angle_detections if x["id"] == SLALOM_WHITE_ID]
 
         if not red_detections:
+            red_debug = self.build_missing_red_detection(stamp)
             left_white, right_white = self.select_outer_white_detections(
                 white_detections
             )
-            self.publish_pipe_angles_debug(
-                angle_detections,
-                self.build_pipe_angle_debug_points(
-                    None, left_white, right_white, stamp
-                ),
-                stamp,
+            pipe_angle_data = [
+                red_debug["angle"] if red_debug is not None else None,
+                left_white["angle"] if left_white is not None else None,
+                right_white["angle"] if right_white is not None else None,
+                red_debug["height"] if red_debug is not None else None,
+                left_white["height"] if left_white is not None else None,
+                right_white["height"] if right_white is not None else None,
+            ]
+            published_data = self.publish_pipe_angle_data(pipe_angle_data)
+            red_debug, left_debug, right_debug = self.build_retained_debug_detections(
+                red_debug,
+                left_white,
+                right_white,
+                published_data,
             )
-            self.publish_pipe_angle_data(
-                [
-                    None,
-                    left_white["angle"] if left_white is not None else None,
-                    right_white["angle"] if right_white is not None else None,
-                    None,
-                    left_white["height"] if left_white is not None else None,
-                    right_white["height"] if right_white is not None else None,
-                ]
-            )
+            if self.pipe_angle_debug_enabled:
+                self.publish_pipe_angles_debug(
+                    angle_detections,
+                    self.build_pipe_angle_debug_points(
+                        red_debug, left_debug, right_debug, stamp
+                    ),
+                    stamp,
+                )
             return
 
         red_debug = self.build_red_debug_detection(red_detections)
+        self.last_red_detection = dict(red_debug)
         self.publish_red_frames(red_detections, stamp)
         left_white = self.select_side_white_detection(
             [x for x in white_detections if x["center_x"] < red_debug["center_x"]],
@@ -131,24 +193,34 @@ class MiniSlalomAnglePublisher:
             [x for x in white_detections if x["center_x"] > red_debug["center_x"]],
             side="right",
         )
+        if left_white is None:
+            left_white = self.build_missing_side_detection("left", red_debug, stamp)
+        if right_white is None:
+            right_white = self.build_missing_side_detection("right", red_debug, stamp)
 
-        self.publish_pipe_angles_debug(
-            angle_detections,
-            self.build_pipe_angle_debug_points(
-                red_debug, left_white, right_white, stamp
-            ),
-            stamp,
+        pipe_angle_data = [
+            red_debug["angle"],
+            left_white["angle"] if left_white is not None else None,
+            right_white["angle"] if right_white is not None else None,
+            red_debug["height"],
+            left_white["height"] if left_white is not None else None,
+            right_white["height"] if right_white is not None else None,
+        ]
+        published_data = self.publish_pipe_angle_data(pipe_angle_data)
+        red_debug, left_debug, right_debug = self.build_retained_debug_detections(
+            red_debug,
+            left_white,
+            right_white,
+            published_data,
         )
-        self.publish_pipe_angle_data(
-            [
-                red_debug["angle"],
-                left_white["angle"] if left_white is not None else None,
-                right_white["angle"] if right_white is not None else None,
-                red_debug["height"],
-                left_white["height"] if left_white is not None else None,
-                right_white["height"] if right_white is not None else None,
-            ]
-        )
+        if self.pipe_angle_debug_enabled:
+            self.publish_pipe_angles_debug(
+                angle_detections,
+                self.build_pipe_angle_debug_points(
+                    red_debug, left_debug, right_debug, stamp
+                ),
+                stamp,
+            )
 
     def collect_angle_detections(self, detections: Detection2DArray, stamp):
         angle_detections = []
@@ -217,12 +289,54 @@ class MiniSlalomAnglePublisher:
             ]
 
         if any(value is None for value in pipe_angle_data):
-            return
+            return None
 
         msg = Float32MultiArray()
         msg.data = pipe_angle_data
         self.last_pipe_angle_data = pipe_angle_data
         self.pipe_angle_pub.publish(msg)
+        return pipe_angle_data
+
+    def build_retained_debug_detections(
+        self, red_detection, left_white, right_white, pipe_angle_data
+    ):
+        debug_detections = {
+            "red": red_detection,
+            "left": left_white,
+            "right": right_white,
+        }
+        if pipe_angle_data is None:
+            return red_detection, left_white, right_white
+
+        if self.last_pipe_angle_debug_detections is not None:
+            for key, detection in debug_detections.items():
+                if detection is None:
+                    debug_detections[key] = self.last_pipe_angle_debug_detections[key]
+
+        if any(detection is None for detection in debug_detections.values()):
+            return (
+                debug_detections["red"],
+                debug_detections["left"],
+                debug_detections["right"],
+            )
+
+        for key, angle_index, height_index in [
+            ("red", 0, 3),
+            ("left", 1, 4),
+            ("right", 2, 5),
+        ]:
+            debug_detections[key] = dict(debug_detections[key])
+            debug_detections[key]["angle"] = pipe_angle_data[angle_index]
+            debug_detections[key]["height"] = pipe_angle_data[height_index]
+
+        self.last_pipe_angle_debug_detections = {
+            key: dict(detection) for key, detection in debug_detections.items()
+        }
+        return (
+            debug_detections["red"],
+            debug_detections["left"],
+            debug_detections["right"],
+        )
 
     def publish_red_frames(self, red_detections, stamp):
         for red_detection in red_detections:
@@ -328,12 +442,16 @@ class MiniSlalomAnglePublisher:
         return points
 
     def publish_pipe_angles_debug(self, angle_detections, debug_points, stamp):
+        if not self.pipe_angle_debug_enabled:
+            return
+
         if self.pipe_angle_debug_pub.get_num_connections() == 0:
             return
 
         debug_image, frame_id = self.get_pipe_angle_debug_image()
         self.draw_pipe_angle_context(debug_image, angle_detections)
         self.draw_pipe_angle_points(debug_image, debug_points)
+        self.draw_cmd_pose_yaw(debug_image)
 
         ok, encoded = cv2.imencode(
             ".jpg",
@@ -370,6 +488,36 @@ class MiniSlalomAnglePublisher:
                 self.slalom_camera_frame,
             )
 
+    def draw_cmd_pose_yaw(self, image):
+        yaw = self.get_cmd_pose_yaw_relative_base()
+        if yaw is None:
+            text = "cmd_pose yaw(base_link): unavailable"
+        else:
+            text = (
+                "cmd_pose yaw(base_link): "
+                f"{yaw:+.3f} rad / {math.degrees(yaw):+.1f} deg"
+            )
+
+        self.draw_debug_label(image, text, (12, image.shape[0] - 12))
+
+    def get_cmd_pose_yaw_relative_base(self):
+        if self.latest_cmd_pose_msg is None:
+            return None
+
+        try:
+            pose_in_base = self.tf_buffer.transform(
+                self.latest_cmd_pose_msg, self.base_link_frame, rospy.Duration(0.05)
+            )
+        except (
+            tf2_ros.LookupException,
+            tf2_ros.ConnectivityException,
+            tf2_ros.ExtrapolationException,
+        ) as e:
+            rospy.logwarn_throttle(5, f"Could not transform cmd_pose to base_link: {e}")
+            return None
+
+        return self.quaternion_yaw(pose_in_base.pose.orientation)
+
     def draw_pipe_angle_context(self, image, detections):
         for detection in detections:
             color = (0, 0, 160) if detection["id"] == SLALOM_RED_ID else (230, 230, 230)
@@ -405,13 +553,54 @@ class MiniSlalomAnglePublisher:
             self.draw_debug_label(image, label, (12, 24 + index * 24))
 
     def select_outer_white_detections(self, white_detections):
-        candidates = [x for x in white_detections if self.is_vertically_inside_image(x)]
+        candidates = self.select_angle_update_candidates(white_detections)
         if not candidates:
             return None, None
+
+        if len(candidates) == 1:
+            return self.select_single_outer_white_detection(candidates[0])
 
         left_white = min(candidates, key=lambda x: x["center_x"])
         right_white = max(candidates, key=lambda x: x["center_x"])
         return left_white, right_white
+
+    def select_single_outer_white_detection(self, white_detection):
+        if self.last_red_detection is not None:
+            left_edge_distance = self.last_red_detection["center_x"]
+            right_edge_distance = self.cam.width - self.last_red_detection["center_x"]
+            if left_edge_distance <= right_edge_distance:
+                return None, white_detection
+            return white_detection, None
+
+        if self.last_pipe_angle_debug_detections is not None:
+            retained_left = self.last_pipe_angle_debug_detections["left"]
+            retained_right = self.last_pipe_angle_debug_detections["right"]
+            left_distance = abs(white_detection["center_x"] - retained_left["center_x"])
+            right_distance = abs(
+                white_detection["center_x"] - retained_right["center_x"]
+            )
+            if left_distance <= right_distance:
+                return white_detection, None
+            return None, white_detection
+
+        if self.last_pipe_angle_data is not None:
+            left_distance = abs(
+                self.shortest_angle_diff(
+                    white_detection["angle"], self.last_pipe_angle_data[1]
+                )
+            )
+            right_distance = abs(
+                self.shortest_angle_diff(
+                    white_detection["angle"], self.last_pipe_angle_data[2]
+                )
+            )
+            if left_distance <= right_distance:
+                return white_detection, None
+            return None, white_detection
+
+        if white_detection["center_x"] < self.cam.width * 0.5:
+            return white_detection, None
+        return None, white_detection
 
     def select_red_angle_detections(self, red_detections):
         max_height = max(x["height"] for x in red_detections)
@@ -428,13 +617,77 @@ class MiniSlalomAnglePublisher:
         if not white_detections:
             return None
 
-        candidates = [x for x in white_detections if self.is_vertically_inside_image(x)]
+        candidates = self.select_angle_update_candidates(white_detections)
         if not candidates:
             return None
 
         if side == "right":
-            return max(candidates, key=lambda x: x["center_x"])
-        return min(candidates, key=lambda x: x["center_x"])
+            return max(candidates, key=lambda x: x["height"])
+        return max(candidates, key=lambda x: x["height"])
+
+    def build_missing_red_detection(self, stamp):
+        if self.last_red_detection is None:
+            return None
+
+        left_edge_distance = self.last_red_detection["center_x"]
+        right_edge_distance = self.cam.width - self.last_red_detection["center_x"]
+        center_x = (
+            0.0
+            if left_edge_distance <= right_edge_distance
+            else float(self.cam.width - 1)
+        )
+        center_y = self.last_red_detection["center_y"]
+        angle = self.bbox_angle_relative_base(center_x, center_y, stamp)
+        if angle is None:
+            return None
+
+        return {
+            "id": SLALOM_RED_ID,
+            "width": 0.0,
+            "height": 0.0,
+            "center_x": center_x,
+            "center_y": center_y,
+            "left": center_x,
+            "right": center_x,
+            "top": center_y,
+            "bottom": center_y,
+            "angle": angle,
+            "camera_angle_x": self.pixel_horizontal_angle(center_x),
+            "camera_angle_y": self.pixel_vertical_angle(center_y),
+        }
+
+    def build_missing_side_detection(self, side: str, red_detection, stamp):
+        center_x = 0.0 if side == "left" else float(self.cam.width - 1)
+        center_y = red_detection["center_y"]
+        angle = self.bbox_angle_relative_base(center_x, center_y, stamp)
+        if angle is None:
+            return None
+
+        return {
+            "id": SLALOM_WHITE_ID,
+            "width": 0.0,
+            "height": 0.0,
+            "center_x": center_x,
+            "center_y": center_y,
+            "left": center_x,
+            "right": center_x,
+            "top": center_y,
+            "bottom": center_y,
+            "angle": angle,
+            "camera_angle_x": self.pixel_horizontal_angle(center_x),
+            "camera_angle_y": self.pixel_vertical_angle(center_y),
+        }
+
+    def select_angle_update_candidates(self, detections):
+        if not detections:
+            return []
+
+        inside_candidates = [
+            x for x in detections if self.is_vertically_inside_image(x)
+        ]
+        if inside_candidates:
+            return inside_candidates
+        return detections
 
     def is_vertically_inside_image(self, detection):
         margin = self.pipe_angle_vertical_edge_margin_px
@@ -527,6 +780,16 @@ class MiniSlalomAnglePublisher:
             sum(math.sin(angle) for angle in angles),
             sum(math.cos(angle) for angle in angles),
         )
+
+    @staticmethod
+    def shortest_angle_diff(angle_a, angle_b):
+        return math.atan2(math.sin(angle_a - angle_b), math.cos(angle_a - angle_b))
+
+    @staticmethod
+    def quaternion_yaw(q):
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        return math.atan2(siny_cosp, cosy_cosp)
 
     @staticmethod
     def mean(values):
