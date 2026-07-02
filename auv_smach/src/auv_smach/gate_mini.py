@@ -316,7 +316,6 @@ class NavigateThroughGateMiniState(smach.State):
                     "aborted": "aborted",
                 },
             )
-                
 
     @staticmethod
     def get_start_frame_yaw(mini_coin_flip: str) -> float:
