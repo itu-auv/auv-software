@@ -20,7 +20,7 @@ SENSORS = np.array(
     ]
 )
 A = SENSORS[1:] - SENSORS[0]
-DEFAULT_YAW_OFFSET = 0.0
+ROBOT_YAW_OFFSET = 0.0
 
 
 def normalize_angle(angle):
@@ -49,7 +49,7 @@ def to_robot_angle(hydrophone_angle, yaw_offset):
 class HydrophoneTDOAToAngle:
     def __init__(self):
         rospy.init_node("hydrophone_tdoa_to_angle_node", anonymous=True)
-        self.yaw_offset = DEFAULT_YAW_OFFSET
+        self.yaw_offset = ROBOT_YAW_OFFSET
         self.marker_length = rospy.get_param("~marker_length", 1.5)
         self.namespace = rospy.get_param("~namespace", "taluy")
         self.base_link = f"{self.namespace}/base_link"
