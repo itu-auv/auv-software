@@ -45,6 +45,7 @@ class BallDropperSetAngleState(smach.State):
             rospy.logerr(f"[BallDropperSetAngleState] Error: {e}")
             return "aborted"
 
+
 class BinTaskMiniState(smach.State):
     def __init__(
         self,
