@@ -11,14 +11,17 @@ C = 1504.34
 SAMPLE_RATE = 250000
 W = 0.65
 L = 0.35
-SENSORS = np.array([
-    [W, L],
-    [0.00, L],
-    [0.00, 0.00],
-    [W, 0.00],
-])
+SENSORS = np.array(
+    [
+        [W, L],
+        [0.00, L],
+        [0.00, 0.00],
+        [W, 0.00],
+    ]
+)
 A = SENSORS[1:] - SENSORS[0]
 DEFAULT_YAW_OFFSET = 0.0
+
 
 def normalize_angle(angle):
     return (angle + 180.0) % 360.0 - 180.0
@@ -50,9 +53,15 @@ class HydrophoneTDOAToAngle:
         self.marker_length = rospy.get_param("~marker_length", 1.5)
         self.namespace = rospy.get_param("~namespace", "taluy")
         self.base_link = f"{self.namespace}/base_link"
-        self.marker_pub = rospy.Publisher("acoustic/hydrophone/marker", Marker, queue_size=10)
-        self.angle_pub = rospy.Publisher("acoustic/hydrophone/base_angle", Float64, queue_size=10)
-        self.tdoa_sub = rospy.Subscriber("acoustic/hydrophone/tdoa", Int16MultiArray, self.tdoa_callback)
+        self.marker_pub = rospy.Publisher(
+            "acoustic/hydrophone/marker", Marker, queue_size=10
+        )
+        self.angle_pub = rospy.Publisher(
+            "acoustic/hydrophone/base_angle", Float64, queue_size=10
+        )
+        self.tdoa_sub = rospy.Subscriber(
+            "acoustic/hydrophone/tdoa", Int16MultiArray, self.tdoa_callback
+        )
 
     def tdoa_callback(self, msg):
         if len(msg.data) < 4:
