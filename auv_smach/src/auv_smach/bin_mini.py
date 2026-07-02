@@ -11,14 +11,46 @@ from auv_smach.common import (
     SetDetectionFocusState,
     AlignFrameWithVisibilityCheck,
 )
+from auv_smach.initialize import DelayState
+from std_msgs.msg import Float32
 
+
+class BallDropperSetAngleState(smach.State):
+    """
+    for real life gripper).
+    """
+
+    def __init__(self, angle_value: int):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "preempted", "aborted"],
+        )
+        self.pub = rospy.Publisher(
+            "/taluy_mini/actuators/ball_dropper/set_angle", Float32, queue_size=1
+        )
+        self.angle_value = angle_value
+
+    def execute(self, userdata) -> str:
+        try:
+            msg = Float32()
+            msg.data = float(self.angle_value)
+            for _ in range(3):
+                self.pub.publish(msg)
+                rospy.sleep(0.1)
+            rospy.loginfo(
+                f"[BallDropperSetAngleState] Published angle: {self.angle_value}"
+            )
+            return "succeeded"
+        except Exception as e:
+            rospy.logerr(f"[BallDropperSetAngleState] Error: {e}")
+            return "aborted"
 
 class BinTaskMiniState(smach.State):
     def __init__(
         self,
         bin_search_depth: float = -0.5,
         bin_drop_depth: float = -1.0,
-        target_animal: str = "bin_shark_link",
+        target_frames: list = ["bin_blood_link", "bin_fire_link"],
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -26,7 +58,7 @@ class BinTaskMiniState(smach.State):
         self.base_link = get_base_link()
         self.bin_search_depth = bin_search_depth
         self.bin_drop_depth = bin_drop_depth
-        self.target_animal = target_animal
+        self.target_animal = target_frames[0]
         self.bin_look_at_frame = "bin_basket_front_link"
         self.bin_alignment_frame = "bin_search"
 
@@ -114,6 +146,7 @@ class BinTaskMiniState(smach.State):
                     lost_timeout=15.0,
                     transform_timeout=20.0,
                     camera_name="bottom",
+                    max_linear_velocity=0.3,
                 ),
                 transitions={
                     "succeeded": "ALIGN_PRECISELY_TO_BIN",
@@ -127,14 +160,15 @@ class BinTaskMiniState(smach.State):
                 "ALIGN_PRECISELY_TO_BIN",
                 AlignFrameWithVisibilityCheck(
                     source_frame=self.base_link,
-                    target_frame="bin_shark_link",
-                    prop_name="bin_shark_link",
+                    target_frame=self.target_animal,
+                    prop_name=self.target_animal,
                     lost_timeout=3.0,
                     confirm_duration=10.0,
                     timeout=20.0,
                     cancel_on_success=True,
                     keep_orientation=True,
                     camera_name="bottom",
+                    max_linear_velocity=0.02,
                 ),
                 transitions={
                     "succeeded": "SET_DROP_DEPTH",
@@ -143,19 +177,54 @@ class BinTaskMiniState(smach.State):
                     "aborted": "aborted",
                 },
             )
-
             smach.StateMachine.add(
                 "SET_DROP_DEPTH",
                 SetDepthState(
-                    depth=-1.0,
+                    depth=-0.5,
+                    max_velocity=0.2,
                 ),
+                transitions={
+                    "succeeded": "DROP_BALL_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DROP_BALL_1",
+                BallDropperSetAngleState(angle_value=60.0),
+                transitions={
+                    "succeeded": "WAIT_FOR_BALL_DROP_1",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_BALL_DROP_1",
+                DelayState(delay_time=5.0),
+                transitions={
+                    "succeeded": "DROP_BALL_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DROP_BALL_2",
+                BallDropperSetAngleState(angle_value=-60.0),
+                transitions={
+                    "succeeded": "WAIT_FOR_BALL_DROP_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "WAIT_FOR_BALL_DROP_2",
+                DelayState(delay_time=5.0),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
-
             smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),

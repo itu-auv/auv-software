@@ -450,7 +450,7 @@ class MainStateMachineNode:
             "NAVIGATE_TO_BIN_MINI_TASK": (
                 BinTaskMiniState,
                 {
-                    "target_animal": f"bin_{legacy_target_selection}_link",
+                    "target_frames": bin_target_frames,
                 },
             ),
             "NAVIGATE_TO_OCTAGON_TASK": (

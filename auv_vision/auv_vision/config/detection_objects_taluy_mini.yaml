@@ -12,6 +12,19 @@ cameras:
       2: slalom_red_pipe_link
       3: slalom_white_pipe_link
       6: bin_basket_front_link
+  bottom:
+    ns: "taluy_mini/cameras/cam_bottom"
+    frame: "taluy_mini/base_link/bottom_camera_optical_link"
+    yolo_topic: "/yolo_result_bottom"
+    handler: "bottom_camera_handler"
+    image_width: 1920
+    image_height: 1080
+    id_tf_map:
+      0: bin_blood_link
+      1: bin_fire_link
+      2: octagon_table_link
+      3: basket_redcross_link
+      4: basket_warning_link
   slalom:
     ns: "taluy_mini/cameras/cam_front"
     frame: "taluy_mini/base_link/front_camera_optical_link_stabilized"
@@ -30,6 +43,11 @@ props:
   slalom_red_pipe_link: {name: "slalom_red_pipe", real_height: 0.9, real_width: 0.0254}
   slalom_white_pipe_link: {name: "slalom_white_pipe", real_height: 0.9, real_width: 0.0254}
   bin_basket_front_link: {name: "bin_basket_front_link", real_height: 0.3048, real_width: 0.3048}
+  bin_blood_link: {name: "bin_blood", real_height: 0.32, real_width: 0.32}
+  bin_fire_link: {name: "bin_fire", real_height: 0.32, real_width: 0.32}
+  octagon_table_link: {name: "octagon_table", real_height: 0.70, real_width: 0.70}
+  basket_redcross_link: {name: "basket_redcross", real_height: 0.25, real_width: 0.209}
+  basket_warning_link: {name: "basket_warning", real_height: 0.25, real_width: 0.209}
 
   # Front camera focus service object groups (keyed by YOLO detection ID)
 object_groups:
@@ -40,4 +58,11 @@ object_groups:
   bin: [6]
   octagon: [7]
   all: [0, 1, 2, 3, 4, 5, 6, 7]
+  none: []
+
+# Bottom camera focus service object groups (keyed by YOLO detection ID)
+bottom_object_groups:
+  bin: [0, 1]
+  octagon: [2, 3, 4]
+  all: [0, 1, 2, 3, 4]
   none: []
