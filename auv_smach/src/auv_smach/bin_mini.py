@@ -144,10 +144,12 @@ class BinTaskMiniState(smach.State):
                     transform_target_frame=self.target_animal,
                     align_source_frame=self.base_link,
                     prop_name=self.bin_look_at_frame,
-                    lost_timeout=15.0,
-                    transform_timeout=20.0,
+                    lost_timeout=1000.0,
+                    transform_timeout=1000.0,
                     camera_name="bottom",
-                    max_linear_velocity=0.3,
+                    max_linear_velocity=0.15,
+                    max_linear_velocity_y=0.025,
+                    max_angular_velocity=1,
                 ),
                 transitions={
                     "succeeded": "ALIGN_PRECISELY_TO_BIN",
@@ -163,36 +165,24 @@ class BinTaskMiniState(smach.State):
                     source_frame=self.base_link,
                     target_frame=self.target_animal,
                     prop_name=self.target_animal,
-                    lost_timeout=3.0,
+                    lost_timeout=100.0,
                     confirm_duration=10.0,
-                    timeout=20.0,
+                    timeout=30.0,
                     cancel_on_success=True,
                     keep_orientation=True,
                     camera_name="bottom",
-                    max_linear_velocity=0.02,
+                    max_linear_velocity=0.05,
                 ),
                 transitions={
-                    "succeeded": "SET_DROP_DEPTH",
+                    "succeeded": "DROP_BALL_1",
                     "target_lost": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "SET_DROP_DEPTH",
-                SetDepthState(
-                    depth=-0.5,
-                    max_velocity=0.2,
-                ),
-                transitions={
-                    "succeeded": "DROP_BALL_1",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
                 "DROP_BALL_1",
-                BallDropperSetAngleState(angle_value=60.0),
+                BallDropperSetAngleState(angle_value=55.0),
                 transitions={
                     "succeeded": "WAIT_FOR_BALL_DROP_1",
                     "preempted": "preempted",
@@ -210,7 +200,7 @@ class BinTaskMiniState(smach.State):
             )
             smach.StateMachine.add(
                 "DROP_BALL_2",
-                BallDropperSetAngleState(angle_value=-60.0),
+                BallDropperSetAngleState(angle_value=110.0),
                 transitions={
                     "succeeded": "WAIT_FOR_BALL_DROP_2",
                     "preempted": "preempted",

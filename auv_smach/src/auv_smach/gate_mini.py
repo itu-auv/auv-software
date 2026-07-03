@@ -119,7 +119,25 @@ class NavigateThroughGateMiniState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
-                "SET_START_FRAME",
+                "ilk_state_tir",
+                ResetOdometryPoseState(),
+                transitions={
+                    "succeeded": "babani",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ikinci_state_tir",
+                ClearObjectMapState(),
+                transitions={
+                    "succeeded": "stdbool",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "stdbool",
                 SetStartFrameState(
                     frame_name="mini_coin_flip",
                     rotation_yaw=self.start_frame_yaw,
@@ -190,7 +208,7 @@ class NavigateThroughGateMiniState(smach.State):
                     timeout=30.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.05,
-                    max_linear_velocity_y=0.05,
+                    max_linear_velocity_y=0.02,
                     max_angular_velocity=0.3,
                 ),
                 transitions={
@@ -205,6 +223,15 @@ class NavigateThroughGateMiniState(smach.State):
                     pitch_torque=self.pitch_torque,
                     timeout_s=self.pitch_timeout,
                 ),
+                transitions={
+                    "succeeded": "bekle",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "bekle",
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "pitch_arasi_bakis",
                     "preempted": "preempted",
@@ -244,7 +271,7 @@ class NavigateThroughGateMiniState(smach.State):
                     source_frame=self.base_link,
                     target_frame=self.gate_look_at_frame,
                     prop_name=self.target_animal,
-                    lost_timeout=6.0,
+                    lost_timeout=4.5,
                     angle_offset=self.gate_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
@@ -298,6 +325,15 @@ class NavigateThroughGateMiniState(smach.State):
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
+                transitions={
+                    "succeeded": "kapa_gate_sonda",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "kapa_gate_sonda",
+                TransformServiceEnableState(req=False),
                 transitions={
                     "succeeded": "ikinci_pitch",
                     "preempted": "preempted",
