@@ -244,12 +244,14 @@ class ProcessTrackerWithCloud {
     // so that projection with the camera intrinsics is valid. This allows the
     // point cloud source (e.g. RealSense depth) and the detection camera
     // (e.g. torpedo camera) to be different physical sensors.
-    std::string cloud_frame_id =
-        pointcloud_frame_.empty() ? cloud_msg->header.frame_id : pointcloud_frame_;
+    std::string cloud_frame_id = pointcloud_frame_.empty()
+                                     ? cloud_msg->header.frame_id
+                                     : pointcloud_frame_;
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(
         new pcl::PointCloud<pcl::PointXYZ>);
-    if (!camera_optical_frame_.empty() && cloud_frame_id != camera_optical_frame_) {
+    if (!camera_optical_frame_.empty() &&
+        cloud_frame_id != camera_optical_frame_) {
       try {
         geometry_msgs::TransformStamped tf_stamped =
             tf_buffer_.lookupTransform(camera_optical_frame_, cloud_frame_id,
@@ -258,11 +260,10 @@ class ProcessTrackerWithCloud {
                                      tf_stamped.transform);
         transformed_cloud->header.frame_id = camera_optical_frame_;
       } catch (const tf2::TransformException& ex) {
-        ROS_WARN_STREAM_THROTTLE(
-            2.0, "Failed to transform cloud from '" << cloud_frame_id
-                                                   << "' to '"
-                                                   << camera_optical_frame_
-                                                   << "': " << ex.what());
+        ROS_WARN_STREAM_THROTTLE(2.0, "Failed to transform cloud from '"
+                                          << cloud_frame_id << "' to '"
+                                          << camera_optical_frame_
+                                          << "': " << ex.what());
         return;
       }
     } else {
