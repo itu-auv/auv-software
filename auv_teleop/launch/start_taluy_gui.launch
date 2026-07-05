@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
   <arg name="namespace" default="taluy" />
-  <arg name="imu_topic" default="$(eval '/vectornav/IMU' if arg('namespace') == 'taluy_mini' else 'sensors/imu/data')" />
+  <arg name="imu_topic" default="'sensors/imu/data" />
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
 
     <node name="taluy_gui" pkg="auv_teleop" type="taluy_gui.py" output="screen">
