@@ -18,7 +18,6 @@ from auv_smach.common import (
     AlignAndCreateRotatingFrame,
 )
 from auv_smach.initialize import DelayState
-from auv_smach.acoustic import AcousticTransmitter
 from std_srvs.srv import Trigger, TriggerRequest, SetBool, SetBoolRequest
 from std_msgs.msg import UInt16
 import tf2_ros

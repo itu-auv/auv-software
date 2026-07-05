@@ -24,7 +24,6 @@ from auv_smach.common import (
 )
 
 from auv_smach.initialize import DelayState
-from auv_smach.acoustic import AcousticTransmitter
 from std_msgs.msg import Float32
 
 
@@ -771,15 +770,6 @@ class BinTaskState(smach.State):
             smach.StateMachine.add(
                 "DISABLE_BOTTOM_DETECTION",
                 SetDetectionState(camera_name="bottom", enable=False),
-                transitions={
-                    "succeeded": "TRANSMIT_ACOUSTIC_3",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "TRANSMIT_ACOUSTIC_3",
-                AcousticTransmitter(acoustic_data=3),
                 transitions={
                     "succeeded": "CANCEL_ALIGN_CONTROLLER",
                     "preempted": "preempted",
