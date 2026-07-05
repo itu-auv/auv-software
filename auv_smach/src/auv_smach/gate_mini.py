@@ -17,6 +17,7 @@ from auv_smach.common import (
     LookAroundState,
     MonitorVisibilityState,
     AlignFrameWithVisibilityCheck,
+    ClearObjectMapState,
 )
 
 from std_srvs.srv import SetBool, SetBoolRequest
@@ -122,7 +123,7 @@ class NavigateThroughGateMiniState(smach.State):
                 "ilk_state_tir",
                 ResetOdometryPoseState(),
                 transitions={
-                    "succeeded": "babani",
+                    "succeeded": "ikinci_state_tir",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
@@ -131,11 +132,21 @@ class NavigateThroughGateMiniState(smach.State):
                 "ikinci_state_tir",
                 ClearObjectMapState(),
                 transitions={
+                    "succeeded": "open_gate_detection",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "open_gate_detection",
+                SetDetectionState(camera_name="front", enable=True),
+                transitions={
                     "succeeded": "stdbool",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+
             smach.StateMachine.add(
                 "stdbool",
                 SetStartFrameState(
@@ -179,7 +190,7 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
-                    depth=-1.1,
+                    depth=-0.55,
                     depth_threshold=0.25,
                 ),
                 transitions={
@@ -231,7 +242,16 @@ class NavigateThroughGateMiniState(smach.State):
             )
             smach.StateMachine.add(
                 "bekle",
-                DelayState(delay_time=2.0),
+                DelayState(delay_time=4.0),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSITION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSITION",
+                ResetOdometryPositionState(),
                 transitions={
                     "succeeded": "pitch_arasi_bakis",
                     "preempted": "preempted",
@@ -257,7 +277,7 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "m",
                 SetDepthState(
-                    depth=-1.35,
+                    depth=-0.75,
                 ),
                 transitions={
                     "succeeded": "n",
@@ -271,12 +291,12 @@ class NavigateThroughGateMiniState(smach.State):
                     source_frame=self.base_link,
                     target_frame=self.gate_look_at_frame,
                     prop_name=self.target_animal,
-                    lost_timeout=4.5,
+                    lost_timeout=4.0,
                     angle_offset=self.gate_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=1.0,
-                    timeout=20.0,
+                    timeout=10.0,
                     cancel_on_success=True,
                     keep_orientation=False,
                     max_linear_velocity=0.15,
@@ -323,7 +343,7 @@ class NavigateThroughGateMiniState(smach.State):
                     alignment_frame="slalom_mini_search",
                     full_rotation=False,
                     source_frame=self.base_link,
-                    rotation_speed=0.2,
+                    rotation_speed=-0.2,
                 ),
                 transitions={
                     "succeeded": "kapa_gate_sonda",
@@ -334,6 +354,17 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "kapa_gate_sonda",
                 TransformServiceEnableState(req=False),
+                transitions={
+                    "succeeded": "amerika", # ev için eklendi robosubda sil
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "amerika",
+                SetDepthState(
+                    depth=-0.55,
+                ),
                 transitions={
                     "succeeded": "ikinci_pitch",
                     "preempted": "preempted",

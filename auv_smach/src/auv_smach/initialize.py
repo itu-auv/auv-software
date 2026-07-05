@@ -5,6 +5,7 @@ import tf.transformations
 from std_srvs.srv import SetBool, SetBoolRequest
 from std_srvs.srv import Empty, EmptyRequest
 from std_srvs.srv import Trigger, TriggerRequest
+from nav_msgs.msg import Odometry
 from robot_localization.srv import SetPose, SetPoseRequest
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from std_msgs.msg import Bool
@@ -18,6 +19,21 @@ from typing import Optional, Literal
 from dataclasses import dataclass
 from auv_smach.common import SetDetectionFocusState, SetDetectionState
 
+class ResetOdometryPositionState(smach_ros.ServiceState):
+    def __init__(self):
+        smach_ros.ServiceState.__init__(
+            self,
+            "set_pose",
+            SetPose,
+            request_cb=self._make_request,
+        )
+
+    def _make_request(self, userdata, request):
+        odometry = rospy.wait_for_message("odometry", Odometry, timeout=1.0)
+        request.pose.header.stamp = rospy.Time.now()
+        request.pose.header.frame_id = odometry.header.frame_id or "odom"
+        request.pose.pose.pose.orientation = odometry.pose.pose.orientation
+        return request
 
 class ResetOdometryState(smach_ros.ServiceState):
     def __init__(self):

@@ -40,6 +40,9 @@ from tf2_geometry_msgs import do_transform_point, do_transform_vector3
 from geometry_msgs.msg import Vector3Stamped
 
 
+DEFAULT_MAX_VELOCITY = [0.6, 0.6, 0.6, 0.8, 0.8, 0.8]
+
+
 def normalize_angle(angle: float) -> float:
     return np.arctan2(np.sin(angle), np.cos(angle))
 
@@ -129,6 +132,7 @@ class ReferencePosePublisherNode:
         self.tf_freshness_threshold = rospy.Duration(
             rospy.get_param("~tf_freshness_threshold", 0.8)
         )
+        self.default_max_velocity = DEFAULT_MAX_VELOCITY[:]
 
         self.killswitch_sub = rospy.Subscriber(
             "propulsion_board/status", Bool, self.killswitch_callback
@@ -144,29 +148,9 @@ class ReferencePosePublisherNode:
                 target_server, timeout=5
             )
             rospy.loginfo(f"Connected to dynamic reconfigure server: {target_server}")
-
-            # Capture current max velocity configuration as defaults to restore later
-            current_cfg = self._read_controller_cfg()
-            if current_cfg is not None:
-                self.default_max_velocity = [
-                    current_cfg.get("max_velocity_0", 1.0),
-                    current_cfg.get("max_velocity_1", 1.0),
-                    current_cfg.get("max_velocity_2", 1.0),
-                    current_cfg.get("max_velocity_3", 1.0),
-                    current_cfg.get("max_velocity_4", 1.0),
-                    current_cfg.get("max_velocity_5", 1.0),
-                ]
-            else:
-                rospy.logwarn(
-                    "Failed to read initial controller configuration; using params/fallback"
-                )
-                self.default_max_velocity = rospy.get_param(
-                    f"{target_server}/max_velocity", [1.0] * 6
-                )
         except Exception as e:
             rospy.logwarn(f"Failed to connect to dynamic reconfigure server: {e}")
             self.reconfigure_client = None
-            self.default_max_velocity = [1.0] * 6
 
     def killswitch_callback(self, msg: Bool) -> None:
         if not msg.data:
@@ -440,15 +424,6 @@ class ReferencePosePublisherNode:
             self._restore_controller_cfg()
 
     # --- Helper methods for dynamic reconfigure handling ---
-    def _read_controller_cfg(self):
-        if not self.reconfigure_client:
-            return None
-        try:
-            return self.reconfigure_client.get_configuration()
-        except Exception as e:
-            rospy.logwarn(f"Failed to read controller configuration: {e}")
-            return None
-
     @staticmethod
     def _resolve_linear_velocity_limit(
         axis_velocity: float, fallback_velocity: float, default_velocity: float
