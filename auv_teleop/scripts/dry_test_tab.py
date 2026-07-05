@@ -71,6 +71,7 @@ class CommandThread(QThread):
 class DryTestTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.namespace = rospy.get_param("~namespace", "taluy").strip("/")
 
         self.topic_imu = rospy.get_param("~topic_imu", "imu/data")
         self.topic_dvl_validity = rospy.get_param(
@@ -326,7 +327,12 @@ class DryTestTab(QWidget):
             self.output.append(f"Error stopping thrusters: {str(e)}")
 
     def start_teleop(self):
-        cmd = ["roslaunch", "auv_teleop", "start_teleop.launch"]
+        cmd = [
+            "roslaunch",
+            "auv_teleop",
+            "start_teleop.launch",
+            f"namespace:={self.namespace}",
+        ]
         if self.xbox_check.isChecked():
             cmd.append("controller:=xbox")
         print(f"Executing: {' '.join(cmd)}")
