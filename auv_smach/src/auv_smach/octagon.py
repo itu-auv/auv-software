@@ -609,15 +609,6 @@ class OctagonTaskState(smach.State):
                 "SET_BATUHAN_DEPTH",
                 SetDepthState(depth=-0.6),
                 transitions={
-                    "succeeded": "ENABLE_BOTTOM_DETECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ENABLE_BOTTOM_DETECTION",
-                SetDetectionState(camera_name="bottom", enable=True),
-                transitions={
                     "succeeded": "ENABLE_SEGMENT_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -626,15 +617,6 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "ENABLE_SEGMENT_DETECTION",
                 SetDetectionState(camera_name="segment", enable=True),
-                transitions={
-                    "succeeded": "SET_BOTTOM_FOCUS_OCTAGON",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_BOTTOM_FOCUS_OCTAGON",
-                SetDetectionFocusBottomState(focus_object="octagon"),
                 transitions={
                     "succeeded": after_bottom_focus,
                     "preempted": "preempted",
@@ -837,6 +819,15 @@ class OctagonTaskState(smach.State):
                     confirm_duration=2.0,
                 ),
                 transitions={
+                    "succeeded": "DISABLE_SEGMENT_DETECTION",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DISABLE_SEGMENT_DETECTION",
+                SetDetectionState(camera_name="segment", enable=False),
+                transitions={
                     "succeeded": "FINISHED_OCTAGON_TASK",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -853,7 +844,7 @@ class OctagonTaskState(smach.State):
             )
 
         if start_from_table:
-            self.state_machine.set_initial_state(["ENABLE_BOTTOM_DETECTION"])
+            self.state_machine.set_initial_state(["ENABLE_SEGMENT_DETECTION"])
 
     def execute(self, userdata):
         outcome = self.state_machine.execute()
@@ -981,15 +972,6 @@ class OctagonSurfaceState(smach.State):
                 "SET_BATUHAN_DEPTH",
                 SetDepthState(depth=-0.6),
                 transitions={
-                    "succeeded": "ENABLE_BOTTOM_DETECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "ENABLE_BOTTOM_DETECTION",
-                SetDetectionState(camera_name="bottom", enable=True),
-                transitions={
                     "succeeded": "ENABLE_SEGMENT_DETECTION",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -998,15 +980,6 @@ class OctagonSurfaceState(smach.State):
             smach.StateMachine.add(
                 "ENABLE_SEGMENT_DETECTION",
                 SetDetectionState(camera_name="segment", enable=True),
-                transitions={
-                    "succeeded": "SET_BOTTOM_FOCUS_OCTAGON",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "SET_BOTTOM_FOCUS_OCTAGON",
-                SetDetectionFocusBottomState(focus_object="octagon"),
                 transitions={
                     "succeeded": "DYNAMIC_PATH_WITH_BOTTLE_CHECK",
                     "preempted": "preempted",
@@ -1079,15 +1052,6 @@ class OctagonSurfaceState(smach.State):
             smach.StateMachine.add(
                 "FINISHED_OCTAGON_TASK",
                 SetDepthState(depth=-0.5, max_velocity=0.2, confirm_duration=1.0),
-                transitions={
-                    "succeeded": "DISABLE_BOTTOM_DETECTION",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "DISABLE_BOTTOM_DETECTION",
-                SetDetectionState(camera_name="bottom", enable=False),
                 transitions={
                     "succeeded": "DISABLE_SEGMENT_DETECTION",
                     "preempted": "preempted",

@@ -171,6 +171,16 @@ class CameraDetectionNode:
             SetBool,
             self._handle_enable_segment_camera,
         )
+        rospy.Service(
+            "enable_front_kde_camera_detections",
+            SetBool,
+            self._handle_enable_front_kde_camera,
+        )
+        rospy.Service(
+            "enable_all_camera_detections",
+            SetBool,
+            self._handle_enable_all_camera_detections,
+        )
 
         self.tracker_enable_sync_timer = rospy.Timer(
             rospy.Duration(1.0), self._sync_tracker_enable_states
@@ -264,6 +274,19 @@ class CameraDetectionNode:
 
     def _handle_enable_segment_camera(self, req):
         return self._handle_enable_camera("bottom_seg", req.data)
+
+    def _handle_enable_front_kde_camera(self, req):
+        return self._handle_enable_camera("front_kde", req.data)
+
+    def _handle_enable_all_camera_detections(self, req):
+        success = True
+        messages = []
+        for cam_key in list(self.camera_enabled.keys()):
+            res = self._handle_enable_camera(cam_key, req.data)
+            if not res.success:
+                success = False
+            messages.append(res.message)
+        return SetBoolResponse(success=success, message="; ".join(messages))
 
     def _handle_set_front_camera_focus(self, req):
         focus_objects = [
