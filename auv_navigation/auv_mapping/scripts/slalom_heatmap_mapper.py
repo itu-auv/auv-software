@@ -400,7 +400,7 @@ class SlalomHeatmapMapper:
 
             try:
                 pose_stamped = PoseStamped()
-                pose_stamped.header.stamp = detections.header.stamp
+                pose_stamped.header.stamp = msg.header.stamp
                 pose_stamped.header.frame_id = (
                     self.base_link_frame + "/front_camera_optical_link_stabilized"
                 )

@@ -4,4 +4,7 @@
     <include file="$(find auv_detection)/launch/inc/tracker_bottom.launch"/>
     <include file="$(find auv_detection)/launch/inc/tracker_realsense.launch"/>
     <include file="$(find auv_detection)/launch/inc/tracker_torpedo.launch"/>
+    <include file="$(find auv_detection)/launch/inc/tracker_segment.launch"/>
+    <include file="$(find auv_detection)/launch/inc/tracker_slalom.launch"/>
+
 </launch>

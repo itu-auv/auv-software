@@ -94,6 +94,7 @@ class NavigateThroughGateState(smach.State):
         gate_search_depth: float,
         gate_exit_angle: float = 0.0,
         roll_depth: float = -0.8,
+        gate_look_at_frame: str = "gate_middle_part",
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
 
@@ -102,7 +103,7 @@ class NavigateThroughGateState(smach.State):
         self.roll = rospy.get_param("~roll", True)
         self.yaw = rospy.get_param("~yaw", False)
         self.coin_flip = rospy.get_param("~coin_flip", False)
-        self.gate_look_at_frame = "gate_middle_part"
+        self.gate_look_at_frame = gate_look_at_frame
         self.gate_search_frame = "gate_search"
         self.gate_exit_angle = gate_exit_angle
         self.roll_depth = roll_depth
@@ -172,7 +173,6 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=5.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),
@@ -223,7 +223,6 @@ class NavigateThroughGateState(smach.State):
                     look_at_frame=self.gate_look_at_frame,
                     alignment_frame=self.gate_search_frame,
                     full_rotation=False,
-                    set_frame_duration=7.0,
                     source_frame=self.base_link,
                     rotation_speed=0.2,
                 ),

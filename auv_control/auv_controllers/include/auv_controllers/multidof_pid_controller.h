@@ -78,6 +78,9 @@ class MultiDOFPIDController : public ControllerBase<N> {
     gravity_compensation_z_ = compensation;
   }
 
+  void set_external_wrench(const WrenchVector& wrench) {
+    external_wrench_ = wrench;
+  }
   const Vectornd& get_desired_velocity() const { return desired_velocity_; }
 
   /**
@@ -163,6 +166,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
     Eigen::Vector3d gravity_force_global = Eigen::Vector3d::Zero();
     gravity_force_global(2) = gravity_compensation_z_;
     wrench.head(3) += inverse_rotation_matrix * gravity_force_global;
+    wrench += external_wrench_;
 
     return wrench;
   }
@@ -247,6 +251,7 @@ class MultiDOFPIDController : public ControllerBase<N> {
 
   // MAD MAX
   Vectornd max_velocity_limits_{Vectornd::Constant(1e6)};
+  WrenchVector external_wrench_{WrenchVector::Zero()};
   Vectornd max_acceleration_limits_{Vectornd::Zero()};
   Vectornd max_acceleration_rate_limits_{Vectornd::Zero()};
   Vectornd previous_pid_output_{Vectornd::Zero()};
