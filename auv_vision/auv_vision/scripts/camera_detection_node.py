@@ -3,6 +3,7 @@
 import os
 import sys
 import importlib
+import threading
 import rospy
 from geometry_msgs.msg import TransformStamped
 from ultralytics_ros.msg import YoloResult
@@ -91,46 +92,18 @@ class CameraDetectionNode:
             cam_key: None for cam_key in self.tracker_enable_services
         }
 
-        # Create handlers for each camera
+        # Create handlers for each camera. Each camera is initialized in its
+        # own thread so that a missing camera_info on one camera does not
+        # block the initialization of the others or the node's services.
         self.handlers = {}
+        self.handlers_lock = threading.Lock()
         for cam_key, cam_cfg in self.config["cameras"].items():
-            try:
-                # Build camera-specific calibration
-                # cam_cfg["ns"] is like "taluy/cameras/cam_front"
-                # CameraCalibration expects "cameras/cam_front"
-                calib_ns = cam_cfg["ns"].split("/", 1)[1]  # remove "taluy/" prefix
-                calibration = CameraCalibration(calib_ns)
-
-                # Build id_tf_map for this camera
-                id_tf_map = build_id_tf_map(cam_cfg)
-
-                # Import handler module
-                handler_module = importlib.import_module(
-                    f"handlers.{cam_cfg['handler']}"
-                )
-                handler = handler_module.create_handler(
-                    cam_cfg,
-                    id_tf_map,
-                    self.props,
-                    calibration,
-                    self.tf_buffer,
-                    self.publishers,
-                    self.shared_state,
-                )
-                self.handlers[cam_key] = handler
-
-                # Create subscriber
-                rospy.Subscriber(
-                    cam_cfg["yolo_topic"],
-                    YoloResult,
-                    lambda msg, k=cam_key: self._dispatch(msg, k),
-                    queue_size=1,
-                )
-            except Exception as e:
-                rospy.logerr(
-                    f"Failed to initialize camera '{cam_key}': {e}. "
-                    "Skipping this camera — other cameras will still work."
-                )
+            thread = threading.Thread(
+                target=self._init_camera,
+                args=(cam_key, cam_cfg),
+                daemon=True,
+            )
+            thread.start()
 
         # Odometry subscriber
         rospy.Subscriber("odometry", Odometry, self._odometry_callback)
@@ -186,8 +159,59 @@ class CameraDetectionNode:
             rospy.Duration(1.0), self._sync_tracker_enable_states
         )
 
+    def _init_camera(self, cam_key, cam_cfg):
+        """Initialize a single camera handler in its own thread.
+
+        This blocks on camera_info via CameraCalibration, but because it runs
+        in a dedicated thread it does not prevent other cameras or the node's
+        services from starting.
+        """
+        try:
+            # Build camera-specific calibration
+            # cam_cfg["ns"] is like "taluy/cameras/cam_front"
+            # CameraCalibration expects "cameras/cam_front"
+            calib_ns = cam_cfg["ns"].split("/", 1)[1]  # remove "taluy/" prefix
+            calibration = CameraCalibration(calib_ns)
+
+            # Build id_tf_map for this camera
+            id_tf_map = build_id_tf_map(cam_cfg)
+
+            # Import handler module
+            handler_module = importlib.import_module(f"handlers.{cam_cfg['handler']}")
+            handler = handler_module.create_handler(
+                cam_cfg,
+                id_tf_map,
+                self.props,
+                calibration,
+                self.tf_buffer,
+                self.publishers,
+                self.shared_state,
+            )
+            with self.handlers_lock:
+                self.handlers[cam_key] = handler
+
+            # Create subscriber
+            rospy.Subscriber(
+                cam_cfg["yolo_topic"],
+                YoloResult,
+                lambda msg, k=cam_key: self._dispatch(msg, k),
+                queue_size=1,
+            )
+            rospy.loginfo(f"Camera '{cam_key}' initialized successfully")
+        except Exception as e:
+            rospy.logerr(
+                f"Failed to initialize camera '{cam_key}': {e}. "
+                "Skipping this camera — other cameras will still work."
+            )
+
     def _dispatch(self, msg, cam_key):
         if not self.camera_enabled.get(cam_key, False):
+            return
+
+        with self.handlers_lock:
+            handler = self.handlers.get(cam_key)
+        if handler is None:
+            # Handler not ready yet (camera_info still being waited for)
             return
 
         camera_frame = self.config["cameras"][cam_key]["frame"]
@@ -206,7 +230,7 @@ class CameraDetectionNode:
             rospy.logwarn_throttle(15.0, f"Transform error: {e}")
             return
 
-        self.handlers[cam_key].handle(msg)
+        handler.handle(msg)
 
     def _odometry_callback(self, msg: Odometry):
         depth = -msg.pose.pose.position.z
