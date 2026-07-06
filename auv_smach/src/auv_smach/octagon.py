@@ -384,6 +384,7 @@ class PickRemainingOctagonTargetsState(smach.State):
         object_list_topic: str = "octagon/object_list",
         wait_timeout: float = 2.0,
         max_targets: int = 2,
+        set_role_search_rotation_count=None,
     ):
         smach.State.__init__(
             self,
@@ -392,7 +393,10 @@ class PickRemainingOctagonTargetsState(smach.State):
         self.target_baskets = target_baskets
         self.wait_timeout = rospy.Duration(wait_timeout)
         self.max_targets = max_targets
+        self.total_targets = len(target_baskets)
+        self.set_role_search_rotation_count = set_role_search_rotation_count
         self.latest_objects = []
+        self.latest_remaining_count = 1
         self.last_update_time = rospy.Time(0)
         self.active_sequence = None
         self.object_list_sub = rospy.Subscriber(
@@ -414,6 +418,7 @@ class PickRemainingOctagonTargetsState(smach.State):
             seen_objects.add(object_name)
 
         self.latest_objects = selected_objects[: self.max_targets]
+        self.latest_remaining_count = len(selected_objects)
         self.last_update_time = rospy.Time.now()
 
     def request_preempt(self):
@@ -459,6 +464,14 @@ class PickRemainingOctagonTargetsState(smach.State):
             if outcome is None or outcome == "preempted":
                 return "preempted"
 
+        rotation_count = max(0, self.total_targets - self.latest_remaining_count)
+        if self.set_role_search_rotation_count is not None:
+            self.set_role_search_rotation_count(rotation_count)
+        rospy.loginfo(
+            "[PickRemainingOctagonTargetsState] remaining=%d, role_search_rotations=%d",
+            self.latest_remaining_count,
+            rotation_count,
+        )
         return "succeeded"
 
 
@@ -496,6 +509,23 @@ class OctagonTaskState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"]
         )
         pick_and_drop_target_baskets = dict(pick_and_drop_targets)
+        role_search_rotation = AlignAndCreateRotatingFrame(
+            source_frame=self.base_link,
+            rotating_frame_name="octagon_target_role_search_frame",
+            rotation_period=12.0,
+            rotation_count=3,
+        )
+        role_search_rotation_count = {"value": 3}
+
+        def set_role_search_rotation_count(rotation_count):
+            role_search_rotation_count["value"] = rotation_count
+            role_search_rotation._states["CREATE_ROTATING_FRAME"].rotation_count = max(
+                1, rotation_count
+            )
+
+        def get_role_search_rotation_outcome(userdata):
+            return "rotate" if role_search_rotation_count["value"] > 0 else "skip"
+
         fallback_align_targets = [
             "pill_link",
             "nutbolt_link",
@@ -760,6 +790,7 @@ class OctagonTaskState(smach.State):
                     pick_and_drop_target_baskets,
                     wait_timeout=remaining_targets_wait_timeout,
                     max_targets=remaining_targets_max_targets,
+                    set_role_search_rotation_count=set_role_search_rotation_count,
                 ),
                 transitions={
                     "succeeded": "OCTAGON_FACING_DEPTH",
@@ -776,19 +807,25 @@ class OctagonTaskState(smach.State):
                     confirm_duration=2.0,
                 ),
                 transitions={
-                    "succeeded": "ROTATE_THREE_TURNS",
+                    "succeeded": "CHECK_ROLE_SEARCH_ROTATION",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
-                "ROTATE_THREE_TURNS",
-                AlignAndCreateRotatingFrame(
-                    source_frame=self.base_link,
-                    rotating_frame_name="octagon_target_role_search_frame",
-                    rotation_period=12.0,
-                    rotation_count=3,
+                "CHECK_ROLE_SEARCH_ROTATION",
+                smach.CBState(
+                    get_role_search_rotation_outcome,
+                    outcomes=["rotate", "skip"],
                 ),
+                transitions={
+                    "rotate": "ROTATE_THREE_TURNS",
+                    "skip": "SEARCH_FOR_ROLE_TARGET",
+                },
+            )
+            smach.StateMachine.add(
+                "ROTATE_THREE_TURNS",
+                role_search_rotation,
                 transitions={
                     "succeeded": "SEARCH_FOR_ROLE_TARGET",
                     "preempted": "preempted",
