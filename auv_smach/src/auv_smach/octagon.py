@@ -383,7 +383,7 @@ class PickRemainingOctagonTargetsState(smach.State):
         target_baskets: dict,
         object_list_topic: str = "octagon/object_list",
         wait_timeout: float = 2.0,
-        max_targets: int = 2,
+        max_attempts: int = 2,
         set_role_search_rotation_count=None,
     ):
         smach.State.__init__(
@@ -392,7 +392,7 @@ class PickRemainingOctagonTargetsState(smach.State):
         )
         self.target_baskets = target_baskets
         self.wait_timeout = rospy.Duration(wait_timeout)
-        self.max_targets = max_targets
+        self.max_attempts = max(0, max_attempts)
         self.total_targets = len(target_baskets)
         self.set_role_search_rotation_count = set_role_search_rotation_count
         self.latest_objects = []
@@ -417,7 +417,7 @@ class PickRemainingOctagonTargetsState(smach.State):
             selected_objects.append(object_name)
             seen_objects.add(object_name)
 
-        self.latest_objects = selected_objects[: self.max_targets]
+        self.latest_objects = selected_objects
         self.latest_remaining_count = len(selected_objects)
         self.last_update_time = rospy.Time.now()
 
@@ -441,19 +441,53 @@ class PickRemainingOctagonTargetsState(smach.State):
 
         return [
             (object_name, self.target_baskets[object_name])
-            for object_name in self.latest_objects[: self.max_targets]
+            for object_name in self.latest_objects
         ]
 
     def execute(self, userdata) -> str:
-        targets = self._wait_for_fresh_targets()
-        if targets is None or self.preempt_requested():
-            self.service_preempt()
-            return "preempted"
+        previous_target_object = None
+        attempted_objects = set()
 
-        for target_object, target_basket in targets[: self.max_targets]:
+        for attempt in range(self.max_attempts):
             if self.preempt_requested():
                 self.service_preempt()
                 return "preempted"
+
+            targets = self._wait_for_fresh_targets()
+            if targets is None:
+                if self.preempt_requested():
+                    self.service_preempt()
+                    return "preempted"
+                break
+
+            if not targets:
+                break
+
+            target = None
+            for candidate in targets:
+                if candidate[0] not in attempted_objects:
+                    target = candidate
+                    break
+
+            if target is None:
+                target_index = 0
+                if previous_target_object is not None:
+                    target_names = [target_object for target_object, _ in targets]
+                    if previous_target_object in target_names:
+                        target_index = (
+                            target_names.index(previous_target_object) + 1
+                        ) % len(targets)
+                target = targets[target_index]
+
+            target_object, target_basket = target
+            rospy.loginfo(
+                "[PickRemainingOctagonTargetsState] attempt=%d/%d, target=%s",
+                attempt + 1,
+                self.max_attempts,
+                target_object,
+            )
+            previous_target_object = target_object
+            attempted_objects.add(target_object)
 
             self.active_sequence = PickAndDropSequence(target_object, target_basket)
             try:
@@ -484,7 +518,7 @@ class OctagonTaskState(smach.State):
         start_from_table: bool = False,
         octagon_target_role_frame: str = None,
         remaining_targets_wait_timeout: float = 2.0,
-        remaining_targets_max_targets: int = 2,
+        remaining_targets_max_attempts: int = 2,
     ):
         smach.State.__init__(self, outcomes=["succeeded", "preempted", "aborted"])
         self.griper_mode = True
@@ -789,7 +823,7 @@ class OctagonTaskState(smach.State):
                 PickRemainingOctagonTargetsState(
                     pick_and_drop_target_baskets,
                     wait_timeout=remaining_targets_wait_timeout,
-                    max_targets=remaining_targets_max_targets,
+                    max_attempts=remaining_targets_max_attempts,
                     set_role_search_rotation_count=set_role_search_rotation_count,
                 ),
                 transitions={

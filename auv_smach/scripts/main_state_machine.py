@@ -69,6 +69,7 @@ class MainStateMachineNode:
         self.slalom_mode = "close"
         self.slalom_direction = "left"
         self.octagon_start_from_table = False
+        self.octagon_remaining_targets_max_attempts = 2
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
@@ -355,6 +356,7 @@ class MainStateMachineNode:
         octagon_task_params = {
             "octagon_depth": self.octagon_depth,
             "start_from_table": self.octagon_start_from_table,
+            "remaining_targets_max_attempts": self.octagon_remaining_targets_max_attempts,
             "octagon_search_frame": self.octagon_search_frame,
             "octagon_target_role_frame": octagon_target_role_frame,
         }
