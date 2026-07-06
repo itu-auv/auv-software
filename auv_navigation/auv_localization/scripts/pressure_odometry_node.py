@@ -117,18 +117,18 @@ class PressureToOdom:
         pressure_depth_calibrated = self.depth_data + self.depth_calibration_offset
         pressure_depth = pressure_depth_calibrated + self.get_base_to_pressure_height()
 
-        is_pressure_valid = (
-            self.max_valid_depth <= pressure_depth <= self.min_valid_depth
+        clamped_pressure_depth = float(
+            np.clip(pressure_depth, self.max_valid_depth, self.min_valid_depth)
         )
+        is_pressure_valid = pressure_depth == clamped_pressure_depth
 
         if not is_pressure_valid:
             rospy.logwarn_throttle(
                 3.0,
-                f"Pressure depth out of valid range [{self.max_valid_depth:.3f}, {self.min_valid_depth:.3f}]: {pressure_depth:.3f}",
+                f"Pressure depth out of valid range [{self.max_valid_depth:.3f}, {self.min_valid_depth:.3f}]: {pressure_depth:.3f}; publishing clamped value {clamped_pressure_depth:.3f}",
             )
-            return
 
-        self.publish_odometry(pressure_depth)
+        self.publish_odometry(clamped_pressure_depth)
 
     def publish_odometry(self, depth):
         self.odom_msg.header.stamp = rospy.Time.now()
