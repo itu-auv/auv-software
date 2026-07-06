@@ -10,8 +10,8 @@ from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32
 
 from auv_common_lib.transform import lookup_fresh_transform
-from auv_smach.common import CancelAlignControllerState, SetDepthState
-from auv_smach.initialize import DelayState
+from auv_smach.common import CancelAlignControllerState, DynamicPathState, SetDepthState
+from auv_smach.initialize import DelayState, SetStartFrameState
 from auv_smach.octagon import OctagonSurfaceState, OctagonTaskState
 from auv_smach.tf_utils import get_base_link, get_tf_buffer
 from auv_smach.torpedo import TorpedoTaskState
@@ -373,6 +373,15 @@ class RandomPingerTaskState(smach.State):
 
         with self.state_machine:
             smach.StateMachine.add(
+                "PINGER_MISSION_START",
+                SetStartFrameState(frame_name="pinger_mission_start"),
+                transitions={
+                    "succeeded": "CANCEL_ALIGN_CONTROLLER",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
                 "CANCEL_ALIGN_CONTROLLER",
                 CancelAlignControllerState(),
                 transitions={
@@ -446,9 +455,20 @@ class RandomPingerTaskState(smach.State):
                 "TORPEDO_FIRST",
                 TorpedoTaskState(**torpedo_params),
                 transitions={
+                    "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_TORPEDO_FIRST",
+                    "preempted": "preempted",
+                    "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_TORPEDO_FIRST",
+                },
+            )
+            smach.StateMachine.add(
+                "DYNAMIC_PATH_TO_PINGER_MISSION_START_TORPEDO_FIRST",
+                DynamicPathState(
+                    plan_target_frame="pinger_mission_start",
+                ),
+                transitions={
                     "succeeded": "OCTAGON_SECOND",
                     "preempted": "preempted",
-                    "aborted": "OCTAGON_SECOND",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
@@ -465,19 +485,40 @@ class RandomPingerTaskState(smach.State):
                     "OCTAGON_SURFACE_FIRST",
                     OctagonSurfaceState(octagon_depth=octagon_params["octagon_depth"]),
                     transitions={
-                        "succeeded": "TORPEDO_AFTER_OCTAGON_SURFACE",
+                        "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_SURFACE_FIRST",
                         "preempted": "preempted",
-                        "aborted": "TORPEDO_AFTER_OCTAGON_SURFACE",
+                        "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_SURFACE_FIRST",
                     },
                 )
-                # TODO: return back after surfacing
+                smach.StateMachine.add(
+                    "DYNAMIC_PATH_TO_PINGER_MISSION_START_SURFACE_FIRST",
+                    DynamicPathState(
+                        plan_target_frame="pinger_mission_start",
+                    ),
+                    transitions={
+                        "succeeded": "TORPEDO_AFTER_OCTAGON_SURFACE",
+                        "preempted": "preempted",
+                        "aborted": "aborted",
+                    },
+                )
                 smach.StateMachine.add(
                     "TORPEDO_AFTER_OCTAGON_SURFACE",
                     TorpedoTaskState(**torpedo_params),
                     transitions={
+                        "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_AFTER_SURFACE",
+                        "preempted": "preempted",
+                        "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_AFTER_SURFACE",
+                    },
+                )
+                smach.StateMachine.add(
+                    "DYNAMIC_PATH_TO_PINGER_MISSION_START_AFTER_SURFACE",
+                    DynamicPathState(
+                        plan_target_frame="pinger_mission_start",
+                    ),
+                    transitions={
                         "succeeded": "OCTAGON_AFTER_SURFACE_TORPEDO",
                         "preempted": "preempted",
-                        "aborted": "OCTAGON_AFTER_SURFACE_TORPEDO",
+                        "aborted": "aborted",
                     },
                 )
                 smach.StateMachine.add(
@@ -494,9 +535,20 @@ class RandomPingerTaskState(smach.State):
                     "OCTAGON_FIRST",
                     OctagonTaskState(**octagon_params),
                     transitions={
+                        "succeeded": "DYNAMIC_PATH_TO_PINGER_MISSION_START_OCTAGON_FIRST",
+                        "preempted": "preempted",
+                        "aborted": "DYNAMIC_PATH_TO_PINGER_MISSION_START_OCTAGON_FIRST",
+                    },
+                )
+                smach.StateMachine.add(
+                    "DYNAMIC_PATH_TO_PINGER_MISSION_START_OCTAGON_FIRST",
+                    DynamicPathState(
+                        plan_target_frame="pinger_mission_start",
+                    ),
+                    transitions={
                         "succeeded": "TORPEDO_SECOND",
                         "preempted": "preempted",
-                        "aborted": "TORPEDO_SECOND",
+                        "aborted": "aborted",
                     },
                 )
                 smach.StateMachine.add(
