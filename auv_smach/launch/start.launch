@@ -35,7 +35,6 @@
     <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
-    <arg name="mini_coin_flip" default="" doc="Gate mini start frame direction: turn_right, turn_left, turn_back, or empty"/>
     <arg name="slalom_depth" default="-1.1"/>
     <arg name="slalom_mini_forward_wrench" default="0.0"/>
     <arg name="slalom_mini_lateral_kp" default="0.0"/>
@@ -73,7 +72,6 @@
             <param name="roll" value="$(arg roll)"/>
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
-            <param name="mini_coin_flip" value="$(arg mini_coin_flip)"/>
             <param name="slalom_depth" value="$(arg slalom_depth)"/>
             <param name="slalom_mini_forward_wrench" value="$(arg slalom_mini_forward_wrench)"/>
             <param name="slalom_mini_lateral_kp" value="$(arg slalom_mini_lateral_kp)"/>

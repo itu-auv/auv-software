@@ -19,6 +19,7 @@ from typing import Optional, Literal
 from dataclasses import dataclass
 from auv_smach.common import SetDetectionFocusState, SetDetectionState
 
+
 class ResetOdometryPositionState(smach_ros.ServiceState):
     def __init__(self):
         smach_ros.ServiceState.__init__(
@@ -34,6 +35,7 @@ class ResetOdometryPositionState(smach_ros.ServiceState):
         request.pose.header.frame_id = odometry.header.frame_id or "odom"
         request.pose.pose.pose.orientation = odometry.pose.pose.orientation
         return request
+
 
 class ResetOdometryState(smach_ros.ServiceState):
     def __init__(self):

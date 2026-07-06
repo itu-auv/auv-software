@@ -2044,7 +2044,7 @@ class DynamicPathWithTransformAndVisibilityCheck(smach.Concurrence):
         max_angular_velocity: float = None,
         angle_offset: float = 0.0,
         keep_orientation: bool = False,
-        max_linear_velocity_y= None,
+        max_linear_velocity_y=None,
         transform_timeout: float = 60.0,
         prop_name: str = None,
         lost_timeout: float = 3.0,
