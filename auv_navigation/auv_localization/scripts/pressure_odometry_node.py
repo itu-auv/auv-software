@@ -120,7 +120,7 @@ class PressureToOdom:
         clamped_pressure_depth = float(
             np.clip(pressure_depth, self.max_valid_depth, self.min_valid_depth)
         )
-        is_pressure_valid = pressure_depth == clamped_pressure_depth
+        is_pressure_valid = abs(pressure_depth - clamped_pressure_depth) <= 1e-6
 
         if not is_pressure_valid:
             rospy.logwarn_throttle(
