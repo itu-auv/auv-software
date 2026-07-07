@@ -18,6 +18,7 @@ from tf import transformations as tf_transformations
 from utils.detection_utils import (
     calculate_angles_and_offsets,
     check_inside_image_bottom,
+    check_inside_image_bottom_bin,
 )
 from utils.segment_utils import (
     findposes_circle,
@@ -104,7 +105,8 @@ class SegmentCameraHandler:
                     )
             elif geom_type == "basket":
                 if not check_inside_image_bottom(detection):
-                    if not check_inside_image_bin(detection):
+                    print("tamam abi co")
+                    if not check_inside_image_bottom_bin(detection):
                         return None
 
                     alt = self.shared_state.get("altitude")
