@@ -104,12 +104,14 @@ class SegmentCameraHandler:
                     )
             elif geom_type == "basket":
                 if not check_inside_image_bottom(detection):
+                    if not check_inside_image_bin(detection):
+                        return None
+
                     alt = self.shared_state.get("altitude")
                     if alt is not None:
                         hardcoded_distance = alt - self.table_height
                         # print("Hardcoded distance:", hardcoded_distance, prop.name)
                         return hardcoded_distance
-                    return None
                 else:
                     edges = geometry.get("edges_px", (None, None))
                     longest_edge, shortest_edge = edges

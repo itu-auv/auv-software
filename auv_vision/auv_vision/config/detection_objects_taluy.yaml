@@ -125,8 +125,8 @@ props:
   bin_fire_link: {name: "bin_fire", real_height: 0.32, real_width: 0.32}
   electric_link: {name: "electric", real_height: 0.087, real_width: 0.087}
   bandaid_link: {name: "bandaid", real_height: 0.087, real_width: 0.087}
-  nutbolt_link: {name: "nutbolt", real_height: 0.08}
-  pill_link: {name: "pill", real_height: 0.08}
+  nutbolt_link: {name: "nutbolt", real_height: 0.07}
+  pill_link: {name: "pill", real_height: 0.07}
   basket_redcross_segment_link: {name: "basket_redcross_segment", real_height: 0.25, real_width: 0.209}
   basket_warning_segment_link: {name: "basket_warning_segment", real_height: 0.25, real_width: 0.209}
   octagon_table_segment_link: {name: "octagon_table_segment", real_height: 0.70, real_width: 0.70}

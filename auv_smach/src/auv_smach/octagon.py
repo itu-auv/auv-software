@@ -65,7 +65,7 @@ class GripperAngleCloseState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
-        self.angle_value = 1300
+        self.angle_value = 1500
 
     def execute(self, userdata) -> str:
         try:
@@ -227,7 +227,7 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "DEPTH_TO_COLLECT_OBJECT",
                 SetDepthState(
-                    depth=-1.12,
+                    depth=-1.1,
                     max_velocity=0.07,
                     depth_threshold=0.03,
                     confirm_duration=1.0,
@@ -681,6 +681,15 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "ENABLE_SEGMENT_DETECTION",
                 SetDetectionState(camera_name="segment", enable=True),
+                transitions={
+                    "succeeded": "yolo_bekle",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "yolo_bekle",
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": after_bottom_focus,
                     "preempted": "preempted",
