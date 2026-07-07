@@ -240,7 +240,7 @@ class TorpedoTaskState(smach.State):
         torpedo_target_frame,
         torpedo_realsense_target_frame,
         torpedo_fire_frames,
-        torpedo_priority: str = TORPEDO_PRIORITY_REALSENSE,
+        torpedo_priority: str = TORPEDO_PRIORITY_DA3,
         torpedo_exit_angle: float = 0.0,
         torpedo_search_frame: str = "torpedo_map_link",
     ):
@@ -389,8 +389,10 @@ class TorpedoTaskState(smach.State):
                     angle_offset=0.0,
                     dist_threshold=0.05,
                     yaw_threshold=0.05,
-                    confirm_duration=3.0,
+                    confirm_duration=5.0,
                     timeout=30.0,
+                    max_linear_velocity=0.25,
+                    max_angular_velocity=0.25,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -463,12 +465,12 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_FIRE_FRAME_1",
                 AlignFrame(
-                    source_frame=f"{self.base_link}/torpedo_upper_link",
+                    source_frame=f"{self.base_link}/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[0],
                     angle_offset=0.0,
                     dist_threshold=0.03,
                     yaw_threshold=0.05,
-                    confirm_duration=5.0,
+                    confirm_duration=3.0,
                     timeout=30.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
@@ -502,12 +504,12 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_FIRE_FRAME_2",
                 AlignFrame(
-                    source_frame=f"{self.base_link}/torpedo_bottom_link",
+                    source_frame=f"{self.base_link}/torpedo_upper_link",
                     target_frame=self.torpedo_fire_frames[1],
                     angle_offset=0.0,
                     dist_threshold=0.03,
                     yaw_threshold=0.05,
-                    confirm_duration=5.0,
+                    confirm_duration=3.0,
                     timeout=30.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
