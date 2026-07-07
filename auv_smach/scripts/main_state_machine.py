@@ -25,7 +25,7 @@ from auv_bringup.cfg import SmachParametersConfig
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
-DEFAULT_TORPEDO_PRIORITY = "realsense"
+DEFAULT_TORPEDO_PRIORITY = "da3"
 BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_link", "bin_blood_link"]
 BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_link", "bin_fire_link"]
 RANDOM_PINGER_MEMBER_STATES = {
@@ -70,7 +70,7 @@ class MainStateMachineNode:
         self.torpedo_priority = DEFAULT_TORPEDO_PRIORITY
         self.slalom_mode = "close"
         self.slalom_direction = "left"
-        self.octagon_start_from_table = True
+        self.octagon_start_from_table = False
         self.octagon_remaining_targets_max_attempts = 2
 
         # Exit angles in degrees (will be converted to radians)
@@ -127,7 +127,7 @@ class MainStateMachineNode:
         self.red_buoy_radius = 2.2
         self.red_buoy_depth = -0.7
 
-        self.torpedo_map_depth = -0.45
+        self.torpedo_map_depth = -1.25
         self.torpedo_target_frame = "torpedo_target"
         self.torpedo_realsense_target_frame = "torpedo_target_realsense"
 

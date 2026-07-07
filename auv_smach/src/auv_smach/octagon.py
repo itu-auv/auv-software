@@ -546,7 +546,7 @@ class OctagonTaskState(smach.State):
         role_search_rotation = AlignAndCreateRotatingFrame(
             source_frame=self.base_link,
             rotating_frame_name="octagon_target_role_search_frame",
-            rotation_period=12.0,
+            rotation_period=15.0,
             rotation_count=3,
         )
         role_search_rotation_count = {"value": 3}

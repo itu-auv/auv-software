@@ -465,7 +465,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_FIRE_FRAME_1",
                 AlignFrame(
-                    source_frame=f"{self.base_link}/torpedo_bottom_link",
+                    source_frame=f"{self.base_link}/torpedo_upper_link",
                     target_frame=self.torpedo_fire_frames[0],
                     angle_offset=0.0,
                     dist_threshold=0.03,
@@ -485,7 +485,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_1",
-                LaunchTorpedoState(id=1),
+                LaunchTorpedoState(id=2),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_LAUNCH_1",
                     "preempted": "preempted",
@@ -504,7 +504,7 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_FIRE_FRAME_2",
                 AlignFrame(
-                    source_frame=f"{self.base_link}/torpedo_upper_link",
+                    source_frame=f"{self.base_link}/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[1],
                     angle_offset=0.0,
                     dist_threshold=0.03,
@@ -524,7 +524,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_2",
-                LaunchTorpedoState(id=2),
+                LaunchTorpedoState(id=1),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
                     "preempted": "preempted",
