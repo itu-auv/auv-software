@@ -418,6 +418,15 @@ class OctagonTaskState(smach.State):
                 "FOCUS_ON_OCTAGON",
                 SetDetectionFocusState(focus_object="octagon"),
                 transitions={
+                    "succeeded": "DELAY_BEFORE_OCTAGON_AIM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_BEFORE_OCTAGON_AIM",
+                DelayState(delay_time=2.0),
+                transitions={
                     "succeeded": "FIND_AIM_OCTAGON",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -725,6 +734,15 @@ class OctagonSurfaceState(smach.State):
             smach.StateMachine.add(
                 "FOCUS_ON_OCTAGON",
                 SetDetectionFocusState(focus_object="octagon"),
+                transitions={
+                    "succeeded": "DELAY_BEFORE_OCTAGON_AIM",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "DELAY_BEFORE_OCTAGON_AIM",
+                DelayState(delay_time=2.0),
                 transitions={
                     "succeeded": "FIND_AIM_OCTAGON",
                     "preempted": "preempted",
