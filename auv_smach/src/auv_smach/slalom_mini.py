@@ -377,7 +377,7 @@ class NavigateThroughSlalomMiniState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_SLALOM_DEPTH",
-                SetDepthState(depth=-1.4),
+                SetDepthState(depth=-0.6),
                 transitions={
                     "succeeded": "RESET_ODOMETRY_POSE",
                     "preempted": "preempted",

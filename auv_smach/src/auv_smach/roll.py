@@ -316,7 +316,7 @@ class PitchTwoTimes(smach.State):
         self.total_pitch = 0.0
         self.last_time = rospy.Time.now()
         self.start_time = rospy.Time.now()
-        target = math.radians(270.0)
+        target = math.radians(300.0)
         rospy.loginfo(
             "PITCH_TWO_TIMES: starting pitch with torque %.2f Nm on cmd_wrench, target = %.2f rad",
             self.pitch_torque,

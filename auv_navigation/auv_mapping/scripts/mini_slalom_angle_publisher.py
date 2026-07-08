@@ -67,6 +67,7 @@ class MiniSlalomAnglePublisher:
         self.image_sub = None
         self.cmd_pose_sub = None
         self.pipe_angle_debug_enabled = False
+        self.two_red_midpoint_reference_enabled = False
         self.last_pipe_angle_data = None
         self.last_pipe_angle_debug_detections = None
         self.last_red_detection = None
@@ -92,8 +93,26 @@ class MiniSlalomAnglePublisher:
             SetBool,
             self.set_pipe_angle_debug_enabled_callback,
         )
+        rospy.Service(
+            "slalom/two_red_midpoint_reference/set_enabled",
+            SetBool,
+            self.set_two_red_midpoint_reference_enabled_callback,
+        )
         self.set_pipe_angle_debug_enabled(
             rospy.get_param("~pipe_angle_debug_enabled", False)
+        )
+
+    def set_two_red_midpoint_reference_enabled_callback(self, req):
+        enabled = bool(req.data)
+        if enabled != self.two_red_midpoint_reference_enabled:
+            self.two_red_midpoint_reference_enabled = enabled
+            self.last_pipe_angle_data = None
+            self.last_pipe_angle_debug_detections = None
+            self.last_red_detection = None
+
+        state = "enabled" if self.two_red_midpoint_reference_enabled else "disabled"
+        return SetBoolResponse(
+            success=True, message=f"two red midpoint reference {state}"
         )
 
     def set_pipe_angle_debug_enabled_callback(self, req):
@@ -182,7 +201,7 @@ class MiniSlalomAnglePublisher:
                 )
             return
 
-        red_debug = self.build_red_debug_detection(red_detections)
+        red_debug = self.build_red_debug_detection(red_detections, stamp)
         self.last_red_detection = dict(red_debug)
         self.publish_red_frames(red_detections, stamp)
         left_white = self.select_side_white_detection(
@@ -260,25 +279,44 @@ class MiniSlalomAnglePublisher:
             )
         return angle_detections
 
-    def build_red_debug_detection(self, red_detections):
+    def build_red_debug_detection(self, red_detections, stamp):
+        use_midpoint_reference = (
+            self.two_red_midpoint_reference_enabled and len(red_detections) == 2
+        )
         selected_red = self.select_red_angle_detections(red_detections)
+        center_x = self.mean([x["center_x"] for x in selected_red])
+        center_y = self.mean([x["center_y"] for x in selected_red])
+        if use_midpoint_reference:
+            angle = self.bbox_angle_relative_base(center_x, center_y, stamp)
+            if angle is None:
+                angle = self.average_angles([x["angle"] for x in selected_red])
+            camera_angle_x = self.pixel_horizontal_angle(center_x)
+            camera_angle_y = self.pixel_vertical_angle(center_y)
+        else:
+            angle = self.average_angles([x["angle"] for x in selected_red])
+            camera_angle_x = self.average_angles(
+                [x["camera_angle_x"] for x in selected_red]
+            )
+            camera_angle_y = self.average_angles(
+                [x["camera_angle_y"] for x in selected_red]
+            )
+
         return {
             "id": SLALOM_RED_ID,
             "width": self.mean([x["width"] for x in selected_red]),
             "height": self.mean([x["height"] for x in selected_red]),
-            "center_x": self.mean([x["center_x"] for x in selected_red]),
-            "center_y": self.mean([x["center_y"] for x in selected_red]),
+            "center_x": center_x,
+            "center_y": center_y,
             "left": min(x["left"] for x in selected_red),
             "right": max(x["right"] for x in selected_red),
             "top": min(x["top"] for x in selected_red),
             "bottom": max(x["bottom"] for x in selected_red),
-            "angle": self.average_angles([x["angle"] for x in selected_red]),
-            "camera_angle_x": self.average_angles(
-                [x["camera_angle_x"] for x in selected_red]
-            ),
-            "camera_angle_y": self.average_angles(
-                [x["camera_angle_y"] for x in selected_red]
-            ),
+            "angle": angle,
+            "camera_angle_x": camera_angle_x,
+            "camera_angle_y": camera_angle_y,
+            "source_count": len(selected_red),
+            "is_midpoint_reference": use_midpoint_reference,
+            "source_centers": [(x["center_x"], x["center_y"]) for x in selected_red],
         }
 
     def publish_pipe_angle_data(self, pipe_angle_data):
@@ -384,7 +422,8 @@ class MiniSlalomAnglePublisher:
         if pixel_length <= 0:
             return None
         real_length = math.sqrt(self.slalom_real_height**2 + self.slalom_real_width**2)
-        return (self.cam.K[4] * real_length) / pixel_length
+        _, fy, _, _ = self.rectified_intrinsics()
+        return (fy * real_length) / pixel_length
 
     def build_pipe_angle_debug_points(
         self, red_detection, left_white, right_white, stamp
@@ -392,7 +431,11 @@ class MiniSlalomAnglePublisher:
         points = []
         for label, detection, color in [
             ("white L", left_white, (255, 220, 40)),
-            ("red", red_detection, (0, 0, 255)),
+            (
+                self.red_debug_label(red_detection),
+                red_detection,
+                (0, 0, 255),
+            ),
             ("white R", right_white, (40, 255, 120)),
         ]:
             if detection is None:
@@ -406,6 +449,10 @@ class MiniSlalomAnglePublisher:
                     "angle": detection["angle"],
                     "color": color,
                     "label_at_top": False,
+                    "is_midpoint_reference": detection.get(
+                        "is_midpoint_reference", False
+                    ),
+                    "source_centers": detection.get("source_centers", []),
                 }
             )
 
@@ -535,6 +582,18 @@ class MiniSlalomAnglePublisher:
                 image, detection["center_x"], detection["center_y"]
             )
 
+            source_centers = detection.get("source_centers", [])
+            if detection.get("is_midpoint_reference") and len(source_centers) == 2:
+                left_source = self.scale_debug_point(
+                    image, source_centers[0][0], source_centers[0][1]
+                )
+                right_source = self.scale_debug_point(
+                    image, source_centers[1][0], source_centers[1][1]
+                )
+                cv2.line(image, left_source, right_source, color, 2, cv2.LINE_AA)
+                for source_center in [left_source, right_source]:
+                    cv2.circle(image, source_center, 5, (255, 255, 255), 1, cv2.LINE_AA)
+
             cv2.circle(image, center, 8, (0, 0, 0), -1)
             cv2.circle(image, center, 6, color, -1)
             cv2.circle(image, center, 8, (255, 255, 255), 1, cv2.LINE_AA)
@@ -603,6 +662,9 @@ class MiniSlalomAnglePublisher:
         return None, white_detection
 
     def select_red_angle_detections(self, red_detections):
+        if self.two_red_midpoint_reference_enabled and len(red_detections) == 2:
+            return red_detections
+
         max_height = max(x["height"] for x in red_detections)
         full_height = self.pipe_angle_full_height_ratio * self.cam.height
 
@@ -612,6 +674,14 @@ class MiniSlalomAnglePublisher:
                 return selected
 
         return [max(red_detections, key=lambda x: x["height"])]
+
+    @staticmethod
+    def red_debug_label(red_detection):
+        if red_detection is not None and red_detection.get(
+            "is_midpoint_reference", False
+        ):
+            return "red midpoint"
+        return "red"
 
     def select_side_white_detection(self, white_detections, side: str):
         if not white_detections:
@@ -695,11 +765,13 @@ class MiniSlalomAnglePublisher:
             detection["top"] > margin and detection["bottom"] < self.cam.height - margin
         )
 
+    def rectified_intrinsics(self):
+        if len(self.cam.P) >= 12 and self.cam.P[0] != 0.0 and self.cam.P[5] != 0.0:
+            return self.cam.P[0], self.cam.P[5], self.cam.P[2], self.cam.P[6]
+        return self.cam.K[0], self.cam.K[4], self.cam.K[2], self.cam.K[5]
+
     def bbox_angle_relative_base(self, u: float, v: float, stamp):
-        fx = self.cam.K[0]
-        fy = self.cam.K[4]
-        cx = self.cam.K[2]
-        cy = self.cam.K[5]
+        fx, fy, cx, cy = self.rectified_intrinsics()
 
         ray = Vector3Stamped()
         ray.header.frame_id = self.slalom_camera_frame
@@ -732,10 +804,12 @@ class MiniSlalomAnglePublisher:
             return None
 
     def pixel_horizontal_angle(self, u: float):
-        return math.atan((u - self.cam.K[2]) / self.cam.K[0])
+        fx, _, cx, _ = self.rectified_intrinsics()
+        return math.atan((u - cx) / fx)
 
     def pixel_vertical_angle(self, v: float):
-        return math.atan((v - self.cam.K[5]) / self.cam.K[4])
+        _, fy, _, cy = self.rectified_intrinsics()
+        return math.atan((v - cy) / fy)
 
     def scale_debug_point(self, image, x, y):
         height, width = image.shape[:2]

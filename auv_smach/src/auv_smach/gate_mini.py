@@ -339,7 +339,7 @@ class NavigateThroughGateMiniState(smach.State):
             smach.StateMachine.add(
                 "amerika",
                 SetDepthState(
-                    depth=-0.55,
+                    depth=-0.6,
                 ),
                 transitions={
                     "succeeded": "ikinci_pitch",
@@ -353,6 +353,24 @@ class NavigateThroughGateMiniState(smach.State):
                     pitch_torque=self.pitch_torque,
                     timeout_s=self.pitch_timeout,
                 ),
+                transitions={
+                    "succeeded": "bekle_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "bekle_2",
+                DelayState(delay_time=4.0),
+                transitions={
+                    "succeeded": "RESET_ODOMETRY_POSITION_2",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "RESET_ODOMETRY_POSITION_2",
+                ResetOdometryPositionState(),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",

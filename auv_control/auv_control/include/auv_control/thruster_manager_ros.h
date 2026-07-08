@@ -37,7 +37,7 @@ class ThrusterManagerROS {
     nh_private.param<double>("minimum_voltage_threshold", voltage_threshold_,
                              13.5);
     nh_private.param<double>("low_voltage_duration", low_voltage_duration_,
-                             3.0);
+                             5.0);
 
     // Load per-thruster direction: 1 = normal, -1 = reversed (CCW)
     if (!nh_private.getParam("directions", directions_)) {
