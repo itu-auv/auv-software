@@ -206,7 +206,7 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "ALIGN_TARGET_OBJECT",
                 AlignFrame(
-                    source_frame="taluy/gripper_link",
+                    source_frame="taluy/gripper_link_p2",
                     target_frame=target_object,
                     dist_threshold=0.05,
                     yaw_threshold=0.1,
@@ -214,6 +214,27 @@ class PickAndDropSequence(smach.StateMachine):
                     closest_yaw=not keep_object_orientation,
                     confirm_duration=4.0,
                     timeout=30.0,
+                    max_linear_velocity=0.2,
+                    max_angular_velocity=0.2,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TARGET_OBJECT_slow",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TARGET_OBJECT_slow",
+                AlignFrame(
+                    source_frame="taluy/gripper_link_p2",
+                    target_frame=target_object,
+                    dist_threshold=0.05,
+                    yaw_threshold=0.1,
+                    keep_orientation=keep_object_orientation,
+                    closest_yaw=not keep_object_orientation,
+                    confirm_duration=0.1,
+                    timeout=3.0,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     cancel_on_success=False,
@@ -229,8 +250,8 @@ class PickAndDropSequence(smach.StateMachine):
                 SetDepthState(
                     depth=-1.1,
                     max_velocity=0.07,
-                    depth_threshold=0.03,
-                    confirm_duration=1.0,
+                    depth_threshold=0.05,
+                    confirm_duration=2.0,
                     timeout=15.0,
                 ),
                 transitions={
@@ -250,7 +271,7 @@ class PickAndDropSequence(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "DEPTH_TO_DEFAULT_AFTER_PICKING",
-                SetDepthState(depth=-0.5, max_velocity=0.1, confirm_duration=1.0),
+                SetDepthState(depth=-0.5, max_velocity=0.25, confirm_duration=1.0),
                 transitions={
                     "succeeded": "ALIGN_TO_MIDDLE_BASKET",
                     "preempted": "preempted",
@@ -264,11 +285,12 @@ class PickAndDropSequence(smach.StateMachine):
                     target_frame="middle_basket",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    closest_yaw=True,
+                    closest_yaw=False,
+                    keep_orientation=True,
                     confirm_duration=1.0,
-                    timeout=30.0,
-                    max_linear_velocity=0.15,
-                    max_angular_velocity=0.2,
+                    timeout=15.0,
+                    max_linear_velocity=0.25,
+                    max_angular_velocity=0.25,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -280,8 +302,9 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "SURFACE_WITH_OBJECT",
                 SetDepthState(
-                    depth=-0.2,
-                    max_velocity=0.1,
+                    depth=-0.1,
+                    timeout=10.0,
+                    max_velocity=0.4,
                     depth_threshold=0.05,
                     confirm_duration=2.0,
                 ),
@@ -293,7 +316,7 @@ class PickAndDropSequence(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "DEPTH_TO_DEFAULT_AFTER_SURFACING",
-                SetDepthState(depth=-0.5, max_velocity=0.1, confirm_duration=1.0),
+                SetDepthState(depth=-0.5, max_velocity=0.3, confirm_duration=1.0),
                 transitions={
                     "succeeded": "ALIGN_TARGET_BASKET",
                     "preempted": "preempted",
@@ -303,15 +326,37 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "ALIGN_TARGET_BASKET",
                 AlignFrame(
-                    source_frame="taluy/gripper_link",
+                    source_frame="taluy/gripper_link_p2",
                     target_frame=target_basket,
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     closest_yaw=False,
-                    confirm_duration=5.0,
+                    confirm_duration=4.0,
                     keep_orientation=True,
-                    timeout=30.0,
+                    timeout=20.0,
+                    max_linear_velocity=0.25,
+                    max_angular_velocity=0.1,
+                    cancel_on_success=False,
+                ),
+                transitions={
+                    "succeeded": "ALIGN_TARGET_BASKET_slow",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TARGET_BASKET_slow",
+                AlignFrame(
+                    source_frame="taluy/gripper_link_p2",
+                    target_frame=target_basket,
+                    angle_offset=0.0,
+                    dist_threshold=0.1,
+                    yaw_threshold=0.1,
+                    closest_yaw=False,
+                    confirm_duration=0.1,
+                    keep_orientation=True,
+                    timeout=20.0,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
                     cancel_on_success=False,
@@ -328,7 +373,7 @@ class PickAndDropSequence(smach.StateMachine):
                     depth=-0.95,
                     max_velocity=0.1,
                     confirm_duration=1.0,
-                    depth_threshold=0.05,
+                    depth_threshold=0.07,
                 ),
                 transitions={
                     "succeeded": "OPEN_GRIPPER",
@@ -347,7 +392,7 @@ class PickAndDropSequence(smach.StateMachine):
             )
             smach.StateMachine.add(
                 "DEPTH_TO_DEFAULT_AFTER_DROPPING",
-                SetDepthState(depth=-0.5, max_velocity=0.2, confirm_duration=1.0),
+                SetDepthState(depth=-0.5, max_velocity=0.25, confirm_duration=1.0),
                 transitions={
                     "succeeded": "ALIGN_TO_MIDDLE_BASKET_AFTER_DROPPING",
                     "preempted": "preempted",
@@ -362,11 +407,12 @@ class PickAndDropSequence(smach.StateMachine):
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
-                    closest_yaw=True,
-                    confirm_duration=4.0,
-                    timeout=60.0,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.1,
+                    closest_yaw=False,
+                    keep_orientation=True,
+                    confirm_duration=3.0,
+                    timeout=20.0,
+                    max_linear_velocity=0.25,
+                    max_angular_velocity=0.25,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -770,10 +816,10 @@ class OctagonTaskState(smach.State):
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=4.0,
-                    timeout=60.0,
+                    timeout=30.0,
                     keep_orientation=True,
-                    max_linear_velocity=0.1,
-                    max_angular_velocity=0.1,
+                    max_linear_velocity=0.3,
+                    max_angular_velocity=0.3,
                     cancel_on_success=False,
                 ),
                 transitions={
@@ -845,7 +891,6 @@ class OctagonTaskState(smach.State):
                 "OCTAGON_FACING_DEPTH",
                 SetDepthState(
                     depth=-0.4,
-                    max_velocity=0.1,
                     depth_threshold=0.05,
                     confirm_duration=2.0,
                 ),
@@ -893,8 +938,8 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "FINAL_SURFACE",
                 SetDepthState(
-                    depth=-0.2,
-                    max_velocity=0.1,
+                    depth=-0.1,
+                    timeout=10.0,
                     depth_threshold=0.05,
                     confirm_duration=2.0,
                 ),
@@ -915,7 +960,7 @@ class OctagonTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "FINISHED_OCTAGON_TASK",
-                SetDepthState(depth=-0.5, max_velocity=0.2, confirm_duration=1.0),
+                SetDepthState(depth=-0.5, confirm_duration=1.0),
                 transitions={
                     "succeeded": "succeeded",
                     "preempted": "preempted",
@@ -1105,7 +1150,6 @@ class OctagonSurfaceState(smach.State):
                 "OCTAGON_FACING_DEPTH",
                 SetDepthState(
                     depth=-0.4,
-                    max_velocity=0.1,
                     depth_threshold=0.05,
                     confirm_duration=2.0,
                 ),
@@ -1118,8 +1162,8 @@ class OctagonSurfaceState(smach.State):
             smach.StateMachine.add(
                 "FINAL_SURFACE",
                 SetDepthState(
-                    depth=-0.2,
-                    max_velocity=0.1,
+                    depth=-0.05,
+                    max_velocity=0.2,
                     depth_threshold=0.05,
                     confirm_duration=2.0,
                 ),

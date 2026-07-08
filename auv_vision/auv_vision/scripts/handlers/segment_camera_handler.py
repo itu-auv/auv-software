@@ -105,7 +105,6 @@ class SegmentCameraHandler:
                     )
             elif geom_type == "basket":
                 if not check_inside_image_bottom(detection):
-                    print("tamam abi co")
                     if not check_inside_image_bottom_bin(detection):
                         return None
 

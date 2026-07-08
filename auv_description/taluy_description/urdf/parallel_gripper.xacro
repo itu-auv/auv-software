@@ -30,6 +30,35 @@
       <child link="${namespace}/gripper_link"/>
     </joint>
 
+    <link name="${namespace}/gripper_link_p2"/>
+    <link name="${namespace}/gripper_link_p4"/>
+    <link name="${namespace}/gripper_link_n2"/>
+    <link name="${namespace}/gripper_link_n4"/>
+
+    <joint name="${namespace}/gripper_front_joint" type="fixed">
+      <origin xyz="0.02 0 0" rpy="0 0 0"/>
+      <parent link="${namespace}/gripper_link"/>
+      <child link="${namespace}/gripper_link_p2"/>
+    </joint>
+
+    <joint name="${namespace}/gripper_rear_joint" type="fixed">
+      <origin xyz="0.04 0 0" rpy="0 0 0"/>
+      <parent link="${namespace}/gripper_link"/>
+      <child link="${namespace}/gripper_link_p4"/>
+    </joint>
+
+    <joint name="${namespace}/gripper_front_joint_2" type="fixed">
+      <origin xyz="-0.02 0 0" rpy="0 0 0"/>
+      <parent link="${namespace}/gripper_link"/>
+      <child link="${namespace}/gripper_link_n2"/>
+    </joint>
+
+    <joint name="${namespace}/gripper_rear_joint_2" type="fixed">
+      <origin xyz="-0.04 0 0" rpy="0 0 0"/>
+      <parent link="${namespace}/gripper_link"/>
+      <child link="${namespace}/gripper_link_n4"/>
+    </joint>
+
     <!-- Gripper Mount Link (offset from tip up to the base of the gripper) -->
     <link name="${namespace}/gripper_mount_link">
       <inertial>
