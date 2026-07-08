@@ -9,7 +9,7 @@
   <arg name="dvl_is_valid_topic" default="$(eval 'dvl/is_valid' if arg('namespace') == 'taluy_mini' else 'sensors/dvl/is_valid')" />
   <arg name="pinger_mode" default="octagon" />
   <arg name="pinger_publish_rate" default="1.0" />
-  <arg name="spawn_octagon_objects" value="$(eval 'octagon' in [object.strip() for object in arg('objects').split(',')])" />
+  <arg name="spawn_octagon_objects" value="$(eval any(object.strip() in ['octagon', 'octagon_table'] for object in arg('objects').split(',')))" />
 
   <rosparam command="load" file="$(find auv_sim_description)/config/environment.yaml" />
 
