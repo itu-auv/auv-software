@@ -43,8 +43,8 @@ class GravityCompensationEstimatorNode:
         self.min_update_interval = rospy.Duration(
             float(rospy.get_param("~min_update_interval", 2.0))
         )
-        self.update_alpha = float(rospy.get_param("~update_alpha", 0.5))
-        self.max_update_step = float(rospy.get_param("~max_update_step", 3.0))
+        self.update_alpha = float(rospy.get_param("~update_alpha", 0.8))
+        self.max_update_step = float(rospy.get_param("~max_update_step", 5.0))
         self.update_deadband = float(rospy.get_param("~update_deadband", 0.2))
         self.min_gravity_compensation_z = float(
             rospy.get_param("~min_gravity_compensation_z", -20.0)

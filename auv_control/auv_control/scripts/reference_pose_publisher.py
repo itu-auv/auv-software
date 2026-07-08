@@ -41,10 +41,18 @@ from geometry_msgs.msg import Vector3Stamped
 
 
 DEFAULT_MAX_VELOCITY = [0.6, 0.6, 0.6, 0.8, 0.8, 0.8]
+RIGHT_ANGLE_YAW_OFFSETS = (0.0, np.pi / 2.0, np.pi, 3.0 * np.pi / 2.0)
 
 
 def normalize_angle(angle: float) -> float:
     return np.arctan2(np.sin(angle), np.cos(angle))
+
+
+def closest_right_angle_yaw(source_yaw: float, reference_yaw: float) -> float:
+    return min(
+        (normalize_angle(source_yaw + offset) for offset in RIGHT_ANGLE_YAW_OFFSETS),
+        key=lambda yaw: abs(shortest_angular_distance(yaw, reference_yaw)),
+    )
 
 
 class ReferencePosePublisherNode:
@@ -314,17 +322,9 @@ class ReferencePosePublisherNode:
                                 t_base.transform.rotation.w,
                             ]
                         )
-                        flipped = normalize_angle(self.target_heading + np.pi)
-                        dist_normal = abs(
-                            shortest_angular_distance(
-                                self.target_heading, base_yaw_in_target
-                            )
+                        self.target_heading = closest_right_angle_yaw(
+                            self.target_heading, base_yaw_in_target
                         )
-                        dist_flipped = abs(
-                            shortest_angular_distance(flipped, base_yaw_in_target)
-                        )
-                        if dist_flipped < dist_normal:
-                            self.target_heading = flipped
 
                     desired_base_in_target = quaternion_from_euler(
                         self.target_roll, self.target_pitch, self.target_heading

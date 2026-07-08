@@ -27,6 +27,7 @@ from auv_bringup.cfg import SmachParametersConfig
 
 DEFAULT_SELECTED_ROLE = "survey_repair"
 DEFAULT_TORPEDO_MAP = "fire"
+DEFAULT_TORPEDO_PRIORITY = "da3"
 BIN_FIRE_FIRST_LIST_FRAMES = ["bin_fire_link", "bin_blood_link"]
 BIN_BLOOD_FIRST_LIST_FRAMES = ["bin_blood_link", "bin_fire_link"]
 RANDOM_PINGER_MEMBER_STATES = {
@@ -72,9 +73,11 @@ class MainStateMachineNode:
         # Get initial values from dynamic reconfigure
         self.selected_role = DEFAULT_SELECTED_ROLE
         self.torpedo_map = DEFAULT_TORPEDO_MAP
+        self.torpedo_priority = DEFAULT_TORPEDO_PRIORITY
         self.slalom_mode = "close"
         self.slalom_direction = "left"
         self.octagon_start_from_table = False
+        self.octagon_remaining_targets_max_attempts = 2
 
         # Exit angles in degrees (will be converted to radians)
         self.gate_exit_angle_deg = 0.0
@@ -92,6 +95,9 @@ class MainStateMachineNode:
                 self.torpedo_map = current_config.get(
                     "torpedo_map", DEFAULT_TORPEDO_MAP
                 )
+                self.torpedo_priority = current_config.get(
+                    "torpedo_priority", DEFAULT_TORPEDO_PRIORITY
+                )
                 self.slalom_mode = current_config.get("slalom_mode", "close")
                 self.slalom_direction = current_config.get("slalom_direction", "left")
                 self.gate_exit_angle_deg = current_config.get("gate_exit_angle", 0.0)
@@ -103,7 +109,7 @@ class MainStateMachineNode:
                     "torpedo_exit_angle", 0.0
                 )
                 rospy.loginfo(
-                    f"Loaded current config: selected_role={self.selected_role}, torpedo_map={self.torpedo_map}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
+                    f"Loaded current config: selected_role={self.selected_role}, torpedo_map={self.torpedo_map}, torpedo_priority={self.torpedo_priority}, slalom_mode={self.slalom_mode}, angles=({self.gate_exit_angle_deg}, {self.slalom_exit_angle_deg}, {self.bin_exit_angle_deg}, {self.torpedo_exit_angle_deg})"
                 )
         except Exception as e:
             rospy.logwarn(f"Could not get current configuration: {e}")
@@ -206,9 +212,10 @@ class MainStateMachineNode:
 
         selected_role = config.selected_role
         rospy.loginfo(
-            "Received reconfigure request: selected_role=%s, torpedo_map=%s, slalom_mode=%s, slalom_direction=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
+            "Received reconfigure request: selected_role=%s, torpedo_map=%s, torpedo_priority=%s, slalom_mode=%s, slalom_direction=%s, gate_exit_angle=%f, slalom_exit_angle=%f, bin_exit_angle=%f, torpedo_exit_angle=%f",
             selected_role,
             config.torpedo_map,
+            config.torpedo_priority,
             config.slalom_mode,
             config.slalom_direction,
             config.gate_exit_angle,
@@ -220,6 +227,7 @@ class MainStateMachineNode:
         # Update parameters
         self.selected_role = selected_role
         self.torpedo_map = config.torpedo_map
+        self.torpedo_priority = config.torpedo_priority
         self.slalom_mode = config.slalom_mode
         self.slalom_direction = config.slalom_direction
         self.gate_exit_angle_deg = config.gate_exit_angle
@@ -378,10 +386,12 @@ class MainStateMachineNode:
             "torpedo_exit_angle": torpedo_exit_angle_rad,
             "torpedo_fire_frames": torpedo_fire_frames,
             "torpedo_search_frame": self.torpedo_search_frame,
+            "torpedo_priority": self.torpedo_priority,
         }
         octagon_task_params = {
             "octagon_depth": self.octagon_depth,
             "start_from_table": self.octagon_start_from_table,
+            "remaining_targets_max_attempts": self.octagon_remaining_targets_max_attempts,
             "octagon_search_frame": self.octagon_search_frame,
             "octagon_target_role_frame": octagon_target_role_frame,
         }
