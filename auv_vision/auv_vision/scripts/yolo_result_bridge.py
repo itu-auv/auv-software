@@ -18,10 +18,12 @@ class YoloBridge:
 
         # Subscriber to the custom YoloResult message
         rospy.Subscriber("/yolo_result_realsense", YoloResult, self.yolo_callback)
-        rospy.Subscriber("/yolo_result_torpedo", YoloResult, self.yolo_callback_torpedo)
+        rospy.Subscriber(
+            "/yolo_result_torpedo_front", YoloResult, self.yolo_callback_torpedo
+        )
 
         rospy.loginfo(
-            "YOLO Result Bridge started. Subscribing to /yolo_result_realsense and /yolo_result_torpedo and publishing to /yolo_detections and /yolo_detections_torpedo."
+            "YOLO Result Bridge started. Subscribing to /yolo_result_realsense and /yolo_result_torpedo_front and publishing to /yolo_detections and /yolo_detections_torpedo."
         )
 
     def yolo_callback(self, msg):

@@ -1073,7 +1073,17 @@ class CheckAlignmentState(smach.State):
                     yaw_with_offset,
                     abs(
                         angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + math.pi / 2
+                        )
+                    ),
+                    abs(
+                        angles.shortest_angular_distance(
                             0, yaw + self.angle_offset + math.pi
+                        )
+                    ),
+                    abs(
+                        angles.shortest_angular_distance(
+                            0, yaw + self.angle_offset + 3 * math.pi / 2
                         )
                     ),
                 )
