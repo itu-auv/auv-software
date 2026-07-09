@@ -130,7 +130,11 @@ class GravityCompensationEstimatorNode:
         with self.lock:
             self.apply_updates = req.data
             state = "enabled" if self.apply_updates else "disabled"
-            if not self.apply_updates:
+            if self.apply_updates:
+                self.samples.clear()
+                self.status_reason = "collecting_samples"
+            else:
+                self.samples.clear()
                 self.status_reason = "updates_disabled"
 
         return SetBoolResponse(
