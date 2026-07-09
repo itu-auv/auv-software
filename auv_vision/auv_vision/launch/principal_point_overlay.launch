@@ -1,0 +1,32 @@
+<launch>
+  <arg name="namespace" default="taluy" />
+  <arg name="camera" default="torpedo" />
+  <arg name="image_topic_name" default="image_rect_color" />
+  <arg name="camera_info_topic_name" default="camera_info" />
+  <arg name="image_out_topic_name" default="principal_point/image" />
+
+  <arg name="principal_point_matrix" default="P" />
+  <arg name="point_radius" default="8" />
+  <arg name="line_length" default="10" />
+  <arg name="thickness" default="1" />
+
+  <node
+    pkg="auv_vision"
+    type="principal_point_overlay_node.py"
+    name="$(arg camera)_principal_point_overlay"
+    output="screen">
+    <param
+      name="image_topic"
+      value="/$(arg namespace)/cameras/cam_$(arg camera)/$(arg image_topic_name)" />
+    <param
+      name="camera_info_topic"
+      value="/$(arg namespace)/cameras/cam_$(arg camera)/$(arg camera_info_topic_name)" />
+    <param
+      name="image_out_topic"
+      value="/$(arg namespace)/cameras/cam_$(arg camera)/$(arg image_out_topic_name)" />
+    <param name="principal_point_matrix" value="$(arg principal_point_matrix)" />
+    <param name="point_radius" type="int" value="$(arg point_radius)" />
+    <param name="line_length" type="int" value="$(arg line_length)" />
+    <param name="thickness" type="int" value="$(arg thickness)" />
+  </node>
+</launch>
