@@ -39,6 +39,13 @@ class GravityCompensationEstimatorNode:
             rospy.get_param("~max_vertical_velocity", 0.015)
         )
         self.max_wrench_z_stddev = float(rospy.get_param("~max_wrench_z_stddev", 3.0))
+        self.max_horizontal_velocity = float(
+            rospy.get_param("~max_horizontal_velocity", 0.05)
+        )
+        self.max_horizontal_wrench = float(
+            rospy.get_param("~max_horizontal_wrench", 8.0)
+        )
+        self.use_odometry_twist = self._get_bool_param("~use_odometry_twist", False)
 
         self.min_update_interval = rospy.Duration(
             float(rospy.get_param("~min_update_interval", 2.0))
@@ -190,11 +197,30 @@ class GravityCompensationEstimatorNode:
             self._reject_locked("invalid_odometry_orientation")
             return None
 
+        if self.use_odometry_twist:
+            horizontal_velocity = math.sqrt(
+                world_velocity[0] ** 2 + world_velocity[1] ** 2
+            )
+            if horizontal_velocity > self.max_horizontal_velocity:
+                self._reject_locked("horizontal_motion")
+                return None
+            sample_horizontal_velocity = horizontal_velocity
+            sample_horizontal_wrench = 0.0
+        else:
+            horizontal_wrench = math.sqrt(msg.wrench.force.x**2 + msg.wrench.force.y**2)
+            if horizontal_wrench > self.max_horizontal_wrench:
+                self._reject_locked("horizontal_wrench_active")
+                return None
+            sample_horizontal_velocity = 0.0
+            sample_horizontal_wrench = horizontal_wrench
+
         self.status_reason = "collecting_samples"
         return {
             "stamp": now,
             "z": z,
             "vertical_velocity": world_velocity[2],
+            "horizontal_velocity": sample_horizontal_velocity,
+            "horizontal_wrench": sample_horizontal_wrench,
             "world_wrench_z": world_force[2],
         }
 
@@ -366,6 +392,16 @@ class GravityCompensationEstimatorNode:
                 self.samples[-1]["stamp"] - self.samples[0]["stamp"]
             ).to_sec()
 
+        max_horizontal_velocity = 0.0
+        max_horizontal_wrench = 0.0
+        if self.samples:
+            max_horizontal_velocity = max(
+                sample["horizontal_velocity"] for sample in self.samples
+            )
+            max_horizontal_wrench = max(
+                sample["horizontal_wrench"] for sample in self.samples
+            )
+
         payload = {
             "reason": self.status_reason,
             "sample_count": len(self.samples),
@@ -378,6 +414,9 @@ class GravityCompensationEstimatorNode:
             "estimated_wrench_z_stddev": self.estimated_wrench_z_stddev,
             "control_enabled": self.control_enabled,
             "apply_updates": self.apply_updates,
+            "max_horizontal_velocity": max_horizontal_velocity,
+            "max_horizontal_wrench": max_horizontal_wrench,
+            "use_odometry_twist": self.use_odometry_twist,
         }
         self.status_pub.publish(String(data=json.dumps(payload, sort_keys=True)))
 
