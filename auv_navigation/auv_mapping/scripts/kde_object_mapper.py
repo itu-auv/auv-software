@@ -30,7 +30,7 @@ from geometry_msgs.msg import (
     Vector3,
     Quaternion,
 )
-from std_srvs.srv import Trigger, TriggerResponse
+from std_srvs.srv import Trigger, TriggerResponse, SetBool, SetBoolResponse
 from auv_msgs.srv import SetObjectTransform, SetObjectTransformRequest
 from kde_visualizer import KdeVisualizer, CLASS_COLORS_BGR
 
@@ -70,6 +70,7 @@ class KdeObjectMapper:
         self.current_results = {}  # class_name -> [(x, y, confidence), ...]
         self.lock = threading.Lock()
         self._kde_running = False  # re-entrancy guard
+        self.ignore_premap = False
 
         # Store file modification time to detect dynamic updates
         self._premap_mtime = 0.0
@@ -116,6 +117,7 @@ class KdeObjectMapper:
         # ── Services ─────────────────────────────────────────────────────
         rospy.Service("kde_map/clear", Trigger, self._clear_callback)
         rospy.Service("kde_map/trigger_update", Trigger, self._trigger_callback)
+        rospy.Service("kde_map/ignore_premap", SetBool, self._ignore_premap_callback)
 
         # ── Timer ─────────────────────────────────────────────────────────
         self.update_timer = rospy.Timer(
@@ -201,7 +203,7 @@ class KdeObjectMapper:
 
     def _point_callback(self, msg, class_name):
         with self.lock:
-            if class_name in self.premap:
+            if not self.ignore_premap and class_name in self.premap:
                 premap_pos = self.premap[class_name]
                 dist = float(
                     np.sqrt(
@@ -234,6 +236,12 @@ class KdeObjectMapper:
     def _trigger_callback(self, _req):
         self._run_kde()
         return TriggerResponse(success=True, message="KDE update triggered")
+
+    def _ignore_premap_callback(self, req: SetBool) -> SetBoolResponse:
+        with self.lock:
+            self.ignore_premap = bool(req.data)
+        rospy.loginfo(f"KDE: ignore premap {req.data}")
+        return SetBoolResponse(success=True, message=f"ignore premap {req.data}")
 
     def _update_callback(self, _event):
         # Re-entrancy guard: skip if previous KDE computation is still running
@@ -335,7 +343,7 @@ class KdeObjectMapper:
                     "rejected_peaks": [],
                     "kde_active": False,  # no density heatmap
                 }
-            elif cls_name in self.premap:
+            elif not self.ignore_premap and cls_name in self.premap:
                 pm_x, pm_y = self.premap[cls_name]
                 results[cls_name] = [(float(pm_x), float(pm_y), 1.0)]
 
@@ -351,7 +359,11 @@ class KdeObjectMapper:
                     "kde_active": False,
                 }
 
-            if cls_name in kde_data and cls_name in self.premap:
+            if (
+                cls_name in kde_data
+                and not self.ignore_premap
+                and cls_name in self.premap
+            ):
                 kde_data[cls_name]["premap_position"] = (
                     float(self.premap[cls_name][0]),
                     float(self.premap[cls_name][1]),

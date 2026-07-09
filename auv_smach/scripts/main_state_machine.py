@@ -18,6 +18,7 @@ from auv_smach.pipeline import NavigateThroughPipelineState
 from auv_smach.gps import NavigateToGpsTargetState
 from auv_smach.waypoints import DynamicPathExecutionState
 from std_msgs.msg import Bool
+from std_srvs.srv import SetBool
 import threading
 from dynamic_reconfigure.client import Client
 from auv_bringup.cfg import SmachParametersConfig
@@ -182,6 +183,17 @@ class MainStateMachineNode:
 
         # Subscribe to propulsion status
         rospy.Subscriber("propulsion_board/status", Bool, self.enabled_callback)
+
+        ignore_premap = rospy.get_param("~ignore_premap", False)
+        try:
+            rospy.wait_for_service("kde_map/ignore_premap", timeout=5.0)
+            ignore_premap_kde_service = rospy.ServiceProxy(
+                "kde_map/ignore_premap", SetBool
+            )
+            ignore_premap_kde_service(ignore_premap)
+            rospy.loginfo("Called kde_map/ignore_premap service with data=True")
+        except Exception as e:
+            rospy.logerror(f"Failed to call kde_map/ignore_premap: {e}")
 
     def dynamic_reconfigure_callback(self, config):
         """

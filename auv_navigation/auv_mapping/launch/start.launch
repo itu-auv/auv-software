@@ -102,6 +102,7 @@
       </rosparam>
       <remap from="set_object_transform" to="map/set_object_transform" />
       <remap from="kde_map/clear" to="map/kde_map/clear" />
+      <remap from="kde_map/ignore_premap" to="map/kde_map/ignore_premap" />
     </node>
 
     <node pkg="auv_mapping" type="gps_target_frame_publisher.py" name="gps_target_frame_publisher" output="screen">

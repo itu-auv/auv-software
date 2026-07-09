@@ -32,6 +32,7 @@
     <arg name="roll" default="false" doc="Enable roll mode for state machine"/>
     <arg name="yaw" default="false" doc="Enable yaw mode for state machine"/>
     <arg name="coin_flip" default="false" doc="Enable coin flip mode for state machine"/>
+    <arg name="ignore_premap" default="false" doc="Disable premap behavior at startup"/>
 
     <!-- Full Mission States -->
     <arg name="full_mission_states" default="[
@@ -61,10 +62,12 @@
             <param name="roll" value="$(arg roll)"/>
             <param name="yaw" value="$(arg yaw)"/>
             <param name="coin_flip" value="$(arg coin_flip)"/>
+            <param name="~ignore_premap" value="$(arg ignore_premap)"/>
 
             <!-- common.py -->
             <remap from="clear_object_transforms" to="map/clear_object_transforms"/>
             <remap from="kde_map/clear" to="map/kde_map/clear"/>
+            <remap from="kde_map/ignore_premap" to="map/kde_map/ignore_premap"/>
             <remap from="torpedo_1/launch" to="actuators/torpedo_1/launch"/>
             <remap from="torpedo_2/launch" to="actuators/torpedo_2/launch"/>
             <remap from="ball_dropper/drop" to="actuators/ball_dropper/drop"/>
