@@ -16,6 +16,7 @@ from auv_smach.common import (
     DynamicPathState,
     SetDetectionFocusState,
     SetDetectionState,
+    GravityZEnable,
 )
 from auv_smach.initialize import DelayState
 from auv_smach.acoustic import AcousticTransmitter
@@ -261,6 +262,15 @@ class TorpedoTaskState(smach.State):
                 "ENABLE_FRONT_CAMERA_FOCUS",
                 SetDetectionState(camera_name="front", enable=True),
                 transitions={
+                    "succeeded": "isim_degistir",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "isim_degistir",
+                GravityZEnable(enable=True),
+                transitions={
                     "succeeded": "FOCUS_ON_TORPEDO",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -286,7 +296,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "SET_TORPEDO_MAP_DEPTH",
-                SetDepthState(depth=torpedo_map_depth),
+                SetDepthState(depth=-0.5),
                 transitions={
                     "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
                     "preempted": "preempted",
@@ -423,21 +433,30 @@ class TorpedoTaskState(smach.State):
                 "SET_TORPEDO_HOLES_DETECTION",
                 SetDetectionState(camera_name="torpedo", enable=True),
                 transitions={
-                    "succeeded": "WAIT_FOR_TORPEDO_HOLES_DETECTION",
+                    "succeeded": "lalala",
                     "preempted": "preempted",
                     "aborted": "aborted",
                 },
             )
+            # smach.StateMachine.add(
+            #     "WAIT_FOR_TORPEDO_HOLES_DETECTION",
+            #     AlignFrame(
+            #         source_frame=f"{self.base_link}/torpedo_camera_link",
+            #         target_frame=torpedo_realsense_target_frame,
+            #         angle_offset=0.0,
+            #         dist_threshold=0.05,
+            #         yaw_threshold=0.05,
+            #         confirm_duration=5.0,
+            #     ),
+            #     transitions={
+            #         "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
+            #         "preempted": "preempted",
+            #         "aborted": "aborted",
+            #     },
+            # )
             smach.StateMachine.add(
-                "WAIT_FOR_TORPEDO_HOLES_DETECTION",
-                AlignFrame(
-                    source_frame=f"{self.base_link}/torpedo_camera_link",
-                    target_frame=torpedo_realsense_target_frame,
-                    angle_offset=0.0,
-                    dist_threshold=0.05,
-                    yaw_threshold=0.05,
-                    confirm_duration=5.0,
-                ),
+                "lalala",
+                GravityZEnable(enable=False),
                 transitions={
                     "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
                     "preempted": "preempted",
@@ -485,7 +504,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_1",
-                LaunchTorpedoState(id=2),
+                LaunchTorpedoState(id=1),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_LAUNCH_1",
                     "preempted": "preempted",
@@ -507,10 +526,10 @@ class TorpedoTaskState(smach.State):
                     source_frame=f"{self.base_link}/torpedo_bottom_link",
                     target_frame=self.torpedo_fire_frames[1],
                     angle_offset=0.0,
-                    dist_threshold=0.03,
+                    dist_threshold=0.02,
                     yaw_threshold=0.05,
                     confirm_duration=3.0,
-                    timeout=30.0,
+                    timeout=15.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
@@ -524,7 +543,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_2",
-                LaunchTorpedoState(id=1),
+                LaunchTorpedoState(id=2),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
                     "preempted": "preempted",
@@ -552,9 +571,8 @@ class TorpedoTaskState(smach.State):
             smach.StateMachine.add(
                 "ALIGN_TO_TORPEDO_EXIT",
                 AlignFrame(
-                    source_frame=self.base_link,
+                    source_frame=f"{self.base_link}/torpedo_camera_link",
                     target_frame=torpedo_realsense_target_frame,
-                    angle_offset=self.torpedo_exit_angle,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     confirm_duration=0.0,

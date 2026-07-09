@@ -1,0 +1,268 @@
+diff --git a/auv_control/auv_control/config/taluy/default.yaml b/auv_control/auv_control/config/taluy/default.yaml
+index 43e74f3b..b194766e 100644
+--- a/auv_control/auv_control/config/taluy/default.yaml
++++ b/auv_control/auv_control/config/taluy/default.yaml
+@@ -44,4 +44,4 @@ coeffs_cw: [-7.65890867108129, -2.272619267631361, 1.5070809906898863, 140.79738
+ mapping: [4, 0, 2, 6, 7, 3, 1, 5]
+ directions: [1, 1, 1, 1, 1, 1, 1, 1]
+ 
+-gravity_compensation_z: 0.0
++gravity_compensation_z: -2.2
+diff --git a/auv_description/taluy_description/urdf/auv_base.urdf.xacro b/auv_description/taluy_description/urdf/auv_base.urdf.xacro
+index 0afaa667..2b0e7b1e 100644
+--- a/auv_description/taluy_description/urdf/auv_base.urdf.xacro
++++ b/auv_description/taluy_description/urdf/auv_base.urdf.xacro
+@@ -102,7 +102,7 @@
+       name="${namespace}/base_link/torpedo_camera"
+       parent="${namespace}/base_link"
+       position="-0.408 0.1 -0.149"
+-      orientation="0.0 -0.07 ${math.pi}"
++      orientation="0.0 -0.088 ${math.pi}"
+       use_models="$(arg use_models)"
+     />
+     <xacro:torpedo_upper name="${namespace}/base_link/torpedo_upper" parent="${namespace}/base_link" position="-0.386 0.1 -0.054821" orientation="0 0 ${math.pi}" use_models="$(arg use_models)"/>
+diff --git a/auv_hardware/auv_cam/launch/realsense_camera.launch b/auv_hardware/auv_cam/launch/realsense_camera.launch
+index 8fa95d39..d8708884 100644
+--- a/auv_hardware/auv_cam/launch/realsense_camera.launch
++++ b/auv_hardware/auv_cam/launch/realsense_camera.launch
+@@ -33,7 +33,7 @@
+ 
+   <arg name="color_width"         default="-1"/>
+   <arg name="color_height"        default="-1"/>
+-  <arg name="enable_color"        default="true"/>
++  <arg name="enable_color"        default="false"/>
+ 
+   <arg name="fisheye_fps"         default="-1"/>
+   <arg name="depth_fps"           default="-1"/>
+diff --git a/auv_navigation/auv_localization/config/taluy/imu_calibration_data.yaml b/auv_navigation/auv_localization/config/taluy/imu_calibration_data.yaml
+index 4697917d..cff8439f 100644
+--- a/auv_navigation/auv_localization/config/taluy/imu_calibration_data.yaml
++++ b/auv_navigation/auv_localization/config/taluy/imu_calibration_data.yaml
+@@ -1,4 +1,4 @@
+ drift:
+-- -1.3958521268476816e-05
+-- 4.1670033910559425e-05
+-- 0.00030737187665603257
++- 0.0026981944667260416
++- 0.0004588979352216387
++- 0.0009849694322650478
+diff --git a/auv_smach/scripts/main_state_machine.py b/auv_smach/scripts/main_state_machine.py
+index 997c1e83..8103ea16 100755
+--- a/auv_smach/scripts/main_state_machine.py
++++ b/auv_smach/scripts/main_state_machine.py
+@@ -70,7 +70,7 @@ class MainStateMachineNode:
+         self.torpedo_priority = DEFAULT_TORPEDO_PRIORITY
+         self.slalom_mode = "close"
+         self.slalom_direction = "left"
+-        self.octagon_start_from_table = False
++        self.octagon_start_from_table = True
+         self.octagon_remaining_targets_max_attempts = 2
+ 
+         # Exit angles in degrees (will be converted to radians)
+diff --git a/auv_smach/src/auv_smach/common.py b/auv_smach/src/auv_smach/common.py
+index e8d9151f..5fa2cdf8 100644
+--- a/auv_smach/src/auv_smach/common.py
++++ b/auv_smach/src/auv_smach/common.py
+@@ -1287,6 +1287,13 @@ class SetPlanState(smach.State):
+             return "aborted"
+ 
+ 
++class GravityZEnable(smach_ros.ServiceState):
++    def __init__(self, enable):
++        smach_ros.ServiceState.__init__(
++            self, "/taluy/gravity_compensation_estimator/set_apply_updates", SetBool, request=SetBoolRequest(data=enable)
++        )
++
++
+ class SetPlanningNotActive(smach_ros.ServiceState):
+     def __init__(self):
+         smach_ros.ServiceState.__init__(
+diff --git a/auv_smach/src/auv_smach/octagon.py b/auv_smach/src/auv_smach/octagon.py
+index dfdacc8d..fbecb073 100644
+--- a/auv_smach/src/auv_smach/octagon.py
++++ b/auv_smach/src/auv_smach/octagon.py
+@@ -36,7 +36,7 @@ class GripperAngleOpenState(smach.State):
+             outcomes=["succeeded", "preempted", "aborted"],
+         )
+         self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
+-        self.angle_value = 2400
++        self.angle_value = 2100
+ 
+     def execute(self, userdata) -> str:
+         try:
+@@ -65,7 +65,7 @@ class GripperAngleCloseState(smach.State):
+             outcomes=["succeeded", "preempted", "aborted"],
+         )
+         self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
+-        self.angle_value = 1500
++        self.angle_value = 1100
+ 
+     def execute(self, userdata) -> str:
+         try:
+@@ -282,7 +282,7 @@ class PickAndDropSequence(smach.StateMachine):
+                 "ALIGN_TO_MIDDLE_BASKET",
+                 AlignFrame(
+                     source_frame=base_link,
+-                    target_frame="middle_basket",
++                    target_frame="octagon_table_segment_link",
+                     dist_threshold=0.1,
+                     yaw_threshold=0.1,
+                     closest_yaw=False,
+@@ -403,7 +403,7 @@ class PickAndDropSequence(smach.StateMachine):
+                 "ALIGN_TO_MIDDLE_BASKET_AFTER_DROPPING",
+                 AlignFrame(
+                     source_frame=base_link,
+-                    target_frame="middle_basket",
++                    target_frame="octagon_table_segment_link",
+                     angle_offset=0.0,
+                     dist_threshold=0.1,
+                     yaw_threshold=0.1,
+diff --git a/auv_smach/src/auv_smach/torpedo.py b/auv_smach/src/auv_smach/torpedo.py
+index 94e7e331..c72a0f71 100644
+--- a/auv_smach/src/auv_smach/torpedo.py
++++ b/auv_smach/src/auv_smach/torpedo.py
+@@ -16,6 +16,7 @@ from auv_smach.common import (
+     DynamicPathState,
+     SetDetectionFocusState,
+     SetDetectionState,
++    GravityZEnable,
+ )
+ from auv_smach.initialize import DelayState
+ from auv_smach.acoustic import AcousticTransmitter
+@@ -260,6 +261,15 @@ class TorpedoTaskState(smach.State):
+             smach.StateMachine.add(
+                 "ENABLE_FRONT_CAMERA_FOCUS",
+                 SetDetectionState(camera_name="front", enable=True),
++                transitions={
++                    "succeeded": "isim_degistir",
++                    "preempted": "preempted",
++                    "aborted": "aborted",
++                },
++            )
++            smach.StateMachine.add(
++                "isim_degistir",
++                GravityZEnable(enable=True),
+                 transitions={
+                     "succeeded": "FOCUS_ON_TORPEDO",
+                     "preempted": "preempted",
+@@ -286,7 +296,7 @@ class TorpedoTaskState(smach.State):
+             )
+             smach.StateMachine.add(
+                 "SET_TORPEDO_MAP_DEPTH",
+-                SetDepthState(depth=torpedo_map_depth),
++                SetDepthState(depth=-0.5),
+                 transitions={
+                     "succeeded": "FIND_AND_AIM_TORPEDO_MAP",
+                     "preempted": "preempted",
+@@ -423,21 +433,30 @@ class TorpedoTaskState(smach.State):
+                 "SET_TORPEDO_HOLES_DETECTION",
+                 SetDetectionState(camera_name="torpedo", enable=True),
+                 transitions={
+-                    "succeeded": "WAIT_FOR_TORPEDO_HOLES_DETECTION",
++                    "succeeded": "lalala",
+                     "preempted": "preempted",
+                     "aborted": "aborted",
+                 },
+             )
++            # smach.StateMachine.add(
++            #     "WAIT_FOR_TORPEDO_HOLES_DETECTION",
++            #     AlignFrame(
++            #         source_frame=f"{self.base_link}/torpedo_camera_link",
++            #         target_frame=torpedo_realsense_target_frame,
++            #         angle_offset=0.0,
++            #         dist_threshold=0.05,
++            #         yaw_threshold=0.05,
++            #         confirm_duration=5.0,
++            #     ),
++            #     transitions={
++            #         "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
++            #         "preempted": "preempted",
++            #         "aborted": "aborted",
++            #     },
++            # )
+             smach.StateMachine.add(
+-                "WAIT_FOR_TORPEDO_HOLES_DETECTION",
+-                AlignFrame(
+-                    source_frame=f"{self.base_link}/torpedo_camera_link",
+-                    target_frame=torpedo_realsense_target_frame,
+-                    angle_offset=0.0,
+-                    dist_threshold=0.05,
+-                    yaw_threshold=0.05,
+-                    confirm_duration=5.0,
+-                ),
++                "lalala",
++                GravityZEnable(enable=False),
+                 transitions={
+                     "succeeded": "ENABLE_TORPEDO_FIRE_FRAME_PUBLISHER",
+                     "preempted": "preempted",
+@@ -485,7 +504,7 @@ class TorpedoTaskState(smach.State):
+             )
+             smach.StateMachine.add(
+                 "LAUNCH_TORPEDO_1",
+-                LaunchTorpedoState(id=2),
++                LaunchTorpedoState(id=1),
+                 transitions={
+                     "succeeded": "WAIT_FOR_TORPEDO_LAUNCH_1",
+                     "preempted": "preempted",
+@@ -507,10 +526,10 @@ class TorpedoTaskState(smach.State):
+                     source_frame=f"{self.base_link}/torpedo_bottom_link",
+                     target_frame=self.torpedo_fire_frames[1],
+                     angle_offset=0.0,
+-                    dist_threshold=0.03,
++                    dist_threshold=0.02,
+                     yaw_threshold=0.05,
+                     confirm_duration=3.0,
+-                    timeout=30.0,
++                    timeout=15.0,
+                     cancel_on_success=False,
+                     max_linear_velocity=0.1,
+                     max_angular_velocity=0.1,
+@@ -524,7 +543,7 @@ class TorpedoTaskState(smach.State):
+             )
+             smach.StateMachine.add(
+                 "LAUNCH_TORPEDO_2",
+-                LaunchTorpedoState(id=1),
++                LaunchTorpedoState(id=2),
+                 transitions={
+                     "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
+                     "preempted": "preempted",
+@@ -552,9 +571,8 @@ class TorpedoTaskState(smach.State):
+             smach.StateMachine.add(
+                 "ALIGN_TO_TORPEDO_EXIT",
+                 AlignFrame(
+-                    source_frame=self.base_link,
++                    source_frame=f"{self.base_link}/torpedo_camera_link",
+                     target_frame=torpedo_realsense_target_frame,
+-                    angle_offset=self.torpedo_exit_angle,
+                     dist_threshold=0.1,
+                     yaw_threshold=0.1,
+                     confirm_duration=0.0,
+diff --git a/auv_vision/auv_detection/launch/inc/tracker_bottom.launch b/auv_vision/auv_detection/launch/inc/tracker_bottom.launch
+index 5bd67fd1..ef8ce5aa 100644
+--- a/auv_vision/auv_detection/launch/inc/tracker_bottom.launch
++++ b/auv_vision/auv_detection/launch/inc/tracker_bottom.launch
+@@ -3,7 +3,7 @@
+   <arg name="namespace" default="taluy"/>
+   <arg name="sim" default="0"/>
+   <arg name="use_gui" default="false"/>
+-  <arg name="yolo_model" default="bin_30_haziran.pt"/>
++  <arg name="yolo_model" default="7_july_bottom_bin_blood.pt"/>
+   <arg name="model_source_path" default="$(find auv_detection)/models/$(arg yolo_model)"/>
+   <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
+   <arg name="input_topic" default="/$(arg namespace)/cameras/cam_bottom/image_rect_color"/>
+diff --git a/auv_vision/auv_detection/launch/inc/tracker_realsense.launch b/auv_vision/auv_detection/launch/inc/tracker_realsense.launch
+index 1d5600c7..115a045e 100644
+--- a/auv_vision/auv_detection/launch/inc/tracker_realsense.launch
++++ b/auv_vision/auv_detection/launch/inc/tracker_realsense.launch
+@@ -2,7 +2,7 @@
+ <launch>
+   <arg name="namespace" default="taluy"/>
+   <arg name="use_gui" default="false"/>
+-  <arg name="yolo_model" default="front_27.pt"/>
++  <arg name="yolo_model" default="mini_gate_finetune.pt"/>
+   <arg name="model_source_path" default="$(find auv_detection)/models/$(arg yolo_model)"/>
+   <arg name="ultralytics_models_dir" default="$(find ultralytics_ros)/models"/>
+   <arg name="input_topic" default="/$(arg namespace)/camera/color/image_raw"/>
+diff --git a/auv_vision/auv_detection/models/.gitkeep b/auv_vision/auv_detection/models/.gitkeep
+deleted file mode 100644
+index e69de29b..00000000

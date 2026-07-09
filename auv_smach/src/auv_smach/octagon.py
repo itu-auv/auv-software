@@ -36,7 +36,7 @@ class GripperAngleOpenState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
-        self.angle_value = 2400
+        self.angle_value = 2100
 
     def execute(self, userdata) -> str:
         try:
@@ -65,7 +65,7 @@ class GripperAngleCloseState(smach.State):
             outcomes=["succeeded", "preempted", "aborted"],
         )
         self.pub = rospy.Publisher("actuators/gripper1/set_angle", UInt16, queue_size=1)
-        self.angle_value = 1500
+        self.angle_value = 1100
 
     def execute(self, userdata) -> str:
         try:
@@ -282,7 +282,7 @@ class PickAndDropSequence(smach.StateMachine):
                 "ALIGN_TO_MIDDLE_BASKET",
                 AlignFrame(
                     source_frame=base_link,
-                    target_frame="middle_basket",
+                    target_frame="octagon_table_segment_link",
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
                     closest_yaw=False,
@@ -403,7 +403,7 @@ class PickAndDropSequence(smach.StateMachine):
                 "ALIGN_TO_MIDDLE_BASKET_AFTER_DROPPING",
                 AlignFrame(
                     source_frame=base_link,
-                    target_frame="middle_basket",
+                    target_frame="octagon_table_segment_link",
                     angle_offset=0.0,
                     dist_threshold=0.1,
                     yaw_threshold=0.1,
