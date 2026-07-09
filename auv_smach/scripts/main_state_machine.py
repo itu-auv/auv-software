@@ -70,7 +70,7 @@ class MainStateMachineNode:
         self.torpedo_priority = DEFAULT_TORPEDO_PRIORITY
         self.slalom_mode = "close"
         self.slalom_direction = "left"
-        self.octagon_start_from_table = True
+        self.octagon_start_from_table = False
         self.octagon_remaining_targets_max_attempts = 2
 
         # Exit angles in degrees (will be converted to radians)

@@ -504,7 +504,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_1",
-                LaunchTorpedoState(id=1),
+                LaunchTorpedoState(id=2),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_LAUNCH_1",
                     "preempted": "preempted",
@@ -529,7 +529,7 @@ class TorpedoTaskState(smach.State):
                     dist_threshold=0.02,
                     yaw_threshold=0.05,
                     confirm_duration=3.0,
-                    timeout=15.0,
+                    timeout=30.0,
                     cancel_on_success=False,
                     max_linear_velocity=0.1,
                     max_angular_velocity=0.1,
@@ -543,7 +543,7 @@ class TorpedoTaskState(smach.State):
             )
             smach.StateMachine.add(
                 "LAUNCH_TORPEDO_2",
-                LaunchTorpedoState(id=2),
+                LaunchTorpedoState(id=1),
                 transitions={
                     "succeeded": "WAIT_FOR_TORPEDO_2_LAUNCH",
                     "preempted": "preempted",
