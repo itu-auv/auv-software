@@ -861,9 +861,18 @@ class OctagonTaskState(smach.State):
                 "ENABLE_OCTAGON_FRAME_PUBLISHER_ON_TABLE",
                 OctagonFramePublisherServiceState(req=True),
                 transitions={
+                    "succeeded": "CLOSE_FRONT_CAMERA_OCTAGON_DETECTION_BEFORE_PICKING",
+                    "preempted": "preempted",
+                    "aborted": "CLOSE_FRONT_CAMERA_OCTAGON_DETECTION_BEFORE_PICKING",
+                },
+            )
+            smach.StateMachine.add(
+                "CLOSE_FRONT_CAMERA_OCTAGON_DETECTION_BEFORE_PICKING",
+                SetDetectionState(camera_name="front", enable=False),
+                transitions={
                     "succeeded": "PICK_AND_DROP_SEQUENCE_1",
                     "preempted": "preempted",
-                    "aborted": "PICK_AND_DROP_SEQUENCE_1",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
@@ -911,9 +920,18 @@ class OctagonTaskState(smach.State):
                     set_role_search_rotation_count=set_role_search_rotation_count,
                 ),
                 transitions={
+                    "succeeded": "OPEN_FRONT_CAMERA_OCTAGON_DETECTION_AFTER_PICKING",
+                    "preempted": "preempted",
+                    "aborted": "OPEN_FRONT_CAMERA_OCTAGON_DETECTION_AFTER_PICKING",
+                },
+            )
+            smach.StateMachine.add(
+                "OPEN_FRONT_CAMERA_OCTAGON_DETECTION_AFTER_PICKING",
+                SetDetectionState(camera_name="front", enable=True),
+                transitions={
                     "succeeded": "OCTAGON_FACING_DEPTH",
                     "preempted": "preempted",
-                    "aborted": "OCTAGON_FACING_DEPTH",
+                    "aborted": "aborted",
                 },
             )
             smach.StateMachine.add(
