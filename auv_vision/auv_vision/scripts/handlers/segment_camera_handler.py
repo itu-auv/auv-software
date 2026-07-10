@@ -28,6 +28,34 @@ from utils.segment_utils import (
 )
 
 
+class FixedWidthCompressedPublisher:
+    def __init__(self, publisher, bridge, width):
+        self.publisher = publisher
+        self.bridge = bridge
+        self.width = width
+
+    def publish(self, msg):
+        try:
+            image = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            height = max(1, int(round(image.shape[0] * self.width / image.shape[1])))
+            interpolation = (
+                cv2.INTER_AREA if image.shape[1] > self.width else cv2.INTER_LINEAR
+            )
+            image = cv2.resize(image, (self.width, height), interpolation=interpolation)
+            dst_format = "png" if "png" in msg.format.lower() else "jpg"
+            resized_msg = self.bridge.cv2_to_compressed_imgmsg(
+                image, dst_format=dst_format
+            )
+            resized_msg.header = msg.header
+            self.publisher.publish(resized_msg)
+        except Exception as e:
+            rospy.logwarn_throttle(5.0, f"Failed to resize segment debug image: {e}")
+            self.publisher.publish(msg)
+
+    def __getattr__(self, name):
+        return getattr(self.publisher, name)
+
+
 class SegmentCameraHandler:
     OCTAGON_TABLE_SEGMENT_NAME = "octagon_table_segment_link"
     OCTAGON_TASK_OBJECT_ORDER = (
@@ -66,7 +94,11 @@ class SegmentCameraHandler:
             self.debug_image_topic += "/compressed"
         self.table_height = 0.74  # TODO: Read from yaml
         self.segment_pose_debug_pub = (
-            rospy.Publisher(self.debug_image_topic, CompressedImage, queue_size=1)
+            FixedWidthCompressedPublisher(
+                rospy.Publisher(self.debug_image_topic, CompressedImage, queue_size=1),
+                self.bridge,
+                640,
+            )
             if self.debug_segment_pose
             else None
         )

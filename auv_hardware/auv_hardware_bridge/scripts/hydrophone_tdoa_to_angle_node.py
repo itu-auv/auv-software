@@ -20,7 +20,7 @@ SENSORS = np.array(
     ]
 )
 A = SENSORS[1:] - SENSORS[0]
-ROBOT_YAW_OFFSET = 0.0
+ROBOT_YAW_OFFSET = 90
 
 
 def normalize_angle(angle):
