@@ -145,7 +145,7 @@ class DepthAnythingTRTNode:
         self.scaled_intrinsics = self._compute_scaled_intrinsics()
 
         # ROS interface
-        self.enabled = True
+        self.enabled = rospy.get_param("~enabled", False)
         self.latest_image = None
         self.image_sub = rospy.Subscriber(
             "image_raw", Image, self._image_cb, queue_size=1
@@ -154,7 +154,7 @@ class DepthAnythingTRTNode:
         self.camera_info_pub = rospy.Publisher(
             "scaled_camera_info", CameraInfo, queue_size=1, latch=True
         )
-        rospy.Service("~enable", SetBool, self._enable_callback)
+        rospy.Service("enable", SetBool, self._enable_callback)
         self.point_cloud_pub = None
         self.point_cloud_fields = None
         self.point_cloud_pixels = None
@@ -229,11 +229,18 @@ class DepthAnythingTRTNode:
         self.camera_info_pub.publish(msg)
 
     def _enable_callback(self, req):
+        if req.data and self.scaled_intrinsics is None:
+            message = "[DA3-TRT] Cannot enable: scaled camera intrinsics unavailable"
+            rospy.logerr(message)
+            return SetBoolResponse(success=False, message=message)
+
         self.enabled = req.data
         message = "Depth Anything TRT node " + (
             "enabled" if self.enabled else "disabled"
         )
         rospy.loginfo(message)
+        if self.enabled:
+            self._publish_scaled_camera_info()
         return SetBoolResponse(success=True, message=message)
 
     def _image_cb(self, msg: Image) -> None:

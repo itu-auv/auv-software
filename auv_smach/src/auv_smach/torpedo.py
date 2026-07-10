@@ -97,14 +97,14 @@ class ResolveTorpedoClosestFrameState(smach.State):
             set_enabled = rospy.ServiceProxy(service_name, SetBool)
             response = set_enabled(SetBoolRequest(data=enabled))
             if not response.success:
-                rospy.logwarn(
+                rospy.logerr(
                     "Service %s returned success=False: %s",
                     service_name,
                     response.message,
                 )
             return response.success
         except (rospy.ROSException, rospy.ServiceException) as exc:
-            rospy.logwarn("Failed to call %s: %s", service_name, exc)
+            rospy.logerr("Failed to call %s: %s", service_name, exc)
             return False
 
     def _set_method_enabled(
@@ -180,7 +180,7 @@ class ResolveTorpedoClosestFrameState(smach.State):
 
                 rospy.loginfo("Trying torpedo closest frame source: %s", method)
                 if not self._set_method_enabled(method, True):
-                    rospy.logwarn(
+                    rospy.logerr(
                         "Could not enable torpedo closest frame source: %s", method
                     )
                     continue
@@ -605,9 +605,30 @@ class TorpedoTaskState(smach.State):
                 },
             )
 
+    def request_preempt(self):
+        smach.State.request_preempt(self)
+        self.state_machine.request_preempt()
+
+    def _disable_da3_pipeline(self):
+        service_name = TORPEDO_CLOSEST_METHOD_SERVICES[TORPEDO_PRIORITY_DA3]
+        try:
+            rospy.wait_for_service(service_name, timeout=1.0)
+            response = rospy.ServiceProxy(service_name, SetBool)(
+                SetBoolRequest(data=False)
+            )
+            if not response.success:
+                rospy.logerr(
+                    "DA3 pipeline cleanup returned success=False: %s",
+                    response.message,
+                )
+        except (rospy.ROSException, rospy.ServiceException) as exc:
+            rospy.logerr("Failed to disable DA3 pipeline during cleanup: %s", exc)
+
     def execute(self, userdata):
-        # Execute the state machine
-        outcome = self.state_machine.execute()
+        try:
+            outcome = self.state_machine.execute()
+        finally:
+            self._disable_da3_pipeline()
 
         if outcome is None:
             return "preempted"
