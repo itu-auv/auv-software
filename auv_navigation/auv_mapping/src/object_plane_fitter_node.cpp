@@ -60,9 +60,6 @@ class ObjectPlaneFitter {
                             "taluy/camera_depth_optical_frame");
     pnh_.param<std::string>("base_link_frame", base_link_frame_,
                             "taluy/base_link");
-    pnh_.param<int>("dependency_retry_count", dependency_retry_count_, 3);
-    pnh_.param<double>("dependency_retry_delay", dependency_retry_delay_, 0.2);
-
     // Publishers
     object_transform_pub_ = nh_.advertise<geometry_msgs::TransformStamped>(
         "object_transform_updates", 10);
@@ -141,7 +138,7 @@ class ObjectPlaneFitter {
     if (res.success) {
       ROS_INFO_STREAM(res.message);
     } else {
-      ROS_WARN_STREAM(res.message);
+      ROS_ERROR_STREAM(res.message);
     }
     return true;
   }
@@ -159,34 +156,29 @@ class ObjectPlaneFitter {
   bool setDependencyEnabled(ros::ServiceClient& client,
                             const std::string& service_name,
                             const std::string& dependency_name, bool enabled) {
-    const int attempt_count = std::max(1, dependency_retry_count_);
-    for (int attempt = 1; attempt <= attempt_count; ++attempt) {
-      if (client.exists()) {
-        std_srvs::SetBool enable_srv;
-        enable_srv.request.data = enabled;
-        if (client.call(enable_srv) && enable_srv.response.success) {
-          return true;
-        }
-
-        if (!enable_srv.response.message.empty()) {
-          ROS_WARN_STREAM(dependency_name << " rejected enable=" << enabled
-                                          << " via " << service_name << ": "
-                                          << enable_srv.response.message);
-        }
-      } else {
-        ROS_WARN_STREAM(dependency_name << " enable service is unavailable: "
-                                        << service_name);
-      }
-
-      if (attempt < attempt_count) {
-        ros::WallDuration(dependency_retry_delay_).sleep();
-      }
+    if (!client.exists()) {
+      ROS_ERROR_STREAM(dependency_name << " enable service is unavailable: "
+                                       << service_name);
+      return false;
     }
 
-    ROS_WARN_STREAM("Failed to set " << dependency_name << " enable=" << enabled
-                                     << " after " << attempt_count
-                                     << " attempts");
-    return false;
+    std_srvs::SetBool enable_srv;
+    enable_srv.request.data = enabled;
+    if (!client.call(enable_srv)) {
+      ROS_ERROR_STREAM("Failed to call "
+                       << dependency_name
+                       << " enable service: " << service_name);
+      return false;
+    }
+
+    if (!enable_srv.response.success) {
+      ROS_ERROR_STREAM(dependency_name << " rejected enable=" << enabled
+                                       << " via " << service_name << ": "
+                                       << enable_srv.response.message);
+      return false;
+    }
+
+    return true;
   }
 
  private:
@@ -564,8 +556,6 @@ class ObjectPlaneFitter {
   ros::ServiceClient tracker_enable_client_;
   ros::ServiceClient depth_enable_client_;
   bool enabled_;
-  int dependency_retry_count_;
-  double dependency_retry_delay_;
 
   // Subscribers
   ros::Subscriber camera_info_sub_;
