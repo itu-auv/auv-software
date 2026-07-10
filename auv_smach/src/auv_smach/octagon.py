@@ -302,7 +302,7 @@ class PickAndDropSequence(smach.StateMachine):
             smach.StateMachine.add(
                 "SURFACE_WITH_OBJECT",
                 SetDepthState(
-                    depth=-0.1,
+                    depth=0,
                     timeout=10.0,
                     max_velocity=0.4,
                     depth_threshold=0.05,
@@ -590,7 +590,8 @@ class OctagonTaskState(smach.State):
         )
         pick_and_drop_target_baskets = dict(pick_and_drop_targets)
         role_search_rotation = AlignAndCreateRotatingFrame(
-            source_frame=self.base_link,
+            # source_frame=self.base_link,
+            source_frame="taluy/base_link/dvl_mount_link",
             rotating_frame_name="octagon_target_role_search_frame",
             rotation_period=15.0,
             rotation_count=3,
@@ -619,7 +620,7 @@ class OctagonTaskState(smach.State):
         with self.state_machine:
             smach.StateMachine.add(
                 "SET_OCTAGON_INITIAL_DEPTH",
-                SetDepthState(depth=-1.2),
+                SetDepthState(depth=-0.6),
                 transitions={
                     "succeeded": "FOCUS_ON_OCTAGON",
                     "preempted": "preempted",
@@ -914,6 +915,25 @@ class OctagonTaskState(smach.State):
             smach.StateMachine.add(
                 "ROTATE_THREE_TURNS",
                 role_search_rotation,
+                transitions={
+                    "succeeded": "ALIGN_TO_TABLE_BEFORE_ROLE",
+                    "preempted": "preempted",
+                    "aborted": "aborted",
+                },
+            )
+            smach.StateMachine.add(
+                "ALIGN_TO_TABLE_BEFORE_ROLE",
+                AlignFrame(
+                    source_frame=self.base_link,
+                    target_frame="octagon_table_segment_link",
+                    dist_threshold=0.1,
+                    confirm_duration=1.0,
+                    timeout=15.0,
+                    keep_orientation=True,
+                    max_linear_velocity=0.3,
+                    max_angular_velocity=0.3,
+                    cancel_on_success=False,
+                ),
                 transitions={
                     "succeeded": "SEARCH_FOR_ROLE_TARGET",
                     "preempted": "preempted",
