@@ -118,15 +118,6 @@ class NavigateThroughGateState(smach.State):
                 "OPEN_FRONT_CAMERA_GATE",
                 SetDetectionState(camera_name="front", enable=True),
                 transitions={
-                    "succeeded": "WAIT_FOR_YOLO_INFERENCE",
-                    "preempted": "preempted",
-                    "aborted": "aborted",
-                },
-            )
-            smach.StateMachine.add(
-                "WAIT_FOR_YOLO_INFERENCE",
-                DelayState(delay_time=1.3),
-                transitions={
                     "succeeded": "SET_INITIAL_GATE_DEPTH",
                     "preempted": "preempted",
                     "aborted": "aborted",
@@ -136,6 +127,7 @@ class NavigateThroughGateState(smach.State):
                 "SET_INITIAL_GATE_DEPTH",
                 SetDepthState(
                     depth=-0.5,
+                    confirm_duration=2.0,
                 ),
                 transitions={
                     "succeeded": "ENABLE_GATE_TRAJECTORY_PUBLISHER",
